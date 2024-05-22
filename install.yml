@@ -10,10 +10,11 @@ requirements:
   skip: false
   conda:
     channels:
+    - conda-forge
     packages:
+    - nodejs
+    - pandas
 
   pip:
-
-  npm:
 
 post:

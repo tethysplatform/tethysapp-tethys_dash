@@ -9,3 +9,7 @@
 *.DS_Store
 .idea/
 services.yml
+node_modules*
+tethysapp/aquainsight/public/frontend/
+tethysapp/aquainsight/workspaces/
+reactapp/config/production.env
