@@ -18,13 +18,13 @@ function DashboardLayout() {
         for (const [_, colProperties] of Object.entries(rowColumns)) {
             let item_type = colProperties['type']
             let col_width = Math.round(colProperties['width']/100*12)
-            dashboardColumns.push(<Col className={"m-0 justify-content-center col-"+col_width}><DashboardItem type={item_type} dashboardName={selectedDashboard['name']}></DashboardItem></Col>)
+            dashboardColumns.push(<Col className={"justify-content-center col-"+col_width}><DashboardItem type={item_type} dashboardName={selectedDashboard['name']}></DashboardItem></Col>)
         }
         dashboardRows.push(<Row className={"h-"+row_height}>{dashboardColumns}</Row>)
     }
 
     return (
-        <Container fluid className="m-2 h-100">
+        <Container fluid className="h-100">
             {dashboardRows}
         </Container>
     );

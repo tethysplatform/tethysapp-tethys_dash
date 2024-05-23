@@ -9,6 +9,9 @@ const appAPI = {
     getDashboards: () => {
         return apiClient.get(`${APP_ROOT_URL}dashboards/`);
     },
+    addDashboard: (data, csrf) => {
+        return apiClient.post(`${APP_ROOT_URL}dashboards/add/`, data, {headers: {"x-csrftoken": csrf}});
+    },
 };
 
 export default appAPI;

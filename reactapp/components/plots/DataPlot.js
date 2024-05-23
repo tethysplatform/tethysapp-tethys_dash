@@ -6,7 +6,6 @@ import LoadingAnimation from 'components/loader/LoadingAnimation';
 
 
 const StyledPlot= styled(Plot)`
-  padding: 10px;
   width: 100%;
   height: 100%
 `;

@@ -4,7 +4,6 @@ import DataPlot from '../plots/DataPlot';
 
 
 const StyledPlot= styled(Plot)`
-  padding: 10px;
 `;
 
 

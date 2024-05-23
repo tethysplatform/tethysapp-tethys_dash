@@ -19,24 +19,25 @@ class Dashboard(Base):
 
     # Columns
     id = Column(Integer, primary_key=True)
+    label = Column(String)
     name = Column(String)
     image = Column(String)
     notes = Column(String)
     rows = Column(String)
 
 
-def add_new_dashboard(name, image, notes, rows):
+def add_new_dashboard(label, name, image, notes, rows):
     """
     Persist new dam.
     """
     # Create new Dam record
     new_dashboard = Dashboard(
+        label=label,
         name=name,
         image=image,
         notes=notes,
         rows=rows
     )
-    #add_new_dashboard("mendocino", "https://images.pexels.com/photos/247600/pexels-photo-247600.jpeg", "Here are some potential notes about the dashboard or what user have seen recently in the graphs", {"row1": {"col1": {"type": "plot","width": "100"}},"row2": {"col1": {"type": "plot","width": "33"},"col2": {"type": "plot","width": "33"},"col3": {"type": "plot","width": "33"}}})
 
     # Get connection/session to database
     Session = app.get_persistent_store_database('primary_db', as_sessionmaker=True)

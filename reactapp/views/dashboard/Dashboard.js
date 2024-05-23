@@ -1,15 +1,18 @@
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
+import DashboardButton from '../../components/buttons/DashboardButton';
 import SelectInput from '../../components/inputs/SelectInput';
 import DashboardLayout from '../../components/dashboard/DashboardLayout';
 import DashboardMetadata from '../../components/dashboard/DashboardMetadata';
+import NewDashboardModal from '../../components/modals/NewDashboard';
 import React, { useState, useEffect } from 'react';
 import appAPI from '../../services/api/app';
-import { DashboardContext } from 'components/context';
+import { DashboardContext, DashboardModalShowContext } from 'components/context';
 
 function DashboardView() {
   const [dashboardContext, setDashboardContext] = useState(null);
+  const [showModal, setShowModal] = useState(false);
 
   const [selectOptions, setSelectOptions] = useState(null)
   const [dashboardLayoutConfigs, setDashboardLayoutConfigs] = useState(null)
@@ -18,7 +21,7 @@ function DashboardView() {
     appAPI.getDashboards().then((data) => {
       let options = []
       for (const [name, details] of Object.entries(data)) {
-        options.push({value: name, label: name})
+        options.push({value: name, label: details.label})
       }
       setSelectOptions(options)
       setDashboardLayoutConfigs(data)
@@ -31,21 +34,33 @@ function DashboardView() {
       setDashboardContext(selectedDashboard)
   }
 
+  
+  function createDashboard(e) {
+    setShowModal(true)
+  }
+
   return (
     <>
       <DashboardContext.Provider value={dashboardContext}>
         <div className="h-100 w-100">
-          <Container fluid className="m-2 h-100">
+          <Container fluid className="h-100">
             <Row className="h-100">
-              <Col className="col-3 m-0">
-                <Row className="h-10">
-                  <SelectInput options={selectOptions} onChange={updateLayout}></SelectInput>
+              <Col className="col-3 h-100">
+                <Row style={{"height": "5%"}}>
+                  <Col className="col-10">
+                    <SelectInput options={selectOptions} onChange={updateLayout}></SelectInput>
+                  </Col>
+                  <Col className="col-2" style={{"position": "relative"}}>
+                    <DashboardButton tooltipPlacement="bottom" tooltipText="Create a new dashboard" onClick={createDashboard}></DashboardButton>
+                  </Col>
                 </Row>
-                {dashboardContext && 
-                  <DashboardMetadata />
-                }
+                <Row style={{"height": "95%"}}>
+                  {dashboardContext && 
+                    <DashboardMetadata />
+                  }
+                </Row>
               </Col>
-              <Col className="col-9 m-0">
+              <Col className="col-9">
               {dashboardContext &&
                 <DashboardLayout />
               }
@@ -53,6 +68,9 @@ function DashboardView() {
             </Row>
           </Container>
         </div>
+        <DashboardModalShowContext.Provider value={[showModal, setShowModal]}>
+          {showModal && <NewDashboardModal />}
+        </DashboardModalShowContext.Provider>
       </DashboardContext.Provider>
     </>
   );
