@@ -15,6 +15,7 @@ function DashboardView() {
   const [showModal, setShowModal] = useState(false);
 
   const [selectOptions, setSelectOptions] = useState(null)
+  const [selectedOption, setSelectedOption] = useState(null)
   const [dashboardLayoutConfigs, setDashboardLayoutConfigs] = useState(null)
 
   useEffect(() => {
@@ -30,7 +31,7 @@ function DashboardView() {
 
   function updateLayout(e) {
       let selectedDashboard = dashboardLayoutConfigs[e.value]
-      selectedDashboard['name'] = e.value
+      setSelectedOption({"value": e.value, "label": selectedDashboard['label']})
       setDashboardContext(selectedDashboard)
   }
 
@@ -41,14 +42,14 @@ function DashboardView() {
 
   return (
     <>
-      <DashboardContext.Provider value={dashboardContext}>
+      <DashboardContext.Provider value={{"selectedDashboard": [dashboardContext, setDashboardContext], "availableDashboards": [dashboardLayoutConfigs, setDashboardLayoutConfigs], "SelectedOption": [selectedOption, setSelectedOption], "availableOptions": [selectOptions, setSelectOptions]}}>
         <div className="h-100 w-100">
           <Container fluid className="h-100">
             <Row className="h-100">
               <Col className="col-3 h-100">
                 <Row style={{"height": "5%"}}>
                   <Col className="col-10">
-                    <SelectInput options={selectOptions} onChange={updateLayout}></SelectInput>
+                    <SelectInput options={selectOptions} value={selectedOption} onChange={updateLayout}></SelectInput>
                   </Col>
                   <Col className="col-2" style={{"position": "relative"}}>
                     <DashboardButton tooltipPlacement="bottom" tooltipText="Create a new dashboard" onClick={createDashboard}></DashboardButton>
