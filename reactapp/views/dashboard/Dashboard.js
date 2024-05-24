@@ -17,6 +17,7 @@ function DashboardView() {
   const [selectOptions, setSelectOptions] = useState(null)
   const [selectedOption, setSelectedOption] = useState(null)
   const [dashboardLayoutConfigs, setDashboardLayoutConfigs] = useState(null)
+  const [isEditing, setIsEditing] = useState(false)
 
   useEffect(() => {
     appAPI.getDashboards().then((data) => {
@@ -42,7 +43,7 @@ function DashboardView() {
 
   return (
     <>
-      <DashboardContext.Provider value={{"selectedDashboard": [dashboardContext, setDashboardContext], "availableDashboards": [dashboardLayoutConfigs, setDashboardLayoutConfigs], "SelectedOption": [selectedOption, setSelectedOption], "availableOptions": [selectOptions, setSelectOptions]}}>
+      <DashboardContext.Provider value={{"editing": [isEditing, setIsEditing], "selectedDashboard": [dashboardContext, setDashboardContext], "availableDashboards": [dashboardLayoutConfigs, setDashboardLayoutConfigs], "SelectedOption": [selectedOption, setSelectedOption], "availableOptions": [selectOptions, setSelectOptions]}}>
         <div className="h-100 w-100">
           <Container fluid className="h-100">
             <Row className="h-100">
@@ -61,7 +62,7 @@ function DashboardView() {
                   }
                 </Row>
               </Col>
-              <Col className="col-9"  style={{"overflow-y": "auto"}}>
+              <Col className="col-9 h-100" style={{"overflowY": "auto"}}>
               {dashboardContext &&
                 <DashboardLayout />
               }

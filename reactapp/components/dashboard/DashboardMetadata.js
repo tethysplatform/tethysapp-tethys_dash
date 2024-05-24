@@ -8,11 +8,12 @@ import { useContext, useState } from 'react';
 import DashboardMetadataButton from "./DashboardMetadataButton"
 
 function DashboardMetadata() {
-    const { selectedDashboard, availableDashboards, SelectedOption, availableOptions } = useContext(DashboardContext);
+    const { editing, selectedDashboard, availableDashboards, SelectedOption, availableOptions } = useContext(DashboardContext);
     const [ dashboardContext, setDashboardContext ] = selectedDashboard;
     const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = availableDashboards;
     const [ selectedOption, setSelectedOption ] = SelectedOption;
     const [ selectOptions, setSelectOptions ] = availableOptions;
+    const [ isEditing, setIsEditing ] = editing;
     const [ dashboardNotes, setDashboardNotes ] = useState(dashboardContext['notes'])
 
     function onNotesChange({target:{value}}) {
@@ -31,6 +32,14 @@ function DashboardMetadata() {
         setDashboardContext(null)
     }
 
+    function onEdit(e) {
+        setIsEditing(true)
+    }
+
+    function onSave(e) {
+        setIsEditing(false)
+    }
+
 
     return (
         <Container className="h-100">
@@ -39,9 +48,14 @@ function DashboardMetadata() {
                     <h2 style={{"paddingTop": "5%", "textAlign": "center"}}>{dashboardContext['label']}</h2>
                 </Row>
                 <Row className='h-10'>
-                    <Col>
-                        <DashboardMetadataButton type="edit" buttonLocation="right" tooltipPlacement="left" tooltipText="Edit Dashboard"/>
+                    {isEditing
+                    ? <Col>
+                        <DashboardMetadataButton type="save" buttonLocation="right" tooltipPlacement="left" tooltipText="Save Changes" onClick={onSave}/>
                     </Col>
+                    : <Col>
+                        <DashboardMetadataButton type="edit" buttonLocation="right" tooltipPlacement="left" tooltipText="Edit Dashboard" onClick={onEdit}/>
+                    </Col>
+                    }
                     <Col>
                         <DashboardMetadataButton type="delete" buttonLocation="left" tooltipPlacement="right" tooltipText="Delete Dashboard" onClick={onDelete}/>
                     </Col>

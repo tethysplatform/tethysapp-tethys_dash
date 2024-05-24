@@ -3,19 +3,16 @@ import Button from 'react-bootstrap/Button';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import PropTypes from 'prop-types';
 import Tooltip from 'react-bootstrap/Tooltip';
-import { BsTrash, BsPencilSquare, BsSave  } from "react-icons/bs";
+import { BsTrash, BsPencilSquare  } from "react-icons/bs";
 
 
-const StyledRightButton = styled(Button)`
-  float: right
-`;
-
-const StyledLeftButton = styled(Button)`
-  float: left
+const StyledButton = styled(Button) `
+  float: left;
+  margin-left: 10px;
 `;
 
 
-const DashboardMetadataButton = ({buttonLocation, tooltipPlacement, tooltipText, onClick, type}) => {
+const DashboardMetadataButton = ({tooltipText, onClick, type, hidden}) => {
   let icon
   let variant
   let styledButton
@@ -25,23 +22,16 @@ const DashboardMetadataButton = ({buttonLocation, tooltipPlacement, tooltipText,
   } else if (type==="edit") {
     icon = <BsPencilSquare size="1rem"/>
     variant = "warning"
-  } else if (type==="save") {
-    icon = <BsSave size="1rem"/>
-    variant = "success"
   }
 
-  if (buttonLocation==="left") {
-    styledButton = <StyledLeftButton variant={variant} onClick={onClick} size="sm">{icon}</StyledLeftButton>
-  } else if (buttonLocation==="right") {
-    styledButton = <StyledRightButton variant={variant} onClick={onClick} size="sm">{icon}</StyledRightButton>
-  }
+  styledButton = <StyledButton variant={variant} onClick={onClick} size="sm" hidden={hidden}>{icon}</StyledButton>
 
   const styledButtonWithTooltip = (
     <OverlayTrigger
-      key={tooltipPlacement}
-      placement={tooltipPlacement}
+      key={"bottom"}
+      placement={"bottom"}
       overlay={
-        <Tooltip id={`tooltip-${tooltipPlacement}`}>
+        <Tooltip id={"tooltip-bottom"}>
           {tooltipText}
         </Tooltip>
       }
