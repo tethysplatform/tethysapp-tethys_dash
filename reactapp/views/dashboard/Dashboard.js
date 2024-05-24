@@ -61,7 +61,7 @@ function DashboardView() {
                   }
                 </Row>
               </Col>
-              <Col className="col-9">
+              <Col className="col-9"  style={{"overflow-y": "auto"}}>
               {dashboardContext &&
                 <DashboardLayout />
               }
