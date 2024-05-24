@@ -47,6 +47,7 @@ def dashboards(request):
     dashboard_dict = {}
     for dashboard in dashboards:
         dashboard_dict[dashboard.name] = {
+            "name": dashboard.name,
             "label": dashboard.label,
             "image": dashboard.image,
             "notes": dashboard.notes,

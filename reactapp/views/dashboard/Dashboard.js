@@ -8,12 +8,18 @@ import DashboardMetadata from '../../components/dashboard/DashboardMetadata';
 import NewDashboardModal from '../../components/modals/NewDashboard';
 import React, { useState, useEffect } from 'react';
 import appAPI from '../../services/api/app';
-import { DashboardContext, DashboardModalShowContext } from 'components/context';
+import { 
+  EditingContext, 
+  SelectedDashboardContext, 
+  AvailableDashboardContext, 
+  SelectedOptionContext, 
+  AvailableOptionsContext,
+  DashboardModalShowContext 
+} from 'components/context';
 
 function DashboardView() {
   const [dashboardContext, setDashboardContext] = useState(null);
   const [showModal, setShowModal] = useState(false);
-
   const [selectOptions, setSelectOptions] = useState(null)
   const [selectedOption, setSelectedOption] = useState(null)
   const [dashboardLayoutConfigs, setDashboardLayoutConfigs] = useState(null)
@@ -33,6 +39,7 @@ function DashboardView() {
   function updateLayout(e) {
       let selectedDashboard = dashboardLayoutConfigs[e.value]
       setSelectedOption({"value": e.value, "label": selectedDashboard['label']})
+      console.log(selectedDashboard)
       setDashboardContext(selectedDashboard)
   }
 
@@ -43,37 +50,45 @@ function DashboardView() {
 
   return (
     <>
-      <DashboardContext.Provider value={{"editing": [isEditing, setIsEditing], "selectedDashboard": [dashboardContext, setDashboardContext], "availableDashboards": [dashboardLayoutConfigs, setDashboardLayoutConfigs], "SelectedOption": [selectedOption, setSelectedOption], "availableOptions": [selectOptions, setSelectOptions]}}>
-        <div className="h-100 w-100">
-          <Container fluid className="h-100">
-            <Row className="h-100">
-              <Col className="col-3 h-100">
-                <Row style={{"height": "5%"}}>
-                  <Col className="col-10">
-                    <SelectInput options={selectOptions} value={selectedOption} onChange={updateLayout}></SelectInput>
-                  </Col>
-                  <Col className="col-2" style={{"position": "relative"}}>
-                    <DashboardButton tooltipPlacement="bottom" tooltipText="Create a new dashboard" onClick={createDashboard}></DashboardButton>
-                  </Col>
-                </Row>
-                <Row style={{"height": "95%"}}>
-                  {dashboardContext && 
-                    <DashboardMetadata />
-                  }
-                </Row>
-              </Col>
-              <Col className="col-9 h-100" style={{"overflowY": "auto"}}>
-              {dashboardContext &&
-                <DashboardLayout />
-              }
-              </Col>
-            </Row>
-          </Container>
-        </div>
-        <DashboardModalShowContext.Provider value={[showModal, setShowModal]}>
-          {showModal && <NewDashboardModal />}
-        </DashboardModalShowContext.Provider>
-      </DashboardContext.Provider>
+      <div className="h-100 w-100">
+        <Container fluid className="h-100">
+          <EditingContext.Provider value={[isEditing, setIsEditing]}>
+            <SelectedDashboardContext.Provider value={[dashboardContext, setDashboardContext]}>
+              <AvailableDashboardContext.Provider value={[dashboardLayoutConfigs, setDashboardLayoutConfigs]}>
+                <SelectedOptionContext.Provider value={[selectedOption, setSelectedOption]}>
+                  <AvailableOptionsContext.Provider value={[selectOptions, setSelectOptions]}>
+                    <Row className="h-100">
+                      <Col className="col-3 h-100">
+                        <Row style={{"height": "5%"}}>
+                          <Col className="col-10">
+                            <SelectInput options={selectOptions} value={selectedOption} onChange={updateLayout}></SelectInput>
+                          </Col>
+                          <Col className="col-2" style={{"position": "relative"}}>
+                            <DashboardButton tooltipPlacement="bottom" tooltipText="Create a new dashboard" onClick={createDashboard}></DashboardButton>
+                          </Col>
+                        </Row>
+                        <Row style={{"height": "95%"}}>
+                          {dashboardContext && 
+                            <DashboardMetadata />
+                          }
+                        </Row>
+                      </Col>
+                      <Col className="col-9 h-100" style={{"overflowY": "auto"}}>
+                      {dashboardContext &&
+                        <DashboardLayout />
+                      }
+                      </Col>
+                    </Row>
+                  </AvailableOptionsContext.Provider>
+                </SelectedOptionContext.Provider>
+              </AvailableDashboardContext.Provider>
+            </SelectedDashboardContext.Provider>
+          </EditingContext.Provider>
+        </Container>
+      </div>
+      <DashboardModalShowContext.Provider value={[showModal, setShowModal]}>
+        {showModal && <NewDashboardModal />}
+      </DashboardModalShowContext.Provider>
     </>
   );
 }

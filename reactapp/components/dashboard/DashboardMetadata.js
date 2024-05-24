@@ -3,17 +3,22 @@ import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import 'react-edit-text/dist/index.css';
 import appAPI from '../../services/api/app';
-import { DashboardContext } from 'components/context';
+import { 
+  EditingContext, 
+  SelectedDashboardContext, 
+  AvailableDashboardContext, 
+  SelectedOptionContext, 
+  AvailableOptionsContext
+} from 'components/context';
 import { useContext, useState } from 'react';
 import DashboardMetadataButton from "./DashboardMetadataButton"
 
 function DashboardMetadata() {
-    const { editing, selectedDashboard, availableDashboards, SelectedOption, availableOptions } = useContext(DashboardContext);
-    const [ dashboardContext, setDashboardContext ] = selectedDashboard;
-    const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = availableDashboards;
-    const [ selectedOption, setSelectedOption ] = SelectedOption;
-    const [ selectOptions, setSelectOptions ] = availableOptions;
-    const [ isEditing, setIsEditing ] = editing;
+    const [ dashboardContext, setDashboardContext ] = useContext(SelectedDashboardContext);
+    const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useContext(AvailableDashboardContext);
+    const [ selectedOption, setSelectedOption ] = useContext(SelectedOptionContext);
+    const [ selectOptions, setSelectOptions ] = useContext(AvailableOptionsContext);
+    const [ isEditing, setIsEditing ] = useContext(EditingContext);
     const [ dashboardNotes, setDashboardNotes ] = useState(dashboardContext['notes'])
 
     function onNotesChange({target:{value}}) {

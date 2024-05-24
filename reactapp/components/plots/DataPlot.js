@@ -1,8 +1,11 @@
 import styled from 'styled-components';
 import Plot from 'react-plotly.js';
 import appAPI from '../../services/api/app';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo, useContext } from 'react';
 import LoadingAnimation from 'components/loader/LoadingAnimation';
+import {
+  SelectedDashboardContext
+} from 'components/context';
 
 
 const StyledPlot= styled(Plot)`
@@ -11,7 +14,8 @@ const StyledPlot= styled(Plot)`
 `;
 
 
-const DataPlot = ({dashboardName}) => {    
+const DataPlot = () => {    
+  const dashboardContext = useContext(SelectedDashboardContext)[0];
   const [ plotData, setPlotData ] = useState(null);
 
   useEffect(() => {
@@ -78,7 +82,7 @@ const DataPlot = ({dashboardName}) => {
     );
   } else {
     const styledPlot = (
-      <StyledPlot data={plotData.data} layout={plotData.layout} config={plotData.config} useResizeHandler={true} revision={dashboardName}/>
+      <StyledPlot data={plotData.data} layout={plotData.layout} config={plotData.config} useResizeHandler={true} revision={dashboardContext['name']}/>
     );
     return (
         styledPlot
@@ -87,4 +91,4 @@ const DataPlot = ({dashboardName}) => {
 }
 
 
-export default DataPlot
+export default memo(DataPlot)
