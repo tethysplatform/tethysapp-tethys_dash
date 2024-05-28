@@ -1,11 +1,9 @@
 import styled from 'styled-components';
 import Plot from 'react-plotly.js';
 import appAPI from '../../services/api/app';
-import { useEffect, useState, memo, useContext } from 'react';
+import { useEffect, useState, memo } from 'react';
 import LoadingAnimation from 'components/loader/LoadingAnimation';
-import {
-  SelectedDashboardContext
-} from 'components/context';
+import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
 
 
 const StyledPlot= styled(Plot)`
@@ -15,7 +13,7 @@ const StyledPlot= styled(Plot)`
 
 
 const DataPlot = () => {    
-  const dashboardContext = useContext(SelectedDashboardContext)[0];
+  const dashboardContext = useSelectedDashboardContext()[0];
   const [ plotData, setPlotData ] = useState(null);
 
   useEffect(() => {

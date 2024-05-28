@@ -2,13 +2,10 @@ import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import DashboardItem from '../../components/dashboard/DashboardItem';
-import { 
-  SelectedDashboardContext
-} from 'components/context';
-import { useContext } from 'react';
+import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
 
 function DashboardLayout() {
-    const dashboardContext = useContext(SelectedDashboardContext)[0];
+    const dashboardContext = useSelectedDashboardContext()[0];
 
     const dashboardRowMetadata = JSON.parse(dashboardContext['rows'])
     const dashboardRowCount = Object.keys(dashboardRowMetadata).length 

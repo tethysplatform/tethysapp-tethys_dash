@@ -6,10 +6,13 @@ import PropTypes from 'prop-types';
 import { useContext } from 'react';
 import { BsX, BsGear } from 'react-icons/bs';
 import { LinkContainer } from 'react-router-bootstrap';
+import { useLocation } from 'react-router-dom'
 
 import HeaderButton from 'components/buttons/HeaderButton';
 import NavButton from 'components/buttons/NavButton';
-import { AppContext } from 'components/context';
+import { AppContext } from 'components/contexts/AppContext';
+import DashboardSelectorCreator from 'components/layout/DashboardSelectorCreator';
+import AddDashboardModalShowContextProvider from "components/contexts/AddDashboardModalShowContext";
 
 const CustomNavBar = styled(Navbar)`
   min-height: var(--ts-header-height);
@@ -18,6 +21,8 @@ const CustomNavBar = styled(Navbar)`
 const Header = ({onNavChange}) => {
   const {tethysApp, user} = useContext(AppContext);
   const showNav = () => onNavChange(true);
+  const location = useLocation();
+  console.log(location.pathname)
 
   return (
     <>
@@ -36,10 +41,15 @@ const Header = ({onNavChange}) => {
               </Navbar.Brand>
             </LinkContainer>
             <Form inline="true">
-              {user.isStaff && 
-                <HeaderButton href={tethysApp.settingsUrl} tooltipPlacement="bottom" tooltipText="Settings" className="me-2"><BsGear size="1.5rem"/></HeaderButton>
+              {(location.pathname.includes("/dashboard") || location.pathname === "/") && 
+                <AddDashboardModalShowContextProvider>
+                  <DashboardSelectorCreator />
+                </AddDashboardModalShowContextProvider>
               }
-              <HeaderButton href={tethysApp.exitUrl} tooltipPlacement="bottom" tooltipText="Exit"><BsX size="1.5rem"/></HeaderButton>
+              {user.isStaff && 
+                <HeaderButton href={tethysApp.settingsUrl} tooltipPlacement="bottom" tooltipText="Settings" variant="light" className="me-2"><BsGear size="1.5rem"/></HeaderButton>
+              }
+              <HeaderButton href={tethysApp.exitUrl} tooltipPlacement="bottom" tooltipText="Exit"  variant="light" ><BsX size="1.5rem"/></HeaderButton>
             </Form>
           </Container>
         </CustomNavBar>

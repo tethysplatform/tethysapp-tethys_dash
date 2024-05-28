@@ -51,6 +51,21 @@ def add_new_dashboard(label, name, image, notes, rows):
     session.close()
 
 
+def delete_named_dashboard(name):
+    """
+    Persist new dam.
+    """
+    # Get connection/session to database
+    Session = app.get_persistent_store_database('primary_db', as_sessionmaker=True)
+    session = Session()
+
+    session.query(Dashboard).filter(Dashboard.name==name).delete()
+
+    # Commit the session and close the connection
+    session.commit()
+    session.close()
+
+
 def get_all_dashboards():
     """
     Get all persisted dashboards.

@@ -4,7 +4,7 @@ import json
 
 from tethys_sdk.routing import controller
 from .app import App
-from .model import get_all_dashboards, add_new_dashboard
+from .model import get_all_dashboards, add_new_dashboard, delete_named_dashboard
 
 
 @controller
@@ -58,22 +58,20 @@ def dashboards(request):
 
 
 @controller(
-    name="add_dashboard",
     url="aquainsight/dashboards/add",
 )
 def add_dashboard(request):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
-    label = dashboard_metadata["name"]
-    name = label.replace(" ", "_").lower()
-    print(f"Creating a dashboard named {label}")
-
+    name = dashboard_metadata["name"]
+    label = dashboard_metadata["label"]
     image = dashboard_metadata["image"]
     notes = dashboard_metadata["notes"]
     rows = dashboard_metadata["rows"]
     cols = dashboard_metadata["cols"]
+    print(f"Creating a dashboard named {label}")
+
     col_width = round(100/cols)
-    
     row_data = {}
     for row in range(1, rows+1):
         row_name = f"row{row}"
@@ -84,11 +82,31 @@ def add_dashboard(request):
 
     try:
         add_new_dashboard(label, name, image, notes, json.dumps(row_data))
-        print(f"Successfullt created the dashboard named {name}")
+        print(f"Successfully created the dashboard named {name}")
         
         return JsonResponse({"success": True})
     except Exception as e:
         print(f"Failed to create the dashboard named {name}")
+        print(e)
+        
+        return JsonResponse({"success": False})
+
+
+@controller(
+    url="aquainsight/dashboards/delete",
+)
+def delete_dashboard(request):
+    """API controller for the dashboards page."""
+    dashboard_metadata = json.loads(request.body)
+    name = dashboard_metadata["name"]
+
+    try:
+        delete_named_dashboard(name)
+        print(f"Successfully deleted the dashboard named {name}")
+        
+        return JsonResponse({"success": True})
+    except Exception as e:
+        print(f"Failed to delete the dashboard named {name}")
         print(e)
         
         return JsonResponse({"success": False})

@@ -4,31 +4,59 @@ import Col from 'react-bootstrap/Col';
 import Button from 'react-bootstrap/Button';
 import Modal from 'react-bootstrap/Modal';
 import Form from 'react-bootstrap/Form';
-import { DashboardModalShowContext } from 'components/context';
-import { AppContext } from 'components/context';
+import Alert from 'react-bootstrap/Alert';
+import { useAddDashboardModalShowContext } from 'components/contexts/AddDashboardModalShowContext';
+import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
+import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
+import { useSelectedOptionContext } from 'components/contexts/SelectedOptionContext';
+import { useAvailableOptionsContext } from 'components/contexts/AvailableOptionsContext';
+import { AppContext } from 'components/contexts/AppContext';
 import { useContext, useState } from 'react';
-import appAPI from '../../services/api/app';
+import appAPI from 'services/api/app';
 
 function NewDashboardModal() {
     const [dashboardName, setDashboardName] = useState("")
     const [dashboardRows, setDashboardRows] = useState(3)
     const [dashboardCols, setDashboardCols] = useState(3)
 
-    const [showModal, setShowModal]  = useContext(DashboardModalShowContext);
+    const [showModal, setShowModal]  = useAddDashboardModalShowContext();
+    const setDashboardContext = useSelectedDashboardContext()[1];
+    const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
+    const setSelectedOption = useSelectedOptionContext()[1];
+    const [ selectOptions, setSelectOptions ] = useAvailableOptionsContext();
     const {csrf} = useContext(AppContext);
+    const [hasError, setHasError]  = useState(false);
+    const [errorMessage, setErrorMessage]  = useState(null);
+    
     const handleModalClose = () => setShowModal(false);
 
     function handleSubmit(event) {
         event.preventDefault();
+        setErrorMessage("")
+        setHasError(false)
+        let Name = dashboardName.replace(" ","_").toLowerCase()
+        let Label = dashboardName
+        if (dashboardName in dashboardLayoutConfigs) {
+            setErrorMessage("Dashboard with the Name " + dashboardName + "already exists.")
+            setHasError(true)
+            return
+        }
         const inputData = {
-            "name": dashboardName,
+            "name": Name,
+            "label": Label,
             "image": "",
             "notes": "",
             "rows": dashboardRows,
             "cols": dashboardCols,
         }
         appAPI.addDashboard(inputData, csrf).then((response) => {
-            console.log(response)
+            let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
+            OGLayouts[Name] = inputData
+            setDashboardLayoutConfigs(OGLayouts)
+            setSelectOptions([ ...selectOptions, {value: Name, label: Label} ])
+            setDashboardContext(inputData)
+            setSelectedOption({value: Name, label: Label})
+            setShowModal(false)
         })
     }
 
@@ -51,6 +79,11 @@ function NewDashboardModal() {
             <Modal.Title>Create a new dashboard</Modal.Title>
         </Modal.Header>
         <Modal.Body>
+            {hasError &&
+                <Alert key="danger" variant="danger">
+                    {errorMessage}
+                </Alert>
+            }
             <Form id="dashboardCreation" onSubmit={handleSubmit}>
                 <Container fluid className="h-100">
                     <Row className="h-100">

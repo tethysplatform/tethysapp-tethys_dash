@@ -3,7 +3,9 @@ import Select from 'react-select'
 
 
 const StyledSelect = styled(Select)`
-  padding: 10px;
+  width: 20rem;
+  margin-right: .5rem;
+  display: inline-block;
 `;
 
 

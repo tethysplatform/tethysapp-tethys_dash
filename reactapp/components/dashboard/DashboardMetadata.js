@@ -3,38 +3,44 @@ import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import 'react-edit-text/dist/index.css';
 import appAPI from '../../services/api/app';
-import { 
-  EditingContext, 
-  SelectedDashboardContext, 
-  AvailableDashboardContext, 
-  SelectedOptionContext, 
-  AvailableOptionsContext
-} from 'components/context';
-import { useContext, useState } from 'react';
+import { useEditingContext } from 'components/contexts/EditingContext';
+import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
+import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
+import { useSelectedOptionContext } from 'components/contexts/SelectedOptionContext';
+import { useAvailableOptionsContext } from 'components/contexts/AvailableOptionsContext';
+import { useState, useContext } from 'react';
 import DashboardMetadataButton from "./DashboardMetadataButton"
+import { AppContext } from 'components/contexts/AppContext';
+import { confirm } from "components/dashboard/DeleteConfirmation";
 
 function DashboardMetadata() {
-    const [ dashboardContext, setDashboardContext ] = useContext(SelectedDashboardContext);
-    const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useContext(AvailableDashboardContext);
-    const [ selectedOption, setSelectedOption ] = useContext(SelectedOptionContext);
-    const [ selectOptions, setSelectOptions ] = useContext(AvailableOptionsContext);
-    const [ isEditing, setIsEditing ] = useContext(EditingContext);
+    const [ dashboardContext, setDashboardContext ] = useSelectedDashboardContext();
+    const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
+    const [ selectedOption, setSelectedOption ] = useSelectedOptionContext();
+    const [ selectOptions, setSelectOptions ] = useAvailableOptionsContext();
+    const [ isEditing, setIsEditing ] = useEditingContext();
+    const {csrf} = useContext(AppContext);
     const [ dashboardNotes, setDashboardNotes ] = useState(dashboardContext['notes'])
 
     function onNotesChange({target:{value}}) {
         setDashboardNotes(value)
     }
 
-    function onDelete(e) {
+    async function onDelete(e) {
         const selectedOptionValue = selectedOption['value']
-        const newdashboardLayoutConfigs = Object.fromEntries(
-            Object.entries(dashboardLayoutConfigs).filter(([key]) => key != selectedOptionValue)
-        );
-        const newSelectOptions = selectOptions.filter((options)=>(JSON.stringify(options) != JSON.stringify(selectedOption)))
-        setDashboardLayoutConfigs(newdashboardLayoutConfigs)
-        setSelectOptions(newSelectOptions)
-        setSelectedOption(null)
-        setDashboardContext(null)
+
+        if (await confirm("Are your sure you want to delete the " + selectedOptionValue + " dashboard?")) {
+            const newdashboardLayoutConfigs = Object.fromEntries(
+                Object.entries(dashboardLayoutConfigs).filter(([key]) => key != selectedOptionValue)
+            );
+            const newSelectOptions = selectOptions.filter((options)=>(JSON.stringify(options) != JSON.stringify(selectedOption)))
+            appAPI.deleteDashboard({"name": selectedOptionValue}, csrf).then((response) => {
+                setDashboardLayoutConfigs(newdashboardLayoutConfigs)
+                setSelectOptions(newSelectOptions)
+                setSelectedOption(null)
+                setDashboardContext(null)
+            })
+        }
     }
 
     function onEdit(e) {

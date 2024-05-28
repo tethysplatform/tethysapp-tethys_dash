@@ -2,11 +2,9 @@ import styled from 'styled-components';
 import Plot from 'react-plotly.js';
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
-import DataPlot from '../plots/DataPlot';
-import { useContext, memo } from 'react';
-import { 
-  EditingContext
-} from 'components/context';
+import DataPlot from 'components/plots/DataPlot';
+import { memo } from 'react';
+import { useEditingContext } from 'components/contexts/EditingContext';
 import DashboardItemButton from "./DashboardItemButton"
 
 
@@ -14,7 +12,7 @@ const StyledPlot= styled(Plot)`
 `;
 
 const DashboardItem = ({type}) => {
-  const isEditing = useContext(EditingContext)[0];
+  const isEditing = useEditingContext()[0];
 
   return (
     <Container fluid className="h-100" style={{"position": "relative"}}>
