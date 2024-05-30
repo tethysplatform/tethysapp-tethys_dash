@@ -15,6 +15,9 @@ const appAPI = {
     deleteDashboard: (data, csrf) => {
         return apiClient.post(`${APP_ROOT_URL}dashboards/delete/`, data, {headers: {"x-csrftoken": csrf}});
     },
+    updateDashboard: (data, csrf) => {
+        return apiClient.post(`${APP_ROOT_URL}dashboards/update/`, data, {headers: {"x-csrftoken": csrf}});
+    },
 };
 
 export default appAPI;

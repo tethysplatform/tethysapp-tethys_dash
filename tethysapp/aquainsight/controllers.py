@@ -4,7 +4,7 @@ import json
 
 from tethys_sdk.routing import controller
 from .app import App
-from .model import get_all_dashboards, add_new_dashboard, delete_named_dashboard
+from .model import get_all_dashboards, add_new_dashboard, delete_named_dashboard, update_named_dashboard
 
 
 @controller
@@ -107,6 +107,28 @@ def delete_dashboard(request):
         return JsonResponse({"success": True})
     except Exception as e:
         print(f"Failed to delete the dashboard named {name}")
+        print(e)
+        
+        return JsonResponse({"success": False})
+
+
+@controller(
+    url="aquainsight/dashboards/update",
+)
+def update_dashboard(request):
+    """API controller for the dashboards page."""
+    dashboard_metadata = json.loads(request.body)
+    name = dashboard_metadata["name"]
+    image = dashboard_metadata["image"]
+    notes = dashboard_metadata["notes"]
+
+    try:
+        update_named_dashboard(name, image, notes)
+        print(f"Successfully updated the dashboard named {name}")
+        
+        return JsonResponse({"success": True})
+    except Exception as e:
+        print(f"Failed to update the dashboard named {name}")
         print(e)
         
         return JsonResponse({"success": False})

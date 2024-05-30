@@ -44,7 +44,7 @@ function NewDashboardModal() {
         const inputData = {
             "name": Name,
             "label": Label,
-            "image": "",
+            "image": "https://brightspotcdn.byu.edu/dims4/default/155e62f/2147483647/strip/true/crop/1067x1067+0+0/resize/840x840!/quality/90/?url=https%3A%2F%2Fbrigham-young-brightspot.s3.amazonaws.com%2Fde%2F07%2Fb07feaf34df89f6781045bc56de7%2Ftethys-logo.png",
             "notes": "",
             "rows": dashboardRows,
             "cols": dashboardCols,

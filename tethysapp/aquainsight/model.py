@@ -66,6 +66,23 @@ def delete_named_dashboard(name):
     session.close()
 
 
+def update_named_dashboard(name, image, notes):
+    """
+    Persist new dam.
+    """
+    # Get connection/session to database
+    Session = app.get_persistent_store_database('primary_db', as_sessionmaker=True)
+    session = Session()
+
+    dashboard = session.query(Dashboard).filter(Dashboard.name==name).first()
+    dashboard.image = image
+    dashboard.notes = notes
+
+    # Commit the session and close the connection
+    session.commit()
+    session.close()
+
+
 def get_all_dashboards():
     """
     Get all persisted dashboards.
@@ -75,7 +92,8 @@ def get_all_dashboards():
     session = Session()
 
     # Query for all dam records
-    dashboards = session.query(Dashboard).all()
+    dashboards = session.query(Dashboard).order_by(Dashboard.name).all()
+
     session.close()
 
     return dashboards

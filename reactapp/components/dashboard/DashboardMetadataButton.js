@@ -3,15 +3,11 @@ import Button from 'react-bootstrap/Button';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import PropTypes from 'prop-types';
 import Tooltip from 'react-bootstrap/Tooltip';
-import { BsTrash, BsPencilSquare, BsSave  } from "react-icons/bs";
+import { BsTrash, BsPencilSquare, BsSave, BsFileText  } from "react-icons/bs";
 
 
-const StyledRightButton = styled(Button)`
-  float: right
-`;
-
-const StyledLeftButton = styled(Button)`
-  float: left
+const StyledButton = styled(Button)`
+  margin: 0 .5rem;
 `;
 
 
@@ -28,13 +24,12 @@ const DashboardMetadataButton = ({buttonLocation, tooltipPlacement, tooltipText,
   } else if (type==="save") {
     icon = <BsSave size="1rem"/>
     variant = "success"
+  } else if (type==="notes") {
+    icon = <BsFileText size="1rem"/>
+    variant = "info"
   }
 
-  if (buttonLocation==="left") {
-    styledButton = <StyledLeftButton variant={variant} onClick={onClick} size="sm">{icon}</StyledLeftButton>
-  } else if (buttonLocation==="right") {
-    styledButton = <StyledRightButton variant={variant} onClick={onClick} size="sm">{icon}</StyledRightButton>
-  }
+  styledButton = <StyledButton variant={variant} onClick={onClick} size="sm">{icon}</StyledButton>
 
   const styledButtonWithTooltip = (
     <OverlayTrigger
