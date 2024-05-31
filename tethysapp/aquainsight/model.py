@@ -2,7 +2,7 @@ import os
 import uuid
 import json
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, Float, String
+from sqlalchemy import Column, Integer, Float, String, ARRAY
 from sqlalchemy.orm import sessionmaker
 
 from .app import App as app
@@ -23,10 +23,12 @@ class Dashboard(Base):
     name = Column(String)
     image = Column(String)
     notes = Column(String)
-    rows = Column(String)
+    row_heights = Column(String)
+    col_widths = Column(String)
+    col_data = Column(String)
 
 
-def add_new_dashboard(label, name, image, notes, rows):
+def add_new_dashboard(label, name, image, notes, row_heights, col_widths, col_data):
     """
     Persist new dam.
     """
@@ -36,7 +38,9 @@ def add_new_dashboard(label, name, image, notes, rows):
         name=name,
         image=image,
         notes=notes,
-        rows=rows
+        row_heights=row_heights,
+        col_widths=col_widths,
+        col_data=col_data
     )
 
     # Get connection/session to database

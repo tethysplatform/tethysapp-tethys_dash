@@ -51,7 +51,9 @@ def dashboards(request):
             "label": dashboard.label,
             "image": dashboard.image,
             "notes": dashboard.notes,
-            "rows": dashboard.rows
+            "rowHeights": dashboard.row_heights,
+            "colWidths": dashboard.col_widths,
+            "colData": dashboard.col_data
         }
     
     return JsonResponse(dashboard_dict)
@@ -67,21 +69,13 @@ def add_dashboard(request):
     label = dashboard_metadata["label"]
     image = dashboard_metadata["image"]
     notes = dashboard_metadata["notes"]
-    rows = dashboard_metadata["rows"]
-    cols = dashboard_metadata["cols"]
+    row_heights = dashboard_metadata["rowHeights"]
+    col_widths = dashboard_metadata["colWidths"]
+    col_data = dashboard_metadata["colData"]
     print(f"Creating a dashboard named {label}")
 
-    col_width = round(100/cols)
-    row_data = {}
-    for row in range(1, rows+1):
-        row_name = f"row{row}"
-        row_data[row_name] = {}
-        for col in range(1,cols+1):
-            col_name = f"col{col}"
-            row_data[row_name][col_name] = {"type": "plot","width": col_width}
-
     try:
-        add_new_dashboard(label, name, image, notes, json.dumps(row_data))
+        add_new_dashboard(label, name, image, notes, row_heights, col_widths, col_data)
         print(f"Successfully created the dashboard named {name}")
         
         return JsonResponse({"success": True})

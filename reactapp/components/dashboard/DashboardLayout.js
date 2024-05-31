@@ -3,23 +3,31 @@ import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import DashboardItem from '../../components/dashboard/DashboardItem';
 import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
+import styled from 'styled-components';
+
+const StyledDashboardCol= styled(Col)`
+    border: black solid 1px;
+`;
 
 function DashboardLayout() {
     const dashboardContext = useSelectedDashboardContext()[0];
 
-    const dashboardRowMetadata = JSON.parse(dashboardContext['rows'])
-    const dashboardRowCount = Object.keys(dashboardRowMetadata).length 
-    const row_height = Math.round(100/dashboardRowCount)
-    let dashboardColumns = []
-    let dashboardRows = []
-    for (const [_, rowColumns] of Object.entries(dashboardRowMetadata)) {
-        dashboardColumns = []
-        for (const [_, colProperties] of Object.entries(rowColumns)) {
-            let item_type = colProperties['type']
-            let col_width = Math.round(colProperties['width']/100*12)
-            dashboardColumns.push(<Col className={"justify-content-center col-"+col_width}><DashboardItem type={item_type}></DashboardItem></Col>)
+    const dashboardRowHeights = JSON.parse(dashboardContext['rowHeights'])
+    const dashboardColWidths = JSON.parse(dashboardContext['colWidths'])
+    const dashboardColData = JSON.parse(dashboardContext['colData'])
+    const dashboardRowCount = dashboardRowHeights.length 
+
+    const dashboardRows = []
+    for (let i=0; i <= dashboardRowCount-1; i++) {
+        const colCount = dashboardColWidths[i].length
+        const rowHeight = dashboardRowHeights[i]
+        const dashboardColumns = []
+        for (let x=0; x <= colCount-1; x++) {
+            let item_type = dashboardColData[i][x]
+            let col_width = dashboardColWidths[i][x]
+            dashboardColumns.push(<StyledDashboardCol className={"justify-content-center col-"+col_width}><DashboardItem type={item_type}></DashboardItem></StyledDashboardCol>)
         }
-        dashboardRows.push(<Row className={"h-"+row_height}>{dashboardColumns}</Row>)
+        dashboardRows.push(<Row className={"h-"+rowHeight}>{dashboardColumns}</Row>)
     }
 
     return (
