@@ -70,7 +70,7 @@ def delete_named_dashboard(name):
     session.close()
 
 
-def update_named_dashboard(name, image, notes):
+def update_named_dashboard(name, label, image, notes, row_heights, col_widths, col_data):
     """
     Persist new dam.
     """
@@ -79,8 +79,12 @@ def update_named_dashboard(name, image, notes):
     session = Session()
 
     dashboard = session.query(Dashboard).filter(Dashboard.name==name).first()
+    dashboard.label = label
     dashboard.image = image
     dashboard.notes = notes
+    dashboard.row_heights = row_heights
+    dashboard.col_widths = col_widths
+    dashboard.col_data = col_data
 
     # Commit the session and close the connection
     session.commit()

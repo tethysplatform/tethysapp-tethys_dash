@@ -113,11 +113,15 @@ def update_dashboard(request):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
     name = dashboard_metadata["name"]
+    label = dashboard_metadata["label"]
     image = dashboard_metadata["image"]
     notes = dashboard_metadata["notes"]
+    row_heights = dashboard_metadata["rowHeights"]
+    col_widths = dashboard_metadata["colWidths"]
+    col_data = dashboard_metadata["colData"]
 
     try:
-        update_named_dashboard(name, image, notes)
+        update_named_dashboard(name, label, image, notes, row_heights, col_widths, col_data)
         print(f"Successfully updated the dashboard named {name}")
         
         return JsonResponse({"success": True})

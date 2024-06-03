@@ -6,6 +6,7 @@ import DashboardMetadata from '../../components/dashboard/DashboardMetadata';
 import React from 'react';
 import EditingContextProvider from "components/contexts/EditingContext";
 import DashboardNotesModalShowContextProvider from "components/contexts/DashboardNotesModalShowContext";
+import EditDashboardDimensionModalShowContextProvider from "components/contexts/EditDashboardDimensionModalShowContext";
 import { useSelectedDashboardContext } from "components/contexts/SelectedDashboardContext";
 
 
@@ -18,16 +19,18 @@ function DashboardView() {
         <Container fluid className="h-100">
           <EditingContextProvider>
             <Row className="h-100">
-              <Col className="col-3 h-100">
+              <Col className="col-2 h-100">
                 <Row style={{"height": "95%"}}>
                   {dashboardContext && 
                     <DashboardNotesModalShowContextProvider>
-                      <DashboardMetadata />
+                      <EditDashboardDimensionModalShowContextProvider>
+                        <DashboardMetadata />
+                      </EditDashboardDimensionModalShowContextProvider>
                     </DashboardNotesModalShowContextProvider>
                   }
                 </Row>
               </Col>
-              <Col className="col-9 h-100" style={{"overflowY": "auto"}}>
+              <Col className="col-10 h-100" style={{"overflowY": "auto"}}>
               {dashboardContext &&
                 <DashboardLayout />
               }

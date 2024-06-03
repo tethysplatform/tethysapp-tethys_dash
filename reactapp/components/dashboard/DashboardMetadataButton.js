@@ -11,7 +11,7 @@ const StyledButton = styled(Button)`
 `;
 
 
-const DashboardMetadataButton = ({buttonLocation, tooltipPlacement, tooltipText, onClick, type}) => {
+const DashboardMetadataButton = ({tooltipPlacement, tooltipText, onClick, type}) => {
   let icon
   let variant
   let styledButton

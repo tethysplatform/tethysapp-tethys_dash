@@ -5,11 +5,9 @@ import Button from 'react-bootstrap/Button';
 import Modal from 'react-bootstrap/Modal';
 import Form from 'react-bootstrap/Form';
 import Alert from 'react-bootstrap/Alert';
-import { useAddDashboardModalShowContext } from 'components/contexts/AddDashboardModalShowContext';
+import { useEditDashboardDimensionModalShowContext } from 'components/contexts/EditDashboardDimensionModalShowContext';
 import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
 import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
-import { useSelectedOptionContext } from 'components/contexts/SelectedOptionContext';
-import { useAvailableOptionsContext } from 'components/contexts/AvailableOptionsContext';
 import { AppContext } from 'components/contexts/AppContext';
 import { useContext, useState } from 'react';
 import appAPI from 'services/api/app';
@@ -22,54 +20,42 @@ const StyledVerticalCol= styled(Col)`
     text-align: center;
 `;
 
-function NewDashboardModal() {
-    const [dashboardName, setDashboardName] = useState("")
-    const [dashboardRows, setDashboardRows] = useState(3)
-
-    const [showModal, setShowModal]  = useAddDashboardModalShowContext();
-    const setDashboardContext = useSelectedDashboardContext()[1];
-    const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
-    const setSelectedOption = useSelectedOptionContext()[1];
-    const [ selectOptions, setSelectOptions ] = useAvailableOptionsContext();
+function EditDashboardDimensionsModal() {
+    const [showModal, setShowModal]  = useEditDashboardDimensionModalShowContext();
+    const [dashboardContext, setDashboardContext] = useSelectedDashboardContext();
+    const [dashboardLayoutConfigs, setDashboardLayoutConfigs] = useAvailableDashboardContext();
     const {csrf} = useContext(AppContext);
     const [hasError, setHasError]  = useState(false);
     const [errorMessage, setErrorMessage]  = useState(null);
     
+    const dashboardRowHeights = JSON.parse(dashboardContext['rowHeights'])
+    const dashboardColWidths = JSON.parse(dashboardContext['colWidths'])
+    const dashboardColData = JSON.parse(dashboardContext['colData'])
+    const dashboardRows = dashboardRowHeights.length
+
     const handleModalClose = () => setShowModal(false);
 
     function handleSubmit(event) {
         event.preventDefault();
         setErrorMessage("")
         setHasError(false)
-        let Name = dashboardName.replace(" ","_").toLowerCase()
-        let Label = dashboardName
-        if (dashboardName in dashboardLayoutConfigs) {
-            setErrorMessage("Dashboard with the Name " + dashboardName + " already exists.")
-            setHasError(true)
-            return
-        }
+        let Name = dashboardContext['name']
 
         const rowHeights = []
         const colWidths = []
-        const colDataValues = []
         for (let i=1; i <= dashboardRows; i++) {
             const rowHeight = parseInt(event.currentTarget.querySelector('#row' + i + 'height').value)
             rowHeights.push(rowHeight)
 
             const rowColCount = parseInt(event.currentTarget.querySelector('#row' + i + 'colcount').value)
             const rowColWidths = []
-            const rowColDataValues = []
             const totalColWidth = 0
             for (let x=1; x <= rowColCount; x++) {
-                const colDataValue = ""
-                rowColDataValues.push(colDataValue)
-
                 const colWidth = parseInt(event.currentTarget.querySelector('#row' + i + 'col' + x).value)
                 totalColWidth += colWidth
                 rowColWidths.push(colWidth)
             }
             colWidths.push(rowColWidths)
-            colDataValues.push(rowColDataValues)
 
             if (totalColWidth != 12) {
                 setErrorMessage("Row " + i + " total width is " + totalColWidth + ". It must equal 12.")
@@ -78,22 +64,14 @@ function NewDashboardModal() {
             }
         }
 
-        const inputData = {
-            "name": Name,
-            "label": Label,
-            "image": "https://brightspotcdn.byu.edu/dims4/default/155e62f/2147483647/strip/true/crop/1067x1067+0+0/resize/840x840!/quality/90/?url=https%3A%2F%2Fbrigham-young-brightspot.s3.amazonaws.com%2Fde%2F07%2Fb07feaf34df89f6781045bc56de7%2Ftethys-logo.png",
-            "notes": "",
-            "rowHeights": JSON.stringify(rowHeights),
-            "colWidths": JSON.stringify(colWidths),
-            "colData": JSON.stringify(colDataValues),
-        }
-        appAPI.addDashboard(inputData, csrf).then((response) => {
+        let inputData = Object.assign({}, dashboardContext);
+        inputData['rowHeights'] = JSON.stringify(rowHeights)
+        inputData['colWidths'] = JSON.stringify(colWidths)
+        appAPI.updateDashboard(inputData, csrf).then((response) => {
             let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
             OGLayouts[Name] = inputData
             setDashboardLayoutConfigs(OGLayouts)
-            setSelectOptions([ ...selectOptions, {value: Name, label: Label} ])
             setDashboardContext(inputData)
-            setSelectedOption({value: Name, label: Label})
             setShowModal(false)
         })
     }
@@ -108,8 +86,18 @@ function NewDashboardModal() {
 
     function addDashboardRows() {
         const Rows = []
-        for (let i =1; i <= dashboardRows; i++) {
-            Rows.push(<DashboardRow key={i} rowNumber={i}/>)
+        for (let i=0; i < dashboardRows; i++) {
+            const initialRowHeight = dashboardRowHeights[i]
+            const initialRowColWidths = dashboardColWidths[i]
+            const initialRowColData = dashboardColData[i]
+            let key = parseInt(i.toString())
+            Rows.push(<DashboardRow 
+                key={key}
+                initialRowHeight={initialRowHeight} 
+                initialRowColWidths={initialRowColWidths}
+                initialRowColData={initialRowColData}
+                rowNumber={i+1}
+            />)
         }
         return Rows
     }
@@ -118,7 +106,7 @@ function NewDashboardModal() {
     <>
         <Modal show={showModal} onHide={handleModalClose}>
         <Modal.Header closeButton>
-            <Modal.Title>Create a new dashboard</Modal.Title>
+            <Modal.Title>Updated dashboard cell dimensions</Modal.Title>
         </Modal.Header>
         <Modal.Body>
             {hasError &&
@@ -126,24 +114,8 @@ function NewDashboardModal() {
                     {errorMessage}
                 </Alert>
             }
-            <Form id="dashboardCreation" onSubmit={handleSubmit}>
+            <Form id="dashboardUpdate" onSubmit={handleSubmit}>
                 <Container fluid className="h-100">
-                    <Row className="h-100">
-                        <Col>
-                            <Form.Group className="mb-3" controlId="formDashboardName">
-                                <Form.Label>Dashboard Name</Form.Label>
-                                <Form.Control required type="text" placeholder="Enter dashboard name" onChange={onNameInput} value={dashboardName}/>
-                                <Form.Text className="text-muted">
-                                </Form.Text>
-                            </Form.Group>
-                        </Col>
-                        <Col>
-                            <Form.Group className="mb-1" controlId="formDashboardRows">
-                                <Form.Label>Rows</Form.Label>
-                                <Form.Control required type="number" onChange={onRowInput} value={dashboardRows} />
-                            </Form.Group>
-                        </Col>
-                    </Row>
                     <Row className="h-100">
                         <Col className="col-1 m-0">
                         </Col>
@@ -179,8 +151,8 @@ function NewDashboardModal() {
             <Button variant="secondary" onClick={handleModalClose}>
             Close
             </Button>
-            <Button variant="success" type="submit" form="dashboardCreation">
-            Create
+            <Button variant="success" type="submit" form="dashboardUpdate">
+            Update
             </Button>
         </Modal.Footer>
         </Modal>
@@ -188,4 +160,4 @@ function NewDashboardModal() {
     );
 }
 
-export default NewDashboardModal;
+export default EditDashboardDimensionsModal;

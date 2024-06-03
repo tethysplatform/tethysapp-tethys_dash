@@ -8,11 +8,12 @@ import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboa
 
 const StyledPlot= styled(Plot)`
   width: 100%;
-  height: 100%
+  height: 100%;
+  padding: 0;
 `;
 
 
-const DataPlot = () => {    
+const DataPlot = ({rowHeight, colWidth}) => {    
   const dashboardContext = useSelectedDashboardContext()[0];
   const [ plotData, setPlotData ] = useState(null);
 
@@ -79,8 +80,9 @@ const DataPlot = () => {
       <LoadingAnimation />
     );
   } else {
+    let revision = parseInt(rowHeight.toString() + colWidth.toString())
     const styledPlot = (
-      <StyledPlot data={plotData.data} layout={plotData.layout} config={plotData.config} useResizeHandler={true} revision={dashboardContext['name']}/>
+      <StyledPlot data={plotData.data} layout={plotData.layout} config={plotData.config} useResizeHandler={true} revision={revision}/>
     );
     return (
         styledPlot

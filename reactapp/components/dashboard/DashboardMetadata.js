@@ -14,6 +14,7 @@ import DashboardMetadataButton from "./DashboardMetadataButton"
 import { AppContext } from 'components/contexts/AppContext';
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import DashboardNotesModal from 'components/modals/DashboardNotes';
+import DashboardMetadataDropdown from './DashboardMetadataDropdown'
 
 function DashboardMetadata() {
     const [ dashboardContext, setDashboardContext ] = useSelectedDashboardContext();
@@ -64,11 +65,11 @@ function DashboardMetadata() {
                     <Row className='h-10'>
                         <Form inline="true" style={{textAlign: "center"}}>
                             {isEditing 
-                                ? <DashboardMetadataButton type="save" tooltipPlacement="bottom" tooltipText="Save Changes" onClick={onSave}/>
-                                : <DashboardMetadataButton type="edit" tooltipPlacement="bottom" tooltipText="Edit Dashboard" onClick={onEdit}/>
+                                ? <DashboardMetadataButton type="save" tooltipPlacement="top" tooltipText="Save Changes" onClick={onSave}/>
+                                : <DashboardMetadataDropdown tooltipPlacement="top" tooltipText="Edit Dashboard"/>
                             }
-                            <DashboardMetadataButton type="notes" tooltipPlacement="bottom" tooltipText="Open Notes" onClick={onNotes}/>
-                            <DashboardMetadataButton type="delete" tooltipPlacement="bottom" tooltipText="Delete Dashboard" onClick={onDelete}/>
+                            <DashboardMetadataButton type="notes" tooltipPlacement="top" tooltipText="Open Notes" onClick={onNotes}/>
+                            <DashboardMetadataButton type="delete" tooltipPlacement="top" tooltipText="Delete Dashboard" onClick={onDelete}/>
                         </Form>
                     </Row>
                     <Row className='h-30' style={{"paddingTop": "10px"}}>
