@@ -140,7 +140,7 @@ function NewDashboardModal() {
                         <Col>
                             <Form.Group className="mb-1" controlId="formDashboardRows">
                                 <Form.Label>Rows</Form.Label>
-                                <Form.Control required type="number" onChange={onRowInput} value={dashboardRows} />
+                                <Form.Control required type="number" min="1" onChange={onRowInput} value={dashboardRows} />
                             </Form.Group>
                         </Col>
                     </Row>

@@ -46,12 +46,12 @@ function DashboardRow({rowNumber, initialRowHeight, initialRowColWidths, initial
             <Row>
                 <Col className="col-2 m-0 px-1">
                     <Form.Group className="mb-1" controlId={"row" + rowNumber + "height"}>
-                        <Form.Control required type="number" onChange={onRowHeightInput} value={rowHeight} />
+                        <Form.Control required type="number" min="1" onChange={onRowHeightInput} value={rowHeight} />
                     </Form.Group>
                 </Col>
                 <Col className="col-2 m-0 px-1">
                     <Form.Group className="mb-1" controlId={"row" + rowNumber + "colcount"}>
-                        <Form.Control required type="number" onChange={onColNumInput} value={colCount} />
+                        <Form.Control required type="number" min="1" onChange={onColNumInput} value={colCount} />
                     </Form.Group>
                 </Col>
                 <Col className="col-8 m-0">

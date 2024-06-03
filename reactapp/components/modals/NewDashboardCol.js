@@ -13,7 +13,7 @@ function DashboardCol({rowNumber, colNumber, initialColWidth}) {
         <>
             <Col className="m-0 p-0">
                 <Form.Group className="mb-0" controlId={"row" + rowNumber + "col" + colNumber}>
-                    <Form.Control required type="number" onChange={onRowInput} value={colWidth} />
+                    <Form.Control required type="number" min="1" onChange={onRowInput} value={colWidth} />
                 </Form.Group>
             </Col>
         </>
