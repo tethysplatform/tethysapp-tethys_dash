@@ -1,10 +1,10 @@
 from django.http import JsonResponse
-import pandas as pd
 import json
 
 from tethys_sdk.routing import controller
 from .app import App
 from .model import get_all_dashboards, add_new_dashboard, delete_named_dashboard, update_named_dashboard
+from .data.usace import get_compressed_data
 
 
 @controller
@@ -17,27 +17,11 @@ def home(request):
 @controller
 def data(request):
     """API controller for the plot page."""
-    # Download example data from GitHub
-    df = pd.read_csv('https://raw.githubusercontent.com/plotly/datasets/master/finance-charts-apple.csv')
-
-    # Do data processing in Python
-    l_date = df['Date'].tolist()
+    print("Getting CWMS Metadata")
+    location = "cmn"
 
     # Then return JSON containing data
-    return JsonResponse({
-        'series': [
-            {
-                'title': 'AAPL High',
-                'x': l_date,
-                'y': df['AAPL.High'].tolist()
-            },
-            {
-                'title': 'AAPL Low',
-                'x': l_date,
-                'y': df['AAPL.Low'].tolist()
-            }
-        ],
-    })
+    return get_compressed_data(location, None)
 
 
 @controller
