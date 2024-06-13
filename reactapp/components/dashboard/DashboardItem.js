@@ -19,6 +19,12 @@ const StyledDiv= styled.div`
   margin: .5rem;
 `;
 
+const StyledImg= styled.img`
+  width: auto;
+  margin: auto;
+  display: block;
+`;
+
 const DashboardItem = ({rowHeight, colWidth, itemData}) => {
   const isEditing = useEditingContext()[0];
 
@@ -31,6 +37,7 @@ const DashboardItem = ({rowHeight, colWidth, itemData}) => {
       <Row className="h-100">
         {itemData['type'] === "USACEPlot" && <USACEPlot rowHeight={rowHeight} colWidth={colWidth} itemData={itemData}/>}
         {itemData['type'] === "CDECPlot" && <CDECPlot rowHeight={rowHeight} colWidth={colWidth} itemData={itemData}/>}
+        {itemData['type'] === "Image" && <StyledImg src={itemData['metadata']['uri']}/>}
       </Row>
     </StyledContainer>
   )
