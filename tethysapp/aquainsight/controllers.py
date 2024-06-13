@@ -4,7 +4,8 @@ import json
 from tethys_sdk.routing import controller
 from .app import App
 from .model import get_all_dashboards, add_new_dashboard, delete_named_dashboard, update_named_dashboard
-from .data.usace import get_compressed_data
+from .data.usace import get_usace_data
+from .data.cdec import get_cdec_data
 
 
 @controller
@@ -18,10 +19,16 @@ def home(request):
 def data(request):
     """API controller for the plot page."""
     print("Getting CWMS Metadata")
-    location = "cmn"
+    if request.GET["type"] == "USACEPlot":
+        metadata = json.loads(request.GET['metadata'])
+        return get_usace_data(metadata['location'], metadata['year'])
+    
+    if request.GET["type"] == "CDECPlot":
+        metadata = json.loads(request.GET['metadata'])
+        return get_cdec_data(metadata['station'], metadata.get('start'), metadata.get('end'))
 
     # Then return JSON containing data
-    return get_compressed_data(location, None)
+    return
 
 
 @controller

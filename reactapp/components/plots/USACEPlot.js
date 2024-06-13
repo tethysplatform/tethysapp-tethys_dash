@@ -12,11 +12,11 @@ const StyledPlot= styled(Plot)`
 `;
 
 
-const DataPlot = ({rowHeight, colWidth}) => {
+const USACEPlot = ({rowHeight, colWidth, itemData}) => {
   const [ plotData, setPlotData ] = useState(null);
   
   useEffect(() => {
-    appAPI.getPlotData()
+    appAPI.getPlotData(itemData)
       .then((data) => {
         // Derived from this example: https://plotly.com/javascript/time-series/#time-series-with-rangeslider
         let traces = [];
@@ -272,4 +272,4 @@ const DataPlot = ({rowHeight, colWidth}) => {
 }
 
 
-export default memo(DataPlot)
+export default memo(USACEPlot)

@@ -30,10 +30,10 @@ function DashboardLayout() {
             const rowHeight = dashboardRowHeights[i]
             const dashboardColumns = []
             for (let x=0; x <= colCount-1; x++) {
-                let item_type = dashboardColData[i][x]
+                let itemData = dashboardColData[i][x]
                 let colWidth = dashboardColWidths[i][x]
                 let key = parseInt(i.toString() + x.toString())
-                dashboardColumns.push(<StyledDashboardCol key={key} className={"justify-content-center col-"+colWidth}><DashboardItem rowHeight={rowHeight} colWidth={colWidth} type="plot"></DashboardItem></StyledDashboardCol>)
+                dashboardColumns.push(<StyledDashboardCol key={key} className={"justify-content-center col-"+colWidth}><DashboardItem rowHeight={rowHeight} colWidth={colWidth} itemData={itemData}></DashboardItem></StyledDashboardCol>)
             }
             dashboardRows.push(<StyledDashboardRow key={i} $rowHeight={rowHeight}>{dashboardColumns}</StyledDashboardRow>)
         }

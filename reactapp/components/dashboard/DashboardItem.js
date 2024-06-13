@@ -1,7 +1,8 @@
 import styled from 'styled-components';
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
-import DataPlot from 'components/plots/DataPlot';
+import USACEPlot from 'components/plots/USACEPlot';
+import CDECPlot from 'components/plots/CDECPlot';
 import { memo } from 'react';
 import { useEditingContext } from 'components/contexts/EditingContext';
 import DashboardItemButton from "./DashboardItemButton"
@@ -18,7 +19,7 @@ const StyledDiv= styled.div`
   margin: .5rem;
 `;
 
-const DashboardItem = ({type, rowHeight, colWidth}) => {
+const DashboardItem = ({rowHeight, colWidth, itemData}) => {
   const isEditing = useEditingContext()[0];
 
   return (
@@ -28,7 +29,8 @@ const DashboardItem = ({type, rowHeight, colWidth}) => {
         <DashboardItemButton tooltipText="Delete Cell" type="delete" hidden={!isEditing}/>
       </StyledDiv>
       <Row className="h-100">
-        {type === "plot" && <DataPlot rowHeight={rowHeight} colWidth={colWidth}/>}
+        {itemData['type'] === "USACEPlot" && <USACEPlot rowHeight={rowHeight} colWidth={colWidth} itemData={itemData}/>}
+        {itemData['type'] === "CDECPlot" && <CDECPlot rowHeight={rowHeight} colWidth={colWidth} itemData={itemData}/>}
       </Row>
     </StyledContainer>
   )

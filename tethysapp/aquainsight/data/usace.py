@@ -46,7 +46,7 @@ def get_water_year(date):
         return date.year + 1
     return date.year
 
-def get_compressed_data(location, year):
+def get_usace_data(location, year):
     """API controller for the plot page."""
     year = year if year else get_water_year(datetime.now())
     metadata = get_usace_plot_data(location, year, metadata=True)
