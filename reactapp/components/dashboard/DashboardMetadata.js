@@ -10,7 +10,7 @@ import { useSelectedOptionContext } from 'components/contexts/SelectedOptionCont
 import { useAvailableOptionsContext } from 'components/contexts/AvailableOptionsContext';
 import { useDashboardNotesModalShowContext } from 'components/contexts/DashboardNotesModalShowContext';
 import { useContext } from 'react';
-import DashboardMetadataButton from "./DashboardMetadataButton"
+import DashboardMetadataButton from "components/buttons/DashboardMetadataButton"
 import { AppContext } from 'components/contexts/AppContext';
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import DashboardNotesModal from 'components/modals/DashboardNotes';

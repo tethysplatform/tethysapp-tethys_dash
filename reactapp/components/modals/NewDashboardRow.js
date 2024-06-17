@@ -3,6 +3,7 @@ import Col from 'react-bootstrap/Col';
 import Form from 'react-bootstrap/Form';
 import { useState } from 'react';
 import DashboardCol from 'components/modals/NewDashboardCol';
+import './noArrowInput.css';
 
 function DashboardRow({rowNumber, initialRowHeight, initialRowColWidths, initialRowColData}) {
     let initialColCount;
@@ -46,7 +47,7 @@ function DashboardRow({rowNumber, initialRowHeight, initialRowColWidths, initial
             <Row>
                 <Col className="col-2 m-0 px-1">
                     <Form.Group className="mb-1" controlId={"row" + rowNumber + "height"}>
-                        <Form.Control required type="number" min="1" onChange={onRowHeightInput} value={rowHeight} />
+                        <Form.Control required type="number" min="1" max="100" onChange={onRowHeightInput} value={rowHeight} />
                     </Form.Group>
                 </Col>
                 <Col className="col-2 m-0 px-1">

@@ -12,7 +12,7 @@ const StyledButton = styled(Button) `
 `;
 
 
-const DashboardMetadataButton = ({tooltipText, onClick, type, hidden}) => {
+const DashboardItemButton = ({tooltipText, onClick, type, hidden}) => {
   let icon
   let variant
   let styledButton
@@ -42,11 +42,11 @@ const DashboardMetadataButton = ({tooltipText, onClick, type, hidden}) => {
   return styledButtonWithTooltip;
 }
 
-DashboardMetadataButton.propTypes = {
+DashboardItemButton.propTypes = {
   children: PropTypes.element,
   tooltipPlacement: PropTypes.oneOf(['top', 'bottom', 'left', 'right']),
   tooltipText: PropTypes.string,
   href: PropTypes.string,
 };
 
-export default DashboardMetadataButton
+export default DashboardItemButton

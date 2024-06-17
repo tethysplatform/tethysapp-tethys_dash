@@ -42,9 +42,7 @@ def dashboards(request):
             "label": dashboard.label,
             "image": dashboard.image,
             "notes": dashboard.notes,
-            "rowHeights": dashboard.row_heights,
-            "colWidths": dashboard.col_widths,
-            "colData": dashboard.col_data
+            "rowData": dashboard.row_data
         }
     
     return JsonResponse(dashboard_dict)
@@ -60,13 +58,11 @@ def add_dashboard(request):
     label = dashboard_metadata["label"]
     image = dashboard_metadata["image"]
     notes = dashboard_metadata["notes"]
-    row_heights = dashboard_metadata["rowHeights"]
-    col_widths = dashboard_metadata["colWidths"]
-    col_data = dashboard_metadata["colData"]
+    row_data = dashboard_metadata["rowData"]
     print(f"Creating a dashboard named {label}")
 
     try:
-        add_new_dashboard(label, name, image, notes, row_heights, col_widths, col_data)
+        add_new_dashboard(label, name, image, notes, row_data)
         print(f"Successfully created the dashboard named {name}")
         
         return JsonResponse({"success": True})
@@ -107,12 +103,10 @@ def update_dashboard(request):
     label = dashboard_metadata["label"]
     image = dashboard_metadata["image"]
     notes = dashboard_metadata["notes"]
-    row_heights = dashboard_metadata["rowHeights"]
-    col_widths = dashboard_metadata["colWidths"]
-    col_data = dashboard_metadata["colData"]
+    row_data = dashboard_metadata["rowData"]
 
     try:
-        update_named_dashboard(name, label, image, notes, row_heights, col_widths, col_data)
+        update_named_dashboard(name, label, image, notes, row_data)
         print(f"Successfully updated the dashboard named {name}")
         
         return JsonResponse({"success": True})

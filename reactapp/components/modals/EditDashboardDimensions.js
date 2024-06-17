@@ -9,15 +9,17 @@ import { useEditDashboardDimensionModalShowContext } from 'components/contexts/E
 import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
 import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
 import { AppContext } from 'components/contexts/AppContext';
-import { useContext, useState } from 'react';
+import { useContext, useEffect, useState } from 'react';
 import appAPI from 'services/api/app';
 import DashboardRow from 'components/modals/NewDashboardRow';
 import styled from 'styled-components';
 
-const StyledVerticalCol= styled(Col)`
-    writing-mode: vertical-rl;
-    transform: scale(-1);
-    text-align: center;
+const RightButton= styled(Button)`
+    float:right;
+`;
+
+const LeftButton= styled(Button)`
+    float:left;
 `;
 
 function EditDashboardDimensionsModal() {
@@ -28,10 +30,10 @@ function EditDashboardDimensionsModal() {
     const [hasError, setHasError]  = useState(false);
     const [errorMessage, setErrorMessage]  = useState(null);
     
-    const dashboardRowHeights = JSON.parse(dashboardContext['rowHeights'])
-    const dashboardColWidths = JSON.parse(dashboardContext['colWidths'])
-    const dashboardColData = JSON.parse(dashboardContext['colData'])
-    const dashboardRows = dashboardRowHeights.length
+    let dashboardRowData = JSON.parse(dashboardContext['rowData'])
+    
+    const [dashboardRowCount, setDashboardRowCount]  = useState(dashboardRowData.length);
+    const [dashboardRows, setDashboardRows]  = useState(null);
 
     const handleModalClose = () => setShowModal(false);
 
@@ -41,15 +43,24 @@ function EditDashboardDimensionsModal() {
         setHasError(false)
         let Name = dashboardContext['name']
 
-        const rowHeights = []
-        const colWidths = []
-        for (let i=1; i <= dashboardRows; i++) {
+        const rowData = [];
+        if (dashboardRowData.length > dashboardRowCount) {
+            dashboardRowData = dashboardRowData.slice(0, dashboardRowCount)
+        } else if (dashboardRowData.length < dashboardRowCount) {
+            dashboardRowData.push(...Array(dashboardRowCount-dashboardRowData.length).fill([]))
+        }
+        for (let i=1; i <= dashboardRowCount; i++) {
             const rowHeight = parseInt(event.currentTarget.querySelector('#row' + i + 'height').value)
             rowHeights.push(rowHeight)
 
             const rowColCount = parseInt(event.currentTarget.querySelector('#row' + i + 'colcount').value)
             const rowColWidths = []
             const totalColWidth = 0
+            if (dashboardRowData[i-1].length > rowColCount) {
+                dashboardRowData[i-1] = dashboardRowData[i-1].slice(0, rowColCount)
+            } else if (dashboardRowData[i-1].length < rowColCount) {
+                dashboardRowData[i-1].push(...Array(rowColCount-dashboardRowData[i-1].length).fill(""))
+            }
             for (let x=1; x <= rowColCount; x++) {
                 const colWidth = parseInt(event.currentTarget.querySelector('#row' + i + 'col' + x).value)
                 totalColWidth += colWidth
@@ -67,6 +78,7 @@ function EditDashboardDimensionsModal() {
         let inputData = Object.assign({}, dashboardContext);
         inputData['rowHeights'] = JSON.stringify(rowHeights)
         inputData['colWidths'] = JSON.stringify(colWidths)
+        inputData['rowData'] = JSON.stringify(dashboardRowData)
         appAPI.updateDashboard(inputData, csrf).then((response) => {
             let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
             OGLayouts[Name] = inputData
@@ -81,26 +93,29 @@ function EditDashboardDimensionsModal() {
     }
 
     function onRowInput({target:{value}}) {
-        setDashboardRows(parseInt(value))
+        setDashboardRowCount(parseInt(value))
     }
 
     function addDashboardRows() {
         const Rows = []
-        for (let i=0; i < dashboardRows; i++) {
-            const initialRowHeight = dashboardRowHeights[i]
-            const initialRowColWidths = dashboardColWidths[i]
-            const initialRowColData = dashboardColData[i]
+        for (let i=0; i < dashboardRowCount; i++) {
+            const initialRowData = dashboardRowData[i]
+            const initialRowHeight = initialRowData["height"]
+            const initialRowRowData = initialRowData["columns"]
             let key = parseInt(i.toString())
             Rows.push(<DashboardRow 
                 key={key}
-                initialRowHeight={initialRowHeight} 
-                initialRowColWidths={initialRowColWidths}
-                initialRowColData={initialRowColData}
+                initialRowHeight={initialRowHeight}
+                initialRowRowData={initialRowRowData}
                 rowNumber={i+1}
             />)
         }
-        return Rows
+        setDashboardRows(Rows)
     }
+
+    useEffect(() => {
+        addDashboardRows();
+      }, [dashboardRowCount]);
 
     return (
     <>
@@ -117,9 +132,9 @@ function EditDashboardDimensionsModal() {
             <Form id="dashboardUpdate" onSubmit={handleSubmit}>
                 <Container fluid className="h-100">
                     <Row className="h-100">
-                        <Col className="col-1 m-0">
+                        <Col className="col-2 m-0">
                         </Col>
-                        <Col className="col-11 m-0">
+                        <Col className="col-10 m-0">
                             <Row>
                                 <Col className="col-2 m-0 px-1" style={{textAlign: "center"}}>
                                     Height*
@@ -134,11 +149,14 @@ function EditDashboardDimensionsModal() {
                         </Col>
                     </Row>
                     <Row className="h-100">
-                        <StyledVerticalCol className="col-1 m-0">
-                            Rows
-                        </StyledVerticalCol>
-                        <Col className="col-11 m-0">
-                            {addDashboardRows()}
+                        <Col className="col-2 m-0">
+                            <Form.Group className="mb-1" controlId="formDashboardRows">
+                                <Form.Label>Rows</Form.Label>
+                                <Form.Control required type="number" min="1" onChange={onRowInput} value={dashboardRowCount} />
+                            </Form.Group>
+                        </Col>
+                        <Col className="col-10 m-0">
+                            {dashboardRows}
                         </Col>
                     </Row>
                 </Container>
@@ -147,13 +165,19 @@ function EditDashboardDimensionsModal() {
                 <b>**Column widths added across each row must equal 12 exactly.</b>
             </Form>
         </Modal.Body>
-        <Modal.Footer>
-            <Button variant="secondary" onClick={handleModalClose}>
-            Close
-            </Button>
-            <Button variant="success" type="submit" form="dashboardUpdate">
+        <Modal.Footer style={{"display": "inline"}}>
+            <LeftButton variant="info" onClick={handleModalClose}>
+            Add Row
+            </LeftButton>
+            <LeftButton variant="info" onClick={handleModalClose}>
+            Reorder Rows
+            </LeftButton>
+            <RightButton variant="success" type="submit" form="dashboardUpdate">
             Update
-            </Button>
+            </RightButton>
+            <RightButton variant="secondary" onClick={handleModalClose}>
+            Close
+            </RightButton>
         </Modal.Footer>
         </Modal>
     </>

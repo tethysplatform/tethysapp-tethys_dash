@@ -3,7 +3,7 @@ import Button from 'react-bootstrap/Button';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import PropTypes from 'prop-types';
 import Tooltip from 'react-bootstrap/Tooltip';
-import { BsTrash, BsPencilSquare, BsSave, BsFileText  } from "react-icons/bs";
+import { BsTrash, BsPencilSquare, BsSave, BsFileText, BsPlus } from "react-icons/bs";
 
 
 const StyledButton = styled(Button)`
@@ -26,6 +26,9 @@ const DashboardMetadataButton = ({tooltipPlacement, tooltipText, onClick, type})
     variant = "success"
   } else if (type==="notes") {
     icon = <BsFileText size="1rem"/>
+    variant = "info"
+  } else if (type==="add") {
+    icon = <BsPlus size="1.5rem"/>
     variant = "info"
   }
 
