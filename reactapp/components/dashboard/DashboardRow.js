@@ -9,27 +9,25 @@ const StyledDashboardRow= styled(Row)`
     height: ${(props) => props.$rowHeight}% !important;
 `;
 
-function DashboardRow({rowNumber, rowHeight, rowColumns}) {
+function DashboardRow({rowID, rowHeight, rowColumns}) {
     const [height, setHeight] = useState(rowHeight)
 
-    const dashboardRows = []
     const dashboardColumns = []
     for (let x=0; x < rowColumns.length; x++) {
         let colWidth = rowColumns[x]['width']
-        let key = parseInt(rowNumber.toString() + x.toString())
+        let colID = rowColumns[x]['id']
+        let key = parseInt(rowID.toString() + x.toString())
         dashboardColumns.push(
-            <RowHeightContext.Provider value={[height, setHeight]}>
-                <DashboardCol key={key} colWidth={colWidth} colDataType={rowColumns[x]['type']} colDataMetadata={rowColumns[x]['metadata']}/>
+            <RowHeightContext.Provider key={key} value={[height, setHeight]}>
+                <DashboardCol rowHeight={rowHeight} rowID={rowID} colID={colID} colWidth={colWidth} colDataType={rowColumns[x]['type']} colDataMetadata={rowColumns[x]['metadata']}/>
             </RowHeightContext.Provider>
         )
     }
-    dashboardRows.push(
-        <StyledDashboardRow key={rowNumber} $rowHeight={rowHeight}>
+    return (
+        <StyledDashboardRow key={rowID} $rowHeight={rowHeight}>
             {dashboardColumns}
         </StyledDashboardRow>
     )
-
-    return dashboardRows
 }
 
 export default DashboardRow;

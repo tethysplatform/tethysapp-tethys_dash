@@ -7,14 +7,14 @@ import { BsTrash, BsPencilSquare, BsSave, BsFileText, BsPlus } from "react-icons
 
 
 const StyledButton = styled(Button)`
-  margin: 0 .5rem;
+  margin: 0 .5rem !important;
 `;
 
 
-const DashboardMetadataButton = ({tooltipPlacement, tooltipText, onClick, type}) => {
-  let icon
-  let variant
-  let styledButton
+const DashboardMetadataButton = ({tooltipPlacement, tooltipText, onClick, type, form}) => {
+  let icon;
+  let variant;
+  let styledButton;
   if (type==="delete") {
     icon = <BsTrash size="1rem"/>
     variant = "danger"
@@ -32,7 +32,10 @@ const DashboardMetadataButton = ({tooltipPlacement, tooltipText, onClick, type})
     variant = "info"
   }
 
-  styledButton = <StyledButton variant={variant} onClick={onClick} size="sm">{icon}</StyledButton>
+  {type==="save" ? 
+    styledButton = <StyledButton variant={variant} onClick={onClick} size="sm" type="submit" form={form}>{icon}</StyledButton> :
+    styledButton = <StyledButton variant={variant} onClick={onClick} size="sm">{icon}</StyledButton>
+  }
 
   const styledButtonWithTooltip = (
     <OverlayTrigger

@@ -22,7 +22,6 @@ const Header = ({onNavChange}) => {
   const {tethysApp, user} = useContext(AppContext);
   const showNav = () => onNavChange(true);
   const location = useLocation();
-  console.log(location.pathname)
 
   return (
     <>

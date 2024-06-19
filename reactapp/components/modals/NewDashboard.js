@@ -14,7 +14,6 @@ import { AppContext } from 'components/contexts/AppContext';
 import { useContext, useState } from 'react';
 import appAPI from 'services/api/app';
 import DashboardRow from 'components/modals/NewDashboardRow';
-import { v4 as uuidv4 } from 'uuid';
 
 function NewDashboardModal() {
     const [dashboardName, setDashboardName] = useState("")
@@ -56,7 +55,6 @@ function NewDashboardModal() {
                 let colData = {}
                 colData['type'] = ""
                 colData['metadata'] = {}
-                colData['id'] = uuidv4()
 
                 const colWidth = parseInt(event.currentTarget.querySelector('#row' + i + 'col' + x).value)
                 colData['width'] = colWidth

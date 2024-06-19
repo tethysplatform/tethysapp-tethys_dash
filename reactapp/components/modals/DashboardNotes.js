@@ -25,6 +25,7 @@ function DashboardNotesModal() {
     const [ dashboardNotes, setDashboardNotes ] = useState(dashboardContext['notes'])
     const [ isEditing, setIsEditing ] = useState(false)
     const [ showSaveMessage, setShowSaveMessage ] = useState(false)
+    const [ showErrorMessage, setShowErrorMessage ] = useState(false)
     const {csrf} = useContext(AppContext);
     
     const handleModalClose = () => setShowModal(false);
@@ -38,21 +39,26 @@ function DashboardNotesModal() {
     }
 
     function onNotesChange({target:{value}}) {
-        console.log(dashboardContext)
         setDashboardNotes(value)
         setShowSaveMessage(false)
     }
 
     function handleSubmit(event) {
         event.preventDefault();
+        setShowSaveMessage(false)
+        setShowErrorMessage(false)
         const updatedDashboardContext = {...dashboardContext, notes: dashboardNotes}
         appAPI.updateDashboard(updatedDashboardContext, csrf).then((response) => {
-            setDashboardContext(updatedDashboardContext)
-    
-            let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
-            OGLayouts[dashboardContext['name']] = updatedDashboardContext
-            setDashboardLayoutConfigs(OGLayouts)
-            setShowSaveMessage(true)
+            if (response['success']) {
+                setDashboardContext(updatedDashboardContext)
+        
+                let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
+                OGLayouts[dashboardContext['name']] = updatedDashboardContext
+                setDashboardLayoutConfigs(OGLayouts)
+                setShowSaveMessage(true)
+            } else {
+                setShowErrorMessage(true)
+            }
         })
     }
     
@@ -78,6 +84,11 @@ function DashboardNotesModal() {
                 {showSaveMessage &&
                     <Alert key="success" variant="success">
                         Changes have been saved.
+                    </Alert>
+                }
+                {showErrorMessage &&
+                    <Alert key="failure" variant="danger">
+                        Failed to save notes. Check server logs for more information.
                     </Alert>
                 }
                 <Button variant="secondary" onClick={handleModalClose}>

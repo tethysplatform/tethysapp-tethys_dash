@@ -35,17 +35,8 @@ def data(request):
 def dashboards(request):
     """API controller for the dashboards page."""
     dashboards = get_all_dashboards()
-    dashboard_dict = {}
-    for dashboard in dashboards:
-        dashboard_dict[dashboard.name] = {
-            "name": dashboard.name,
-            "label": dashboard.label,
-            "image": dashboard.image,
-            "notes": dashboard.notes,
-            "rowData": dashboard.row_data
-        }
     
-    return JsonResponse(dashboard_dict)
+    return JsonResponse(dashboards)
 
 
 @controller(

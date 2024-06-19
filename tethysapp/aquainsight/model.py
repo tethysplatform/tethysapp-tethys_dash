@@ -1,16 +1,13 @@
-import os
-import uuid
-import json
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, Float, String, ARRAY
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy.orm import relationship
+import json
 
 from .app import App as app
 
 Base = declarative_base()
 
 
-# SQLAlchemy ORM definition for the dams table
 class Dashboard(Base):
     """
     SQLAlchemy Dashboard DB Model
@@ -23,21 +20,76 @@ class Dashboard(Base):
     name = Column(String)
     image = Column(String)
     notes = Column(String)
-    row_data = Column(String)
+    rows = relationship("Row", order_by="Row.row_order.asc()")
+
+
+class Row(Base):
+    """
+    SQLAlchemy Dashboard DB Model
+    """
+    __tablename__ = 'rows'
+
+    # Columns
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
+    row_order = Column(Integer)
+    height = Column(Integer)
+    columns = relationship("Column", order_by="Column.col_order.asc()")
+
+
+class Column(Base):
+    """
+    SQLAlchemy Dashboard DB Model
+    """
+    __tablename__ = 'columns'
+
+    # Columns
+    id = Column(Integer, primary_key=True)
+    row_id = Column(Integer, ForeignKey("rows.id"), nullable=False)
+    col_order = Column(Integer)
+    width = Column(Integer)
+    data_type = Column(String)
+    data_metadata = Column(String)
 
 
 def add_new_dashboard(label, name, image, notes, row_data):
     """
     Persist new dam.
     """
-    # Create new Dam record
+    # Get connection/session to database
+    Session = app.get_persistent_store_database('primary_db', as_sessionmaker=True)
+    session = Session()
+    
     new_dashboard = Dashboard(
         label=label,
         name=name,
         image=image,
-        notes=notes,
-        row_data=row_data
+        notes=notes
     )
+
+    session.add(new_dashboard)
+    dashboard_id = session.query(Dashboard).filter(Dashboard.name==name).first().id
+    
+    row_data = json.loads(row_data)
+    for index, row in enumerate(row_data):
+        new_row = Row(
+            dashboard_id=dashboard_id,
+            row_order=index,
+            height=row['height']
+        )
+        session.add(new_row)
+        row_id = session.query(Row).filter(Row.dashboard_id==dashboard_id).filter(Row.row_order==index).first().id
+
+        for index, column in enumerate(row['columns']):
+            new_row = Column(
+                row_id=row_id,
+                col_order=index,
+                width=column['width'],
+                data_type=column['type'],
+                data_metadata=json.dumps(column['metadata'])
+            )
+            session.add(new_row)
+        
     # [
         # {
             # "height":50,"columns":[
@@ -55,13 +107,6 @@ def add_new_dashboard(label, name, image, notes, row_data):
             # ]
         # }
     # ]
-
-    # Get connection/session to database
-    Session = app.get_persistent_store_database('primary_db', as_sessionmaker=True)
-    session = Session()
-
-    # Add the new dam record to the session
-    session.add(new_dashboard)
 
     # Commit the session and close the connection
     session.commit()
@@ -91,11 +136,24 @@ def update_named_dashboard(name, label, image, notes, row_data):
     Session = app.get_persistent_store_database('primary_db', as_sessionmaker=True)
     session = Session()
 
-    dashboard = session.query(Dashboard).filter(Dashboard.name==name).first()
-    dashboard.label = label
-    dashboard.image = image
-    dashboard.notes = notes
-    dashboard.row_data = row_data
+    db_dashboard = session.query(Dashboard).filter(Dashboard.name==name).first()
+    db_dashboard.label = label
+    db_dashboard.image = image
+    db_dashboard.notes = notes
+    row_data = json.loads(row_data) if isinstance(row_data, str) else row_data
+    
+    for row in row_data:
+        row_id = row['id']
+        db_row = session.query(Row).filter(Row.id==row_id).first()
+        db_row.height = row['height']
+        db_row.row_order = row['order']
+        
+        for col in row['columns']:
+            col_id = col['id']
+            db_col = session.query(Column).filter(Column.id==col_id).first()
+            db_col.width = col['width']
+            db_col.col_order = col['order']
+            
 
     # Commit the session and close the connection
     session.commit()
@@ -106,16 +164,49 @@ def get_all_dashboards():
     """
     Get all persisted dashboards.
     """
+    dashboard_dict = {}
     # Get connection/session to database
     Session = app.get_persistent_store_database('primary_db', as_sessionmaker=True)
     session = Session()
 
     # Query for all dam records
     dashboards = session.query(Dashboard).order_by(Dashboard.name).all()
+    for dashboard in dashboards:
+        dashboard_dict[dashboard.name] = {
+            "id": dashboard.id,
+            "name": dashboard.name,
+            "label": dashboard.label,
+            "image": dashboard.image,
+            "notes": dashboard.notes
+        }
+        
+        rows = []
+        for row in dashboard.rows:
+            row_data = {
+                "id": row.id,
+                "order": row.row_order,
+                "height": row.height
+            }
+            cols = []
+            for col in row.columns:
+                col_data = {
+                    "id": col.id,
+                    "order": col.col_order,
+                    "width": col.width,
+                    "type": col.data_type,
+                    "metadata": col.data_metadata
+                }
+                cols.append(col_data)
+            
+            row_data['columns'] = cols
+            rows.append(row_data)
+        
+        
+        dashboard_dict[dashboard.name]["rowData"] = json.dumps(rows)
 
     session.close()
 
-    return dashboards
+    return dashboard_dict
 
 
 def init_primary_db(engine, first_time):

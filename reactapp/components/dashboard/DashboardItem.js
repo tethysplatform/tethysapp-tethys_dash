@@ -3,8 +3,7 @@ import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Form from 'react-bootstrap/Form';
 import Dropdown from 'react-bootstrap/Dropdown';
-import USACEPlot from 'components/plots/USACEPlot';
-import CDECPlot from 'components/plots/CDECPlot';
+import BasePlot from 'components/plots/BasePlot';
 import { memo, useState } from 'react';
 import { useEditingContext } from 'components/contexts/EditingContext';
 import { useRowHeightContext } from 'components/dashboard/DashboardRow';
@@ -33,6 +32,9 @@ const StyledCenterDiv= styled.div`
 `;
 
 const StyledImg= styled.img`
+  max-width: 100% !important;
+  max-height: 100% !important;
+  height: auto;
   width: auto;
   margin: auto;
   display: block;
@@ -71,6 +73,7 @@ const StyledDownIcon= styled(BsArrowDownShort)`
 const StyledAbsDiv= styled.div`
   position: absolute;
   width: auto;
+  padding: 0;
   left: ${(props) => 
     props.$x === 'left' ? "0"
     : props.$x === 'middle' && "50%"};
@@ -87,23 +90,7 @@ const StyledAbsDiv= styled.div`
     props.$y === 'top' && ".5rem"};
 `;
 
-const StyledButtonWithTooltip = ({children, tooltipPlacement, tooltipText}) => {
-  return (
-    <OverlayTrigger
-      key={tooltipPlacement}
-      placement={tooltipPlacement}
-      overlay={
-        <Tooltip id={`tooltip-${tooltipPlacement}`}>
-          {tooltipText}
-        </Tooltip>
-      }
-    >
-      {children}
-    </OverlayTrigger>
-  )
-};
-
-const DashboardItem = ({colWidth, type, metadata}) => {
+const DashboardItem = ({rowHeight, rowID, colID, colWidth, type, metadata}) => {
   const isEditing = useEditingContext()[0];
   const [ height, setHeight ] = useRowHeightContext();
   const itemData = {"type": type, "metadata": metadata}
@@ -116,12 +103,25 @@ const DashboardItem = ({colWidth, type, metadata}) => {
   function onColWidthInput({target:{value}}) {
     setWidth(value)
   }
-  
-  function handleSubmit(event) {
-    event.preventDefault();
-  }
 
-  const StyledDropdownButton = ({arrowDirection}) => {
+  const StyledButtonWithTooltip = ({arrowDirection, tooltipPlacement, tooltipText}) => {
+    const styledButton = StyledDropdownButton(arrowDirection)
+    return (
+      <OverlayTrigger
+        key={tooltipPlacement}
+        placement={tooltipPlacement}
+        overlay={
+          <Tooltip id={`tooltip-${tooltipPlacement}`}>
+            {tooltipText}
+          </Tooltip>
+        }
+      >
+        {styledButton}
+      </OverlayTrigger>
+    )
+  };
+
+  function StyledDropdownButton(arrowDirection) {
     return (
       <StyledDropdown>
           <StyledDropdown.Toggle variant="info" id="cellUpdateDropdown" style={{width: "100%", height: "100%"}}>
@@ -153,43 +153,37 @@ const DashboardItem = ({colWidth, type, metadata}) => {
         <DashboardItemButton tooltipText="Edit Content" type="edit" hidden={!isEditing}/>
         <DashboardItemButton tooltipText="Delete Cell" type="delete" hidden={!isEditing}/>
       </StyledButtonDiv>
-      <Row className="h-100" hidden={isEditing}>
-        {type === "USACEPlot" && <USACEPlot rowHeight={height} colWidth={colWidth} itemData={itemData}/>}
-        {type === "CDECPlot" && <CDECPlot rowHeight={height} colWidth={colWidth} itemData={itemData}/>}
+      <Row style={{height: "100%"}} hidden={isEditing}>
+        {type.includes("Plot") && <BasePlot rowHeight={rowHeight} colWidth={colWidth} itemData={itemData}/>}
         {type === "Image" && <StyledImg src={metadata['uri']}/>}
       </Row>
       <Row className="h-100" hidden={!isEditing}>
         <StyledCenterDiv >
-          <Form id="rowUpdate" onSubmit={handleSubmit}>
-            <Form.Group className="mb-1">
-                <Form.Label>Row Height</Form.Label>
-                <Form.Control required type="number" min="1" max="100" onChange={onRowHeightInput} value={height} />
-            </Form.Group>
-            <Form.Group className="mb-1">
-                <Form.Label>Column Width</Form.Label>
-                <Form.Control required type="number" min="1" max="12" onChange={onColWidthInput} value={width} />
-            </Form.Group>
-          </Form>
+          <Form.Group className="mb-1">
+              <Form.Label>Row Height</Form.Label>
+              <Form.Control 
+                required type="number" min="1" max="100" onChange={onRowHeightInput} value={height} 
+                data-inputtype="height" data-rowid={rowID} data-colid={colID}/>
+          </Form.Group>
+          <Form.Group className="mb-1">
+              <Form.Label>Column Width</Form.Label>
+              <Form.Control 
+                required type="number" min="1" max="12" onChange={onColWidthInput} value={width} 
+                data-inputtype="width" data-type={type} data-metadata={JSON.stringify(metadata)} 
+                data-rowid={rowID} data-colid={colID}/>
+          </Form.Group>
         </StyledCenterDiv>
         <StyledAbsDiv  $x="middle" $y="top">
-          <StyledButtonWithTooltip tooltipPlacement="bottom" tooltipText="Add Row Above">
-            <StyledDropdownButton arrowDirection="up"/>
-          </StyledButtonWithTooltip>
+          <StyledButtonWithTooltip arrowDirection="up" tooltipPlacement="left" tooltipText="Add/Move Row Above"/>
         </StyledAbsDiv>
         <StyledAbsDiv  $x="left" $y="middle">
-          <StyledButtonWithTooltip tooltipPlacement="right" tooltipText="Add Column on Left">
-            <StyledDropdownButton arrowDirection="left"/>
-          </StyledButtonWithTooltip>
+          <StyledButtonWithTooltip arrowDirection="left" tooltipPlacement="right" tooltipText="Add/Move Column on Left"/>
         </StyledAbsDiv>
         <StyledAbsDiv  $x="middle" $y="bottom">
-          <StyledButtonWithTooltip tooltipPlacement="right" tooltipText="Add Row Below">
-            <StyledDropdownButton arrowDirection="down"/>
-          </StyledButtonWithTooltip>
+          <StyledButtonWithTooltip arrowDirection="down" tooltipPlacement="left" tooltipText="Add/Move Row Below"/>
         </StyledAbsDiv>
         <StyledAbsDiv $x="right" $y="middle">
-          <StyledButtonWithTooltip tooltipPlacement="left" tooltipText="Add Column on Right">
-            <StyledDropdownButton arrowDirection="right"/>
-          </StyledButtonWithTooltip>
+          <StyledButtonWithTooltip arrowDirection="right" tooltipPlacement="left" tooltipText="Add/Move Column on Right"/>
         </StyledAbsDiv>
       </Row>
     </StyledContainer>

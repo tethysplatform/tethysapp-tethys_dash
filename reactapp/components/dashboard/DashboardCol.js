@@ -7,10 +7,11 @@ const StyledDashboardCol= styled(Col)`
 `;
 
 
-function DashboardCol({colWidth, colDataType, colDataMetadata}) {
+function DashboardCol({rowHeight, rowID, colID, colWidth, colDataType, colDataMetadata}) {
+    const parsedMetadata = JSON.parse(colDataMetadata)
     return (
-        <StyledDashboardCol className={"justify-content-center col-"+colWidth}>
-            <DashboardItem colWidth={colWidth} type={colDataType} metadata={colDataMetadata}></DashboardItem>
+        <StyledDashboardCol className={"justify-content-center h-100 col-"+colWidth}>
+            <DashboardItem rowHeight={rowHeight} rowID={rowID} colID={colID} colWidth={colWidth} type={colDataType} metadata={parsedMetadata}></DashboardItem>
         </StyledDashboardCol>
     )
 }

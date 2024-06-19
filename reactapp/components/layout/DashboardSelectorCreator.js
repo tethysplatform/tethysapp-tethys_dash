@@ -32,7 +32,6 @@ function DashboardSelectorCreator() {
     function updateLayout(e) {
         let selectedDashboard = dashboardLayoutConfigs[e.value]
         setSelectedOption({"value": e.value, "label": selectedDashboard['label']})
-        console.log(selectedDashboard)
         setDashboardContext(selectedDashboard)
     }
   
