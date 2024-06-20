@@ -35,6 +35,7 @@ function DashboardLayout() {
     const [dashboardRowData, setDashboardRowData]  = useState(null);
     const [ showSaveMessage, setShowSaveMessage ] = useState(false);
     const [ showErrorMessage, setShowErrorMessage ] = useState(false);
+    const [ errorMessage, setErrorMessage ] = useState("");
 
     function getDashboardRows() {
         const dashboardRowData = JSON.parse(dashboardContext['rowData'])
@@ -63,9 +64,9 @@ function DashboardLayout() {
         let colData = [];
         let rowCount = 0;
         let colCount = 0;
+        let totalColWidth = 0;
         let rowDataID;
         let rowDataHeight;
-        let rowDataOrder;
         for (let i=0; i < cellDimensionsInputs.length; i++) {
             const dimensionInput = cellDimensionsInputs[i]
             const inputType = dimensionInput.dataset['inputtype']
@@ -76,6 +77,12 @@ function DashboardLayout() {
             if (currentRowID === null) {
                 currentRowID = rowID
             } else if (newrow == "true") {
+                if (totalColWidth != 12) {
+                    setErrorMessage("Total width for row " + (rowCount+1).toString() + " equals " + totalColWidth.toString() + ". The total width must equal 12.")
+                    setShowErrorMessage(true)
+                    return
+                }
+
                 data.push({
                     'id': rowDataID,
                     'height': rowDataHeight,
@@ -84,6 +91,7 @@ function DashboardLayout() {
                 })
                 colData = [];
                 colCount = 0;
+                totalColWidth = 0
                 currentRowID = rowID
                 rowCount += 1
             }
@@ -102,6 +110,7 @@ function DashboardLayout() {
                     "metadata": dimensionInput.dataset['metadata']
                 })
                 colCount += 1
+                totalColWidth += parseInt(dimensionInput.value)
             }
 
             if (i === cellDimensionsInputs.length-1) {
@@ -124,6 +133,7 @@ function DashboardLayout() {
                 setDashboardLayoutConfigs(OGLayouts)
                 setShowSaveMessage(true)
             } else {
+                setErrorMessage("Failed to save changes. Check server logs for more information.")
                 setShowErrorMessage(true)
             }
         })
@@ -141,13 +151,21 @@ function DashboardLayout() {
             },5000)
         }
     }, [showSaveMessage]);
+    
+    useEffect(() => {
+        if (showSaveMessage == true) {
+        window.setTimeout(()=>{
+            setShowErrorMessage(false)
+            },5000)
+        }
+    }, [showErrorMessage]);
 
     return (
         <StyledContainer fluid className="h-100">
             <StyledAbsDiv>
                 {showErrorMessage &&
                     <Alert key="failure" variant="danger" dismissible={true}>
-                        Failed to save changes. Check server logs for more information.
+                        {errorMessage}
                     </Alert>
                 }
                 {showSaveMessage &&
