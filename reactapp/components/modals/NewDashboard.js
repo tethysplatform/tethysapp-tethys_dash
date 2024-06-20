@@ -27,6 +27,8 @@ function NewDashboardModal() {
     const {csrf} = useContext(AppContext);
     const [hasError, setHasError]  = useState(false);
     const [errorMessage, setErrorMessage]  = useState(null);
+    const [ showSaveMessage, setShowSaveMessage ] = useState(false);
+    const [ showErrorMessage, setShowErrorMessage ] = useState(false);
     
     const handleModalClose = () => setShowModal(false);
 
@@ -80,13 +82,18 @@ function NewDashboardModal() {
             "rowData": JSON.stringify(rowData),
         }
         appAPI.addDashboard(inputData, csrf).then((response) => {
-            let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
-            OGLayouts[Name] = inputData
-            setDashboardLayoutConfigs(OGLayouts)
-            setSelectOptions([ ...selectOptions, {value: Name, label: Label} ])
-            setDashboardContext(inputData)
-            setSelectedOption({value: Name, label: Label})
-            setShowModal(false)
+            if (response['success']) {
+                let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
+                OGLayouts[Name] = response['new_dashboard']
+                setDashboardLayoutConfigs(OGLayouts)
+                setSelectOptions([ ...selectOptions, {value: Name, label: Label} ])
+                setDashboardContext(response['new_dashboard'])
+                setSelectedOption({value: Name, label: Label})
+                setShowModal(false)
+                setShowSaveMessage(true)
+            } else {
+                setShowErrorMessage(true)
+            }
         })
     }
 

@@ -20,7 +20,7 @@ class Dashboard(Base):
     name = Column(String)
     image = Column(String)
     notes = Column(String)
-    rows = relationship("Row", order_by="Row.row_order.asc()")
+    rows = relationship("Row", order_by="Row.row_order.asc()", cascade="delete")
 
 
 class Row(Base):
@@ -34,7 +34,7 @@ class Row(Base):
     dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
     row_order = Column(Integer)
     height = Column(Integer)
-    columns = relationship("Column", order_by="Column.col_order.asc()")
+    columns = relationship("Column", order_by="Column.col_order.asc()", cascade="delete")
 
 
 class Column(Base):
@@ -72,38 +72,25 @@ def add_new_dashboard(label, name, image, notes, row_data):
     
     row_data = json.loads(row_data)
     for index, row in enumerate(row_data):
-        new_row = Row(
-            dashboard_id=dashboard_id,
-            row_order=index,
-            height=row['height']
-        )
-        session.add(new_row)
-        row_id = session.query(Row).filter(Row.dashboard_id==dashboard_id).filter(Row.row_order==index).first().id
+        new_row = add_new_row(session, dashboard_id, index, row['height'])
 
         for index, column in enumerate(row['columns']):
-            new_row = Column(
-                row_id=row_id,
-                col_order=index,
-                width=column['width'],
-                data_type=column['type'],
-                data_metadata=json.dumps(column['metadata'])
-            )
-            session.add(new_row)
+            add_new_column(session, new_row.id, index, column['width'], column['type'], json.dumps(column['metadata']))
         
     # [
         # {
             # "height":50,"columns":[
-                # {"id":"166d56ad-00ba-46b5-9af7-8df78300a7de", "width":12,"type":"USACEPlot","metadata":{"location":"coy","year":"2024"}}
+                # {"width":12,"type":"USACEPlot","metadata":{"location":"coy","year":"2024"}}
             # ]
         # },{
             # "height":50,"columns":[
-                # {"id":"e34c4935-2ee6-4dcb-97ac-90b0d229c710", "width":4,"type":"Image","metadata":{"uri":"https://cw3e.ucsd.edu/Projects/QPF/images/HUC8/table_18010110.png"}},
-                # {"id":"172f85c4-64b7-4031-815b-0c20de36d4fd", "width":8,"type":"CDECPlot","metadata":{"station":"dlv","start":"2024-06-01"}}
+                # {"width":4,"type":"Image","metadata":{"uri":"https://cw3e.ucsd.edu/Projects/QPF/images/HUC8/table_18010110.png"}},
+                # {"width":8,"type":"CDECPlot","metadata":{"station":"dlv","start":"2024-06-01"}}
             # ]
         # },{
             # "height":25,"columns":[
-                # {"id":"88b892fd-7b71-461d-b07f-146476d16313", "width":6,"type":"","metadata":{}},
-                # {"id":"5d2f61b6-c815-45b1-836f-1bc3791b2841", "width":6,"type":"","metadata":{}}
+                # {"width":6,"type":"","metadata":{}},
+                # {"width":6,"type":"","metadata":{}}
             # ]
         # }
     # ]
@@ -111,6 +98,41 @@ def add_new_dashboard(label, name, image, notes, row_data):
     # Commit the session and close the connection
     session.commit()
     session.close()
+
+
+def add_new_row(session, dashboard_id, order, height):
+    new_row = Row(
+        dashboard_id=dashboard_id,
+        row_order=order,
+        height=height
+    )
+    session.add(new_row)
+    session.commit()
+    session.refresh(new_row)
+    
+    return new_row
+
+
+def delete_row(session, row_id):
+    db_row = session.query(Row).filter(Row.id==row_id).first()
+    session.delete(db_row)
+    
+    return 
+
+
+def add_new_column(session, row_id, order, width, type, metadata):
+    new_column = Column(
+        row_id=row_id,
+        col_order=order,
+        width=width,
+        data_type=type,
+        data_metadata=metadata
+    )
+    session.add(new_column)
+    session.commit()
+    session.refresh(new_column)
+    
+    return new_column
 
 
 def delete_named_dashboard(name):
@@ -121,7 +143,8 @@ def delete_named_dashboard(name):
     Session = app.get_persistent_store_database('primary_db', as_sessionmaker=True)
     session = Session()
 
-    session.query(Dashboard).filter(Dashboard.name==name).delete()
+    db_dashboard = session.query(Dashboard).filter(Dashboard.name==name).first()
+    session.delete(db_dashboard)
 
     # Commit the session and close the connection
     session.commit()
@@ -141,16 +164,30 @@ def update_named_dashboard(name, label, image, notes, row_data):
     db_dashboard.image = image
     db_dashboard.notes = notes
     row_data = json.loads(row_data) if isinstance(row_data, str) else row_data
-    
+
+    existing_db_row_ids = [row.id for row in db_dashboard.rows]
+    new_row_ids = [int(row['id']) for row in row_data if row.get('id')]
+    rows_to_delete = [id for id in existing_db_row_ids if id not in new_row_ids]
+    for row_id in rows_to_delete:
+        delete_row(session, row_id)
+
     for row in row_data:
-        row_id = row['id']
-        db_row = session.query(Row).filter(Row.id==row_id).first()
+        row_id = row.get('id')
+        if not row_id:
+            db_row = add_new_row(session, db_dashboard.id, row['order'], row['height'])
+        else:
+            db_row = session.query(Row).filter(Row.id==row_id).first()
+            
         db_row.height = row['height']
         db_row.row_order = row['order']
         
         for col in row['columns']:
-            col_id = col['id']
-            db_col = session.query(Column).filter(Column.id==col_id).first()
+            col_id = col.get('id')
+            if not col_id:
+                db_col = add_new_column(session, db_row.id, col['order'], col['width'], col['type'], json.dumps(col['metadata']))
+            else:
+                db_col = session.query(Column).filter(Column.id==col_id).first()
+
             db_col.width = col['width']
             db_col.col_order = col['order']
             
@@ -160,7 +197,7 @@ def update_named_dashboard(name, label, image, notes, row_data):
     session.close()
 
 
-def get_all_dashboards():
+def get_dashboards(name=None):
     """
     Get all persisted dashboards.
     """
@@ -170,7 +207,11 @@ def get_all_dashboards():
     session = Session()
 
     # Query for all dam records
-    dashboards = session.query(Dashboard).order_by(Dashboard.name).all()
+    if name:
+        dashboards = session.query(Dashboard).filter(Dashboard.name==name).all()
+    else:
+        dashboards = session.query(Dashboard).order_by(Dashboard.name).all()
+
     for dashboard in dashboards:
         dashboard_dict[dashboard.name] = {
             "id": dashboard.id,

@@ -22,7 +22,7 @@ const StyledContainer= styled(Container)`
 
 const StyledAbsDiv= styled.div`
     position: absolute;
-    z-index: 1;
+    z-index: 1000;
     left: 0;
     right: 0;
 `;
@@ -33,8 +33,8 @@ function DashboardLayout() {
     const setIsEditing = useEditingContext()[1];
     const {csrf} = useContext(AppContext);
     const [dashboardRowData, setDashboardRowData]  = useState(null);
-    const [ showSaveMessage, setShowSaveMessage ] = useState(false)
-    const [ showErrorMessage, setShowErrorMessage ] = useState(false)
+    const [ showSaveMessage, setShowSaveMessage ] = useState(false);
+    const [ showErrorMessage, setShowErrorMessage ] = useState(false);
 
     function getDashboardRows() {
         const dashboardRowData = JSON.parse(dashboardContext['rowData'])
@@ -45,8 +45,9 @@ function DashboardLayout() {
             const rowID = dashboardRow['id']
             const rowHeight = dashboardRow['height']
             const rowColumns = dashboardRow['columns']
+            const key = i.toString() + rowHeight.toString()
             dashboardRows.push(
-                <DashboardRow key={i} rowID={rowID} rowHeight={rowHeight} rowColumns={rowColumns}/>
+                <DashboardRow key={key} rowNumber={i} rowID={rowID} rowHeight={rowHeight} rowColumns={rowColumns}/>
             )
         }
         return dashboardRows
@@ -57,12 +58,11 @@ function DashboardLayout() {
         setShowSaveMessage(false)
         setShowErrorMessage(false)
         const cellDimensionsInputs = event.currentTarget.querySelectorAll('input')
-        //   event.currentTarget.querySelectorAll('input')[0].dataset.id;
         let data = [];
         let currentRowID = null;
         let colData = [];
-        let rowOrder = [];
-        let colOrder = [];
+        let rowCount = 0;
+        let colCount = 0;
         let rowDataID;
         let rowDataHeight;
         let rowDataOrder;
@@ -71,56 +71,56 @@ function DashboardLayout() {
             const inputType = dimensionInput.dataset['inputtype']
             const rowID= dimensionInput.dataset['rowid']
             const colID = dimensionInput.dataset['colid']
+            const newrow = dimensionInput.dataset['newrow']
 
             if (currentRowID === null) {
                 currentRowID = rowID
-            } else if (currentRowID != rowID) {
+            } else if (newrow == "true") {
                 data.push({
                     'id': rowDataID,
                     'height': rowDataHeight,
-                    'order': rowDataOrder,
+                    'order': rowCount,
                     'columns': colData
                 })
                 colData = [];
-                colOrder = [];
+                colCount = 0;
                 currentRowID = rowID
+                rowCount += 1
             }
 
-            if (inputType === "height" && !rowOrder.includes(rowID)) {
-                rowOrder.push(rowID)
+            if (inputType === "height") {
                 rowDataID = rowID
                 rowDataHeight = dimensionInput.value
-                rowDataOrder = rowOrder.indexOf(rowID)
             }
 
             if (inputType === "width") {
-                colOrder.push(colID)
                 colData.push({
                     'id': colID,
                     'width': dimensionInput.value,
-                    'order': colOrder.indexOf(colID),
+                    'order': colCount,
                     "type": dimensionInput.dataset['type'],
                     "metadata": dimensionInput.dataset['metadata']
                 })
+                colCount += 1
             }
 
             if (i === cellDimensionsInputs.length-1) {
                 data.push({
                     'id': rowDataID,
                     'height': rowDataHeight,
-                    'order': rowDataOrder,
+                    'order': rowCount,
                     'columns': colData
                 })
             }
 
         }
-        const updatedDashboardContext = {...dashboardContext, rowData: JSON.stringify(data)}
-        appAPI.updateDashboard(updatedDashboardContext, csrf).then((response) => {
+        dashboardContext['rowData'] = JSON.stringify(data)
+        appAPI.updateDashboard(dashboardContext, csrf).then((response) => {
             if (response['success']) {
-                setDashboardContext(updatedDashboardContext)
+                setDashboardContext(response['updated_dashboard'])
         
                 let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
-                OGLayouts[dashboardContext['name']] = updatedDashboardContext
+                OGLayouts[dashboardContext['name']] = response['updated_dashboard']
                 setDashboardLayoutConfigs(OGLayouts)
                 setShowSaveMessage(true)
             } else {
@@ -132,7 +132,7 @@ function DashboardLayout() {
     
     useEffect(() => {
         setDashboardRowData(getDashboardRows());
-      }, [dashboardContext]);
+    }, [dashboardContext]);
     
     useEffect(() => {
         if (showSaveMessage == true) {

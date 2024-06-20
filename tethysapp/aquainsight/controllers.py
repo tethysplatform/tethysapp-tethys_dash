@@ -3,7 +3,7 @@ import json
 
 from tethys_sdk.routing import controller
 from .app import App
-from .model import get_all_dashboards, add_new_dashboard, delete_named_dashboard, update_named_dashboard
+from .model import get_dashboards, add_new_dashboard, delete_named_dashboard, update_named_dashboard
 from .data.usace import get_usace_data
 from .data.cdec import get_cdec_data
 
@@ -34,7 +34,7 @@ def data(request):
 @controller
 def dashboards(request):
     """API controller for the dashboards page."""
-    dashboards = get_all_dashboards()
+    dashboards = get_dashboards()
     
     return JsonResponse(dashboards)
 
@@ -54,9 +54,10 @@ def add_dashboard(request):
 
     try:
         add_new_dashboard(label, name, image, notes, row_data)
+        new_dashboard = get_dashboards(name=name)[name]
         print(f"Successfully created the dashboard named {name}")
         
-        return JsonResponse({"success": True})
+        return JsonResponse({"success": True, "new_dashboard": new_dashboard})
     except Exception as e:
         print(f"Failed to create the dashboard named {name}")
         print(e)
@@ -98,9 +99,10 @@ def update_dashboard(request):
 
     try:
         update_named_dashboard(name, label, image, notes, row_data)
+        updated_dashboard = get_dashboards(name=name)[name]
         print(f"Successfully updated the dashboard named {name}")
         
-        return JsonResponse({"success": True})
+        return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
     except Exception as e:
         print(f"Failed to update the dashboard named {name}")
         print(e)
