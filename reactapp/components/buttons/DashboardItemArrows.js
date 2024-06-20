@@ -60,8 +60,10 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
             }]
         }
         const dashboardData = JSON.parse(dashboardContext['rowData'])
-        dashboardData.splice(rowNumber, 0, newRow)
-        for (let i=rowNumber+1; i < dashboardData.length; i++) {
+        let insertIndex = arrowDirection == "up" ? rowNumber : rowNumber+1
+        let loopStartIndex = arrowDirection == "up" ? insertIndex+1 : insertIndex
+        dashboardData.splice(insertIndex, 0, newRow)
+        for (let i=loopStartIndex; i < dashboardData.length; i++) {
             dashboardData[i]['order'] += 1
         }
         const updatedDashboardContext = {...dashboardContext, rowData: JSON.stringify(dashboardData)}
