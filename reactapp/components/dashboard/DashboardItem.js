@@ -3,7 +3,7 @@ import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Form from 'react-bootstrap/Form';
 import BasePlot from 'components/plots/BasePlot';
-import { memo, useState } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { useEditingContext } from 'components/contexts/EditingContext';
 import { useRowHeightContext, useRowInfoContext } from 'components/dashboard/DashboardRow';
 import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
@@ -68,20 +68,32 @@ const StyledAbsDiv= styled.div`
 const DashboardItem = ({type, metadata}) => {
   const isEditing = useEditingContext()[0];
   const [ height, setHeight ] = useRowHeightContext();
-  const [ rowNumber, rowHeight, rowID ] = useRowInfoContext();
+  const [ rowNumber, rowHeight, rowID, allColWidths, setAllColWidths ] = useRowInfoContext();
   const [ colNumber, colWidth, colID ] = useColInfoContext();
   const [ dashboardContext, setDashboardContext ] = useSelectedDashboardContext();
   const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
   const itemData = {"type": type, "metadata": metadata}
-  const [ width, setWidth ] = useState(colWidth)
+  const [ width, setWidth ] = useState(allColWidths[colNumber])
+  const [ maxWidth, setMaxWidth ] = useState((12 - (Object.keys(allColWidths).length-1)).toString())
 
   function onRowHeightInput({target:{value}}) {
     setHeight(value)
   }
 
   function onColWidthInput({target:{value}}) {
-    setWidth(value)
+    let copiedAllColWidths = Object.assign({}, allColWidths);
+    copiedAllColWidths[colNumber] = value
+
+    if (Object.keys(copiedAllColWidths).length == 2) {
+      const otherIndex = colNumber==0 ? 1 : 0
+      copiedAllColWidths[otherIndex] = 12-value
+    }
+    setAllColWidths(copiedAllColWidths)
   }
+    
+  useEffect(() => {
+    setWidth(allColWidths[colNumber])
+  }, [allColWidths]);
 
   function deleteCell(e) {
     const dashboardData = JSON.parse(dashboardContext['rowData'])
@@ -127,7 +139,7 @@ const DashboardItem = ({type, metadata}) => {
           <StyledFormGroup className="mb-1">
               <Form.Label>Column Width</Form.Label>
               <Form.Control 
-                required type="number" min="1" max="12" onChange={onColWidthInput} value={width} 
+                required type="number" min="1" max={maxWidth} onChange={onColWidthInput} value={width} 
                 data-inputtype="width" data-type={type} data-metadata={JSON.stringify(metadata)} 
                 data-rowid={rowID} data-colid={colID}/>
           </StyledFormGroup>

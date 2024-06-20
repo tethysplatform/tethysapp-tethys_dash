@@ -41,10 +41,10 @@ const StyledDownIcon= styled(BsArrowDownShort)`
 `;
 
 const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) => {
-    const rowNumber = useRowInfoContext()[0];
     const colNumber = useColInfoContext()[0];
     const [ dashboardContext, setDashboardContext ] = useSelectedDashboardContext();
     const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
+    const [ rowNumber, rowHeight, rowID, allColWidths, setAllColWidths ] = useRowInfoContext();
 
     function addRow() {
         const newRow = {
@@ -69,10 +69,46 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
         const updatedDashboardContext = {...dashboardContext, rowData: JSON.stringify(dashboardData)}
         setDashboardContext(updatedDashboardContext)
             
+        let CopiedLayouts = Object.assign({}, dashboardLayoutConfigs);
+        CopiedLayouts[dashboardContext['name']] = updatedDashboardContext
+        setDashboardLayoutConfigs(CopiedLayouts)
+  }
+
+    function addColumn() {
+        const newCol = {
+            "id": null,
+            "order": 0,
+            "width": 1,
+            "type": '',
+            "metadata": '{}'
+        }
+        
+        let rowData = JSON.parse(dashboardContext['rowData'])
+        const rowColumns = rowData[rowNumber]['columns']
+
+        const largetWidthCol = Object.keys(allColWidths).reduce((a, b) => allColWidths[a] > allColWidths[b] ? a : b);
+        rowColumns[largetWidthCol]['width'] -= 1
+
+        let insertIndex = arrowDirection == "left" ? colNumber : colNumber+1
+        let loopStartIndex = arrowDirection == "left" ? insertIndex+1 : insertIndex
+        rowColumns.splice(insertIndex, 0, newCol)
+        for (let i=loopStartIndex; i < rowColumns.length; i++) {
+            rowColumns[i]['order'] += 1
+        }
+
+        const colWidths = {}
+        for (let x=0; x < rowColumns.length; x++) {
+            colWidths[x] = rowColumns[x]['width']
+        }
+        setAllColWidths(colWidths)
+        
+        const updatedDashboardContext = {...dashboardContext, rowData: JSON.stringify(rowData)}
+        setDashboardContext(updatedDashboardContext)
+            
         let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
         OGLayouts[dashboardContext['name']] = updatedDashboardContext
         setDashboardLayoutConfigs(OGLayouts)
-  }
+    }
 
   const StyledDropdownButton = (
         <StyledDropdown>
@@ -90,7 +126,7 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
                 </>
                 :
                 <>
-                <StyledDropdown.Item>Add Cell on {arrowDirection === "right" ? "Right" : "Left"}</StyledDropdown.Item>
+                <StyledDropdown.Item onClick={addColumn}>Add Cell on {arrowDirection === "right" ? "Right" : "Left"}</StyledDropdown.Item>
                 <StyledDropdown.Item>Move Cell {arrowDirection === "right" ? "Right" : "Left"}</StyledDropdown.Item>
                 </>
                 }
