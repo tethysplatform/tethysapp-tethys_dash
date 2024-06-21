@@ -16,7 +16,9 @@ import DashboardItemArrows from 'components/buttons/DashboardItemArrows'
 
 
 const StyledFormGroup= styled(Form.Group)`
-  display: inline-block;
+  width: auto;
+  margin: auto;
+  display: block;
   padding: 0 1rem;
 `;
 
@@ -73,6 +75,7 @@ const DashboardItem = ({type, metadata}) => {
   const [ colNumber, colWidth, colID ] = useColInfoContext();
   const [ dashboardContext, setDashboardContext ] = useSelectedDashboardContext();
   const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
+  const [ warningMessage, setWarningMessage, showWarningMessage, setShowWarningMessage ] = useLayoutWarningAlertContext();
   const itemData = {"type": type, "metadata": metadata}
   const [ width, setWidth ] = useState(allColWidths[colNumber])
   const [ maxWidth, setMaxWidth ] = useState((12 - (allColWidths.length-1)).toString())
@@ -82,12 +85,21 @@ const DashboardItem = ({type, metadata}) => {
   }
 
   function onColWidthInput({target:{value}}) {
+    setWarningMessage("")
+    setShowWarningMessage(false)
     let copiedAllColWidths = JSON.parse(JSON.stringify(allColWidths));
     copiedAllColWidths[colNumber] = parseInt(value)
 
     if (copiedAllColWidths.length == 2) {
       const otherIndex = colNumber==0 ? 1 : 0
       copiedAllColWidths[otherIndex] = 12-value
+    }
+
+    const totalRowWidths = copiedAllColWidths.reduce((partialSum, a) => partialSum + a, 0)
+    if (totalRowWidths > 12) {
+      setWarningMessage("Total cell widths in the row cannot exceed 12.")
+      setShowWarningMessage(true)
+      return
     }
     setAllColWidths(copiedAllColWidths)
   }
