@@ -75,16 +75,29 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
   }
 
     function addColumn() {
+        let rowData = JSON.parse(dashboardContext['rowData'])
+        const rowColumns = rowData[rowNumber]['columns']
+        const selectedColumn = rowColumns[colNumber]
+        let newColWidth;
+        let reducedWidthCol;
+
+        if (selectedColumn['width'] == 1) {
+          newColWidth = 1
+          reducedWidthCol = Object.keys(rowColumns).reduce((a, b) => rowColumns[a]['width'] > rowColumns[b]['width'] ? a : b);
+        } else {
+          const selectedColumnSplitWidth = Math.floor(selectedColumn['width']/2)
+          newColWidth = selectedColumn['width'] - selectedColumnSplitWidth
+          reducedWidthCol = colNumber
+        }
+        rowColumns[reducedWidthCol]['width'] -= newColWidth
+
         const newCol = {
             "id": null,
             "order": 0,
-            "width": 1,
+            "width": newColWidth,
             "type": '',
             "metadata": '{}'
         }
-        
-        let rowData = JSON.parse(dashboardContext['rowData'])
-        const rowColumns = rowData[rowNumber]['columns']
 
         let insertIndex = arrowDirection == "left" ? colNumber : colNumber+1
         let loopStartIndex = arrowDirection == "left" ? insertIndex+1 : insertIndex
@@ -92,9 +105,6 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
         for (let i=loopStartIndex; i < rowColumns.length; i++) {
             rowColumns[i]['order'] += 1
         }
-
-        const largetWidthCol = Object.keys(rowColumns).reduce((a, b) => rowColumns[a]['width'] > rowColumns[b]['width'] ? a : b);
-        rowColumns[largetWidthCol]['width'] -= 1
 
         const colWidths = {}
         for (let x=0; x < rowColumns.length; x++) {
