@@ -8,6 +8,7 @@ import { useEditingContext } from 'components/contexts/EditingContext';
 import { useRowHeightContext, useRowInfoContext } from 'components/dashboard/DashboardRow';
 import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
 import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
+import { useLayoutWarningAlertContext } from 'components/contexts/LayoutAlertContext';
 import { useColInfoContext } from 'components/dashboard/DashboardCol'; 
 import DashboardItemButton from "components/buttons/DashboardItemButton";
 import 'components/dashboard/noArrowDropdown.css';
@@ -82,8 +83,9 @@ const DashboardItem = ({type, metadata}) => {
 
   function onColWidthInput({target:{value}}) {
     let copiedAllColWidths = Object.assign({}, allColWidths);
-    copiedAllColWidths[colNumber] = value
+    copiedAllColWidths[colNumber] = parseInt(value)
 
+    const totalRowWidth = Object.values(copiedAllColWidths).reduce((partialSum, a) => partialSum + a, 0)
     if (Object.keys(copiedAllColWidths).length == 2) {
       const otherIndex = colNumber==0 ? 1 : 0
       copiedAllColWidths[otherIndex] = 12-value
@@ -93,19 +95,36 @@ const DashboardItem = ({type, metadata}) => {
     
   useEffect(() => {
     setWidth(allColWidths[colNumber])
+    setMaxWidth((12 - (Object.keys(allColWidths).length-1)).toString())
   }, [allColWidths]);
 
   function deleteCell(e) {
-    const dashboardData = JSON.parse(dashboardContext['rowData'])
-    const colData = dashboardData[rowNumber]['columns']
+    const rowData = JSON.parse(dashboardContext['rowData'])
+    const colData = rowData[rowNumber]['columns']
 
     if (colData.length === 1){
-      dashboardData.splice(rowNumber, 1)
-      for (let i=rowNumber; i < dashboardData.length; i++) {
-          dashboardData[i]['order'] -= 1
+      rowData.splice(rowNumber, 1)
+      for (let i=rowNumber; i < rowData.length; i++) {
+        rowData[i]['order'] -= 1
       }
+    } else {
+      const deletedColWidth = colData[colNumber]['width']
+      colData.splice(colNumber, 1)
+      for (let i=colNumber; i < colData.length; i++) {
+        colData[i]['order'] -= 1
+      }
+
+      const smallestWidthCol = Object.keys(colData).reduce((a, b) => colData[a]['width'] < colData[b]['width'] ? a : b);
+      colData[smallestWidthCol]['width'] += deletedColWidth
+
+      const colWidths = {}
+      for (let x=0; x < colData.length; x++) {
+          colWidths[x] = colData[x]['width']
+      }
+      setAllColWidths(colWidths)
     }
-    const updatedDashboardContext = {...dashboardContext, rowData: JSON.stringify(dashboardData)}
+
+    const updatedDashboardContext = {...dashboardContext, rowData: JSON.stringify(rowData)}
     setDashboardContext(updatedDashboardContext)
         
     let OGLayouts = Object.assign({}, dashboardLayoutConfigs);

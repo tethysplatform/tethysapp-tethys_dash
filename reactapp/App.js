@@ -10,7 +10,6 @@ import SelectedDashboardContextProvider from "components/contexts/SelectedDashbo
 import AvailableDashboardContextProvider from "components/contexts/AvailableDashboardContext";
 import SelectedOptionContextProvider from "components/contexts/SelectedOptionContext";
 import AvailableOptionsContextProvider from "components/contexts/AvailableOptionsContext";
-import AddDashboardModalShowContext from "components/contexts/AvailableOptionsContext";
 
 import 'App.scss';
 

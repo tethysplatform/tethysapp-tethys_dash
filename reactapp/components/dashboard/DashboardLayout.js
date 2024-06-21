@@ -4,6 +4,7 @@ import Col from 'react-bootstrap/Col';
 import DashboardRow from 'components/dashboard/DashboardRow'
 import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
 import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
+import { useLayoutSuccessAlertContext, useLayoutErrorAlertContext, useLayoutWarningAlertContext } from 'components/contexts/LayoutAlertContext';
 import { useEditingContext } from 'components/contexts/EditingContext';
 import { useState, useEffect, useContext } from 'react';
 import Form from 'react-bootstrap/Form';
@@ -30,12 +31,12 @@ const StyledAbsDiv= styled.div`
 function DashboardLayout() {
     const [dashboardContext, setDashboardContext] = useSelectedDashboardContext();
     const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
+    const [ successMessage, setSuccessMessage, showSuccessMessage, setShowSuccessMessage ] = useLayoutSuccessAlertContext();
+    const [ errorMessage, setErrorMessage, showErrorMessage, setShowErrorMessage ] = useLayoutErrorAlertContext();
+    const [ warningMessage, setWarningMessage, showWarningMessage, setShowWarningMessage ] = useLayoutWarningAlertContext();
     const setIsEditing = useEditingContext()[1];
     const {csrf} = useContext(AppContext);
     const [dashboardRowData, setDashboardRowData]  = useState(null);
-    const [ showSaveMessage, setShowSaveMessage ] = useState(false);
-    const [ showErrorMessage, setShowErrorMessage ] = useState(false);
-    const [ errorMessage, setErrorMessage ] = useState("");
 
     function getDashboardRows() {
         const dashboardRowData = JSON.parse(dashboardContext['rowData'])
@@ -56,7 +57,7 @@ function DashboardLayout() {
   
     function handleSubmit(event) {
         event.preventDefault();
-        setShowSaveMessage(false)
+        setShowSuccessMessage(false)
         setShowErrorMessage(false)
         const cellDimensionsInputs = event.currentTarget.querySelectorAll('input')
         let data = [];
@@ -114,6 +115,11 @@ function DashboardLayout() {
             }
 
             if (i === cellDimensionsInputs.length-1) {
+                if (totalColWidth != 12) {
+                    setErrorMessage("Total width for row " + (rowCount+1).toString() + " equals " + totalColWidth.toString() + ". The total width must equal 12.")
+                    setShowErrorMessage(true)
+                    return
+                }
                 data.push({
                     'id': rowDataID,
                     'height': rowDataHeight,
@@ -131,7 +137,8 @@ function DashboardLayout() {
                 let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
                 OGLayouts[dashboardContext['name']] = response['updated_dashboard']
                 setDashboardLayoutConfigs(OGLayouts)
-                setShowSaveMessage(true)
+                setSuccessMessage("Change have been saved.")
+                setShowSuccessMessage(true)
             } else {
                 setErrorMessage("Failed to save changes. Check server logs for more information.")
                 setShowErrorMessage(true)
@@ -143,22 +150,6 @@ function DashboardLayout() {
     useEffect(() => {
         setDashboardRowData(getDashboardRows());
     }, [dashboardContext]);
-    
-    useEffect(() => {
-        if (showSaveMessage == true) {
-        window.setTimeout(()=>{
-            setShowSaveMessage(false)
-            },5000)
-        }
-    }, [showSaveMessage]);
-    
-    useEffect(() => {
-        if (showSaveMessage == true) {
-        window.setTimeout(()=>{
-            setShowErrorMessage(false)
-            },5000)
-        }
-    }, [showErrorMessage]);
 
     return (
         <StyledContainer fluid className="h-100">
@@ -168,9 +159,14 @@ function DashboardLayout() {
                         {errorMessage}
                     </Alert>
                 }
-                {showSaveMessage &&
+                {showSuccessMessage &&
                     <Alert key="success" variant="success" dismissible={true}>
-                        Changes have been saved.
+                        {successMessage}
+                    </Alert>
+                }
+                {showWarningMessage &&
+                    <Alert key="success" variant="warning" dismissible={true}>
+                        {warningMessage}
                     </Alert>
                 }
             </StyledAbsDiv>

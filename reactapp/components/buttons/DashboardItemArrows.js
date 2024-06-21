@@ -86,15 +86,15 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
         let rowData = JSON.parse(dashboardContext['rowData'])
         const rowColumns = rowData[rowNumber]['columns']
 
-        const largetWidthCol = Object.keys(allColWidths).reduce((a, b) => allColWidths[a] > allColWidths[b] ? a : b);
-        rowColumns[largetWidthCol]['width'] -= 1
-
         let insertIndex = arrowDirection == "left" ? colNumber : colNumber+1
         let loopStartIndex = arrowDirection == "left" ? insertIndex+1 : insertIndex
         rowColumns.splice(insertIndex, 0, newCol)
         for (let i=loopStartIndex; i < rowColumns.length; i++) {
             rowColumns[i]['order'] += 1
         }
+
+        const largetWidthCol = Object.keys(rowColumns).reduce((a, b) => rowColumns[a]['width'] > rowColumns[b]['width'] ? a : b);
+        rowColumns[largetWidthCol]['width'] -= 1
 
         const colWidths = {}
         for (let x=0; x < rowColumns.length; x++) {

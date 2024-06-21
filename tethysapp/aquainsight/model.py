@@ -135,6 +135,13 @@ def add_new_column(session, row_id, order, width, type, metadata):
     return new_column
 
 
+def delete_column(session, col_id):
+    db_col = session.query(Column).filter(Column.id==col_id).first()
+    session.delete(db_col)
+    
+    return 
+
+
 def delete_named_dashboard(name):
     """
     Persist new dam.
@@ -173,23 +180,31 @@ def update_named_dashboard(name, label, image, notes, row_data):
 
     for row in row_data:
         row_id = row.get('id')
+        row_height = int(row['height'])
+        row_order = int(row['order'])
         if not row_id:
-            db_row = add_new_row(session, db_dashboard.id, row['order'], row['height'])
+            db_row = add_new_row(session, db_dashboard.id, row_order, row_height)
         else:
             db_row = session.query(Row).filter(Row.id==row_id).first()
-            
-        db_row.height = row['height']
-        db_row.row_order = row['order']
+            db_row.height = row_height
+            db_row.row_order = row_order
+
+        existing_db_col_ids = [col.id for col in db_row.columns]
+        new_col_ids = [int(col['id']) for col in row['columns'] if col.get('id')]
+        cols_to_delete = [id for id in existing_db_col_ids if id not in new_col_ids]
+        for col_id in cols_to_delete:
+            delete_column(session, col_id)
         
         for col in row['columns']:
             col_id = col.get('id')
+            col_width = int(col['width'])
+            col_order = int(col['order'])
             if not col_id:
-                db_col = add_new_column(session, db_row.id, col['order'], col['width'], col['type'], json.dumps(col['metadata']))
+                db_col = add_new_column(session, db_row.id, col_order, col_width, col['type'], json.dumps(col['metadata']))
             else:
                 db_col = session.query(Column).filter(Column.id==col_id).first()
-
-            db_col.width = col['width']
-            db_col.col_order = col['order']
+                db_col.width = col_width
+                db_col.col_order = col_order
             
 
     # Commit the session and close the connection

@@ -8,6 +8,7 @@ import EditingContextProvider from "components/contexts/EditingContext";
 import DashboardNotesModalShowContextProvider from "components/contexts/DashboardNotesModalShowContext";
 import EditDashboardDimensionModalShowContextProvider from "components/contexts/EditDashboardDimensionModalShowContext";
 import { useSelectedDashboardContext } from "components/contexts/SelectedDashboardContext";
+import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 
 
 function DashboardView() {
@@ -31,9 +32,11 @@ function DashboardView() {
                 </Row>
               </Col>
               <Col className="col-10 h-100" style={{"overflowY": "auto"}}>
-              {dashboardContext &&
-                <DashboardLayout />
-              }
+                {dashboardContext &&
+                  <LayoutAlertContextProvider>
+                    <DashboardLayout />
+                  </LayoutAlertContextProvider>
+                }
               </Col>
             </Row>
           </EditingContextProvider>
