@@ -45,6 +45,8 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
   const [ dashboardContext, setDashboardContext ] = useSelectedDashboardContext();
   const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
   const [ rowNumber, rowHeight, rowID, allColWidths, setAllColWidths ] = useRowInfoContext();
+  const rowData = JSON.parse(dashboardContext['rowData'])
+  const rowColumns = rowData[rowNumber]['columns']
 
   function addRow() {
     const rowData = JSON.parse(dashboardContext['rowData'])
@@ -159,13 +161,17 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
             <StyledDropdown.Menu>
                 {(arrowDirection === "up" || arrowDirection === "down") ?
                 <>
-                    <StyledDropdown.Item onClick={addRow}>Add Row {arrowDirection === "up" ? "Above" : "Below"}</StyledDropdown.Item>
+                  <StyledDropdown.Item onClick={addRow}>Add Row {arrowDirection === "up" ? "Above" : "Below"}</StyledDropdown.Item>
+                  {((arrowDirection === "up" && rowNumber != 0) || (arrowDirection === "down" && rowNumber != rowData.length-1)) && 
                     <StyledDropdown.Item onClick={moveRow}>Move Row {arrowDirection === "up" ? "Above" : "Below"}</StyledDropdown.Item>
+                  }
                 </>
                 :
                 <>
-                <StyledDropdown.Item onClick={addColumn}>Add Cell on {arrowDirection === "right" ? "Right" : "Left"}</StyledDropdown.Item>
-                <StyledDropdown.Item onClick={moveColumn}>Move Cell {arrowDirection === "right" ? "Right" : "Left"}</StyledDropdown.Item>
+                  <StyledDropdown.Item onClick={addColumn}>Add Cell on {arrowDirection === "right" ? "Right" : "Left"}</StyledDropdown.Item>
+                  {((arrowDirection === "left" && colNumber != 0) || (arrowDirection === "right" && colNumber != rowColumns.length-1)) && 
+                    <StyledDropdown.Item onClick={moveColumn}>Move Cell {arrowDirection === "right" ? "Right" : "Left"}</StyledDropdown.Item>
+                  }
                 </>
                 }
             </StyledDropdown.Menu>
