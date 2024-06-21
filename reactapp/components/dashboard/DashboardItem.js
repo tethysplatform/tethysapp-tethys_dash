@@ -79,6 +79,8 @@ const DashboardItem = ({type, metadata}) => {
   const itemData = {"type": type, "metadata": metadata}
   const [ width, setWidth ] = useState(allColWidths[colNumber])
   const [ maxWidth, setMaxWidth ] = useState((12 - (allColWidths.length-1)).toString())
+  const rowData = JSON.parse(dashboardContext['rowData'])
+  const rowColumns = rowData[rowNumber]['columns']
 
   function onRowHeightInput({target:{value}}) {
     setHeight(value)
@@ -180,16 +182,16 @@ const DashboardItem = ({type, metadata}) => {
           </StyledFormGroup>
         </StyledCenterDiv>
         <StyledAbsDiv  $x="middle" $y="top">
-          <DashboardItemArrows arrowDirection="up" tooltipPlacement="left" tooltipText="Add/Move Row Above"/>
+          <DashboardItemArrows arrowDirection="up" tooltipPlacement="left" tooltipText={rowNumber === 0 ? "Add Row Above" : "Add/Move Row Above"}/>
         </StyledAbsDiv>
         <StyledAbsDiv  $x="left" $y="middle">
-          <DashboardItemArrows arrowDirection="left" tooltipPlacement="right" tooltipText="Add/Move Column on Left"/>
+          <DashboardItemArrows arrowDirection="left" tooltipPlacement="right" tooltipText={colNumber === 0 ? "Add Row on Left" : "Add/Move Column on Left"}/>
         </StyledAbsDiv>
         <StyledAbsDiv  $x="middle" $y="bottom">
-          <DashboardItemArrows arrowDirection="down" tooltipPlacement="left" tooltipText="Add/Move Row Below"/>
+          <DashboardItemArrows arrowDirection="down" tooltipPlacement="left" tooltipText={rowNumber === rowData.length-1 ? "Add Row Below" : "Add/Move Row Below"}/>
         </StyledAbsDiv>
         <StyledAbsDiv $x="right" $y="middle">
-          <DashboardItemArrows arrowDirection="right" tooltipPlacement="left" tooltipText="Add/Move Column on Right"/>
+          <DashboardItemArrows arrowDirection="right" tooltipPlacement="left" tooltipText={colNumber === rowColumns.length-1 ? "Add Row on Right" : "Add/Move Column on Right"}/>
         </StyledAbsDiv>
       </Row>
     </StyledContainer>
