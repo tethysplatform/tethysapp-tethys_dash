@@ -1,4 +1,3 @@
-import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import DashboardRow from 'components/dashboard/DashboardRow'
@@ -6,26 +5,14 @@ import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboa
 import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
 import { useLayoutSuccessAlertContext, useLayoutErrorAlertContext, useLayoutWarningAlertContext } from 'components/contexts/LayoutAlertContext';
 import { useEditingContext } from 'components/contexts/EditingContext';
-import { useState, useEffect, useContext } from 'react';
+import { useContext } from 'react';
 import Form from 'react-bootstrap/Form';
 import styled from 'styled-components';
 import appAPI from 'services/api/app';
 import { AppContext } from 'components/contexts/AppContext';
-import Alert from 'react-bootstrap/Alert';
 
 const StyledForm= styled(Form)`
   display: inline;
-`;
-
-const StyledContainer= styled(Container)`
-  position: relative;
-`;
-
-const StyledAbsDiv= styled.div`
-    position: absolute;
-    z-index: 1000;
-    left: 0;
-    right: 0;
 `;
 
 function DashboardLayout() {
@@ -33,7 +20,6 @@ function DashboardLayout() {
     const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
     const [ successMessage, setSuccessMessage, showSuccessMessage, setShowSuccessMessage ] = useLayoutSuccessAlertContext();
     const [ errorMessage, setErrorMessage, showErrorMessage, setShowErrorMessage ] = useLayoutErrorAlertContext();
-    const [ warningMessage, setWarningMessage, showWarningMessage, setShowWarningMessage ] = useLayoutWarningAlertContext();
     const setIsEditing = useEditingContext()[1];
     const {csrf} = useContext(AppContext);
   
@@ -144,32 +130,13 @@ function DashboardLayout() {
     }
 
     return (
-        <StyledContainer fluid className="h-100">
-            <StyledAbsDiv>
-                {showErrorMessage &&
-                    <Alert key="failure" variant="danger" dismissible={true}>
-                        {errorMessage}
-                    </Alert>
-                }
-                {showSuccessMessage &&
-                    <Alert key="success" variant="success" dismissible={true}>
-                        {successMessage}
-                    </Alert>
-                }
-                {showWarningMessage &&
-                    <Alert key="success" variant="warning" dismissible={true}>
-                        {warningMessage}
-                    </Alert>
-                }
-            </StyledAbsDiv>
-            <Row className="h-100">
-                <Col>
-                    <StyledForm id="rowUpdate" onSubmit={handleSubmit}>
-                        {dashboardRows}
-                    </StyledForm>
-                </Col>
-            </Row>
-        </StyledContainer>
+        <Row className="h-100">
+            <Col>
+                <StyledForm id="rowUpdate" onSubmit={handleSubmit}>
+                    {dashboardRows}
+                </StyledForm>
+            </Col>
+        </Row>
     );
 }
 
