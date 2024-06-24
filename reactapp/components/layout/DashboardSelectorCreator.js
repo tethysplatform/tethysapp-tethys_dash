@@ -32,9 +32,8 @@ function DashboardSelectorCreator() {
     function updateLayout(e) {
         let selectedDashboard = dashboardLayoutConfigs[e.value]
         setSelectedOption({"value": e.value, "label": selectedDashboard['label']})
-        setDashboardContext(selectedDashboard)
+        setDashboardContext({...selectedDashboard})
     }
-  
     
     function createDashboard(e) {
       setShowModal(true)

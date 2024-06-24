@@ -28,7 +28,7 @@ function DashboardRow({rowNumber, rowID, rowHeight, rowColumns}) {
         )
     }
     return (
-        <StyledDashboardRow key={rowID} $rowHeight={rowHeight}>
+        <StyledDashboardRow key={rowID} $rowHeight={height}>
             {dashboardColumns}
         </StyledDashboardRow>
     )

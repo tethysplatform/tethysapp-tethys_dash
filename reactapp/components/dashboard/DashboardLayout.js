@@ -36,24 +36,6 @@ function DashboardLayout() {
     const [ warningMessage, setWarningMessage, showWarningMessage, setShowWarningMessage ] = useLayoutWarningAlertContext();
     const setIsEditing = useEditingContext()[1];
     const {csrf} = useContext(AppContext);
-    const [dashboardRowData, setDashboardRowData]  = useState(null);
-
-    function getDashboardRows() {
-        const dashboardRowData = JSON.parse(dashboardContext['rowData'])
-
-        const dashboardRows = []
-        for (let i=0; i < dashboardRowData.length; i++) {
-            const dashboardRow = dashboardRowData[i]
-            const rowID = dashboardRow['id']
-            const rowHeight = dashboardRow['height']
-            const rowColumns = dashboardRow['columns']
-            const key = i.toString() + rowHeight.toString()
-            dashboardRows.push(
-                <DashboardRow key={key} rowNumber={i} rowID={rowID} rowHeight={rowHeight} rowColumns={rowColumns}/>
-            )
-        }
-        return dashboardRows
-    }
   
     function handleSubmit(event) {
         event.preventDefault();
@@ -146,10 +128,20 @@ function DashboardLayout() {
         })
         setIsEditing(false);
     }
-    
-    useEffect(() => {
-        setDashboardRowData(getDashboardRows());
-    }, [dashboardContext]);
+
+    const rowData = JSON.parse(dashboardContext['rowData'])
+
+    const dashboardRows = []
+    for (let i=0; i < rowData.length; i++) {
+        const dashboardRow = rowData[i]
+        const rowID = dashboardRow['id']
+        const rowHeight = dashboardRow['height']
+        const rowColumns = dashboardRow['columns']
+        const key = i.toString() + rowHeight.toString()
+        dashboardRows.push(
+            <DashboardRow key={key} rowNumber={i} rowID={rowID} rowHeight={rowHeight} rowColumns={rowColumns}/>
+        )
+    }
 
     return (
         <StyledContainer fluid className="h-100">
@@ -173,7 +165,7 @@ function DashboardLayout() {
             <Row className="h-100">
                 <Col>
                     <StyledForm id="rowUpdate" onSubmit={handleSubmit}>
-                        {dashboardRowData}
+                        {dashboardRows}
                     </StyledForm>
                 </Col>
             </Row>

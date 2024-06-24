@@ -6,7 +6,6 @@ import DashboardMetadata from '../../components/dashboard/DashboardMetadata';
 import React from 'react';
 import EditingContextProvider from "components/contexts/EditingContext";
 import DashboardNotesModalShowContextProvider from "components/contexts/DashboardNotesModalShowContext";
-import EditDashboardDimensionModalShowContextProvider from "components/contexts/EditDashboardDimensionModalShowContext";
 import { useSelectedDashboardContext } from "components/contexts/SelectedDashboardContext";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 
@@ -24,9 +23,7 @@ function DashboardView() {
                 <Row style={{"height": "95%"}}>
                   {dashboardContext && 
                     <DashboardNotesModalShowContextProvider>
-                      <EditDashboardDimensionModalShowContextProvider>
                         <DashboardMetadata />
-                      </EditDashboardDimensionModalShowContextProvider>
                     </DashboardNotesModalShowContextProvider>
                   }
                 </Row>
