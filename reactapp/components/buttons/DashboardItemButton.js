@@ -3,7 +3,7 @@ import Button from 'react-bootstrap/Button';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import PropTypes from 'prop-types';
 import Tooltip from 'react-bootstrap/Tooltip';
-import { BsTrash, BsPencilSquare  } from "react-icons/bs";
+import { BsTrash, BsPencilSquare, BsArrowsAngleExpand  } from "react-icons/bs";
 
 
 const StyledButton = styled(Button) `
@@ -22,6 +22,9 @@ const DashboardItemButton = ({tooltipText, onClick, type, hidden}) => {
   } else if (type==="edit") {
     icon = <BsPencilSquare size="1rem"/>
     variant = "warning"
+  } else if (type==="fullscreen") {
+    icon = <BsArrowsAngleExpand size="1rem"/>
+    variant = "info"
   }
 
   styledButton = <StyledButton variant={variant} onClick={onClick} size="sm" hidden={hidden}>{icon}</StyledButton>

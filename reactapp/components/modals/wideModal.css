@@ -1,0 +1,5 @@
+/* Chrome, Safari, Edge, Opera */
+.wideModalDialog {
+  max-width: none !important;
+  height: 90% !important;
+}

@@ -12,6 +12,7 @@ import { useColInfoContext } from 'components/dashboard/DashboardCol';
 import DashboardItemButton from "components/buttons/DashboardItemButton";
 import 'components/dashboard/noArrowDropdown.css';
 import DashboardItemArrows from 'components/buttons/DashboardItemArrows'
+import FullscreenPlotModal from 'components/modals/FullscreenPlot'
 
 
 const StyledFormGroup= styled(Form.Group)`
@@ -30,6 +31,7 @@ const StyledButtonDiv= styled.div`
   position: absolute;
   z-index: 1;
   margin: .5rem;
+  right: 0;
 `;
 
 const StyledCenterDiv= styled.div`
@@ -65,6 +67,10 @@ const StyledAbsDiv= styled.div`
     props.$y === 'bottom' && ".5rem"};
   margin-top: ${(props) => 
     props.$y === 'top' && ".5rem"};
+  margin-left: ${(props) => 
+    props.$x === 'left' && ".5rem"};
+  margin-right: ${(props) => 
+    props.$x === 'right' && ".5rem"};
 `;
 
 const DashboardItem = ({type, metadata}) => {
@@ -77,11 +83,11 @@ const DashboardItem = ({type, metadata}) => {
   const itemData = {"type": type, "metadata": metadata}
   const [ rowData, setRowData ] = useLayoutRowDataContext();
   const [ maxWidth, setMaxWidth ] = useState((12 - (rowData[rowNumber]['columns'].length-1)).toString())
+  const [ showFullscreenPlot, setShowFullscreenPlot ] = useState(false)
     
   useEffect(() => {
     setMaxWidth((12 - (rowData[rowNumber]['columns'].length-1)).toString())
   }, [rowData]);
-
 
   function onRowHeightInput({target:{value}}) {
     setHeight(value)
@@ -138,51 +144,67 @@ const DashboardItem = ({type, metadata}) => {
     }
   }
 
+  function onFullscreen() {
+    setShowFullscreenPlot(true)
+  }
+
+  function hideFullscreenPlot() {
+    setShowFullscreenPlot(false)
+  }
+
+  function getPlot() {
+    return (
+      <>
+        {type.includes("Plot") && <BasePlot rowHeight={rowHeight} colWidth={width} itemData={itemData}/>}
+        {type === "Image" && <StyledImg src={metadata['uri']}/>}
+      </>
+    )
+  }
+
   return (
-    <StyledContainer fluid className="h-100">
-      <StyledButtonDiv >
-        <DashboardItemButton tooltipText="Edit Content" type="edit" hidden={!isEditing}/>
-        <DashboardItemButton tooltipText="Delete Cell" type="delete" hidden={!isEditing} onClick={deleteCell}/>
-      </StyledButtonDiv>
-      <Row style={{height: "100%"}} hidden={isEditing}>
-        {!isEditing &&
-          <>
-            {type.includes("Plot") && <BasePlot rowHeight={rowHeight} colWidth={width} itemData={itemData}/>}
-            {type === "Image" && <StyledImg src={metadata['uri']}/>}
-          </>
-        }
-      </Row>
-      <Row className="h-100" hidden={!isEditing}>
-        <StyledCenterDiv >
-          <StyledFormGroup className="mb-1">
-              <Form.Label>Row Height</Form.Label>
-              <Form.Control 
-                required type="number" min="1" max="100" onChange={onRowHeightInput} value={height} 
-                data-inputtype="height" data-newrow={colNumber==0 ? true : false} data-rowid={rowID}
-                data-colid={colID}/>
-          </StyledFormGroup>
-          <StyledFormGroup className="mb-1">
-              <Form.Label>Column Width</Form.Label>
-              <Form.Control 
-                required type="number" min="1" max={maxWidth} onChange={onColWidthInput} value={width} 
-                data-inputtype="width" data-type={type} data-metadata={JSON.stringify(metadata)} 
-                data-rowid={rowID} data-colid={colID}/>
-          </StyledFormGroup>
-        </StyledCenterDiv>
-        <StyledAbsDiv  $x="middle" $y="top">
-          <DashboardItemArrows arrowDirection="up" tooltipPlacement="left" tooltipText={rowNumber === 0 ? "Add Row Above" : "Add/Move Row Above"}/>
-        </StyledAbsDiv>
-        <StyledAbsDiv  $x="left" $y="middle">
-          <DashboardItemArrows arrowDirection="left" tooltipPlacement="right" tooltipText={colNumber === 0 ? "Add Row on Left" : "Add/Move Column on Left"}/>
-        </StyledAbsDiv>
-        <StyledAbsDiv  $x="middle" $y="bottom">
-          <DashboardItemArrows arrowDirection="down" tooltipPlacement="left" tooltipText={rowNumber === rowData.length-1 ? "Add Row Below" : "Add/Move Row Below"}/>
-        </StyledAbsDiv>
-        <StyledAbsDiv $x="right" $y="middle">
-          <DashboardItemArrows arrowDirection="right" tooltipPlacement="left" tooltipText={colNumber === rowData[rowNumber]['columns'].length-1 ? "Add Row on Right" : "Add/Move Column on Right"}/>
-        </StyledAbsDiv>
-      </Row>
-    </StyledContainer>
+    <>
+      <StyledContainer fluid className="h-100">
+        <StyledButtonDiv >
+          <DashboardItemButton tooltipText="Fullscreen" type="fullscreen" hidden={isEditing} onClick={onFullscreen}/>
+          <DashboardItemButton tooltipText="Edit Content" type="edit" hidden={!isEditing}/>
+          <DashboardItemButton tooltipText="Delete Cell" type="delete" hidden={!isEditing} onClick={deleteCell}/>
+        </StyledButtonDiv>
+        <Row style={{height: "100%"}} hidden={isEditing}>
+          {!isEditing && getPlot()}
+        </Row>
+        <Row className="h-100" hidden={!isEditing}>
+          <StyledCenterDiv >
+            <StyledFormGroup className="mb-1">
+                <Form.Label>Row Height</Form.Label>
+                <Form.Control 
+                  required type="number" min="1" max="100" onChange={onRowHeightInput} value={height} 
+                  data-inputtype="height" data-newrow={colNumber==0 ? true : false} data-rowid={rowID}
+                  data-colid={colID}/>
+            </StyledFormGroup>
+            <StyledFormGroup className="mb-1">
+                <Form.Label>Column Width</Form.Label>
+                <Form.Control 
+                  required type="number" min="1" max={maxWidth} onChange={onColWidthInput} value={width} 
+                  data-inputtype="width" data-type={type} data-metadata={JSON.stringify(metadata)} 
+                  data-rowid={rowID} data-colid={colID}/>
+            </StyledFormGroup>
+          </StyledCenterDiv>
+          <StyledAbsDiv  $x="middle" $y="top">
+            <DashboardItemArrows arrowDirection="up" tooltipPlacement="left" tooltipText={rowNumber === 0 ? "Add Row Above" : "Add/Move Row Above"}/>
+          </StyledAbsDiv>
+          <StyledAbsDiv  $x="left" $y="middle">
+            <DashboardItemArrows arrowDirection="left" tooltipPlacement="right" tooltipText={colNumber === 0 ? "Add Row on Left" : "Add/Move Column on Left"}/>
+          </StyledAbsDiv>
+          <StyledAbsDiv  $x="middle" $y="bottom">
+            <DashboardItemArrows arrowDirection="down" tooltipPlacement="left" tooltipText={rowNumber === rowData.length-1 ? "Add Row Below" : "Add/Move Row Below"}/>
+          </StyledAbsDiv>
+          <StyledAbsDiv $x="right" $y="middle">
+            <DashboardItemArrows arrowDirection="right" tooltipPlacement="left" tooltipText={colNumber === rowData[rowNumber]['columns'].length-1 ? "Add Row on Right" : "Add/Move Column on Right"}/>
+          </StyledAbsDiv>
+        </Row>
+      </StyledContainer>
+      <FullscreenPlotModal children={getPlot()} show={showFullscreenPlot} handleClose={hideFullscreenPlot}/>
+    </>
   )
 }
 

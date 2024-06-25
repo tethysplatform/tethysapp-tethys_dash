@@ -14,7 +14,6 @@ const StyledPlot= styled(Plot)`
 `;
 
 const StyledSpinner= styled(Spinner)`
-  width: auto;
   margin: auto;
   display: block;
 `;
