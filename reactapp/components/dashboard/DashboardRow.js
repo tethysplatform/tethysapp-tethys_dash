@@ -12,28 +12,24 @@ const StyledDashboardRow= styled(Row)`
 
 function DashboardRow({rowNumber, rowID, rowHeight, rowColumns}) {
     const [height, setHeight] = useState(rowHeight)
-    const [allColWidths, setAllColWidths] = useState(rowColumns.map(a => a.width));
     
     useEffect(() => {
-        setAllColWidths(rowColumns.map(a => a.width))
-    }, [rowColumns]);
+        setHeight(rowHeight)
+    }, [rowHeight]);
 
     const dashboardColumns = []
     for (let x=0; x < rowColumns.length; x++) {
-        let colWidth = rowColumns[x]['width']
-        let colID = rowColumns[x]['id']
-        let key = rowNumber.toString() + x.toString() + colWidth.toString()
         dashboardColumns.push(
-            <RowHeightContext.Provider key={key} value={[height, setHeight]}>
-                <RowInfoContext.Provider key={key} value={[rowNumber, rowHeight, rowID, allColWidths, setAllColWidths]}>
-                    <DashboardCol colNumber={x} colID={colID} colWidth={colWidth} colDataType={rowColumns[x]['type']} colDataMetadata={rowColumns[x]['metadata']}/>
-                </RowInfoContext.Provider>
-            </RowHeightContext.Provider>
+            <DashboardCol key={x} colNumber={x} colData={rowColumns[x]}/>
         )
     }
     return (
-        <StyledDashboardRow key={rowID} $rowHeight={height}>
-            {dashboardColumns}
+        <StyledDashboardRow $rowHeight={height}>
+            <RowHeightContext.Provider value={[height, setHeight]}>
+                <RowInfoContext.Provider value={[rowNumber, rowHeight, rowID]}>
+                    {dashboardColumns}
+                </RowInfoContext.Provider>
+            </RowHeightContext.Provider>
         </StyledDashboardRow>
     )
 }

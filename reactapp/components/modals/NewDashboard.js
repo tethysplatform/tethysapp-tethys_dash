@@ -6,7 +6,7 @@ import Modal from 'react-bootstrap/Modal';
 import Form from 'react-bootstrap/Form';
 import Alert from 'react-bootstrap/Alert';
 import { useAddDashboardModalShowContext } from 'components/contexts/AddDashboardModalShowContext';
-import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
+import { useLayoutContext } from 'components/contexts/SelectedDashboardContext';
 import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
 import { useSelectedOptionContext } from 'components/contexts/SelectedOptionContext';
 import { useAvailableOptionsContext } from 'components/contexts/AvailableOptionsContext';
@@ -20,15 +20,15 @@ function NewDashboardModal() {
     const [dashboardRows, setDashboardRows] = useState(3)
 
     const [showModal, setShowModal]  = useAddDashboardModalShowContext();
-    const setDashboardContext = useSelectedDashboardContext()[1];
+    const setLayoutContext = useLayoutContext()[0];
     const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
     const setSelectedOption = useSelectedOptionContext()[1];
     const [ selectOptions, setSelectOptions ] = useAvailableOptionsContext();
     const {csrf} = useContext(AppContext);
     const [hasError, setHasError]  = useState(false);
     const [errorMessage, setErrorMessage]  = useState(null);
-    const [ showSaveMessage, setShowSaveMessage ] = useState(false);
-    const [ showErrorMessage, setShowErrorMessage ] = useState(false);
+    const setShowSaveMessage = useState(false)[1];
+    const setShowErrorMessage = useState(false)[1];
     
     const handleModalClose = () => setShowModal(false);
 
@@ -87,7 +87,7 @@ function NewDashboardModal() {
                 OGLayouts[Name] = response['new_dashboard']
                 setDashboardLayoutConfigs(OGLayouts)
                 setSelectOptions([ ...selectOptions, {value: Name, label: Label} ])
-                setDashboardContext(response['new_dashboard'])
+                setLayoutContext(response['new_dashboard'])
                 setSelectedOption({value: Name, label: Label})
                 setShowModal(false)
                 setShowSaveMessage(true)

@@ -6,8 +6,7 @@ import BasePlot from 'components/plots/BasePlot';
 import { memo, useState, useEffect } from 'react';
 import { useEditingContext } from 'components/contexts/EditingContext';
 import { useRowHeightContext, useRowInfoContext } from 'components/dashboard/DashboardRow';
-import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
-import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
+import { useLayoutRowDataContext } from 'components/contexts/SelectedDashboardContext';
 import { useLayoutWarningAlertContext } from 'components/contexts/LayoutAlertContext';
 import { useColInfoContext } from 'components/dashboard/DashboardCol'; 
 import DashboardItemButton from "components/buttons/DashboardItemButton";
@@ -71,16 +70,18 @@ const StyledAbsDiv= styled.div`
 const DashboardItem = ({type, metadata}) => {
   const isEditing = useEditingContext()[0];
   const [ height, setHeight ] = useRowHeightContext();
-  const [ rowNumber, rowHeight, rowID, allColWidths, setAllColWidths ] = useRowInfoContext();
-  const [ colNumber, colWidth, colID ] = useColInfoContext();
-  const [ dashboardContext, setDashboardContext ] = useSelectedDashboardContext();
-  const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
-  const [ warningMessage, setWarningMessage, showWarningMessage, setShowWarningMessage ] = useLayoutWarningAlertContext();
+  const [ rowNumber, rowHeight, rowID ] = useRowInfoContext();
+  const [ colNumber, colID, width, setWidth ] = useColInfoContext();
+  const setWarningMessage = useLayoutWarningAlertContext()[1];
+  const setShowWarningMessage = useLayoutWarningAlertContext()[3];
   const itemData = {"type": type, "metadata": metadata}
-  const [ width, setWidth ] = useState(allColWidths[colNumber])
-  const [ maxWidth, setMaxWidth ] = useState((12 - (allColWidths.length-1)).toString())
-  const rowData = JSON.parse(dashboardContext['rowData'])
-  const rowColumns = rowData[rowNumber]['columns']
+  const [ rowData, setRowData ] = useLayoutRowDataContext();
+  const [ maxWidth, setMaxWidth ] = useState((12 - (rowData[rowNumber]['columns'].length-1)).toString())
+    
+  useEffect(() => {
+    setMaxWidth((12 - (rowData[rowNumber]['columns'].length-1)).toString())
+  }, [rowData]);
+
 
   function onRowHeightInput({target:{value}}) {
     setHeight(value)
@@ -89,65 +90,52 @@ const DashboardItem = ({type, metadata}) => {
   function onColWidthInput({target:{value}}) {
     setWarningMessage("")
     setShowWarningMessage(false)
-    let copiedAllColWidths = JSON.parse(JSON.stringify(allColWidths));
-    copiedAllColWidths[colNumber] = parseInt(value)
+    const rowColumns = rowData[rowNumber]['columns']
+    const updatedRowColumns = JSON.parse(JSON.stringify(rowColumns))
+    updatedRowColumns[colNumber]['width'] = parseInt(value)
 
-    if (copiedAllColWidths.length == 2) {
+    if (updatedRowColumns.length == 2) {
       const otherIndex = colNumber==0 ? 1 : 0
-      copiedAllColWidths[otherIndex] = 12-value
+      updatedRowColumns[otherIndex]['width'] = 12-value
     }
 
-    const totalRowWidths = copiedAllColWidths.reduce((partialSum, a) => partialSum + a, 0)
+    const totalRowWidths = updatedRowColumns.reduce((partialSum, a) => partialSum + a.width, 0)
     if (totalRowWidths > 12) {
       setWarningMessage("Total cell widths in the row cannot exceed 12.")
       setShowWarningMessage(true)
-      return
+    } else {
+      setWidth(parseInt(value))
+      const updatedRowData = JSON.parse(JSON.stringify(rowData))
+      updatedRowData[rowNumber]['columns'] = updatedRowColumns
+      setRowData(updatedRowData)
     }
-    setAllColWidths(copiedAllColWidths)
   }
-    
-  useEffect(() => {
-    setWidth(allColWidths[colNumber])
-    setMaxWidth((12 - (allColWidths.length-1)).toString())
-  }, [allColWidths]);
 
   function deleteCell(e) {
-    const rowData = JSON.parse(dashboardContext['rowData'])
     const rowColumns = rowData[rowNumber]['columns']
-
     if (rowColumns.length === 1){
-      rowData.splice(rowNumber, 1)
-      updateOrder(rowData)
+      const updatedRowData = JSON.parse(JSON.stringify(rowData))
+      updatedRowData.splice(rowNumber, 1)
+      updateOrder(updatedRowData)
+      setRowData(updatedRowData)
     } else {
-      const deletedColWidth = rowColumns[colNumber]['width']
-      rowColumns.splice(colNumber, 1)
-      updateOrder(rowColumns)
+      const updatedRowColumns = JSON.parse(JSON.stringify(rowColumns))
+      const deletedColWidth = updatedRowColumns[colNumber]['width']
+      updatedRowColumns.splice(colNumber, 1)
+      updateOrder(updatedRowColumns)
 
-      const smallestWidthCol = Object.keys(rowColumns).reduce((a, b) => rowColumns[a]['width'] < rowColumns[b]['width'] ? a : b);
-      rowColumns[smallestWidthCol]['width'] += deletedColWidth
-
-      updateAllColWidths(rowColumns)
+      const smallestWidthCol = Object.keys(updatedRowColumns).reduce((a, b) => updatedRowColumns[a]['width'] < updatedRowColumns[b]['width'] ? a : b);
+      updatedRowColumns[smallestWidthCol]['width'] += deletedColWidth
+      const updatedRowData = JSON.parse(JSON.stringify(rowData))
+      updatedRowData[rowNumber]['columns'] = updatedRowColumns
+      setRowData(updatedRowData)
     }
-    updateDashboardContext(rowData)
   }
 
   function updateOrder(arr) {
     for (let i=0; i < arr.length; i++) {
       arr[i]['order'] = i
     }
-  }
-
-  function updateDashboardContext(rowData) {
-    const updatedDashboardContext = {...dashboardContext, rowData: JSON.stringify(rowData)}
-    setDashboardContext(updatedDashboardContext)
-        
-    let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
-    OGLayouts[dashboardContext['name']] = updatedDashboardContext
-    setDashboardLayoutConfigs(OGLayouts)
-  }
-
-  function updateAllColWidths(rowColumns) {
-    setAllColWidths(rowColumns.map(a => a.width))
   }
 
   return (
@@ -159,7 +147,7 @@ const DashboardItem = ({type, metadata}) => {
       <Row style={{height: "100%"}} hidden={isEditing}>
         {!isEditing &&
           <>
-            {type.includes("Plot") && <BasePlot rowHeight={rowHeight} colWidth={colWidth} itemData={itemData}/>}
+            {type.includes("Plot") && <BasePlot rowHeight={rowHeight} colWidth={width} itemData={itemData}/>}
             {type === "Image" && <StyledImg src={metadata['uri']}/>}
           </>
         }
@@ -191,7 +179,7 @@ const DashboardItem = ({type, metadata}) => {
           <DashboardItemArrows arrowDirection="down" tooltipPlacement="left" tooltipText={rowNumber === rowData.length-1 ? "Add Row Below" : "Add/Move Row Below"}/>
         </StyledAbsDiv>
         <StyledAbsDiv $x="right" $y="middle">
-          <DashboardItemArrows arrowDirection="right" tooltipPlacement="left" tooltipText={colNumber === rowColumns.length-1 ? "Add Row on Right" : "Add/Move Column on Right"}/>
+          <DashboardItemArrows arrowDirection="right" tooltipPlacement="left" tooltipText={colNumber === rowData[rowNumber]['columns'].length-1 ? "Add Row on Right" : "Add/Move Column on Right"}/>
         </StyledAbsDiv>
       </Row>
     </StyledContainer>

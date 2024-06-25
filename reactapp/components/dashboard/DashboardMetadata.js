@@ -4,7 +4,7 @@ import Col from 'react-bootstrap/Col';
 import Form from 'react-bootstrap/Form';
 import appAPI from '../../services/api/app';
 import { useEditingContext } from 'components/contexts/EditingContext';
-import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
+import { useLayoutContext, useLayoutImageContext, useLayoutLabelContext } from 'components/contexts/SelectedDashboardContext';
 import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
 import { useSelectedOptionContext } from 'components/contexts/SelectedOptionContext';
 import { useAvailableOptionsContext } from 'components/contexts/AvailableOptionsContext';
@@ -16,7 +16,9 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import DashboardNotesModal from 'components/modals/DashboardNotes';
 
 function DashboardMetadata() {
-    const [ dashboardContext, setDashboardContext ] = useSelectedDashboardContext();
+    const resetLayoutContext = useLayoutContext()[1];
+    const image = useLayoutImageContext()[0];
+    const label = useLayoutLabelContext()[0];
     const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
     const [ selectedOption, setSelectedOption ] = useSelectedOptionContext();
     const [ selectOptions, setSelectOptions ] = useAvailableOptionsContext();
@@ -36,7 +38,7 @@ function DashboardMetadata() {
                 setDashboardLayoutConfigs(newdashboardLayoutConfigs)
                 setSelectOptions(newSelectOptions)
                 setSelectedOption(null)
-                setDashboardContext(null)
+                resetLayoutContext()
             })
         }
     }
@@ -55,7 +57,7 @@ function DashboardMetadata() {
             <Container className="h-100">
                 <Col className='h-100'>
                     <Row className='h-10'>
-                        <h2 style={{"paddingTop": "5%", "textAlign": "center"}}>{dashboardContext['label']}</h2>
+                        <h2 style={{"paddingTop": "5%", "textAlign": "center"}}>{label}</h2>
                     </Row>
                     <Row className='h-10'>
                         <Form inline="true" style={{textAlign: "center"}}>
@@ -66,7 +68,7 @@ function DashboardMetadata() {
                         </Form>
                     </Row>
                     <Row className='h-30' style={{"paddingTop": "10px"}}>
-                        <img src={dashboardContext['image']}></img>
+                        <img src={image}></img>
                     </Row>
                 </Col>
             </Container>

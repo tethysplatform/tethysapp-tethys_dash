@@ -1,20 +1,85 @@
 import { useContext, createContext, useState } from "react";
 
-const SelectedDashboardContext = createContext();
+const LayoutContext = createContext();
+const LayoutNameContext = createContext();
+const LayoutLabelContext = createContext();
+const LayoutImageContext = createContext();
+const LayoutNotesContext = createContext();
+const LayoutRowDataContext = createContext();
 
 const SelectedDashboardContextProvider = ({ children }) => {
-  const [dashboardContext, setDashboardContext] = useState(null);
+  const [ name, setName ] = useState("");
+  const [ label, setLabel ] = useState("");
+  const [ image, setImage ] = useState("");
+  const [ notes, setNotes ] = useState("");
+  const [ rowData, setRowData ] = useState(null);
+
+  function resetLayoutContext(){
+    setName("")
+    setLabel("")
+    setImage("")
+    setNotes("")
+    setRowData({})
+  }
+
+  function setLayoutContext(dashboardContext){
+    setName(dashboardContext['name'])
+    setLabel(dashboardContext['label'])
+    setImage(dashboardContext['image'])
+    setNotes(dashboardContext['notes'])
+    setRowData(JSON.parse(dashboardContext['rowData']))
+  }
+
+  function getLayoutContext(){
+    return {
+      "name": name,
+      "label": label,
+      "image": image,
+      "notes": notes,
+      "rowData": JSON.stringify(rowData),
+    }
+  }
 
   return (
-    <SelectedDashboardContext.Provider value={[dashboardContext, setDashboardContext]}>
-      {children}
-    </SelectedDashboardContext.Provider>
+    <LayoutContext.Provider value={[setLayoutContext, resetLayoutContext, getLayoutContext]}>
+      <LayoutNameContext.Provider value={[name, setName]}>
+        <LayoutLabelContext.Provider value={[label, setLabel]}>
+          <LayoutImageContext.Provider value={[image, setImage]}>
+            <LayoutNotesContext.Provider value={[notes, setNotes]}>
+              <LayoutRowDataContext.Provider value={[rowData, setRowData]}>
+                {children}
+              </LayoutRowDataContext.Provider>
+            </LayoutNotesContext.Provider>
+          </LayoutImageContext.Provider>
+        </LayoutLabelContext.Provider>
+      </LayoutNameContext.Provider>
+    </LayoutContext.Provider>
   );
 
 };
 
 export default SelectedDashboardContextProvider;
 
-export const useSelectedDashboardContext = () => {
-  return useContext(SelectedDashboardContext);
+export const useLayoutContext = () => {
+  return useContext(LayoutContext);
+};
+
+export const useLayoutNameContext = () => {
+  return useContext(LayoutNameContext);
+};
+
+export const useLayoutLabelContext = () => {
+  return useContext(LayoutLabelContext);
+};
+
+export const useLayoutImageContext = () => {
+  return useContext(LayoutImageContext);
+};
+
+export const useLayoutNotesContext = () => {
+  return useContext(LayoutNotesContext);
+};
+
+export const useLayoutRowDataContext = () => {
+  return useContext(LayoutRowDataContext);
 };

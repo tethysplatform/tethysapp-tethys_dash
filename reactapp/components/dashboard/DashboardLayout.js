@@ -1,9 +1,9 @@
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import DashboardRow from 'components/dashboard/DashboardRow'
-import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
+import { useLayoutRowDataContext, useLayoutContext } from 'components/contexts/SelectedDashboardContext';
 import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
-import { useLayoutSuccessAlertContext, useLayoutErrorAlertContext, useLayoutWarningAlertContext } from 'components/contexts/LayoutAlertContext';
+import { useLayoutSuccessAlertContext, useLayoutErrorAlertContext } from 'components/contexts/LayoutAlertContext';
 import { useEditingContext } from 'components/contexts/EditingContext';
 import { useContext } from 'react';
 import Form from 'react-bootstrap/Form';
@@ -16,10 +16,14 @@ const StyledForm= styled(Form)`
 `;
 
 function DashboardLayout() {
-    const [dashboardContext, setDashboardContext] = useSelectedDashboardContext();
+    const rowData = useLayoutRowDataContext()[0];
     const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
-    const [ successMessage, setSuccessMessage, showSuccessMessage, setShowSuccessMessage ] = useLayoutSuccessAlertContext();
-    const [ errorMessage, setErrorMessage, showErrorMessage, setShowErrorMessage ] = useLayoutErrorAlertContext();
+    const setLayoutContext = useLayoutContext()[0];
+    const getLayoutContext = useLayoutContext()[2];
+    const setSuccessMessage = useLayoutSuccessAlertContext()[1];
+    const setShowSuccessMessage = useLayoutSuccessAlertContext()[3];
+    const setErrorMessage = useLayoutErrorAlertContext()[1];
+    const setShowErrorMessage = useLayoutErrorAlertContext()[3];
     const setIsEditing = useEditingContext()[1];
     const {csrf} = useContext(AppContext);
   
@@ -97,14 +101,15 @@ function DashboardLayout() {
             }
 
         }
-        dashboardContext['rowData'] = JSON.stringify(data)
-        appAPI.updateDashboard(dashboardContext, csrf).then((response) => {
+        const updatedLayoutContext = getLayoutContext()
+        updatedLayoutContext["rowData"] = JSON.stringify(data)
+        appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
             if (response['success']) {
-                setDashboardContext(response['updated_dashboard'])
-        
+                const name = response['updated_dashboard']['name']
                 let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
-                OGLayouts[dashboardContext['name']] = response['updated_dashboard']
+                OGLayouts[name] = response['updated_dashboard']
                 setDashboardLayoutConfigs(OGLayouts)
+                setLayoutContext(response['updated_dashboard'])
                 setSuccessMessage("Change have been saved.")
                 setShowSuccessMessage(true)
             } else {
@@ -114,8 +119,6 @@ function DashboardLayout() {
         })
         setIsEditing(false);
     }
-
-    const rowData = JSON.parse(dashboardContext['rowData'])
 
     const dashboardRows = []
     for (let i=0; i < rowData.length; i++) {

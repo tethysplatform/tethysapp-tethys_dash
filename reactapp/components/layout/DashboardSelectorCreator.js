@@ -1,9 +1,9 @@
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import SelectInput from 'components/inputs/SelectInput';
 import HeaderButton from 'components/buttons/HeaderButton';
 import NewDashboardModal from 'components/modals/NewDashboard';
-import { useSelectedDashboardContext } from "components/contexts/SelectedDashboardContext";
+import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 import { useAvailableOptionsContext } from "components/contexts/AvailableOptionsContext";
 import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
 import { useSelectedOptionContext } from "components/contexts/SelectedOptionContext";
@@ -12,7 +12,7 @@ import appAPI from 'services/api/app';
 import { BsPlus } from "react-icons/bs";
 
 function DashboardSelectorCreator() {
-    const setDashboardContext = useSelectedDashboardContext()[1];
+    const setLayoutContext = useLayoutContext()[0];
     const [selectOptions, setSelectOptions] = useAvailableOptionsContext();
     const [dashboardLayoutConfigs, setDashboardLayoutConfigs] = useAvailableDashboardContext();
     const [selectedOption, setSelectedOption] = useSelectedOptionContext();
@@ -32,7 +32,7 @@ function DashboardSelectorCreator() {
     function updateLayout(e) {
         let selectedDashboard = dashboardLayoutConfigs[e.value]
         setSelectedOption({"value": e.value, "label": selectedDashboard['label']})
-        setDashboardContext({...selectedDashboard})
+        setLayoutContext(selectedDashboard)
     }
     
     function createDashboard(e) {

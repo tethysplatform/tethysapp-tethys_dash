@@ -3,9 +3,8 @@ import Dropdown from 'react-bootstrap/Dropdown';
 import { memo } from 'react';
 import { BsArrowDownShort, BsArrowLeftShort, BsArrowRightShort, BsArrowUpShort } from "react-icons/bs";
 import { useRowInfoContext } from 'components/dashboard/DashboardRow';
-import { useColInfoContext } from 'components/dashboard/DashboardCol'; 
-import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
-import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
+import { useColInfoContext } from 'components/dashboard/DashboardCol';
+import { useLayoutRowDataContext } from 'components/contexts/SelectedDashboardContext';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 import Tooltip from 'react-bootstrap/Tooltip';
 import 'components/dashboard/noArrowDropdown.css'
@@ -42,14 +41,11 @@ const StyledDownIcon= styled(BsArrowDownShort)`
 
 const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) => {
   const colNumber = useColInfoContext()[0];
-  const [ dashboardContext, setDashboardContext ] = useSelectedDashboardContext();
-  const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
-  const [ rowNumber, rowHeight, rowID, allColWidths, setAllColWidths ] = useRowInfoContext();
-  const rowData = JSON.parse(dashboardContext['rowData'])
-  const rowColumns = rowData[rowNumber]['columns']
+  const rowNumber = useRowInfoContext()[0];
+  const [ rowData, setRowData ] = useLayoutRowDataContext();
 
   function addRow() {
-    const rowData = JSON.parse(dashboardContext['rowData'])
+    const updatedRowData = JSON.parse(JSON.stringify(rowData))
     const newRow = {
         "id": null, 
         "order": rowNumber, 
@@ -63,23 +59,22 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
         }]
     }
     let insertIndex = arrowDirection == "up" ? rowNumber : rowNumber+1
-    rowData.splice(insertIndex, 0, newRow)
-    updateOrder(rowData)
-    updateDashboardContext(rowData)
+    updatedRowData.splice(insertIndex, 0, newRow)
+    updateOrder(updatedRowData)
+    setRowData(updatedRowData)
   }
 
   function moveRow() {
-    const rowData = JSON.parse(dashboardContext['rowData'])
-
+    const updatedRowData = JSON.parse(JSON.stringify(rowData))
     let newIndex = arrowDirection == "up" ? rowNumber-1 : rowNumber+1
-    array_move(rowData, rowNumber, newIndex)
-    updateOrder(rowData)
-    updateDashboardContext(rowData)
+    array_move(updatedRowData, rowNumber, newIndex)
+    updateOrder(updatedRowData)
+    setRowData(updatedRowData)
   }
 
   function addColumn() {
-    const rowData = JSON.parse(dashboardContext['rowData'])
-    const rowColumns = rowData[rowNumber]['columns']
+    const updatedRowData = JSON.parse(JSON.stringify(rowData))
+    const rowColumns = updatedRowData[rowNumber]['columns']
     const selectedColumn = rowColumns[colNumber]
     let newColWidth;
     let reducedWidthCol;
@@ -104,39 +99,23 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
 
     let insertIndex = arrowDirection == "left" ? colNumber : colNumber+1
     rowColumns.splice(insertIndex, 0, newCol)
-    updateOrder(rowColumns)
-    updateAllColWidths(rowColumns)
-    updateDashboardContext(rowData)
+    updateOrder(updatedRowData)
+    setRowData(updatedRowData)
   }
 
   function moveColumn() {
-    const rowData = JSON.parse(dashboardContext['rowData'])
-    const rowColumns = rowData[rowNumber]['columns']
-
+    const updatedRowData = JSON.parse(JSON.stringify(rowData))
+    const rowColumns = updatedRowData[rowNumber]['columns']
     let newIndex = arrowDirection == "left" ? colNumber-1 : colNumber+1
     array_move(rowColumns, colNumber, newIndex)
-    updateOrder(rowColumns)
-    updateAllColWidths(rowColumns)
-    updateDashboardContext(rowData)
-  }
-
-  function updateDashboardContext(rowData) {
-    const updatedDashboardContext = {...dashboardContext, rowData: JSON.stringify(rowData)}
-    setDashboardContext(updatedDashboardContext)
-        
-    let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
-    OGLayouts[dashboardContext['name']] = updatedDashboardContext
-    setDashboardLayoutConfigs(OGLayouts)
+    updateOrder(updatedRowData)
+    setRowData(updatedRowData)
   }
 
   function updateOrder(arr) {
     for (let i=0; i < arr.length; i++) {
       arr[i]['order'] = i
     }
-  }
-
-  function updateAllColWidths(rowColumns) {
-    setAllColWidths(rowColumns.map(a => a.width))
   }
 
   function array_move(arr, old_index, new_index) {
@@ -169,7 +148,7 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
                 :
                 <>
                   <StyledDropdown.Item onClick={addColumn}>Add Cell on {arrowDirection === "right" ? "Right" : "Left"}</StyledDropdown.Item>
-                  {((arrowDirection === "left" && colNumber != 0) || (arrowDirection === "right" && colNumber != rowColumns.length-1)) && 
+                  {((arrowDirection === "left" && colNumber != 0) || (arrowDirection === "right" && colNumber != rowData[rowNumber]['columns'].length-1)) && 
                     <StyledDropdown.Item onClick={moveColumn}>Move Cell {arrowDirection === "right" ? "Right" : "Left"}</StyledDropdown.Item>
                   }
                 </>

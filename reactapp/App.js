@@ -22,10 +22,10 @@ function App() {
     <>
       <ErrorBoundary>
           <Loader>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardContextProvider>
+            <AvailableDashboardContextProvider>
+              <AvailableOptionsContextProvider>
                 <SelectedOptionContextProvider>
-                  <AvailableOptionsContextProvider>
+                  <SelectedDashboardContextProvider>
                     <Layout
                       navLinks={[
                         {title: 'Dashboard', to: PATH_DASHBOARD, eventKey: 'link-dashboard'},
@@ -37,10 +37,10 @@ function App() {
                         <Route path={PATH_EXPLORER} element={<Explorer />} key='route-explorer' />,
                       ]}
                     />
-                  </AvailableOptionsContextProvider>
+                  </SelectedDashboardContextProvider>
                 </SelectedOptionContextProvider>
-              </AvailableDashboardContextProvider>
-            </SelectedDashboardContextProvider>
+              </AvailableOptionsContextProvider>
+            </AvailableDashboardContextProvider>
           </Loader>
       </ErrorBoundary>
     </>

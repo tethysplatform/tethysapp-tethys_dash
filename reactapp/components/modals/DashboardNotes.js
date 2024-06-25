@@ -1,7 +1,7 @@
 import Button from 'react-bootstrap/Button';
 import Modal from 'react-bootstrap/Modal';
 import { useDashboardNotesModalShowContext } from 'components/contexts/DashboardNotesModalShowContext';
-import { useSelectedDashboardContext } from 'components/contexts/SelectedDashboardContext';
+import { useLayoutNotesContext, useLayoutContext } from 'components/contexts/SelectedDashboardContext';
 import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
 import { useState, useContext } from 'react';
 import { AppContext } from 'components/contexts/AppContext';
@@ -20,9 +20,10 @@ const StyledTextArea = styled(EditTextarea)`
 
 function DashboardNotesModal() {
     const [ showModal, setShowModal ] = useDashboardNotesModalShowContext();
-    const [ dashboardContext, setDashboardContext ] = useSelectedDashboardContext();
+    const [ notes, setNotes ] = useLayoutNotesContext();
+    const setLayoutContext = useLayoutContext()[0];
+    const getLayoutContext = useLayoutContext()[2];
     const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
-    const [ dashboardNotes, setDashboardNotes ] = useState(dashboardContext['notes'])
     const [ isEditing, setIsEditing ] = useState(false)
     const [ showSaveMessage, setShowSaveMessage ] = useState(false)
     const [ showErrorMessage, setShowErrorMessage ] = useState(false)
@@ -39,7 +40,7 @@ function DashboardNotesModal() {
     }
 
     function onNotesChange({target:{value}}) {
-        setDashboardNotes(value)
+        setNotes(value)
         setShowSaveMessage(false)
     }
 
@@ -47,14 +48,15 @@ function DashboardNotesModal() {
         event.preventDefault();
         setShowSaveMessage(false)
         setShowErrorMessage(false)
-        const updatedDashboardContext = {...dashboardContext, notes: dashboardNotes}
-        appAPI.updateDashboard(updatedDashboardContext, csrf).then((response) => {
+        const updatedLayoutContext = getLayoutContext()
+        updatedLayoutContext["notes"] = notes
+        appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
             if (response['success']) {
-                setDashboardContext(updatedDashboardContext)
-        
+                const name = response['updated_dashboard']['name']
                 let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
-                OGLayouts[dashboardContext['name']] = updatedDashboardContext
+                OGLayouts[name] = response['updated_dashboard']
                 setDashboardLayoutConfigs(OGLayouts)
+                setLayoutContext(response['updated_dashboard'])
                 setShowSaveMessage(true)
             } else {
                 setShowErrorMessage(true)
@@ -71,7 +73,7 @@ function DashboardNotesModal() {
             <Modal.Body>
                 <Form id="dashboardNotes" onSubmit={handleSubmit}>
                     <StyledTextArea
-                    value={dashboardNotes}
+                    value={notes}
                     onChange={onNotesChange}
                     onEditMode={onEditMode}
                     onSave={onSave}

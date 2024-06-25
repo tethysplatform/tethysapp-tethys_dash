@@ -7,7 +7,7 @@ import DashboardMetadata from '../../components/dashboard/DashboardMetadata';
 import React from 'react';
 import EditingContextProvider from "components/contexts/EditingContext";
 import DashboardNotesModalShowContextProvider from "components/contexts/DashboardNotesModalShowContext";
-import { useSelectedDashboardContext } from "components/contexts/SelectedDashboardContext";
+import { useLayoutNameContext } from "components/contexts/SelectedDashboardContext";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import styled from 'styled-components';
 
@@ -16,7 +16,7 @@ const StyledContainer= styled(Container)`
 `;
 
 function DashboardView() {
-  const dashboardContext = useSelectedDashboardContext()[0];
+  const name = useLayoutNameContext()[0];
 
   return (
     <>
@@ -26,7 +26,7 @@ function DashboardView() {
             <Row className="h-100">
               <Col className="col-2 h-100">
                 <Row style={{"height": "95%"}}>
-                  {dashboardContext && 
+                  {name && 
                     <DashboardNotesModalShowContextProvider>
                         <DashboardMetadata />
                     </DashboardNotesModalShowContextProvider>
@@ -34,7 +34,7 @@ function DashboardView() {
                 </Row>
               </Col>
               <Col className="col-10 h-100" style={{"overflowY": "auto"}}>
-                {dashboardContext &&
+                {name &&
                   <StyledContainer fluid className="h-100">
                     <LayoutAlertContextProvider>
                       <DashboardLayoutAlerts />
