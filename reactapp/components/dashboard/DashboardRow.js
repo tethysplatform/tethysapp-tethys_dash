@@ -2,6 +2,7 @@ import Row from 'react-bootstrap/Row';
 import DashboardCol from 'components/dashboard/DashboardCol'
 import styled from 'styled-components';
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useLayoutRowDataContext } from 'components/contexts/SelectedDashboardContext';
 
 const RowHeightContext = createContext();
 const RowInfoContext = createContext();
@@ -12,10 +13,15 @@ const StyledDashboardRow= styled(Row)`
 
 function DashboardRow({rowNumber, rowID, rowHeight, rowColumns}) {
     const [height, setHeight] = useState(rowHeight)
+    const rowData = useLayoutRowDataContext()[0];
     
     useEffect(() => {
         setHeight(rowHeight)
     }, [rowHeight]);
+    
+    useEffect(() => {
+        setHeight(rowData[rowNumber]['height'])
+    }, [rowData]);
 
     const dashboardColumns = []
     for (let x=0; x < rowColumns.length; x++) {
