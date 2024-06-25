@@ -4,7 +4,7 @@ import Col from 'react-bootstrap/Col';
 import Form from 'react-bootstrap/Form';
 import appAPI from '../../services/api/app';
 import { useEditingContext } from 'components/contexts/EditingContext';
-import { useLayoutContext, useLayoutImageContext, useLayoutLabelContext } from 'components/contexts/SelectedDashboardContext';
+import { useLayoutContext, useLayoutNameContext, useLayoutImageContext, useLayoutLabelContext } from 'components/contexts/SelectedDashboardContext';
 import { useAvailableDashboardContext } from 'components/contexts/AvailableDashboardContext';
 import { useSelectedOptionContext } from 'components/contexts/SelectedOptionContext';
 import { useAvailableOptionsContext } from 'components/contexts/AvailableOptionsContext';
@@ -16,7 +16,9 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import DashboardNotesModal from 'components/modals/DashboardNotes';
 
 function DashboardMetadata() {
+    const setLayoutContext = useLayoutContext()[0];
     const resetLayoutContext = useLayoutContext()[1];
+    const name = useLayoutNameContext()[0];
     const image = useLayoutImageContext()[0];
     const label = useLayoutLabelContext()[0];
     const [ dashboardLayoutConfigs, setDashboardLayoutConfigs ] = useAvailableDashboardContext();
@@ -51,6 +53,11 @@ function DashboardMetadata() {
         setShowModal(true)
     }
 
+    function onCancel(e) {
+        const OGLayoutContext = JSON.parse(JSON.stringify(dashboardLayoutConfigs[name]))
+        setLayoutContext(OGLayoutContext)
+        setIsEditing(false)
+    }
 
     return (
         <>
@@ -61,7 +68,12 @@ function DashboardMetadata() {
                     </Row>
                     <Row className='h-10'>
                         <Form inline="true" style={{textAlign: "center"}}>
-                            {isEditing && <DashboardMetadataButton type="save" tooltipPlacement="top" tooltipText="Save Changes" form="rowUpdate"/>}
+                            {isEditing &&
+                                <>
+                                    <DashboardMetadataButton type="cancel" tooltipPlacement="top" tooltipText="Cancel Changes" onClick={onCancel}/>
+                                    <DashboardMetadataButton type="save" tooltipPlacement="top" tooltipText="Save Changes" form="rowUpdate"/>
+                                </>
+                            }
                             {!isEditing && <DashboardMetadataButton type="edit" tooltipPlacement="top" tooltipText="Edit Dashboard" onClick={onEdit}/>}
                             <DashboardMetadataButton type="notes" tooltipPlacement="top" tooltipText="Open Notes" onClick={onNotes}/>
                             <DashboardMetadataButton type="delete" tooltipPlacement="top" tooltipText="Delete Dashboard" onClick={onDelete}/>
