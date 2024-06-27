@@ -11,7 +11,22 @@ const StyledSelect = styled(Select)`
 
 const SelectInput = ({children, options, ...props}) => {
   const styledSelect = (
-    <StyledSelect options={options} {...props}>{children}</StyledSelect>
+    <StyledSelect 
+      options={options} 
+      styles={{
+        option: (styles, { data, isFocused }) => ({
+          ...styles,
+          backgroundColor: data.color
+            ? data.color
+            : isFocused
+            && "rgb(163, 196, 247, .5)",
+          color: "black"
+        }),
+      }}
+      {...props}
+    >
+      {children}
+    </StyledSelect>
   );
   return styledSelect;
 }
