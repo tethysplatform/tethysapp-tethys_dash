@@ -1,8 +1,7 @@
-import Offcanvas from 'react-bootstrap/Offcanvas';
-import PropTypes from 'prop-types';
+import Offcanvas from "react-bootstrap/Offcanvas";
+import PropTypes from "prop-types";
 
-
-const NavMenu = ({children, navTitle, onNavChange, navVisible, ...props}) => {
+const NavMenu = ({ children, navTitle, onNavChange, navVisible, ...props }) => {
   const handleClose = () => onNavChange(false);
 
   return (
@@ -11,9 +10,7 @@ const NavMenu = ({children, navTitle, onNavChange, navVisible, ...props}) => {
         <Offcanvas.Header closeButton>
           <Offcanvas.Title>{navTitle}</Offcanvas.Title>
         </Offcanvas.Header>
-        <Offcanvas.Body>
-          {children}
-        </Offcanvas.Body>
+        <Offcanvas.Body>{children}</Offcanvas.Body>
       </Offcanvas>
     </>
   );

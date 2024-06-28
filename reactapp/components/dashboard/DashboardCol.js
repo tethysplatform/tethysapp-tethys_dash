@@ -1,47 +1,50 @@
-import PropTypes from 'prop-types'
-import Col from 'react-bootstrap/Col';
-import DashboardItem from 'components/dashboard/DashboardItem';
-import styled from 'styled-components';
-import { createContext, useContext, useState, useEffect } from 'react';
+import PropTypes from "prop-types";
+import Col from "react-bootstrap/Col";
+import DashboardItem from "components/dashboard/DashboardItem";
+import styled from "styled-components";
+import { createContext, useContext, useState, useEffect } from "react";
 
-const StyledDashboardCol= styled(Col)`
-    border: black solid 1px;
+const StyledDashboardCol = styled(Col)`
+  border: black solid 1px;
 `;
 const ColInfoContext = createContext();
 
-function DashboardCol({colNumber, colData}) {
-    const colID = colData['id']
-    const colWidth = colData['width']
-    const colDataType = colData['type']
-    let colDataMetadata = colData['metadata']
-    const [ width, setWidth ] = useState(colWidth)
-    
-    useEffect(() => {
-        setWidth(colWidth)
-    }, [colWidth]);
+function DashboardCol({ colNumber, colData }) {
+  const colID = colData["id"];
+  const colWidth = colData["width"];
+  const colDataType = colData["type"];
+  let colDataMetadata = colData["metadata"];
+  const [width, setWidth] = useState(colWidth);
 
-    if (typeof colDataMetadata == "string") {
-        colDataMetadata = JSON.parse(colDataMetadata)
-    }
+  useEffect(() => {
+    setWidth(colWidth);
+  }, [colWidth]);
 
-    return (
-        <StyledDashboardCol className={"justify-content-center h-100 col-" + width}>
-            <ColInfoContext.Provider value={[colNumber, colID, width, setWidth]}>
-                <DashboardItem type={colDataType} metadata={colDataMetadata}></DashboardItem>
-            </ColInfoContext.Provider>
-        </StyledDashboardCol>
-    )
+  if (typeof colDataMetadata == "string") {
+    colDataMetadata = JSON.parse(colDataMetadata);
+  }
+
+  return (
+    <StyledDashboardCol className={"justify-content-center h-100 col-" + width}>
+      <ColInfoContext.Provider value={[colNumber, colID, width, setWidth]}>
+        <DashboardItem
+          type={colDataType}
+          metadata={colDataMetadata}
+        ></DashboardItem>
+      </ColInfoContext.Provider>
+    </StyledDashboardCol>
+  );
 }
 
 DashboardCol.propTypes = {
-  colNumber: PropTypes.number, 
+  colNumber: PropTypes.number,
   colData: PropTypes.shape({
     id: PropTypes.number,
     width: PropTypes.number,
     type: PropTypes.string,
-    metadata: PropTypes.object
+    metadata: PropTypes.object,
   }),
-}
+};
 
 export default DashboardCol;
 

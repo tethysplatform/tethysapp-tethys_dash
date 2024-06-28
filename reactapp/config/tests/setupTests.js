@@ -2,14 +2,14 @@
 // allows you to do things like:
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
-import '@testing-library/jest-dom';
-import { server } from './mocks/server.js';
+import "@testing-library/jest-dom";
+import { server } from "./mocks/server.js";
 
 // Mock `window.location` with Jest spies and extend expect
 import "jest-location-mock";
 
 // Make .env files accessible to tests (path relative to project root)
-require('dotenv').config({ path: './reactapp/config/tests/test.env'});
+require("dotenv").config({ path: "./reactapp/config/tests/test.env" });
 
 // Setup mocked Tethys API
 beforeAll(() => server.listen());

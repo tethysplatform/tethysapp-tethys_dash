@@ -3,10 +3,13 @@ export default function getUSACEPlotInfo(data) {
   let plot_color;
 
   for (let series of data.series["storage"]) {
-    plot_color = series.title.includes("Storage") ? "rgb(8, 48, 255)" : 
-      series.title.includes("Gross Pool") ? "rgb(31, 113, 181)" : 
-        series.title.includes("Conservation High") ? "rgb(211, 211, 211)" : 
-          series.title.includes("Conservation") && "rgb(146, 197, 222)";
+    plot_color = series.title.includes("Storage")
+      ? "rgb(8, 48, 255)"
+      : series.title.includes("Gross Pool")
+        ? "rgb(31, 113, 181)"
+        : series.title.includes("Conservation High")
+          ? "rgb(211, 211, 211)"
+          : series.title.includes("Conservation") && "rgb(146, 197, 222)";
 
     traces.push({
       type: "scatter",
@@ -24,9 +27,9 @@ export default function getUSACEPlotInfo(data) {
       },
       line: {
         color: plot_color,
-        dash: series.title.includes("Gross Pool") ? "dot" : "solid"
-      }
-    })
+        dash: series.title.includes("Gross Pool") ? "dot" : "solid",
+      },
+    });
   }
   for (let series of data.series["elevation"]) {
     traces.push({
@@ -36,12 +39,13 @@ export default function getUSACEPlotInfo(data) {
       x: series.x,
       y: series.y,
       yaxis: "y4",
-      showlegend: false
-    })
+      showlegend: false,
+    });
   }
   for (let series of data.series["flow"]) {
-    plot_color = series.title.includes("Inflow") ? "rgb(27, 158, 119)" : 
-      series.title.includes("Outflow") && "rgb(217, 95, 2)";
+    plot_color = series.title.includes("Inflow")
+      ? "rgb(27, 158, 119)"
+      : series.title.includes("Outflow") && "rgb(217, 95, 2)";
 
     traces.push({
       type: "scatter",
@@ -50,12 +54,12 @@ export default function getUSACEPlotInfo(data) {
       x: series.x,
       y: series.y,
       line: {
-        color: plot_color, 
-        dash: plot_color ? "solid" : "dot"
+        color: plot_color,
+        dash: plot_color ? "solid" : "dot",
       },
       legend: "legend3",
       legendgroup: "legend3",
-    })
+    });
   }
 
   let layout = {
@@ -65,40 +69,46 @@ export default function getUSACEPlotInfo(data) {
     autosize: true,
     xaxis: {
       autorange: true,
-      rangeselector: {buttons: [
-          {step: 'all'},
+      rangeselector: {
+        buttons: [
+          { step: "all" },
           {
             count: 6,
-            label: '6m',
-            step: 'month',
-            stepmode: 'backward'
-          },{
+            label: "6m",
+            step: "month",
+            stepmode: "backward",
+          },
+          {
             count: 1,
-            label: '1m',
-            step: 'month',
-            stepmode: 'backward'
-          },{
+            label: "1m",
+            step: "month",
+            stepmode: "backward",
+          },
+          {
             count: 7,
-            label: '1w',
-            step: 'day',
-            stepmode: 'backward'
-          },{
+            label: "1w",
+            step: "day",
+            stepmode: "backward",
+          },
+          {
             count: 3,
-            label: '3d',
-            step: 'day',
-            stepmode: 'backward'
-          },{
+            label: "3d",
+            step: "day",
+            stepmode: "backward",
+          },
+          {
             count: 12,
-            label: '12h',
-            step: 'hour',
-            stepmode: 'backward'
-          }
-        ]},
-      type: 'date'
+            label: "12h",
+            step: "hour",
+            stepmode: "backward",
+          },
+        ],
+      },
+      type: "date",
     },
     yaxis: {
       autorange: "nonnegative",
-      type: 'linear',
+      type: "linear",
       domain: [0, 0.5],
       title: "Flow<br>(cfs)",
     },
@@ -118,14 +128,14 @@ export default function getUSACEPlotInfo(data) {
       title: "Precipitation",
       xref: "container",
       yref: "container",
-      y: .5,
+      y: 0.5,
       x: 1.1,
       groupclick: "toggleitem",
       tracegroupgap: 30,
     },
     legend2: {
       title: "Storage",
-      groupclick: "toggleitem"
+      groupclick: "toggleitem",
     },
     legend3: {
       title: "Flow",
@@ -136,35 +146,40 @@ export default function getUSACEPlotInfo(data) {
       groupclick: "toggleitem",
     },
     hovermode: "x",
-    hoversubplots: "axis"
+    hoversubplots: "axis",
   };
 
   let shapes = [];
-  let seriesCount = ("storage" in data.series && "elevation" in data.series) ? 
-    Object.keys(data.series).length-1 : Object.keys(data.series).length;
-  seriesCount = ("precip" in data.series && "swe" in data.series) ? seriesCount-1 : seriesCount;
-  for (let i=1; i < seriesCount; i++) {
-    let shapeHeight = i/seriesCount;
+  let seriesCount =
+    "storage" in data.series && "elevation" in data.series
+      ? Object.keys(data.series).length - 1
+      : Object.keys(data.series).length;
+  seriesCount =
+    "precip" in data.series && "swe" in data.series
+      ? seriesCount - 1
+      : seriesCount;
+  for (let i = 1; i < seriesCount; i++) {
+    let shapeHeight = i / seriesCount;
     shapes.push({
-      type: 'line',
-      xref: 'paper',
-      yref: 'paper',
+      type: "line",
+      xref: "paper",
+      yref: "paper",
       x0: 0,
       x1: 1,
       y0: shapeHeight,
-      y1: shapeHeight
-    })
+      y1: shapeHeight,
+    });
   }
 
   if ("precip" in data.series) {
-    layout['yaxis']['domain'] = [0, 0.33]
-    layout['yaxis2']['domain'] = [0.33, 0.66]
-    layout['yaxis4']['domain'] = [0.33, 0.66]
-    layout['yaxis3'] = {
+    layout["yaxis"]["domain"] = [0, 0.33];
+    layout["yaxis2"]["domain"] = [0.33, 0.66];
+    layout["yaxis4"]["domain"] = [0.33, 0.66];
+    layout["yaxis3"] = {
       autorange: "reversed",
       domain: [0.66, 1],
       title: "Precipitation<br>(in)",
-    }
+    };
     for (let series of data.series["precip"]) {
       traces.push({
         type: "bar",
@@ -175,19 +190,19 @@ export default function getUSACEPlotInfo(data) {
         color: "blue",
         legend: "legend",
         legendgroup: "legend",
-      })
+      });
     }
   }
 
   if ("swe" in data.series) {
-    layout['yaxis']['domain'] = [0, 0.33]
-    layout['yaxis2']['domain'] = [0.33, 0.66]
-    layout['yaxis4']['domain'] = [0.33, 0.66]
-    layout['yaxis5'] = {
+    layout["yaxis"]["domain"] = [0, 0.33];
+    layout["yaxis2"]["domain"] = [0.33, 0.66];
+    layout["yaxis4"]["domain"] = [0.33, 0.66];
+    layout["yaxis5"] = {
       domain: [0.66, 1],
       title: "SWE<br>(in)",
       side: "right",
-    }
+    };
     for (let series of data.series["swe"]) {
       traces.push({
         type: "scatter",
@@ -203,34 +218,34 @@ export default function getUSACEPlotInfo(data) {
         },
         legend: "legend4",
         legendgroup: "legend4",
-      })
+      });
     }
   }
 
   if ("precip" in data.series && "swe" in data.series) {
-    layout['yaxis3']['domain'] = [0.66, 0.83]
-    layout['yaxis5']['domain'] = [0.83, 1]
+    layout["yaxis3"]["domain"] = [0.66, 0.83];
+    layout["yaxis5"]["domain"] = [0.83, 1];
     shapes.push({
-      type: 'line',
-      xref: 'paper',
-      yref: 'paper',
+      type: "line",
+      xref: "paper",
+      yref: "paper",
       x0: 0,
       x1: 1,
       y0: 0.83,
-      y1: 0.83
-    })
+      y1: 0.83,
+    });
   }
 
-  layout['shapes'] = shapes
+  layout["shapes"] = shapes;
   const configOptions = {
     responsive: true,
-    modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d'],
-    modeBarButtonsToAdd: ['hoverClosestCartesian', 'hoverCompareCartesian']
-  }
+    modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"],
+    modeBarButtonsToAdd: ["hoverClosestCartesian", "hoverCompareCartesian"],
+  };
 
   return {
     traces: traces,
     layout: layout,
     configOptions: configOptions,
-  }
+  };
 }

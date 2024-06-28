@@ -1,30 +1,39 @@
-import PropTypes from 'prop-types'
-import Col from 'react-bootstrap/Col';
-import Form from 'react-bootstrap/Form';
-import { useState } from 'react';
+import PropTypes from "prop-types";
+import Col from "react-bootstrap/Col";
+import Form from "react-bootstrap/Form";
+import { useState } from "react";
 
-function DashboardCol({rowNumber, colNumber, initialColWidth}) {
-    const [colWidth, setColWidth]  = useState(initialColWidth);
+function DashboardCol({ rowNumber, colNumber, initialColWidth }) {
+  const [colWidth, setColWidth] = useState(initialColWidth);
 
-    function onRowInput({target:{value}}) {
-        setColWidth(parseInt(value))
-    }
+  function onRowInput({ target: { value } }) {
+    setColWidth(parseInt(value));
+  }
 
-    return (
-        <>
-            <Col className="m-0 p-0">
-                <Form.Group className="mb-0" controlId={"row" + rowNumber + "col" + colNumber}>
-                    <Form.Control required type="number" min="1" onChange={onRowInput} value={colWidth} />
-                </Form.Group>
-            </Col>
-        </>
-    )
+  return (
+    <>
+      <Col className="m-0 p-0">
+        <Form.Group
+          className="mb-0"
+          controlId={"row" + rowNumber + "col" + colNumber}
+        >
+          <Form.Control
+            required
+            type="number"
+            min="1"
+            onChange={onRowInput}
+            value={colWidth}
+          />
+        </Form.Group>
+      </Col>
+    </>
+  );
 }
 
 DashboardCol.propTypes = {
   rowNumber: PropTypes.number,
   colNumber: PropTypes.number,
-  initialColWidth: PropTypes.number
-}
+  initialColWidth: PropTypes.number,
+};
 
 export default DashboardCol;

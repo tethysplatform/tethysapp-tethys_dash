@@ -1,55 +1,53 @@
-import styled from 'styled-components';
-import Button from 'react-bootstrap/Button';
-import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
-import PropTypes from 'prop-types';
-import Tooltip from 'react-bootstrap/Tooltip';
-import { BsTrash, BsPencilSquare, BsArrowsAngleExpand  } from "react-icons/bs";
+import styled from "styled-components";
+import Button from "react-bootstrap/Button";
+import OverlayTrigger from "react-bootstrap/OverlayTrigger";
+import PropTypes from "prop-types";
+import Tooltip from "react-bootstrap/Tooltip";
+import { BsTrash, BsPencilSquare, BsArrowsAngleExpand } from "react-icons/bs";
 
-
-const StyledButton = styled(Button) `
+const StyledButton = styled(Button)`
   float: left;
   margin-left: 10px;
 `;
 
-
-const DashboardItemButton = ({tooltipText, onClick, type, hidden}) => {
-  let icon
-  let variant
-  let styledButton
-  if (type==="delete") {
-    icon = <BsTrash size="1rem"/>
-    variant = "danger"
-  } else if (type==="edit") {
-    icon = <BsPencilSquare size="1rem"/>
-    variant = "warning"
-  } else if (type==="fullscreen") {
-    icon = <BsArrowsAngleExpand size="1rem"/>
-    variant = "info"
+const DashboardItemButton = ({ tooltipText, onClick, type, hidden }) => {
+  let icon;
+  let variant;
+  let styledButton;
+  if (type === "delete") {
+    icon = <BsTrash size="1rem" />;
+    variant = "danger";
+  } else if (type === "edit") {
+    icon = <BsPencilSquare size="1rem" />;
+    variant = "warning";
+  } else if (type === "fullscreen") {
+    icon = <BsArrowsAngleExpand size="1rem" />;
+    variant = "info";
   }
 
-  styledButton = <StyledButton variant={variant} onClick={onClick} size="sm" hidden={hidden}>{icon}</StyledButton>
+  styledButton = (
+    <StyledButton variant={variant} onClick={onClick} size="sm" hidden={hidden}>
+      {icon}
+    </StyledButton>
+  );
 
   const styledButtonWithTooltip = (
     <OverlayTrigger
       key={"bottom"}
       placement={"bottom"}
-      overlay={
-        <Tooltip id={"tooltip-bottom"}>
-          {tooltipText}
-        </Tooltip>
-      }
+      overlay={<Tooltip id={"tooltip-bottom"}>{tooltipText}</Tooltip>}
     >
       {styledButton}
     </OverlayTrigger>
   );
   return styledButtonWithTooltip;
-}
+};
 
 DashboardItemButton.propTypes = {
   tooltipText: PropTypes.string,
   onClick: PropTypes.func,
   type: PropTypes.string,
-  hidden: PropTypes.bool
+  hidden: PropTypes.bool,
 };
 
-export default DashboardItemButton
+export default DashboardItemButton;

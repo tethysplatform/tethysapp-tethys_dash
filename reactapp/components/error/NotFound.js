@@ -1,6 +1,6 @@
-import Error from 'components/error/Error';
+import Error from "components/error/Error";
 
-import errorImage from 'assets/error404.png';
+import errorImage from "assets/error404.png";
 
 const NotFound = () => {
   return (

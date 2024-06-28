@@ -10,7 +10,7 @@ const Confirmation = ({
   confirmation,
   show,
   proceed,
-  enableEscape = true
+  enableEscape = true,
 }) => {
   return (
     <div className="static-modal">
@@ -47,19 +47,19 @@ Confirmation.propTypes = {
   confirmation: PropTypes.string,
   show: PropTypes.bool,
   proceed: PropTypes.func, // called when ok button is clicked.
-  enableEscape: PropTypes.bool
+  enableEscape: PropTypes.bool,
 };
 
 export function confirm(
   confirmation,
   proceedLabel = "OK",
   cancelLabel = "cancel",
-  options = {}
+  options = {},
 ) {
   return createConfirmation(confirmable(Confirmation))({
     confirmation,
     proceedLabel,
     cancelLabel,
-    ...options
+    ...options,
   });
 }

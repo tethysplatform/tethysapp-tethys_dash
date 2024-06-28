@@ -7,8 +7,8 @@ export default function getCDECPlotInfo(data) {
       name: series.title,
       x: series.x,
       y: series.y,
-      yaxis: series.title.includes("STORAGE") ? "y1" : "y2"
-    })
+      yaxis: series.title.includes("STORAGE") ? "y1" : "y2",
+    });
   }
 
   let layout = {
@@ -18,45 +18,51 @@ export default function getCDECPlotInfo(data) {
     autosize: true,
     xaxis: {
       autorange: true,
-      rangeselector: {buttons: [
-          {step: 'all'},
+      rangeselector: {
+        buttons: [
+          { step: "all" },
           {
             count: 6,
-            label: '6m',
-            step: 'month',
-            stepmode: 'backward'
-          },{
+            label: "6m",
+            step: "month",
+            stepmode: "backward",
+          },
+          {
             count: 1,
-            label: '1m',
-            step: 'month',
-            stepmode: 'backward'
-          },{
+            label: "1m",
+            step: "month",
+            stepmode: "backward",
+          },
+          {
             count: 7,
-            label: '1w',
-            step: 'day',
-            stepmode: 'backward'
-          },{
+            label: "1w",
+            step: "day",
+            stepmode: "backward",
+          },
+          {
             count: 3,
-            label: '3d',
-            step: 'day',
-            stepmode: 'backward'
-          },{
+            label: "3d",
+            step: "day",
+            stepmode: "backward",
+          },
+          {
             count: 12,
-            label: '12h',
-            step: 'hour',
-            stepmode: 'backward'
-          }
-        ]},
-      type: 'date'
+            label: "12h",
+            step: "hour",
+            stepmode: "backward",
+          },
+        ],
+      },
+      type: "date",
     },
     yaxis: {
       autorange: true,
-      type: 'linear',
+      type: "linear",
       title: "Storage<br>(ac-ft)",
     },
     yaxis2: {
       autorange: true,
-      type: 'linear',
+      type: "linear",
       side: "right",
       overlaying: "y1",
       title: "Elevation<br>(ft)",
@@ -65,22 +71,22 @@ export default function getCDECPlotInfo(data) {
       title: "Precipitation",
       xref: "container",
       yref: "container",
-      y: .5,
+      y: 0.5,
       x: 1.1,
     },
     hovermode: "x",
-    hoversubplots: "axis"
+    hoversubplots: "axis",
   };
 
   const configOptions = {
     responsive: true,
-    modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d'],
-    modeBarButtonsToAdd: ['hoverClosestCartesian', 'hoverCompareCartesian']
-  }
+    modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"],
+    modeBarButtonsToAdd: ["hoverClosestCartesian", "hoverCompareCartesian"],
+  };
 
   return {
     traces: traces,
     layout: layout,
     configOptions: configOptions,
-  }
+  };
 }

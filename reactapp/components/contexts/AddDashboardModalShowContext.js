@@ -1,4 +1,4 @@
-import PropTypes from 'prop-types'
+import PropTypes from "prop-types";
 import { useContext, createContext, useState } from "react";
 
 const AddDashboardModalShowContext = createContext();
@@ -11,15 +11,14 @@ const AddDashboardModalShowContextProvider = ({ children }) => {
       {children}
     </AddDashboardModalShowContext.Provider>
   );
-
 };
 
 AddDashboardModalShowContextProvider.propTypes = {
   children: PropTypes.oneOfType([
-      PropTypes.arrayOf(PropTypes.node),
-      PropTypes.node
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.node,
   ]),
-}
+};
 
 export default AddDashboardModalShowContextProvider;
 

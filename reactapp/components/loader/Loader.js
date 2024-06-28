@@ -1,18 +1,18 @@
-import PropTypes from 'prop-types';
-import { useState, useEffect } from 'react';
+import PropTypes from "prop-types";
+import { useState, useEffect } from "react";
 
-import tethysAPI from 'services/api/tethys';
-import LoadingAnimation from 'components/loader/LoadingAnimation';
-import { AppContext } from 'components/contexts/AppContext';
+import tethysAPI from "services/api/tethys";
+import LoadingAnimation from "components/loader/LoadingAnimation";
+import { AppContext } from "components/contexts/AppContext";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
 
-function Loader({children}) {
+function Loader({ children }) {
   const [error, setError] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [appContext, setAppContext] = useState(null);
- 
+
   const handleError = (error) => {
     // Delay setting the error to avoid flashing the loading animation
     setTimeout(() => {
@@ -20,42 +20,40 @@ function Loader({children}) {
     }, LOADER_DELAY);
   };
 
-  useEffect(() => {  
+  useEffect(() => {
     // Get the session first
-    tethysAPI.getSession()
+    tethysAPI
+      .getSession()
       .then(() => {
         // Then load all other app data
         Promise.all([
-            tethysAPI.getAppData(APP_ID), 
-            tethysAPI.getUserData(), 
-            tethysAPI.getCSRF(),
-          ])
+          tethysAPI.getAppData(APP_ID),
+          tethysAPI.getUserData(),
+          tethysAPI.getCSRF(),
+        ])
           .then(([tethysApp, user, csrf]) => {
             // Update app context
-            setAppContext({tethysApp, user, csrf});
+            setAppContext({ tethysApp, user, csrf });
 
             // Allow for minimum delay to display loader
             setTimeout(() => {
-              setIsLoaded(true)
+              setIsLoaded(true);
             }, LOADER_DELAY);
           })
           .catch(handleError);
-      }).catch(handleError);
+      })
+      .catch(handleError);
   }, []);
 
   if (error) {
     // Throw error so it will be caught by the ErrorBoundary
     throw error;
   } else if (!isLoaded) {
-    return (
-      <LoadingAnimation />
-    );
+    return <LoadingAnimation />;
   } else {
     return (
       <>
-        <AppContext.Provider value={appContext}>
-          {children}
-        </AppContext.Provider>
+        <AppContext.Provider value={appContext}>{children}</AppContext.Provider>
       </>
     );
   }
