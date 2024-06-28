@@ -49,8 +49,8 @@ function DashboardLayout() {
 
             if (currentRowID === null) {
                 currentRowID = rowID
-            } else if (newrow == "true") {
-                if (totalColWidth != 12) {
+            } else if (newrow === "true") {
+                if (totalColWidth !== 12) {
                     setErrorMessage("Total width for row " + (rowCount+1).toString() + " equals " + totalColWidth.toString() + ". The total width must equal 12.")
                     setShowErrorMessage(true)
                     return
@@ -87,7 +87,7 @@ function DashboardLayout() {
             }
 
             if (i === cellDimensionsInputs.length-1) {
-                if (totalColWidth != 12) {
+                if (totalColWidth !== 12) {
                     setErrorMessage("Total width for row " + (rowCount+1).toString() + " equals " + totalColWidth.toString() + ". The total width must equal 12.")
                     setShowErrorMessage(true)
                     return

@@ -1,8 +1,8 @@
+import PropTypes from 'prop-types'
 import styled from 'styled-components';
 import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import Form from 'react-bootstrap/Form';
-import BasePlot from 'components/plots/BasePlot';
 import { memo, useState, useEffect } from 'react';
 import { useEditingContext } from 'components/contexts/EditingContext';
 import { useRowHeightContext, useRowInfoContext } from 'components/dashboard/DashboardRow';
@@ -12,7 +12,7 @@ import { useColInfoContext } from 'components/dashboard/DashboardCol';
 import DashboardItemButton from "components/buttons/DashboardItemButton";
 import 'components/dashboard/noArrowDropdown.css';
 import DashboardItemArrows from 'components/buttons/DashboardItemArrows'
-import FullscreenPlotModal from 'components/modals/FullscreenPlot'
+import BaseVisualization from 'components/visualizations/BaseVisualization';
 
 
 const StyledFormGroup= styled(Form.Group)`
@@ -35,15 +35,6 @@ const StyledButtonDiv= styled.div`
 `;
 
 const StyledCenterDiv= styled.div`
-  width: auto;
-  margin: auto;
-  display: block;
-`;
-
-const StyledImg= styled.img`
-  max-width: 100% !important;
-  max-height: 100% !important;
-  height: auto;
   width: auto;
   margin: auto;
   display: block;
@@ -83,11 +74,11 @@ const DashboardItem = ({type, metadata}) => {
   const itemData = {"type": type, "metadata": metadata}
   const [ rowData, setRowData ] = useLayoutRowDataContext();
   const [ maxWidth, setMaxWidth ] = useState((12 - (rowData[rowNumber]['columns'].length-1)).toString())
-  const [ showFullscreenPlot, setShowFullscreenPlot ] = useState(false)
+  const [ showFullscreen, setShowFullscreen ] = useState(false)
     
   useEffect(() => {
     setMaxWidth((12 - (rowData[rowNumber]['columns'].length-1)).toString())
-  }, [rowData]);
+  }, [rowData, rowNumber]);
 
   function onRowHeightInput({target:{value}}) {
     setHeight(value)
@@ -100,8 +91,8 @@ const DashboardItem = ({type, metadata}) => {
     const updatedRowColumns = JSON.parse(JSON.stringify(rowColumns))
     updatedRowColumns[colNumber]['width'] = parseInt(value)
 
-    if (updatedRowColumns.length == 2) {
-      const otherIndex = colNumber==0 ? 1 : 0
+    if (updatedRowColumns.length === 2) {
+      const otherIndex = colNumber===0 ? 1 : 0
       updatedRowColumns[otherIndex]['width'] = 12-value
     }
 
@@ -145,20 +136,11 @@ const DashboardItem = ({type, metadata}) => {
   }
 
   function onFullscreen() {
-    setShowFullscreenPlot(true)
+    setShowFullscreen(true)
   }
 
-  function hideFullscreenPlot() {
-    setShowFullscreenPlot(false)
-  }
-
-  function getPlot() {
-    return (
-      <>
-        {type.includes("Plot") && <BasePlot rowHeight={rowHeight} colWidth={width} itemData={itemData}/>}
-        {type === "Image" && <StyledImg src={metadata['uri']}/>}
-      </>
-    )
+  function hideFullscreen() {
+    setShowFullscreen(false)
   }
 
   return (
@@ -170,7 +152,7 @@ const DashboardItem = ({type, metadata}) => {
           <DashboardItemButton tooltipText="Delete Cell" type="delete" hidden={!isEditing} onClick={deleteCell}/>
         </StyledButtonDiv>
         <Row style={{height: "100%"}} hidden={isEditing}>
-          {!isEditing && getPlot()}
+          {(!isEditing && type !== "") && <BaseVisualization rowHeight={rowHeight} colWidth={width} itemData={itemData} showFullscreen={showFullscreen} hideFullscreen={hideFullscreen}/>}
         </Row>
         <Row className="h-100" hidden={!isEditing}>
           <StyledCenterDiv >
@@ -178,7 +160,7 @@ const DashboardItem = ({type, metadata}) => {
                 <Form.Label>Row Height</Form.Label>
                 <Form.Control 
                   required type="number" min="1" max="100" onChange={onRowHeightInput} value={height} 
-                  data-inputtype="height" data-newrow={colNumber==0 ? true : false} data-rowid={rowID}
+                  data-inputtype="height" data-newrow={colNumber===0 ? true : false} data-rowid={rowID}
                   data-colid={colID}/>
             </StyledFormGroup>
             <StyledFormGroup className="mb-1">
@@ -203,10 +185,15 @@ const DashboardItem = ({type, metadata}) => {
           </StyledAbsDiv>
         </Row>
       </StyledContainer>
-      <FullscreenPlotModal children={getPlot()} show={showFullscreenPlot} handleClose={hideFullscreenPlot}/>
     </>
   )
 }
 
+DashboardItem.propTypes = {
+  type: PropTypes.string,
+  metadata: PropTypes.objectOf(
+    PropTypes.string
+  )
+};
 
 export default memo(DashboardItem)

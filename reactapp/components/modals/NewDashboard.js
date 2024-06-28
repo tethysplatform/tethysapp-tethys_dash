@@ -52,7 +52,7 @@ function NewDashboardModal() {
 
             const rowColCount = parseInt(event.currentTarget.querySelector('#row' + i + 'colcount').value)
             const Cols = [];
-            const totalColWidth = 0;
+            let totalColWidth = 0;
             for (let x=1; x <= rowColCount; x++) {
                 let colData = {}
                 colData['type'] = ""
@@ -66,7 +66,7 @@ function NewDashboardModal() {
             }
             data['columns'] = Cols
 
-            if (totalColWidth != 12) {
+            if (totalColWidth !== 12) {
                 setErrorMessage("Row " + i + " total width is " + totalColWidth + ". It must equal 12.")
                 setHasError(true)
                 return

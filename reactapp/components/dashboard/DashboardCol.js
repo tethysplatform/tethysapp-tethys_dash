@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import Col from 'react-bootstrap/Col';
 import DashboardItem from 'components/dashboard/DashboardItem';
 import styled from 'styled-components';
@@ -7,7 +8,6 @@ const StyledDashboardCol= styled(Col)`
     border: black solid 1px;
 `;
 const ColInfoContext = createContext();
-
 
 function DashboardCol({colNumber, colData}) {
     const colID = colData['id']
@@ -31,6 +31,16 @@ function DashboardCol({colNumber, colData}) {
             </ColInfoContext.Provider>
         </StyledDashboardCol>
     )
+}
+
+DashboardCol.propTypes = {
+  colNumber: PropTypes.number, 
+  colData: PropTypes.shape({
+    id: PropTypes.number,
+    width: PropTypes.number,
+    type: PropTypes.string,
+    metadata: PropTypes.object
+  }),
 }
 
 export default DashboardCol;

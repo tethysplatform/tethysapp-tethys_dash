@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { useContext, createContext, useState } from "react";
 
 const AvailableOptionsContext = createContext();
@@ -12,6 +13,13 @@ const AvailableOptionsContextProvider = ({ children }) => {
   );
 
 };
+
+AvailableOptionsContextProvider.propTypes = {
+  children: PropTypes.oneOfType([
+      PropTypes.arrayOf(PropTypes.node),
+      PropTypes.node
+  ]),
+}
 
 export default AvailableOptionsContextProvider;
 

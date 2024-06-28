@@ -2,7 +2,6 @@ import Container from 'react-bootstrap/Container';
 import Row from 'react-bootstrap/Row';
 import DashboardLayout from '../../components/dashboard/DashboardLayout';
 import DashboardLayoutAlerts from '../../components/dashboard/DashboardLayoutAlerts';
-import React from 'react';
 import { useLayoutNameContext } from "components/contexts/SelectedDashboardContext";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import styled from 'styled-components';

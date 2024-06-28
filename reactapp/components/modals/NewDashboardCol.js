@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import Col from 'react-bootstrap/Col';
 import Form from 'react-bootstrap/Form';
 import { useState } from 'react';
@@ -18,6 +19,12 @@ function DashboardCol({rowNumber, colNumber, initialColWidth}) {
             </Col>
         </>
     )
+}
+
+DashboardCol.propTypes = {
+  rowNumber: PropTypes.number,
+  colNumber: PropTypes.number,
+  initialColWidth: PropTypes.number
 }
 
 export default DashboardCol;

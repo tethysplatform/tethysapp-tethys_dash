@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { useContext, createContext, useState } from "react";
 
 const LayoutContext = createContext();
@@ -57,6 +58,13 @@ const SelectedDashboardContextProvider = ({ children }) => {
   );
 
 };
+
+SelectedDashboardContextProvider.propTypes = {
+  children: PropTypes.oneOfType([
+      PropTypes.arrayOf(PropTypes.node),
+      PropTypes.node
+  ]),
+}
 
 export default SelectedDashboardContextProvider;
 

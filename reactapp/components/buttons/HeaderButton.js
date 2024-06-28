@@ -19,7 +19,7 @@ const StyledButton = styled(Button)`
 `;
 
 
-const HeaderButton = ({children, tooltipPlacement, tooltipText, href, variant, ...props}) => {
+const HeaderButton = ({children, tooltipPlacement, tooltipText, href, ...props}) => {
   const styledButton = (
     <StyledButton href={href} variant="info" size="sm" className="me-2" {...props}>{children}</StyledButton>
   );
@@ -40,7 +40,11 @@ const HeaderButton = ({children, tooltipPlacement, tooltipText, href, variant, .
 }
 
 HeaderButton.propTypes = {
-  children: PropTypes.element,
+  children: PropTypes.oneOfType([
+      PropTypes.arrayOf(PropTypes.node),
+      PropTypes.node,
+      PropTypes.element
+  ]),
   tooltipPlacement: PropTypes.oneOf(['top', 'bottom', 'left', 'right']),
   tooltipText: PropTypes.string,
   href: PropTypes.string,

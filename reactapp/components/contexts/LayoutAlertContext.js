@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import { useContext, createContext, useState, useEffect } from "react";
 
 const LayoutSuccessAlertContext = createContext();
@@ -13,7 +14,7 @@ const LayoutAlertContextProvider = ({ children }) => {
   const [ showWarningMessage, setShowWarningMessage ] = useState(false);
     
   useEffect(() => {
-      if (showSuccessMessage == true) {
+      if (showSuccessMessage === true) {
         window.setTimeout(()=>{
           setShowSuccessMessage(false)
         },5000)
@@ -21,7 +22,7 @@ const LayoutAlertContextProvider = ({ children }) => {
   }, [showSuccessMessage]);
   
   useEffect(() => {
-      if (showErrorMessage == true) {
+      if (showErrorMessage === true) {
         window.setTimeout(()=>{
           setShowErrorMessage(false)
         },5000)
@@ -29,7 +30,7 @@ const LayoutAlertContextProvider = ({ children }) => {
   }, [showErrorMessage]);
   
   useEffect(() => {
-      if (showWarningMessage == true) {
+      if (showWarningMessage === true) {
         window.setTimeout(()=>{
           setShowWarningMessage(false)
         },5000)
@@ -47,6 +48,13 @@ const LayoutAlertContextProvider = ({ children }) => {
   );
 
 };
+
+LayoutAlertContextProvider.propTypes = {
+  children: PropTypes.oneOfType([
+      PropTypes.arrayOf(PropTypes.node),
+      PropTypes.node
+  ]),
+}
 
 export default LayoutAlertContextProvider;
 

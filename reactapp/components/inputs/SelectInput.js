@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import Select from 'react-select'
+import PropTypes from 'prop-types';
 
 
 const StyledSelect = styled(Select)`
@@ -30,6 +31,16 @@ const SelectInput = ({children, options, ...props}) => {
   );
   return styledSelect;
 }
+
+SelectInput.propTypes = {
+  children: PropTypes.oneOfType([
+      PropTypes.arrayOf(PropTypes.node),
+      PropTypes.node
+  ]),
+  options: PropTypes.arrayOf(
+    PropTypes.object
+  )
+};
 
 
 export default SelectInput

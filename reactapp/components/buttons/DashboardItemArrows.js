@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types'
 import styled from 'styled-components';
 import Dropdown from 'react-bootstrap/Dropdown';
 import { memo } from 'react';
@@ -58,7 +59,7 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
             "metadata": '{}'
         }]
     }
-    let insertIndex = arrowDirection == "up" ? rowNumber : rowNumber+1
+    let insertIndex = arrowDirection === "up" ? rowNumber : rowNumber+1
     updatedRowData.splice(insertIndex, 0, newRow)
     updateOrder(updatedRowData)
     setRowData(updatedRowData)
@@ -66,7 +67,7 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
 
   function moveRow() {
     const updatedRowData = JSON.parse(JSON.stringify(rowData))
-    let newIndex = arrowDirection == "up" ? rowNumber-1 : rowNumber+1
+    let newIndex = arrowDirection === "up" ? rowNumber-1 : rowNumber+1
     array_move(updatedRowData, rowNumber, newIndex)
     updateOrder(updatedRowData)
     setRowData(updatedRowData)
@@ -79,7 +80,7 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
     let newColWidth;
     let reducedWidthCol;
 
-    if (selectedColumn['width'] == 1) {
+    if (selectedColumn['width'] === 1) {
       newColWidth = 1
       reducedWidthCol = Object.keys(rowColumns).reduce((a, b) => rowColumns[a]['width'] > rowColumns[b]['width'] ? a : b);
     } else {
@@ -97,7 +98,7 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
         "metadata": '{}'
     }
 
-    let insertIndex = arrowDirection == "left" ? colNumber : colNumber+1
+    let insertIndex = arrowDirection === "left" ? colNumber : colNumber+1
     rowColumns.splice(insertIndex, 0, newCol)
     updateOrder(updatedRowData)
     setRowData(updatedRowData)
@@ -106,7 +107,7 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
   function moveColumn() {
     const updatedRowData = JSON.parse(JSON.stringify(rowData))
     const rowColumns = updatedRowData[rowNumber]['columns']
-    let newIndex = arrowDirection == "left" ? colNumber-1 : colNumber+1
+    let newIndex = arrowDirection === "left" ? colNumber-1 : colNumber+1
     array_move(rowColumns, colNumber, newIndex)
     updateOrder(updatedRowData)
     setRowData(updatedRowData)
@@ -127,7 +128,7 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
     }
     arr.splice(new_index, 0, arr.splice(old_index, 1)[0]);
     return arr;
-  };
+  }
 
   const StyledDropdownButton = (
         <StyledDropdown>
@@ -141,14 +142,14 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
                 {(arrowDirection === "up" || arrowDirection === "down") ?
                 <>
                   <StyledDropdown.Item onClick={addRow}>Add Row {arrowDirection === "up" ? "Above" : "Below"}</StyledDropdown.Item>
-                  {((arrowDirection === "up" && rowNumber != 0) || (arrowDirection === "down" && rowNumber != rowData.length-1)) && 
+                  {((arrowDirection === "up" && rowNumber !== 0) || (arrowDirection === "down" && rowNumber !== rowData.length-1)) && 
                     <StyledDropdown.Item onClick={moveRow}>Move Row {arrowDirection === "up" ? "Above" : "Below"}</StyledDropdown.Item>
                   }
                 </>
                 :
                 <>
                   <StyledDropdown.Item onClick={addColumn}>Add Cell on {arrowDirection === "right" ? "Right" : "Left"}</StyledDropdown.Item>
-                  {((arrowDirection === "left" && colNumber != 0) || (arrowDirection === "right" && colNumber != rowData[rowNumber]['columns'].length-1)) && 
+                  {((arrowDirection === "left" && colNumber !== 0) || (arrowDirection === "right" && colNumber !== rowData[rowNumber]['columns'].length-1)) && 
                     <StyledDropdown.Item onClick={moveColumn}>Move Cell {arrowDirection === "right" ? "Right" : "Left"}</StyledDropdown.Item>
                   }
                 </>
@@ -172,5 +173,10 @@ const DashboardItemArrows = ({arrowDirection, tooltipPlacement, tooltipText}) =>
     )
 }
 
+DashboardItemArrows.propTypes = {
+  arrowDirection: PropTypes.string,
+  tooltipPlacement: PropTypes.string,
+  tooltipText: PropTypes.string,
+}
 
 export default memo(DashboardItemArrows)

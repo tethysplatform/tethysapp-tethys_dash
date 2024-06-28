@@ -1,3 +1,4 @@
+import PropTypes from 'prop-types';
 import Row from 'react-bootstrap/Row';
 import DashboardCol from 'components/dashboard/DashboardCol'
 import styled from 'styled-components';
@@ -21,7 +22,7 @@ function DashboardRow({rowNumber, rowID, rowHeight, rowColumns}) {
     
     useEffect(() => {
         setHeight(rowData[rowNumber]['height'])
-    }, [rowData]);
+    }, [rowData, rowNumber]);
 
     const dashboardColumns = []
     for (let x=0; x < rowColumns.length; x++) {
@@ -39,6 +40,15 @@ function DashboardRow({rowNumber, rowID, rowHeight, rowColumns}) {
         </StyledDashboardRow>
     )
 }
+
+DashboardRow.propTypes = {
+    rowNumber: PropTypes.number,
+    rowID: PropTypes.number,
+    rowHeight: PropTypes.number,
+    rowColumns: PropTypes.arrayOf(
+        PropTypes.object
+    )
+};
 
 export default DashboardRow;
 

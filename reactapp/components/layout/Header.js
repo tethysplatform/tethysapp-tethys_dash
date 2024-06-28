@@ -5,7 +5,6 @@ import Navbar from 'react-bootstrap/Navbar';
 import PropTypes from 'prop-types';
 import { useContext } from 'react';
 import { BsX, BsGear } from 'react-icons/bs';
-import { LinkContainer } from 'react-router-bootstrap';
 import { useLocation } from 'react-router-dom'
 
 import HeaderButton from 'components/buttons/HeaderButton';

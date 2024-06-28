@@ -36,6 +36,7 @@ function DashboardSelector() {
         setSelectOptions(options)
         setDashboardLayoutConfigs(data)
       })
+    // eslint-disable-next-line
     }, [])
   
     function updateLayout(e) {
@@ -51,11 +52,11 @@ function DashboardSelector() {
     async function onDelete(e) {
         const selectedOptionValue = selectedOption['value']
 
-        if (await confirm("Are your sure you want to delete the " + selectedOptionValue + " dashboard?")) {
+        if (window.confirm("Are your sure you want to delete the " + selectedOptionValue + " dashboard?")) {
             const newdashboardLayoutConfigs = Object.fromEntries(
-                Object.entries(dashboardLayoutConfigs).filter(([key]) => key != selectedOptionValue)
+                Object.entries(dashboardLayoutConfigs).filter(([key]) => key !== selectedOptionValue)
             );
-            const newSelectOptions = selectOptions.filter((options)=>(JSON.stringify(options) != JSON.stringify(selectedOption)))
+            const newSelectOptions = selectOptions.filter((options)=>(JSON.stringify(options) !== JSON.stringify(selectedOption)))
             appAPI.deleteDashboard({"name": selectedOptionValue}, csrf).then((response) => {
                 setDashboardLayoutConfigs(newdashboardLayoutConfigs)
                 setSelectOptions(newSelectOptions)

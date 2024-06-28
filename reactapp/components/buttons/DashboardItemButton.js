@@ -46,10 +46,10 @@ const DashboardItemButton = ({tooltipText, onClick, type, hidden}) => {
 }
 
 DashboardItemButton.propTypes = {
-  children: PropTypes.element,
-  tooltipPlacement: PropTypes.oneOf(['top', 'bottom', 'left', 'right']),
   tooltipText: PropTypes.string,
-  href: PropTypes.string,
+  onClick: PropTypes.func,
+  type: PropTypes.string,
+  hidden: PropTypes.bool
 };
 
 export default DashboardItemButton
