@@ -28,7 +28,7 @@ const SelectedDashboardContextProvider = ({ children }) => {
     setLabel(dashboardContext["label"]);
     setImage(dashboardContext["image"]);
     setNotes(dashboardContext["notes"]);
-    setRowData(JSON.parse(dashboardContext["rowData"]));
+    setRowData(dashboardContext["rowData"]);
   }
 
   function getLayoutContext() {

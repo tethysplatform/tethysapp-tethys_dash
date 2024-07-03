@@ -7,17 +7,9 @@ import FullscreenPlotModal from "components/modals/FullscreenPlot";
 import BasePlot from "components/visualizations/BasePlot";
 import getCDECPlotInfo from "components/visualizations/CDECPlot";
 import getUSACEPlotInfo from "components/visualizations/USACEPlot";
+import Image from "components/visualizations/Image";
 
 const StyledSpinner = styled(Spinner)`
-  margin: auto;
-  display: block;
-`;
-
-const StyledImg = styled.img`
-  max-width: 100% !important;
-  max-height: 100% !important;
-  height: auto;
-  width: auto;
   margin: auto;
   display: block;
 `;
@@ -35,7 +27,7 @@ const BaseVisualization = ({
 
   useEffect(() => {
     if (type === "Image") {
-      setViz(<StyledImg src={metadata["uri"]} />);
+      setViz(<Image source={metadata["uri"]} />);
     } else if (type.includes("Plot")) {
       setViz(<StyledSpinner animation="border" variant="info" />);
       getPlotData(itemData);
@@ -64,7 +56,7 @@ const BaseVisualization = ({
           plotData={plotData}
           rowHeight={rowHeight}
           colWidth={colWidth}
-        />,
+        />
       );
     });
   }
@@ -86,7 +78,7 @@ BaseVisualization.propTypes = {
   rowHeight: PropTypes.number,
   colWidth: PropTypes.number,
   itemData: PropTypes.shape({
-    type: PropTypes.object,
+    type: PropTypes.string,
     metadata: PropTypes.shape({
       uri: PropTypes.string,
     }),

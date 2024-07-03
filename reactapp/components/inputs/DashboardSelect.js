@@ -8,7 +8,7 @@ const StyledSelect = styled(Select)`
   display: inline-block;
 `;
 
-const SelectInput = ({ children, options, ...props }) => {
+const DashboardSelect = ({ children, options, ...props }) => {
   const styledSelect = (
     <StyledSelect
       options={options}
@@ -29,7 +29,7 @@ const SelectInput = ({ children, options, ...props }) => {
   return styledSelect;
 };
 
-SelectInput.propTypes = {
+DashboardSelect.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.node),
     PropTypes.node,
@@ -37,4 +37,4 @@ SelectInput.propTypes = {
   options: PropTypes.arrayOf(PropTypes.object),
 };
 
-export default SelectInput;
+export default DashboardSelect;

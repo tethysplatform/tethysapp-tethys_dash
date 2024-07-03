@@ -13,16 +13,12 @@ function DashboardCol({ colNumber, colData }) {
   const colID = colData["id"];
   const colWidth = colData["width"];
   const colDataType = colData["type"];
-  let colDataMetadata = colData["metadata"];
+  const colDataMetadata = colData["metadata"];
   const [width, setWidth] = useState(colWidth);
 
   useEffect(() => {
     setWidth(colWidth);
   }, [colWidth]);
-
-  if (typeof colDataMetadata == "string") {
-    colDataMetadata = JSON.parse(colDataMetadata);
-  }
 
   return (
     <StyledDashboardCol className={"justify-content-center h-100 col-" + width}>

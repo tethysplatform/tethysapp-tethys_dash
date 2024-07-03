@@ -1,4 +1,4 @@
-export default function getCDECPlotInfo(data) {
+function getCDECPlotInfo(data) {
   let traces = [];
   for (let series of data.series) {
     traces.push({
@@ -90,3 +90,5 @@ export default function getCDECPlotInfo(data) {
     configOptions: configOptions,
   };
 }
+
+export default getCDECPlotInfo;

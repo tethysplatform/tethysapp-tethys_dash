@@ -5,17 +5,15 @@ import Row from "react-bootstrap/Row";
 import Form from "react-bootstrap/Form";
 import { memo, useState, useEffect } from "react";
 import { useEditingContext } from "components/contexts/EditingContext";
-import {
-  useRowHeightContext,
-  useRowInfoContext,
-} from "components/dashboard/DashboardRow";
+import { useRowInfoContext } from "components/dashboard/DashboardRow";
 import { useLayoutRowDataContext } from "components/contexts/SelectedDashboardContext";
 import { useLayoutWarningAlertContext } from "components/contexts/LayoutAlertContext";
 import { useColInfoContext } from "components/dashboard/DashboardCol";
+import DataViewerModal from "components/modals/DataViewer";
 import DashboardItemButton from "components/buttons/DashboardItemButton";
-import "components/dashboard/noArrowDropdown.css";
 import DashboardItemArrows from "components/buttons/DashboardItemArrows";
 import BaseVisualization from "components/visualizations/BaseVisualization";
+import "components/dashboard/noArrowDropdown.css";
 
 const StyledFormGroup = styled(Form.Group)`
   width: auto;
@@ -60,31 +58,35 @@ const StyledAbsDiv = styled.div`
 
 const DashboardItem = ({ type, metadata }) => {
   const isEditing = useEditingContext()[0];
-  const [height, setHeight] = useRowHeightContext();
-  const [rowNumber, rowHeight, rowID] = useRowInfoContext();
+  const [rowNumber, rowID, height, setHeight] = useRowInfoContext();
   const [colNumber, colID, width, setWidth] = useColInfoContext();
   const setWarningMessage = useLayoutWarningAlertContext()[1];
   const setShowWarningMessage = useLayoutWarningAlertContext()[3];
   const itemData = { type: type, metadata: metadata };
   const [rowData, setRowData] = useLayoutRowDataContext();
   const [maxWidth, setMaxWidth] = useState(
-    (12 - (rowData[rowNumber]["columns"].length - 1)).toString(),
+    (12 - (rowData[rowNumber]["columns"].length - 1)).toString()
   );
   const [showFullscreen, setShowFullscreen] = useState(false);
+  const [showDataViewerModal, setShowDataViewerModal] = useState(false);
 
   useEffect(() => {
     setMaxWidth((12 - (rowData[rowNumber]["columns"].length - 1)).toString());
   }, [rowData, rowNumber]);
 
   function onRowHeightInput({ target: { value } }) {
-    setHeight(value);
+    const updatedRowData = JSON.parse(JSON.stringify(rowData));
+    const rowInfo = updatedRowData[rowNumber];
+    rowInfo["height"] = value;
+    setHeight(parseInt(value));
+    setRowData(updatedRowData);
   }
 
   function onColWidthInput({ target: { value } }) {
     setWarningMessage("");
     setShowWarningMessage(false);
-    const rowColumns = rowData[rowNumber]["columns"];
-    const updatedRowColumns = JSON.parse(JSON.stringify(rowColumns));
+    const updatedRowData = JSON.parse(JSON.stringify(rowData));
+    const updatedRowColumns = updatedRowData[rowNumber]["columns"];
     updatedRowColumns[colNumber]["width"] = parseInt(value);
 
     if (updatedRowColumns.length === 2) {
@@ -94,15 +96,13 @@ const DashboardItem = ({ type, metadata }) => {
 
     const totalRowWidths = updatedRowColumns.reduce(
       (partialSum, a) => partialSum + a.width,
-      0,
+      0
     );
     if (totalRowWidths > 12) {
       setWarningMessage("Total cell widths in the row cannot exceed 12.");
       setShowWarningMessage(true);
     } else {
       setWidth(parseInt(value));
-      const updatedRowData = JSON.parse(JSON.stringify(rowData));
-      updatedRowData[rowNumber]["columns"] = updatedRowColumns;
       setRowData(updatedRowData);
     }
   }
@@ -121,7 +121,7 @@ const DashboardItem = ({ type, metadata }) => {
       updateOrder(updatedRowColumns);
 
       const smallestWidthCol = Object.keys(updatedRowColumns).reduce((a, b) =>
-        updatedRowColumns[a]["width"] < updatedRowColumns[b]["width"] ? a : b,
+        updatedRowColumns[a]["width"] < updatedRowColumns[b]["width"] ? a : b
       );
       updatedRowColumns[smallestWidthCol]["width"] += deletedColWidth;
       const updatedRowData = JSON.parse(JSON.stringify(rowData));
@@ -144,20 +144,31 @@ const DashboardItem = ({ type, metadata }) => {
     setShowFullscreen(false);
   }
 
+  function onEdit() {
+    setShowDataViewerModal(true);
+  }
+
+  function hideDataViewerModal() {
+    setShowDataViewerModal(false);
+  }
+
   return (
     <>
       <StyledContainer fluid className="h-100">
         <StyledButtonDiv>
-          <DashboardItemButton
-            tooltipText="Fullscreen"
-            type="fullscreen"
-            hidden={isEditing}
-            onClick={onFullscreen}
-          />
+          {type !== "" && (
+            <DashboardItemButton
+              tooltipText="Fullscreen"
+              type="fullscreen"
+              hidden={isEditing}
+              onClick={onFullscreen}
+            />
+          )}
           <DashboardItemButton
             tooltipText="Edit Content"
             type="edit"
             hidden={!isEditing}
+            onClick={onEdit}
           />
           <DashboardItemButton
             tooltipText="Delete Cell"
@@ -169,7 +180,7 @@ const DashboardItem = ({ type, metadata }) => {
         <Row style={{ height: "100%" }} hidden={isEditing}>
           {!isEditing && type !== "" && (
             <BaseVisualization
-              rowHeight={rowHeight}
+              rowHeight={height}
               colWidth={width}
               itemData={itemData}
               showFullscreen={showFullscreen}
@@ -253,13 +264,19 @@ const DashboardItem = ({ type, metadata }) => {
           </StyledAbsDiv>
         </Row>
       </StyledContainer>
+      {showDataViewerModal && (
+        <DataViewerModal
+          showModal={showDataViewerModal}
+          handleModalClose={hideDataViewerModal}
+        />
+      )}
     </>
   );
 };
 
 DashboardItem.propTypes = {
   type: PropTypes.string,
-  metadata: PropTypes.objectOf(PropTypes.string),
+  metadata: PropTypes.object,
 };
 
 export default memo(DashboardItem);

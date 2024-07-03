@@ -24,7 +24,7 @@ const BasePlot = ({ plotData, rowHeight, colWidth }) => {
 
 BasePlot.propTypes = {
   plotData: PropTypes.shape({
-    data: PropTypes.object,
+    data: PropTypes.array,
     layout: PropTypes.object,
     config: PropTypes.object,
   }),

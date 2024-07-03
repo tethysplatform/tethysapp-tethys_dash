@@ -66,7 +66,7 @@ const DashboardItemArrows = ({
           order: 0,
           width: 12,
           type: "",
-          metadata: "{}",
+          metadata: {},
         },
       ],
     };
@@ -94,7 +94,7 @@ const DashboardItemArrows = ({
     if (selectedColumn["width"] === 1) {
       newColWidth = 1;
       reducedWidthCol = Object.keys(rowColumns).reduce((a, b) =>
-        rowColumns[a]["width"] > rowColumns[b]["width"] ? a : b,
+        rowColumns[a]["width"] > rowColumns[b]["width"] ? a : b
       );
     } else {
       const selectedColumnSplitWidth = Math.floor(selectedColumn["width"] / 2);
@@ -108,7 +108,7 @@ const DashboardItemArrows = ({
       order: 0,
       width: newColWidth,
       type: "",
-      metadata: "{}",
+      metadata: {},
     };
 
     let insertIndex = arrowDirection === "left" ? colNumber : colNumber + 1;

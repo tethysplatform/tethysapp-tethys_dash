@@ -199,12 +199,16 @@ def update_named_dashboard(name, label, image, notes, row_data):
             col_id = col.get('id')
             col_width = int(col['width'])
             col_order = int(col['order'])
+            col_type = col['type']
+            col_metadata = json.dumps(col['metadata'])
             if not col_id:
-                db_col = add_new_column(session, db_row.id, col_order, col_width, col['type'], json.dumps(col['metadata']))
+                db_col = add_new_column(session, db_row.id, col_order, col_width, col_type, col_metadata)
             else:
                 db_col = session.query(Column).filter(Column.id==col_id).first()
                 db_col.width = col_width
                 db_col.col_order = col_order
+                db_col.data_type = col_type
+                db_col.data_metadata = col_metadata
             
 
     # Commit the session and close the connection
@@ -250,7 +254,7 @@ def get_dashboards(name=None):
                     "order": col.col_order,
                     "width": col.width,
                     "type": col.data_type,
-                    "metadata": col.data_metadata
+                    "metadata": json.loads(col.data_metadata)
                 }
                 cols.append(col_data)
             
@@ -258,7 +262,7 @@ def get_dashboards(name=None):
             rows.append(row_data)
         
         
-        dashboard_dict[dashboard.name]["rowData"] = json.dumps(rows)
+        dashboard_dict[dashboard.name]["rowData"] = rows
 
     session.close()
 

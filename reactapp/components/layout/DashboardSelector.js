@@ -1,5 +1,5 @@
 import { useEffect, useContext } from "react";
-import SelectInput from "components/inputs/SelectInput";
+import DashboardSelect from "components/inputs/DashboardSelect";
 import HeaderButton from "components/buttons/HeaderButton";
 import NewDashboardModal from "components/modals/NewDashboard";
 import DashboardNotesModal from "components/modals/DashboardNotes";
@@ -73,16 +73,16 @@ function DashboardSelector() {
       window.confirm(
         "Are your sure you want to delete the " +
           selectedOptionValue +
-          " dashboard?",
+          " dashboard?"
       )
     ) {
       const newdashboardLayoutConfigs = Object.fromEntries(
         Object.entries(dashboardLayoutConfigs).filter(
-          ([key]) => key !== selectedOptionValue,
-        ),
+          ([key]) => key !== selectedOptionValue
+        )
       );
       const newSelectOptions = selectOptions.filter(
-        (options) => JSON.stringify(options) !== JSON.stringify(selectedOption),
+        (options) => JSON.stringify(options) !== JSON.stringify(selectedOption)
       );
       appAPI
         .deleteDashboard({ name: selectedOptionValue }, csrf)
@@ -105,7 +105,7 @@ function DashboardSelector() {
 
   function onCancel(e) {
     const OGLayoutContext = JSON.parse(
-      JSON.stringify(dashboardLayoutConfigs[name]),
+      JSON.stringify(dashboardLayoutConfigs[name])
     );
     setLayoutContext(OGLayoutContext);
     setIsEditing(false);
@@ -113,11 +113,11 @@ function DashboardSelector() {
 
   return (
     <>
-      <SelectInput
+      <DashboardSelect
         options={selectOptions}
         value={selectedOption}
         onChange={updateLayout}
-      ></SelectInput>
+      ></DashboardSelect>
       {selectedOption && (
         <>
           {isEditing && (

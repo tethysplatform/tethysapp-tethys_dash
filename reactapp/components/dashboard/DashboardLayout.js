@@ -63,7 +63,7 @@ function DashboardLayout() {
               (rowCount + 1).toString() +
               " equals " +
               totalColWidth.toString() +
-              ". The total width must equal 12.",
+              ". The total width must equal 12."
           );
           setShowErrorMessage(true);
           return;
@@ -93,7 +93,7 @@ function DashboardLayout() {
           width: dimensionInput.value,
           order: colCount,
           type: dimensionInput.dataset["type"],
-          metadata: dimensionInput.dataset["metadata"],
+          metadata: JSON.parse(dimensionInput.dataset["metadata"]),
         });
         colCount += 1;
         totalColWidth += parseInt(dimensionInput.value);
@@ -106,7 +106,7 @@ function DashboardLayout() {
               (rowCount + 1).toString() +
               " equals " +
               totalColWidth.toString() +
-              ". The total width must equal 12.",
+              ". The total width must equal 12."
           );
           setShowErrorMessage(true);
           return;
@@ -132,7 +132,7 @@ function DashboardLayout() {
         setShowSuccessMessage(true);
       } else {
         setErrorMessage(
-          "Failed to save changes. Check server logs for more information.",
+          "Failed to save changes. Check server logs for more information."
         );
         setShowErrorMessage(true);
       }
@@ -146,7 +146,7 @@ function DashboardLayout() {
     const rowID = dashboardRow["id"];
     const rowHeight = dashboardRow["height"];
     const rowColumns = dashboardRow["columns"];
-    const key = i.toString() + rowHeight.toString();
+    const key = i.toString();
     dashboardRows.push(
       <DashboardRow
         key={key}
@@ -154,7 +154,7 @@ function DashboardLayout() {
         rowID={rowID}
         rowHeight={rowHeight}
         rowColumns={rowColumns}
-      />,
+      />
     );
   }
 

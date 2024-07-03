@@ -20,23 +20,21 @@ function DashboardRow({ rowNumber, rowID, rowHeight, rowColumns }) {
     setHeight(rowHeight);
   }, [rowHeight]);
 
-  useEffect(() => {
-    setHeight(rowData[rowNumber]["height"]);
-  }, [rowData, rowNumber]);
+  // useEffect(() => {
+  //   setHeight(rowData[rowNumber]["height"]);
+  // }, [rowData, rowNumber]);
 
   const dashboardColumns = [];
   for (let x = 0; x < rowColumns.length; x++) {
     dashboardColumns.push(
-      <DashboardCol key={x} colNumber={x} colData={rowColumns[x]} />,
+      <DashboardCol key={x} colNumber={x} colData={rowColumns[x]} />
     );
   }
   return (
     <StyledDashboardRow $rowHeight={height}>
-      <RowHeightContext.Provider value={[height, setHeight]}>
-        <RowInfoContext.Provider value={[rowNumber, rowHeight, rowID]}>
-          {dashboardColumns}
-        </RowInfoContext.Provider>
-      </RowHeightContext.Provider>
+      <RowInfoContext.Provider value={[rowNumber, rowID, height, setHeight]}>
+        {dashboardColumns}
+      </RowInfoContext.Provider>
     </StyledDashboardRow>
   );
 }

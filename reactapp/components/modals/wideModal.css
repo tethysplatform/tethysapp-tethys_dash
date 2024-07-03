@@ -3,3 +3,9 @@
   max-width: none !important;
   height: 90% !important;
 }
+.semiWideModalDialog {
+  max-height: 85% !important;
+  height: 85% !important;
+  max-width: 75% !important;
+  width: 75% !important;
+}
