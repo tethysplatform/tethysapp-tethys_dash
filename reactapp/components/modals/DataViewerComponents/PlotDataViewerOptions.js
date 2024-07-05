@@ -3,7 +3,11 @@ import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
 import { CNRFCGauges } from "components/visualizations/Utilities";
 
-function PlotDataViewerOptions({ setImageSource, setImageWarning }) {
+function PlotDataViewerOptions({
+  setImageSource,
+  setImageWarning,
+  setUpdateCellMessage,
+}) {
   const [selectedPlotTypeOption, setSelectPlotTypeOption] = useState(null);
   const selectedTypeOption = useRef(null);
   const selectedLocationOption = useRef(null);
@@ -18,7 +22,7 @@ function PlotDataViewerOptions({ setImageSource, setImageWarning }) {
 
   function onTypeChange(e) {
     setImageWarning(null);
-    selectedTypeOption.current = e.value;
+    selectedTypeOption.current = e;
     if (selectedLocationOption.current) {
       getImageURL();
     }
@@ -26,7 +30,7 @@ function PlotDataViewerOptions({ setImageSource, setImageWarning }) {
 
   function onLocationChange(e) {
     setImageWarning(null);
-    selectedLocationOption.current = e.value;
+    selectedLocationOption.current = e;
     if (selectedTypeOption.current) {
       getImageURL();
     }
@@ -38,12 +42,17 @@ function PlotDataViewerOptions({ setImageSource, setImageWarning }) {
     if (selectedPlotTypeOption["label"] === "CNRFC") {
       imageURL =
         baseURL +
-        selectedTypeOption.current.split("/")[0] +
+        selectedTypeOption.current["value"].split("/")[0] +
         "/" +
-        selectedLocationOption.current +
-        selectedTypeOption.current.split("/")[1];
+        selectedLocationOption.current["value"] +
+        selectedTypeOption.current["value"].split("/")[1];
     }
-
+    setUpdateCellMessage(
+      "Cell updated to show " +
+        selectedTypeOption.current["label"] +
+        " plot at " +
+        selectedLocationOption.current["label"]
+    );
     setImageSource(imageURL);
   }
 
@@ -71,6 +80,10 @@ function PlotDataViewerOptions({ setImageSource, setImageWarning }) {
     {
       value: "ensembles/.ens_monthly.png",
       label: "Monthly Volume Exceedance",
+    },
+    {
+      value: "ensembles/.ens_4x5day.png",
+      label: "5 Day Volume Exceedance Levels",
     },
   ];
 

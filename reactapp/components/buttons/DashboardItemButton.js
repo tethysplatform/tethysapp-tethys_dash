@@ -35,6 +35,7 @@ const DashboardItemButton = ({ tooltipText, onClick, type, hidden }) => {
     <OverlayTrigger
       key={"bottom"}
       placement={"bottom"}
+      trigger={["hover"]}
       overlay={<Tooltip id={"tooltip-bottom"}>{tooltipText}</Tooltip>}
     >
       {styledButton}

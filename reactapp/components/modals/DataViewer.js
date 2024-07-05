@@ -25,7 +25,12 @@ const StyledDiv = styled.div`
 
 const StyledH2 = styled.h2``;
 
-function DataViewerModal({ showModal, handleModalClose }) {
+function DataViewerModal({
+  showModal,
+  handleModalClose,
+  setUpdateCellMessage,
+  setShowUpdateCellMessage,
+}) {
   const [selectedDataTypeOption, setSelectDataTypeOption] = useState(null);
   const [imageSource, setImageSource] = useState("");
   const [imageWarning, setImageWarning] = useState(false);
@@ -41,7 +46,7 @@ function DataViewerModal({ showModal, handleModalClose }) {
     e.preventDefault();
     e.stopPropagation();
     if (selectedDataTypeOption) {
-      if (selectedDataTypeOption["value"] === "Image") {
+      if (imageSource) {
         const updatedRowData = JSON.parse(JSON.stringify(rowData));
         const rowColumns = updatedRowData[rowNumber]["columns"];
         rowColumns[colNumber]["type"] = "Image";
@@ -50,6 +55,7 @@ function DataViewerModal({ showModal, handleModalClose }) {
         handleModalClose();
       }
     }
+    setShowUpdateCellMessage(true);
   }
 
   function onImageError() {
@@ -106,6 +112,7 @@ function DataViewerModal({ showModal, handleModalClose }) {
                         <PlotDataViewerOptions
                           setImageSource={setImageSource}
                           setImageWarning={setImageWarning}
+                          setUpdateCellMessage={setUpdateCellMessage}
                         />
                       )}
                       {selectedDataTypeOption["value"] === "Image" && (

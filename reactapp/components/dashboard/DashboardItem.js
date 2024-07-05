@@ -13,7 +13,13 @@ import DataViewerModal from "components/modals/DataViewer";
 import DashboardItemButton from "components/buttons/DashboardItemButton";
 import DashboardItemArrows from "components/buttons/DashboardItemArrows";
 import BaseVisualization from "components/visualizations/BaseVisualization";
+import Alert from "react-bootstrap/Alert";
 import "components/dashboard/noArrowDropdown.css";
+
+const StyledAlert = styled(Alert)`
+  position: absolute;
+  z-index: 2;
+`;
 
 const StyledFormGroup = styled(Form.Group)`
   width: auto;
@@ -69,15 +75,25 @@ const DashboardItem = ({ type, metadata }) => {
   );
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
+  const [updateMessage, setUpdateCellMessage] = useState(false);
+  const [showUpdateMessage, setShowUpdateCellMessage] = useState(false);
 
   useEffect(() => {
     setMaxWidth((12 - (rowData[rowNumber]["columns"].length - 1)).toString());
   }, [rowData, rowNumber]);
 
+  useEffect(() => {
+    if (showUpdateMessage === true) {
+      window.setTimeout(() => {
+        setShowUpdateCellMessage(false);
+      }, 5000);
+    }
+  }, [showUpdateMessage]);
+
   function onRowHeightInput({ target: { value } }) {
     const updatedRowData = JSON.parse(JSON.stringify(rowData));
     const rowInfo = updatedRowData[rowNumber];
-    rowInfo["height"] = value;
+    rowInfo["height"] = parseInt(value);
     setHeight(parseInt(value));
     setRowData(updatedRowData);
   }
@@ -155,6 +171,11 @@ const DashboardItem = ({ type, metadata }) => {
   return (
     <>
       <StyledContainer fluid className="h-100">
+        {showUpdateMessage && (
+          <StyledAlert key="success" variant="success" dismissible={true}>
+            {updateMessage}
+          </StyledAlert>
+        )}
         <StyledButtonDiv>
           {type !== "" && (
             <DashboardItemButton
@@ -268,6 +289,8 @@ const DashboardItem = ({ type, metadata }) => {
         <DataViewerModal
           showModal={showDataViewerModal}
           handleModalClose={hideDataViewerModal}
+          setUpdateCellMessage={setUpdateCellMessage}
+          setShowUpdateCellMessage={setShowUpdateCellMessage}
         />
       )}
     </>
