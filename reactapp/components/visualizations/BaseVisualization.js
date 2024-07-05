@@ -33,7 +33,7 @@ const BaseVisualization = ({
       getPlotData(itemData);
     }
     // eslint-disable-next-line
-  }, []);
+  }, [itemData]);
 
   function getPlotData() {
     appAPI.getPlotData(itemData).then((data) => {

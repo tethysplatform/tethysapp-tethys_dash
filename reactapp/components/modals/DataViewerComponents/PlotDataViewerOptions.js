@@ -37,15 +37,15 @@ function PlotDataViewerOptions({
   }
 
   function getImageURL() {
-    const baseURL = selectedPlotTypeOption["value"];
     let imageURL;
     if (selectedPlotTypeOption["label"] === "CNRFC") {
+      const location = selectedTypeOption.current["value"]["lowercase"]
+        ? selectedLocationOption.current["value"].toLowerCase()
+        : selectedLocationOption.current["value"];
       imageURL =
-        baseURL +
-        selectedTypeOption.current["value"].split("/")[0] +
-        "/" +
-        selectedLocationOption.current["value"] +
-        selectedTypeOption.current["value"].split("/")[1];
+        selectedTypeOption.current["value"]["baseURL"] +
+        location +
+        selectedTypeOption.current["value"]["plotName"];
     }
     setUpdateCellMessage(
       "Cell updated to show " +
@@ -59,31 +59,61 @@ function PlotDataViewerOptions({
   const plotTypeOptions = [
     { value: "USACE", label: "USACE" },
     { value: "CDEC", label: "CDEC" },
-    { value: "https://www.cnrfc.noaa.gov/images/", label: "CNRFC" },
+    { value: "CNRFC", label: "CNRFC" },
   ];
 
   const locationOptions = CNRFCGauges;
 
+  const CNRFCEnsembleBaseUrl = "https://www.cnrfc.noaa.gov/images/ensembles/";
+  const CDECGuidancePlotBaseUrl = "https://cdec.water.ca.gov/guidance_plots/";
   const typeOptions = [
     {
-      value: "ensembles/.ens_accum10day.png",
+      value: {
+        baseURL: CNRFCEnsembleBaseUrl,
+        plotName: ".ens_accum10day.png",
+        lowercase: false,
+      },
       label: "10-Day Accumulated Volume",
     },
     {
-      value: "ensembles/.ens_boxwhisker.png",
+      value: {
+        baseURL: CNRFCEnsembleBaseUrl,
+        plotName: ".ens_boxwhisker.png",
+        lowercase: false,
+      },
       label: "10-Day Maximum Flow Probability",
     },
     {
-      value: "ensembles/.ens_10day.png",
+      value: {
+        baseURL: CNRFCEnsembleBaseUrl,
+        plotName: ".ens_10day.png",
+        lowercase: false,
+      },
       label: "Daily Maximum Flow Probability",
     },
     {
-      value: "ensembles/.ens_monthly.png",
+      value: {
+        baseURL: CNRFCEnsembleBaseUrl,
+        plotName: ".ens_monthly.png",
+        lowercase: false,
+      },
       label: "Monthly Volume Exceedance",
     },
     {
-      value: "ensembles/.ens_4x5day.png",
+      value: {
+        baseURL: CNRFCEnsembleBaseUrl,
+        plotName: ".ens_4x5day.png",
+        lowercase: false,
+      },
       label: "5 Day Volume Exceedance Levels",
+    },
+    {
+      value: {
+        baseURL: CDECGuidancePlotBaseUrl,
+        plotName: "_rvf.png",
+        lowercase: true,
+      },
+      label: "River Forecast Plot",
     },
   ];
 

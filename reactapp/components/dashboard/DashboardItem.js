@@ -18,7 +18,7 @@ import "components/dashboard/noArrowDropdown.css";
 
 const StyledAlert = styled(Alert)`
   position: absolute;
-  z-index: 2;
+  z-index: 1081;
 `;
 
 const StyledFormGroup = styled(Form.Group)`
