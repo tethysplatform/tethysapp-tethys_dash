@@ -1,10 +1,9 @@
 import { useState } from "react";
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
-import CNRFCPlotOptions from "components/modals/DataViewerComponents/CNRFCPlotOptions";
-import CW3EPlotOptions from "components/modals/DataViewerComponents/CW3EPlotOptions";
+import CW3ELandfallPlotOptions from "components/modals/DataViewerComponents/CW3ELandfallPlotOptions";
 
-function PlotDataViewerOptions({
+function CW3EPlotOptions({
   setImageSource,
   setImageWarning,
   setUpdateCellMessage,
@@ -12,37 +11,30 @@ function PlotDataViewerOptions({
   const [selectedPlotTypeOption, setSelectPlotTypeOption] = useState(null);
 
   function onPlotTypeChange(e) {
-    setSelectPlotTypeOption(e);
     setImageSource(null);
     setImageWarning(null);
+    setSelectPlotTypeOption(e);
   }
 
   const plotTypeOptions = [
-    { value: "USACE", label: "USACE" },
-    { value: "CDEC", label: "CDEC" },
-    { value: "CNRFC", label: "CNRFC" },
-    { value: "CW3E", label: "CW3E" },
+    {
+      value: "CW3E AR Landfall",
+      label: "CW3E AR Landfall",
+    },
   ];
 
   return (
     <>
       <DataSelect
-        label="Data Provider"
+        label="Plot Type"
         selectedDataTypeOption={selectedPlotTypeOption}
         onChange={onPlotTypeChange}
         options={plotTypeOptions}
       />
       {selectedPlotTypeOption && (
         <>
-          {selectedPlotTypeOption["label"] === "CNRFC" && (
-            <CNRFCPlotOptions
-              setImageSource={setImageSource}
-              setImageWarning={setImageWarning}
-              setUpdateCellMessage={setUpdateCellMessage}
-            />
-          )}
-          {selectedPlotTypeOption["label"] === "CW3E" && (
-            <CW3EPlotOptions
+          {selectedPlotTypeOption["label"] === "CW3E AR Landfall" && (
+            <CW3ELandfallPlotOptions
               setImageSource={setImageSource}
               setImageWarning={setImageWarning}
               setUpdateCellMessage={setUpdateCellMessage}
@@ -54,10 +46,10 @@ function PlotDataViewerOptions({
   );
 }
 
-PlotDataViewerOptions.propTypes = {
+CW3EPlotOptions.propTypes = {
   showModal: PropTypes.bool,
   handleModalClose: PropTypes.func,
   handleSubmit: PropTypes.func,
 };
 
-export default PlotDataViewerOptions;
+export default CW3EPlotOptions;
