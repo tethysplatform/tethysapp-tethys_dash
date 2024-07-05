@@ -9,7 +9,7 @@ const RowHeightContext = createContext();
 const RowInfoContext = createContext();
 
 const StyledDashboardRow = styled(Row)`
-  height: ${(props) => props.$rowHeight}% !important;
+  height: ${(props) => props.$rowHeight}vh !important;
 `;
 
 function DashboardRow({ rowNumber, rowID, rowHeight, rowColumns }) {

@@ -6,7 +6,7 @@ import {
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
 import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { AppContext } from "components/contexts/AppContext";
 import styled from "styled-components";
 import { EditTextarea } from "react-edit-text";
@@ -23,7 +23,7 @@ const StyledTextArea = styled(EditTextarea)`
 
 function DashboardNotesModal() {
   const [showModal, setShowModal] = useDashboardNotesModalShowContext();
-  const [notes, setNotes] = useLayoutNotesContext();
+  const notes = useLayoutNotesContext()[0];
   const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
   const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
@@ -31,7 +31,12 @@ function DashboardNotesModal() {
   const [isEditing, setIsEditing] = useState(false);
   const [showSaveMessage, setShowSaveMessage] = useState(false);
   const [showErrorMessage, setShowErrorMessage] = useState(false);
+  const [localNotes, setLocalNotes] = useState(notes);
   const { csrf } = useContext(AppContext);
+
+  useEffect(() => {
+    setLocalNotes(notes);
+  }, [notes]);
 
   const handleModalClose = () => setShowModal(false);
 
@@ -44,8 +49,10 @@ function DashboardNotesModal() {
   }
 
   function onNotesChange({ target: { value } }) {
-    setNotes(value);
-    setShowSaveMessage(false);
+    setLocalNotes(value);
+    if (showSaveMessage === true) {
+      setShowSaveMessage(false);
+    }
   }
 
   function handleSubmit(event) {
@@ -53,7 +60,7 @@ function DashboardNotesModal() {
     setShowSaveMessage(false);
     setShowErrorMessage(false);
     const updatedLayoutContext = getLayoutContext();
-    updatedLayoutContext["notes"] = notes;
+    updatedLayoutContext["notes"] = localNotes;
     appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
       if (response["success"]) {
         const name = response["updated_dashboard"]["name"];
@@ -81,7 +88,7 @@ function DashboardNotesModal() {
         <Modal.Body>
           <Form id="dashboardNotes" onSubmit={handleSubmit}>
             <StyledTextArea
-              value={notes}
+              value={localNotes}
               onChange={onNotesChange}
               onEditMode={onEditMode}
               onSave={onSave}
