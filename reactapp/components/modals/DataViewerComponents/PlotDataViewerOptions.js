@@ -3,10 +3,13 @@ import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
 import CNRFCPlotOptions from "components/modals/DataViewerComponents/CNRFCPlotOptions";
 import CW3EPlotOptions from "components/modals/DataViewerComponents/CW3EPlotOptions";
+import USACEPlotOptions from "components/modals/DataViewerComponents/USACEPlotOptions";
 
 function PlotDataViewerOptions({
   setImageSource,
   setImageWarning,
+  setViz,
+  setVizMetadata,
   setUpdateCellMessage,
 }) {
   const [selectedPlotTypeOption, setSelectPlotTypeOption] = useState(null);
@@ -15,6 +18,8 @@ function PlotDataViewerOptions({
     setSelectPlotTypeOption(e);
     setImageSource(null);
     setImageWarning(null);
+    setViz(null);
+    setVizMetadata(null);
   }
 
   const plotTypeOptions = [
@@ -34,6 +39,13 @@ function PlotDataViewerOptions({
       />
       {selectedPlotTypeOption && (
         <>
+          {selectedPlotTypeOption["label"] === "USACE" && (
+            <USACEPlotOptions
+              setViz={setViz}
+              setVizMetadata={setVizMetadata}
+              setUpdateCellMessage={setUpdateCellMessage}
+            />
+          )}
           {selectedPlotTypeOption["label"] === "CNRFC" && (
             <CNRFCPlotOptions
               setImageSource={setImageSource}

@@ -1,0 +1,51 @@
+import { useState } from "react";
+import PropTypes from "prop-types";
+import DataSelect from "components/inputs/DataSelect";
+import USACEHourlyTimeSeriesPlotOptions from "components/modals/DataViewerComponents/USACEHourlyTimeSeriesPlotOptions";
+
+function USACEPlotOptions({ setViz, setVizMetadata, setUpdateCellMessage }) {
+  const [selectedPlotTypeOption, setSelectPlotTypeOption] = useState(null);
+
+  function onPlotTypeChange(e) {
+    setViz(null);
+    setVizMetadata(null);
+    setSelectPlotTypeOption(e);
+  }
+
+  const plotTypeOptions = [
+    {
+      value: "Hourly Time Series",
+      label: "Hourly Time Series",
+    },
+  ];
+
+  return (
+    <>
+      <DataSelect
+        label="Plot Type"
+        selectedDataTypeOption={selectedPlotTypeOption}
+        onChange={onPlotTypeChange}
+        options={plotTypeOptions}
+      />
+      {selectedPlotTypeOption && (
+        <>
+          {selectedPlotTypeOption["label"] === "Hourly Time Series" && (
+            <USACEHourlyTimeSeriesPlotOptions
+              setViz={setViz}
+              setVizMetadata={setVizMetadata}
+              setUpdateCellMessage={setUpdateCellMessage}
+            />
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+USACEPlotOptions.propTypes = {
+  showModal: PropTypes.bool,
+  handleModalClose: PropTypes.func,
+  handleSubmit: PropTypes.func,
+};
+
+export default USACEPlotOptions;

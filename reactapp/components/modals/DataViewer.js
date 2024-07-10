@@ -33,6 +33,8 @@ function DataViewerModal({
 }) {
   const [selectedDataTypeOption, setSelectDataTypeOption] = useState(null);
   const [imageSource, setImageSource] = useState("");
+  const [viz, setViz] = useState(null);
+  const [vizMetdata, setVizMetadata] = useState(null);
   const [imageWarning, setImageWarning] = useState(false);
   const [rowData, setRowData] = useLayoutRowDataContext();
   const rowNumber = useRowInfoContext()[0];
@@ -40,20 +42,27 @@ function DataViewerModal({
 
   function onDataTypeChange(e) {
     setSelectDataTypeOption(e);
+    setImageSource(null);
+    setViz(null);
   }
 
   function handleSubmit(e) {
     e.preventDefault();
     e.stopPropagation();
     if (selectedDataTypeOption) {
+      const updatedRowData = JSON.parse(JSON.stringify(rowData));
+      const rowColumns = updatedRowData[rowNumber]["columns"];
       if (imageSource) {
-        const updatedRowData = JSON.parse(JSON.stringify(rowData));
-        const rowColumns = updatedRowData[rowNumber]["columns"];
         rowColumns[colNumber]["type"] = "Image";
-        rowColumns[colNumber]["metadata"] = { uri: imageSource };
-        setRowData(updatedRowData);
-        handleModalClose();
+        rowColumns[colNumber]["metadata"] = JSON.stringify({
+          uri: imageSource,
+        });
+      } else if (viz) {
+        rowColumns[colNumber]["type"] = vizMetdata["type"];
+        rowColumns[colNumber]["metadata"] = vizMetdata["metadata"];
       }
+      setRowData(updatedRowData);
+      handleModalClose();
     }
     setShowUpdateCellMessage(true);
   }
@@ -112,6 +121,8 @@ function DataViewerModal({
                         <PlotDataViewerOptions
                           setImageSource={setImageSource}
                           setImageWarning={setImageWarning}
+                          setViz={setViz}
+                          setVizMetadata={setVizMetadata}
                           setUpdateCellMessage={setUpdateCellMessage}
                         />
                       )}
@@ -126,7 +137,10 @@ function DataViewerModal({
                 </Col>
                 <Col>
                   {selectedDataTypeOption && (
-                    <>{imageSource && <ImageDataViewer />}</>
+                    <>
+                      {imageSource && <ImageDataViewer />}
+                      {viz && viz}
+                    </>
                   )}
                 </Col>
               </Row>

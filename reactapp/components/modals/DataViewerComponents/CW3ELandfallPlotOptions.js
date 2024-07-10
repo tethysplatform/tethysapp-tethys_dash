@@ -145,7 +145,7 @@ function CW3ELandfallPlotOptions({
     <>
       <DataSelect
         label="Model"
-        selectedDataTypeOption={selectedLocationOption.current}
+        selectedDataTypeOption={selectedModelOption.current}
         onChange={onModelChange}
         options={modelOptions}
       />
