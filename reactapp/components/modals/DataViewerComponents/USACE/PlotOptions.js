@@ -1,7 +1,7 @@
 import { useState } from "react";
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
-import USACEHourlyTimeSeriesPlotOptions from "components/modals/DataViewerComponents/USACEHourlyTimeSeriesPlotOptions";
+import USACEHourlyTimeSeriesPlotOptions from "components/modals/DataViewerComponents/USACE/HourlyTimeSeriesPlotOptions";
 
 function USACEPlotOptions({ setViz, setVizMetadata, setUpdateCellMessage }) {
   const [selectedPlotTypeOption, setSelectPlotTypeOption] = useState(null);

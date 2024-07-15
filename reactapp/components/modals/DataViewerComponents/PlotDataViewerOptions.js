@@ -1,9 +1,9 @@
 import { useState } from "react";
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
-import CNRFCPlotOptions from "components/modals/DataViewerComponents/CNRFCPlotOptions";
-import CW3EPlotOptions from "components/modals/DataViewerComponents/CW3EPlotOptions";
-import USACEPlotOptions from "components/modals/DataViewerComponents/USACEPlotOptions";
+import CNRFCPlotOptions from "components/modals/DataViewerComponents/CNRFC/PlotOptions";
+import CW3EPlotOptions from "components/modals/DataViewerComponents/CW3E/PlotOptions";
+import USACEPlotOptions from "components/modals/DataViewerComponents/USACE/PlotOptions";
 
 function PlotDataViewerOptions({
   setImageSource,
@@ -50,6 +50,8 @@ function PlotDataViewerOptions({
             <CNRFCPlotOptions
               setImageSource={setImageSource}
               setImageWarning={setImageWarning}
+              setViz={setViz}
+              setVizMetadata={setVizMetadata}
               setUpdateCellMessage={setUpdateCellMessage}
             />
           )}

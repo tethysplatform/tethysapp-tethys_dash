@@ -7,6 +7,7 @@ import FullscreenPlotModal from "components/modals/FullscreenPlot";
 import BasePlot from "components/visualizations/BasePlot";
 import getCDECPlotInfo from "components/visualizations/CDECPlot";
 import getUSACEPlotInfo from "components/visualizations/USACEPlot";
+import getCNRFCRiverForecastPlotInfo from "components/visualizations/CNRFCRiverForecastPlot";
 import Image from "components/visualizations/Image";
 
 const StyledSpinner = styled(Spinner)`
@@ -42,6 +43,8 @@ const BaseVisualization = ({
         plotInfo = getCDECPlotInfo(data);
       } else if (itemData["type"] === "USACEPlot") {
         plotInfo = getUSACEPlotInfo(data);
+      } else if (itemData["type"] === "CNRFCRiverForecastPlot") {
+        plotInfo = getCNRFCRiverForecastPlotInfo(data);
       } else {
         throw new Error("Plot type is not configured");
       }

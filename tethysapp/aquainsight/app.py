@@ -6,18 +6,18 @@ class App(TethysAppBase):
     """
     Tethys app class for AquaInsight.
     """
-    name = 'AquaInsight'
-    description = ''
-    package = 'aquainsight'  # WARNING: Do not change this value
-    index = 'home'
-    icon = f'{package}/images/icon.png'
-    catch_all = 'home'  # Catch all url mapped to home controller, required for react browser routing
-    root_url = 'aquainsight'
-    color = ''  # Don't set color here, set it in reactapp/custom-bootstrap.scss
-    tags = ''
+
+    name = "AquaInsight"
+    description = ""
+    package = "aquainsight"  # WARNING: Do not change this value
+    index = "home"
+    icon = f"{package}/images/icon.png"
+    catch_all = "home"  # Catch all url mapped to home controller, required for react browser routing
+    root_url = "aquainsight"
+    color = ""  # Don't set color here, set it in reactapp/custom-bootstrap.scss
+    tags = ""
     enable_feedback = False
     feedback_emails = []
-
 
     def persistent_store_settings(self):
         """
@@ -25,10 +25,10 @@ class App(TethysAppBase):
         """
         ps_settings = (
             PersistentStoreDatabaseSetting(
-                name='primary_db',
-                description='primary database',
-                initializer='aquainsight.model.init_primary_db',
-                required=True
+                name="primary_db",
+                description="primary database",
+                initializer="aquainsight.model.init_primary_db",
+                required=True,
             ),
         )
 

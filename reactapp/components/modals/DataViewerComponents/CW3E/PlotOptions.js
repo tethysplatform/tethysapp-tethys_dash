@@ -1,7 +1,7 @@
 import { useState } from "react";
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
-import CW3ELandfallPlotOptions from "components/modals/DataViewerComponents/CW3ELandfallPlotOptions";
+import CW3ELandfallPlotOptions from "components/modals/DataViewerComponents/CW3E/LandfallPlotOptions";
 
 function CW3EPlotOptions({
   setImageSource,

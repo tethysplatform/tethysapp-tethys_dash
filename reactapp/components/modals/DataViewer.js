@@ -54,9 +54,9 @@ function DataViewerModal({
       const rowColumns = updatedRowData[rowNumber]["columns"];
       if (imageSource) {
         rowColumns[colNumber]["type"] = "Image";
-        rowColumns[colNumber]["metadata"] = JSON.stringify({
+        rowColumns[colNumber]["metadata"] = {
           uri: imageSource,
-        });
+        };
       } else if (viz) {
         rowColumns[colNumber]["type"] = vizMetdata["type"];
         rowColumns[colNumber]["metadata"] = vizMetdata["metadata"];

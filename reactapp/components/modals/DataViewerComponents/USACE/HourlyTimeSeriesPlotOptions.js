@@ -24,7 +24,7 @@ function USACEHourlyTimeSeriesPlotOptions({
     setViz(null);
     selectedWaterYear.current = e;
     if (selectedLocationOption.current) {
-      getPlotData();
+      getPlot();
     }
   }
 
@@ -32,18 +32,18 @@ function USACEHourlyTimeSeriesPlotOptions({
     setViz(null);
     selectedLocationOption.current = e;
     if (selectedWaterYear.current) {
-      getPlotData();
+      getPlot();
     }
   }
 
-  function getPlotData() {
+  function getPlot() {
     setViz(<StyledSpinner animation="border" variant="info" />);
     const itemData = {
       type: "USACEPlot",
-      metadata: JSON.stringify({
+      metadata: {
         location: selectedLocationOption.current["value"],
         year: selectedWaterYear.current["value"],
-      }),
+      },
     };
     setVizMetadata(itemData);
     setUpdateCellMessage(
