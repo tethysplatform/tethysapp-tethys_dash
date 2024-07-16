@@ -20,7 +20,7 @@ const DataRadioSelect = ({ selectedRadio, radioOptions, onChange }) => {
         onChange={onChange}
         value={radioOptions[i]["value"]}
         checked={selectedRadio === radioOptions[i]["value"]}
-      />
+      />,
     );
   }
 
@@ -29,6 +29,8 @@ const DataRadioSelect = ({ selectedRadio, radioOptions, onChange }) => {
 
 DataRadioSelect.propTypes = {
   onChange: PropTypes.func,
+  selectedRadio: PropTypes.string,
+  radioOptions: PropTypes.array,
 };
 
 export default DataRadioSelect;

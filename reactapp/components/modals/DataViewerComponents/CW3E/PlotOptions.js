@@ -47,9 +47,9 @@ function CW3EPlotOptions({
 }
 
 CW3EPlotOptions.propTypes = {
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
-  handleSubmit: PropTypes.func,
+  setImageSource: PropTypes.func,
+  setImageWarning: PropTypes.func,
+  setUpdateCellMessage: PropTypes.func,
 };
 
 export default CW3EPlotOptions;

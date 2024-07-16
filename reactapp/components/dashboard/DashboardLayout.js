@@ -63,7 +63,7 @@ function DashboardLayout() {
               (rowCount + 1).toString() +
               " equals " +
               totalColWidth.toString() +
-              ". The total width must equal 12."
+              ". The total width must equal 12.",
           );
           setShowErrorMessage(true);
           return;
@@ -106,7 +106,7 @@ function DashboardLayout() {
               (rowCount + 1).toString() +
               " equals " +
               totalColWidth.toString() +
-              ". The total width must equal 12."
+              ". The total width must equal 12.",
           );
           setShowErrorMessage(true);
           return;
@@ -132,7 +132,7 @@ function DashboardLayout() {
         setShowSuccessMessage(true);
       } else {
         setErrorMessage(
-          "Failed to save changes. Check server logs for more information."
+          "Failed to save changes. Check server logs for more information.",
         );
         setShowErrorMessage(true);
       }
@@ -154,7 +154,7 @@ function DashboardLayout() {
         rowID={rowID}
         rowHeight={rowHeight}
         rowColumns={rowColumns}
-      />
+      />,
     );
   }
 

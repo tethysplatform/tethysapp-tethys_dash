@@ -43,9 +43,9 @@ function USACEPlotOptions({ setViz, setVizMetadata, setUpdateCellMessage }) {
 }
 
 USACEPlotOptions.propTypes = {
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
-  handleSubmit: PropTypes.func,
+  setViz: PropTypes.func,
+  setVizMetadata: PropTypes.func,
+  setUpdateCellMessage: PropTypes.func,
 };
 
 export default USACEPlotOptions;

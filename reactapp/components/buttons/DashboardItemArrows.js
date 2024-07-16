@@ -94,7 +94,7 @@ const DashboardItemArrows = ({
     if (selectedColumn["width"] === 1) {
       newColWidth = 1;
       reducedWidthCol = Object.keys(rowColumns).reduce((a, b) =>
-        rowColumns[a]["width"] > rowColumns[b]["width"] ? a : b
+        rowColumns[a]["width"] > rowColumns[b]["width"] ? a : b,
       );
     } else {
       const selectedColumnSplitWidth = Math.floor(selectedColumn["width"] / 2);

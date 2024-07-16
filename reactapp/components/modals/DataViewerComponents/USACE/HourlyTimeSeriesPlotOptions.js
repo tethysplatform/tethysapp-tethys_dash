@@ -51,7 +51,7 @@ function USACEHourlyTimeSeriesPlotOptions({
         selectedLocationOption.current["label"] +
         " for the " +
         selectedWaterYear.current["label"] +
-        " Water Year."
+        " Water Year.",
     );
     appAPI.getPlotData(itemData).then((data) => {
       let plotInfo = getUSACEPlotInfo(data);
@@ -238,9 +238,9 @@ function USACEHourlyTimeSeriesPlotOptions({
 }
 
 USACEHourlyTimeSeriesPlotOptions.propTypes = {
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
-  handleSubmit: PropTypes.func,
+  setViz: PropTypes.func,
+  setVizMetadata: PropTypes.func,
+  setUpdateCellMessage: PropTypes.func,
 };
 
 export default USACEHourlyTimeSeriesPlotOptions;

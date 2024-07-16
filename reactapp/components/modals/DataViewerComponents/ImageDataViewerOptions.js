@@ -18,9 +18,8 @@ function ImageDataViewerOptions({ imageSource, setImageSource }) {
 }
 
 ImageDataViewerOptions.propTypes = {
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
-  handleSubmit: PropTypes.func,
+  setImageSource: PropTypes.func,
+  imageSource: PropTypes.string,
 };
 
 export default ImageDataViewerOptions;

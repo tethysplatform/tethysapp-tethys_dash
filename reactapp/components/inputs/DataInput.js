@@ -24,6 +24,8 @@ const DataInput = ({ inputLabel, inputText, onChange }) => {
 
 DataInput.propTypes = {
   onChange: PropTypes.func,
+  inputLabel: PropTypes.string,
+  inputText: PropTypes.string,
 };
 
 export default DataInput;

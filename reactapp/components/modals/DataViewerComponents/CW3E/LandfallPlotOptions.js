@@ -48,7 +48,7 @@ function CW3ELandfallPlotOptions({
         selectedModelOption.current["label"] +
         " model and " +
         selectedModelOption.current["label"] +
-        " data."
+        " data.",
     );
     setImageSource(imageURL);
   }
@@ -166,9 +166,9 @@ function CW3ELandfallPlotOptions({
 }
 
 CW3ELandfallPlotOptions.propTypes = {
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
-  handleSubmit: PropTypes.func,
+  setImageSource: PropTypes.func,
+  setImageWarning: PropTypes.func,
+  setUpdateCellMessage: PropTypes.func,
 };
 
 export default CW3ELandfallPlotOptions;

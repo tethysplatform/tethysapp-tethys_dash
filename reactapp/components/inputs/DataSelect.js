@@ -23,6 +23,9 @@ const DataSelect = ({ label, selectedOption, onChange, options }) => {
 
 DataSelect.propTypes = {
   onChange: PropTypes.func,
+  label: PropTypes.string,
+  selectedOption: PropTypes.object,
+  options: PropTypes.array,
 };
 
 export default DataSelect;

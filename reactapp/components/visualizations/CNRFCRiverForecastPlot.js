@@ -1,5 +1,3 @@
-var Plotly = require("plotly.js/lib/core");
-
 export default function getCNRFCRiverForecastPlotInfo(data) {
   let traces = [];
   let plot_color;
@@ -16,6 +14,7 @@ export default function getCNRFCRiverForecastPlotInfo(data) {
       y: series.y,
       yaxis: "y3",
       fillcolor: plot_color,
+      showlegend: false,
       hovertemplate:
         "<i>" + series.title + "</i>: %{y:.2f} inches <extra></extra>",
     });
@@ -83,61 +82,68 @@ export default function getCNRFCRiverForecastPlotInfo(data) {
   });
 
   let layout = {
-    title: data.title,
+    title: {
+      text: data.title,
+      font: {
+        size: 12,
+      },
+    },
     responsive: true,
     useResizeHandler: true,
     autosize: true,
     xaxis: {
-      rangeselector: {
-        buttons: [
-          { step: "all" },
-          {
-            count: 6,
-            label: "6m",
-            step: "month",
-            stepmode: "backward",
-          },
-          {
-            count: 1,
-            label: "1m",
-            step: "month",
-            stepmode: "backward",
-          },
-          {
-            count: 7,
-            label: "1w",
-            step: "day",
-            stepmode: "backward",
-          },
-          {
-            count: 3,
-            label: "3d",
-            step: "day",
-            stepmode: "backward",
-          },
-          {
-            count: 12,
-            label: "12h",
-            step: "hour",
-            stepmode: "backward",
-          },
-        ],
-      },
       type: "date",
-      tickformat: "%a<br>%b %d<br>%-I%p<br>UTC",
+      tickformat: "%a<br>%b %d<br>%-I%p",
       tickvals: data.dateticks,
+      linecolor: "lightgray",
+      showgrid: true,
+      showline: true,
+      mirror: true,
+      tickfont: {
+        size: 8,
+      },
+      title: {
+        text: "<b>Observation / Forecast Time (UTC)</b>",
+        font: {
+          size: 10,
+        },
+      },
     },
     yaxis: {
-      range: [data.hydro_range_ymin, data.hydro_range_ymax],
+      range: [data.hydro_range_ymin * 0.8, data.hydro_range_ymax * 1.2],
       type: "linear",
       domain: [0, 0.7],
-      title: "Stage<br>(ft)",
+      title: {
+        text: "<b>Stage (Feet)</b>",
+        font: {
+          size: 10,
+        },
+      },
+      tickfont: {
+        size: 8,
+      },
       nticks: 10,
+      linecolor: "lightgray",
+      showgrid: true,
+      showline: true,
+      mirror: true,
     },
     yaxis3: {
       range: [data.forcing_ymin, data.forcing_ymax],
       domain: [0.8, 1],
-      title: "Rain + Melt<br>(in)",
+      title: {
+        text: "<b>Rain + Melt (in.)</b>",
+        font: {
+          size: 10,
+        },
+      },
+      tickfont: {
+        size: 8,
+      },
+      linecolor: "lightgray",
+      showgrid: true,
+      showline: true,
+      mirror: true,
     },
     hovermode: "x",
     hoversubplots: "axis",
@@ -157,6 +163,13 @@ export default function getCNRFCRiverForecastPlotInfo(data) {
     ],
     shapes: shapes,
     annotations: annotations,
+    legend: {
+      yref: "container",
+      yanchor: "top",
+      xanchor: "center",
+      x: 0.5,
+      orientation: "h",
+    },
   };
 
   const configOptions = {

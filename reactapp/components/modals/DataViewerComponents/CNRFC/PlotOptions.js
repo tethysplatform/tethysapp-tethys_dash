@@ -67,7 +67,7 @@ function CNRFCPlotOptions({
     setUpdateCellMessage(
       "Cell updated to show CNRFC River Forecast plot at " +
         selectedLocationOption.current["label"] +
-        "."
+        ".",
     );
     appAPI.getPlotData(itemData).then((data) => {
       let plotInfo = getCNRFCRiverForecastPlotInfo(data);
@@ -93,7 +93,7 @@ function CNRFCPlotOptions({
       "Cell updated to show " +
         selectedTypeOption.current["label"] +
         " plot at " +
-        selectedLocationOption.current["label"]
+        selectedLocationOption.current["label"],
     );
     setImageSource(imageURL);
   }
@@ -172,9 +172,11 @@ function CNRFCPlotOptions({
 }
 
 CNRFCPlotOptions.propTypes = {
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
-  handleSubmit: PropTypes.func,
+  setImageSource: PropTypes.func,
+  setImageWarning: PropTypes.func,
+  setViz: PropTypes.func,
+  setVizMetadata: PropTypes.func,
+  setUpdateCellMessage: PropTypes.func,
 };
 
 export default CNRFCPlotOptions;

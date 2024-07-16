@@ -70,7 +70,7 @@ const DashboardItem = ({ type, metadata }) => {
   const itemData = { type: type, metadata: metadata };
   const [rowData, setRowData] = useLayoutRowDataContext();
   const [maxWidth, setMaxWidth] = useState(
-    (12 - (rowData[rowNumber]["columns"].length - 1)).toString()
+    (12 - (rowData[rowNumber]["columns"].length - 1)).toString(),
   );
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
@@ -111,7 +111,7 @@ const DashboardItem = ({ type, metadata }) => {
 
     const totalRowWidths = updatedRowColumns.reduce(
       (partialSum, a) => partialSum + a.width,
-      0
+      0,
     );
     if (totalRowWidths > 12) {
       setWarningMessage("Total cell widths in the row cannot exceed 12.");
@@ -136,7 +136,7 @@ const DashboardItem = ({ type, metadata }) => {
       updateOrder(updatedRowColumns);
 
       const smallestWidthCol = Object.keys(updatedRowColumns).reduce((a, b) =>
-        updatedRowColumns[a]["width"] < updatedRowColumns[b]["width"] ? a : b
+        updatedRowColumns[a]["width"] < updatedRowColumns[b]["width"] ? a : b,
       );
       updatedRowColumns[smallestWidthCol]["width"] += deletedColWidth;
       const updatedRowData = JSON.parse(JSON.stringify(rowData));

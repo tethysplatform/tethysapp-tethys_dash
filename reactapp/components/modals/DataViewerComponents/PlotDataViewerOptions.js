@@ -69,9 +69,11 @@ function PlotDataViewerOptions({
 }
 
 PlotDataViewerOptions.propTypes = {
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
-  handleSubmit: PropTypes.func,
+  setViz: PropTypes.func,
+  setVizMetadata: PropTypes.func,
+  setUpdateCellMessage: PropTypes.func,
+  setImageSource: PropTypes.func,
+  setImageWarning: PropTypes.func,
 };
 
 export default PlotDataViewerOptions;

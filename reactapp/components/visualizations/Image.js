@@ -16,7 +16,8 @@ const Image = ({ source, onError }) => {
 };
 
 Image.propTypes = {
-  metadata: PropTypes.object,
+  source: PropTypes.string,
+  onError: PropTypes.func,
 };
 
 export default memo(Image);

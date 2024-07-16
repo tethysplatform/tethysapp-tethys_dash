@@ -4,6 +4,7 @@ from django.http import JsonResponse
 import re
 from datetime import datetime, timedelta
 from .utilities import interpolate_flow_from_rating_curve
+from bs4 import BeautifulSoup
 
 
 def get_cnrfc_river_forecast_data(location):
@@ -27,6 +28,8 @@ def get_cnrfc_river_forecast_data(location):
     print(f"-> Parsing series data")
     (forcing_series, forcing_ymin, forcing_ymax) = get_forcing_data(response.text)
 
+    chart_title = get_title(response.text)
+
     all_dates.sort()
     dateticks = [
         (all_dates[0] + timedelta(days=i)).strftime("%Y-%m-%dT%H") for i in range(11)
@@ -42,7 +45,7 @@ def get_cnrfc_river_forecast_data(location):
             "hydro_series": hydro_series,
             "hydro_thresholds": hydro_thresholds,
             "observed_forecast_split_dt": observed_forecast_split_dt,
-            "title": f"{location} River Forecast Plot",
+            "title": chart_title,
             "dateticks": dateticks,
         }
     )
@@ -78,27 +81,28 @@ def get_hydro_data(charting_data):
             if valid_date not in all_dates:
                 all_dates.append(valid_date)
 
-        hydro_series.append(
-            {
-                "title": series_name,
-                "x": valid_dates,
-                "y": valid_values,
-                "text": valid_texts,
-            }
-        )
+        if valid_values:
+            hydro_series.append(
+                {
+                    "title": series_name,
+                    "x": valid_dates,
+                    "y": valid_values,
+                    "text": valid_texts,
+                }
+            )
 
-        if not hydro_ymin:
-            hydro_ymin = min(valid_values)
-        else:
-            hydro_ymin = min(hydro_ymin, min(valid_values))
+            if not hydro_ymin:
+                hydro_ymin = min(valid_values)
+            else:
+                hydro_ymin = min(hydro_ymin, min(valid_values))
 
-        if not hydro_ymax:
-            hydro_ymax = max(valid_values)
-        else:
-            hydro_ymax = max(hydro_ymax, max(valid_values))
+            if not hydro_ymax:
+                hydro_ymax = max(valid_values)
+            else:
+                hydro_ymax = max(hydro_ymax, max(valid_values))
 
-        if "Observed" in series_name:
-            observed_forecast_split_dt = valid_dates[-1]
+            if "Observed" in series_name:
+                observed_forecast_split_dt = valid_dates[-1]
 
     return [
         all_dates,
@@ -116,7 +120,9 @@ def get_hydro_thresholds(location, charting_data):
         r"chart.yAxis\[0\].addPlotLine\((.*)\);", charting_data
     ):
         threshold_json = hjson.loads(threshold)
-        interpolated_flow = interpolate_flow_from_rating_curve(rating_curve_stages, rating_curve_flows, threshold_json["value"])
+        interpolated_flow = interpolate_flow_from_rating_curve(
+            rating_curve_stages, rating_curve_flows, threshold_json["value"]
+        )
         hydro_thresholds.append(
             {
                 "name": threshold_json["label"]["text"] + f" ({interpolated_flow} cfs)",
@@ -164,7 +170,27 @@ def get_location_rating_curve(location):
         f"https://www.cnrfc.noaa.gov/data/ratings/{location}_rating.js"
     )
     response = requests.get(location_rating_curve_url)
-    flows = [float(flow) for flow in re.findall(r"ratingFlow.push\((.*)\);", response.text)]
-    stages = [float(stage) for stage in re.findall(r"ratingStage.push\((.*)\);", response.text)]
-    
+    flows = [
+        float(flow) for flow in re.findall(r"ratingFlow.push\((.*)\);", response.text)
+    ]
+    stages = [
+        float(stage)
+        for stage in re.findall(r"ratingStage.push\((.*)\);", response.text)
+    ]
+
     return [flows, stages]
+
+
+def get_title(charting_data):
+    chart_title = re.findall(r"chart2.setTitle\((.*), false\);", charting_data)[0]
+    chart_titles = hjson.loads(f"[{chart_title}]")
+
+    main_title = chart_titles[0]
+    soup = BeautifulSoup(main_title["text"], "html.parser")
+    main_title_text = soup.div.contents[0]
+
+    sub_title = chart_titles[1]
+    sub_title_text = sub_title["text"]
+    sub_title_text = re.findall(r"(<b>Forecast Posted:</b> .*) <b>", sub_title_text)[0]
+
+    return main_title_text + "<br>River Forecast Plot<br>" + sub_title_text

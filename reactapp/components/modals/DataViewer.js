@@ -161,9 +161,10 @@ function DataViewerModal({
 }
 
 DataViewerModal.propTypes = {
+  setUpdateCellMessage: PropTypes.func,
+  setShowUpdateCellMessage: PropTypes.func,
   showModal: PropTypes.bool,
   handleModalClose: PropTypes.func,
-  handleSubmit: PropTypes.func,
 };
 
 export default DataViewerModal;

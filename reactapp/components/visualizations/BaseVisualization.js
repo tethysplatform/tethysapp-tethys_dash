@@ -59,7 +59,7 @@ const BaseVisualization = ({
           plotData={plotData}
           rowHeight={rowHeight}
           colWidth={colWidth}
-        />
+        />,
       );
     });
   }
