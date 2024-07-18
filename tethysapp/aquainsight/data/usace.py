@@ -1,7 +1,7 @@
 import requests
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 import re
 from django.http import JsonResponse
 
@@ -38,7 +38,7 @@ def parse_usace_data(data):
     ]
     df["Datetime"] = dates
     df = df.drop(columns=drop_columns)
-    df = df[~(df["Datetime"] >= pd.to_datetime(datetime.now(UTC), utc=True))]
+    df = df[~(df["Datetime"] >= pd.to_datetime(datetime.now(timezone.UTC), utc=True))]
     df = df.replace("-", np.nan)
 
     return df
