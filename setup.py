@@ -7,10 +7,13 @@ app_package = "aquainsight"
 release_package = f"{TethysAppBase.package_namespace}-{app_package}"
 
 # -- Python Dependencies -- #
-dependencies = []
+dependencies = [
+    "hjson==3.1"
+]
 
 # -- Get Resource File -- #
 resource_files = find_all_resource_files(app_package, TethysAppBase.package_namespace)
+breakpoint()
 
 
 setup(
