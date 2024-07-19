@@ -13,7 +13,6 @@ dependencies = [
 
 # -- Get Resource File -- #
 resource_files = find_all_resource_files(app_package, TethysAppBase.package_namespace)
-breakpoint()
 
 
 setup(
