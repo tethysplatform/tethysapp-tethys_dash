@@ -16,6 +16,16 @@ const DataSelect = ({ label, selectedOption, onChange, options }) => {
         value={selectedOption}
         onChange={onChange}
         inputID={id}
+        styles={{
+          groupHeading: (base) => ({
+            ...base,
+            flex: "1 1",
+            color: "black",
+            backgroundColor: "lightgray",
+            margin: 0,
+            fontSize: "12",
+          }),
+        }}
       />
     </StyledDiv>
   );

@@ -25,20 +25,24 @@ def home(request):
 def data(request):
     """API controller for the plot page."""
     metadata = json.loads(request.GET["metadata"])
+    data = None
+    success = True
 
-    if request.GET["type"] == "USACEPlot":
-        return get_usace_data(metadata["location"], metadata["year"])
+    try:
+        if request.GET["type"] == "USACEPlot":
+            data = get_usace_data(metadata["location"], metadata["year"])
 
-    elif request.GET["type"] == "CDECPlot":
-        return get_cdec_data(
-            metadata["station"], metadata.get("start"), metadata.get("end")
-        )
+        elif request.GET["type"] == "CDECPlot":
+            data = get_cdec_data(
+                metadata["station"], metadata.get("start"), metadata.get("end")
+            )
 
-    elif request.GET["type"] == "CNRFCRiverForecastPlot":
-        return get_cnrfc_river_forecast_data(metadata["location"])
+        elif request.GET["type"] == "CNRFCRiverForecastPlot":
+            data = get_cnrfc_river_forecast_data(metadata["location"])
+    except:
+        success = False
 
-    # Then return JSON containing data
-    return
+    return JsonResponse({"success": success, "data": data})
 
 
 @controller

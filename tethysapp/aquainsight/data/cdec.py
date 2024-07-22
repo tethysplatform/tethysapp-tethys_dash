@@ -1,6 +1,5 @@
 import requests
 import pandas as pd
-from django.http import JsonResponse
 
 
 def get_stations(station_id=None):
@@ -71,6 +70,4 @@ def get_cdec_data(station, start, end):
     station_metadata = get_stations(station)[0]
 
     print("CWMS Data Series for Plots Ready")
-    return JsonResponse(
-        {"series": series, "title": f"{station_metadata['stationName']} Hourly Data"}
-    )
+    return {"series": series, "title": f"{station_metadata['stationName']} Hourly Data"}

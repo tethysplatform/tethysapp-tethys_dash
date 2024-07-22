@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta, timezone
 import re
-from django.http import JsonResponse
 
 
 def get_usace_plot_data(location, year, time_period="h", metadata=False):
@@ -38,7 +37,7 @@ def parse_usace_data(data):
     ]
     df["Datetime"] = dates
     df = df.drop(columns=drop_columns)
-    df = df[~(df["Datetime"] >= pd.to_datetime(datetime.now(timezone.UTC), utc=True))]
+    df = df[~(df["Datetime"] >= pd.to_datetime(datetime.now(timezone.utc), utc=True))]
     df = df.replace("-", np.nan)
 
     return df
@@ -116,10 +115,8 @@ def get_usace_data(location, year):
             )
 
     print("CWMS Data Series for Plots Ready")
-    return JsonResponse(
-        {
-            "series": series,
-            "ymarkers": metadata["ymarkers"],
-            "title": f"{metadata['title']}<br>WY {year} | Generated: {metadata['generated']}",
-        }
-    )
+    return {
+        "series": series,
+        "ymarkers": metadata["ymarkers"],
+        "title": f"{metadata['title']}<br>WY {year} | Generated: {metadata['generated']}",
+    }

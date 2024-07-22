@@ -15,6 +15,10 @@ const StyledSpinner = styled(Spinner)`
   display: block;
 `;
 
+const StyledH2 = styled.h2`
+  text-align: center;
+`;
+
 const BaseVisualization = ({
   rowHeight,
   colWidth,
@@ -37,30 +41,34 @@ const BaseVisualization = ({
   }, [itemData]);
 
   function getPlotData() {
-    appAPI.getPlotData(itemData).then((data) => {
-      let plotInfo;
-      if (itemData["type"] === "CDECPlot") {
-        plotInfo = getCDECPlotInfo(data);
-      } else if (itemData["type"] === "USACEPlot") {
-        plotInfo = getUSACEPlotInfo(data);
-      } else if (itemData["type"] === "CNRFCRiverForecastPlot") {
-        plotInfo = getCNRFCRiverForecastPlotInfo(data);
-      } else {
-        throw new Error("Plot type is not configured");
-      }
+    appAPI.getPlotData(itemData).then((response) => {
+      if (response.success === true) {
+        let plotInfo;
+        if (itemData["type"] === "CDECPlot") {
+          plotInfo = getCDECPlotInfo(response.data);
+        } else if (itemData["type"] === "USACEPlot") {
+          plotInfo = getUSACEPlotInfo(response.data);
+        } else if (itemData["type"] === "CNRFCRiverForecastPlot") {
+          plotInfo = getCNRFCRiverForecastPlotInfo(response.data);
+        } else {
+          throw new Error("Plot type is not configured");
+        }
 
-      const plotData = {
-        data: plotInfo["traces"],
-        layout: plotInfo["layout"],
-        config: plotInfo["configOptions"],
-      };
-      setViz(
-        <BasePlot
-          plotData={plotData}
-          rowHeight={rowHeight}
-          colWidth={colWidth}
-        />,
-      );
+        const plotData = {
+          data: plotInfo["traces"],
+          layout: plotInfo["layout"],
+          config: plotInfo["configOptions"],
+        };
+        setViz(
+          <BasePlot
+            plotData={plotData}
+            rowHeight={rowHeight}
+            colWidth={colWidth}
+          />
+        );
+      } else {
+        setViz(<StyledH2>Failed to retrieve data</StyledH2>);
+      }
     });
   }
 

@@ -1,6 +1,5 @@
 import requests
 import hjson
-from django.http import JsonResponse
 import re
 from datetime import datetime, timedelta
 from .utilities import interpolate_flow_from_rating_curve
@@ -35,20 +34,18 @@ def get_cnrfc_river_forecast_data(location):
         (all_dates[0] + timedelta(days=i)).strftime("%Y-%m-%dT%H") for i in range(11)
     ]
 
-    return JsonResponse(
-        {
-            "forcing_series": forcing_series,
-            "forcing_ymin": forcing_ymin,
-            "forcing_ymax": forcing_ymax,
-            "hydro_range_ymin": hydro_range_ymin,
-            "hydro_range_ymax": hydro_range_ymax,
-            "hydro_series": hydro_series,
-            "hydro_thresholds": hydro_thresholds,
-            "observed_forecast_split_dt": observed_forecast_split_dt,
-            "title": chart_title,
-            "dateticks": dateticks,
-        }
-    )
+    return {
+        "forcing_series": forcing_series,
+        "forcing_ymin": forcing_ymin,
+        "forcing_ymax": forcing_ymax,
+        "hydro_range_ymin": hydro_range_ymin,
+        "hydro_range_ymax": hydro_range_ymax,
+        "hydro_series": hydro_series,
+        "hydro_thresholds": hydro_thresholds,
+        "observed_forecast_split_dt": observed_forecast_split_dt,
+        "title": chart_title,
+        "dateticks": dateticks,
+    }
 
 
 def get_hydro_data(charting_data):
@@ -57,6 +54,7 @@ def get_hydro_data(charting_data):
     hydro_series = []
     hydro_ymin = None
     hydro_ymax = None
+    observed_forecast_split_dt = None
     for chart_data in chart_series:
         chart_data_json = hjson.loads(chart_data)
         series_name = chart_data_json["name"]
