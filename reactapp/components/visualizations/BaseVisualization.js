@@ -64,7 +64,7 @@ const BaseVisualization = ({
             plotData={plotData}
             rowHeight={rowHeight}
             colWidth={colWidth}
-          />
+          />,
         );
       } else {
         setViz(<StyledH2>Failed to retrieve data</StyledH2>);

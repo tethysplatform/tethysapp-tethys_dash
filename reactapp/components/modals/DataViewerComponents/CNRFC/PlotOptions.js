@@ -17,6 +17,27 @@ const StyledH2 = styled.h2`
   text-align: center;
 `;
 
+function Options({
+  selectedVizTypeOption,
+  label,
+  selectedOption,
+  onChange,
+  options,
+}) {
+  if (selectedVizTypeOption["value"]["baseURL"] || null) {
+    return (
+      <DataSelect
+        label={label}
+        selectedOption={selectedOption}
+        onChange={onChange}
+        options={options}
+      />
+    );
+  } else {
+    return null;
+  }
+}
+
 function CNRFCPlotOptions({
   selectedVizTypeOption,
   setImageSource,
@@ -26,11 +47,22 @@ function CNRFCPlotOptions({
   setUpdateCellMessage,
 }) {
   const selectedLocationOption = useRef(null);
+  const locationNeeded = useRef(false);
 
   useEffect(() => {
-    if (selectedLocationOption.current) {
+    if (selectedVizTypeOption["value"]["fullURL"] || null) {
+      locationNeeded.current = false;
+    } else {
+      locationNeeded.current = true;
+    }
+
+    if (
+      (locationNeeded.current && selectedLocationOption.current) ||
+      !locationNeeded.current
+    ) {
       getVisualization();
     }
+    // eslint-disable-next-line
   }, [selectedVizTypeOption]);
 
   function onLocationChange(e) {
@@ -63,7 +95,7 @@ function CNRFCPlotOptions({
     setUpdateCellMessage(
       "Cell updated to show CNRFC River Forecast plot at " +
         selectedLocationOption.current["label"] +
-        "."
+        ".",
     );
     appAPI.getPlotData(itemData).then((response) => {
       if (response.success === true) {
@@ -82,28 +114,37 @@ function CNRFCPlotOptions({
   }
 
   function getImageURL() {
-    const location = selectedVizTypeOption["value"]["lowercase"]
-      ? selectedLocationOption.current["value"].toLowerCase()
-      : selectedLocationOption.current["value"];
-    const imageURL =
-      selectedVizTypeOption["value"]["baseURL"] +
-      location +
-      selectedVizTypeOption["value"]["plotName"];
-    setUpdateCellMessage(
-      "Cell updated to show " +
-        selectedVizTypeOption["label"] +
-        " plot at " +
-        selectedLocationOption.current["label"]
-    );
+    let imageURL;
+    if (selectedVizTypeOption["value"]["fullURL"] || null) {
+      imageURL = selectedVizTypeOption["value"]["fullURL"];
+      setUpdateCellMessage(
+        "Cell updated to show " + selectedVizTypeOption["label"],
+      );
+    } else {
+      const location = selectedVizTypeOption["value"]["lowercase"]
+        ? selectedLocationOption.current["value"].toLowerCase()
+        : selectedLocationOption.current["value"];
+      imageURL =
+        selectedVizTypeOption["value"]["baseURL"] +
+        location +
+        selectedVizTypeOption["value"]["plotName"];
+      setUpdateCellMessage(
+        "Cell updated to show " +
+          selectedVizTypeOption["label"] +
+          " plot at " +
+          selectedLocationOption.current["label"],
+      );
+    }
     setImageSource(imageURL);
   }
 
   const locationOptions = CNRFCGauges;
 
   return (
-    <DataSelect
+    <Options
       label="Location"
-      selectedDataTypeOption={selectedLocationOption.current}
+      selectedOption={selectedLocationOption.current}
+      selectedVizTypeOption={selectedVizTypeOption}
       onChange={onLocationChange}
       options={locationOptions}
     />
@@ -111,11 +152,20 @@ function CNRFCPlotOptions({
 }
 
 CNRFCPlotOptions.propTypes = {
+  selectedVizTypeOption: PropTypes.object,
   setImageSource: PropTypes.func,
   setImageWarning: PropTypes.func,
   setViz: PropTypes.func,
   setVizMetadata: PropTypes.func,
   setUpdateCellMessage: PropTypes.func,
+};
+
+Options.propTypes = {
+  selectedVizTypeOption: PropTypes.object,
+  label: PropTypes.string,
+  selectedOption: PropTypes.object,
+  onChange: PropTypes.func,
+  options: PropTypes.array,
 };
 
 export default CNRFCPlotOptions;

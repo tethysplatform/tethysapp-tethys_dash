@@ -9,7 +9,6 @@ import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import Image from "components/visualizations/Image";
 import ImageDataViewerOptions from "components/modals/DataViewerComponents/ImageDataViewerOptions";
-import PlotDataViewerOptions from "components/modals/DataViewerComponents/PlotDataViewerOptions";
 import { useLayoutRowDataContext } from "components/contexts/SelectedDashboardContext";
 import { useColInfoContext } from "components/dashboard/DashboardCol";
 import { useRowInfoContext } from "components/dashboard/DashboardRow";
@@ -28,7 +27,7 @@ const StyledDiv = styled.div`
 `;
 
 const StyledContainer = styled(Container)`
-  height: 25vw;
+  height: 35vw;
 `;
 
 const StyledRow = styled(Row)`
@@ -166,7 +165,7 @@ function DataViewerModal({
                     </>
                   )}
                 </Col>
-                <Col>
+                <Col className={"justify-content-center h-100"}>
                   {selectedVizTypeOption && (
                     <>
                       {imageSource && <ImageDataViewer />}

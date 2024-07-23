@@ -49,6 +49,13 @@ export const CNRFCOptions = [
     },
     label: "River Forecast Plot",
   },
+  {
+    value: {
+      fullURL:
+        "https://www.cnrfc.noaa.gov/images/dailyBriefing/dailyBriefing.png",
+    },
+    label: "Daily Briefing",
+  },
 ];
 
 export const CW3EOptions = [

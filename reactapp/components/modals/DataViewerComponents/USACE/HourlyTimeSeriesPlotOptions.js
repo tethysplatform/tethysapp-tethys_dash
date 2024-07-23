@@ -56,7 +56,7 @@ function USACEHourlyTimeSeriesPlotOptions({
         selectedLocationOption.current["label"] +
         " for the " +
         selectedWaterYear.current["label"] +
-        " Water Year."
+        " Water Year.",
     );
     appAPI.getPlotData(itemData).then((response) => {
       if (response.success === true) {
