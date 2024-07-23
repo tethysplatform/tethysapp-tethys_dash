@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
 import BasePlot from "components/visualizations/BasePlot";
 import { CNRFCGauges } from "components/modals/utilities";
+import Image from "components/visualizations/Image";
 import appAPI from "services/api/app";
 import getCNRFCRiverForecastPlotInfo from "components/visualizations/CNRFCRiverForecastPlot";
 import Spinner from "react-bootstrap/Spinner";
@@ -40,8 +41,6 @@ function Options({
 
 function CNRFCPlotOptions({
   selectedVizTypeOption,
-  setImageSource,
-  setImageWarning,
   setViz,
   setVizMetadata,
   setUpdateCellMessage,
@@ -66,19 +65,16 @@ function CNRFCPlotOptions({
   }, [selectedVizTypeOption]);
 
   function onLocationChange(e) {
-    setImageWarning(null);
     selectedLocationOption.current = e;
     getVisualization();
   }
 
   function getVisualization() {
+    setViz(null);
+    setVizMetadata(null);
     if (selectedVizTypeOption["label"] === "River Forecast Plot") {
-      setImageSource(null);
-      setImageWarning(null);
       getPlot();
     } else {
-      setViz(null);
-      setVizMetadata(null);
       getImageURL();
     }
   }
@@ -95,7 +91,7 @@ function CNRFCPlotOptions({
     setUpdateCellMessage(
       "Cell updated to show CNRFC River Forecast plot at " +
         selectedLocationOption.current["label"] +
-        ".",
+        "."
     );
     appAPI.getPlotData(itemData).then((response) => {
       if (response.success === true) {
@@ -118,7 +114,7 @@ function CNRFCPlotOptions({
     if (selectedVizTypeOption["value"]["fullURL"] || null) {
       imageURL = selectedVizTypeOption["value"]["fullURL"];
       setUpdateCellMessage(
-        "Cell updated to show " + selectedVizTypeOption["label"],
+        "Cell updated to show " + selectedVizTypeOption["label"]
       );
     } else {
       const location = selectedVizTypeOption["value"]["lowercase"]
@@ -132,10 +128,17 @@ function CNRFCPlotOptions({
         "Cell updated to show " +
           selectedVizTypeOption["label"] +
           " plot at " +
-          selectedLocationOption.current["label"],
+          selectedLocationOption.current["label"]
       );
     }
-    setImageSource(imageURL);
+    setViz(<Image source={imageURL} />);
+    const itemData = {
+      type: "Image",
+      metadata: {
+        uri: imageURL,
+      },
+    };
+    setVizMetadata(itemData);
   }
 
   const locationOptions = CNRFCGauges;
@@ -153,8 +156,6 @@ function CNRFCPlotOptions({
 
 CNRFCPlotOptions.propTypes = {
   selectedVizTypeOption: PropTypes.object,
-  setImageSource: PropTypes.func,
-  setImageWarning: PropTypes.func,
   setViz: PropTypes.func,
   setVizMetadata: PropTypes.func,
   setUpdateCellMessage: PropTypes.func,

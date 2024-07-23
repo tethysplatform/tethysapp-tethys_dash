@@ -7,8 +7,7 @@ import DataSelect from "components/inputs/DataSelect";
 import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
-import Image from "components/visualizations/Image";
-import ImageDataViewerOptions from "components/modals/DataViewerComponents/ImageDataViewerOptions";
+import CustomImageOptions from "components/modals/DataViewerComponents/CustomImageOptions";
 import { useLayoutRowDataContext } from "components/contexts/SelectedDashboardContext";
 import { useColInfoContext } from "components/dashboard/DashboardCol";
 import { useRowInfoContext } from "components/dashboard/DashboardRow";
@@ -17,14 +16,8 @@ import { AllDataOptions } from "components/modals/utilities";
 import CNRFCPlotOptions from "components/modals/DataViewerComponents/CNRFC/PlotOptions";
 import USACEPlotOptions from "components/modals/DataViewerComponents/USACE/PlotOptions";
 import CW3EPlotOptions from "components/modals/DataViewerComponents/CW3E/PlotOptions";
+import CustomTextOptions from "components/modals/DataViewerComponents/CustomTextOptions";
 import "components/modals/wideModal.css";
-
-const StyledDiv = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-`;
 
 const StyledContainer = styled(Container)`
   height: 35vw;
@@ -42,10 +35,8 @@ function DataViewerModal({
 }) {
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
-  const [imageSource, setImageSource] = useState("");
   const [viz, setViz] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
-  const [imageWarning, setImageWarning] = useState(false);
   const [rowData, setRowData] = useLayoutRowDataContext();
   const rowNumber = useRowInfoContext()[0];
   const colNumber = useColInfoContext()[0];
@@ -60,8 +51,8 @@ function DataViewerModal({
       }
     }
     setSelectVizTypeOption(e);
-    setImageSource(null);
     setViz(null);
+    setVizMetadata(null);
   }
 
   function handleSubmit(e) {
@@ -70,42 +61,13 @@ function DataViewerModal({
     if (selectedVizTypeOption) {
       const updatedRowData = JSON.parse(JSON.stringify(rowData));
       const rowColumns = updatedRowData[rowNumber]["columns"];
-      if (imageSource) {
-        rowColumns[colNumber]["type"] = "Image";
-        rowColumns[colNumber]["metadata"] = {
-          uri: imageSource,
-        };
-      } else if (viz) {
-        rowColumns[colNumber]["type"] = vizMetdata["type"];
-        rowColumns[colNumber]["metadata"] = vizMetdata["metadata"];
-      }
+      rowColumns[colNumber]["type"] = vizMetdata["type"];
+      rowColumns[colNumber]["metadata"] = vizMetdata["metadata"];
       setRowData(updatedRowData);
       handleModalClose();
     }
     setShowUpdateCellMessage(true);
   }
-
-  function onImageError() {
-    setImageWarning(true);
-  }
-
-  const ImageDataViewer = () => {
-    return (
-      <>
-        {imageWarning ? (
-          <StyledDiv>
-            <h2>Plot does not exist</h2>
-          </StyledDiv>
-        ) : (
-          <>
-            {imageSource && (
-              <Image source={imageSource} onError={onImageError} />
-            )}
-          </>
-        )}
-      </>
-    );
-  };
 
   return (
     <>
@@ -133,8 +95,6 @@ function DataViewerModal({
                       {selectedGroupName === "CNRFC" && (
                         <CNRFCPlotOptions
                           selectedVizTypeOption={selectedVizTypeOption}
-                          setImageSource={setImageSource}
-                          setImageWarning={setImageWarning}
                           setViz={setViz}
                           setVizMetadata={setVizMetadata}
                           setUpdateCellMessage={setUpdateCellMessage}
@@ -151,15 +111,16 @@ function DataViewerModal({
                       {selectedGroupName === "CW3E" && (
                         <CW3EPlotOptions
                           selectedVizTypeOption={selectedVizTypeOption}
-                          setImageSource={setImageSource}
-                          setImageWarning={setImageWarning}
+                          setViz={setViz}
+                          setVizMetadata={setVizMetadata}
                           setUpdateCellMessage={setUpdateCellMessage}
                         />
                       )}
                       {selectedVizTypeOption["value"] === "Custom Image" && (
-                        <ImageDataViewerOptions
-                          imageSource={imageSource}
-                          setImageSource={setImageSource}
+                        <CustomImageOptions
+                          setViz={setViz}
+                          setVizMetadata={setVizMetadata}
+                          setUpdateCellMessage={setUpdateCellMessage}
                         />
                       )}
                     </>
@@ -168,10 +129,15 @@ function DataViewerModal({
                 <Col className={"justify-content-center h-100"}>
                   {selectedVizTypeOption && (
                     <>
-                      {imageSource && <ImageDataViewer />}
-                      {viz && viz}
+                      {selectedVizTypeOption["value"] === "Text" && (
+                        <CustomTextOptions
+                          setVizMetadata={setVizMetadata}
+                          setUpdateCellMessage={setUpdateCellMessage}
+                        />
+                      )}
                     </>
                   )}
+                  {viz}
                 </Col>
               </StyledRow>
             </StyledContainer>

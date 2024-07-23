@@ -9,6 +9,7 @@ import getCDECPlotInfo from "components/visualizations/CDECPlot";
 import getUSACEPlotInfo from "components/visualizations/USACEPlot";
 import getCNRFCRiverForecastPlotInfo from "components/visualizations/CNRFCRiverForecastPlot";
 import Image from "components/visualizations/Image";
+import Text from "components/visualizations/Text";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -36,6 +37,8 @@ const BaseVisualization = ({
     } else if (type.includes("Plot")) {
       setViz(<StyledSpinner animation="border" variant="info" />);
       getPlotData(itemData);
+    } else if (type.includes("Text")) {
+      setViz(<Text textValue={metadata["text"]} />);
     }
     // eslint-disable-next-line
   }, [itemData]);
@@ -64,7 +67,7 @@ const BaseVisualization = ({
             plotData={plotData}
             rowHeight={rowHeight}
             colWidth={colWidth}
-          />,
+          />
         );
       } else {
         setViz(<StyledH2>Failed to retrieve data</StyledH2>);

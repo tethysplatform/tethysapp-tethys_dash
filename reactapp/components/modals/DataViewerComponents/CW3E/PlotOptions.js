@@ -3,15 +3,15 @@ import CW3ELandfallPlotOptions from "components/modals/DataViewerComponents/CW3E
 
 function Options({
   selectedVizTypeOption,
-  setImageSource,
-  setImageWarning,
+  setViz,
+  setVizMetadata,
   setUpdateCellMessage,
 }) {
   if (selectedVizTypeOption["label"] === "CW3E AR Landfall") {
     return (
       <CW3ELandfallPlotOptions
-        setImageSource={setImageSource}
-        setImageWarning={setImageWarning}
+        setViz={setViz}
+        setVizMetadata={setVizMetadata}
         setUpdateCellMessage={setUpdateCellMessage}
       />
     );
@@ -22,15 +22,15 @@ function Options({
 
 function CW3EPlotOptions({
   selectedVizTypeOption,
-  setImageSource,
-  setImageWarning,
+  setViz,
+  setVizMetadata,
   setUpdateCellMessage,
 }) {
   return (
     <Options
       selectedVizTypeOption={selectedVizTypeOption}
-      setImageSource={setImageSource}
-      setImageWarning={setImageWarning}
+      setViz={setViz}
+      setVizMetadata={setVizMetadata}
       setUpdateCellMessage={setUpdateCellMessage}
     />
   );
@@ -38,15 +38,15 @@ function CW3EPlotOptions({
 
 CW3EPlotOptions.propTypes = {
   selectedVizTypeOption: PropTypes.object,
-  setImageSource: PropTypes.func,
-  setImageWarning: PropTypes.func,
+  setViz: PropTypes.func,
+  setVizMetadata: PropTypes.func,
   setUpdateCellMessage: PropTypes.func,
 };
 
 Options.propTypes = {
   selectedVizTypeOption: PropTypes.object,
-  setImageSource: PropTypes.func,
-  setImageWarning: PropTypes.func,
+  setViz: PropTypes.func,
+  setVizMetadata: PropTypes.func,
   setUpdateCellMessage: PropTypes.func,
 };
 

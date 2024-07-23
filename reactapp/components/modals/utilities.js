@@ -733,3 +733,90 @@ export const CNRFCGauges = [
   { value: "HRIN2", label: "HRIN2 - HUMBOLDT RIVER - IMLAY" },
   { value: "MDCN2", label: "MDCN2 - MCDERMITT CREEK - MCDERMITT" },
 ];
+
+const ARLandfallBaseUrl = "https://cw3e.ucsd.edu/images/";
+export const ARLandfallModelOptions = [
+  {
+    value: ARLandfallBaseUrl + "gefs/v12/LFT/US-west/GEFS_LandfallTool",
+    label: "GFS Ensemble",
+  },
+  {
+    value:
+      ARLandfallBaseUrl +
+      "ECMWF/ensemble/LandfallTool/US-west/ECMWF_LandfallTool",
+    label: "ECMWF EPS",
+  },
+  {
+    value:
+      ARLandfallBaseUrl +
+      "ECMWF/ensemble/LandfallTool/US-west/ECMWF-GEFS_LandfallTool",
+    label: "ECMWF minus GFS",
+  },
+  {
+    value:
+      ARLandfallBaseUrl + "wwrf/images/ensemble/LFT/US-west/W-WRF_LandfallTool",
+    label: "West-WRF Ensemble",
+  },
+];
+
+export const ARLandfallModelTypeOptions = [
+  {
+    value: "_control",
+    label: "Control IVT magnitude",
+  },
+  {
+    value: "_ensemble_mean",
+    label: "Ensemble mean magnitude",
+  },
+  {
+    value: "_150",
+    label: "Probability of IVT >150 kg/m/s",
+  },
+  {
+    value: "_250",
+    label: "Probability of IVT >250 kg/m/s",
+  },
+  {
+    value: "_500",
+    label: "Probability of IVT >500 kg/m/s",
+  },
+  {
+    value: "_750",
+    label: "Probability of IVT >750 kg/m/s",
+  },
+  {
+    value: "_Vectors_150",
+    label: "IVT >150 kg/m/s with Vectors",
+  },
+  {
+    value: "_Vectors_250",
+    label: "IVT >250 kg/m/s with Vectors",
+  },
+  {
+    value: "_Vectors_500",
+    label: "IVT >500 kg/m/s with Vectors",
+  },
+  {
+    value: "_Vectors_750",
+    label: "IVT >750 kg/m/s with Vectors",
+  },
+];
+
+export const ARLandfallModelLocationOptions = [
+  {
+    value: "_coast",
+    label: "Coastal",
+  },
+  {
+    value: "_foothills",
+    label: "Foothills",
+  },
+  {
+    value: "_inland",
+    label: "Inland",
+  },
+  {
+    value: "_intwest",
+    label: "Interior West",
+  },
+];

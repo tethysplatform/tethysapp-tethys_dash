@@ -2,6 +2,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
 import json
+import nh3
 
 from .app import App as app
 
@@ -203,6 +204,9 @@ def update_named_dashboard(name, label, image, notes, row_data):
             col_width = int(col["width"])
             col_order = int(col["order"])
             col_type = col["type"]
+            if col_type == "Text":
+                col["metadata"]['text'] = nh3.clean(col["metadata"]['text'])
+
             col_metadata = json.dumps(col["metadata"])
             if not col_id:
                 db_col = add_new_column(
