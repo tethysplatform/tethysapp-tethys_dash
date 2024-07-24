@@ -10,20 +10,24 @@ import {
   EditorProvider,
   Toolbar,
 } from "react-simple-wysiwyg";
+import "components/inputs/TextEditor.css";
 
 const TextEditor = ({ textValue, onChange }) => {
   return (
     <EditorProvider>
-      <Editor value={textValue} onChange={onChange}>
-        <Toolbar>
-          <BtnBold />
-          <BtnItalic />
-          <BtnUnderline />
-          <BtnStrikeThrough />
-          <BtnLink />
-          <BtnStyles />
-        </Toolbar>
-      </Editor>
+      <Toolbar>
+        <BtnBold />
+        <BtnItalic />
+        <BtnUnderline />
+        <BtnStrikeThrough />
+        <BtnLink />
+        <BtnStyles />
+      </Toolbar>
+      <Editor
+        containerProps={{ style: { height: "100%", overflowY: "auto" } }}
+        value={textValue}
+        onChange={onChange}
+      ></Editor>
     </EditorProvider>
   );
 };

@@ -1,6 +1,11 @@
 import PropTypes from "prop-types";
 import TextEditor from "components/inputs/TextEditor";
 import { useState } from "react";
+import styled from "styled-components";
+
+const StyledDiv = styled.div`
+  height: 90%;
+`;
 
 function CustomTextOptions({ setVizMetadata, setUpdateCellMessage }) {
   const [textValue, setTextValue] = useState("");
@@ -18,9 +23,9 @@ function CustomTextOptions({ setVizMetadata, setUpdateCellMessage }) {
   }
 
   return (
-    <div>
+    <StyledDiv>
       <TextEditor textValue={textValue} onChange={onChange} />
-    </div>
+    </StyledDiv>
   );
 }
 

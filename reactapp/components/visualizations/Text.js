@@ -5,10 +5,9 @@ import parse from "html-react-parser";
 import DOMPurify from "dompurify";
 
 const StyledDiv = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  text-align: center;
   height: 100%;
+  overflow-y: auto;
 `;
 
 const Text = ({ textValue }) => {

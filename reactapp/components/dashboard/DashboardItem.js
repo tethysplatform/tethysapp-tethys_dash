@@ -24,7 +24,7 @@ const StyledAlert = styled(Alert)`
 const StyledFormGroup = styled(Form.Group)`
   width: auto;
   margin: auto;
-  display: block;
+  display: inline-block;
   padding: 0 1rem;
 `;
 
@@ -215,7 +215,7 @@ const DashboardItem = ({ type, metadata }) => {
               <Form.Control
                 required
                 type="number"
-                min="1"
+                min="10"
                 max="100"
                 onChange={onRowHeightInput}
                 value={height}

@@ -8,17 +8,26 @@ import {
 import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
 import { useState, useContext, useEffect } from "react";
 import { AppContext } from "components/contexts/AppContext";
-import styled from "styled-components";
-import { EditTextarea } from "react-edit-text";
-import styles from "./notestyles.module.css";
-import Form from "react-bootstrap/Form";
+import TextEditor from "components/inputs/TextEditor";
+import styles from "./DashboardNotes.module.css";
 import Alert from "react-bootstrap/Alert";
 import appAPI from "services/api/app";
+import styled from "styled-components";
 
-const StyledTextArea = styled(EditTextarea)`
-  border: solid 1px black;
-  height: 30rem !important;
-  overflow-y: auto !important;
+const StyledBody = styled(Modal.Body)`
+  height: 60vh;
+`;
+
+const StyledHeader = styled(Modal.Header)`
+  height: 6vh;
+`;
+
+const StyledFooter = styled(Modal.Footer)`
+  height: 10vh;
+`;
+
+const StyledDiv = styled.div`
+  height: 56vh;
 `;
 
 function DashboardNotesModal() {
@@ -28,7 +37,6 @@ function DashboardNotesModal() {
   const getLayoutContext = useLayoutContext()[2];
   const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
     useAvailableDashboardContext();
-  const [isEditing, setIsEditing] = useState(false);
   const [showSaveMessage, setShowSaveMessage] = useState(false);
   const [showErrorMessage, setShowErrorMessage] = useState(false);
   const [localNotes, setLocalNotes] = useState(notes);
@@ -40,14 +48,6 @@ function DashboardNotesModal() {
 
   const handleModalClose = () => setShowModal(false);
 
-  function onEditMode() {
-    setIsEditing(true);
-  }
-
-  function onSave() {
-    setIsEditing(false);
-  }
-
   function onNotesChange({ target: { value } }) {
     setLocalNotes(value);
     if (showSaveMessage === true) {
@@ -55,7 +55,7 @@ function DashboardNotesModal() {
     }
   }
 
-  function handleSubmit(event) {
+  function handleSave(event) {
     event.preventDefault();
     setShowSaveMessage(false);
     setShowErrorMessage(false);
@@ -78,26 +78,20 @@ function DashboardNotesModal() {
   return (
     <>
       <Modal
-        dialogClassName={styles.leftDialog}
+        dialogClassName={styles.Dialog}
+        contentClassName={styles.Content}
         show={showModal}
         onHide={handleModalClose}
       >
-        <Modal.Header closeButton>
+        <StyledHeader closeButton>
           <Modal.Title>Notes</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <Form id="dashboardNotes" onSubmit={handleSubmit}>
-            <StyledTextArea
-              value={localNotes}
-              onChange={onNotesChange}
-              onEditMode={onEditMode}
-              onSave={onSave}
-              rows={10}
-              style={{ width: "100%" }}
-            />
-          </Form>
-        </Modal.Body>
-        <Modal.Footer>
+        </StyledHeader>
+        <StyledBody>
+          <StyledDiv>
+            <TextEditor textValue={localNotes} onChange={onNotesChange} />
+          </StyledDiv>
+        </StyledBody>
+        <StyledFooter>
           {showSaveMessage && (
             <Alert key="success" variant="success">
               Changes have been saved.
@@ -111,12 +105,10 @@ function DashboardNotesModal() {
           <Button variant="secondary" onClick={handleModalClose}>
             Close
           </Button>
-          {!isEditing && (
-            <Button variant="success" type="submit" form="dashboardNotes">
-              Save
-            </Button>
-          )}
-        </Modal.Footer>
+          <Button variant="success" onClick={handleSave}>
+            Save
+          </Button>
+        </StyledFooter>
       </Modal>
     </>
   );
