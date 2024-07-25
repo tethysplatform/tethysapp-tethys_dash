@@ -63,6 +63,10 @@ export const CW3EOptions = [
     value: "CW3E AR Landfall",
     label: "CW3E AR Landfall",
   },
+  {
+    value: "HUC 8 QPF Table",
+    label: "HUC 8 QPF Table",
+  },
 ];
 
 export const USACEOptions = [

@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
 import CW3ELandfallPlotOptions from "components/modals/DataViewerComponents/CW3E/LandfallPlotOptions";
+import HUC8QPFPlotOptions from "components/modals/DataViewerComponents/CW3E/HUC8QPFPlotOptions";
 
 function Options({
   selectedVizTypeOption,
@@ -10,6 +11,14 @@ function Options({
   if (selectedVizTypeOption["label"] === "CW3E AR Landfall") {
     return (
       <CW3ELandfallPlotOptions
+        setViz={setViz}
+        setVizMetadata={setVizMetadata}
+        setUpdateCellMessage={setUpdateCellMessage}
+      />
+    );
+  } else if (selectedVizTypeOption["label"] === "HUC 8 QPF Table") {
+    return (
+      <HUC8QPFPlotOptions
         setViz={setViz}
         setVizMetadata={setVizMetadata}
         setUpdateCellMessage={setUpdateCellMessage}
