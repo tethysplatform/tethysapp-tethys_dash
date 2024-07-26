@@ -11,7 +11,7 @@ from .model import (
 )
 from .data.usace import get_usace_data
 from .data.cdec import get_cdec_data
-from .data.cnrfc import get_cnrfc_river_forecast_data
+from .data.cnrfc import get_cnrfc_river_forecast_data, get_impact_statement
 
 
 @controller
@@ -39,6 +39,9 @@ def data(request):
 
         elif request.GET["type"] == "CNRFCRiverForecastPlot":
             data = get_cnrfc_river_forecast_data(metadata["location"])
+
+        elif request.GET["type"] == "ImpactStatement":
+            data = get_impact_statement(metadata["location"])
     except:
         success = False
 

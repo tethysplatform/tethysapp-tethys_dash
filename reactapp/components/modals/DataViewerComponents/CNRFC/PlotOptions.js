@@ -4,6 +4,7 @@ import DataSelect from "components/inputs/DataSelect";
 import BasePlot from "components/visualizations/BasePlot";
 import { CNRFCGauges } from "components/modals/utilities";
 import Image from "components/visualizations/Image";
+import DataTable from "components/visualizations/DataTable";
 import appAPI from "services/api/app";
 import getCNRFCRiverForecastPlotInfo from "components/visualizations/CNRFCRiverForecastPlot";
 import Spinner from "react-bootstrap/Spinner";
@@ -25,7 +26,9 @@ function Options({
   onChange,
   options,
 }) {
-  if (selectedVizTypeOption["value"]["baseURL"] || null) {
+  if (selectedVizTypeOption["value"]["fullURL"] || null) {
+    return null;
+  } else {
     return (
       <DataSelect
         label={label}
@@ -34,8 +37,6 @@ function Options({
         options={options}
       />
     );
-  } else {
-    return null;
   }
 }
 
@@ -74,6 +75,8 @@ function CNRFCPlotOptions({
     setVizMetadata(null);
     if (selectedVizTypeOption["label"] === "River Forecast Plot") {
       getPlot();
+    } else if (selectedVizTypeOption["label"] === "Impact Statements") {
+      getImpactStatements();
     } else {
       getImageURL();
     }
@@ -109,6 +112,36 @@ function CNRFCPlotOptions({
     });
   }
 
+  function getImpactStatements() {
+    setViz(<StyledSpinner animation="border" variant="info" />);
+    const itemData = {
+      type: "ImpactStatement",
+      metadata: {
+        location: selectedLocationOption.current["value"],
+      },
+    };
+    setVizMetadata(itemData);
+    setUpdateCellMessage(
+      "Cell updated to show RFC impact statements at " +
+        selectedLocationOption.current["label"] +
+        "."
+    );
+    appAPI.getPlotData(itemData).then((response) => {
+      if (response.success === true) {
+        setViz(
+          <DataTable
+            data={response.data}
+            title={
+              selectedLocationOption.current["value"] + " Impact Statements"
+            }
+          />
+        );
+      } else {
+        setViz(<StyledH2>Failed to retrieve data</StyledH2>);
+      }
+    });
+  }
+
   function getImageURL() {
     let imageURL;
     if (selectedVizTypeOption["value"]["fullURL"] || null) {
@@ -117,12 +150,9 @@ function CNRFCPlotOptions({
         "Cell updated to show " + selectedVizTypeOption["label"]
       );
     } else {
-      const location = selectedVizTypeOption["value"]["lowercase"]
-        ? selectedLocationOption.current["value"].toLowerCase()
-        : selectedLocationOption.current["value"];
       imageURL =
         selectedVizTypeOption["value"]["baseURL"] +
-        location +
+        selectedLocationOption.current["value"] +
         selectedVizTypeOption["value"]["plotName"];
       setUpdateCellMessage(
         "Cell updated to show " +

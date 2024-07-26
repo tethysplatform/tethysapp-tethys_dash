@@ -5,7 +5,6 @@ export const CNRFCOptions = [
     value: {
       baseURL: CNRFCEnsembleBaseUrl,
       plotName: ".ens_accum10day.png",
-      lowercase: false,
     },
     label: "10-Day Accumulated Volume",
   },
@@ -13,7 +12,6 @@ export const CNRFCOptions = [
     value: {
       baseURL: CNRFCEnsembleBaseUrl,
       plotName: ".ens_boxwhisker.png",
-      lowercase: false,
     },
     label: "10-Day Maximum Flow Probability",
   },
@@ -21,7 +19,6 @@ export const CNRFCOptions = [
     value: {
       baseURL: CNRFCEnsembleBaseUrl,
       plotName: ".ens_10day.png",
-      lowercase: false,
     },
     label: "Daily Maximum Flow Probability",
   },
@@ -29,7 +26,6 @@ export const CNRFCOptions = [
     value: {
       baseURL: CNRFCEnsembleBaseUrl,
       plotName: ".ens_monthly.png",
-      lowercase: false,
     },
     label: "Monthly Volume Exceedance",
   },
@@ -37,7 +33,6 @@ export const CNRFCOptions = [
     value: {
       baseURL: CNRFCEnsembleBaseUrl,
       plotName: ".ens_4x5day.png",
-      lowercase: false,
     },
     label: "5 Day Volume Exceedance Levels",
   },
@@ -45,9 +40,12 @@ export const CNRFCOptions = [
     value: {
       baseURL: CDECGuidancePlotBaseUrl,
       plotName: "_rvf.png",
-      lowercase: true,
     },
     label: "River Forecast Plot",
+  },
+  {
+    value: "Impact Statements",
+    label: "Impact Statements",
   },
   {
     value: {

@@ -192,3 +192,13 @@ def get_title(charting_data):
     sub_title_text = re.findall(r"(<b>Forecast Posted:</b> .*) <b>", sub_title_text)[0]
 
     return main_title_text + "<br>River Forecast Plot<br>" + sub_title_text
+
+
+def get_impact_statement(location):
+    metadata = get_nwps_location_metadata(location)
+    return metadata['flood'].get('impacts', {})
+
+def get_nwps_location_metadata(location):
+    response = requests.get(f"https://api.water.noaa.gov/nwps/v1/gauges/{location}")
+    return response.json()
+    

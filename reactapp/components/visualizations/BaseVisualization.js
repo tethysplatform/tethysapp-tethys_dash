@@ -10,6 +10,7 @@ import getUSACEPlotInfo from "components/visualizations/USACEPlot";
 import getCNRFCRiverForecastPlotInfo from "components/visualizations/CNRFCRiverForecastPlot";
 import Image from "components/visualizations/Image";
 import Text from "components/visualizations/Text";
+import DataTable from "components/visualizations/DataTable";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -39,6 +40,9 @@ const BaseVisualization = ({
       getPlotData(itemData);
     } else if (type.includes("Text")) {
       setViz(<Text textValue={metadata["text"]} />);
+    } else if (type.includes("ImpactStatement")) {
+      setViz(<StyledSpinner animation="border" variant="info" />);
+      getTableData(itemData);
     }
     // eslint-disable-next-line
   }, [itemData]);
@@ -67,6 +71,21 @@ const BaseVisualization = ({
             plotData={plotData}
             rowHeight={rowHeight}
             colWidth={colWidth}
+          />
+        );
+      } else {
+        setViz(<StyledH2>Failed to retrieve data</StyledH2>);
+      }
+    });
+  }
+
+  function getTableData() {
+    appAPI.getPlotData(itemData).then((response) => {
+      if (response.success === true) {
+        setViz(
+          <DataTable
+            data={response.data}
+            title={metadata["location"] + " Impact Statements"}
           />
         );
       } else {

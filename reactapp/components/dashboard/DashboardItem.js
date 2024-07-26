@@ -61,6 +61,18 @@ const StyledAbsDiv = styled.div`
   margin-right: ${(props) => props.$x === "right" && ".5rem"};
 `;
 
+function UpdateMessage({ showUpdateMessage, updateMessage }) {
+  if (showUpdateMessage) {
+    return (
+      <StyledAlert key="success" variant="success" dismissible={true}>
+        {updateMessage}
+      </StyledAlert>
+    );
+  } else {
+    return null;
+  }
+}
+
 const DashboardItem = ({ type, metadata }) => {
   const isEditing = useEditingContext()[0];
   const [rowNumber, rowID, height, setHeight] = useRowInfoContext();
@@ -170,11 +182,10 @@ const DashboardItem = ({ type, metadata }) => {
   return (
     <>
       <StyledContainer fluid className="h-100">
-        {showUpdateMessage && (
-          <StyledAlert key="success" variant="success" dismissible={true}>
-            {updateMessage}
-          </StyledAlert>
-        )}
+        <UpdateMessage
+          showUpdateMessage={showUpdateMessage}
+          updateMessage={updateMessage}
+        />
         <StyledButtonDiv>
           {!["", "Text"].includes(type) && (
             <DashboardItemButton
