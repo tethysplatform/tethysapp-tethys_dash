@@ -24,7 +24,6 @@ export default function getCNRFCHEFSPlotInfo(data, location) {
       },
       text: series.text,
       hovertemplate: "%{text} <extra></extra>",
-      legendgroup: "1",
     });
   }
   for (const seriesName in data.hefs_series) {
@@ -81,7 +80,6 @@ export default function getCNRFCHEFSPlotInfo(data, location) {
         showlegend: series.title === "Ensemble Mean" && true,
         text: series.text,
         hovertemplate: "%{text} <extra></extra>",
-        legendgroup: "1",
       });
     }
   }
@@ -148,7 +146,7 @@ export default function getCNRFCHEFSPlotInfo(data, location) {
       },
     },
     yaxis: {
-      range: [data.range_ymin * 0.95, data.range_ymax * 1.05],
+      range: [data.range_ymin * 0.99, data.range_ymax * 1.01],
       type: "linear",
       title: {
         text: "<b>Stage (Feet)</b>",
@@ -177,6 +175,7 @@ export default function getCNRFCHEFSPlotInfo(data, location) {
     ],
     shapes: shapes,
     annotations: annotations,
+    legend: { tracegroupgap: 0 },
   };
 
   const configOptions = {

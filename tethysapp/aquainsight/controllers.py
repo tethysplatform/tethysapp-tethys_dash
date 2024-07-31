@@ -45,7 +45,9 @@ def data(request):
 
         elif request.GET["type"] == "ImpactStatement":
             data = get_impact_statement(metadata["location"])
-    except:
+    except Exception as e:
+        print("Failed to retrieve data")
+        print(e)
         success = False
 
     return JsonResponse({"success": success, "data": data})
