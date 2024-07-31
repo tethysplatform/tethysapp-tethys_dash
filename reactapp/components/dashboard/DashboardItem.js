@@ -226,7 +226,7 @@ const DashboardItem = ({ type, metadata }) => {
               <Form.Control
                 required
                 type="number"
-                min="10"
+                min="5"
                 max="100"
                 onChange={onRowHeightInput}
                 value={height}

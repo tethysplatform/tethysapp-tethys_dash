@@ -1,25 +1,8 @@
-export default function getCNRFCRiverForecastPlotInfo(data) {
+export default function getCNRFCHEFSPlotInfo(data, location) {
   let traces = [];
   let plot_color;
 
-  for (let series of data.forcing_series) {
-    plot_color = series.title.includes("Observed")
-      ? "rgb(25, 25, 255)"
-      : "rgb(25, 255, 0)";
-
-    traces.push({
-      type: "bar",
-      name: series.title,
-      x: series.x,
-      y: series.y,
-      yaxis: "y3",
-      fillcolor: plot_color,
-      showlegend: false,
-      hovertemplate:
-        "<i>" + series.title + "</i>: %{y:.2f} inches <extra></extra>",
-    });
-  }
-  for (let series of data.hydro_series) {
+  for (let series of data.deterministic_series) {
     plot_color = series.title.includes("Raw")
       ? "rgb(52, 225, 235)"
       : series.title.includes("Simulated")
@@ -31,16 +14,76 @@ export default function getCNRFCRiverForecastPlotInfo(data) {
     traces.push({
       type: "scatter",
       mode: "lines",
-      name: series.title,
+      name: series.title.includes("Observed")
+        ? series.title
+        : "Deterministic " + series.title,
       x: series.x,
       y: series.y,
-      yaxis: "y",
       line: {
         color: plot_color,
       },
       text: series.text,
       hovertemplate: "%{text} <extra></extra>",
+      legendgroup: "1",
     });
+  }
+  for (const seriesName in data.hefs_series) {
+    const series = data.hefs_series[seriesName];
+    if (seriesName === "ensembles") {
+      for (let ensemble of series) {
+        traces.push({
+          type: "scatter",
+          mode: "lines",
+          name: "Ensembles",
+          x: ensemble.x,
+          y: ensemble.y,
+          line: {
+            color: "gray",
+          },
+          legendgroup: "1",
+          showlegend: ensemble.title === "Ensemble 1" ? true : false,
+          hoverinfo: "none",
+          visible: "legendonly",
+        });
+      }
+    } else if (seriesName === "hourly_probabilities") {
+      for (let prob of series) {
+        traces.push({
+          type: "scatter",
+          mode: "lines",
+          fill: "toself",
+          fillcolor: prob.color,
+          name: prob.title,
+          x: prob.x,
+          y: prob.y,
+          line: {
+            width: 0,
+          },
+          legendgroup: "2",
+          hoverinfo: "none",
+          showlegend: prob.showlegend,
+          legendgrouptitle: series.title !== "Ensemble Mean" && {
+            text: "<b>Hourly Probabilities</b>",
+          },
+        });
+      }
+    } else {
+      traces.push({
+        type: "scatter",
+        mode: "lines",
+        name: series.title,
+        x: series.x,
+        y: series.y,
+        line: {
+          color: series.title === "Ensemble Mean" && "green",
+          width: series.title !== "Ensemble Mean" && 0,
+        },
+        showlegend: series.title === "Ensemble Mean" && true,
+        text: series.text,
+        hovertemplate: "%{text} <extra></extra>",
+        legendgroup: "1",
+      });
+    }
   }
 
   const shapes = [];
@@ -85,61 +128,32 @@ export default function getCNRFCRiverForecastPlotInfo(data) {
     title: {
       text: data.title,
       font: {
-        size: 12,
+        size: 15,
       },
     },
     responsive: true,
     useResizeHandler: true,
     autosize: true,
     xaxis: {
+      range: [data.range_xmin, data.range_xmax],
       type: "date",
       tickformat: "%a<br>%b %d<br>%-I%p",
-      tickvals: data.dateticks,
       linecolor: "lightgray",
       showgrid: true,
       showline: true,
       mirror: true,
-      tickfont: {
-        size: 8,
-      },
+      nticks: 10,
       title: {
         text: "<b>Observation / Forecast Time (UTC)</b>",
-        font: {
-          size: 10,
-        },
       },
     },
     yaxis: {
-      range: [data.hydro_range_ymin * 0.95, data.hydro_range_ymax * 1.05],
+      range: [data.range_ymin * 0.95, data.range_ymax * 1.05],
       type: "linear",
-      domain: [0, 0.7],
       title: {
         text: "<b>Stage (Feet)</b>",
-        font: {
-          size: 10,
-        },
-      },
-      tickfont: {
-        size: 8,
       },
       nticks: 10,
-      linecolor: "lightgray",
-      showgrid: true,
-      showline: true,
-      mirror: true,
-    },
-    yaxis3: {
-      range: [data.forcing_ymin, data.forcing_ymax],
-      domain: [0.8, 1],
-      title: {
-        text: "<b>Rain + Melt (in.)</b>",
-        font: {
-          size: 10,
-        },
-      },
-      tickfont: {
-        size: 8,
-      },
       linecolor: "lightgray",
       showgrid: true,
       showline: true,
@@ -163,13 +177,6 @@ export default function getCNRFCRiverForecastPlotInfo(data) {
     ],
     shapes: shapes,
     annotations: annotations,
-    legend: {
-      yref: "container",
-      yanchor: "top",
-      xanchor: "center",
-      x: 0.5,
-      orientation: "h",
-    },
   };
 
   const configOptions = {

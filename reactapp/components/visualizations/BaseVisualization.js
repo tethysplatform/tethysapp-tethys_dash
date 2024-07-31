@@ -8,6 +8,7 @@ import BasePlot from "components/visualizations/BasePlot";
 import getCDECPlotInfo from "components/visualizations/CDECPlot";
 import getUSACEPlotInfo from "components/visualizations/USACEPlot";
 import getCNRFCRiverForecastPlotInfo from "components/visualizations/CNRFCRiverForecastPlot";
+import getCNRFCHEFSPlotInfo from "components/visualizations/CNRFCHEFSPlot";
 import Image from "components/visualizations/Image";
 import Text from "components/visualizations/Text";
 import DataTable from "components/visualizations/DataTable";
@@ -57,6 +58,8 @@ const BaseVisualization = ({
           plotInfo = getUSACEPlotInfo(response.data);
         } else if (itemData["type"] === "CNRFCRiverForecastPlot") {
           plotInfo = getCNRFCRiverForecastPlotInfo(response.data);
+        } else if (itemData["type"] === "CNRFCHEFSPlot") {
+          plotInfo = getCNRFCHEFSPlotInfo(response.data);
         } else {
           throw new Error("Plot type is not configured");
         }

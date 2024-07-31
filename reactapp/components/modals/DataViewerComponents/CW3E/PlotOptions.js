@@ -8,7 +8,7 @@ function Options({
   setVizMetadata,
   setUpdateCellMessage,
 }) {
-  if (selectedVizTypeOption["label"] === "CW3E AR Landfall") {
+  if (selectedVizTypeOption["label"] === "AR Landfall") {
     return (
       <CW3ELandfallPlotOptions
         setViz={setViz}
@@ -16,12 +16,13 @@ function Options({
         setUpdateCellMessage={setUpdateCellMessage}
       />
     );
-  } else if (selectedVizTypeOption["label"] === "HUC 8 QPF Table") {
+  } else if (selectedVizTypeOption["label"].includes("QPF")) {
     return (
       <HUC8QPFPlotOptions
         setViz={setViz}
         setVizMetadata={setVizMetadata}
         setUpdateCellMessage={setUpdateCellMessage}
+        selectedVizTypeOption={selectedVizTypeOption}
       />
     );
   } else {

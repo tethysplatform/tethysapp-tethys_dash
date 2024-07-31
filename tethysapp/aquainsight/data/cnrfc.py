@@ -4,6 +4,7 @@ import re
 from datetime import datetime, timedelta
 from .utilities import interpolate_flow_from_rating_curve
 from bs4 import BeautifulSoup
+import pandas as pd
 
 
 def get_cnrfc_river_forecast_data(location):
@@ -46,6 +47,193 @@ def get_cnrfc_river_forecast_data(location):
         "title": chart_title,
         "dateticks": dateticks,
     }
+
+def get_cnrfc_hefs_data(location, location_proper_name):
+    hefs_series = get_hefs_data(location)
+    
+    hefs_metadata = get_hefs_metadata(location)
+
+    print(f"Getting river forecast plot data for {location}")
+    river_forecast_plot_web = (
+        f"https://www.cnrfc.noaa.gov/graphicalRVF_printer.php?id={location}&scale=1"
+    )
+    response = requests.get(river_forecast_plot_web)
+
+    print(f"-> Parsing series data")
+    (
+        deterministic_dates,
+        deterministic_series,
+        deterministic_range_ymin,
+        deterministic_range_ymax,
+        observed_forecast_split_dt,
+    ) = get_hydro_data(response.text)
+
+    hydro_thresholds = get_hydro_thresholds(location, response.text)
+
+    chart_title = f"Hourly River Level Probabilities<br>{location_proper_name}<br><b>Issuance Time</b>: {hefs_metadata["issuance_time"]}"
+
+    deterministic_dates.sort()
+    hefs_last_date = hefs_series['mean']['x'][-1]
+    
+    dateticks = pd.date_range(deterministic_dates[0], hefs_series['mean']['x'][-1], 10)
+    dateticks = [datetick.strftime("%Y-%m-%dT%H") for datetick in dateticks]
+
+    return {
+        "hefs_series": hefs_series,
+        "range_ymin": min(deterministic_range_ymin, min(hefs_series['min']['y'])),
+        "range_ymax": max(deterministic_range_ymax, max(hefs_series['max']['y'])),
+        "range_xmin": deterministic_dates[0],
+        "range_xmax": hefs_series['mean']['x'][239],
+        "deterministic_series": deterministic_series,
+        "hydro_thresholds": hydro_thresholds,
+        "observed_forecast_split_dt": observed_forecast_split_dt,
+        "title": chart_title,
+        "dateticks": dateticks,
+    }
+
+
+def get_hefs_data(location):
+    print(f"Getting HEFS plot data for {location}")
+    hefs_csv_url = (
+        f"https://www.cnrfc.noaa.gov/csv/{location}_hefs_csv_hourly_sstg.csv"
+    )
+    df = pd.read_csv(hefs_csv_url)
+    df = df.drop(0)
+    df = df.set_index("GMT")
+    df = df.astype(float)
+    ens_columns = [f"Ensemble {i}" for i in range(len(df.columns))]
+    df.columns = ens_columns
+    df_stats = df.T.quantile([0, .05, .25, .4, .6, .75, .95, 1]).T
+    df_stats['mean'] = df.T.mean()
+    df = df.merge(df_stats, how="left", left_index=True, right_index=True)
+    dates = df.index.tolist()
+
+    ensemble_series = []
+    for ens in ens_columns:
+        ensemble_series.append({
+            "title": ens,
+            "x": dates,
+            "y": df[ens].tolist()
+        })
+    hefs_series = {
+        "ensembles": ensemble_series,
+        "mean": {
+            "title": "Ensemble Mean",
+            "x": dates,
+            "y": df["mean"].tolist(),
+            "text": [f"<i>Mean</i>: {round(value, 2)} feet" for value in df["mean"].tolist()]
+        },
+        "min": {
+            "title": "Minimum",
+            "x": dates,
+            "y": df[0].tolist(),
+            "text": [f"<i>Minimum</i>: {round(value, 2)} feet" for value in df[0].tolist()]
+        },
+        "max": {
+            "title": "Maximum",
+            "x": dates,
+            "y": df[1].tolist(),
+            "text": [f"<i>Maximum</i>: {round(value, 2)} feet" for value in df[1].tolist()]
+        },
+        "5%": {
+            "title": "5% Percentile",
+            "x": dates,
+            "y": df[.05].tolist(),
+            "text": [f"<i>5%</i>: {round(value, 2)} feet" for value in df[.05].tolist()]
+        },
+        "25%": {
+            "title": "25% Percentile",
+            "x": dates,
+            "y": df[.25].tolist(),
+            "text": [f"<i>25%</i>: {round(value, 2)} feet" for value in df[.25].tolist()]
+        },
+        "40%": {
+            "title": "40% Percentile",
+            "x": dates,
+            "y": df[.4].tolist(),
+            "text": [f"<i>40%</i>: {round(value, 2)} feet" for value in df[.4].tolist()]
+        },
+        "60%": {
+            "title": "60% Percentile",
+            "x": dates,
+            "y": df[.6].tolist(),
+            "text": [f"<i>60%</i>: {round(value, 2)} feet" for value in df[.6].tolist()]
+        },
+        "75%": {
+            "title": "75% Percentile",
+            "x": dates,
+            "y": df[.75].tolist(),
+            "text": [f"<i>75%</i>: {round(value, 2)} feet" for value in df[.75].tolist()]
+        },
+        "95%": {
+            "title": "95% Percentile",
+            "x": dates,
+            "y": df[.95].tolist(),
+            "text": [f"<i>95%</i>: {round(value, 2)} feet" for value in df[.95].tolist()]
+        },
+        "hourly_probabilities": [{
+            "title": "0-5% chance",
+            "x": dates + dates[::-1],
+            "y": pd.concat([df[.05], df[0][::-1]]).tolist(),
+            "color": "lightgray",
+            "showlegend": True
+        },{
+            "title": "0-5% chance",
+            "x": dates + dates[::-1],
+            "y": pd.concat([df[1], df[.95][::-1]]).tolist(),
+            "color": "lightgray",
+            "showlegend": False
+        },{
+            "title": "5-25% chance",
+            "x": dates + dates[::-1],
+            "y": pd.concat([df[.95], df[.75][::-1]]).tolist(),
+            "color": "#B6BEFC",
+            "showlegend": True
+        },{
+            "title": "5-25% chance",
+            "x": dates + dates[::-1],
+            "y": pd.concat([df[.25], df[.05][::-1]]).tolist(),
+            "color": "#B6BEFC",
+            "showlegend": False
+        },{
+            "title": "25-40% chance",
+            "x": dates + dates[::-1],
+            "y": pd.concat([df[.75], df[.6][::-1]]).tolist(),
+            "color": "#FBFBCF",
+            "showlegend": True
+        },{
+            "title": "25-40% chance",
+            "x": dates + dates[::-1],
+            "y": pd.concat([df[.4], df[.25][::-1]]).tolist(),
+            "color": "#FBFBCF",
+            "showlegend": False
+        },{
+            "title": "40-60% chance",
+            "x": dates + dates[::-1],
+            "y": pd.concat([df[.6], df[.4][::-1]]).tolist(),
+            "color": "#F7EBA7",
+            "showlegend": True
+        }],
+        
+    }
+
+    return hefs_series
+
+def get_hefs_metadata(location):
+    print(f"Getting HEFS metadata for {location}")
+    hefs_plot_web = (
+        f"https://www.cnrfc.noaa.gov/ensembleProduct.php?id={location}"
+    )
+    response = requests.get(hefs_plot_web)
+    issuance_time_tag = re.findall(r"(Issuance Time: .*?<\/tr>)", response.text)[0]
+    issuance_time_tag = issuance_time_tag.split("</td>", 1)[1]
+    soup = BeautifulSoup(issuance_time_tag, "html.parser")
+    issuance_time = soup.td.contents[0]
+    
+    return {
+        "issuance_time": issuance_time
+    }
+    
 
 
 def get_hydro_data(charting_data):
