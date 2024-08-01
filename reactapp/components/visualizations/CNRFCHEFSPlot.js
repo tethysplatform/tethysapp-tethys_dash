@@ -1,31 +1,6 @@
 export default function getCNRFCHEFSPlotInfo(data, location) {
   let traces = [];
   let plot_color;
-
-  for (let series of data.deterministic_series) {
-    plot_color = series.title.includes("Raw")
-      ? "rgb(52, 225, 235)"
-      : series.title.includes("Simulated")
-        ? "rgb(0, 0, 255)"
-        : series.title.includes("Forecast")
-          ? "rgb(25, 255, 0)"
-          : "rgb(255, 102, 255)";
-
-    traces.push({
-      type: "scatter",
-      mode: "lines",
-      name: series.title.includes("Observed")
-        ? series.title
-        : "Deterministic " + series.title,
-      x: series.x,
-      y: series.y,
-      line: {
-        color: plot_color,
-      },
-      text: series.text,
-      hovertemplate: "%{text} <extra></extra>",
-    });
-  }
   for (const seriesName in data.hefs_series) {
     const series = data.hefs_series[seriesName];
     if (seriesName === "ensembles") {
@@ -61,9 +36,10 @@ export default function getCNRFCHEFSPlotInfo(data, location) {
           legendgroup: "2",
           hoverinfo: "none",
           showlegend: prob.showlegend,
-          legendgrouptitle: series.title !== "Ensemble Mean" && {
+          legendgrouptitle: {
             text: "<b>Hourly Probabilities</b>",
           },
+          legendrank: 1001,
         });
       }
     } else {
@@ -82,6 +58,32 @@ export default function getCNRFCHEFSPlotInfo(data, location) {
         hovertemplate: "%{text} <extra></extra>",
       });
     }
+  }
+
+  for (let series of data.deterministic_series) {
+    plot_color = series.title.includes("Raw")
+      ? "rgb(52, 225, 235)"
+      : series.title.includes("Simulated")
+        ? "rgb(0, 0, 255)"
+        : series.title.includes("Forecast")
+          ? "rgb(25, 255, 0)"
+          : "rgb(255, 102, 255)";
+
+    traces.push({
+      type: "scatter",
+      mode: "lines",
+      name: series.title.includes("Observed")
+        ? series.title
+        : "Deterministic " + series.title,
+      x: series.x,
+      y: series.y,
+      line: {
+        color: plot_color,
+      },
+      text: series.text,
+      hovertemplate: "%{text} <extra></extra>",
+      legendrank: 999,
+    });
   }
 
   const shapes = [];

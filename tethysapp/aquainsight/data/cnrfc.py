@@ -142,12 +142,6 @@ def get_hefs_data(location, rating_curve_flows, rating_curve_stages):
         })
     hefs_series = {
         "ensembles": ensemble_series,
-        "mean": {
-            "title": "Ensemble Mean",
-            "x": dates,
-            "y": df_stage["mean"].tolist(),
-            "text": [f"<i>Mean</i>: {round(df_stage.loc[i, "mean"], 2)} feet ({round(df_flow.loc[i, "mean"], 2)} cfs)" for i in range(len(dates))]
-        },
         "min": {
             "title": "Minimum",
             "x": dates,
@@ -239,6 +233,12 @@ def get_hefs_data(location, rating_curve_flows, rating_curve_stages):
             "color": "#F7EBA7",
             "showlegend": True
         }],
+        "mean": {
+            "title": "Ensemble Mean",
+            "x": dates,
+            "y": df_stage["mean"].tolist(),
+            "text": [f"<i>Mean</i>: {round(df_stage.loc[i, "mean"], 2)} feet ({round(df_flow.loc[i, "mean"], 2)} cfs)" for i in range(len(dates))]
+        }
         
     }
 
