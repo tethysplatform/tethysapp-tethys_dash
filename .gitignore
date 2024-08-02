@@ -12,3 +12,4 @@ services.yml
 node_modules*
 tethysapp/aquainsight/workspaces/
 reactapp/config/production.env
+test.py
