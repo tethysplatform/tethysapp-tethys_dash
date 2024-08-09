@@ -79,7 +79,6 @@ const DashboardItem = ({ type, metadata }) => {
   const [colNumber, colID, width, setWidth] = useColInfoContext();
   const setWarningMessage = useLayoutWarningAlertContext()[1];
   const setShowWarningMessage = useLayoutWarningAlertContext()[3];
-  const itemData = { type: type, metadata: metadata };
   const [rowData, setRowData] = useLayoutRowDataContext();
   const [maxWidth, setMaxWidth] = useState(
     (12 - (rowData[rowNumber]["columns"].length - 1)).toString()
@@ -213,7 +212,8 @@ const DashboardItem = ({ type, metadata }) => {
             <BaseVisualization
               rowHeight={height}
               colWidth={width}
-              itemData={itemData}
+              type={type}
+              metadataString={JSON.stringify(metadata)}
               showFullscreen={showFullscreen}
               hideFullscreen={hideFullscreen}
             />

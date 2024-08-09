@@ -25,15 +25,17 @@ const StyledH2 = styled.h2`
 const BaseVisualization = ({
   rowHeight,
   colWidth,
-  itemData,
+  type,
+  metadataString,
   showFullscreen,
   hideFullscreen,
 }) => {
   const [viz, setViz] = useState(null);
-  const type = itemData["type"];
-  const metadata = itemData["metadata"];
+  const metadata = JSON.parse(metadataString);
+  const itemData = { type: type, metadata: metadata };
 
   useEffect(() => {
+    console.log(metadataString);
     if (type === "Image") {
       setViz(<Image source={metadata["uri"]} />);
     } else if (type.includes("Plot")) {
@@ -46,7 +48,7 @@ const BaseVisualization = ({
       getTableData(itemData);
     }
     // eslint-disable-next-line
-  }, [itemData]);
+  }, [type, metadataString]);
 
   function getPlotData() {
     appAPI.getPlotData(itemData).then((response) => {
