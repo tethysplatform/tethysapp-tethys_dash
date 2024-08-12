@@ -88,7 +88,11 @@ function DashboardNotesModal() {
         </StyledHeader>
         <StyledBody>
           <StyledDiv>
-            <TextEditor textValue={localNotes} onChange={onNotesChange} />
+            {getLayoutContext()["editable"] ? (
+              <TextEditor textValue={localNotes} onChange={onNotesChange} />
+            ) : (
+              localNotes
+            )}
           </StyledDiv>
         </StyledBody>
         <StyledFooter>
@@ -105,9 +109,11 @@ function DashboardNotesModal() {
           <Button variant="secondary" onClick={handleModalClose}>
             Close
           </Button>
-          <Button variant="success" onClick={handleSave}>
-            Save
-          </Button>
+          {getLayoutContext()["editable"] && (
+            <Button variant="success" onClick={handleSave}>
+              Save
+            </Button>
+          )}
         </StyledFooter>
       </Modal>
     </>

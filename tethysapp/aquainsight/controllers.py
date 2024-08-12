@@ -56,7 +56,8 @@ def data(request):
 @controller
 def dashboards(request):
     """API controller for the dashboards page."""
-    dashboards = get_dashboards()
+    user = str(request.user)
+    dashboards = get_dashboards(user)
 
     return JsonResponse(dashboards)
 
@@ -69,14 +70,15 @@ def add_dashboard(request):
     dashboard_metadata = json.loads(request.body)
     name = dashboard_metadata["name"]
     label = dashboard_metadata["label"]
-    image = dashboard_metadata["image"]
     notes = dashboard_metadata["notes"]
     row_data = dashboard_metadata["rowData"]
+    owner = str(request.user)
+    access_groups = []
     print(f"Creating a dashboard named {label}")
 
     try:
-        add_new_dashboard(label, name, image, notes, row_data)
-        new_dashboard = get_dashboards(name=name)[name]
+        add_new_dashboard(label, name, notes, row_data, owner, access_groups)
+        new_dashboard = get_dashboards(owner, name=name)[name]
         print(f"Successfully created the dashboard named {name}")
 
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})
@@ -94,9 +96,10 @@ def delete_dashboard(request):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
     name = dashboard_metadata["name"]
+    user = str(request.user)
 
     try:
-        delete_named_dashboard(name)
+        delete_named_dashboard(user, name)
         print(f"Successfully deleted the dashboard named {name}")
 
         return JsonResponse({"success": True})
@@ -115,13 +118,14 @@ def update_dashboard(request):
     dashboard_metadata = json.loads(request.body)
     name = dashboard_metadata["name"]
     label = dashboard_metadata["label"]
-    image = dashboard_metadata["image"]
     notes = dashboard_metadata["notes"]
     row_data = dashboard_metadata["rowData"]
+    access_groups = dashboard_metadata["access_groups"]
+    user = str(request.user)
 
     try:
-        update_named_dashboard(name, label, image, notes, row_data)
-        updated_dashboard = get_dashboards(name=name)[name]
+        update_named_dashboard(user, name, label, notes, row_data, access_groups)
+        updated_dashboard = get_dashboards(user, name=name)[name]
         print(f"Successfully updated the dashboard named {name}")
 
         return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})

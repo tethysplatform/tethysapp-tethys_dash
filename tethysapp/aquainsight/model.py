@@ -1,5 +1,5 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ARRAY, ForeignKey
 from sqlalchemy.orm import relationship
 import json
 import nh3
@@ -20,8 +20,9 @@ class Dashboard(Base):
     id = Column(Integer, primary_key=True)
     label = Column(String)
     name = Column(String)
-    image = Column(String)
     notes = Column(String)
+    owner = Column(String)
+    access_groups = Column(ARRAY(String))
     rows = relationship("Row", order_by="Row.row_order.asc()", cascade="delete")
 
 
@@ -58,7 +59,7 @@ class Column(Base):
     data_metadata = Column(String)
 
 
-def add_new_dashboard(label, name, image, notes, row_data):
+def add_new_dashboard(label, name, notes, row_data, owner, access_groups):
     """
     Persist new dam.
     """
@@ -66,7 +67,7 @@ def add_new_dashboard(label, name, image, notes, row_data):
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
-    new_dashboard = Dashboard(label=label, name=name, image=image, notes=notes)
+    new_dashboard = Dashboard(label=label, name=name, notes=notes, owner=owner, access_groups=access_groups)
 
     session.add(new_dashboard)
     dashboard_id = session.query(Dashboard).filter(Dashboard.name == name).first().id
@@ -84,24 +85,6 @@ def add_new_dashboard(label, name, image, notes, row_data):
                 column["type"],
                 json.dumps(column["metadata"]),
             )
-
-    # [
-    # {
-    # "height":50,"columns":[
-    # {"width":12,"type":"USACEPlot","metadata":{"location":"coy","year":"2024"}}
-    # ]
-    # },{
-    # "height":50,"columns":[
-    # {"width":4,"type":"Image","metadata":{"uri":"https://cw3e.ucsd.edu/Projects/QPF/images/HUC8/table_18010110.png"}},
-    # {"width":8,"type":"CDECPlot","metadata":{"station":"dlv","start":"2024-06-01"}}
-    # ]
-    # },{
-    # "height":25,"columns":[
-    # {"width":6,"type":"","metadata":{}},
-    # {"width":6,"type":"","metadata":{}}
-    # ]
-    # }
-    # ]
 
     # Commit the session and close the connection
     session.commit()
@@ -146,7 +129,7 @@ def delete_column(session, col_id):
     return
 
 
-def delete_named_dashboard(name):
+def delete_named_dashboard(user, name):
     """
     Persist new dam.
     """
@@ -154,15 +137,20 @@ def delete_named_dashboard(name):
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
-    db_dashboard = session.query(Dashboard).filter(Dashboard.name == name).first()
-    session.delete(db_dashboard)
+    try:
+        db_dashboard = session.query(Dashboard).filter(Dashboard.name == name).first()
+        if db_dashboard.owner != user:
+            raise Exception("Dashboards can only be deleted by their owner")
 
-    # Commit the session and close the connection
-    session.commit()
-    session.close()
+        session.delete(db_dashboard)
+
+        # Commit the session and close the connection
+        session.commit()
+    finally:
+        session.close()
 
 
-def update_named_dashboard(name, label, image, notes, row_data):
+def update_named_dashboard(user, name, label, notes, row_data, access_groups):
     """
     Persist new dam.
     """
@@ -170,61 +158,66 @@ def update_named_dashboard(name, label, image, notes, row_data):
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
-    db_dashboard = session.query(Dashboard).filter(Dashboard.name == name).first()
-    db_dashboard.label = label
-    db_dashboard.image = image
-    db_dashboard.notes = notes
-    row_data = json.loads(row_data) if isinstance(row_data, str) else row_data
+    try:
+        db_dashboard = session.query(Dashboard).filter(Dashboard.name == name).first()
+        if db_dashboard.owner != user:
+            raise Exception("Dashboards can only be updated by their owner")
+        
+        db_dashboard.label = label
+        db_dashboard.notes = notes
+        row_data = json.loads(row_data) if isinstance(row_data, str) else row_data
+        db_dashboard.access_groups = access_groups
 
-    existing_db_row_ids = [row.id for row in db_dashboard.rows]
-    new_row_ids = [int(row["id"]) for row in row_data if row.get("id")]
-    rows_to_delete = [id for id in existing_db_row_ids if id not in new_row_ids]
-    for row_id in rows_to_delete:
-        delete_row(session, row_id)
+        existing_db_row_ids = [row.id for row in db_dashboard.rows]
+        new_row_ids = [int(row["id"]) for row in row_data if row.get("id")]
+        rows_to_delete = [id for id in existing_db_row_ids if id not in new_row_ids]
+        for row_id in rows_to_delete:
+            delete_row(session, row_id)
 
-    for row in row_data:
-        row_id = row.get("id")
-        row_height = int(row["height"])
-        row_order = int(row["order"])
-        if not row_id:
-            db_row = add_new_row(session, db_dashboard.id, row_order, row_height)
-        else:
-            db_row = session.query(Row).filter(Row.id == row_id).first()
-            db_row.height = row_height
-            db_row.row_order = row_order
-
-        existing_db_col_ids = [col.id for col in db_row.columns]
-        new_col_ids = [int(col["id"]) for col in row["columns"] if col.get("id")]
-        cols_to_delete = [id for id in existing_db_col_ids if id not in new_col_ids]
-        for col_id in cols_to_delete:
-            delete_column(session, col_id)
-
-        for col in row["columns"]:
-            col_id = col.get("id")
-            col_width = int(col["width"])
-            col_order = int(col["order"])
-            col_type = col["type"]
-            if col_type == "Text":
-                col["metadata"]['text'] = nh3.clean(col["metadata"]['text'])
-
-            col_metadata = json.dumps(col["metadata"])
-            if not col_id:
-                db_col = add_new_column(
-                    session, db_row.id, col_order, col_width, col_type, col_metadata
-                )
+        for row in row_data:
+            row_id = row.get("id")
+            row_height = int(row["height"])
+            row_order = int(row["order"])
+            if not row_id:
+                db_row = add_new_row(session, db_dashboard.id, row_order, row_height)
             else:
-                db_col = session.query(Column).filter(Column.id == col_id).first()
-                db_col.width = col_width
-                db_col.col_order = col_order
-                db_col.data_type = col_type
-                db_col.data_metadata = col_metadata
+                db_row = session.query(Row).filter(Row.id == row_id).first()
+                db_row.height = row_height
+                db_row.row_order = row_order
 
-    # Commit the session and close the connection
-    session.commit()
-    session.close()
+            existing_db_col_ids = [col.id for col in db_row.columns]
+            new_col_ids = [int(col["id"]) for col in row["columns"] if col.get("id")]
+            cols_to_delete = [id for id in existing_db_col_ids if id not in new_col_ids]
+            for col_id in cols_to_delete:
+                delete_column(session, col_id)
+
+            for col in row["columns"]:
+                col_id = col.get("id")
+                col_width = int(col["width"])
+                col_order = int(col["order"])
+                col_type = col["type"]
+                if col_type == "Text":
+                    col["metadata"]['text'] = nh3.clean(col["metadata"]['text'])
+
+                col_metadata = json.dumps(col["metadata"])
+                if not col_id:
+                    db_col = add_new_column(
+                        session, db_row.id, col_order, col_width, col_type, col_metadata
+                    )
+                else:
+                    db_col = session.query(Column).filter(Column.id == col_id).first()
+                    db_col.width = col_width
+                    db_col.col_order = col_order
+                    db_col.data_type = col_type
+                    db_col.data_metadata = col_metadata
+
+        # Commit the session and close the connection
+        session.commit()
+    finally:
+        session.close()
 
 
-def get_dashboards(name=None):
+def get_dashboards(user, name=None):
     """
     Get all persisted dashboards.
     """
@@ -233,19 +226,21 @@ def get_dashboards(name=None):
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
-    # Query for all dam records
+    # Query for all records
+    available_dashboards = session.query(Dashboard).filter((Dashboard.owner == user) | (Dashboard.access_groups.any("public")))
     if name:
-        dashboards = session.query(Dashboard).filter(Dashboard.name == name).all()
+        dashboards = available_dashboards.filter(Dashboard.name == name).all()
     else:
-        dashboards = session.query(Dashboard).order_by(Dashboard.name).all()
+        dashboards = available_dashboards.order_by(Dashboard.name).all()
 
     for dashboard in dashboards:
         dashboard_dict[dashboard.name] = {
             "id": dashboard.id,
             "name": dashboard.name,
             "label": dashboard.label,
-            "image": dashboard.image,
             "notes": dashboard.notes,
+            "editable": True if dashboard.owner == user else False,
+            "access_groups": ["public"] if "public" in dashboard.access_groups else []
         }
 
         rows = []

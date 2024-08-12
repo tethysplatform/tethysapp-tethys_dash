@@ -1,8 +1,9 @@
-import { useEffect, useContext } from "react";
+import { useEffect, useContext, useState } from "react";
 import DashboardSelect from "components/inputs/DashboardSelect";
 import HeaderButton from "components/buttons/HeaderButton";
 import NewDashboardModal from "components/modals/NewDashboard";
 import DashboardNotesModal from "components/modals/DashboardNotes";
+import DashboardSharingModal from "components/modals/DashboardSharing";
 import {
   useLayoutContext,
   useLayoutNameContext,
@@ -19,6 +20,7 @@ import {
   BsPencilSquare,
   BsFileText,
   BsTrash,
+  BsPeopleFill,
 } from "react-icons/bs";
 import { useEditingContext } from "components/contexts/EditingContext";
 import { AppContext } from "components/contexts/AppContext";
@@ -35,22 +37,32 @@ function DashboardSelector() {
     useAddDashboardModalShowContext();
   const [showNotesModal, setShowNotesModal] =
     useDashboardNotesModalShowContext();
+  const [showSharingModal, setShowSharingModal] = useState(false);
   const [isEditing, setIsEditing] = useEditingContext();
   const { csrf } = useContext(AppContext);
+  const [editableDashboard, setEditableDashboard] = useState(false);
 
   useEffect(() => {
     appAPI.getDashboards().then((data) => {
-      let options = [
-        {
-          value: "Create a New Dashboard",
-          label: "Create a New Dashboard",
-          color: "rgb(156, 156, 156, .5)",
-        },
-      ];
+      let createOption = {
+        value: "Create a New Dashboard",
+        label: "Create a New Dashboard",
+        color: "lightblue",
+      };
+      let publicOptions = [];
+      let privateOptions = [];
       for (const [name, details] of Object.entries(data)) {
-        options.push({ value: name, label: details.label });
+        if (details.editable) {
+          privateOptions.push({ value: name, label: details.label });
+        } else {
+          publicOptions.push({ value: name, label: details.label });
+        }
       }
-      setSelectOptions(options);
+      setSelectOptions([
+        createOption,
+        { label: "Public", options: publicOptions },
+        { label: "User", options: privateOptions },
+      ]);
       setDashboardLayoutConfigs(data);
     });
     // eslint-disable-next-line
@@ -63,6 +75,7 @@ function DashboardSelector() {
       let selectedDashboard = dashboardLayoutConfigs[e.value];
       setSelectedOption({ value: e.value, label: selectedDashboard["label"] });
       setLayoutContext(selectedDashboard);
+      setEditableDashboard(selectedDashboard["editable"]);
     }
   }
 
@@ -99,6 +112,10 @@ function DashboardSelector() {
     setIsEditing(true);
   }
 
+  function onEditAccess(e) {
+    setShowSharingModal(true);
+  }
+
   function onNotes(e) {
     setShowNotesModal(true);
   }
@@ -120,34 +137,6 @@ function DashboardSelector() {
       ></DashboardSelect>
       {selectedOption && (
         <>
-          {isEditing && (
-            <>
-              <HeaderButton
-                tooltipPlacement="bottom"
-                tooltipText="Cancel Changes"
-                onClick={onCancel}
-              >
-                <BsArrowReturnLeft size="1.5rem" />
-              </HeaderButton>
-              <HeaderButton
-                tooltipPlacement="bottom"
-                tooltipText="Save Changes"
-                form="rowUpdate"
-                type="submit"
-              >
-                <BsSave size="1.5rem" />
-              </HeaderButton>
-            </>
-          )}
-          {!isEditing && (
-            <HeaderButton
-              tooltipPlacement="bottom"
-              tooltipText="Edit Dashboard"
-              onClick={onEdit}
-            >
-              <BsPencilSquare size="1.5rem" />
-            </HeaderButton>
-          )}
           <HeaderButton
             tooltipPlacement="bottom"
             tooltipText="Open Notes"
@@ -155,17 +144,62 @@ function DashboardSelector() {
           >
             <BsFileText size="1.5rem" />
           </HeaderButton>
-          <HeaderButton
-            tooltipPlacement="bottom"
-            tooltipText="Delete Dashboard"
-            onClick={onDelete}
-          >
-            <BsTrash size="1.5rem" />
-          </HeaderButton>
+          {editableDashboard && (
+            <>
+              {isEditing && (
+                <>
+                  <HeaderButton
+                    tooltipPlacement="bottom"
+                    tooltipText="Cancel Changes"
+                    onClick={onCancel}
+                  >
+                    <BsArrowReturnLeft size="1.5rem" />
+                  </HeaderButton>
+                  <HeaderButton
+                    tooltipPlacement="bottom"
+                    tooltipText="Save Changes"
+                    form="rowUpdate"
+                    type="submit"
+                  >
+                    <BsSave size="1.5rem" />
+                  </HeaderButton>
+                </>
+              )}
+              {!isEditing && (
+                <HeaderButton
+                  tooltipPlacement="bottom"
+                  tooltipText="Edit Dashboard"
+                  onClick={onEdit}
+                >
+                  <BsPencilSquare size="1.5rem" />
+                </HeaderButton>
+              )}
+              <HeaderButton
+                tooltipPlacement="bottom"
+                tooltipText="Edit Access"
+                onClick={onEditAccess}
+              >
+                <BsPeopleFill size="1.5rem" />
+              </HeaderButton>
+              <HeaderButton
+                tooltipPlacement="bottom"
+                tooltipText="Delete Dashboard"
+                onClick={onDelete}
+              >
+                <BsTrash size="1.5rem" />
+              </HeaderButton>
+            </>
+          )}
         </>
       )}
       {showAddDashboardModal && <NewDashboardModal />}
       {showNotesModal && <DashboardNotesModal />}
+      {showSharingModal && (
+        <DashboardSharingModal
+          showModal={showSharingModal}
+          setShowModal={setShowSharingModal}
+        />
+      )}
     </>
   );
 }

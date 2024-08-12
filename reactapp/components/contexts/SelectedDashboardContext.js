@@ -4,40 +4,44 @@ import { useContext, createContext, useState } from "react";
 const LayoutContext = createContext();
 const LayoutNameContext = createContext();
 const LayoutLabelContext = createContext();
-const LayoutImageContext = createContext();
+const LayoutAccessGroupsContext = createContext();
 const LayoutNotesContext = createContext();
 const LayoutRowDataContext = createContext();
 
 const SelectedDashboardContextProvider = ({ children }) => {
   const [name, setName] = useState("");
   const [label, setLabel] = useState("");
-  const [image, setImage] = useState("");
+  const [accessGroups, setAccessGroups] = useState("");
+  const [editable, setEditable] = useState(false);
   const [notes, setNotes] = useState("");
   const [rowData, setRowData] = useState(null);
 
   function resetLayoutContext() {
     setName("");
     setLabel("");
-    setImage("");
+    setAccessGroups([]);
     setNotes("");
     setRowData({});
+    setEditable(false);
   }
 
   function setLayoutContext(dashboardContext) {
     setName(dashboardContext["name"]);
     setLabel(dashboardContext["label"]);
-    setImage(dashboardContext["image"]);
+    setAccessGroups(dashboardContext["access_groups"]);
     setNotes(dashboardContext["notes"]);
     setRowData(dashboardContext["rowData"]);
+    setEditable(dashboardContext["editable"]);
   }
 
   function getLayoutContext() {
     return {
       name: name,
       label: label,
-      image: image,
+      access_groups: accessGroups,
       notes: notes,
       rowData: JSON.stringify(rowData),
+      editable: editable,
     };
   }
 
@@ -47,13 +51,15 @@ const SelectedDashboardContextProvider = ({ children }) => {
     >
       <LayoutNameContext.Provider value={[name, setName]}>
         <LayoutLabelContext.Provider value={[label, setLabel]}>
-          <LayoutImageContext.Provider value={[image, setImage]}>
+          <LayoutAccessGroupsContext.Provider
+            value={[accessGroups, setAccessGroups]}
+          >
             <LayoutNotesContext.Provider value={[notes, setNotes]}>
               <LayoutRowDataContext.Provider value={[rowData, setRowData]}>
                 {children}
               </LayoutRowDataContext.Provider>
             </LayoutNotesContext.Provider>
-          </LayoutImageContext.Provider>
+          </LayoutAccessGroupsContext.Provider>
         </LayoutLabelContext.Provider>
       </LayoutNameContext.Provider>
     </LayoutContext.Provider>

@@ -41,7 +41,7 @@ function NewDashboardModal() {
     let Label = dashboardName;
     if (dashboardName in dashboardLayoutConfigs) {
       setErrorMessage(
-        "Dashboard with the Name " + dashboardName + " already exists.",
+        "Dashboard with the Name " + dashboardName + " already exists."
       );
       setHasError(true);
       return;
@@ -51,12 +51,12 @@ function NewDashboardModal() {
     for (let i = 1; i <= dashboardRows; i++) {
       let data = {};
       const rowHeight = parseInt(
-        event.currentTarget.querySelector("#row" + i + "height").value,
+        event.currentTarget.querySelector("#row" + i + "height").value
       );
       data["height"] = rowHeight;
 
       const rowColCount = parseInt(
-        event.currentTarget.querySelector("#row" + i + "colcount").value,
+        event.currentTarget.querySelector("#row" + i + "colcount").value
       );
       const Cols = [];
       let totalColWidth = 0;
@@ -66,7 +66,7 @@ function NewDashboardModal() {
         colData["metadata"] = {};
 
         const colWidth = parseInt(
-          event.currentTarget.querySelector("#row" + i + "col" + x).value,
+          event.currentTarget.querySelector("#row" + i + "col" + x).value
         );
         colData["width"] = colWidth;
         totalColWidth += colWidth;
@@ -81,7 +81,7 @@ function NewDashboardModal() {
             i +
             " total width is " +
             totalColWidth +
-            ". It must equal 12.",
+            ". It must equal 12."
         );
         setHasError(true);
         return;
@@ -92,8 +92,6 @@ function NewDashboardModal() {
     const inputData = {
       name: Name,
       label: Label,
-      image:
-        "https://brightspotcdn.byu.edu/dims4/default/155e62f/2147483647/strip/true/crop/1067x1067+0+0/resize/840x840!/quality/90/?url=https%3A%2F%2Fbrigham-young-brightspot.s3.amazonaws.com%2Fde%2F07%2Fb07feaf34df89f6781045bc56de7%2Ftethys-logo.png",
       notes: "",
       rowData: JSON.stringify(rowData),
     };

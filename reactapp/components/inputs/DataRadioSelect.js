@@ -20,7 +20,7 @@ const DataRadioSelect = ({ selectedRadio, radioOptions, onChange }) => {
         onChange={onChange}
         value={radioOptions[i]["value"]}
         checked={selectedRadio === radioOptions[i]["value"]}
-      />,
+      />
     );
   }
 
