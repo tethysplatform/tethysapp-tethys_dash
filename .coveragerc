@@ -1,0 +1,8 @@
+[run] 
+omit =
+   *app.py,
+   */.tethys/*,
+   */tests/*
+
+[report]
+skip_covered = True

@@ -8,7 +8,7 @@ import re
 def get_usace_plot_data(location, year, time_period="h", metadata=False):
     print("Getting CWMS Metadata")
     data_type = "meta" if metadata else "plot"
-    meta_url = f"https://www.spk-wc.usace.army.mil/fcgi-bin/compressed.py?href=/plots/csv/{location}{time_period}_{year}.{data_type}"
+    meta_url = f"https://www.spk-wc.usace.army.mil/fcgi-bin/compressed.py?href=/plots/csv/{location}{time_period}_{year}.{data_type}"  # noqa: E501
     res = requests.get(meta_url, verify=False)
 
     if res.status_code == 404:
@@ -118,5 +118,5 @@ def get_usace_data(location, year):
     return {
         "series": series,
         "ymarkers": metadata["ymarkers"],
-        "title": f"{metadata['title']}<br>WY {year} | Generated: {metadata['generated']}",
+        "title": f"{metadata['title']}<br>WY {year} | Generated: {metadata['generated']}",  # noqa: E501
     }

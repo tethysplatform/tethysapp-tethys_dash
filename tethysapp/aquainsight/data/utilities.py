@@ -18,9 +18,9 @@ def interpolate_stage_from_rating_curve(ratingStage, ratingFlow, flow):
         if denominator == 0:
             stage = 0
         else:
-            stage = ratingStage[0] + ((ratingStage[1] - ratingStage[0]) / denominator) * (
-                flow - ratingFlow[0]
-            )
+            stage = ratingStage[0] + (
+                (ratingStage[1] - ratingStage[0]) / denominator
+            ) * (flow - ratingFlow[0])
 
     # ABOVE
     elif flow > ratingFlow[len(ratingFlow) - 1]:
@@ -57,7 +57,9 @@ def interpolate_stage_from_rating_curve(ratingStage, ratingFlow, flow):
                     if denominator == 0:
                         stage = 0
                     else:
-                        stage = stage0 + ((stage1 - stage0) / denominator) * (flow - flow0)
+                        stage = stage0 + ((stage1 - stage0) / denominator) * (
+                            flow - flow0
+                        )
                 else:
                     denominator = math.log10(flow1) - math.log10(flow0)
 

@@ -67,28 +67,38 @@ def add_new_dashboard(label, name, notes, row_data, owner, access_groups):
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
-    new_dashboard = Dashboard(label=label, name=name, notes=notes, owner=owner, access_groups=access_groups)
+    try:
+        new_dashboard = Dashboard(
+            label=label,
+            name=name,
+            notes=notes,
+            owner=owner,
+            access_groups=access_groups,
+        )
 
-    session.add(new_dashboard)
-    dashboard_id = session.query(Dashboard).filter(Dashboard.name == name).first().id
+        session.add(new_dashboard)
+        dashboard_id = (
+            session.query(Dashboard).filter(Dashboard.name == name).first().id
+        )
 
-    row_data = json.loads(row_data)
-    for index, row in enumerate(row_data):
-        new_row = add_new_row(session, dashboard_id, index, row["height"])
+        row_data = json.loads(row_data)
+        for index, row in enumerate(row_data):
+            new_row = add_new_row(session, dashboard_id, index, row["height"])
 
-        for index, column in enumerate(row["columns"]):
-            add_new_column(
-                session,
-                new_row.id,
-                index,
-                column["width"],
-                column["type"],
-                json.dumps(column["metadata"]),
-            )
+            for index, column in enumerate(row["columns"]):
+                add_new_column(
+                    session,
+                    new_row.id,
+                    index,
+                    column["width"],
+                    column["type"],
+                    json.dumps(column["metadata"]),
+                )
 
-    # Commit the session and close the connection
-    session.commit()
-    session.close()
+        # Commit the session and close the connection
+        session.commit()
+    finally:
+        session.close()
 
 
 def add_new_row(session, dashboard_id, order, height):
@@ -162,7 +172,7 @@ def update_named_dashboard(user, name, label, notes, row_data, access_groups):
         db_dashboard = session.query(Dashboard).filter(Dashboard.name == name).first()
         if db_dashboard.owner != user:
             raise Exception("Dashboards can only be updated by their owner")
-        
+
         db_dashboard.label = label
         db_dashboard.notes = notes
         row_data = json.loads(row_data) if isinstance(row_data, str) else row_data
@@ -197,7 +207,7 @@ def update_named_dashboard(user, name, label, notes, row_data, access_groups):
                 col_order = int(col["order"])
                 col_type = col["type"]
                 if col_type == "Text":
-                    col["metadata"]['text'] = nh3.clean(col["metadata"]['text'])
+                    col["metadata"]["text"] = nh3.clean(col["metadata"]["text"])
 
                 col_metadata = json.dumps(col["metadata"])
                 if not col_id:
@@ -226,43 +236,49 @@ def get_dashboards(user, name=None):
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
-    # Query for all records
-    available_dashboards = session.query(Dashboard).filter((Dashboard.owner == user) | (Dashboard.access_groups.any("public")))
-    if name:
-        dashboards = available_dashboards.filter(Dashboard.name == name).all()
-    else:
-        dashboards = available_dashboards.order_by(Dashboard.name).all()
+    try:
+        # Query for all records
+        available_dashboards = session.query(Dashboard).filter(
+            (Dashboard.owner == user) | (Dashboard.access_groups.any("public"))
+        )
+        if name:
+            dashboards = available_dashboards.filter(Dashboard.name == name).all()
+        else:
+            dashboards = available_dashboards.order_by(Dashboard.name).all()
 
-    for dashboard in dashboards:
-        dashboard_dict[dashboard.name] = {
-            "id": dashboard.id,
-            "name": dashboard.name,
-            "label": dashboard.label,
-            "notes": dashboard.notes,
-            "editable": True if dashboard.owner == user else False,
-            "access_groups": ["public"] if "public" in dashboard.access_groups else []
-        }
+        for dashboard in dashboards:
+            dashboard_dict[dashboard.name] = {
+                "id": dashboard.id,
+                "name": dashboard.name,
+                "label": dashboard.label,
+                "notes": dashboard.notes,
+                "editable": True if dashboard.owner == user else False,
+                "access_groups": (
+                    ["public"] if "public" in dashboard.access_groups else []
+                ),
+            }
 
-        rows = []
-        for row in dashboard.rows:
-            row_data = {"id": row.id, "order": row.row_order, "height": row.height}
-            cols = []
-            for col in row.columns:
-                col_data = {
-                    "id": col.id,
-                    "order": col.col_order,
-                    "width": col.width,
-                    "type": col.data_type,
-                    "metadata": json.loads(col.data_metadata),
-                }
-                cols.append(col_data)
+            rows = []
+            for row in dashboard.rows:
+                row_data = {"id": row.id, "order": row.row_order, "height": row.height}
+                cols = []
+                for col in row.columns:
+                    col_data = {
+                        "id": col.id,
+                        "order": col.col_order,
+                        "width": col.width,
+                        "type": col.data_type,
+                        "metadata": json.loads(col.data_metadata),
+                    }
+                    cols.append(col_data)
 
-            row_data["columns"] = cols
-            rows.append(row_data)
+                row_data["columns"] = cols
+                rows.append(row_data)
 
-        dashboard_dict[dashboard.name]["rowData"] = rows
+            dashboard_dict[dashboard.name]["rowData"] = rows
 
-    session.close()
+    finally:
+        session.close()
 
     return dashboard_dict
 
