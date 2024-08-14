@@ -1,5 +1,4 @@
 const CNRFCEnsembleBaseUrl = "https://www.cnrfc.noaa.gov/images/ensembles/";
-const CDECGuidancePlotBaseUrl = "https://cdec.water.ca.gov/guidance_plots/";
 export const CNRFCOptions = [
   {
     value: {

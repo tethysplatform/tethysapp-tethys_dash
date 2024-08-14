@@ -1,8 +1,10 @@
 import pytest
 import json
+from unittest.mock import MagicMock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from tethysapp.aquainsight.tests.integrated_tests import TEST_DB_URL
+from django.http import HttpResponse
 
 from tethysapp.aquainsight.model import init_primary_db, Dashboard
 
@@ -114,3 +116,13 @@ def dashboard(db_session, dashboard_data):
         db_session.refresh(dashboard)
         db_session.delete(dashboard)
     db_session.commit()
+
+
+@pytest.fixture(scope="function")
+def mock_app(mocker):
+    def mocked_path(mock_path):
+        mock_app = mocker.patch(mock_path)
+        mock_app.render.return_value = HttpResponse("Success")
+        return mock_app
+
+    return mocked_path

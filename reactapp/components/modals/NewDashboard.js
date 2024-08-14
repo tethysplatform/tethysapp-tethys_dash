@@ -100,7 +100,15 @@ function NewDashboardModal() {
         let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
         OGLayouts[Name] = response["new_dashboard"];
         setDashboardLayoutConfigs(OGLayouts);
-        setSelectOptions([...selectOptions, { value: Name, label: Label }]);
+        const userOptions = selectOptions.find(({ label }) => label === "User");
+        const userOptionsIndex = selectOptions.indexOf(userOptions);
+        userOptions["options"].push({ value: Name, label: Label });
+        const updatedSelectOptions = selectOptions.toSpliced(
+          userOptionsIndex,
+          1,
+          userOptions
+        );
+        setSelectOptions(updatedSelectOptions);
         setLayoutContext(response["new_dashboard"]);
         setSelectedOption({ value: Name, label: Label });
         setShowModal(false);

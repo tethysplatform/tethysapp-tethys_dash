@@ -5,7 +5,6 @@ import { useEffect, useState, memo } from "react";
 import Spinner from "react-bootstrap/Spinner";
 import FullscreenPlotModal from "components/modals/FullscreenPlot";
 import BasePlot from "components/visualizations/BasePlot";
-import getCDECPlotInfo from "components/visualizations/CDECPlot";
 import getUSACEPlotInfo from "components/visualizations/USACEPlot";
 import getCNRFCRiverForecastPlotInfo from "components/visualizations/CNRFCRiverForecastPlot";
 import getCNRFCHEFSPlotInfo from "components/visualizations/CNRFCHEFSPlot";
@@ -35,7 +34,6 @@ const BaseVisualization = ({
   const itemData = { type: type, metadata: metadata };
 
   useEffect(() => {
-    console.log(metadataString);
     if (type === "Image") {
       setViz(<Image source={metadata["uri"]} />);
     } else if (type.includes("Plot")) {
@@ -54,9 +52,7 @@ const BaseVisualization = ({
     appAPI.getPlotData(itemData).then((response) => {
       if (response.success === true) {
         let plotInfo;
-        if (itemData["type"] === "CDECPlot") {
-          plotInfo = getCDECPlotInfo(response.data);
-        } else if (itemData["type"] === "USACEPlot") {
+        if (itemData["type"] === "USACEPlot") {
           plotInfo = getUSACEPlotInfo(response.data);
         } else if (itemData["type"] === "CNRFCRiverForecastPlot") {
           plotInfo = getCNRFCRiverForecastPlotInfo(response.data);

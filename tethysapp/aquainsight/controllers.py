@@ -1,5 +1,7 @@
 from django.http import JsonResponse
 import json
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.decorators import api_view
 
 from tethys_sdk.routing import controller
 from .app import App
@@ -10,7 +12,6 @@ from .model import (
     update_named_dashboard,
 )
 from .data.usace import get_usace_data
-from .data.cdec import get_cdec_data
 from .data.cnrfc import (
     get_cnrfc_river_forecast_data,
     get_impact_statement,
@@ -18,14 +19,15 @@ from .data.cnrfc import (
 )
 
 
-@controller
+@controller(login_required=True)
 def home(request):
     """Controller for the app home page."""
     # The index.html template loads the React frontend
     return App.render(request, "index.html")
 
 
-@controller
+@api_view(["GET"])
+@controller(login_required=True)
 def data(request):
     """API controller for the plot page."""
     metadata = json.loads(request.GET["metadata"])
@@ -35,11 +37,6 @@ def data(request):
     try:
         if request.GET["type"] == "USACEPlot":
             data = get_usace_data(metadata["location"], metadata["year"])
-
-        elif request.GET["type"] == "CDECPlot":
-            data = get_cdec_data(
-                metadata["station"], metadata.get("start"), metadata.get("end")
-            )
 
         elif request.GET["type"] == "CNRFCRiverForecastPlot":
             data = get_cnrfc_river_forecast_data(metadata["location"])
@@ -59,7 +56,8 @@ def data(request):
     return JsonResponse({"success": success, "data": data})
 
 
-@controller
+@api_view(["GET"])
+@controller(login_required=True)
 def dashboards(request):
     """API controller for the dashboards page."""
     user = str(request.user)
@@ -68,9 +66,8 @@ def dashboards(request):
     return JsonResponse(dashboards)
 
 
-@controller(
-    url="aquainsight/dashboards/add",
-)
+@api_view(["POST"])
+@controller(url="aquainsight/dashboards/add", login_required=True)
 def add_dashboard(request):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
@@ -95,9 +92,8 @@ def add_dashboard(request):
         return JsonResponse({"success": False})
 
 
-@controller(
-    url="aquainsight/dashboards/delete",
-)
+@api_view(["POST"])
+@controller(url="aquainsight/dashboards/delete", login_required=True)
 def delete_dashboard(request):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
@@ -116,9 +112,8 @@ def delete_dashboard(request):
         return JsonResponse({"success": False})
 
 
-@controller(
-    url="aquainsight/dashboards/update",
-)
+@api_view(["POST"])
+@controller(url="aquainsight/dashboards/update", login_required=True)
 def update_dashboard(request):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)

@@ -28,6 +28,7 @@ import { AppContext } from "components/contexts/AppContext";
 function DashboardSelector() {
   const setLayoutContext = useLayoutContext()[0];
   const resetLayoutContext = useLayoutContext()[1];
+  const getLayoutContext = useLayoutContext()[2];
   const name = useLayoutNameContext()[0];
   const [selectOptions, setSelectOptions] = useAvailableOptionsContext();
   const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
@@ -41,6 +42,14 @@ function DashboardSelector() {
   const [isEditing, setIsEditing] = useEditingContext();
   const { csrf } = useContext(AppContext);
   const [editableDashboard, setEditableDashboard] = useState(false);
+  const layoutContext = getLayoutContext();
+
+  useEffect(() => {
+    console.log(layoutContext);
+    if (layoutContext["editable"]) {
+      setEditableDashboard(true);
+    }
+  }, [layoutContext]);
 
   useEffect(() => {
     appAPI.getDashboards().then((data) => {
@@ -94,14 +103,25 @@ function DashboardSelector() {
           ([key]) => key !== selectedOptionValue
         )
       );
-      const newSelectOptions = selectOptions.filter(
-        (options) => JSON.stringify(options) !== JSON.stringify(selectedOption)
+      const userOptions = selectOptions.find(({ label }) => label === "User");
+      const userOptionsIndex = selectOptions.indexOf(userOptions);
+      const deletedOptionIndex = userOptions["options"].find(
+        ({ value }) => value === selectedOptionValue
+      );
+      const updatedUserOptions = userOptions["options"].toSpliced(
+        deletedOptionIndex,
+        1
+      );
+      const updatedSelectOptions = selectOptions.toSpliced(
+        userOptionsIndex,
+        1,
+        { label: "User", options: updatedUserOptions }
       );
       appAPI
         .deleteDashboard({ name: selectedOptionValue }, csrf)
         .then((response) => {
           setDashboardLayoutConfigs(newdashboardLayoutConfigs);
-          setSelectOptions(newSelectOptions);
+          setSelectOptions(updatedSelectOptions);
           setSelectedOption(null);
           resetLayoutContext();
         });
