@@ -1,0 +1,819 @@
+import pytest
+from datetime import datetime
+import pandas as pd
+import json
+
+
+@pytest.fixture(scope="function")
+def cnrfc_det_forecast():
+    forecast_file = "./tethysapp/aquainsight/tests/files/cnrfc_river_forecast.html"
+    with open(forecast_file) as f:
+        forecast_text = f.read()
+
+    return forecast_text
+
+
+@pytest.fixture(scope="function")
+def cnrfc_det_forecast_hydro_series():
+    return [
+        {
+            "title": "Observed (Raw Gauge)",
+            "x": ["2024-08-09T15:30", "2024-08-09T15:45"],
+            "y": [4.8, 4.8],
+            "text": [
+                "<i>Observed (Raw Gauge)</i>: 4.8 feet (347 cfs)",
+                "<i>Observed (Raw Gauge)</i>: 4.8 feet (347 cfs)",
+            ],
+        },
+        {
+            "title": "Observed (Simulated)",
+            "x": ["2024-08-09T15:30", "2024-08-09T15:45"],
+            "y": [4.8, 4.8],
+            "text": [
+                "<i>Observed (Simulated)</i>: 4.8 feet (347 cfs)",
+                "<i>Observed (Simulated)</i>: 4.8 feet (347 cfs)",
+            ],
+        },
+        {
+            "title": "Forecast",
+            "x": ["2024-08-09T16:00", "2024-08-09T17:00"],
+            "y": [4.79, 4.79],
+            "text": [
+                "<i>Forecast</i>: 4.79 feet (342 cfs)",
+                "<i>Forecast</i>: 4.79 feet (342 cfs)",
+            ],
+        },
+        {
+            "title": "Guidance",
+            "x": ["2024-08-09T18:00", "2024-08-09T19:00"],
+            "y": [4.77, 4.77],
+            "text": [
+                "<i>Guidance</i>: 4.77 feet",
+                "<i>Guidance</i>: 4.77 feet",
+            ],
+        },
+    ]
+
+
+@pytest.fixture(scope="function")
+def cnrfc_det_forecast_forcing_series():
+    return [
+        {
+            "title": "6 Hr Observed",
+            "x": ["2024-08-09T18", "2024-08-10T00"],
+            "y": [0, 0.1],
+        },
+        {
+            "title": "6Hr Forecast",
+            "x": ["2024-08-10T06", "2024-08-10T12"],
+            "y": [0.2, 0.3],
+        },
+    ]
+
+
+@pytest.fixture(scope="function")
+def cnrfc_det_forecast_hydro_thresholds():
+    return [
+        {
+            "name": "Monitor: 25.0 Ft (5104307.75 cfs)",
+            "color": "rgb(255,153,0)",
+            "value": 25,
+        },
+        {
+            "name": "Flood: 29.0 Ft (12100717.04 cfs)",
+            "color": "rgb(255,0,0)",
+            "value": 29,
+        },
+    ]
+
+
+@pytest.fixture(scope="function")
+def cnrfc_det_forecast_chart_title():
+    return "Smith River - Jedediah Smith SP (CREC1)<br>River Forecast Plot<br><b>Forecast Posted:</b> 08/14/2024 at  8:08 AM PDT"
+
+
+@pytest.fixture(scope="function")
+def cnrfc_det_forecast_forcing_ymin():
+    return 0.0
+
+
+@pytest.fixture(scope="function")
+def cnrfc_det_forecast_forcing_ymax():
+    return 0.3
+
+
+@pytest.fixture(scope="function")
+def cnrfc_det_forecast_hydro_range_ymin():
+    return 4.77
+
+
+@pytest.fixture(scope="function")
+def cnrfc_det_forecast_hydro_range_ymax():
+    return 4.8
+
+
+@pytest.fixture(scope="function")
+def cnrfc_det_forecast_observed_forecast_split_dt():
+    return "2024-08-09T15:45"
+
+
+@pytest.fixture(scope="function")
+def cnrfc_det_forecast_all_dates():
+    return [
+        datetime(2024, 8, 9, 15, 30),
+        datetime(2024, 8, 9, 15, 45),
+        datetime(2024, 8, 9, 16, 00),
+        datetime(2024, 8, 9, 17, 00),
+        datetime(2024, 8, 9, 18, 00),
+        datetime(2024, 8, 9, 19, 00),
+    ]
+
+
+@pytest.fixture(scope="function")
+def cnrfc_rating_curve():
+    rating_curve_file = "./tethysapp/aquainsight/tests/files/cnrfc_rating_curve.js"
+    with open(rating_curve_file) as f:
+        rating_curve_text = f.read()
+
+    return rating_curve_text
+
+
+@pytest.fixture(scope="function")
+def cnrfc_rating_curve_flows():
+    return [329.9, 334.02, 338.18, 342.35, 346.55, 350.77]
+
+
+@pytest.fixture(scope="function")
+def cnrfc_rating_curve_stages():
+    return [4.76, 4.77, 4.78, 4.79, 4.8, 4.81]
+
+
+@pytest.fixture(scope="function")
+def cnrfc_hefs_stage_forecast():
+    hefs_csv = "./tethysapp/aquainsight/tests/files/cnrfc_hefs_csv_hourly_sstg.csv"
+    return pd.read_csv(hefs_csv)
+
+
+@pytest.fixture(scope="function")
+def cnrfc_hefs_stage_ensembles():
+    return [
+        {
+            "title": "Ensemble 0",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.53658, 4.54174, 4.54594],
+        },
+        {
+            "title": "Ensemble 1",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.5121, 4.5119, 4.5117],
+        },
+        {
+            "title": "Ensemble 2",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.51278, 4.51252, 4.51227],
+        },
+        {
+            "title": "Ensemble 3",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.5186, 4.51831, 4.51806],
+        },
+        {
+            "title": "Ensemble 4",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.51369, 4.51343, 4.51318],
+        },
+        {
+            "title": "Ensemble 5",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.92073, 4.96912, 5.00867],
+        },
+        {
+            "title": "Ensemble 6",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.51298, 4.51269, 4.51241],
+        },
+        {
+            "title": "Ensemble 7",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.51224, 4.51201, 4.51181],
+        },
+        {
+            "title": "Ensemble 8",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.51338, 4.51318, 4.51295],
+        },
+        {
+            "title": "Ensemble 9",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.51224, 4.51204, 4.51184],
+        },
+    ]
+
+
+@pytest.fixture(scope="function")
+def cnrfc_hefs_stage_stats():
+    return {
+        "min": {
+            "title": "Minimum",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.5121, 4.5119, 4.5117],
+            "text": [
+                "<i>Minimum</i>: 4.51 feet (227.77 cfs)",
+                "<i>Minimum</i>: 4.51 feet (227.68 cfs)",
+                "<i>Minimum</i>: 4.51 feet (227.6 cfs)",
+            ],
+        },
+        "max": {
+            "title": "Maximum",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.92073, 4.96912, 5.00867],
+            "text": [
+                "<i>Maximum</i>: 4.92 feet (400.41 cfs)",
+                "<i>Maximum</i>: 4.97 feet (423.86 cfs)",
+                "<i>Maximum</i>: 5.01 feet (443.86 cfs)",
+            ],
+        },
+        "5%": {
+            "title": "5% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.512163, 4.5119495, 4.5117495],
+            "text": [
+                "<i>5%</i>: 4.51 feet (227.79 cfs)",
+                "<i>5%</i>: 4.51 feet (227.7 cfs)",
+                "<i>5%</i>: 4.51 feet (227.62 cfs)",
+            ],
+        },
+        "25%": {
+            "title": "25% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.5123750000000005, 4.51216, 4.5119475],
+            "text": [
+                "<i>25%</i>: 4.51 feet (227.88 cfs)",
+                "<i>25%</i>: 4.51 feet (227.79 cfs)",
+                "<i>25%</i>: 4.51 feet (227.7 cfs)",
+            ],
+        },
+        "40%": {
+            "title": "40% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.5129, 4.512622, 4.512354],
+            "text": [
+                "<i>40%</i>: 4.51 feet (228.09 cfs)",
+                "<i>40%</i>: 4.51 feet (227.98 cfs)",
+                "<i>40%</i>: 4.51 feet (227.87 cfs)",
+            ],
+        },
+        "60%": {
+            "title": "60% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.513504, 4.51328, 4.513042],
+            "text": [
+                "<i>60%</i>: 4.51 feet (228.34 cfs)",
+                "<i>60%</i>: 4.51 feet (228.25 cfs)",
+                "<i>60%</i>: 4.51 feet (228.15 cfs)",
+            ],
+        },
+        "75%": {
+            "title": "75% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.5173725000000005, 4.51709, 4.51684],
+            "text": [
+                "<i>75%</i>: 4.52 feet (229.94 cfs)",
+                "<i>75%</i>: 4.52 feet (229.82 cfs)",
+                "<i>75%</i>: 4.52 feet (229.72 cfs)",
+            ],
+        },
+        "95%": {
+            "title": "95% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.747862499999999, 4.776799, 4.8004415],
+            "text": [
+                "<i>95%</i>: 4.75 feet (324.9 cfs)",
+                "<i>95%</i>: 4.78 feet (336.84 cfs)",
+                "<i>95%</i>: 4.8 feet (346.74 cfs)",
+            ],
+        },
+        "hourly_probabilities": [
+            {
+                "title": "0-5% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [4.512163, 4.5119495, 4.5117495, 4.5117, 4.5119, 4.5121],
+                "color": "lightgray",
+                "showlegend": True,
+            },
+            {
+                "title": "0-5% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.92073,
+                    4.96912,
+                    5.00867,
+                    4.8004415,
+                    4.776799,
+                    4.747862499999999,
+                ],
+                "color": "lightgray",
+                "showlegend": False,
+            },
+            {
+                "title": "5-25% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.747862499999999,
+                    4.776799,
+                    4.8004415,
+                    4.51684,
+                    4.51709,
+                    4.5173725000000005,
+                ],
+                "color": "#B6BEFC",
+                "showlegend": True,
+            },
+            {
+                "title": "5-25% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.5123750000000005,
+                    4.51216,
+                    4.5119475,
+                    4.5117495,
+                    4.5119495,
+                    4.512163,
+                ],
+                "color": "#B6BEFC",
+                "showlegend": False,
+            },
+            {
+                "title": "25-40% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.5173725000000005,
+                    4.51709,
+                    4.51684,
+                    4.513042,
+                    4.51328,
+                    4.513504,
+                ],
+                "color": "#FBFBCF",
+                "showlegend": True,
+            },
+            {
+                "title": "25-40% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.5129,
+                    4.512622,
+                    4.512354,
+                    4.5119475,
+                    4.51216,
+                    4.5123750000000005,
+                ],
+                "color": "#FBFBCF",
+                "showlegend": False,
+            },
+            {
+                "title": "40-60% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [4.513504, 4.51328, 4.513042, 4.512354, 4.512622, 4.5129],
+                "color": "#F7EBA7",
+                "showlegend": True,
+            },
+        ],
+        "mean": {
+            "title": "Ensemble Mean",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.556531999999999, 4.561693999999999, 4.565883],
+            "text": [
+                "<i>Mean</i>: 4.56 feet (246.07 cfs)",
+                "<i>Mean</i>: 4.56 feet (248.2 cfs)",
+                "<i>Mean</i>: 4.57 feet (249.92 cfs)",
+            ],
+        },
+    }
+
+
+@pytest.fixture(scope="function")
+def cnrfc_hefs_flow_forecast():
+    hefs_csv = "./tethysapp/aquainsight/tests/files/cnrfc_hefs_csv_hourly.csv"
+    return pd.read_csv(hefs_csv)
+
+
+@pytest.fixture(scope="function")
+def cnrfc_hefs_flow_ensembles():
+    return [
+        {
+            "title": "Ensemble 0",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.551334951456315, 4.555825242718451, 4.55949029126214],
+        },
+        {
+            "title": "Ensemble 1",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.5302427184466065, 4.530072815533986, 4.529902912621364],
+        },
+        {
+            "title": "Ensemble 2",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.530825242718452, 4.53060679611651, 4.530388349514568],
+        },
+        {
+            "title": "Ensemble 3",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.535800970873791, 4.535558252427189, 4.535339805825248],
+        },
+        {
+            "title": "Ensemble 4",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.531601941747578, 4.531383495145636, 4.531165048543694],
+        },
+        {
+            "title": "Ensemble 5",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.684796875996042, 4.641719579178438, 4.6069780644500895],
+        },
+        {
+            "title": "Ensemble 6",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.530995145631073, 4.530752427184471, 4.530509708737869],
+        },
+        {
+            "title": "Ensemble 7",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.530364077669908, 4.530169902912626, 4.530000000000005],
+        },
+        {
+            "title": "Ensemble 8",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.531334951456316, 4.531165048543694, 4.530970873786413],
+        },
+        {
+            "title": "Ensemble 9",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.530364077669908, 4.530194174757287, 4.530024271844665],
+        },
+    ]
+
+
+@pytest.fixture(scope="function")
+def cnrfc_hefs_flow_stats():
+    return {
+        "min": {
+            "title": "Minimum",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.5302427184466065, 4.530072815533986, 4.529902912621364],
+            "text": [
+                "<i>Minimum</i>: 4.53 feet (235.24 cfs)",
+                "<i>Minimum</i>: 4.53 feet (235.17 cfs)",
+                "<i>Minimum</i>: 4.53 feet (235.1 cfs)",
+            ],
+        },
+        "max": {
+            "title": "Maximum",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.684796875996042, 4.641719579178438, 4.6069780644500895],
+            "text": [
+                "<i>Maximum</i>: 4.68 feet (399.14 cfs)",
+                "<i>Maximum</i>: 4.64 feet (421.17 cfs)",
+                "<i>Maximum</i>: 4.61 feet (439.98 cfs)",
+            ],
+        },
+        "5%": {
+            "title": "5% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.530297330097092, 4.530116504854374, 4.529946601941752],
+            "text": [
+                "<i>5%</i>: 4.53 feet (235.26 cfs)",
+                "<i>5%</i>: 4.53 feet (235.19 cfs)",
+                "<i>5%</i>: 4.53 feet (235.12 cfs)",
+            ],
+        },
+        "25%": {
+            "title": "25% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.530479368932044, 4.530297330097092, 4.530115291262141],
+            "text": [
+                "<i>25%</i>: 4.53 feet (235.34 cfs)",
+                "<i>25%</i>: 4.53 feet (235.26 cfs)",
+                "<i>25%</i>: 4.53 feet (235.19 cfs)",
+            ],
+        },
+        "40%": {
+            "title": "40% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.530927184466025, 4.530694174757286, 4.530461165048549],
+            "text": [
+                "<i>40%</i>: 4.53 feet (235.52 cfs)",
+                "<i>40%</i>: 4.53 feet (235.43 cfs)",
+                "<i>40%</i>: 4.53 feet (235.33 cfs)",
+            ],
+        },
+        "60%": {
+            "title": "60% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.531441747572821, 4.531252427184471, 4.531048543689326],
+            "text": [
+                "<i>60%</i>: 4.53 feet (235.73 cfs)",
+                "<i>60%</i>: 4.53 feet (235.66 cfs)",
+                "<i>60%</i>: 4.53 feet (235.57 cfs)",
+            ],
+        },
+        "75%": {
+            "title": "75% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.534751213592238, 4.534514563106801, 4.534296116504859],
+            "text": [
+                "<i>75%</i>: 4.53 feet (237.1 cfs)",
+                "<i>75%</i>: 4.53 feet (237.0 cfs)",
+                "<i>75%</i>: 4.53 feet (236.91 cfs)",
+            ],
+        },
+        "95%": {
+            "title": "95% Percentile",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.758532766990291, 4.78974825134535, 4.784176235905148],
+            "text": [
+                "<i>95%</i>: 4.76 feet (329.3 cfs)",
+                "<i>95%</i>: 4.79 feet (342.24 cfs)",
+                "<i>95%</i>: 4.78 feet (353.27 cfs)",
+            ],
+        },
+        "hourly_probabilities": [
+            {
+                "title": "0-5% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.530297330097092,
+                    4.530116504854374,
+                    4.529946601941752,
+                    4.529902912621364,
+                    4.530072815533986,
+                    4.5302427184466065,
+                ],
+                "color": "lightgray",
+                "showlegend": True,
+            },
+            {
+                "title": "0-5% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.684796875996042,
+                    4.641719579178438,
+                    4.6069780644500895,
+                    4.784176235905148,
+                    4.78974825134535,
+                    4.758532766990291,
+                ],
+                "color": "lightgray",
+                "showlegend": False,
+            },
+            {
+                "title": "5-25% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.758532766990291,
+                    4.78974825134535,
+                    4.784176235905148,
+                    4.534296116504859,
+                    4.534514563106801,
+                    4.534751213592238,
+                ],
+                "color": "#B6BEFC",
+                "showlegend": True,
+            },
+            {
+                "title": "5-25% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.530479368932044,
+                    4.530297330097092,
+                    4.530115291262141,
+                    4.529946601941752,
+                    4.530116504854374,
+                    4.530297330097092,
+                ],
+                "color": "#B6BEFC",
+                "showlegend": False,
+            },
+            {
+                "title": "25-40% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.534751213592238,
+                    4.534514563106801,
+                    4.534296116504859,
+                    4.531048543689326,
+                    4.531252427184471,
+                    4.531441747572821,
+                ],
+                "color": "#FBFBCF",
+                "showlegend": True,
+            },
+            {
+                "title": "25-40% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.530927184466025,
+                    4.530694174757286,
+                    4.530461165048549,
+                    4.530115291262141,
+                    4.530297330097092,
+                    4.530479368932044,
+                ],
+                "color": "#FBFBCF",
+                "showlegend": False,
+            },
+            {
+                "title": "40-60% chance",
+                "x": [
+                    "2024-09-14 08:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 10:00:00",
+                    "2024-09-14 09:00:00",
+                    "2024-09-14 08:00:00",
+                ],
+                "y": [
+                    4.531441747572821,
+                    4.531252427184471,
+                    4.531048543689326,
+                    4.530461165048549,
+                    4.530694174757286,
+                    4.530927184466025,
+                ],
+                "color": "#F7EBA7",
+                "showlegend": True,
+            },
+        ],
+        "mean": {
+            "title": "Ensemble Mean",
+            "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
+            "y": [4.573092233009713, 4.5787257281553435, 4.583497572815538],
+            "text": [
+                "<i>Mean</i>: 4.57 feet (252.89 cfs)",
+                "<i>Mean</i>: 4.58 feet (255.21 cfs)",
+                "<i>Mean</i>: 4.58 feet (257.18 cfs)",
+            ],
+        },
+    }
+
+
+@pytest.fixture(scope="function")
+def cnrfc_hefs_forecast_page():
+    hefs_forecast_file = "./tethysapp/aquainsight/tests/files/cnrfc_hefs_metadata.html"
+    with open(hefs_forecast_file) as f:
+        hefs_forecast_text = f.read()
+
+    return hefs_forecast_text
+
+
+@pytest.fixture(scope="function")
+def cnrfc_hefs_forecast_issuance_time():
+
+    return "Aug 15, 2024 at 8:24 AM PDT"
+
+
+@pytest.fixture(scope="function")
+def nwps_api_data():
+    nwps_api_file = "./tethysapp/aquainsight/tests/files/nwps_api.json"
+    with open(nwps_api_file) as f:
+        nwps_api_data = json.load(f)
+
+    return nwps_api_data
+
+
+@pytest.fixture(scope="function")
+def nwps_impact_statements():
+
+    return [
+        {
+            "stage": 39,
+            "statement": "Extensive and severe flooding of all areas near the river will occur. Significant damage to roads, bridges and other structures near the river is likely. All low lying areas in and around the river will be flooded. All persons in the area should be prepared to take appropriate action to protect life and property.",
+        },
+        {
+            "stage": 37,
+            "statement": "Severe damage could be inflicted upon roads, bridges and other structures. All low lying areas in and around the river are likely to be flooded. Persons in these areas should be prepared to take appropriate actions to protect life and property.",
+        },
+        {
+            "stage": 36,
+            "statement": "Extensive is flooding possible along Highway 197 and US Highway 199 in the Gasquet area. Homes and campgrounds in these areas could be threatened, including portions of Jedediah Smith State Park.",
+        },
+        {
+            "stage": 35,
+            "statement": "Considerable flooding along Highway 197 and US Highway 199 in the Gasquet area will occur. Low lying homes in these areas are likely to be threatened.",
+        },
+        {
+            "stage": 34,
+            "statement": "Significant flooding along Highway 197 and along US Highway 199 in the Gasquet area. Some low-lying homes in these areas may be threatened.",
+        },
+        {
+            "stage": 32,
+            "statement": "Significant flooding along Highway 197 in the Gasquet area, with possible flooding of US Highway 199 near Gasquet. Some low-lying homes in these areas may be threatened.",
+        },
+        {
+            "stage": 29,
+            "statement": "Flooding along Highway 197 and low-lying roads near Gasquet is likely.",
+        },
+        {
+            "stage": 28,
+            "statement": "Flooding along lower portions of Highway 197 with possible flooding of roads near Gasquet.",
+        },
+        {
+            "stage": 26,
+            "statement": "Expect minor flooding along Highway 197 and other low-lying areas near the river.",
+        },
+        {
+            "stage": 25,
+            "statement": "Minor flooding of the lowest lying areas near the river may occur.",
+        },
+    ]

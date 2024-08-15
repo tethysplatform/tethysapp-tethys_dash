@@ -36,11 +36,6 @@ def get_cnrfc_river_forecast_data(location):
 
     chart_title = get_title(response.text)
 
-    all_dates.sort()
-    dateticks = [
-        (all_dates[0] + timedelta(days=i)).strftime("%Y-%m-%dT%H") for i in range(11)
-    ]
-
     return {
         "forcing_series": forcing_series,
         "forcing_ymin": forcing_ymin,
@@ -51,7 +46,6 @@ def get_cnrfc_river_forecast_data(location):
         "hydro_thresholds": hydro_thresholds,
         "observed_forecast_split_dt": observed_forecast_split_dt,
         "title": chart_title,
-        "dateticks": dateticks,
     }
 
 
@@ -84,22 +78,31 @@ def get_cnrfc_hefs_data(location, location_proper_name):
 
     deterministic_dates.sort()
 
-    dateticks = pd.date_range(deterministic_dates[0], hefs_series["mean"]["x"][-1], 10)
-    dateticks = [datetick.strftime("%Y-%m-%dT%H") for datetick in dateticks]
-    ten_day_hefs_min = min(hefs_series["min"]["y"][:239])
-    ten_day_hefs_max = max(hefs_series["max"]["y"][:239])
+    subset_hefs_min = (
+        min(hefs_series["min"]["y"])
+        if len(hefs_series["min"]["y"]) <= 240
+        else min(hefs_series["min"]["y"][:239])
+    )
+    subset_hefs_max = (
+        max(hefs_series["max"]["y"])
+        if len(hefs_series["max"]["y"]) <= 240
+        else max(hefs_series["max"]["y"][:239])
+    )
 
     return {
         "hefs_series": hefs_series,
-        "range_ymin": min(deterministic_range_ymin, ten_day_hefs_min),
-        "range_ymax": max(deterministic_range_ymax, ten_day_hefs_max),
-        "range_xmin": deterministic_dates[0],
-        "range_xmax": hefs_series["mean"]["x"][239],
+        "range_ymin": min(deterministic_range_ymin, subset_hefs_min),
+        "range_ymax": max(deterministic_range_ymax, subset_hefs_max),
+        "range_xmin": deterministic_dates[0].strftime("%Y-%m-%d %H:%M:%S"),
+        "range_xmax": (
+            hefs_series["mean"]["x"][-1]
+            if len(hefs_series["max"]["x"]) <= 240
+            else hefs_series["mean"]["x"][239]
+        ),
         "deterministic_series": deterministic_series,
         "hydro_thresholds": hydro_thresholds,
         "observed_forecast_split_dt": observed_forecast_split_dt,
         "title": chart_title,
-        "dateticks": dateticks,
     }
 
 
@@ -318,12 +321,12 @@ def get_hydro_data(charting_data):
         valid_texts = []
         for data in chart_data_json["data"]:
             valid_date = datetime.fromtimestamp(data["x"] / 1000)
-            valid_dates.append(valid_date.strftime("%Y-%m-%dT%H"))
+            valid_dates.append(valid_date.strftime("%Y-%m-%dT%H:%M"))
             valid_values.append(data["y"])
 
             if data.get("flow"):
                 valid_texts.append(
-                    f"<i>{series_name}</i>: {data['y']} feet ({data['flow']} cfs) <extra></extra>"  # noqa: E501
+                    f"<i>{series_name}</i>: {data['y']} feet ({data['flow']} cfs)"
                 )
             else:
                 valid_texts.append(f"<i>{series_name}</i>: {data['y']} feet")
@@ -387,6 +390,8 @@ def get_hydro_thresholds(rating_curve_flows, rating_curve_stages, charting_data)
 def get_forcing_data(charting_data):
     chart_series = re.findall(r"chart2.addSeries\((.*),false\);", charting_data)
     forcing_series = []
+    forcing_ymin = None
+    forcing_ymax = None
     for chart_data in chart_series:
         chart_data_json = hjson.loads(chart_data)
         series_name = chart_data_json["name"]
@@ -398,18 +403,20 @@ def get_forcing_data(charting_data):
         for data in chart_data_json["data"]:
             valid_date = datetime.fromtimestamp(data[0] / 1000)
             valid_dates.append(valid_date.strftime("%Y-%m-%dT%H"))
-            valid_values.append(data[1])
+            valid_values.append(float(data[1]))
 
         forcing_series.append(
             {"title": series_name, "x": valid_dates, "y": valid_values}
         )
+        if forcing_ymin is None:
+            forcing_ymin = min(valid_values)
+        else:
+            forcing_ymin = min(forcing_ymin, min(valid_values))
 
-    forcing_ymin = re.findall(r"chart2.yAxis\[0\].options.min = (.*)\n", charting_data)[
-        0
-    ]
-    forcing_ymax = re.findall(r"chart2.yAxis\[0\].options.max = (.*)\n", charting_data)[
-        0
-    ]
+        if forcing_ymax is None:
+            forcing_ymax = max(valid_values)
+        else:
+            forcing_ymax = max(forcing_ymax, max(valid_values))
 
     return [forcing_series, forcing_ymin, forcing_ymax]
 

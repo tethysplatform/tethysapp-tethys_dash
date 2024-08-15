@@ -195,7 +195,7 @@ def test_add_dashboard(client, admin_user, mock_app, mocker):
         "notes": "notes",
         "rowData": [],
     }
-    
+
     url = reverse("aquainsight:add_dashboard")
     client.force_login(admin_user)
     mock_add_new_dashboard = mocker.patch(
@@ -204,16 +204,25 @@ def test_add_dashboard(client, admin_user, mock_app, mocker):
     mock_get_dashboards = mocker.patch(
         "tethysapp.aquainsight.controllers.get_dashboards"
     )
-    mock_get_dashboards_return = {itemData['name']: {"id": 1}}
+    mock_get_dashboards_return = {itemData["name"]: {"id": 1}}
     mock_get_dashboards.return_value = mock_get_dashboards_return
 
-    response = client.generic('POST', url, json.dumps(itemData))
+    response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_add_new_dashboard.assert_called_with(itemData['label'], itemData['name'], itemData['notes'], itemData['rowData'], "admin", [])
-    mock_get_dashboards.assert_called_with("admin", name=itemData['name'])
+    mock_add_new_dashboard.assert_called_with(
+        itemData["label"],
+        itemData["name"],
+        itemData["notes"],
+        itemData["rowData"],
+        "admin",
+        [],
+    )
+    mock_get_dashboards.assert_called_with("admin", name=itemData["name"])
     assert response.status_code == 200
     assert response.json()["success"]
-    assert response.json()["new_dashboard"] == mock_get_dashboards_return[itemData['name']]
+    assert (
+        response.json()["new_dashboard"] == mock_get_dashboards_return[itemData["name"]]
+    )
 
 
 @pytest.mark.django_db
@@ -225,7 +234,7 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker):
         "notes": "notes",
         "rowData": [],
     }
-    
+
     url = reverse("aquainsight:add_dashboard")
     client.force_login(admin_user)
     mock_add_new_dashboard = mocker.patch(
@@ -233,9 +242,16 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker):
     )
     mock_add_new_dashboard.side_effect = [Exception("failed to add")]
 
-    response = client.generic('POST', url, json.dumps(itemData))
+    response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_add_new_dashboard.assert_called_with(itemData['label'], itemData['name'], itemData['notes'], itemData['rowData'], "admin", [])
+    mock_add_new_dashboard.assert_called_with(
+        itemData["label"],
+        itemData["name"],
+        itemData["notes"],
+        itemData["rowData"],
+        "admin",
+        [],
+    )
     assert response.status_code == 200
     assert response.json()["success"] == False
 
@@ -246,16 +262,16 @@ def test_delete_dashboard(client, admin_user, mock_app, mocker):
     itemData = {
         "name": "dashboard_name",
     }
-    
+
     url = reverse("aquainsight:delete_dashboard")
     client.force_login(admin_user)
     mock_delete_named_dashboard = mocker.patch(
         "tethysapp.aquainsight.controllers.delete_named_dashboard"
     )
-    
-    response = client.generic('POST', url, json.dumps(itemData))
 
-    mock_delete_named_dashboard.assert_called_with("admin", itemData['name'])
+    response = client.generic("POST", url, json.dumps(itemData))
+
+    mock_delete_named_dashboard.assert_called_with("admin", itemData["name"])
     assert response.status_code == 200
     assert response.json()["success"]
 
@@ -266,17 +282,17 @@ def test_delete_dashboard_failed(client, admin_user, mock_app, mocker):
     itemData = {
         "name": "dashboard_name",
     }
-    
+
     url = reverse("aquainsight:delete_dashboard")
     client.force_login(admin_user)
     mock_delete_named_dashboard = mocker.patch(
         "tethysapp.aquainsight.controllers.delete_named_dashboard"
     )
     mock_delete_named_dashboard.side_effect = [Exception("failed to delete")]
-    
-    response = client.generic('POST', url, json.dumps(itemData))
 
-    mock_delete_named_dashboard.assert_called_with("admin", itemData['name'])
+    response = client.generic("POST", url, json.dumps(itemData))
+
+    mock_delete_named_dashboard.assert_called_with("admin", itemData["name"])
     assert response.status_code == 200
     assert response.json()["success"] == False
 
@@ -291,7 +307,7 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
         "rowData": [],
         "access_groups": [],
     }
-    
+
     url = reverse("aquainsight:update_dashboard")
     client.force_login(admin_user)
     mock_update_dashboard = mocker.patch(
@@ -300,16 +316,26 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
     mock_get_dashboards = mocker.patch(
         "tethysapp.aquainsight.controllers.get_dashboards"
     )
-    mock_get_dashboards_return = {itemData['name']: {"id": 1}}
+    mock_get_dashboards_return = {itemData["name"]: {"id": 1}}
     mock_get_dashboards.return_value = mock_get_dashboards_return
 
-    response = client.generic('POST', url, json.dumps(itemData))
+    response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_update_dashboard.assert_called_with("admin", itemData['name'], itemData['label'], itemData['notes'], itemData['rowData'], itemData['access_groups'])
-    mock_get_dashboards.assert_called_with("admin", name=itemData['name'])
+    mock_update_dashboard.assert_called_with(
+        "admin",
+        itemData["name"],
+        itemData["label"],
+        itemData["notes"],
+        itemData["rowData"],
+        itemData["access_groups"],
+    )
+    mock_get_dashboards.assert_called_with("admin", name=itemData["name"])
     assert response.status_code == 200
     assert response.json()["success"]
-    assert response.json()["updated_dashboard"] == mock_get_dashboards_return[itemData['name']]
+    assert (
+        response.json()["updated_dashboard"]
+        == mock_get_dashboards_return[itemData["name"]]
+    )
 
 
 @pytest.mark.django_db
@@ -322,7 +348,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
         "rowData": [],
         "access_groups": [],
     }
-    
+
     url = reverse("aquainsight:update_dashboard")
     client.force_login(admin_user)
     mock_update_dashboard = mocker.patch(
@@ -333,8 +359,15 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     )
     mock_get_dashboards.side_effect = [Exception("failed to update")]
 
-    response = client.generic('POST', url, json.dumps(itemData))
+    response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_update_dashboard.assert_called_with("admin", itemData['name'], itemData['label'], itemData['notes'], itemData['rowData'], itemData['access_groups'])
+    mock_update_dashboard.assert_called_with(
+        "admin",
+        itemData["name"],
+        itemData["label"],
+        itemData["notes"],
+        itemData["rowData"],
+        itemData["access_groups"],
+    )
     assert response.status_code == 200
     assert response.json()["success"] == False

@@ -94,7 +94,6 @@ export default function getCNRFCRiverForecastPlotInfo(data) {
     xaxis: {
       type: "date",
       tickformat: "%a<br>%b %d<br>%-I%p",
-      tickvals: data.dateticks,
       linecolor: "lightgray",
       showgrid: true,
       showline: true,
@@ -110,7 +109,7 @@ export default function getCNRFCRiverForecastPlotInfo(data) {
       },
     },
     yaxis: {
-      range: [data.hydro_range_ymin * 0.95, data.hydro_range_ymax * 1.05],
+      range: [data.hydro_range_ymin * 0.99, data.hydro_range_ymax * 1.01],
       type: "linear",
       domain: [0, 0.7],
       title: {
