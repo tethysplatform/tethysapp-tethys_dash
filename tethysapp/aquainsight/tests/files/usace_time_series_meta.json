@@ -1,0 +1,57 @@
+{
+  "ymarkers": {
+    "Gross Pool(elev)": {
+      "xlocation": "2023-12-09",
+      "value": "764.8",
+      "offset": 1.03
+    },
+    "Gross Pool": {
+      "xlocation": "2023-12-09",
+      "value": "116470",
+      "offset": 1.03
+    }
+  },
+  "allheaders": [
+    "ISO 8601 Date Time",
+    "Top of Conservation High (ac-ft)",
+    "Top of Conservation High (ac-ft) notes",
+    "Top of Conservation (ac-ft)",
+    "Top of Conservation (ac-ft) notes",
+    "Storage (ac-ft)",
+    "Storage (ac-ft) notes",
+    "Elevation (ft-NGVD29)",
+    "Elevation (ft-NGVD29) notes",
+    "Inflow (cfs)",
+    "Inflow (cfs) notes",
+    "Outflow (cfs; 614 ft)",
+    "Outflow (cfs; 614 ft) notes",
+    "Russian R @ Hopland (cfs; USGS)",
+    "Russian R @ Hopland (cfs; USGS) notes",
+    "Precip @ Dam (in; 670 ft)",
+    "Precip @ Dam (in; 670 ft) notes",
+    "Basin Precip",
+    "Basin Precip notes",
+    "Gross Pool",
+    "Gross Pool(elev)",
+    "Russian R nr Ukiah (cfs)",
+    "Russian R nr Ukiah (cfs) notes"
+  ],
+  "generated": "2024-08-16T12:06:15-0700",
+  "groups": {
+    "precip/basin": ["Basin Precip"],
+    "precip/inc": ["Precip @ Dam (in; 670 ft)"],
+    "flow/control": ["Russian R @ Hopland (cfs; USGS)"],
+    "precip": ["Precip @ Dam (in; 670 ft)", "Basin Precip"],
+    "storage": ["Storage (ac-ft)", "Gross Pool"],
+    "flow": ["Russian R @ Hopland (cfs; USGS)", "Russian R nr Ukiah (cfs)"],
+    "outflow": ["Outflow (cfs; 614 ft)"],
+    "elev": ["Elevation (ft-NGVD29)", "Gross Pool(elev)"],
+    "topcon": [
+      "Top of Conservation High (ac-ft)",
+      "Top of Conservation (ac-ft)"
+    ],
+    "inflow": ["Inflow (cfs)"],
+    "swe": ["swe"]
+  },
+  "title": " Coyote Valley Dam / Lake Mendocino - Russian River Basin"
+}

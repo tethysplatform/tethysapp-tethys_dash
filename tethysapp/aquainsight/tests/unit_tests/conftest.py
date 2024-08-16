@@ -817,3 +817,154 @@ def nwps_impact_statements():
             "statement": "Minor flooding of the lowest lying areas near the river may occur.",
         },
     ]
+
+
+@pytest.fixture(scope="function")
+def usace_time_series_plot_data():
+    forecast_file = "./tethysapp/aquainsight/tests/files/usace_time_series_plot.txt"
+    with open(forecast_file) as f:
+        forecast_text = f.read()
+
+    return forecast_text
+
+
+@pytest.fixture(scope="function")
+def usace_time_series_meta_json():
+    meta_file = "./tethysapp/aquainsight/tests/files/usace_time_series_meta.json"
+    with open(meta_file) as f:
+        meta_json = json.load(f)
+
+    return meta_json
+
+
+@pytest.fixture(scope="function")
+def usace_expected_ts_df():
+    df = pd.read_csv("./tethysapp/aquainsight/tests/files/usace_expected_ts_df.csv")
+    df["Datetime"] = pd.to_datetime(df["Datetime"])
+    return df
+
+
+@pytest.fixture(scope="function")
+def usace_expected_ts_title():
+    return " Coyote Valley Dam / Lake Mendocino - Russian River Basin<br>WY 2024 | Generated: 2024-08-16T12:06:15-0700"
+
+
+@pytest.fixture(scope="function")
+def usace_expected_ts_series():
+    return {
+        "storage": [
+            {
+                "title": "Top of Conservation High (ac-ft)",
+                "x": ["2023-08-31T07"],
+                "y": ["111000.00"],
+            },
+            {
+                "title": "Top of Conservation (ac-ft)",
+                "x": ["2023-08-31T07"],
+                "y": ["86400.00"],
+            },
+            {
+                "title": "Storage (ac-ft)",
+                "x": [
+                    "2023-08-31T07",
+                    "2023-08-31T08",
+                    "2023-08-31T09",
+                    "2023-08-31T10",
+                ],
+                "y": ["84192.00", "84192.00", "84157.00", "84157.00"],
+            },
+            {"title": "Gross Pool", "x": [], "y": []},
+        ],
+        "elevation": [
+            {
+                "title": "Elevation (ft-NGVD29)",
+                "x": [
+                    "2023-08-31T07",
+                    "2023-08-31T08",
+                    "2023-08-31T09",
+                    "2023-08-31T10",
+                ],
+                "y": ["746.75", "746.75", "746.73", "746.73"],
+            },
+            {"title": "Gross Pool(elev)", "x": [], "y": []},
+        ],
+        "flow": [
+            {
+                "title": "Inflow (cfs)",
+                "x": [
+                    "2023-08-31T07",
+                    "2023-08-31T08",
+                    "2023-08-31T09",
+                    "2023-08-31T10",
+                ],
+                "y": ["189.00", "189.00", "-234.50", "189.00"],
+            },
+            {
+                "title": "Outflow (cfs; 614 ft)",
+                "x": [
+                    "2023-08-31T07",
+                    "2023-08-31T08",
+                    "2023-08-31T09",
+                    "2023-08-31T10",
+                ],
+                "y": ["189.00", "189.00", "189.00", "189.00"],
+            },
+            {
+                "title": "Russian R @ Hopland (cfs; USGS)",
+                "x": [
+                    "2023-08-31T07",
+                    "2023-08-31T08",
+                    "2023-08-31T09",
+                    "2023-08-31T10",
+                ],
+                "y": ["169.00", "169.50", "170.00", "171.67"],
+            },
+            {
+                "title": "Russian R nr Ukiah (cfs)",
+                "x": [
+                    "2023-08-31T07",
+                    "2023-08-31T08",
+                    "2023-08-31T09",
+                    "2023-08-31T10",
+                ],
+                "y": ["0.02", "0.02", "0.02", "0.02"],
+            },
+        ],
+        "precip": [
+            {
+                "title": "Precip @ Dam (in; 670 ft)",
+                "x": [
+                    "2023-08-31T07",
+                    "2023-08-31T08",
+                    "2023-08-31T09",
+                    "2023-08-31T10",
+                ],
+                "y": ["0.00", "0.00", "0.00", "0.00"],
+            },
+            {"title": "Basin Precip", "x": [], "y": []},
+        ],
+        "swe": [
+            {
+                "title": "swe",
+                "x": [
+                    "2023-08-31T07",
+                    "2023-08-31T08",
+                    "2023-08-31T09",
+                    "2023-08-31T10",
+                ],
+                "y": ["1", "2", "3", "4"],
+            },
+        ],
+    }
+
+
+@pytest.fixture(scope="function")
+def usace_expected_ts_ymarkers():
+    return {
+        "Gross Pool(elev)": {
+            "xlocation": "2023-12-09",
+            "value": "764.8",
+            "offset": 1.03,
+        },
+        "Gross Pool": {"xlocation": "2023-12-09", "value": "116470", "offset": 1.03},
+    }
