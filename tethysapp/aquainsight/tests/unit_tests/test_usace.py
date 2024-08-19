@@ -106,10 +106,10 @@ def test_get_usace_data_no_flows(
         "tethysapp.aquainsight.data.usace.get_usace_plot_data"
     )
     mock_metadata = MagicMock()
-    
-    del usace_time_series_meta_json['groups']['flow']
-    del usace_time_series_meta_json['groups']['outflow']
-    del usace_time_series_meta_json['groups']['inflow']
+
+    del usace_time_series_meta_json["groups"]["flow"]
+    del usace_time_series_meta_json["groups"]["outflow"]
+    del usace_time_series_meta_json["groups"]["inflow"]
     mock_metadata.json.return_value = usace_time_series_meta_json
     mock_data = MagicMock(text=usace_time_series_plot_data)
     mock_get_usace_plot_data.side_effect = [None, mock_metadata, mock_data, mock_data]
@@ -118,7 +118,7 @@ def test_get_usace_data_no_flows(
     year = 2024
     usace_data = get_usace_data(location, year)
 
-    del usace_expected_ts_series['flow']
+    del usace_expected_ts_series["flow"]
     assert usace_data["title"] == usace_expected_ts_title
     assert usace_data["ymarkers"] == usace_expected_ts_ymarkers
     assert usace_data["series"] == usace_expected_ts_series

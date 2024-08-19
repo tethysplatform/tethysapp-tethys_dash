@@ -9,7 +9,7 @@ def set_nonzero(x):
 
 
 def interpolate_stage_from_rating_curve(ratingStage, ratingFlow, flow):
-
+    # Converted to python from https://www.cnrfc.noaa.gov/includes/rating.js
     if flow < 0:
         stage = -9999
     # BELOW
@@ -23,11 +23,11 @@ def interpolate_stage_from_rating_curve(ratingStage, ratingFlow, flow):
             ) * (flow - ratingFlow[0])
 
     # ABOVE
-    elif flow > ratingFlow[len(ratingFlow) - 1]:
-        stage0 = set_nonzero(ratingStage[len(ratingStage) - 2])
-        stage1 = set_nonzero(ratingStage[len(ratingStage) - 1])
-        flow0 = set_nonzero(ratingFlow[len(ratingFlow) - 2])
-        flow1 = set_nonzero(ratingFlow[len(ratingFlow) - 1])
+    elif flow > ratingFlow[-1]:
+        stage0 = set_nonzero(ratingStage[-2])
+        stage1 = set_nonzero(ratingStage[-1])
+        flow0 = set_nonzero(ratingFlow[-2])
+        flow1 = set_nonzero(ratingFlow[-1])
         flow = set_nonzero(flow)
         denominator = math.log10(flow0) - math.log10(flow1)
         if denominator == 0:
@@ -54,34 +54,27 @@ def interpolate_stage_from_rating_curve(ratingStage, ratingFlow, flow):
                 flow = set_nonzero(flow)
                 if flow0 <= 0:
                     denominator = flow1 - flow0
-                    if denominator == 0:
-                        stage = 0
-                    else:
-                        stage = stage0 + ((stage1 - stage0) / denominator) * (
-                            flow - flow0
-                        )
+                    stage = stage0 + ((stage1 - stage0) / denominator) * (flow - flow0)
+                    return round(stage, 2)
                 else:
                     denominator = math.log10(flow1) - math.log10(flow0)
 
-                if denominator == 0:
-                    stage = 0
-                else:
-                    stage = math.pow(
-                        10,
-                        math.log10(stage0)
-                        + ((math.log10(stage1) - math.log10(stage0)) / denominator)
-                        * (math.log10(flow) - math.log10(flow0)),
-                    )
+                stage = math.pow(
+                    10,
+                    math.log10(stage0)
+                    + ((math.log10(stage1) - math.log10(stage0)) / denominator)
+                    * (math.log10(flow) - math.log10(flow0)),
+                )
                 break
 
     if stage < 0:
         stage = -9999
 
-    return stage
+    return round(stage, 2)
 
 
 def interpolate_flow_from_rating_curve(ratingStage, ratingFlow, stage):
-
+    # Converted to python from https://www.cnrfc.noaa.gov/includes/rating.js
     if stage < 0:
         flow = -9999
     # BELOW
@@ -95,11 +88,11 @@ def interpolate_flow_from_rating_curve(ratingStage, ratingFlow, stage):
             )
 
     # ABOVE
-    elif stage > ratingStage[len(ratingStage) - 1]:
-        flow0 = set_nonzero(ratingFlow[len(ratingFlow) - 2])
-        flow1 = set_nonzero(ratingFlow[len(ratingFlow) - 1])
-        stg0 = set_nonzero(ratingStage[len(ratingStage) - 2])
-        stg1 = set_nonzero(ratingStage[len(ratingStage) - 1])
+    elif stage > ratingStage[-1]:
+        flow0 = set_nonzero(ratingFlow[-2])
+        flow1 = set_nonzero(ratingFlow[-1])
+        stg0 = set_nonzero(ratingStage[-2])
+        stg1 = set_nonzero(ratingStage[-1])
         stage = set_nonzero(stage)
         denominator = math.log10(stg1) - math.log10(stg0)
         if denominator == 0:
@@ -126,25 +119,20 @@ def interpolate_flow_from_rating_curve(ratingStage, ratingFlow, stage):
                 stage = set_nonzero(stage)
                 if stg0 <= 0:
                     denominator = stg1 - stg0
-                    if denominator == 0:
-                        flow = 0
-                    else:
-                        flow = flow0 + ((flow1 - flow0) / denominator) * (stage - stg0)
+                    flow = flow0 + ((flow1 - flow0) / denominator) * (stage - stg0)
+                    return round(flow, 2)
                 else:
                     denominator = math.log10(stg1) - math.log10(stg0)
 
-                if denominator == 0:
-                    flow = 0
-                else:
-                    flow = math.pow(
-                        10,
-                        math.log10(flow0)
-                        + ((math.log10(flow1) - math.log10(flow0)) / denominator)
-                        * (math.log10(stage) - math.log10(stg0)),
-                    )
+                flow = math.pow(
+                    10,
+                    math.log10(flow0)
+                    + ((math.log10(flow1) - math.log10(flow0)) / denominator)
+                    * (math.log10(stage) - math.log10(stg0)),
+                )
                 break
 
     if flow < 0:
         flow = -9999
 
-    return flow
+    return round(flow, 2)

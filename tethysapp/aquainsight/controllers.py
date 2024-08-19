@@ -1,6 +1,5 @@
 from django.http import JsonResponse
 import json
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import api_view
 
 from tethys_sdk.routing import controller

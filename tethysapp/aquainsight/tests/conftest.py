@@ -1,6 +1,5 @@
 import pytest
 import json
-from unittest.mock import MagicMock
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from tethysapp.aquainsight.tests.integrated_tests import TEST_DB_URL

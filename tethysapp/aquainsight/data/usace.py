@@ -68,7 +68,7 @@ def get_usace_data(location, year):
     data_groups = {
         "storage": metadata["groups"]["storage"],
         "elevation": metadata["groups"]["elev"],
-        "flow": []
+        "flow": [],
     }
     if metadata["groups"].get("topcon"):
         data_groups["storage"] = metadata["groups"]["topcon"] + data_groups["storage"]
@@ -87,14 +87,14 @@ def get_usace_data(location, year):
 
     if metadata["groups"].get("precip"):
         data_groups["precip"] = metadata["groups"]["precip"]
-    
+
     if not data_groups["flow"]:
         del data_groups["flow"]
 
     print("Getting CWMS Data")
     hourly_data = get_usace_plot_data(location, year, time_period="h")
     hourly_data = parse_usace_data(hourly_data)
-    # For some reason, some hourly files are missing flows, so pull in daily averages where needed
+    # For some reason, some hourly files are missing flows, so pull in daily averages where needed  # noqa: E501
     daily_data = get_usace_plot_data(location, year, time_period="d")
     daily_data = parse_usace_data(daily_data)
 

@@ -1,7 +1,7 @@
 import requests
 import hjson
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from .utilities import (
     interpolate_flow_from_rating_curve,
     interpolate_stage_from_rating_curve,

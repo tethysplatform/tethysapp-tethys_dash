@@ -46,8 +46,8 @@ def test_data_failed(client, admin_user, mock_app, mocker):
 
     mock_gud.assert_called_once()
     assert response.status_code == 200
-    assert response.json()["success"] == False
-    assert response.json()["data"] == None
+    assert response.json()["success"] is False
+    assert response.json()["data"] is None
 
 
 @pytest.mark.django_db
@@ -70,28 +70,6 @@ def test_data_usace(client, admin_user, mock_app, mocker):
     assert response.status_code == 200
     assert response.json()["success"]
     assert response.json()["data"] == mock_gud_return
-
-
-@pytest.mark.django_db
-def test_data_usace(client, admin_user, mock_app, mocker):
-    mock_app("tethysapp.aquainsight.controllers.App")
-    url = reverse("aquainsight:data")
-    client.force_login(admin_user)
-    mock_get_data = mocker.patch("tethysapp.aquainsight.controllers.get_usace_data")
-    mock_get_data_return = {"some": "data"}
-    mock_get_data.return_value = mock_get_data_return
-
-    itemData = {
-        "type": "USACEPlot",
-        "metadata": json.dumps({"location": "CREC1", "year": 2025}),
-    }
-
-    response = client.get(url, itemData)
-
-    mock_get_data.assert_called_once()
-    assert response.status_code == 200
-    assert response.json()["success"]
-    assert response.json()["data"] == mock_get_data_return
 
 
 @pytest.mark.django_db
@@ -253,7 +231,7 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker):
         [],
     )
     assert response.status_code == 200
-    assert response.json()["success"] == False
+    assert response.json()["success"] is False
 
 
 @pytest.mark.django_db
@@ -294,7 +272,7 @@ def test_delete_dashboard_failed(client, admin_user, mock_app, mocker):
 
     mock_delete_named_dashboard.assert_called_with("admin", itemData["name"])
     assert response.status_code == 200
-    assert response.json()["success"] == False
+    assert response.json()["success"] is False
 
 
 @pytest.mark.django_db
@@ -370,4 +348,4 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
         itemData["access_groups"],
     )
     assert response.status_code == 200
-    assert response.json()["success"] == False
+    assert response.json()["success"] is False

@@ -11,7 +11,6 @@ from tethysapp.aquainsight.data.cnrfc import (
     get_impact_statement,
     get_cnrfc_hefs_data,
 )
-from datetime import datetime
 
 
 def test_get_cnrfc_river_forecast_data(
@@ -260,5 +259,5 @@ def test_get_cnrfc_hefs_data(
     )
     assert (
         forecast_data["title"]
-        == f"Hourly River Level Probabilities<br>{location_proper_name}<br><b>Issuance Time</b>: {cnrfc_hefs_forecast_issuance_time}"
+        == f"Hourly River Level Probabilities<br>{location_proper_name}<br><b>Issuance Time</b>: {cnrfc_hefs_forecast_issuance_time}"  # noqa: E501
     )

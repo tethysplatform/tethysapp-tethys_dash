@@ -89,7 +89,7 @@ def cnrfc_det_forecast_hydro_thresholds():
 
 @pytest.fixture(scope="function")
 def cnrfc_det_forecast_chart_title():
-    return "Smith River - Jedediah Smith SP (CREC1)<br>River Forecast Plot<br><b>Forecast Posted:</b> 08/14/2024 at  8:08 AM PDT"
+    return "Smith River - Jedediah Smith SP (CREC1)<br>River Forecast Plot<br><b>Forecast Posted:</b> 08/14/2024 at  8:08 AM PDT"  # noqa: E501
 
 
 @pytest.fixture(scope="function")
@@ -453,52 +453,52 @@ def cnrfc_hefs_flow_ensembles():
         {
             "title": "Ensemble 0",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.551334951456315, 4.555825242718451, 4.55949029126214],
+            "y": [4.55, 4.56, 4.56],
         },
         {
             "title": "Ensemble 1",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.5302427184466065, 4.530072815533986, 4.529902912621364],
+            "y": [4.53, 4.53, 4.53],
         },
         {
             "title": "Ensemble 2",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.530825242718452, 4.53060679611651, 4.530388349514568],
+            "y": [4.53, 4.53, 4.53],
         },
         {
             "title": "Ensemble 3",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.535800970873791, 4.535558252427189, 4.535339805825248],
+            "y": [4.54, 4.54, 4.54],
         },
         {
             "title": "Ensemble 4",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.531601941747578, 4.531383495145636, 4.531165048543694],
+            "y": [4.53, 4.53, 4.53],
         },
         {
             "title": "Ensemble 5",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.684796875996042, 4.641719579178438, 4.6069780644500895],
+            "y": [4.68, 4.64, 4.61],
         },
         {
             "title": "Ensemble 6",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.530995145631073, 4.530752427184471, 4.530509708737869],
+            "y": [4.53, 4.53, 4.53],
         },
         {
             "title": "Ensemble 7",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.530364077669908, 4.530169902912626, 4.530000000000005],
+            "y": [4.53, 4.53, 4.53],
         },
         {
             "title": "Ensemble 8",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.531334951456316, 4.531165048543694, 4.530970873786413],
+            "y": [4.53, 4.53, 4.53],
         },
         {
             "title": "Ensemble 9",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.530364077669908, 4.530194174757287, 4.530024271844665],
+            "y": [4.53, 4.53, 4.53],
         },
     ]
 
@@ -509,7 +509,7 @@ def cnrfc_hefs_flow_stats():
         "min": {
             "title": "Minimum",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.5302427184466065, 4.530072815533986, 4.529902912621364],
+            "y": [4.53, 4.53, 4.53],
             "text": [
                 "<i>Minimum</i>: 4.53 feet (235.24 cfs)",
                 "<i>Minimum</i>: 4.53 feet (235.17 cfs)",
@@ -519,7 +519,7 @@ def cnrfc_hefs_flow_stats():
         "max": {
             "title": "Maximum",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.684796875996042, 4.641719579178438, 4.6069780644500895],
+            "y": [4.68, 4.64, 4.61],
             "text": [
                 "<i>Maximum</i>: 4.68 feet (399.14 cfs)",
                 "<i>Maximum</i>: 4.64 feet (421.17 cfs)",
@@ -529,7 +529,7 @@ def cnrfc_hefs_flow_stats():
         "5%": {
             "title": "5% Percentile",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.530297330097092, 4.530116504854374, 4.529946601941752],
+            "y": [4.53, 4.53, 4.53],
             "text": [
                 "<i>5%</i>: 4.53 feet (235.26 cfs)",
                 "<i>5%</i>: 4.53 feet (235.19 cfs)",
@@ -539,7 +539,7 @@ def cnrfc_hefs_flow_stats():
         "25%": {
             "title": "25% Percentile",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.530479368932044, 4.530297330097092, 4.530115291262141],
+            "y": [4.53, 4.53, 4.53],
             "text": [
                 "<i>25%</i>: 4.53 feet (235.34 cfs)",
                 "<i>25%</i>: 4.53 feet (235.26 cfs)",
@@ -549,7 +549,7 @@ def cnrfc_hefs_flow_stats():
         "40%": {
             "title": "40% Percentile",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.530927184466025, 4.530694174757286, 4.530461165048549],
+            "y": [4.53, 4.53, 4.53],
             "text": [
                 "<i>40%</i>: 4.53 feet (235.52 cfs)",
                 "<i>40%</i>: 4.53 feet (235.43 cfs)",
@@ -559,7 +559,7 @@ def cnrfc_hefs_flow_stats():
         "60%": {
             "title": "60% Percentile",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.531441747572821, 4.531252427184471, 4.531048543689326],
+            "y": [4.53, 4.53, 4.53],
             "text": [
                 "<i>60%</i>: 4.53 feet (235.73 cfs)",
                 "<i>60%</i>: 4.53 feet (235.66 cfs)",
@@ -569,7 +569,7 @@ def cnrfc_hefs_flow_stats():
         "75%": {
             "title": "75% Percentile",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.534751213592238, 4.534514563106801, 4.534296116504859],
+            "y": [4.53, 4.53, 4.53],
             "text": [
                 "<i>75%</i>: 4.53 feet (237.1 cfs)",
                 "<i>75%</i>: 4.53 feet (237.0 cfs)",
@@ -579,7 +579,7 @@ def cnrfc_hefs_flow_stats():
         "95%": {
             "title": "95% Percentile",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.758532766990291, 4.78974825134535, 4.784176235905148],
+            "y": [4.76, 4.79, 4.78],
             "text": [
                 "<i>95%</i>: 4.76 feet (329.3 cfs)",
                 "<i>95%</i>: 4.79 feet (342.24 cfs)",
@@ -598,12 +598,12 @@ def cnrfc_hefs_flow_stats():
                     "2024-09-14 08:00:00",
                 ],
                 "y": [
-                    4.530297330097092,
-                    4.530116504854374,
-                    4.529946601941752,
-                    4.529902912621364,
-                    4.530072815533986,
-                    4.5302427184466065,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
                 ],
                 "color": "lightgray",
                 "showlegend": True,
@@ -619,12 +619,12 @@ def cnrfc_hefs_flow_stats():
                     "2024-09-14 08:00:00",
                 ],
                 "y": [
-                    4.684796875996042,
-                    4.641719579178438,
-                    4.6069780644500895,
-                    4.784176235905148,
-                    4.78974825134535,
-                    4.758532766990291,
+                    4.68,
+                    4.64,
+                    4.61,
+                    4.78,
+                    4.79,
+                    4.76,
                 ],
                 "color": "lightgray",
                 "showlegend": False,
@@ -640,12 +640,12 @@ def cnrfc_hefs_flow_stats():
                     "2024-09-14 08:00:00",
                 ],
                 "y": [
-                    4.758532766990291,
-                    4.78974825134535,
-                    4.784176235905148,
-                    4.534296116504859,
-                    4.534514563106801,
-                    4.534751213592238,
+                    4.76,
+                    4.79,
+                    4.78,
+                    4.53,
+                    4.53,
+                    4.53,
                 ],
                 "color": "#B6BEFC",
                 "showlegend": True,
@@ -661,12 +661,12 @@ def cnrfc_hefs_flow_stats():
                     "2024-09-14 08:00:00",
                 ],
                 "y": [
-                    4.530479368932044,
-                    4.530297330097092,
-                    4.530115291262141,
-                    4.529946601941752,
-                    4.530116504854374,
-                    4.530297330097092,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
                 ],
                 "color": "#B6BEFC",
                 "showlegend": False,
@@ -682,12 +682,12 @@ def cnrfc_hefs_flow_stats():
                     "2024-09-14 08:00:00",
                 ],
                 "y": [
-                    4.534751213592238,
-                    4.534514563106801,
-                    4.534296116504859,
-                    4.531048543689326,
-                    4.531252427184471,
-                    4.531441747572821,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
                 ],
                 "color": "#FBFBCF",
                 "showlegend": True,
@@ -703,12 +703,12 @@ def cnrfc_hefs_flow_stats():
                     "2024-09-14 08:00:00",
                 ],
                 "y": [
-                    4.530927184466025,
-                    4.530694174757286,
-                    4.530461165048549,
-                    4.530115291262141,
-                    4.530297330097092,
-                    4.530479368932044,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
                 ],
                 "color": "#FBFBCF",
                 "showlegend": False,
@@ -724,12 +724,12 @@ def cnrfc_hefs_flow_stats():
                     "2024-09-14 08:00:00",
                 ],
                 "y": [
-                    4.531441747572821,
-                    4.531252427184471,
-                    4.531048543689326,
-                    4.530461165048549,
-                    4.530694174757286,
-                    4.530927184466025,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
+                    4.53,
                 ],
                 "color": "#F7EBA7",
                 "showlegend": True,
@@ -738,7 +738,7 @@ def cnrfc_hefs_flow_stats():
         "mean": {
             "title": "Ensemble Mean",
             "x": ["2024-09-14 08:00:00", "2024-09-14 09:00:00", "2024-09-14 10:00:00"],
-            "y": [4.573092233009713, 4.5787257281553435, 4.583497572815538],
+            "y": [4.57, 4.58, 4.58],
             "text": [
                 "<i>Mean</i>: 4.57 feet (252.89 cfs)",
                 "<i>Mean</i>: 4.58 feet (255.21 cfs)",
@@ -778,43 +778,43 @@ def nwps_impact_statements():
     return [
         {
             "stage": 39,
-            "statement": "Extensive and severe flooding of all areas near the river will occur. Significant damage to roads, bridges and other structures near the river is likely. All low lying areas in and around the river will be flooded. All persons in the area should be prepared to take appropriate action to protect life and property.",
+            "statement": "Extensive and severe flooding of all areas near the river will occur. Significant damage to roads, bridges and other structures near the river is likely. All low lying areas in and around the river will be flooded. All persons in the area should be prepared to take appropriate action to protect life and property.",  # noqa: E501
         },
         {
             "stage": 37,
-            "statement": "Severe damage could be inflicted upon roads, bridges and other structures. All low lying areas in and around the river are likely to be flooded. Persons in these areas should be prepared to take appropriate actions to protect life and property.",
+            "statement": "Severe damage could be inflicted upon roads, bridges and other structures. All low lying areas in and around the river are likely to be flooded. Persons in these areas should be prepared to take appropriate actions to protect life and property.",  # noqa: E501
         },
         {
             "stage": 36,
-            "statement": "Extensive is flooding possible along Highway 197 and US Highway 199 in the Gasquet area. Homes and campgrounds in these areas could be threatened, including portions of Jedediah Smith State Park.",
+            "statement": "Extensive is flooding possible along Highway 197 and US Highway 199 in the Gasquet area. Homes and campgrounds in these areas could be threatened, including portions of Jedediah Smith State Park.",  # noqa: E501
         },
         {
             "stage": 35,
-            "statement": "Considerable flooding along Highway 197 and US Highway 199 in the Gasquet area will occur. Low lying homes in these areas are likely to be threatened.",
+            "statement": "Considerable flooding along Highway 197 and US Highway 199 in the Gasquet area will occur. Low lying homes in these areas are likely to be threatened.",  # noqa: E501
         },
         {
             "stage": 34,
-            "statement": "Significant flooding along Highway 197 and along US Highway 199 in the Gasquet area. Some low-lying homes in these areas may be threatened.",
+            "statement": "Significant flooding along Highway 197 and along US Highway 199 in the Gasquet area. Some low-lying homes in these areas may be threatened.",  # noqa: E501
         },
         {
             "stage": 32,
-            "statement": "Significant flooding along Highway 197 in the Gasquet area, with possible flooding of US Highway 199 near Gasquet. Some low-lying homes in these areas may be threatened.",
+            "statement": "Significant flooding along Highway 197 in the Gasquet area, with possible flooding of US Highway 199 near Gasquet. Some low-lying homes in these areas may be threatened.",  # noqa: E501
         },
         {
             "stage": 29,
-            "statement": "Flooding along Highway 197 and low-lying roads near Gasquet is likely.",
+            "statement": "Flooding along Highway 197 and low-lying roads near Gasquet is likely.",  # noqa: E501
         },
         {
             "stage": 28,
-            "statement": "Flooding along lower portions of Highway 197 with possible flooding of roads near Gasquet.",
+            "statement": "Flooding along lower portions of Highway 197 with possible flooding of roads near Gasquet.",  # noqa: E501
         },
         {
             "stage": 26,
-            "statement": "Expect minor flooding along Highway 197 and other low-lying areas near the river.",
+            "statement": "Expect minor flooding along Highway 197 and other low-lying areas near the river.",  # noqa: E501
         },
         {
             "stage": 25,
-            "statement": "Minor flooding of the lowest lying areas near the river may occur.",
+            "statement": "Minor flooding of the lowest lying areas near the river may occur.",  # noqa: E501
         },
     ]
 
@@ -846,7 +846,7 @@ def usace_expected_ts_df():
 
 @pytest.fixture(scope="function")
 def usace_expected_ts_title():
-    return " Coyote Valley Dam / Lake Mendocino - Russian River Basin<br>WY 2024 | Generated: 2024-08-16T12:06:15-0700"
+    return " Coyote Valley Dam / Lake Mendocino - Russian River Basin<br>WY 2024 | Generated: 2024-08-16T12:06:15-0700"  # noqa: E501
 
 
 @pytest.fixture(scope="function")
