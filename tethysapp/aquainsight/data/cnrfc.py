@@ -74,7 +74,7 @@ def get_cnrfc_hefs_data(location, location_proper_name):
         rating_curve_flows, rating_curve_stages, response.text
     )
 
-    chart_title = f"Hourly River Level Probabilities<br>{location_proper_name}<br><b>Issuance Time</b>: {hefs_metadata["issuance_time"]}"  # noqa: E501
+    chart_title = f"Hourly River Level Probabilities<br>{location_proper_name}<br><b>Issuance Time</b>: {hefs_metadata['issuance_time']}"  # noqa: E501
 
     deterministic_dates.sort()
 
@@ -282,7 +282,7 @@ def get_hefs_data(location, rating_curve_flows, rating_curve_stages):
             "x": dates,
             "y": df_stage["mean"].tolist(),
             "text": [
-                f"<i>Mean</i>: {round(df_stage.loc[i, "mean"], 2)} feet ({round(df_flow.loc[i, "mean"], 2)} cfs)"  # noqa: E501
+                f"<i>Mean</i>: {round(df_stage.loc[i, 'mean'], 2)} feet ({round(df_flow.loc[i, 'mean'], 2)} cfs)"  # noqa: E501
                 for i in range(len(dates))
             ],
         },
