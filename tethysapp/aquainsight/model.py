@@ -55,8 +55,8 @@ class Column(Base):
     row_id = Column(Integer, ForeignKey("rows.id"), nullable=False)
     col_order = Column(Integer)
     width = Column(Integer)
-    data_type = Column(String)
-    data_metadata = Column(String)
+    data_source = Column(String)
+    data_args = Column(String)
 
 
 def add_new_dashboard(label, name, notes, row_data, owner, access_groups):
@@ -91,8 +91,8 @@ def add_new_dashboard(label, name, notes, row_data, owner, access_groups):
                     new_row.id,
                     index,
                     column["width"],
-                    column["type"],
-                    json.dumps(column["metadata"]),
+                    column["source"],
+                    json.dumps(column["args"]),
                 )
 
         # Commit the session and close the connection
@@ -117,13 +117,13 @@ def delete_row(session, row_id):
     return
 
 
-def add_new_column(session, row_id, order, width, type, metadata):
+def add_new_column(session, row_id, order, width, source, args):
     new_column = Column(
         row_id=row_id,
         col_order=order,
         width=width,
-        data_type=type,
-        data_metadata=metadata,
+        data_source=source,
+        data_args=args,
     )
     session.add(new_column)
     session.commit()
@@ -205,21 +205,21 @@ def update_named_dashboard(user, name, label, notes, row_data, access_groups):
                 col_id = col.get("id")
                 col_width = int(col["width"])
                 col_order = int(col["order"])
-                col_type = col["type"]
-                if col_type == "Text":
-                    col["metadata"]["text"] = nh3.clean(col["metadata"]["text"])
+                col_source = col["source"]
+                if col_source == "Text":
+                    col["args"]["text"] = nh3.clean(col["args"]["text"])
 
-                col_metadata = json.dumps(col["metadata"])
+                col_args = json.dumps(col["args"])
                 if not col_id:
                     db_col = add_new_column(
-                        session, db_row.id, col_order, col_width, col_type, col_metadata
+                        session, db_row.id, col_order, col_width, col_source, col_args
                     )
                 else:
                     db_col = session.query(Column).filter(Column.id == col_id).first()
                     db_col.width = col_width
                     db_col.col_order = col_order
-                    db_col.data_type = col_type
-                    db_col.data_metadata = col_metadata
+                    db_col.data_source = col_source
+                    db_col.data_args = col_args
 
         # Commit the session and close the connection
         session.commit()
@@ -267,8 +267,8 @@ def get_dashboards(user, name=None):
                         "id": col.id,
                         "order": col.col_order,
                         "width": col.width,
-                        "type": col.data_type,
-                        "metadata": json.loads(col.data_metadata),
+                        "source": col.data_source,
+                        "args": json.loads(col.data_args),
                     }
                     cols.append(col_data)
 

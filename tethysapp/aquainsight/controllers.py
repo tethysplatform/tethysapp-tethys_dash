@@ -10,12 +10,7 @@ from .model import (
     delete_named_dashboard,
     update_named_dashboard,
 )
-from .data.usace import get_usace_data
-from .data.cnrfc import (
-    get_cnrfc_river_forecast_data,
-    get_impact_statement,
-    get_cnrfc_hefs_data,
-)
+from .visualizations import get_available_visualizations, get_visualization
 
 
 @controller(login_required=True)
@@ -29,30 +24,20 @@ def home(request):
 @controller(login_required=True)
 def data(request):
     """API controller for the plot page."""
-    metadata = json.loads(request.GET["metadata"])
+    viz_source = request.GET["source"]
+    viz_args = json.loads(request.GET["args"])
     data = None
+    viz_type = None
     success = True
 
     try:
-        if request.GET["type"] == "USACEPlot":
-            data = get_usace_data(metadata["location"], metadata["year"])
-
-        elif request.GET["type"] == "CNRFCRiverForecastPlot":
-            data = get_cnrfc_river_forecast_data(metadata["location"])
-
-        elif request.GET["type"] == "CNRFCHEFSPlot":
-            data = get_cnrfc_hefs_data(
-                metadata["location"], metadata["location_proper_name"]
-            )
-
-        elif request.GET["type"] == "ImpactStatement":
-            data = get_impact_statement(metadata["location"])
+        viz_type, data = get_visualization(viz_source, viz_args)
     except Exception as e:
         print("Failed to retrieve data")
         print(e)
         success = False
 
-    return JsonResponse({"success": success, "data": data})
+    return JsonResponse({"success": success, "data": data, "viz_type": viz_type})
 
 
 @api_view(["GET"])
@@ -63,6 +48,15 @@ def dashboards(request):
     dashboards = get_dashboards(user)
 
     return JsonResponse(dashboards)
+
+
+@api_view(["GET"])
+@controller(login_required=True)
+def visualizations(request):
+    """API controller for the visualizations page."""
+    visualizations = get_available_visualizations()
+
+    return JsonResponse(visualizations)
 
 
 @api_view(["POST"])

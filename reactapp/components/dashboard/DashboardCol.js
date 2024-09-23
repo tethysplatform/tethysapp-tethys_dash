@@ -12,8 +12,8 @@ const ColInfoContext = createContext();
 function DashboardCol({ colNumber, colData }) {
   const colID = colData["id"];
   const colWidth = colData["width"];
-  const colDataType = colData["type"];
-  const colDataMetadata = colData["metadata"];
+  const colDataSource = colData["source"];
+  const colDataArgs = colData["args"];
   const [width, setWidth] = useState(colWidth);
 
   useEffect(() => {
@@ -24,8 +24,8 @@ function DashboardCol({ colNumber, colData }) {
     <StyledDashboardCol className={"justify-content-center h-100 col-" + width}>
       <ColInfoContext.Provider value={[colNumber, colID, width, setWidth]}>
         <DashboardItem
-          type={colDataType}
-          metadata={colDataMetadata}
+          source={colDataSource}
+          args={colDataArgs}
         ></DashboardItem>
       </ColInfoContext.Provider>
     </StyledDashboardCol>

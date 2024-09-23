@@ -14,3 +14,4 @@ tethysapp/aquainsight/workspaces/
 reactapp/config/production.env
 test.py
 .coverage
+launch.json

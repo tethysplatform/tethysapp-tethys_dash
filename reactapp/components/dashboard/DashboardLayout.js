@@ -92,8 +92,8 @@ function DashboardLayout() {
           id: colID,
           width: dimensionInput.value,
           order: colCount,
-          type: dimensionInput.dataset["type"],
-          metadata: JSON.parse(dimensionInput.dataset["metadata"]),
+          source: dimensionInput.dataset["source"],
+          args: JSON.parse(dimensionInput.dataset["args"]),
         });
         colCount += 1;
         totalColWidth += parseInt(dimensionInput.value);

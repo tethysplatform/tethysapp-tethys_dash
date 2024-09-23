@@ -62,8 +62,8 @@ function NewDashboardModal() {
       let totalColWidth = 0;
       for (let x = 1; x <= rowColCount; x++) {
         let colData = {};
-        colData["type"] = "";
-        colData["metadata"] = {};
+        colData["source"] = "";
+        colData["args"] = {};
 
         const colWidth = parseInt(
           event.currentTarget.querySelector("#row" + i + "col" + x).value
