@@ -34,116 +34,64 @@ def test_data_failed(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.aquainsight.controllers.App")
     url = reverse("aquainsight:data")
     client.force_login(admin_user)
-    mock_gud = mocker.patch("tethysapp.aquainsight.controllers.get_usace_data")
-    mock_gud.side_effect = [Exception("Failed data retrieval")]
+    mock_gv = mocker.patch("tethysapp.aquainsight.controllers.get_visualization")
+    mock_gv.side_effect = [Exception("Failed data retrieval")]
 
     itemData = {
-        "type": "USACEPlot",
-        "metadata": json.dumps({"location": "CREC1", "year": 2025}),
+        "source": "usace_time_series",
+        "args": json.dumps({"location": "CREC1", "year": 2025}),
     }
 
     response = client.get(url, itemData)
 
-    mock_gud.assert_called_once()
+    mock_gv.assert_called_once()
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert response.json()["data"] is None
+    assert response.json()["viz_type"] is None
 
 
 @pytest.mark.django_db
-def test_data_usace(client, admin_user, mock_app, mocker):
+def test_data(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.aquainsight.controllers.App")
     url = reverse("aquainsight:data")
     client.force_login(admin_user)
-    mock_gud = mocker.patch("tethysapp.aquainsight.controllers.get_usace_data")
-    mock_gud_return = {"some": "data"}
-    mock_gud.return_value = mock_gud_return
+    mock_gv = mocker.patch("tethysapp.aquainsight.controllers.get_visualization")
+    plot_data = {"data": [], "layout": {}}
+    mock_gv.return_value = ["plotly", plot_data]
 
     itemData = {
-        "type": "USACEPlot",
-        "metadata": json.dumps({"location": "CREC1", "year": 2025}),
+        "source": "usace_time_series",
+        "args": json.dumps({"location": "CREC1", "year": 2025}),
     }
 
     response = client.get(url, itemData)
 
-    mock_gud.assert_called_once()
+    mock_gv.assert_called_once()
     assert response.status_code == 200
-    assert response.json()["success"]
-    assert response.json()["data"] == mock_gud_return
+    assert response.json()["success"] is True
+    assert response.json()["data"] == plot_data
+    assert response.json()["viz_type"] == "plotly"
 
 
 @pytest.mark.django_db
-def test_data_cnrfc_det_forecast(client, admin_user, mock_app, mocker):
+def test_visualizations(
+    client, admin_user, mock_app, mocker, mock_plugin_visualization
+):
     mock_app("tethysapp.aquainsight.controllers.App")
-    url = reverse("aquainsight:data")
+    url = reverse("aquainsight:visualizations")
     client.force_login(admin_user)
-    mock_get_data = mocker.patch(
-        "tethysapp.aquainsight.controllers.get_cnrfc_river_forecast_data"
+    mock_gav = mocker.patch(
+        "tethysapp.aquainsight.controllers.get_available_visualizations"
     )
-    mock_get_data_return = {"some": "data"}
-    mock_get_data.return_value = mock_get_data_return
+    mock_gav_return = {"visualizations": [mock_plugin_visualization]}
+    mock_gav.return_value = mock_gav_return
 
-    itemData = {
-        "type": "CNRFCRiverForecastPlot",
-        "metadata": json.dumps({"location": "CREC1"}),
-    }
+    response = client.get(url)
 
-    response = client.get(url, itemData)
-
-    mock_get_data.assert_called_once()
+    mock_gav.assert_called_once()
     assert response.status_code == 200
-    assert response.json()["success"]
-    assert response.json()["data"] == mock_get_data_return
-
-
-@pytest.mark.django_db
-def test_data_cnrfc_hefs_forecast(client, admin_user, mock_app, mocker):
-    mock_app("tethysapp.aquainsight.controllers.App")
-    url = reverse("aquainsight:data")
-    client.force_login(admin_user)
-    mock_get_data = mocker.patch(
-        "tethysapp.aquainsight.controllers.get_cnrfc_hefs_data"
-    )
-    mock_get_data_return = {"some": "data"}
-    mock_get_data.return_value = mock_get_data_return
-
-    itemData = {
-        "type": "CNRFCHEFSPlot",
-        "metadata": json.dumps(
-            {"location": "CREC1", "location_proper_name": "CREC1 Proper"}
-        ),
-    }
-
-    response = client.get(url, itemData)
-
-    mock_get_data.assert_called_once()
-    assert response.status_code == 200
-    assert response.json()["success"]
-    assert response.json()["data"] == mock_get_data_return
-
-
-@pytest.mark.django_db
-def test_data_impact_statements(client, admin_user, mock_app, mocker):
-    mock_app("tethysapp.aquainsight.controllers.App")
-    url = reverse("aquainsight:data")
-    client.force_login(admin_user)
-    mock_get_data = mocker.patch(
-        "tethysapp.aquainsight.controllers.get_impact_statement"
-    )
-    mock_get_data_return = {"some": "data"}
-    mock_get_data.return_value = mock_get_data_return
-
-    itemData = {
-        "type": "ImpactStatement",
-        "metadata": json.dumps({"location": "CREC1"}),
-    }
-
-    response = client.get(url, itemData)
-
-    mock_get_data.assert_called_once()
-    assert response.status_code == 200
-    assert response.json()["success"]
-    assert response.json()["data"] == mock_get_data_return
+    assert response.json() == mock_gav_return
 
 
 @pytest.mark.django_db

@@ -45,7 +45,6 @@ function DashboardSelector() {
   const layoutContext = getLayoutContext();
 
   useEffect(() => {
-    console.log(layoutContext);
     if (layoutContext["editable"]) {
       setEditableDashboard(true);
     }

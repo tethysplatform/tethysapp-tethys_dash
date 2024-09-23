@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from tethysapp.aquainsight.tests.integrated_tests import TEST_DB_URL
 from django.http import HttpResponse
-
+from unittest.mock import MagicMock
 from tethysapp.aquainsight.model import init_primary_db, Dashboard
 
 
@@ -86,8 +86,8 @@ def row_data():
                     {
                         "width": 12,
                         "order": 1,
-                        "type": "image",
-                        "metadata": {"uri": "some/path"},
+                        "source": "image",
+                        "args": {"uri": "some/path"},
                     }
                 ],
             }
@@ -125,3 +125,69 @@ def mock_app(mocker):
         return mock_app
 
     return mocked_path
+
+
+@pytest.fixture(scope="function")
+def mock_plugin(mocker):
+    plugin = MagicMock(
+        visualization_group="package_group",
+        visualization_label="Some Package",
+        visualization_args={"package_arg": "text"},
+        visualization_type="image",
+    )
+    plugin.name = "package_name"
+
+    return plugin
+
+
+@pytest.fixture(scope="function")
+def mock_plugin2(mocker):
+    plugin = MagicMock(
+        visualization_group="package_group",
+        visualization_label="Some Package2",
+        visualization_args={"package_arg": "text"},
+        visualization_type="image",
+    )
+    plugin.name = "package_name2"
+
+    return plugin
+
+
+@pytest.fixture(scope="function")
+def mock_plugin_visualization(mock_plugin):
+    plugin_visualization = {
+        "label": mock_plugin.visualization_group,
+        "options": [
+            {
+                "source": mock_plugin.name,
+                "value": mock_plugin.visualization_label,
+                "label": mock_plugin.visualization_label,
+                "args": mock_plugin.visualization_args,
+            }
+        ],
+    }
+
+    return plugin_visualization
+
+
+@pytest.fixture(scope="function")
+def mock_plugin_visualization2(mock_plugin, mock_plugin2):
+    plugin_visualization = {
+        "label": mock_plugin.visualization_group,
+        "options": [
+            {
+                "source": mock_plugin.name,
+                "value": mock_plugin.visualization_label,
+                "label": mock_plugin.visualization_label,
+                "args": mock_plugin.visualization_args,
+            },
+            {
+                "source": mock_plugin2.name,
+                "value": mock_plugin2.visualization_label,
+                "label": mock_plugin2.visualization_label,
+                "args": mock_plugin2.visualization_args,
+            },
+        ],
+    }
+
+    return plugin_visualization

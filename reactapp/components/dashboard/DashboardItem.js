@@ -73,7 +73,7 @@ function UpdateMessage({ showUpdateMessage, updateMessage }) {
   }
 }
 
-const DashboardItem = ({ type, metadata }) => {
+const DashboardItem = ({ source, args }) => {
   const isEditing = useEditingContext()[0];
   const [rowNumber, rowID, height, setHeight] = useRowInfoContext();
   const [colNumber, colID, width, setWidth] = useColInfoContext();
@@ -186,7 +186,7 @@ const DashboardItem = ({ type, metadata }) => {
           updateMessage={updateMessage}
         />
         <StyledButtonDiv>
-          {!["", "Text"].includes(type) && (
+          {!["", "Text"].includes(source) && (
             <DashboardItemButton
               tooltipText="Fullscreen"
               type="fullscreen"
@@ -208,12 +208,12 @@ const DashboardItem = ({ type, metadata }) => {
           />
         </StyledButtonDiv>
         <Row style={{ height: "100%" }} hidden={isEditing}>
-          {!isEditing && type !== "" && (
+          {!isEditing && source !== "" && (
             <BaseVisualization
               rowHeight={height}
               colWidth={width}
-              type={type}
-              metadataString={JSON.stringify(metadata)}
+              source={source}
+              argsString={JSON.stringify(args)}
               showFullscreen={showFullscreen}
               hideFullscreen={hideFullscreen}
             />
@@ -246,8 +246,8 @@ const DashboardItem = ({ type, metadata }) => {
                 onChange={onColWidthInput}
                 value={width}
                 data-inputtype="width"
-                data-type={type}
-                data-metadata={JSON.stringify(metadata)}
+                data-source={source}
+                data-args={JSON.stringify(args)}
                 data-rowid={rowID}
                 data-colid={colID}
               />
@@ -308,8 +308,8 @@ const DashboardItem = ({ type, metadata }) => {
 };
 
 DashboardItem.propTypes = {
-  type: PropTypes.string,
-  metadata: PropTypes.object,
+  source: PropTypes.string,
+  args: PropTypes.object,
 };
 
 export default memo(DashboardItem);

@@ -41,8 +41,8 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, row_data):
 
     column = db_session.query(Column).filter(Column.row_id == row_id).first()
     assert column.width == 12
-    assert column.data_type == "image"
-    assert column.data_metadata == json.dumps({"uri": "some/path"})
+    assert column.data_source == "image"
+    assert column.data_args == json.dumps({"uri": "some/path"})
     column_id = column.id
 
     # Add a new row and verify
@@ -63,17 +63,17 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, row_data):
     # Add a new column and verify
     new_col_order = 2
     new_col_width = 6
-    new_col_type = "image"
-    new_col_metadata = json.dumps({"uri": "some/new/path"})
+    new_col_source = "image"
+    new_col_args = json.dumps({"uri": "some/new/path"})
     new_column = add_new_column(
-        db_session, row_id, new_col_order, new_col_width, new_col_type, new_col_metadata
+        db_session, row_id, new_col_order, new_col_width, new_col_source, new_col_args
     )
 
     new_column = db_session.query(Column).filter(Column.id == new_column.id).first()
     assert new_column.width == new_col_width
     assert new_column.col_order == new_col_order
-    assert new_column.data_type == new_col_type
-    assert new_column.data_metadata == new_col_metadata
+    assert new_column.data_source == new_col_source
+    assert new_column.data_args == new_col_args
 
     # Delete the new column
     delete_column(db_session, new_column.id)
@@ -139,14 +139,14 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db):
                     {
                         "width": 12,
                         "order": 1,
-                        "type": "image",
-                        "metadata": {"uri": "some/path"},
+                        "source": "image",
+                        "args": {"uri": "some/path"},
                     },
                     {
                         "width": 12,
                         "order": 2,
-                        "type": "image",
-                        "metadata": {"uri": "some/other/other/path"},
+                        "source": "image",
+                        "args": {"uri": "some/other/other/path"},
                     },
                 ],
             },
@@ -157,8 +157,8 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db):
                     {
                         "width": 12,
                         "order": 1,
-                        "type": "image",
-                        "metadata": {"uri": "some/other/path"},
+                        "source": "image",
+                        "args": {"uri": "some/other/path"},
                     }
                 ],
             },
@@ -183,7 +183,7 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db):
     assert dashboard.rows[0].height == 1
     assert len(dashboard.rows[0].columns) == 2
     assert dashboard.rows[0].columns[0].width == 12
-    assert dashboard.rows[0].columns[0].data_type == "image"
+    assert dashboard.rows[0].columns[0].data_source == "image"
     assert dashboard.access_groups == updated_access_groups
 
     row1 = dashboard.rows[0]
@@ -201,8 +201,8 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db):
                         "id": row1col1.id,
                         "width": 6,
                         "order": row1col1.col_order,
-                        "type": "Text",
-                        "metadata": {"text": "some text"},
+                        "source": "Text",
+                        "args": {"text": "some text"},
                     }
                 ],
             }
@@ -226,7 +226,7 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db):
 
     db_session.refresh(dashboard.rows[0].columns[0])
     assert dashboard.rows[0].columns[0].width == 6
-    assert dashboard.rows[0].columns[0].data_type == "Text"
+    assert dashboard.rows[0].columns[0].data_source == "Text"
 
 
 @pytest.mark.django_db
@@ -296,8 +296,8 @@ def test_get_dashboards_all(dashboard, db_session, mock_app_get_ps_db, row_data)
                             "id": 6,
                             "order": 1,
                             "width": 12,
-                            "type": "image",
-                            "metadata": {"uri": "some/path"},
+                            "source": "image",
+                            "args": {"uri": "some/path"},
                         }
                     ],
                 }
