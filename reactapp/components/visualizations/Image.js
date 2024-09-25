@@ -3,12 +3,8 @@ import styled from "styled-components";
 import { memo, useState, useEffect } from "react";
 
 const StyledImg = styled.img`
-  max-width: 100% !important;
-  max-height: 100% !important;
-  height: auto;
-  width: auto;
-  margin: auto;
-  display: block;
+  height: 100%;
+  width: 100%;
 `;
 
 const StyledDiv = styled.div`

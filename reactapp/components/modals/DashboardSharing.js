@@ -8,6 +8,7 @@ import { AppContext } from "components/contexts/AppContext";
 import { useContext, useState, useEffect } from "react";
 import appAPI from "services/api/app";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
+import PropTypes from "prop-types";
 
 function DashboardSharingModal({ showModal, setShowModal }) {
   const getLayoutContext = useLayoutContext()[2];
@@ -37,6 +38,7 @@ function DashboardSharingModal({ showModal, setShowModal }) {
     } else {
       setSelectedRadio("private");
     }
+    // eslint-disable-next-line
   }, []);
 
   function handleSubmit(event) {
@@ -100,5 +102,10 @@ function DashboardSharingModal({ showModal, setShowModal }) {
     </>
   );
 }
+
+DashboardSharingModal.propTypes = {
+  showModal: PropTypes.func,
+  setShowModal: PropTypes.func,
+};
 
 export default DashboardSharingModal;

@@ -1,6 +1,7 @@
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import Plot from "react-plotly.js";
+import { useResizeDetector } from "react-resize-detector";
 import { memo } from "react";
 
 const StyledPlot = styled(Plot)`
@@ -9,16 +10,25 @@ const StyledPlot = styled(Plot)`
   padding: 0;
 `;
 
-const BasePlot = ({ plotData, rowHeight, colWidth }) => {
-  let revision = parseInt(rowHeight.toString() + colWidth.toString());
+const BasePlot = ({ plotData }) => {
+  const { width, height, ref } = useResizeDetector({
+    refreshMode: "debounce",
+    refreshRate: 100,
+  });
   return (
-    <StyledPlot
-      data={plotData.data}
-      layout={plotData.layout}
-      config={plotData.config}
-      useResizeHandler={true}
-      revision={revision}
-    />
+    <div ref={ref} style={{ display: "flex", height: "100%" }}>
+      <StyledPlot
+        data={plotData.data}
+        layout={{
+          ...plotData.layout,
+          ...{
+            width: width,
+            height: height,
+          },
+        }}
+        config={plotData.config}
+      />
+    </div>
   );
 };
 

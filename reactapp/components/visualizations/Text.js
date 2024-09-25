@@ -20,8 +20,7 @@ const Text = ({ textValue }) => {
 };
 
 Text.propTypes = {
-  source: PropTypes.string,
-  onError: PropTypes.func,
+  textValue: PropTypes.string,
 };
 
 export default memo(Text);

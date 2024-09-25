@@ -21,9 +21,11 @@ import {
   BsFileText,
   BsTrash,
   BsPeopleFill,
+  BsPlus,
 } from "react-icons/bs";
 import { useEditingContext } from "components/contexts/EditingContext";
 import { AppContext } from "components/contexts/AppContext";
+import { confirm } from "components/dashboard/DeleteConfirmation";
 
 function DashboardSelector() {
   const setLayoutContext = useLayoutContext()[0];
@@ -76,7 +78,7 @@ function DashboardSelector() {
     // eslint-disable-next-line
   }, []);
 
-  function updateLayout(e) {
+  function changeDashboard(e) {
     if (e.value === "Create a New Dashboard") {
       setShowAddDashboardModal(true);
     } else {
@@ -85,13 +87,28 @@ function DashboardSelector() {
       setLayoutContext(selectedDashboard);
       setEditableDashboard(selectedDashboard["editable"]);
     }
+    setIsEditing(false);
+  }
+
+  async function updateLayout(e) {
+    if (isEditing) {
+      if (
+        await confirm(
+          "Changing dashboards will cancel any changes you have made. Are your sure you want to change dashboards?"
+        )
+      ) {
+        changeDashboard(e);
+      }
+    } else {
+      changeDashboard(e);
+    }
   }
 
   async function onDelete(e) {
     const selectedOptionValue = selectedOption["value"];
 
     if (
-      window.confirm(
+      await confirm(
         "Are your sure you want to delete the " +
           selectedOptionValue +
           " dashboard?"
@@ -104,8 +121,8 @@ function DashboardSelector() {
       );
       const userOptions = selectOptions.find(({ label }) => label === "User");
       const userOptionsIndex = selectOptions.indexOf(userOptions);
-      const deletedOptionIndex = userOptions["options"].find(
-        ({ value }) => value === selectedOptionValue
+      const deletedOptionIndex = userOptions["options"].findIndex(
+        (x) => x.value === selectedOptionValue
       );
       const updatedUserOptions = userOptions["options"].toSpliced(
         deletedOptionIndex,
@@ -147,6 +164,21 @@ function DashboardSelector() {
     setIsEditing(false);
   }
 
+  function onAddGridItem(e) {
+    const layout = getLayoutContext();
+    const newGridItem = {
+      i: `${layout["gridItems"].length + 1}`,
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+    };
+    layout["gridItems"] = [...layout["gridItems"], newGridItem];
+    setLayoutContext(layout);
+  }
+
   return (
     <>
       <DashboardSelect
@@ -163,6 +195,13 @@ function DashboardSelector() {
           >
             <BsFileText size="1.5rem" />
           </HeaderButton>
+          <HeaderButton
+            tooltipPlacement="bottom"
+            tooltipText="Edit Access"
+            onClick={onEditAccess}
+          >
+            <BsPeopleFill size="1.5rem" />
+          </HeaderButton>
           {editableDashboard && (
             <>
               {isEditing && (
@@ -177,10 +216,17 @@ function DashboardSelector() {
                   <HeaderButton
                     tooltipPlacement="bottom"
                     tooltipText="Save Changes"
-                    form="rowUpdate"
+                    form="gridUpdate"
                     type="submit"
                   >
                     <BsSave size="1.5rem" />
+                  </HeaderButton>
+                  <HeaderButton
+                    tooltipPlacement="bottom"
+                    tooltipText="Add Dashboard Item"
+                    onClick={onAddGridItem}
+                  >
+                    <BsPlus size="1.5rem" />
                   </HeaderButton>
                 </>
               )}
@@ -193,13 +239,6 @@ function DashboardSelector() {
                   <BsPencilSquare size="1.5rem" />
                 </HeaderButton>
               )}
-              <HeaderButton
-                tooltipPlacement="bottom"
-                tooltipText="Edit Access"
-                onClick={onEditAccess}
-              >
-                <BsPeopleFill size="1.5rem" />
-              </HeaderButton>
               <HeaderButton
                 tooltipPlacement="bottom"
                 tooltipText="Delete Dashboard"

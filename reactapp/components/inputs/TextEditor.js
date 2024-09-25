@@ -34,7 +34,7 @@ const TextEditor = ({ textValue, onChange }) => {
 
 TextEditor.propTypes = {
   onChange: PropTypes.func,
-  textInput: PropTypes.string,
+  textValue: PropTypes.string,
 };
 
 export default TextEditor;

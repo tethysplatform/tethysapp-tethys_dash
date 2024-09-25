@@ -14,7 +14,7 @@ const StyledH2 = styled.h2`
   text-align: center;
 `;
 
-export function setVisualization(setViz, itemData, rowHeight, colWidth) {
+export function setVisualization(setViz, itemData) {
   setViz(<StyledSpinner animation="border" variant="info" />);
   appAPI.getPlotData(itemData).then((response) => {
     if (response.success === true) {
@@ -23,13 +23,7 @@ export function setVisualization(setViz, itemData, rowHeight, colWidth) {
           data: response.data.data,
           layout: response.data.layout,
         };
-        setViz(
-          <BasePlot
-            plotData={plotData}
-            rowHeight={rowHeight}
-            colWidth={colWidth}
-          />
-        );
+        setViz(<BasePlot plotData={plotData} />);
       } else if (response["viz_type"] === "image") {
         setViz(<Image source={response.data} />);
       } else if (response["viz_type"] === "table") {

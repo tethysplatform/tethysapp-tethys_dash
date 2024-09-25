@@ -6,7 +6,7 @@ const LayoutNameContext = createContext();
 const LayoutLabelContext = createContext();
 const LayoutAccessGroupsContext = createContext();
 const LayoutNotesContext = createContext();
-const LayoutRowDataContext = createContext();
+const LayoutGridItemsContext = createContext();
 
 const SelectedDashboardContextProvider = ({ children }) => {
   const [name, setName] = useState("");
@@ -14,14 +14,14 @@ const SelectedDashboardContextProvider = ({ children }) => {
   const [accessGroups, setAccessGroups] = useState("");
   const [editable, setEditable] = useState(false);
   const [notes, setNotes] = useState("");
-  const [rowData, setRowData] = useState(null);
+  const [gridItems, setGridItems] = useState([]);
 
   function resetLayoutContext() {
     setName("");
     setLabel("");
     setAccessGroups([]);
     setNotes("");
-    setRowData({});
+    setGridItems([]);
     setEditable(false);
   }
 
@@ -30,7 +30,7 @@ const SelectedDashboardContextProvider = ({ children }) => {
     setLabel(dashboardContext["label"]);
     setAccessGroups(dashboardContext["access_groups"]);
     setNotes(dashboardContext["notes"]);
-    setRowData(dashboardContext["rowData"]);
+    setGridItems(dashboardContext["gridItems"]);
     setEditable(dashboardContext["editable"]);
   }
 
@@ -40,7 +40,7 @@ const SelectedDashboardContextProvider = ({ children }) => {
       label: label,
       access_groups: accessGroups,
       notes: notes,
-      rowData: JSON.stringify(rowData),
+      gridItems: gridItems,
       editable: editable,
     };
   }
@@ -55,9 +55,11 @@ const SelectedDashboardContextProvider = ({ children }) => {
             value={[accessGroups, setAccessGroups]}
           >
             <LayoutNotesContext.Provider value={[notes, setNotes]}>
-              <LayoutRowDataContext.Provider value={[rowData, setRowData]}>
+              <LayoutGridItemsContext.Provider
+                value={[gridItems, setGridItems]}
+              >
                 {children}
-              </LayoutRowDataContext.Provider>
+              </LayoutGridItemsContext.Provider>
             </LayoutNotesContext.Provider>
           </LayoutAccessGroupsContext.Provider>
         </LayoutLabelContext.Provider>
@@ -87,14 +89,10 @@ export const useLayoutLabelContext = () => {
   return useContext(LayoutLabelContext);
 };
 
-export const useLayoutImageContext = () => {
-  return useContext(LayoutImageContext);
-};
-
 export const useLayoutNotesContext = () => {
   return useContext(LayoutNotesContext);
 };
 
-export const useLayoutRowDataContext = () => {
-  return useContext(LayoutRowDataContext);
+export const useLayoutGridItemsContext = () => {
+  return useContext(LayoutGridItemsContext);
 };

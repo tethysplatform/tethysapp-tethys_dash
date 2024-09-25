@@ -6,8 +6,6 @@ import Text from "components/visualizations/Text";
 import { setVisualization } from "components/visualizations/utilities";
 
 const BaseVisualization = ({
-  rowHeight,
-  colWidth,
   source,
   argsString,
   showFullscreen,
@@ -18,12 +16,14 @@ const BaseVisualization = ({
   const itemData = { source: source, args: args };
 
   useEffect(() => {
-    if (source === "Custom Image") {
+    if (source === "") {
+      setViz(<div></div>);
+    } else if (source === "Custom Image") {
       setViz(<Image source={args["uri"]} />);
     } else if (source === "Text") {
       setViz(<Text textValue={args["text"]} />);
     } else {
-      setVisualization(setViz, itemData, rowHeight, colWidth);
+      setVisualization(setViz, itemData);
     }
     // eslint-disable-next-line
   }, [source, argsString]);
@@ -42,14 +42,8 @@ const BaseVisualization = ({
 };
 
 BaseVisualization.propTypes = {
-  rowHeight: PropTypes.number,
-  colWidth: PropTypes.number,
-  itemData: PropTypes.shape({
-    source: PropTypes.string,
-    args: PropTypes.shape({
-      uri: PropTypes.string,
-    }),
-  }),
+  source: PropTypes.string,
+  argsString: PropTypes.string,
   showFullscreen: PropTypes.bool,
   hideFullscreen: PropTypes.func,
 };

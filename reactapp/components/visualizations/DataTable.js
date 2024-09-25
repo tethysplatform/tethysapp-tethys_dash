@@ -67,6 +67,7 @@ function capitalizePhrase(phrase) {
 
 DataTable.propTypes = {
   data: PropTypes.array,
+  title: PropTypes.string,
 };
 
 export default memo(DataTable);
