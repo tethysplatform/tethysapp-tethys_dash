@@ -1,126 +1,130 @@
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
-import DashboardRow from "components/dashboard/DashboardRow";
-import {
-  useLayoutRowDataContext,
-  useLayoutContext,
-} from "components/contexts/SelectedDashboardContext";
+import { useState, useEffect, useContext } from "react";
+import RGL, { WidthProvider } from "react-grid-layout";
+import styled from "styled-components";
+import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
+import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
 import {
   useLayoutSuccessAlertContext,
   useLayoutErrorAlertContext,
 } from "components/contexts/LayoutAlertContext";
 import { useEditingContext } from "components/contexts/EditingContext";
-import { useContext } from "react";
 import Form from "react-bootstrap/Form";
-import styled from "styled-components";
 import appAPI from "services/api/app";
 import { AppContext } from "components/contexts/AppContext";
+import DashboardItem from "components/dashboard/DashboardItem";
+import PropTypes from "prop-types";
+import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
+import "components/dashboard/resize_handler.css";
 
-const StyledForm = styled(Form)`
-  display: inline;
+const ReactGridLayout = WidthProvider(RGL);
+
+const StyledDiv = styled.div`
+  border: #dcdcdc solid 1px;
+  background: whitesmoke;
 `;
 
+const GridLayout = ({ layout, updateLayout, items }) => (
+  <ReactGridLayout
+    className="complex-interface-layout"
+    layout={layout}
+    rowHeight={10}
+    cols={50}
+    onLayoutChange={(newLayout) => updateLayout(newLayout)}
+    isDraggable={false}
+    isResizable={false}
+    draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn"
+  >
+    {items}
+  </ReactGridLayout>
+);
+
 function DashboardLayout() {
-  const rowData = useLayoutRowDataContext()[0];
-  const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
-    useAvailableDashboardContext();
-  const setLayoutContext = useLayoutContext()[0];
-  const getLayoutContext = useLayoutContext()[2];
   const setSuccessMessage = useLayoutSuccessAlertContext()[1];
   const setShowSuccessMessage = useLayoutSuccessAlertContext()[3];
   const setErrorMessage = useLayoutErrorAlertContext()[1];
   const setShowErrorMessage = useLayoutErrorAlertContext()[3];
-  const setIsEditing = useEditingContext()[1];
+  const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
+    useAvailableDashboardContext();
+  const setLayoutContext = useLayoutContext()[0];
+  const getLayoutContext = useLayoutContext()[2];
+  const gridItems = useLayoutGridItemsContext()[0];
+  const [isEditing, setIsEditing] = useEditingContext();
   const { csrf } = useContext(AppContext);
+  const [layout, setLayout] = useState([]);
+  const [items, setItems] = useState([]);
+
+  useEffect(() => {
+    setItems(
+      gridItems.map((item) => (
+        <StyledDiv key={item.i}>
+          {
+            <DashboardItem
+              grid_item_id={item.i}
+              source={item.source}
+              args_string={item.args_string}
+            />
+          }
+        </StyledDiv>
+      ))
+    );
+    setLayout(gridItems);
+    updateGridEditing(gridItems);
+    // eslint-disable-next-line
+  }, [gridItems]);
+
+  useEffect(() => {
+    updateGridEditing(gridItems);
+    // eslint-disable-next-line
+  }, [isEditing]);
+
+  function updateGridEditing(griditems) {
+    const updatedLayout = [];
+    for (let griditem of griditems) {
+      updatedLayout.push({
+        args_string: griditem.args_string,
+        h: griditem.h,
+        i: griditem.i,
+        source: griditem.source,
+        w: griditem.w,
+        x: griditem.x,
+        y: griditem.y,
+        isDraggable: isEditing,
+        isResizable: isEditing,
+      });
+    }
+    setLayout(updatedLayout);
+  }
+
+  function updateLayout(newLayout) {
+    const updatedGridItems = [];
+    for (let lay of newLayout) {
+      var result = gridItems.find((obj) => {
+        return obj.i === lay.i;
+      });
+      updatedGridItems.push({
+        args_string: result.args_string,
+        h: lay.h,
+        i: result.i,
+        source: result.source,
+        w: lay.w,
+        x: lay.x,
+        y: lay.y,
+      });
+    }
+    const layout = getLayoutContext();
+    layout["gridItems"] = updatedGridItems;
+    setLayoutContext(layout);
+    updateGridEditing(updatedGridItems);
+  }
 
   function handleSubmit(event) {
     event.preventDefault();
     setShowSuccessMessage(false);
     setShowErrorMessage(false);
-    const cellDimensionsInputs = event.currentTarget.querySelectorAll("input");
-    let data = [];
-    let currentRowID = null;
-    let colData = [];
-    let rowCount = 0;
-    let colCount = 0;
-    let totalColWidth = 0;
-    let rowDataID;
-    let rowDataHeight;
-    for (let i = 0; i < cellDimensionsInputs.length; i++) {
-      const dimensionInput = cellDimensionsInputs[i];
-      const inputType = dimensionInput.dataset["inputtype"];
-      const rowID = dimensionInput.dataset["rowid"];
-      const colID = dimensionInput.dataset["colid"];
-      const newrow = dimensionInput.dataset["newrow"];
 
-      if (currentRowID === null) {
-        currentRowID = rowID;
-      } else if (newrow === "true") {
-        if (totalColWidth !== 12) {
-          setErrorMessage(
-            "Total width for row " +
-              (rowCount + 1).toString() +
-              " equals " +
-              totalColWidth.toString() +
-              ". The total width must equal 12."
-          );
-          setShowErrorMessage(true);
-          return;
-        }
-
-        data.push({
-          id: rowDataID,
-          height: rowDataHeight,
-          order: rowCount,
-          columns: colData,
-        });
-        colData = [];
-        colCount = 0;
-        totalColWidth = 0;
-        currentRowID = rowID;
-        rowCount += 1;
-      }
-
-      if (inputType === "height") {
-        rowDataID = rowID;
-        rowDataHeight = dimensionInput.value;
-      }
-
-      if (inputType === "width") {
-        colData.push({
-          id: colID,
-          width: dimensionInput.value,
-          order: colCount,
-          source: dimensionInput.dataset["source"],
-          args: JSON.parse(dimensionInput.dataset["args"]),
-        });
-        colCount += 1;
-        totalColWidth += parseInt(dimensionInput.value);
-      }
-
-      if (i === cellDimensionsInputs.length - 1) {
-        if (totalColWidth !== 12) {
-          setErrorMessage(
-            "Total width for row " +
-              (rowCount + 1).toString() +
-              " equals " +
-              totalColWidth.toString() +
-              ". The total width must equal 12."
-          );
-          setShowErrorMessage(true);
-          return;
-        }
-        data.push({
-          id: rowDataID,
-          height: rowDataHeight,
-          order: rowCount,
-          columns: colData,
-        });
-      }
-    }
     const updatedLayoutContext = getLayoutContext();
-    updatedLayoutContext["rowData"] = JSON.stringify(data);
     appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
       if (response["success"]) {
         const name = response["updated_dashboard"]["name"];
@@ -140,33 +144,18 @@ function DashboardLayout() {
     setIsEditing(false);
   }
 
-  const dashboardRows = [];
-  for (let i = 0; i < rowData.length; i++) {
-    const dashboardRow = rowData[i];
-    const rowID = dashboardRow["id"];
-    const rowHeight = dashboardRow["height"];
-    const rowColumns = dashboardRow["columns"];
-    const key = i.toString();
-    dashboardRows.push(
-      <DashboardRow
-        key={key}
-        rowNumber={i}
-        rowID={rowID}
-        rowHeight={rowHeight}
-        rowColumns={rowColumns}
-      />
-    );
-  }
-
   return (
-    <Row className="h-100">
-      <Col>
-        <StyledForm id="rowUpdate" onSubmit={handleSubmit}>
-          {dashboardRows}
-        </StyledForm>
-      </Col>
-    </Row>
+    <Form id="gridUpdate" onSubmit={handleSubmit}>
+      <GridLayout layout={layout} updateLayout={updateLayout} items={items} />
+    </Form>
   );
 }
+
+GridLayout.propTypes = {
+  isEditing: PropTypes.bool,
+  layout: PropTypes.array,
+  updateLayout: PropTypes.func,
+  items: PropTypes.array,
+};
 
 export default DashboardLayout;

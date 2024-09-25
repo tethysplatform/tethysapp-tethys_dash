@@ -1,11 +1,37 @@
 /* Chrome, Safari, Edge, Opera */
 .wideModalDialog {
   max-width: none !important;
-  height: 90% !important;
+  height: 90vh !important;
+  max-height: 90vh !important;
 }
+
+.wideModalDialog .modal-content {
+  height: 100%;
+}
+
+.wideModalDialog img {
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .semiWideModalDialog {
   max-height: 85% !important;
   height: 85% !important;
   max-width: 75% !important;
   width: 75% !important;
+}
+
+.semiWideModalDialog img {
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
 }

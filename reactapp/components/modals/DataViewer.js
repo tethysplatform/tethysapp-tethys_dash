@@ -7,31 +7,18 @@ import DataSelect from "components/inputs/DataSelect";
 import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
-import { useLayoutRowDataContext } from "components/contexts/SelectedDashboardContext";
-import { useColInfoContext } from "components/dashboard/DashboardCol";
-import { useRowInfoContext } from "components/dashboard/DashboardRow";
 import styled from "styled-components";
-import DataTable from "components/visualizations/DataTable";
 import Image from "components/visualizations/Image";
-import BasePlot from "components/visualizations/BasePlot";
 import appAPI from "services/api/app";
 import DataInput from "components/inputs/DataInput";
-import Spinner from "react-bootstrap/Spinner";
 import TextEditor from "components/inputs/TextEditor";
 import { setVisualization } from "components/visualizations/utilities";
+import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
+import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 import "components/modals/wideModal.css";
 
 const StyledDiv = styled.div`
   height: 90%;
-`;
-
-const StyledSpinner = styled(Spinner)`
-  margin: auto;
-  display: block;
-`;
-
-const StyledH2 = styled.h2`
-  text-align: center;
 `;
 
 const StyledContainer = styled(Container)`
@@ -43,6 +30,7 @@ const StyledRow = styled(Row)`
 `;
 
 function DataViewerModal({
+  grid_item_id,
   showModal,
   handleModalClose,
   setUpdateCellMessage,
@@ -54,9 +42,9 @@ function DataViewerModal({
   const [vizOptions, setVizOptions] = useState([]);
   const [vizInputsValues, setVizInputsValues] = useState([]);
   const [vizMetdata, setVizMetadata] = useState(null);
-  const [rowData, setRowData] = useLayoutRowDataContext();
-  const rowNumber = useRowInfoContext()[0];
-  const colNumber = useColInfoContext()[0];
+  const gridItems = useLayoutGridItemsContext()[0];
+  const setLayoutContext = useLayoutContext()[0];
+  const getLayoutContext = useLayoutContext()[2];
 
   useEffect(() => {
     appAPI.getVisualizations().then((data) => {
@@ -82,6 +70,7 @@ function DataViewerModal({
 
   useEffect(() => {
     checkAllInputs();
+    // eslint-disable-next-line
   }, [vizInputsValues]);
 
   function spaceAndCapitalize(string) {
@@ -157,15 +146,29 @@ function DataViewerModal({
   function handleSubmit(e) {
     e.preventDefault();
     e.stopPropagation();
-    if (selectedVizTypeOption) {
-      const updatedRowData = JSON.parse(JSON.stringify(rowData));
-      const rowColumns = updatedRowData[rowNumber]["columns"];
-      rowColumns[colNumber]["source"] = vizMetdata["source"];
-      rowColumns[colNumber]["args"] = vizMetdata["args"];
-      setRowData(updatedRowData);
-      handleModalClose();
+    if (selectedVizTypeOption !== null) {
+      let inputValues = vizInputsValues.map((value) => value.value);
+      if (inputValues.every((value) => value !== null)) {
+        const updated_grid_items = [...gridItems];
+        const grid_item_index = updated_grid_items.findIndex(
+          (gridItem) => gridItem.i === grid_item_id
+        );
+        updated_grid_items[grid_item_index].source = vizMetdata.source;
+        updated_grid_items[grid_item_index].args_string = JSON.stringify(
+          vizMetdata.args
+        );
+
+        const layout = getLayoutContext();
+        layout["gridItems"] = updated_grid_items;
+        setLayoutContext(layout);
+        setShowUpdateCellMessage(true);
+        handleModalClose();
+      } else {
+        console.log("warn users that all arguments need to be filled out");
+      }
+    } else {
+      console.log("warn users that option need to be filled out");
     }
-    setShowUpdateCellMessage(true);
   }
 
   function previewVisualization() {
@@ -196,7 +199,7 @@ function DataViewerModal({
           " " +
           selectedVizTypeOption["label"]
       );
-      setVisualization(setViz, itemData, 100, 12);
+      setVisualization(setViz, itemData);
     }
   }
 
@@ -293,11 +296,12 @@ function CustomTextOptions({ setVizMetadata, setUpdateCellMessage }) {
 }
 
 CustomTextOptions.propTypes = {
-  setImageSource: PropTypes.func,
-  imageSource: PropTypes.string,
+  setVizMetadata: PropTypes.func,
+  setUpdateCellMessage: PropTypes.func,
 };
 
 DataViewerModal.propTypes = {
+  grid_item_id: PropTypes.string,
   setUpdateCellMessage: PropTypes.func,
   setShowUpdateCellMessage: PropTypes.func,
   showModal: PropTypes.bool,

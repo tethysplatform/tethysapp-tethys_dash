@@ -76,20 +76,17 @@ def dashboard_data():
 
 
 @pytest.fixture(scope="function")
-def row_data():
+def grid_item():
     return json.dumps(
         [
             {
-                "height": 50,
-                "order": 1,
-                "columns": [
-                    {
-                        "width": 12,
-                        "order": 1,
-                        "source": "image",
-                        "args": {"uri": "some/path"},
-                    }
-                ],
+                "i": "1",
+                "x": 1,
+                "y": 1,
+                "w": 1,
+                "h": 1,
+                "source": "Custom Image",
+                "args_string": json.dumps({"uri": "some_path"}),
             }
         ]
     )

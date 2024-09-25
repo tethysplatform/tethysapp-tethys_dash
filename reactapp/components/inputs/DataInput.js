@@ -71,9 +71,17 @@ const DataInput = ({ objValue, onChange, index }) => {
 };
 
 DataInput.propTypes = {
+  objValue: PropTypes.object,
   onChange: PropTypes.func,
-  inputLabel: PropTypes.string,
-  inputText: PropTypes.string,
+  index: PropTypes.number,
+};
+
+Input.propTypes = {
+  label: PropTypes.string,
+  type: PropTypes.string,
+  onChange: PropTypes.func,
+  value: PropTypes.string,
+  index: PropTypes.number,
 };
 
 export default DataInput;

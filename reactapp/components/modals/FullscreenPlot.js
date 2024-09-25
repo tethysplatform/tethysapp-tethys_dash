@@ -1,18 +1,31 @@
 import PropTypes from "prop-types";
 import Modal from "react-bootstrap/Modal";
+import styled from "styled-components";
 import "components/modals/wideModal.css";
+
+const StyledModal = styled(Modal)`
+  height: 95vh;
+`;
+
+const StyledModalHeader = styled(Modal.Header)`
+  height: 5%;
+`;
+
+const StyledModalBody = styled(Modal.Body)`
+  height: 95%;
+`;
 
 const FullscreenPlotModal = ({ children, showModal, handleModalClose }) => {
   return (
     <>
-      <Modal
+      <StyledModal
         show={showModal}
         onHide={handleModalClose}
         dialogClassName="wideModalDialog"
       >
-        <Modal.Header closeButton></Modal.Header>
-        <Modal.Body>{children}</Modal.Body>
-      </Modal>
+        <StyledModalHeader closeButton></StyledModalHeader>
+        <StyledModalBody>{children}</StyledModalBody>
+      </StyledModal>
     </>
   );
 };

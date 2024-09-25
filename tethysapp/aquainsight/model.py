@@ -1,5 +1,5 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, ARRAY, ForeignKey
+from sqlalchemy import Column, Integer, String, ARRAY, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 import json
 import nh3
@@ -23,46 +23,30 @@ class Dashboard(Base):
     notes = Column(String)
     owner = Column(String)
     access_groups = Column(ARRAY(String))
-    rows = relationship("Row", order_by="Row.row_order.asc()", cascade="delete")
+    grid_items = relationship("GridItem", cascade="delete")
 
 
-class Row(Base):
+class GridItem(Base):
     """
-    SQLAlchemy Dashboard DB Model
+    SQLAlchemy GridItem DB Model
     """
 
-    __tablename__ = "rows"
+    __tablename__ = "griditems"
 
     # Columns
     id = Column(Integer, primary_key=True)
     dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
-    row_order = Column(Integer)
-    height = Column(Integer)
-    columns = relationship(
-        "Column", order_by="Column.col_order.asc()", cascade="delete"
-    )
+    i = Column(String, nullable=False)
+    x = Column(Integer, nullable=False)
+    y = Column(Integer, nullable=False)
+    w = Column(Integer, nullable=False)
+    h = Column(Integer, nullable=False)
+    source = Column(String)
+    args_string = Column(String)
+    __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
-class Column(Base):
-    """
-    SQLAlchemy Dashboard DB Model
-    """
-
-    __tablename__ = "columns"
-
-    # Columns
-    id = Column(Integer, primary_key=True)
-    row_id = Column(Integer, ForeignKey("rows.id"), nullable=False)
-    col_order = Column(Integer)
-    width = Column(Integer)
-    data_source = Column(String)
-    data_args = Column(String)
-
-
-def add_new_dashboard(label, name, notes, row_data, owner, access_groups):
-    """
-    Persist new dam.
-    """
+def add_new_dashboard(label, name, notes, owner, access_groups):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -77,23 +61,20 @@ def add_new_dashboard(label, name, notes, row_data, owner, access_groups):
         )
 
         session.add(new_dashboard)
-        dashboard_id = (
-            session.query(Dashboard).filter(Dashboard.name == name).first().id
+        session.commit()
+        session.refresh(new_dashboard)
+
+        add_new_grid_item(
+            session,
+            new_dashboard.id,
+            "1",
+            0,
+            0,
+            20,
+            20,
+            "",
+            "{}",
         )
-
-        row_data = json.loads(row_data)
-        for index, row in enumerate(row_data):
-            new_row = add_new_row(session, dashboard_id, index, row["height"])
-
-            for index, column in enumerate(row["columns"]):
-                add_new_column(
-                    session,
-                    new_row.id,
-                    index,
-                    column["width"],
-                    column["source"],
-                    json.dumps(column["args"]),
-                )
 
         # Commit the session and close the connection
         session.commit()
@@ -101,48 +82,47 @@ def add_new_dashboard(label, name, notes, row_data, owner, access_groups):
         session.close()
 
 
-def add_new_row(session, dashboard_id, order, height):
-    new_row = Row(dashboard_id=dashboard_id, row_order=order, height=height)
-    session.add(new_row)
-    session.commit()
-    session.refresh(new_row)
-
-    return new_row
-
-
-def delete_row(session, row_id):
-    db_row = session.query(Row).filter(Row.id == row_id).first()
-    session.delete(db_row)
-
-    return
-
-
-def add_new_column(session, row_id, order, width, source, args):
-    new_column = Column(
-        row_id=row_id,
-        col_order=order,
-        width=width,
-        data_source=source,
-        data_args=args,
+def add_new_grid_item(
+    session,
+    dashboard_id,
+    grid_item_i,
+    grid_item_x,
+    grid_item_y,
+    grid_item_w,
+    grid_item_h,
+    grid_item_source,
+    grid_item_args_string,
+):
+    new_grid_item = GridItem(
+        dashboard_id=dashboard_id,
+        i=grid_item_i,
+        x=grid_item_x,
+        y=grid_item_y,
+        w=grid_item_w,
+        h=grid_item_h,
+        source=grid_item_source,
+        args_string=grid_item_args_string,
     )
-    session.add(new_column)
+    session.add(new_grid_item)
     session.commit()
-    session.refresh(new_column)
+    session.refresh(new_grid_item)
 
-    return new_column
+    return new_grid_item
 
 
-def delete_column(session, col_id):
-    db_col = session.query(Column).filter(Column.id == col_id).first()
-    session.delete(db_col)
+def delete_grid_item(session, dashboard_id, i):
+    db_grid_item = (
+        session.query(GridItem)
+        .filter(GridItem.dashboard_id == dashboard_id)
+        .filter(GridItem.i == i)
+        .first()
+    )
+    session.delete(db_grid_item)
 
     return
 
 
 def delete_named_dashboard(user, name):
-    """
-    Persist new dam.
-    """
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -160,10 +140,7 @@ def delete_named_dashboard(user, name):
         session.close()
 
 
-def update_named_dashboard(user, name, label, notes, row_data, access_groups):
-    """
-    Persist new dam.
-    """
+def update_named_dashboard(user, name, label, notes, grid_items, access_groups):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -175,51 +152,65 @@ def update_named_dashboard(user, name, label, notes, row_data, access_groups):
 
         db_dashboard.label = label
         db_dashboard.notes = notes
-        row_data = json.loads(row_data) if isinstance(row_data, str) else row_data
+        grid_items = (
+            json.loads(grid_items) if isinstance(grid_items, str) else grid_items
+        )
         db_dashboard.access_groups = access_groups
 
-        existing_db_row_ids = [row.id for row in db_dashboard.rows]
-        new_row_ids = [int(row["id"]) for row in row_data if row.get("id")]
-        rows_to_delete = [id for id in existing_db_row_ids if id not in new_row_ids]
-        for row_id in rows_to_delete:
-            delete_row(session, row_id)
+        existing_db_grid_items_ids = [
+            grid_item.i for grid_item in db_dashboard.grid_items
+        ]
+        grid_items_ids = [grid_item["i"] for grid_item in grid_items]
+        grid_items_to_delete = [
+            i for i in existing_db_grid_items_ids if i not in grid_items_ids
+        ]
+        grid_items_to_add = [
+            grid_item
+            for grid_item in grid_items
+            if grid_item["i"] not in existing_db_grid_items_ids
+        ]
 
-        for row in row_data:
-            row_id = row.get("id")
-            row_height = int(row["height"])
-            row_order = int(row["order"])
-            if not row_id:
-                db_row = add_new_row(session, db_dashboard.id, row_order, row_height)
+        for grid_item_id in grid_items_to_delete:
+            delete_grid_item(session, db_dashboard.id, grid_item_id)
+
+        for grid_item in grid_items:
+            grid_item_i = grid_item["i"]
+            grid_item_x = int(grid_item["x"])
+            grid_item_y = int(grid_item["y"])
+            grid_item_w = int(grid_item["w"])
+            grid_item_h = int(grid_item["h"])
+            grid_item_source = grid_item["source"]
+            grid_item_args_string = grid_item["args_string"]
+            if grid_item_source == "Text":
+                clean_text = nh3.clean(json.loads(grid_item_args_string)["text"])
+                grid_item_args_string = json.dumps({"text": clean_text})
+
+            if grid_item in grid_items_to_add:
+                db_grid_item = add_new_grid_item(
+                    session,
+                    db_dashboard.id,
+                    grid_item_i,
+                    grid_item_x,
+                    grid_item_y,
+                    grid_item_w,
+                    grid_item_h,
+                    grid_item_source,
+                    grid_item_args_string,
+                )
             else:
-                db_row = session.query(Row).filter(Row.id == row_id).first()
-                db_row.height = row_height
-                db_row.row_order = row_order
-
-            existing_db_col_ids = [col.id for col in db_row.columns]
-            new_col_ids = [int(col["id"]) for col in row["columns"] if col.get("id")]
-            cols_to_delete = [id for id in existing_db_col_ids if id not in new_col_ids]
-            for col_id in cols_to_delete:
-                delete_column(session, col_id)
-
-            for col in row["columns"]:
-                col_id = col.get("id")
-                col_width = int(col["width"])
-                col_order = int(col["order"])
-                col_source = col["source"]
-                if col_source == "Text":
-                    col["args"]["text"] = nh3.clean(col["args"]["text"])
-
-                col_args = json.dumps(col["args"])
-                if not col_id:
-                    db_col = add_new_column(
-                        session, db_row.id, col_order, col_width, col_source, col_args
-                    )
-                else:
-                    db_col = session.query(Column).filter(Column.id == col_id).first()
-                    db_col.width = col_width
-                    db_col.col_order = col_order
-                    db_col.data_source = col_source
-                    db_col.data_args = col_args
+                db_grid_item = (
+                    session.query(GridItem)
+                    .filter(GridItem.dashboard_id == db_dashboard.id)
+                    .filter(GridItem.i == grid_item_i)
+                    .first()
+                )
+                db_grid_item.i = grid_item_i
+                db_grid_item.x = grid_item_x
+                db_grid_item.y = grid_item_y
+                db_grid_item.w = grid_item_w
+                db_grid_item.h = grid_item_h
+                db_grid_item.source = grid_item_source
+                db_grid_item.args_string = grid_item_args_string
 
         # Commit the session and close the connection
         session.commit()
@@ -258,24 +249,21 @@ def get_dashboards(user, name=None):
                 ),
             }
 
-            rows = []
-            for row in dashboard.rows:
-                row_data = {"id": row.id, "order": row.row_order, "height": row.height}
-                cols = []
-                for col in row.columns:
-                    col_data = {
-                        "id": col.id,
-                        "order": col.col_order,
-                        "width": col.width,
-                        "source": col.data_source,
-                        "args": json.loads(col.data_args),
-                    }
-                    cols.append(col_data)
+            griditems = []
+            for griditem in dashboard.grid_items:
+                griditem_data = {
+                    "id": griditem.id,
+                    "i": griditem.i,
+                    "x": griditem.x,
+                    "y": griditem.y,
+                    "w": griditem.w,
+                    "h": griditem.h,
+                    "source": griditem.source,
+                    "args_string": griditem.args_string,
+                }
+                griditems.append(griditem_data)
 
-                row_data["columns"] = cols
-                rows.append(row_data)
-
-            dashboard_dict[dashboard.name]["rowData"] = rows
+            dashboard_dict[dashboard.name]["gridItems"] = griditems
 
     finally:
         session.close()

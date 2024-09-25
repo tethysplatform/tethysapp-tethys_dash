@@ -119,7 +119,6 @@ def test_add_dashboard(client, admin_user, mock_app, mocker):
         "name": "dashboard_name",
         "label": "label",
         "notes": "notes",
-        "rowData": [],
     }
 
     url = reverse("aquainsight:add_dashboard")
@@ -139,7 +138,6 @@ def test_add_dashboard(client, admin_user, mock_app, mocker):
         itemData["label"],
         itemData["name"],
         itemData["notes"],
-        itemData["rowData"],
         "admin",
         [],
     )
@@ -158,7 +156,6 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker):
         "name": "dashboard_name",
         "label": "label",
         "notes": "notes",
-        "rowData": [],
     }
 
     url = reverse("aquainsight:add_dashboard")
@@ -174,7 +171,6 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker):
         itemData["label"],
         itemData["name"],
         itemData["notes"],
-        itemData["rowData"],
         "admin",
         [],
     )
@@ -230,7 +226,7 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
         "name": "dashboard_name",
         "label": "label",
         "notes": "notes",
-        "rowData": [],
+        "gridItems": [],
         "access_groups": [],
     }
 
@@ -252,7 +248,7 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
         itemData["name"],
         itemData["label"],
         itemData["notes"],
-        itemData["rowData"],
+        itemData["gridItems"],
         itemData["access_groups"],
     )
     mock_get_dashboards.assert_called_with("admin", name=itemData["name"])
@@ -271,7 +267,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
         "name": "dashboard_name",
         "label": "label",
         "notes": "notes",
-        "rowData": [],
+        "gridItems": [],
         "access_groups": [],
     }
 
@@ -292,7 +288,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
         itemData["name"],
         itemData["label"],
         itemData["notes"],
-        itemData["rowData"],
+        itemData["gridItems"],
         itemData["access_groups"],
     )
     assert response.status_code == 200
