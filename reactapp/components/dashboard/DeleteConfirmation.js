@@ -29,7 +29,7 @@ const Confirmation = ({
           <Button onClick={() => proceed(false)}>{cancelLabel}</Button>
           <Button
             className="button-l"
-            bsStyle="primary"
+            variant="primary"
             onClick={() => proceed(true)}
           >
             {okLabel}
@@ -54,7 +54,7 @@ export function confirm(
   confirmation,
   proceedLabel = "OK",
   cancelLabel = "cancel",
-  options = {},
+  options = {}
 ) {
   return createConfirmation(confirmable(Confirmation))({
     confirmation,
