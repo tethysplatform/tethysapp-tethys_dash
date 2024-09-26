@@ -166,8 +166,11 @@ function DashboardSelector() {
 
   function onAddGridItem(e) {
     const layout = getLayoutContext();
+    let maxGridItemI = layout["gridItems"].reduce((acc, value) => {
+      return (acc = acc > value.i ? acc : value.i);
+    }, 0);
     const newGridItem = {
-      i: `${layout["gridItems"].length + 1}`,
+      i: `${parseInt(maxGridItemI) + 1}`,
       x: 0,
       y: 0,
       w: 20,
