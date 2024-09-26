@@ -31,7 +31,7 @@ const StyledRow = styled(Row)`
 `;
 
 function DataViewerModal({
-  grid_item_id,
+  grid_item_index,
   source,
   args_string,
   showModal,
@@ -177,9 +177,6 @@ function DataViewerModal({
       let inputValues = vizInputsValues.map((value) => value.value);
       if (inputValues.every((value) => value !== null)) {
         const updated_grid_items = [...gridItems];
-        const grid_item_index = updated_grid_items.findIndex(
-          (gridItem) => gridItem.i === grid_item_id
-        );
         updated_grid_items[grid_item_index].source = vizMetdata.source;
         updated_grid_items[grid_item_index].args_string = JSON.stringify(
           vizMetdata.args
@@ -319,7 +316,7 @@ CustomTextOptions.propTypes = {
 };
 
 DataViewerModal.propTypes = {
-  grid_item_id: PropTypes.string,
+  grid_item_index: PropTypes.number,
   source: PropTypes.string,
   args_string: PropTypes.string,
   setGridItemMessage: PropTypes.func,
