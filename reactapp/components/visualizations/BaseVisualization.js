@@ -19,7 +19,7 @@ const BaseVisualization = ({
     if (source === "") {
       setViz(<div></div>);
     } else if (source === "Custom Image") {
-      setViz(<Image source={args["uri"]} />);
+      setViz(<Image source={args["image_source"]} />);
     } else if (source === "Text") {
       setViz(<Text textValue={args["text"]} />);
     } else {

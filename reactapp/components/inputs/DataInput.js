@@ -11,18 +11,24 @@ const StyledDiv = styled.div`
 const Input = ({ label, type, onChange, value, index }) => {
   if (Array.isArray(type)) {
     let options = [];
+    let inputValue;
     for (const option of type) {
       if (typeof option === "object") {
         options.push(option);
       } else {
         options.push({ value: option, label: option });
       }
+      if (typeof value === "string") {
+        inputValue = { value: value, label: value };
+      } else {
+        inputValue = value;
+      }
     }
 
     return (
       <DataSelect
         label={label}
-        selectedOption={value}
+        selectedOption={inputValue}
         onChange={(e) => onChange(e, index)}
         options={options}
       />
@@ -78,9 +84,13 @@ DataInput.propTypes = {
 
 Input.propTypes = {
   label: PropTypes.string,
-  type: PropTypes.string,
+  type: PropTypes.oneOfType([PropTypes.string, PropTypes.array]),
   onChange: PropTypes.func,
-  value: PropTypes.string,
+  value: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.bool,
+    PropTypes.object,
+  ]),
   index: PropTypes.number,
 };
 
