@@ -20,9 +20,10 @@ const StyledButtonDiv = styled.div`
   position: absolute;
   margin: 0.5rem;
   right: 0;
+  z-index: 1;
 `;
 
-const DashboardItem = ({ grid_item_id, source, args_string }) => {
+const DashboardItem = ({ grid_item, grid_item_index }) => {
   const [isEditing, setIsEditing] = useEditingContext();
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
@@ -35,9 +36,6 @@ const DashboardItem = ({ grid_item_id, source, args_string }) => {
   async function deleteGridItem(e) {
     if (await confirm("Are your sure you want to delete the item?")) {
       const updated_grid_items = [...gridItems];
-      const grid_item_index = updated_grid_items.findIndex(
-        (gridItem) => gridItem.i === grid_item_id
-      );
       updated_grid_items.splice(grid_item_index, 1);
 
       const layout = getLayoutContext();
@@ -48,24 +46,8 @@ const DashboardItem = ({ grid_item_id, source, args_string }) => {
   }
 
   function onFullscreen() {
-    const grid_item_index = gridItems.findIndex(
-      (gridItem) => gridItem.i === grid_item_id
-    );
-    if (gridItems[grid_item_index].source) {
+    if (grid_item.source) {
       setShowFullscreen(true);
-    }
-  }
-
-  function checkGridItemSource() {
-    const grid_item_index = gridItems.findIndex(
-      (gridItem) => gridItem.i === grid_item_id
-    );
-    if (grid_item_index === -1) {
-      return false;
-    } else if (gridItems[grid_item_index].source || null) {
-      return true;
-    } else {
-      return false;
     }
   }
 
@@ -75,6 +57,18 @@ const DashboardItem = ({ grid_item_id, source, args_string }) => {
 
   function editGridItem() {
     setShowDataViewerModal(true);
+    setIsEditing(true);
+  }
+
+  function copyGridItem() {
+    const layout = getLayoutContext();
+    let maxGridItemI = layout["gridItems"].reduce((acc, value) => {
+      return (acc = acc > value.i ? acc : value.i);
+    }, 0);
+    const newGridItem = { ...grid_item };
+    newGridItem.i = `${parseInt(maxGridItemI) + 1}`;
+    layout["gridItems"] = [...layout["gridItems"], newGridItem];
+    setLayoutContext(layout);
     setIsEditing(true);
   }
 
@@ -97,24 +91,25 @@ const DashboardItem = ({ grid_item_id, source, args_string }) => {
         />
         <StyledButtonDiv>
           <DashboardItemDropdown
-            showFullscreen={checkGridItemSource() ? onFullscreen : null}
+            showFullscreen={grid_item.source ? onFullscreen : null}
             deleteGridItem={deleteGridItem}
             editGridItem={editGridItem}
             editSize={isEditing ? null : editSize}
+            copyGridItem={copyGridItem}
           />
         </StyledButtonDiv>
         <BaseVisualization
-          source={source}
-          argsString={args_string}
+          source={grid_item.source}
+          argsString={grid_item.args_string}
           showFullscreen={showFullscreen}
           hideFullscreen={hideFullscreen}
         />
       </StyledContainer>
       {showDataViewerModal && (
         <DataViewerModal
-          grid_item_id={grid_item_id}
-          source={source}
-          args_string={args_string}
+          grid_item_index={grid_item_index}
+          source={grid_item.source}
+          args_string={grid_item.args_string}
           showModal={showDataViewerModal}
           handleModalClose={hideDataViewerModal}
           setGridItemMessage={setGridItemMessage}
@@ -126,9 +121,8 @@ const DashboardItem = ({ grid_item_id, source, args_string }) => {
 };
 
 DashboardItem.propTypes = {
-  grid_item_id: PropTypes.string,
-  source: PropTypes.string,
-  args_string: PropTypes.string,
+  grid_item: PropTypes.object,
+  grid_item_index: PropTypes.number,
 };
 
 export default memo(DashboardItem);

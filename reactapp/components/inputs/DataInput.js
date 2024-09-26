@@ -18,7 +18,7 @@ const Input = ({ label, type, onChange, value, index }) => {
       } else {
         options.push({ value: option, label: option });
       }
-      if (typeof value === "string") {
+      if (typeof value !== "object") {
         inputValue = { value: value, label: value };
       } else {
         inputValue = value;
@@ -87,6 +87,7 @@ Input.propTypes = {
   type: PropTypes.oneOfType([PropTypes.string, PropTypes.array]),
   onChange: PropTypes.func,
   value: PropTypes.oneOfType([
+    PropTypes.number,
     PropTypes.string,
     PropTypes.bool,
     PropTypes.object,

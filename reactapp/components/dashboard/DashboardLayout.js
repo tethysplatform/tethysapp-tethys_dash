@@ -57,15 +57,9 @@ function DashboardLayout() {
 
   useEffect(() => {
     setItems(
-      gridItems.map((item) => (
+      gridItems.map((item, index) => (
         <StyledDiv key={item.i}>
-          {
-            <DashboardItem
-              grid_item_id={item.i}
-              source={item.source}
-              args_string={item.args_string}
-            />
-          }
+          {<DashboardItem grid_item={item} grid_item_index={index} />}
         </StyledDiv>
       ))
     );

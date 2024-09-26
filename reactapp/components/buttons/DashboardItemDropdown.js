@@ -16,6 +16,7 @@ const DashboardItemDropdown = ({
   deleteGridItem,
   editGridItem,
   editSize,
+  copyGridItem,
 }) => {
   return (
     <Dropdown>
@@ -31,6 +32,7 @@ const DashboardItemDropdown = ({
         {editSize && (
           <Dropdown.Item onClick={editSize}>Edit Size/Location</Dropdown.Item>
         )}
+        <Dropdown.Item onClick={copyGridItem}>Create Copy</Dropdown.Item>
         <Dropdown.Item onClick={deleteGridItem}>Delete</Dropdown.Item>
       </Dropdown.Menu>
     </Dropdown>
@@ -42,6 +44,7 @@ DashboardItemDropdown.propTypes = {
   deleteGridItem: PropTypes.func,
   editGridItem: PropTypes.func,
   editSize: PropTypes.func,
+  copyGridItem: PropTypes.func,
 };
 
 export default DashboardItemDropdown;
