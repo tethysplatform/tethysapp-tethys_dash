@@ -34,7 +34,7 @@ const GridLayout = ({ layout, updateLayout, items }) => (
     onLayoutChange={(newLayout) => updateLayout(newLayout)}
     isDraggable={false}
     isResizable={false}
-    draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn"
+    draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer"
   >
     {items}
   </ReactGridLayout>

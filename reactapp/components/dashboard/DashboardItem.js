@@ -1,20 +1,15 @@
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import Container from "react-bootstrap/Container";
-import { memo, useState, useEffect } from "react";
+import { memo, useState } from "react";
 import { useEditingContext } from "components/contexts/EditingContext";
 import DataViewerModal from "components/modals/DataViewer";
 import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/BaseVisualization";
-import Alert from "react-bootstrap/Alert";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-
-const StyledAlert = styled(Alert)`
-  position: absolute;
-  z-index: 1081;
-`;
+import CustomAlert from "components/dashboard/CustomAlert";
 
 const StyledContainer = styled(Container)`
   position: relative;
@@ -29,35 +24,15 @@ const StyledButtonDiv = styled.div`
   right: 0;
 `;
 
-function UpdateMessage({ showUpdateMessage, updateMessage }) {
-  if (showUpdateMessage) {
-    return (
-      <StyledAlert key="success" variant="success" dismissible={true}>
-        {updateMessage}
-      </StyledAlert>
-    );
-  } else {
-    return null;
-  }
-}
-
 const DashboardItem = ({ grid_item_id, source, args_string }) => {
   const [isEditing, setIsEditing] = useEditingContext();
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
-  const [updateMessage, setUpdateCellMessage] = useState(false);
-  const [showUpdateMessage, setShowUpdateCellMessage] = useState(false);
+  const [gridItemMessage, setGridItemMessage] = useState("");
+  const [showGridItemMessage, setShowGridItemMessage] = useState(false);
   const gridItems = useLayoutGridItemsContext()[0];
   const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
-
-  useEffect(() => {
-    if (showUpdateMessage === true) {
-      window.setTimeout(() => {
-        setShowUpdateCellMessage(false);
-      }, 5000);
-    }
-  }, [showUpdateMessage]);
 
   async function deleteGridItem(e) {
     if (await confirm("Are your sure you want to delete the item?")) {
@@ -116,9 +91,11 @@ const DashboardItem = ({ grid_item_id, source, args_string }) => {
   return (
     <>
       <StyledContainer fluid className="h-100 gridVisualization">
-        <UpdateMessage
-          showUpdateMessage={showUpdateMessage}
-          updateMessage={updateMessage}
+        <CustomAlert
+          alertType={"success"}
+          showAlert={showGridItemMessage}
+          setShowAlert={setShowGridItemMessage}
+          alertMessage={gridItemMessage}
         />
         <StyledButtonDiv>
           <DashboardItemDropdown
@@ -138,10 +115,12 @@ const DashboardItem = ({ grid_item_id, source, args_string }) => {
       {showDataViewerModal && (
         <DataViewerModal
           grid_item_id={grid_item_id}
+          source={source}
+          args_string={args_string}
           showModal={showDataViewerModal}
           handleModalClose={hideDataViewerModal}
-          setUpdateCellMessage={setUpdateCellMessage}
-          setShowUpdateCellMessage={setShowUpdateCellMessage}
+          setGridItemMessage={setGridItemMessage}
+          setShowGridItemMessage={setShowGridItemMessage}
         />
       )}
     </>
@@ -152,11 +131,6 @@ DashboardItem.propTypes = {
   grid_item_id: PropTypes.string,
   source: PropTypes.string,
   args_string: PropTypes.string,
-};
-
-UpdateMessage.propTypes = {
-  showUpdateMessage: PropTypes.bool,
-  updateMessage: PropTypes.bool,
 };
 
 export default memo(DashboardItem);

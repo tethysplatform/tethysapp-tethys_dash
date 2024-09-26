@@ -15,6 +15,7 @@ import TextEditor from "components/inputs/TextEditor";
 import { setVisualization } from "components/visualizations/utilities";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
+import CustomAlert from "components/dashboard/CustomAlert";
 import "components/modals/wideModal.css";
 
 const StyledDiv = styled.div`
@@ -31,10 +32,12 @@ const StyledRow = styled(Row)`
 
 function DataViewerModal({
   grid_item_id,
+  source,
+  args_string,
   showModal,
   handleModalClose,
-  setUpdateCellMessage,
-  setShowUpdateCellMessage,
+  setGridItemMessage,
+  setShowGridItemMessage,
 }) {
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
@@ -45,6 +48,8 @@ function DataViewerModal({
   const gridItems = useLayoutGridItemsContext()[0];
   const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
+  const [alertMessage, setAlertMessage] = useState("");
+  const [showAlert, setShowAlert] = useState(false);
 
   useEffect(() => {
     appAPI.getVisualizations().then((data) => {
@@ -59,13 +64,38 @@ function DataViewerModal({
             args: { image_source: "text" },
           },
           {
+            source: "Text",
             value: "Text",
             label: "Text",
+            args: { text: "" },
           },
         ],
       });
       setVizOptions(options);
+      if (source) {
+        for (let p of options) {
+          for (let i of p.options) {
+            if (i.source === source) {
+              setSelectedGroupName(p.label);
+              setSelectVizTypeOption(i);
+              let userInputsValues = [];
+              const existingArgs = JSON.parse(args_string);
+              for (let arg in i.args) {
+                userInputsValues.push({
+                  label: spaceAndCapitalize(arg),
+                  name: arg,
+                  type: i.args[arg],
+                  value: existingArgs[arg],
+                });
+              }
+              setVizInputsValues(userInputsValues);
+              break;
+            }
+          }
+        }
+      }
     });
+    // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
@@ -132,10 +162,7 @@ function DataViewerModal({
   }
 
   function checkAllInputs() {
-    if (
-      selectedVizTypeOption !== null &&
-      selectedVizTypeOption["value"] !== "Text"
-    ) {
+    if (selectedVizTypeOption !== null) {
       let inputValues = vizInputsValues.map((value) => value.value);
       if (inputValues.every((value) => value !== null)) {
         previewVisualization();
@@ -161,44 +188,38 @@ function DataViewerModal({
         const layout = getLayoutContext();
         layout["gridItems"] = updated_grid_items;
         setLayoutContext(layout);
-        setShowUpdateCellMessage(true);
+        setShowGridItemMessage(true);
         handleModalClose();
       } else {
-        console.log("warn users that all arguments need to be filled out");
+        setAlertMessage("All arguments must be filled out before saving");
+        setShowAlert(true);
       }
     } else {
-      console.log("warn users that option need to be filled out");
+      setAlertMessage("All visualization must be chosen before saving");
+      setShowAlert(true);
     }
   }
 
   function previewVisualization() {
+    const itemData = {
+      source: selectedVizTypeOption["source"],
+      args: {},
+    };
+    vizInputsValues.forEach((arg) => {
+      itemData["args"][arg.name] = arg.value.value || arg.value;
+    });
+    setVizMetadata(itemData);
+    setGridItemMessage(
+      "Cell updated to show " +
+        selectedGroupName +
+        " " +
+        selectedVizTypeOption["label"]
+    );
     if (selectedVizTypeOption["value"] === "Custom Image") {
-      const image_source = vizInputsValues[0].value;
-      if (image_source !== "") {
-        setViz(<Image source={image_source} />);
-        setVizMetadata({
-          source: "Custom Image",
-          args: { uri: image_source },
-        });
-        setUpdateCellMessage(
-          "Cell updated to show a custom image at " + image_source
-        );
+      if (vizInputsValues[0].value) {
+        setViz(<Image source={vizInputsValues[0].value} />);
       }
-    } else {
-      const itemData = {
-        source: selectedVizTypeOption["source"],
-        args: {},
-      };
-      vizInputsValues.forEach((arg) => {
-        itemData["args"][arg.name] = arg.value.value || arg.value;
-      });
-      setVizMetadata(itemData);
-      setUpdateCellMessage(
-        "Cell updated to show " +
-          selectedGroupName +
-          " " +
-          selectedVizTypeOption["label"]
-      );
+    } else if (selectedVizTypeOption["value"] !== "Text") {
       setVisualization(setViz, itemData);
     }
   }
@@ -234,6 +255,7 @@ function DataViewerModal({
                     options={vizOptions}
                   />
                   {selectedVizTypeOption &&
+                    selectedVizTypeOption["value"] !== "Text" &&
                     vizInputsValues.map((obj, index) => (
                       <DataInput
                         key={index}
@@ -244,16 +266,14 @@ function DataViewerModal({
                     ))}
                 </Col>
                 <Col className={"justify-content-center h-100"}>
-                  {selectedVizTypeOption && (
-                    <>
-                      {selectedVizTypeOption["value"] === "Text" && (
-                        <CustomTextOptions
-                          setVizMetadata={setVizMetadata}
-                          setUpdateCellMessage={setUpdateCellMessage}
-                        />
-                      )}
-                    </>
-                  )}
+                  {selectedVizTypeOption &&
+                    selectedVizTypeOption["value"] === "Text" && (
+                      <CustomTextOptions
+                        objValue={vizInputsValues[0]}
+                        onChange={handleInputChange}
+                        index={0}
+                      />
+                    )}
                   {viz}
                 </Col>
               </StyledRow>
@@ -261,6 +281,12 @@ function DataViewerModal({
           </Form>
         </Modal.Body>
         <Modal.Footer>
+          <CustomAlert
+            alertType={"warning"}
+            showAlert={showAlert}
+            setShowAlert={setShowAlert}
+            alertMessage={alertMessage}
+          />
           <Button variant="secondary" onClick={handleModalClose}>
             Close
           </Button>
@@ -273,37 +299,31 @@ function DataViewerModal({
   );
 }
 
-function CustomTextOptions({ setVizMetadata, setUpdateCellMessage }) {
-  const [textValue, setTextValue] = useState("");
-
-  function onChange(e) {
-    setTextValue(e.target.value);
-    const itemData = {
-      source: "Text",
-      args: {
-        text: e.target.value,
-      },
-    };
-    setVizMetadata(itemData);
-    setUpdateCellMessage("Cell updated to show custom text");
-  }
+function CustomTextOptions({ objValue, onChange, index }) {
+  const textValue = objValue.value;
 
   return (
     <StyledDiv>
-      <TextEditor textValue={textValue} onChange={onChange} />
+      <TextEditor
+        textValue={textValue}
+        onChange={(e) => onChange(e.target.value, index)}
+      />
     </StyledDiv>
   );
 }
 
 CustomTextOptions.propTypes = {
-  setVizMetadata: PropTypes.func,
-  setUpdateCellMessage: PropTypes.func,
+  objValue: PropTypes.object,
+  onChange: PropTypes.func,
+  index: PropTypes.number,
 };
 
 DataViewerModal.propTypes = {
   grid_item_id: PropTypes.string,
-  setUpdateCellMessage: PropTypes.func,
-  setShowUpdateCellMessage: PropTypes.func,
+  source: PropTypes.string,
+  args_string: PropTypes.string,
+  setGridItemMessage: PropTypes.func,
+  setShowGridItemMessage: PropTypes.func,
   showModal: PropTypes.bool,
   handleModalClose: PropTypes.func,
 };
