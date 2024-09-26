@@ -14,12 +14,10 @@ import CustomAlert from "components/dashboard/CustomAlert";
 const StyledContainer = styled(Container)`
   position: relative;
   padding: 0;
-  overflow: hidden;
 `;
 
 const StyledButtonDiv = styled.div`
   position: absolute;
-  z-index: 1;
   margin: 0.5rem;
   right: 0;
 `;
