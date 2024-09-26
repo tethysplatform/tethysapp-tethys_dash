@@ -4,3 +4,7 @@
   -ms-user-select: none;
   user-select: none;
 }
+
+.react-grid-item:hover {
+  z-index: 10;
+}

@@ -16,7 +16,7 @@ import DashboardItem from "components/dashboard/DashboardItem";
 import PropTypes from "prop-types";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import "components/dashboard/resize_handler.css";
+import "components/dashboard/DashboardLayout.css";
 
 const ReactGridLayout = WidthProvider(RGL);
 
