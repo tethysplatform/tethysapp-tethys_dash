@@ -52,7 +52,9 @@ function DataViewerModal({
   const [showAlert, setShowAlert] = useState(false);
 
   useEffect(() => {
+    
     appAPI.getVisualizations().then((data) => {
+      console.log(data);
       let options = data.visualizations;
       options.push({
         label: "Other",
