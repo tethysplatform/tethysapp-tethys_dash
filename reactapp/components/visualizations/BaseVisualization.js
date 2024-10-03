@@ -18,6 +18,7 @@ const BaseVisualization = ({
   const [viz, setViz] = useState(null);
   const variableInputValues = useVariableInputValuesContext()[0];
   const gridItemArgsWithVariableInputs = useRef(0);
+  const gridItemSource = useRef(0);
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -39,10 +40,12 @@ const BaseVisualization = ({
         !valuesEqual(
           gridItemArgsWithVariableInputs.current,
           updatedGridItemArgs
-        )
+        ) ||
+        !valuesEqual(gridItemSource.current, source)
       ) {
         itemData.args = updatedGridItemArgs;
         gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
+        gridItemSource.current = source;
         setVisualization(setViz, itemData);
       }
     }
@@ -61,10 +64,12 @@ const BaseVisualization = ({
         !valuesEqual(
           gridItemArgsWithVariableInputs.current,
           updatedGridItemArgs
-        )
+        ) &&
+        Object.keys(updatedGridItemArgs).length !== 0
       ) {
         itemData.args = updatedGridItemArgs;
         gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
+        gridItemSource.current = source;
         setVisualization(setViz, itemData);
       }
     }
