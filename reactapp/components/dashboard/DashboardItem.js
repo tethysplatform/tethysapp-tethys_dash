@@ -72,7 +72,7 @@ const DashboardItem = ({
   function copyGridItem() {
     const layout = getLayoutContext();
     let maxGridItemI = gridItems.reduce((acc, value) => {
-      return (acc = acc > value.i ? acc : value.i);
+      return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
     const copiedGridItem = getGridItem(gridItems, gridItemI);
     const newGridItem = { ...copiedGridItem };
