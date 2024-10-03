@@ -2,13 +2,31 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import Form from "react-bootstrap/Form";
 import DataSelect from "components/inputs/DataSelect";
+import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
   width: 100%;
 `;
 
-const Input = ({ label, type, onChange, value, index }) => {
+const Input = ({ label, type, onChange, value, index, dataviewer }) => {
+  const gridItems = useLayoutGridItemsContext()[0];
+
+  function getAvailableVariableInputs() {
+    const availableVariableInputs = [];
+    const variableInputs = gridItems.filter(
+      (item) => item.source === "Variable Input"
+    );
+    if (variableInputs) {
+      for (let variableInput of variableInputs) {
+        const variableInputInfo = JSON.parse(variableInput.args_string);
+        availableVariableInputs.push(variableInputInfo.variable_name);
+      }
+    }
+
+    return availableVariableInputs;
+  }
+
   if (Array.isArray(type)) {
     let options = [];
     let inputValue;
@@ -22,6 +40,19 @@ const Input = ({ label, type, onChange, value, index }) => {
         inputValue = { value: value, label: value };
       } else {
         inputValue = value;
+      }
+    }
+
+    if (dataviewer && label !== "Variable Options Source") {
+      const availableVariableInputs = getAvailableVariableInputs(type);
+      if (availableVariableInputs) {
+        options.push({
+          label: "Variable Inputs",
+          options: availableVariableInputs.map((availableVariableInput) => ({
+            label: availableVariableInput,
+            value: "Variable Input:" + availableVariableInput,
+          })),
+        });
       }
     }
 
@@ -60,19 +91,24 @@ const Input = ({ label, type, onChange, value, index }) => {
   }
 };
 
-const DataInput = ({ objValue, onChange, index }) => {
+const DataInput = ({ objValue, onChange, index, dataviewer }) => {
   const { label, type, value } = objValue;
 
   return (
-    <StyledDiv>
-      <Input
-        label={label}
-        type={type}
-        onChange={onChange}
-        value={value}
-        index={index}
-      />
-    </StyledDiv>
+    <>
+      {type && (
+        <StyledDiv>
+          <Input
+            label={label}
+            type={type}
+            onChange={onChange}
+            value={value}
+            index={index}
+            dataviewer={dataviewer}
+          />
+        </StyledDiv>
+      )}
+    </>
   );
 };
 
@@ -80,6 +116,7 @@ DataInput.propTypes = {
   objValue: PropTypes.object,
   onChange: PropTypes.func,
   index: PropTypes.number,
+  dataviewer: PropTypes.bool,
 };
 
 Input.propTypes = {
@@ -93,6 +130,7 @@ Input.propTypes = {
     PropTypes.object,
   ]),
   index: PropTypes.number,
+  dataviewer: PropTypes.bool,
 };
 
 export default DataInput;

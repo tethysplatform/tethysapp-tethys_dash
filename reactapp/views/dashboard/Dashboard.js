@@ -11,7 +11,7 @@ function DashboardView() {
       {name && (
         <LayoutAlertContextProvider>
           <DashboardLayoutAlerts />
-          <DashboardLayout />
+          <DashboardLayout key={name} />
         </LayoutAlertContextProvider>
       )}
     </>

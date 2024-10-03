@@ -59,7 +59,14 @@ function DashboardLayout() {
     setItems(
       gridItems.map((item, index) => (
         <StyledDiv key={item.i}>
-          {<DashboardItem grid_item={item} grid_item_index={index} />}
+          {
+            <DashboardItem
+              gridItemSource={item.source}
+              gridItemI={item.i}
+              gridItemArgsString={item.args_string}
+              grid_item_index={index}
+            />
+          }
         </StyledDiv>
       ))
     );
@@ -97,6 +104,7 @@ function DashboardLayout() {
       var result = gridItems.find((obj) => {
         return obj.i === lay.i;
       });
+
       updatedGridItems.push({
         args_string: result.args_string,
         h: lay.h,
@@ -118,28 +126,38 @@ function DashboardLayout() {
     setShowSuccessMessage(false);
     setShowErrorMessage(false);
 
-    const updatedLayoutContext = getLayoutContext();
-    appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
-      if (response["success"]) {
-        const name = response["updated_dashboard"]["name"];
-        let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
-        OGLayouts[name] = response["updated_dashboard"];
-        setDashboardLayoutConfigs(OGLayouts);
-        setLayoutContext(response["updated_dashboard"]);
-        setSuccessMessage("Change have been saved.");
-        setShowSuccessMessage(true);
-      } else {
-        setErrorMessage(
-          "Failed to save changes. Check server logs for more information."
-        );
-        setShowErrorMessage(true);
-      }
-    });
-    setIsEditing(false);
+    if (isEditing) {
+      const updatedLayoutContext = getLayoutContext();
+      appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
+        if (response["success"]) {
+          const name = response["updated_dashboard"]["name"];
+          let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
+          OGLayouts[name] = response["updated_dashboard"];
+          setDashboardLayoutConfigs(OGLayouts);
+          setLayoutContext(response["updated_dashboard"]);
+          setSuccessMessage("Change have been saved.");
+          setShowSuccessMessage(true);
+        } else {
+          setErrorMessage(
+            "Failed to save changes. Check server logs for more information."
+          );
+          setShowErrorMessage(true);
+        }
+      });
+      setIsEditing(false);
+    }
   }
 
   return (
-    <Form id="gridUpdate" onSubmit={handleSubmit}>
+    <Form
+      id="gridUpdate"
+      onSubmit={handleSubmit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+        }
+      }}
+    >
       <GridLayout layout={layout} updateLayout={updateLayout} items={items} />
     </Form>
   );

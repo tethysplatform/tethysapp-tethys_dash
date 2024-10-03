@@ -2,6 +2,7 @@ import styled from "styled-components";
 import PropTypes from "prop-types";
 import Dropdown from "react-bootstrap/Dropdown";
 import { BsThreeDotsVertical } from "react-icons/bs";
+import { useLayoutEditableContext } from "components/contexts/SelectedDashboardContext";
 import "components/buttons/itemDropdown.css";
 
 const StyledDropdownToggle = styled(Dropdown.Toggle)`
@@ -18,6 +19,7 @@ const DashboardItemDropdown = ({
   editSize,
   copyGridItem,
 }) => {
+  const editableDashboard = useLayoutEditableContext();
   return (
     <Dropdown>
       <StyledDropdownToggle id="dropdown-basic">
@@ -28,12 +30,20 @@ const DashboardItemDropdown = ({
         {showFullscreen && (
           <Dropdown.Item onClick={showFullscreen}>Fullscreen</Dropdown.Item>
         )}
-        <Dropdown.Item onClick={editGridItem}>Edit Visualization</Dropdown.Item>
-        {editSize && (
-          <Dropdown.Item onClick={editSize}>Edit Size/Location</Dropdown.Item>
+        {editableDashboard && (
+          <>
+            <Dropdown.Item onClick={editGridItem}>
+              Edit Visualization
+            </Dropdown.Item>
+            {editSize && (
+              <Dropdown.Item onClick={editSize}>
+                Edit Size/Location
+              </Dropdown.Item>
+            )}
+            <Dropdown.Item onClick={copyGridItem}>Create Copy</Dropdown.Item>
+            <Dropdown.Item onClick={deleteGridItem}>Delete</Dropdown.Item>
+          </>
         )}
-        <Dropdown.Item onClick={copyGridItem}>Create Copy</Dropdown.Item>
-        <Dropdown.Item onClick={deleteGridItem}>Delete</Dropdown.Item>
       </Dropdown.Menu>
     </Dropdown>
   );

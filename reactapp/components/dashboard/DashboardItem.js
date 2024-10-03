@@ -9,6 +9,8 @@ import BaseVisualization from "components/visualizations/BaseVisualization";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
+import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
+import { getGridItem } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
 
 const StyledContainer = styled(Container)`
@@ -23,7 +25,12 @@ const StyledButtonDiv = styled.div`
   z-index: 1;
 `;
 
-const DashboardItem = ({ grid_item, grid_item_index }) => {
+const DashboardItem = ({
+  gridItemSource,
+  gridItemI,
+  gridItemArgsString,
+  grid_item_index,
+}) => {
   const [isEditing, setIsEditing] = useEditingContext();
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
@@ -32,6 +39,8 @@ const DashboardItem = ({ grid_item, grid_item_index }) => {
   const gridItems = useLayoutGridItemsContext()[0];
   const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
+  const variableInputValues = useVariableInputValuesContext()[0];
+  const setVariableInputValues = useVariableInputValuesContext()[1];
 
   async function deleteGridItem(e) {
     if (await confirm("Are your sure you want to delete the item?")) {
@@ -46,7 +55,7 @@ const DashboardItem = ({ grid_item, grid_item_index }) => {
   }
 
   function onFullscreen() {
-    if (grid_item.source) {
+    if (gridItemSource) {
       setShowFullscreen(true);
     }
   }
@@ -62,11 +71,32 @@ const DashboardItem = ({ grid_item, grid_item_index }) => {
 
   function copyGridItem() {
     const layout = getLayoutContext();
-    let maxGridItemI = layout["gridItems"].reduce((acc, value) => {
+    let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > value.i ? acc : value.i);
     }, 0);
-    const newGridItem = { ...grid_item };
+    const copiedGridItem = getGridItem(gridItems, gridItemI);
+    const newGridItem = { ...copiedGridItem };
     newGridItem.i = `${parseInt(maxGridItemI) + 1}`;
+    if (newGridItem.source === "Variable Input") {
+      const newGridItemArgs = JSON.parse(newGridItem.args_string);
+      let copiedVariableName = newGridItemArgs.variable_name;
+      let finding_valid_name = true;
+      let i = 2;
+      let newVariableName = newGridItemArgs.variable_name + "_1";
+      do {
+        if (!Object.keys(variableInputValues).includes(newVariableName)) {
+          finding_valid_name = false;
+        } else {
+          newVariableName = newGridItemArgs.variable_name + "_" + i;
+        }
+        i++;
+      } while (finding_valid_name);
+      newGridItemArgs.variable_name = newVariableName;
+      newGridItem.args_string = JSON.stringify(newGridItemArgs);
+      variableInputValues[newVariableName] =
+        variableInputValues[copiedVariableName];
+      setVariableInputValues(variableInputValues);
+    }
     layout["gridItems"] = [...layout["gridItems"], newGridItem];
     setLayoutContext(layout);
     setIsEditing(true);
@@ -91,7 +121,7 @@ const DashboardItem = ({ grid_item, grid_item_index }) => {
         />
         <StyledButtonDiv>
           <DashboardItemDropdown
-            showFullscreen={grid_item.source ? onFullscreen : null}
+            showFullscreen={gridItemSource ? onFullscreen : null}
             deleteGridItem={deleteGridItem}
             editGridItem={editGridItem}
             editSize={isEditing ? null : editSize}
@@ -99,8 +129,9 @@ const DashboardItem = ({ grid_item, grid_item_index }) => {
           />
         </StyledButtonDiv>
         <BaseVisualization
-          source={grid_item.source}
-          argsString={grid_item.args_string}
+          key={gridItemI}
+          source={gridItemSource}
+          argsString={gridItemArgsString}
           showFullscreen={showFullscreen}
           hideFullscreen={hideFullscreen}
         />
@@ -108,8 +139,8 @@ const DashboardItem = ({ grid_item, grid_item_index }) => {
       {showDataViewerModal && (
         <DataViewerModal
           grid_item_index={grid_item_index}
-          source={grid_item.source}
-          args_string={grid_item.args_string}
+          source={gridItemSource}
+          args_string={gridItemArgsString}
           showModal={showDataViewerModal}
           handleModalClose={hideDataViewerModal}
           setGridItemMessage={setGridItemMessage}
@@ -121,7 +152,9 @@ const DashboardItem = ({ grid_item, grid_item_index }) => {
 };
 
 DashboardItem.propTypes = {
-  grid_item: PropTypes.object,
+  gridItemSource: PropTypes.string,
+  gridItemI: PropTypes.string,
+  gridItemArgsString: PropTypes.string,
   grid_item_index: PropTypes.number,
 };
 

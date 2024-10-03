@@ -9,13 +9,22 @@ import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import styled from "styled-components";
 import Image from "components/visualizations/Image";
-import appAPI from "services/api/app";
 import DataInput from "components/inputs/DataInput";
 import TextEditor from "components/inputs/TextEditor";
 import { setVisualization } from "components/visualizations/utilities";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
+import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
+import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
+import {
+  getInitialInputValue,
+  spaceAndCapitalize,
+  valuesEqual,
+} from "components/modals/utilities";
+import { updateGridItemArgsWithVariableInputs } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
+import VariableInput from "components/visualizations/VariableInput";
+import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 import "components/modals/wideModal.css";
 
 const StyledDiv = styled.div`
@@ -28,6 +37,10 @@ const StyledContainer = styled(Container)`
 
 const StyledRow = styled(Row)`
   height: 100%;
+`;
+
+const StyledCol = styled(Col)`
+  border-right: black solid 1px;
 `;
 
 function DataViewerModal({
@@ -44,57 +57,85 @@ function DataViewerModal({
   const [viz, setViz] = useState(null);
   const [vizOptions, setVizOptions] = useState([]);
   const [vizInputsValues, setVizInputsValues] = useState([]);
+  const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
   const gridItems = useLayoutGridItemsContext()[0];
   const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
+  const availableVisualizations = useAvailableVisualizationsContext()[0];
+  const availableVizArgs = useAvailableVisualizationsContext()[1];
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
+  const variableInputValues = useVariableInputValuesContext()[0];
+  const setVariableInputValues = useVariableInputValuesContext()[1];
 
   useEffect(() => {
-    appAPI.getVisualizations().then((data) => {
-      let options = data.visualizations;
-      options.push({
-        label: "Other",
-        options: [
-          {
-            source: "Custom Image",
-            value: "Custom Image",
-            label: "Custom Image",
-            args: { image_source: "text" },
+    let options = [...availableVisualizations];
+    options.push({
+      label: "Other",
+      options: [
+        {
+          source: "Custom Image",
+          value: "Custom Image",
+          label: "Custom Image",
+          args: { image_source: "text" },
+        },
+        {
+          source: "Text",
+          value: "Text",
+          label: "Text",
+          args: { text: "text" },
+        },
+        {
+          source: "Variable Input",
+          value: "Variable Input",
+          label: "Variable Input",
+          args: {
+            variable_name: "text",
+            variable_options_source: [
+              ...nonDropDownVariableInputTypes,
+              ...[
+                {
+                  label: "Existing Visualization Inputs",
+                  options: availableVizArgs,
+                },
+              ],
+            ],
           },
-          {
-            source: "Text",
-            value: "Text",
-            label: "Text",
-            args: { text: "" },
-          },
-        ],
-      });
-      setVizOptions(options);
-      if (source) {
-        for (let p of options) {
-          for (let i of p.options) {
-            if (i.source === source) {
-              setSelectedGroupName(p.label);
-              setSelectVizTypeOption(i);
-              let userInputsValues = [];
-              const existingArgs = JSON.parse(args_string);
-              for (let arg in i.args) {
-                userInputsValues.push({
+        },
+      ],
+    });
+
+    setVizOptions(options);
+    if (source) {
+      for (let p of options) {
+        for (let i of p.options) {
+          if (i.source === source) {
+            setSelectedGroupName(p.label);
+            setSelectVizTypeOption(i);
+            let userInputsValues = [];
+            const existingArgs = JSON.parse(args_string);
+            if (source === "Variable Input") {
+              setVariableInputValue(existingArgs.initial_value);
+            }
+
+            for (let arg in i.args) {
+              if (i.args[arg]) {
+                const userInputsValue = {
                   label: spaceAndCapitalize(arg),
                   name: arg,
                   type: i.args[arg],
                   value: existingArgs[arg],
-                });
+                };
+                userInputsValues.push(userInputsValue);
               }
-              setVizInputsValues(userInputsValues);
-              break;
             }
+            setVizInputsValues(userInputsValues);
+            break;
           }
         }
       }
-    });
+    }
     // eslint-disable-next-line
   }, []);
 
@@ -103,22 +144,14 @@ function DataViewerModal({
     // eslint-disable-next-line
   }, [vizInputsValues]);
 
-  function spaceAndCapitalize(string) {
-    let capitalized_words = [];
-    let separated_string = string.split("_");
-    for (let substring of separated_string) {
-      capitalized_words.push(
-        substring.charAt(0).toUpperCase() + substring.slice(1)
-      );
-    }
-
-    return capitalized_words.join(" ");
-  }
-
   function handleInputChange(new_value, index) {
     const values = [...vizInputsValues];
     values[index].value = new_value;
     setVizInputsValues(values);
+  }
+
+  function handleVariableInputChange(e) {
+    setVariableInputValue(e);
   }
 
   function onDataTypeChange(e) {
@@ -135,18 +168,23 @@ function DataViewerModal({
     let userInputsValues = [];
     for (let arg in e.args) {
       let existing = vizInputsValues.filter((obj) => {
-        return arraysEqual(obj.type, e.args[arg]);
+        if (obj.name !== arg) {
+          return false;
+        }
+        return valuesEqual(obj.type, e.args[arg]);
       });
 
+      if (e.args[arg] === "checkbox") {
+        e.args[arg] = [
+          { label: "True", value: true },
+          { label: "False", value: false },
+        ];
+      }
       let inputValue;
       if (existing.length) {
         inputValue = existing[0].value;
-      } else if (e.args[arg] === "text") {
-        inputValue = "";
-      } else if (e.args[arg] === "checkbox") {
-        inputValue = false;
       } else {
-        inputValue = null;
+        inputValue = getInitialInputValue(e.args[arg]);
       }
 
       userInputsValues.push({
@@ -164,7 +202,10 @@ function DataViewerModal({
   function checkAllInputs() {
     if (selectedVizTypeOption !== null) {
       let inputValues = vizInputsValues.map((value) => value.value);
-      if (inputValues.every((value) => value !== null)) {
+      if (
+        inputValues.every((value) => !["", null].includes(value)) ||
+        (selectedVizTypeOption["value"] === "Text" && inputValues[0] === "")
+      ) {
         previewVisualization();
       }
     }
@@ -175,15 +216,53 @@ function DataViewerModal({
     e.stopPropagation();
     if (selectedVizTypeOption !== null) {
       let inputValues = vizInputsValues.map((value) => value.value);
+
+      if (selectedVizTypeOption.source === "Variable Input") {
+        var variableInputName = vizInputsValues.find((obj) => {
+          return obj.name === "variable_name";
+        }).value;
+        var variableInputSource = vizInputsValues.find((obj) => {
+          return obj.name === "variable_options_source";
+        }).value;
+
+        if (
+          variableInputName in variableInputValues &&
+          JSON.parse(args_string).variable_name !== variableInputName
+        ) {
+          setAlertMessage(
+            variableInputName + " is already in use for a variable name"
+          );
+          setShowAlert(true);
+          return;
+        } else if (!variableInputValue && variableInputSource !== "checkbox") {
+          setAlertMessage("Initial value must be selected in the dropdown");
+          setShowAlert(true);
+          return;
+        } else {
+          vizInputsValues.push({
+            label: "Initial Value",
+            name: "initial_value",
+            value: variableInputValue,
+          });
+        }
+      }
+
       if (inputValues.every((value) => value !== null)) {
-        const updated_grid_items = [...gridItems];
-        updated_grid_items[grid_item_index].source = vizMetdata.source;
-        updated_grid_items[grid_item_index].args_string = JSON.stringify(
-          vizMetdata.args
-        );
+        let updatedGridItems = structuredClone(gridItems);
+        updatedGridItems[grid_item_index].source = vizMetdata.source;
+
+        let vizArgs = {};
+        for (const vizArg of vizInputsValues) {
+          vizArgs[vizArg.name] = vizArg.value.value || vizArg.value;
+        }
+        updatedGridItems[grid_item_index].args_string = JSON.stringify(vizArgs);
+
+        if (selectedVizTypeOption.source === "Variable Input") {
+          updatedGridItems = updateVariableInputs(vizArgs, updatedGridItems);
+        }
 
         const layout = getLayoutContext();
-        layout["gridItems"] = updated_grid_items;
+        layout["gridItems"] = updatedGridItems;
         setLayoutContext(layout);
         setShowGridItemMessage(true);
         handleModalClose();
@@ -195,6 +274,37 @@ function DataViewerModal({
       setAlertMessage("All visualization must be chosen before saving");
       setShowAlert(true);
     }
+  }
+
+  function updateVariableInputs(vizArgs, updatedGridItems) {
+    const existingVariableName = JSON.parse(args_string).variable_name;
+    if (
+      existingVariableName &&
+      existingVariableName !== vizArgs.variable_name
+    ) {
+      for (const gridItem of updatedGridItems) {
+        if (gridItem.source !== "Variable Input") {
+          const args = JSON.parse(gridItem.args_string);
+          for (const arg in args) {
+            const value = args[arg];
+            if (typeof value !== "string") {
+              continue;
+            }
+
+            if (value === "Variable Input:" + existingVariableName) {
+              const newValue = "Variable Input:" + vizArgs.variable_name;
+              args[arg] = newValue;
+            }
+          }
+          gridItem.args_string = JSON.stringify(args);
+        }
+      }
+    }
+    variableInputValues[vizArgs.variable_name] =
+      variableInputValue.value || variableInputValue;
+    setVariableInputValues(variableInputValues);
+
+    return updatedGridItems;
   }
 
   function previewVisualization() {
@@ -216,19 +326,32 @@ function DataViewerModal({
       if (vizInputsValues[0].value) {
         setViz(<Image source={vizInputsValues[0].value} />);
       }
-    } else if (selectedVizTypeOption["value"] !== "Text") {
+    } else if (selectedVizTypeOption["value"] === "Text") {
+      setViz(
+        <CustomTextOptions
+          objValue={vizInputsValues[0]}
+          onChange={handleInputChange}
+          index={0}
+        />
+      );
+    } else if (selectedVizTypeOption["value"] === "Variable Input") {
+      itemData.args.initial_value = variableInputValue;
+      setViz(
+        <VariableInput
+          args={itemData.args}
+          onChange={handleVariableInputChange}
+          dataviewer={true}
+        />
+      );
+    } else {
+      const updatedGridItemArgs = updateGridItemArgsWithVariableInputs(
+        JSON.stringify(itemData.args),
+        variableInputValues
+      );
+      itemData.args = updatedGridItemArgs;
       setVisualization(setViz, itemData);
     }
   }
-
-  const objectsEqual = (o1, o2) =>
-    typeof o1 === "object" && Object.keys(o1).length > 0
-      ? Object.keys(o1).length === Object.keys(o2).length &&
-        Object.keys(o1).every((p) => objectsEqual(o1[p], o2[p]))
-      : o1 === o2;
-
-  const arraysEqual = (a1, a2) =>
-    a1.length === a2.length && a1.every((o, idx) => objectsEqual(o, a2[idx]));
 
   return (
     <>
@@ -244,7 +367,7 @@ function DataViewerModal({
           <Form id="dataSelect" onSubmit={handleSubmit}>
             <StyledContainer>
               <StyledRow>
-                <Col className={"justify-content-center h-100 col-3"}>
+                <StyledCol className={"justify-content-center h-100 col-3"}>
                   <DataSelect
                     label="Visualization Type"
                     selectedOption={selectedVizTypeOption}
@@ -259,20 +382,11 @@ function DataViewerModal({
                         objValue={obj}
                         onChange={handleInputChange}
                         index={index}
+                        dataviewer={true}
                       />
                     ))}
-                </Col>
-                <Col className={"justify-content-center h-100"}>
-                  {selectedVizTypeOption &&
-                    selectedVizTypeOption["value"] === "Text" && (
-                      <CustomTextOptions
-                        objValue={vizInputsValues[0]}
-                        onChange={handleInputChange}
-                        index={0}
-                      />
-                    )}
-                  {viz}
-                </Col>
+                </StyledCol>
+                <Col className={"justify-content-center h-100"}>{viz}</Col>
               </StyledRow>
             </StyledContainer>
           </Form>
