@@ -7,6 +7,7 @@ import DashboardSharingModal from "components/modals/DashboardSharing";
 import {
   useLayoutContext,
   useLayoutNameContext,
+  useLayoutEditableContext,
 } from "components/contexts/SelectedDashboardContext";
 import { useAvailableOptionsContext } from "components/contexts/AvailableOptionsContext";
 import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
@@ -32,6 +33,7 @@ function DashboardSelector() {
   const resetLayoutContext = useLayoutContext()[1];
   const getLayoutContext = useLayoutContext()[2];
   const name = useLayoutNameContext()[0];
+  const editableDashboard = useLayoutEditableContext();
   const [selectOptions, setSelectOptions] = useAvailableOptionsContext();
   const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
     useAvailableDashboardContext();
@@ -43,14 +45,6 @@ function DashboardSelector() {
   const [showSharingModal, setShowSharingModal] = useState(false);
   const [isEditing, setIsEditing] = useEditingContext();
   const { csrf } = useContext(AppContext);
-  const [editableDashboard, setEditableDashboard] = useState(false);
-  const layoutContext = getLayoutContext();
-
-  useEffect(() => {
-    if (layoutContext["editable"]) {
-      setEditableDashboard(true);
-    }
-  }, [layoutContext]);
 
   useEffect(() => {
     appAPI.getDashboards().then((data) => {
@@ -85,7 +79,6 @@ function DashboardSelector() {
       let selectedDashboard = dashboardLayoutConfigs[e.value];
       setSelectedOption({ value: e.value, label: selectedDashboard["label"] });
       setLayoutContext(selectedDashboard);
-      setEditableDashboard(selectedDashboard["editable"]);
     }
     setIsEditing(false);
   }
@@ -180,6 +173,7 @@ function DashboardSelector() {
     };
     layout["gridItems"] = [...layout["gridItems"], newGridItem];
     setLayoutContext(layout);
+    setIsEditing(true);
   }
 
   return (
@@ -197,13 +191,6 @@ function DashboardSelector() {
             onClick={onNotes}
           >
             <BsFileText size="1.5rem" />
-          </HeaderButton>
-          <HeaderButton
-            tooltipPlacement="bottom"
-            tooltipText="Edit Access"
-            onClick={onEditAccess}
-          >
-            <BsPeopleFill size="1.5rem" />
           </HeaderButton>
           {editableDashboard && (
             <>
@@ -224,13 +211,6 @@ function DashboardSelector() {
                   >
                     <BsSave size="1.5rem" />
                   </HeaderButton>
-                  <HeaderButton
-                    tooltipPlacement="bottom"
-                    tooltipText="Add Dashboard Item"
-                    onClick={onAddGridItem}
-                  >
-                    <BsPlus size="1.5rem" />
-                  </HeaderButton>
                 </>
               )}
               {!isEditing && (
@@ -242,6 +222,20 @@ function DashboardSelector() {
                   <BsPencilSquare size="1.5rem" />
                 </HeaderButton>
               )}
+              <HeaderButton
+                tooltipPlacement="bottom"
+                tooltipText="Add Dashboard Item"
+                onClick={onAddGridItem}
+              >
+                <BsPlus size="1.5rem" />
+              </HeaderButton>
+              <HeaderButton
+                tooltipPlacement="bottom"
+                tooltipText="Edit Access"
+                onClick={onEditAccess}
+              >
+                <BsPeopleFill size="1.5rem" />
+              </HeaderButton>
               <HeaderButton
                 tooltipPlacement="bottom"
                 tooltipText="Delete Dashboard"

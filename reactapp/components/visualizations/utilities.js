@@ -18,6 +18,7 @@ const StyledH2 = styled.h2`
 
 export function setVisualization(setViz, itemData) {
   setViz(<StyledSpinner animation="border" variant="info" />);
+
   appAPI.getPlotData(itemData).then((response) => {
     if (response.success === true) {
       if (response["viz_type"] === "plotly") {
@@ -57,3 +58,32 @@ export function setVisualization(setViz, itemData) {
     }
   });
 }
+
+export function getGridItem(gridItems, gridItemI) {
+  var result = gridItems.find((obj) => {
+    return obj.i === gridItemI;
+  });
+
+  return result;
+}
+
+export function updateGridItemArgsWithVariableInputs(
+  argsString,
+  variableInputs
+) {
+  const gridItemsArgs = JSON.parse(argsString);
+  for (let gridItemsArg in gridItemsArgs) {
+    const value = gridItemsArgs[gridItemsArg];
+    if (typeof value !== "string") {
+      continue;
+    }
+    if (value.includes("Variable Input:")) {
+      const neededVariable = value.replace("Variable Input:", "");
+      gridItemsArgs[gridItemsArg] = variableInputs[neededVariable];
+    }
+  }
+
+  return gridItemsArgs;
+}
+
+export const nonDropDownVariableInputTypes = ["text", "number", "checkbox"];
