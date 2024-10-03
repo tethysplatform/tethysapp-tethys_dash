@@ -1,67 +1,90 @@
-import React, {useEffect,memo, Fragment} from "react";
-import styled from "styled-components";
+import React from 'react';
+import styled from 'styled-components';
+import { GiRiver } from "react-icons/gi";
 
-// Styled components for the card and its layout
+// Styled components
 const CardContainer = styled.div`
+  background-color: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+`;
+
+const Header = styled.div`
+  margin-bottom: 20px;
+
+  h3 {
+    margin: 0;
+    font-size: 1.5rem;
+  }
+
+  p {
+    font-size: 0.9rem;
+    color: #6c757d;
+  }
+`;
+
+const StatsContainer = styled.div`
   display: flex;
   justify-content: space-between;
-  background-color: #f7f9fc;
-  padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  width: 100%;
-  max-width: 900px;
-  margin: 20px auto;
 `;
 
-const StatBox = styled.div`
+const StatItem = styled.div`
+  display: flex;
+  align-items: center;
+  padding: 10px;
+`;
+
+const StatIcon = styled.div`
+  background-color: ${({ bgColor }) => bgColor};
+  color: white;
+  padding: 10px;
+  border-radius: 10px;
+  margin-right: 10px;
+  font-size: 2rem;
+`;
+
+const StatContent = styled.div`
   display: flex;
   flex-direction: column;
-  align-items: center;
-  background-color: white;
-  padding: 15px;
-  border-radius: 10px;
-  flex: 1;
-  margin: 0 10px;
-  box-shadow: 0px 5px 10px rgba(0, 0, 0, 0.05);
+  justify-content: center;
 `;
 
-const StatValue = styled.span`
-  font-size: 24px;
+const StatTitle = styled.p`
+  margin: 0;
+  font-size: 1rem;
+  color: #6c757d;
+`;
+
+const StatValue = styled.p`
+  margin: 0;
+  font-size: 1.5rem;
   font-weight: bold;
-  margin-top: 8px;
 `;
 
-const StatLabel = styled.span`
-  font-size: 14px;
-  color: #7a7a7a;
-`;
-
-const Card = ({ data, title }) => {
-  // Rendering stat boxes based on the provided object
-  useEffect(() => {
-    if (!data) return;
-    console.log(data)
-    return () => {
-        
-    }
-  }, [])
-  
+// Component to display the StatsCard
+const Card = ({ title, description, data }) => {
   return (
-    <Fragment>
-      <h2>{title}</h2>
-      <CardContainer>
-        { data && Object.entries(data[0]).map(([label, value], index) => (
-          <StatBox key={index}>
-            <StatLabel>{label}</StatLabel>
-            <StatValue>{value}</StatValue>
-          </StatBox>
+    <CardContainer>
+      <Header>
+        <h3>{title}</h3>
+        <p>{description}</p>
+      </Header>
+      <StatsContainer>
+        {data.map((item, index) => (
+        <StatItem key={index}>
+            <StatIcon bgColor={item.hex}><GiRiver /></StatIcon>
+            <StatContent>
+            <StatTitle>{item.label}</StatTitle>
+            <StatValue>{item.size} </StatValue>
+            </StatContent>
+        </StatItem>
         ))}
-      </CardContainer>
-    </Fragment>
-
+    </StatsContainer>
+    </CardContainer>
   );
 };
 
-export default memo(Card);
 
+
+export default Card;

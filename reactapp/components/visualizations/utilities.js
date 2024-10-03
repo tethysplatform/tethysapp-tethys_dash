@@ -4,7 +4,7 @@ import DataTable from "components/visualizations/DataTable";
 import Image from "components/visualizations/Image";
 import Spinner from "react-bootstrap/Spinner";
 import styled from "styled-components";
-import Card from "components/visualizations/Card2";
+import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/MapVisualization";
 
 const StyledSpinner = styled(Spinner)`
