@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
 import { useContext, createContext, useState } from "react";
+import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 
 const LayoutContext = createContext();
 const LayoutNameContext = createContext();
@@ -7,6 +8,7 @@ const LayoutLabelContext = createContext();
 const LayoutAccessGroupsContext = createContext();
 const LayoutNotesContext = createContext();
 const LayoutGridItemsContext = createContext();
+const LayoutEditableContext = createContext();
 
 const SelectedDashboardContextProvider = ({ children }) => {
   const [name, setName] = useState("");
@@ -15,6 +17,8 @@ const SelectedDashboardContextProvider = ({ children }) => {
   const [editable, setEditable] = useState(false);
   const [notes, setNotes] = useState("");
   const [gridItems, setGridItems] = useState([]);
+  const updateVariableInputValuesWithGridItems =
+    useVariableInputValuesContext()[2];
 
   function resetLayoutContext() {
     setName("");
@@ -23,6 +27,7 @@ const SelectedDashboardContextProvider = ({ children }) => {
     setNotes("");
     setGridItems([]);
     setEditable(false);
+    updateVariableInputValuesWithGridItems([]);
   }
 
   function setLayoutContext(dashboardContext) {
@@ -32,6 +37,7 @@ const SelectedDashboardContextProvider = ({ children }) => {
     setNotes(dashboardContext["notes"]);
     setGridItems(dashboardContext["gridItems"]);
     setEditable(dashboardContext["editable"]);
+    updateVariableInputValuesWithGridItems(dashboardContext["gridItems"]);
   }
 
   function getLayoutContext() {
@@ -51,17 +57,19 @@ const SelectedDashboardContextProvider = ({ children }) => {
     >
       <LayoutNameContext.Provider value={[name, setName]}>
         <LayoutLabelContext.Provider value={[label, setLabel]}>
-          <LayoutAccessGroupsContext.Provider
-            value={[accessGroups, setAccessGroups]}
-          >
-            <LayoutNotesContext.Provider value={[notes, setNotes]}>
-              <LayoutGridItemsContext.Provider
-                value={[gridItems, setGridItems]}
-              >
-                {children}
-              </LayoutGridItemsContext.Provider>
-            </LayoutNotesContext.Provider>
-          </LayoutAccessGroupsContext.Provider>
+          <LayoutEditableContext.Provider value={editable}>
+            <LayoutAccessGroupsContext.Provider
+              value={[accessGroups, setAccessGroups]}
+            >
+              <LayoutNotesContext.Provider value={[notes, setNotes]}>
+                <LayoutGridItemsContext.Provider
+                  value={[gridItems, setGridItems]}
+                >
+                  {children}
+                </LayoutGridItemsContext.Provider>
+              </LayoutNotesContext.Provider>
+            </LayoutAccessGroupsContext.Provider>
+          </LayoutEditableContext.Provider>
         </LayoutLabelContext.Provider>
       </LayoutNameContext.Provider>
     </LayoutContext.Provider>
@@ -95,4 +103,8 @@ export const useLayoutNotesContext = () => {
 
 export const useLayoutGridItemsContext = () => {
   return useContext(LayoutGridItemsContext);
+};
+
+export const useLayoutEditableContext = () => {
+  return useContext(LayoutEditableContext);
 };
