@@ -4,7 +4,7 @@ import DataTable from "components/visualizations/DataTable";
 import Image from "components/visualizations/Image";
 import Spinner from "react-bootstrap/Spinner";
 import styled from "styled-components";
-import Card from "components/visualizations/Card";
+import Card from "components/visualizations/Card2";
 import MapVisualization from "components/visualizations/MapVisualization";
 
 const StyledSpinner = styled(Spinner)`
@@ -36,13 +36,14 @@ export function setVisualization(setViz, itemData) {
       } else if (response["viz_type"] === "card") {
         setViz(
           <Card
-            data={response.data.data} title={response.data.title}
+            data={response.data.data} title={response.data.title} description={response.data.description}
           />
         ); 
       } else if (response["viz_type"] === "map") {
-        console.log(response.data.layers);
           setViz(
-            <MapVisualization 
+            <MapVisualization
+              // mapConfig={response.data.map_config}
+              viewConfig={response.data.view_config}
               layers={response.data.layers}
           />
         );

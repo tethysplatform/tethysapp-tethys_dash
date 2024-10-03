@@ -1,4 +1,4 @@
-import React, {useEffect,memo} from "react";
+import React, {useEffect,memo, Fragment} from "react";
 import styled from "styled-components";
 
 // Styled components for the card and its layout
@@ -48,14 +48,18 @@ const Card = ({ data, title }) => {
   }, [])
   
   return (
-    <CardContainer>
-      { data && Object.entries(data[0]).map(([label, value], index) => (
-        <StatBox key={index}>
-          <StatLabel>{label}</StatLabel>
-          <StatValue>{value}</StatValue>
-        </StatBox>
-      ))}
-    </CardContainer>
+    <Fragment>
+      <h2>{title}</h2>
+      <CardContainer>
+        { data && Object.entries(data[0]).map(([label, value], index) => (
+          <StatBox key={index}>
+            <StatLabel>{label}</StatLabel>
+            <StatValue>{value}</StatValue>
+          </StatBox>
+        ))}
+      </CardContainer>
+    </Fragment>
+
   );
 };
 

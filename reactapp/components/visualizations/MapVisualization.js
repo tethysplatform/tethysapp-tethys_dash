@@ -6,7 +6,6 @@ import Layer from "../../tethys-ol/components/layers/Layer";
 import Source from "../../tethys-ol/lib/Source";
 import Layers from "../../tethys-ol/components/layers/Layers";
 import Overlay from "../../tethys-ol/components/overlays/Overlay";
-import Overlays from "../../tethys-ol/components/overlays/Overlays";
 import { fromLonLat } from "ol/proj";
 import styled from 'styled-components';
 import View from "../../tethys-ol/components/View";
@@ -70,7 +69,7 @@ const ViewConfig = {
 };
 
   
-const MapVisualization = ({ layers }) => {
+const MapVisualization = ({ viewConfig,layers }) => {
 
   useEffect(() => {
     console.log(layers)
@@ -83,7 +82,7 @@ const MapVisualization = ({ layers }) => {
   return (
 
     <Map {...MapConfig} >
-        <View {...ViewConfig} />
+        <View {...viewConfig} />
         <Layers>
             {layers && layers.map((config, index) => {
                 const { type: LayerType, props: { source: { type: SourceType, props: sourceProps }, ...layerProps } } = config;
