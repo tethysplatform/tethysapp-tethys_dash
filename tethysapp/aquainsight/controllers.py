@@ -68,11 +68,12 @@ def add_dashboard(request):
     label = dashboard_metadata["label"]
     notes = dashboard_metadata["notes"]
     owner = str(request.user)
+    refresh_rate = 30
     access_groups = []
     print(f"Creating a dashboard named {label}")
 
     try:
-        add_new_dashboard(label, name, notes, owner, access_groups)
+        add_new_dashboard(label, name, notes, owner, refresh_rate, access_groups)
         new_dashboard = get_dashboards(owner, name=name)[name]
         print(f"Successfully created the dashboard named {name}")
 
@@ -113,11 +114,12 @@ def update_dashboard(request):
     label = dashboard_metadata["label"]
     notes = dashboard_metadata["notes"]
     grid_items = dashboard_metadata["gridItems"]
+    refresh_rate = dashboard_metadata["refresh_rate"]
     access_groups = dashboard_metadata["access_groups"]
     user = str(request.user)
 
     try:
-        update_named_dashboard(user, name, label, notes, grid_items, access_groups)
+        update_named_dashboard(user, name, label, notes, grid_items, refresh_rate, access_groups)
         updated_dashboard = get_dashboards(user, name=name)[name]
         print(f"Successfully updated the dashboard named {name}")
 

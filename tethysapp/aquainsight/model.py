@@ -23,6 +23,7 @@ class Dashboard(Base):
     notes = Column(String)
     owner = Column(String)
     access_groups = Column(ARRAY(String))
+    refresh_rate = Column(Integer)
     grid_items = relationship("GridItem", cascade="delete")
 
 
@@ -46,7 +47,7 @@ class GridItem(Base):
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
-def add_new_dashboard(label, name, notes, owner, access_groups):
+def add_new_dashboard(label, name, notes, owner, refresh_rate, access_groups):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -57,6 +58,7 @@ def add_new_dashboard(label, name, notes, owner, access_groups):
             name=name,
             notes=notes,
             owner=owner,
+            refresh_rate=refresh_rate,
             access_groups=access_groups,
         )
 
@@ -140,7 +142,7 @@ def delete_named_dashboard(user, name):
         session.close()
 
 
-def update_named_dashboard(user, name, label, notes, grid_items, access_groups):
+def update_named_dashboard(user, name, label, notes, grid_items, refresh_rate, access_groups):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -155,6 +157,7 @@ def update_named_dashboard(user, name, label, notes, grid_items, access_groups):
         grid_items = (
             json.loads(grid_items) if isinstance(grid_items, str) else grid_items
         )
+        db_dashboard.refresh_rate = refresh_rate
         db_dashboard.access_groups = access_groups
 
         existing_db_grid_items_ids = [
@@ -244,6 +247,7 @@ def get_dashboards(user, name=None):
                 "label": dashboard.label,
                 "notes": dashboard.notes,
                 "editable": True if dashboard.owner == user else False,
+                "refresh_rate": dashboard.refresh_rate,
                 "access_groups": (
                     ["public"] if "public" in dashboard.access_groups else []
                 ),
