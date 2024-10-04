@@ -87,14 +87,18 @@ const MapVisualization = ({ viewConfig,layers }) => {
           // remove any previous selection layers
           removeItemsWithNameContaining('_huc_vector_selection')
           let response = await mapEvents.onClickMapEvent(evt);
-          setLayers((prevState) => {
-            return [...prevState, response.layer]
-          })
-          setVariableInputValues((prevState) => ({
-            ...prevState,
-            HUC: `${response.hucid}`,
-          }));
-
+          if (!response) return;
+          if(response.hasOwnProperty('layer')){
+            setLayers((prevState) => {
+              return [...prevState, response.layer]
+            })
+          }
+          if (response.hasOwnProperty('hucid')){
+            setVariableInputValues((prevState) => ({
+              ...prevState,
+              HUC: `${response.hucid}`,
+            }));
+          }
       }
     }
   };

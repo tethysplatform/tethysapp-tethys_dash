@@ -9,7 +9,7 @@ class MapEvents {
         this.mapUtils = new MapUtils();
     }
 
-    _onClickGaugeLayerHandler(
+    async _onClickGaugeLayerHandler(
         event,
         layer,
     ){
@@ -196,6 +196,7 @@ class MapEvents {
             );
           }
           if (mapServerLayerName === 'wbd') {
+            if (!layer.getVisible()) return;
             let rsp = await this._onClickHucRegion(
                 event, 
                 layer
@@ -204,6 +205,7 @@ class MapEvents {
           }
                   
         }
+        return null;
     };
 
     async onClickMapEvent (
