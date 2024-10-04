@@ -23,10 +23,12 @@ import {
   BsTrash,
   BsPeopleFill,
   BsPlus,
+  BsClock,
 } from "react-icons/bs";
 import { useEditingContext } from "components/contexts/EditingContext";
 import { AppContext } from "components/contexts/AppContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
+import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import styled from "styled-components";
 
 const StyledDiv = styled.div`
@@ -48,6 +50,7 @@ function DashboardSelector() {
   const [showNotesModal, setShowNotesModal] =
     useDashboardNotesModalShowContext();
   const [showSharingModal, setShowSharingModal] = useState(false);
+  const [showEditCanvas, setShowEditCanvas] = useState(false);
   const [isEditing, setIsEditing] = useEditingContext();
   const { csrf } = useContext(AppContext);
 
@@ -150,6 +153,10 @@ function DashboardSelector() {
     setShowSharingModal(true);
   }
 
+  function onEditRefreshRate(e) {
+    setShowEditCanvas(true);
+  }
+
   function onNotes(e) {
     setShowNotesModal(true);
   }
@@ -243,6 +250,13 @@ function DashboardSelector() {
               </HeaderButton>
               <HeaderButton
                 tooltipPlacement="bottom"
+                tooltipText="Edit Refresh Rate"
+                onClick={onEditRefreshRate}
+              >
+                <BsClock size="1.5rem" />
+              </HeaderButton>
+              <HeaderButton
+                tooltipPlacement="bottom"
                 tooltipText="Delete Dashboard"
                 onClick={onDelete}
               >
@@ -258,6 +272,12 @@ function DashboardSelector() {
         <DashboardSharingModal
           showModal={showSharingModal}
           setShowModal={setShowSharingModal}
+        />
+      )}
+      {showEditCanvas && (
+        <DashboardEditorCanvas
+          showCanvas={showEditCanvas}
+          setShowCanvas={setShowEditCanvas}
         />
       )}
     </StyledDiv>
