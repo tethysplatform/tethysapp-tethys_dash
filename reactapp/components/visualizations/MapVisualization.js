@@ -4,6 +4,8 @@ import { Map } from "../../tethys-ol/providers/Map";
 import Layer from "../../tethys-ol/components/layers/Layer";
 import Source from "../../tethys-ol/lib/Source";
 import Layers from "../../tethys-ol/components/layers/Layers";
+import Controls from "../../tethys-ol/components/controls/Controls";
+import { LayersControl } from "../../tethys-ol/components/controls/LayersControl";
 import Overlay from "../../tethys-ol/components/overlays/Overlay";
 import { fromLonLat } from "ol/proj";
 import styled from 'styled-components';
@@ -116,6 +118,9 @@ const MapVisualization = ({ viewConfig,layers }) => {
                 );
             })}
         </Layers>
+        <Controls>
+            <LayersControl />
+        </Controls>
     </Map>
   );
 }
