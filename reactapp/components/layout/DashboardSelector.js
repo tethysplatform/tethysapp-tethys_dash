@@ -27,6 +27,11 @@ import {
 import { useEditingContext } from "components/contexts/EditingContext";
 import { AppContext } from "components/contexts/AppContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
+import styled from "styled-components";
+
+const StyledDiv = styled.div`
+  margin: auto;
+`;
 
 function DashboardSelector() {
   const setLayoutContext = useLayoutContext()[0];
@@ -177,7 +182,7 @@ function DashboardSelector() {
   }
 
   return (
-    <>
+    <StyledDiv>
       <DashboardSelect
         options={selectOptions}
         value={selectedOption}
@@ -255,7 +260,7 @@ function DashboardSelector() {
           setShowModal={setShowSharingModal}
         />
       )}
-    </>
+    </StyledDiv>
   );
 }
 

@@ -8,7 +8,6 @@ import { BsX, BsGear } from "react-icons/bs";
 import { useLocation } from "react-router-dom";
 
 import HeaderButton from "components/buttons/HeaderButton";
-import NavButton from "components/buttons/NavButton";
 import { AppContext } from "components/contexts/AppContext";
 import DashboardSelector from "components/layout/DashboardSelector";
 import AddDashboardModalShowContextProvider from "components/contexts/AddDashboardModalShowContext";
@@ -17,24 +16,20 @@ const CustomNavBar = styled(Navbar)`
   min-height: var(--ts-header-height);
 `;
 
-const Header = ({ onNavChange }) => {
+const Header = () => {
   const { tethysApp, user } = useContext(AppContext);
-  const showNav = () => onNavChange(true);
   const location = useLocation();
 
   return (
     <>
       <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
         <Container as="header" fluid className="px-4">
-          <NavButton onClick={showNav}></NavButton>
-          <Form inline="true">
-            {(location.pathname.includes("/dashboard") ||
-              location.pathname === "/") && (
-              <AddDashboardModalShowContextProvider>
-                <DashboardSelector />
-              </AddDashboardModalShowContextProvider>
-            )}
-          </Form>
+          {(location.pathname.includes("/dashboard") ||
+            location.pathname === "/") && (
+            <AddDashboardModalShowContextProvider>
+              <DashboardSelector />
+            </AddDashboardModalShowContextProvider>
+          )}
           <Form inline="true">
             {user.isStaff && (
               <HeaderButton
