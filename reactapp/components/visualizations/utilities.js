@@ -6,6 +6,7 @@ import Spinner from "react-bootstrap/Spinner";
 import styled from "styled-components";
 import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/MapVisualization";
+import DynamicVisualization from "./DynamicVisualization";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -41,9 +42,17 @@ export function setVisualization(setViz, itemData) {
           />
         ); 
       } else if (response["viz_type"] === "map") {
-          setViz(
+
+        const packageName = 'react-icons/fa'; // The npm package name
+        const componentName = 'FaAccessibleIcon'; // The component name from the package
+        const componentProps = { size: 50, color: 'blue' }; // Props for the component
+          setViz(            
+            // <DynamicVisualization
+            //   packageName={packageName}
+            //   componentName={componentName}
+            //   componentProps={componentProps}
+            // />
             <MapVisualization
-              // mapConfig={response.data.map_config}
               viewConfig={response.data.view_config}
               layers={response.data.layers}
           />

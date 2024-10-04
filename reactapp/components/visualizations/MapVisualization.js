@@ -1,6 +1,5 @@
-import React, {memo, useEffect} from "react";
-
-
+import React, {memo, useState} from "react";
+import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { Map } from "../../tethys-ol/providers/Map";
 import Layer from "../../tethys-ol/components/layers/Layer";
 import Source from "../../tethys-ol/lib/Source";
@@ -9,6 +8,7 @@ import Overlay from "../../tethys-ol/components/overlays/Overlay";
 import { fromLonLat } from "ol/proj";
 import styled from 'styled-components';
 import View from "../../tethys-ol/components/View";
+import MapEvents from "./mapEvents";
 
 const OverLayContentWrapper = styled.div`
   position: absolute;
@@ -46,45 +46,64 @@ const OverLayContentWrapper = styled.div`
   }
 `;
 
-//Map Config
-const MapConfig = {
-  className: "ol-map",
-  style: {
-    width: "100%", 
-    height: "100%"
-  },
-  events:{
-    click: (evt)=>{
-        console.log("Hola")
-        // mapEvents.onClickMapEvent(evt)
-    }
-  }
-};
 
 
-// View Config
-const ViewConfig = {
-    center: fromLonLat([-110.875, 37.345]),
-    zoom: 5
-};
 
+
+const mapEvents = new MapEvents();
   
 const MapVisualization = ({ viewConfig,layers }) => {
+  const [variableInputValues, setVariableInputValues] = useVariableInputValuesContext();
+  const [layersList, setLayers] = useState(layers);
+  const [view, setView] = useState(viewConfig);
 
-  useEffect(() => {
-    console.log(layers)
-    if (!layers) return;
-    console.log(layers)
-    return () => {
-      console.log("unmount visualization")
+
+  const removeItemsWithNameContaining = (substring) => {
+    setLayers((prevLayers) =>
+      prevLayers.filter((item) => {
+        if (item.props && item.props.name && typeof item.props.name === 'string') {
+          return !item.props.name.includes(substring);
+        }
+        return true;
+      })
+    );
+  };
+
+  const MapConfig = {
+    className: "ol-map",
+    style: {
+      width: "100%", 
+      height: "100%"
+    },
+    events:{
+      click: async (evt)=>{
+          // set center to clicked point
+          setView({
+            center: evt.coordinate,
+            zoom: evt.map.getView().getZoom(),
+          })
+          // remove any previous selection layers
+          removeItemsWithNameContaining('_huc_vector_selection')
+          let response = await mapEvents.onClickMapEvent(evt);
+          setLayers((prevState) => {
+            return [...prevState, response.layer]
+          })
+          setVariableInputValues((prevState) => ({
+            ...prevState,
+            HUC: `${response.hucid}`,
+          }));
+
+      }
     }
-  }, [])
+  };
+  
+  
   return (
 
     <Map {...MapConfig} >
-        <View {...viewConfig} />
+        <View {...view} />
         <Layers>
-            {layers && layers.map((config, index) => {
+            {layersList && layersList.map((config, index) => {
                 const { type: LayerType, props: { source: { type: SourceType, props: sourceProps }, ...layerProps } } = config;
                 const source = Source({ is: SourceType, ...sourceProps });
                 return (
