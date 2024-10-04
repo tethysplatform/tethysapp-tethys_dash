@@ -27,6 +27,11 @@ import {
 import { useEditingContext } from "components/contexts/EditingContext";
 import { AppContext } from "components/contexts/AppContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
+import styled from "styled-components";
+
+const StyledDiv = styled.div`
+  margin: auto;
+`;
 
 function DashboardSelector() {
   const setLayoutContext = useLayoutContext()[0];
@@ -160,7 +165,7 @@ function DashboardSelector() {
   function onAddGridItem(e) {
     const layout = getLayoutContext();
     let maxGridItemI = layout["gridItems"].reduce((acc, value) => {
-      return (acc = acc > value.i ? acc : value.i);
+      return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
     const newGridItem = {
       i: `${parseInt(maxGridItemI) + 1}`,
@@ -177,7 +182,7 @@ function DashboardSelector() {
   }
 
   return (
-    <>
+    <StyledDiv>
       <DashboardSelect
         options={selectOptions}
         value={selectedOption}
@@ -255,7 +260,7 @@ function DashboardSelector() {
           setShowModal={setShowSharingModal}
         />
       )}
-    </>
+    </StyledDiv>
   );
 }
 
