@@ -12,7 +12,6 @@ class MapUtils {
 
       event.map.getLayers().forEach(layer => {
         if (layer instanceof ImageLayer) {
-
               layers.push(layer);
       }
       });

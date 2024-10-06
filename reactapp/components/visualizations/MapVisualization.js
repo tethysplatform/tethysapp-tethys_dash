@@ -83,6 +83,7 @@ const MapVisualization = ({ viewConfig,layers }) => {
           setView({
             center: evt.coordinate,
             zoom: evt.map.getView().getZoom(),
+            duration: 10,
           })
           // remove any previous selection layers
           removeItemsWithNameContaining('_huc_vector_selection')
@@ -97,6 +98,13 @@ const MapVisualization = ({ viewConfig,layers }) => {
             setVariableInputValues((prevState) => ({
               ...prevState,
               HUC: `${response.hucid}`,
+            }));
+          }
+          if (response.hasOwnProperty('id')){
+            console.log(variableInputValues)
+            setVariableInputValues((prevState) => ({
+              ...prevState,
+              ID: `${response.id}`,
             }));
           }
       }

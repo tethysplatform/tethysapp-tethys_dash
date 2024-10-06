@@ -1,87 +1,13 @@
 import axios from 'axios';
 import MapUtils from './mapUtils';
 import EsriUtils from './esriUtils';
+import Point from "@arcgis/core/geometry/Point.js";
 
  
 class MapEvents {
     constructor() {
         this.esriUtils = new EsriUtils();
         this.mapUtils = new MapUtils();
-    }
-
-    async _onClickGaugeLayerHandler(
-        event,
-        layer,
-    ){
-        // make function to get the layer, and if there is then execute.
-        let mapServerInfo = []
-        let mapObject = event.map;
-    
-        let clickCoordinate = event.coordinate;
-        
-        const urlService = layer.getSource().getUrl() // collect mapServer URL
-        const id = layer
-            .getSource()
-            .getParams()
-            .LAYERS.replace('show:', '') // remove the visible component to just get the raw url
-        
-        const server = mapServerInfo.find(server => server.url === urlService) // see if server already exists in mapServerInfo
-        /* Here need to do MapExport request in order to get the data of the layer */
-        if (!server) {
-            // Query Layer 5 
-            const spatialReference= {"latestWkid":3857,"wkid":102100}
-            const geometry = {"spatialReference":spatialReference ,"x":clickCoordinate[0],"y":clickCoordinate[1]}
-            
-            const queryLayer = {
-                geometry: JSON.stringify(geometry),
-                outFields:'*',
-                geometryType: 'esriGeometryPoint',
-                spatialRel: "esriSpatialRelIntersects",
-                units:'esriSRUnit_Meter',
-                distance: this.esriUtils.getDistanceByZoom(mapObject.getView().getZoom()),
-                sr: `${mapObject.getView().getProjection().getCode().split(/:(?=\d+$)/).pop()}`,
-                returnGeometry: true, // I don't want geometry, but you might want to display it on a 'selection layer'
-                f: 'json',
-                inSR:102100,
-                outSR:4326
-            }
-            const url = new URL(`${urlService}/${id}/query`);
-            url.search = new URLSearchParams(queryLayer);
-            axios.get(url).then((response) => {
-                console.log(response.data);
-                if(response.data.features.length < 1){
-                    return
-                }
-                const gauge_id = response.data.features[0].attributes.gaugelid
-                // here make the gauge_id to change,
-                // this should go to another Component
-
-                const noaaApiUrl = `https://api.water.noaa.gov/nwps/v1/gauges/${gauge_id}/stageflow`;  // NOAA API endpoint
-
-                axios.get(noaaApiUrl)
-                .then((gaugeResponse) => {
-                    console.log(gaugeResponse.data);
-                    mapObject.getOverlayById('overlay-test').setPosition(clickCoordinate);
-                    const xValues = gaugeResponse.data.observed.map((point) => point.validTime);
-                    const primaryValues = gaugeResponse.data.observed.map((point) => point.primary);
-                    const secondaryValues = gaugeResponse.data.observed.map((point) => point.secondary);
-                    
-                    // Process the gauge data here
-                    // You can manipulate or save gaugeResponse.data depending on your need
-                })
-                .catch((error) => {
-                    console.log('Error fetching gauge data:', error);
-                });
-                // end component 
-
-                
-    
-            }).catch((error) => {
-                console.log(error);    
-            });
-    
-    
-        }
     }
 
     async _onClickHucRegion(event, layer) {
@@ -179,7 +105,121 @@ class MapEvents {
           // Handle the case where server exists if needed
           return null; // Or some appropriate value
         }
+    }
+
+    async _onClickServiceLayerHandler(event, layer) {
+      let mapServerInfo = [];
+      let mapObject = event.map;
+      let clickCoordinate = event.coordinate;
+  
+      const urlService = layer.getSource().getUrl(); // Collect mapServer URL
+      const id = layer
+          .getSource()
+          .getParams()
+          .LAYERS.replace('show:', ''); // Remove 'show:' to get the raw layer ID
+  
+      const server = mapServerInfo.find(server => server.url === urlService); // Check if server already exists in mapServerInfo
+  
+      if (!server) {
+          const spatialReference = { latestWkid: 3857, wkid: 102100 };
+          const geometry = {
+              spatialReference: spatialReference,
+              x: clickCoordinate[0],
+              y: clickCoordinate[1],
+          };
+  
+          const queryLayer = {
+              geometry: JSON.stringify(geometry),
+              outFields: '*',
+              geometryType: 'esriGeometryPoint',
+              spatialRel: 'esriSpatialRelIntersects',
+              units: 'esriSRUnit_Meter',
+              distance: this.esriUtils.getDistanceByZoom(mapObject.getView().getZoom()),
+              sr: mapObject.getView().getProjection().getCode().split(/:(?=\d+$)/).pop(),
+              returnGeometry: true,
+              f: 'json',
+              inSR: 102100,
+              outSR: 4326,
+          };
+  
+          const url = new URL(`${urlService}/${id}/query`);
+          url.search = new URLSearchParams(queryLayer);
+  
+          try {
+              // First axios request
+              const response = await axios.get(url.href);
+              console.log(response.data);
+  
+              if (response.data.features.length < 1) {
+                  console.error('No features found in query response.');
+                  return null;
+              }
+  
+              const actual_zoom = mapObject.getView().getZoom();
+              const esriMapPoint = new Point({
+                  longitude: clickCoordinate[0],
+                  latitude: clickCoordinate[1],
+                  spatialReference: spatialReference,
+              });
+  
+              const serviceFeature = this.esriUtils.processServiceQueryResult(
+                  actual_zoom,
+                  esriMapPoint,
+                  response.data,
+                  mapObject
+              );
+    
+              let id_ = serviceFeature.properties['id'];
+              let noaaApiUrl = 'https://api.water.noaa.gov/nwps/v1';
+              let rsp = null;
+  
+              // Create a vector layer from the service feature
+              // const layer_name = `${id_}_vector_selection`;
+              // const vector_layer = this.mapUtils.createVectorLayerFromFeature(layer_name, serviceFeature);
+  
+              if (serviceFeature.geometry.type === 'LineString') {
+                  noaaApiUrl += `/reaches/${id_}`;
+  
+                  try {
+                      const rspApi = await axios.get(noaaApiUrl);
+                      console.log(rspApi.data);
+  
+                      rsp = {
+                          // layer: vector_layer,
+                          id: id_,
+                      };
+                  } catch (error) {
+                      console.error('Error fetching reach data:', error);
+                      return null;
+                  }
+              } else {
+                  noaaApiUrl += `/gauges/${id_}`;
+  
+                  try {
+                      const rspApi = await axios.get(noaaApiUrl);
+                      console.log(rspApi.data);
+  
+                      rsp = {
+                          // layer: vector_layer,
+                          gaugeId: id_,
+                      };
+                  } catch (error) {
+                      console.error('Error fetching gauge data:', error);
+                      return null;
+                  }
+              }
+  
+              // Return the response object similar to _onClickHucRegion
+              return rsp;
+          } catch (error) {
+              console.error('Error in _onClickServiceLayerHandler:', error);
+              throw error; // Optionally rethrow the error to be handled upstream
+          }
+      } else {
+          // Handle the case where server exists if needed
+          return null; // Or some appropriate value
       }
+  }
 
 
     async _getInfoFromImageLayers (
@@ -188,20 +228,26 @@ class MapEvents {
     ) {
         for (const layer of layers) {
           const mapServerLayerName = this.mapUtils.getMapServerLayerName(layer);;
-          
-          if (mapServerLayerName === 'riv_gauges') {
-            this._onClickGaugeLayerHandler(
-                event, 
-                layer
-            );
-          }
+          console.log(mapServerLayerName)
+
           if (mapServerLayerName === 'wbd') {
-            if (!layer.getVisible()) return;
+            if (!layer.getVisible()) continue;
             let rsp = await this._onClickHucRegion(
                 event, 
                 layer
-            );
+             );
             return rsp
+          }
+
+          else{
+            let rsp = await this._onClickServiceLayerHandler(
+                event, 
+                layer
+              );
+
+            if (rsp) {
+                return rsp;
+            }
           }
                   
         }
@@ -215,7 +261,7 @@ class MapEvents {
         event.preventDefault();
         console.log('click event', event);
         let layers = this.mapUtils.getImageLayers(event);
-        // console.log(layers)
+        console.log(layers);
         let response = await this._getInfoFromImageLayers(
             event, 
             layers, 

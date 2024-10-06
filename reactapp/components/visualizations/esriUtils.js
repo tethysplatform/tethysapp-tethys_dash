@@ -37,7 +37,8 @@ class EsriUtils {
     }
 
     // Get corresponding stream service query result
-    processStreamServiceQueryResult(zoom, point, response, mapObject) {
+    processServiceQueryResult(zoom, point, response, mapObject) {
+        console.log('Processing stream service query result');
         let minStreamOrder = 5;
         let soAttrName = null;
         let fidAttrName = null;
@@ -53,15 +54,17 @@ class EsriUtils {
         if (zoom >= 10) minStreamOrder--;
 
         response.fields.forEach(field => {
-            if (!fidAttrName && /^(reach_id|station_id|feature_id)$/i.test(field.alias)) {
+            if (!fidAttrName && /^(reach_id|station_id|feature_id)$/i.test(field.name)) {
                 fidAttrName = field.name;
             }
 
-            if (!soAttrName && /^(stream_?order)$/i.test(field.alias)) {
+            // Stream Order attribute (updated regex)
+            if (!soAttrName && /^(stream_?order|strm_?order)$/i.test(field.name)) {
                 soAttrName = field.name;
             }
 
-            if (!nameAttrName && /^((reach|gnis)?_?name)$/i.test(field.alias)) {
+
+            if (!nameAttrName && /^((reach|gnis)?_?name)$/i.test(field.name)) {
                 nameAttrName = field.name;
             }
         });
