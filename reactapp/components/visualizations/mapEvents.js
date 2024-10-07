@@ -183,7 +183,19 @@ class MapEvents {
                   try {
                       const rspApi = await axios.get(noaaApiUrl);
                       console.log(rspApi.data);
-  
+
+                      // let overlay_content = document.getElementById('metadata');
+                      // let content = `<div>
+                      //   <h6>Id: ${id_}</h6>
+                      //   <p>Name: ${rspApi.data.name ?? 'no name'}</p>
+                      //   <p>Latitude: ${rspApi.data.latitude}</p>
+                      //   <p>Longitude: ${rspApi.data.longitude}</p>
+                      //   </div>`;
+                      // overlay_content.innerHTML = content;
+                      // let overlay = mapObject.getOverlayById("metadata");
+                      
+                      // overlay.setPosition(clickCoordinate);
+
                       rsp = {
                           // layer: vector_layer,
                           id: id_,
@@ -254,14 +266,14 @@ class MapEvents {
         return null;
     };
 
+
     async onClickMapEvent (
         event,
     ) {
 
         event.preventDefault();
-        console.log('click event', event);
         let layers = this.mapUtils.getImageLayers(event);
-        console.log(layers);
+        // this.deleteOverlay(event, 'metadata')
         let response = await this._getInfoFromImageLayers(
             event, 
             layers, 
@@ -269,6 +281,11 @@ class MapEvents {
         return response
       }
 
+      deleteOverlay(evt,id) {
+        evt.map.getOverlayById('metadata').setPosition(undefined);
+        let overlay_content = document.getElementById(id);
+        overlay_content.innerHTML = '';
+      }
 }
 
 export default MapEvents;

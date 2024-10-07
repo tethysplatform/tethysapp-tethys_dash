@@ -1,4 +1,4 @@
-import React, {memo, useState} from "react";
+import React, {Fragment, memo, useState} from "react";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { Map } from "../../tethys-ol/providers/Map";
 import Layer from "../../tethys-ol/components/layers/Layer";
@@ -7,49 +7,9 @@ import Layers from "../../tethys-ol/components/layers/Layers";
 import Controls from "../../tethys-ol/components/controls/Controls";
 import { LayersControl } from "../../tethys-ol/components/controls/LayersControl";
 import Overlay from "../../tethys-ol/components/overlays/Overlay";
-import { fromLonLat } from "ol/proj";
-import styled from 'styled-components';
+import Overlays from "../../tethys-ol/components/overlays/Overlays";
 import View from "../../tethys-ol/components/View";
 import MapEvents from "./mapEvents";
-
-const OverLayContentWrapper = styled.div`
-  position: absolute;
-  background-color: white;
-  padding: 15px;
-  border-radius: 10px;
-  border: 1px solid #ccc;
-  min-width: 200px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-  transform: translate(-50%, -100%);
-
-  &:after,
-  &:before {
-    bottom: -20px;
-    border: solid transparent;
-    content: '';
-    height: 0;
-    width: 0;
-    position: absolute;
-    pointer-events: none;
-  }
-
-  &:after {
-    border-top-color: white;
-    border-width: 10px;
-    left: 50%;
-    margin-left: -10px;
-  }
-
-  &:before {
-    border-top-color: #ccc;
-    border-width: 11px;
-    left: 50%;
-    margin-left: -11px;
-  }
-`;
-
-
-
 
 
 const mapEvents = new MapEvents();
@@ -133,6 +93,22 @@ const MapVisualization = ({ viewConfig,layers }) => {
         <Controls>
             <LayersControl />
         </Controls>
+        {/* <Overlays>
+            <Overlay
+              id="metadata"
+              autoPan= {{
+                animation: {
+                  duration: 250,
+                }
+              }}
+              content={
+                <Fragment>
+                  <div id="metadata"></div>
+                </Fragment>
+
+              }
+            />
+        </Overlays> */}
     </Map>
   );
 }
