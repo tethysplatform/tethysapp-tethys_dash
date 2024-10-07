@@ -1,6 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
-import { GiRiver } from "react-icons/gi";
+import { BiStats } from "react-icons/bi";
+
 
 // Styled components
 const CardContainer = styled.div`
@@ -70,17 +71,27 @@ const Card = ({ title, description, data }) => {
         <h3>{title}</h3>
         <p>{description}</p>
       </Header>
-      <StatsContainer>
-        {data.map((item, index) => (
-        <StatItem key={index}>
-            <StatIcon bgColor={item.hex}><GiRiver /></StatIcon>
-            <StatContent>
-            <StatTitle>{item.label}</StatTitle>
-            <StatValue>{item.size} </StatValue>
-            </StatContent>
+      {Object.keys(data).length === 0 ? (
+        <StatItem>
+          <StatIcon bgColor={"black"}><BiStats /></StatIcon>
+          <StatContent>
+            <StatTitle>0</StatTitle>
+            <StatValue>Reaches found</StatValue>
+          </StatContent>
         </StatItem>
-        ))}
-    </StatsContainer>
+      ) : (
+        <StatsContainer>
+          {data.map((item, index) => (
+            <StatItem key={index}>
+              <StatIcon bgColor={item.hex}><BiStats /></StatIcon>
+              <StatContent>
+                <StatTitle>{item.label}</StatTitle>
+                <StatValue>{item.size}</StatValue>
+              </StatContent>
+            </StatItem>
+          ))}
+        </StatsContainer>
+      )}
     </CardContainer>
   );
 };
