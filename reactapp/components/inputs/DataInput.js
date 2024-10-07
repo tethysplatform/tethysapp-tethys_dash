@@ -79,7 +79,6 @@ const Input = ({ label, type, onChange, value, index, dataviewer }) => {
   } else {
     return (
       <>
-        <Form.Label>{label}</Form.Label>
         <Form.Control
           required
           type={type}

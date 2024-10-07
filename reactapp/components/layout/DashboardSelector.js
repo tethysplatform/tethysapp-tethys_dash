@@ -146,11 +146,12 @@ function DashboardSelector() {
   }
 
   function onEdit(e) {
+    setShowEditCanvas(true);
     setIsEditing(true);
   }
 
   function onEditAccess(e) {
-    setShowSharingModal(true);
+    setShowEditCanvas(true);
   }
 
   function onEditRefreshRate(e) {
@@ -247,20 +248,6 @@ function DashboardSelector() {
                 onClick={onEditAccess}
               >
                 <BsPeopleFill size="1.5rem" />
-              </HeaderButton>
-              <HeaderButton
-                tooltipPlacement="bottom"
-                tooltipText="Edit Refresh Rate"
-                onClick={onEditRefreshRate}
-              >
-                <BsClock size="1.5rem" />
-              </HeaderButton>
-              <HeaderButton
-                tooltipPlacement="bottom"
-                tooltipText="Delete Dashboard"
-                onClick={onDelete}
-              >
-                <BsTrash size="1.5rem" />
               </HeaderButton>
             </>
           )}
