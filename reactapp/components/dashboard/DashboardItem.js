@@ -29,6 +29,7 @@ const DashboardItem = ({
   gridItemSource,
   gridItemI,
   gridItemArgsString,
+  gridItemRefreshRate,
   grid_item_index,
 }) => {
   const [isEditing, setIsEditing] = useEditingContext();
@@ -132,6 +133,7 @@ const DashboardItem = ({
           key={gridItemI}
           source={gridItemSource}
           argsString={gridItemArgsString}
+          refreshRate={gridItemRefreshRate}
           showFullscreen={showFullscreen}
           hideFullscreen={hideFullscreen}
         />
@@ -140,7 +142,8 @@ const DashboardItem = ({
         <DataViewerModal
           grid_item_index={grid_item_index}
           source={gridItemSource}
-          args_string={gridItemArgsString}
+          argsString={gridItemArgsString}
+          refreshRate={gridItemRefreshRate}
           showModal={showDataViewerModal}
           handleModalClose={hideDataViewerModal}
           setGridItemMessage={setGridItemMessage}
@@ -155,6 +158,7 @@ DashboardItem.propTypes = {
   gridItemSource: PropTypes.string,
   gridItemI: PropTypes.string,
   gridItemArgsString: PropTypes.string,
+  gridItemRefreshRate: PropTypes.number,
   grid_item_index: PropTypes.number,
 };
 

@@ -8,10 +8,12 @@ import { setVisualization } from "components/visualizations/utilities";
 import { updateGridItemArgsWithVariableInputs } from "components/visualizations/utilities";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { valuesEqual } from "components/modals/utilities";
+import { useEditingContext } from "components/contexts/EditingContext";
 
 const BaseVisualization = ({
   source,
   argsString,
+  refreshRate,
   showFullscreen,
   hideFullscreen,
 }) => {
@@ -19,6 +21,8 @@ const BaseVisualization = ({
   const variableInputValues = useVariableInputValuesContext()[0];
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemSource = useRef(0);
+  const [refreshCount, setRefreshCount] = useState(0);
+  const isEditing = useEditingContext()[0];
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -49,8 +53,20 @@ const BaseVisualization = ({
         setVisualization(setViz, itemData);
       }
     }
+    if (refreshRate && refreshRate !== 0) {
+      const interval = setInterval(
+        () => {
+          if (!isEditing) {
+            setRefreshCount(refreshCount + 1);
+            setVisualization(setViz, itemData);
+          }
+        },
+        parseInt(refreshRate) * 1000 * 60
+      );
+      return () => clearInterval(interval);
+    }
     // eslint-disable-next-line
-  }, [source, argsString]);
+  }, [source, argsString, refreshRate]);
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -92,6 +108,7 @@ const BaseVisualization = ({
 BaseVisualization.propTypes = {
   source: PropTypes.string,
   argsString: PropTypes.string,
+  refreshRate: PropTypes.number,
   showFullscreen: PropTypes.bool,
   hideFullscreen: PropTypes.func,
 };
