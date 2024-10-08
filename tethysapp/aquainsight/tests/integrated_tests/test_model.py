@@ -43,6 +43,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, grid_item):
     grid_item_h = 1
     grid_item_source = "Custom Image"
     grid_item_args_string = json.dumps({"uri": "some_path"})
+    grid_item_refresh_rate = 0
     new_grid_item = add_new_grid_item(
         db_session,
         dashboard_id,
@@ -53,6 +54,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, grid_item):
         grid_item_h,
         grid_item_source,
         grid_item_args_string,
+        grid_item_refresh_rate,
     )
 
     new_grid_item = (
@@ -132,6 +134,7 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
                 "h": 1,
                 "source": "Custom Image",
                 "args_string": json.dumps({"uri": "some_path"}),
+                "refresh_rate": 0,
             },
             {
                 "i": "2",
@@ -141,6 +144,7 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
                 "h": 1,
                 "source": "Custom Image",
                 "args_string": json.dumps({"uri": "some_other_path"}),
+                "refresh_rate": 0,
             },
         ]
     )
@@ -161,6 +165,7 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
     assert dashboard.notes == updated_notes
     assert len(dashboard.grid_items) == 2
     assert dashboard.grid_items[0].args_string == json.dumps({"uri": "some_path"})
+    assert dashboard.grid_items[0].refresh_rate == 0
     assert dashboard.access_groups == updated_access_groups
 
     grid_item1 = dashboard.grid_items[0]
@@ -177,6 +182,7 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
                 "h": 2,
                 "source": "Text",
                 "args_string": json.dumps({"text": "some text"}),
+                "refresh_rate": 30,
             }
         ]
     )
@@ -195,6 +201,7 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
     db_session.refresh(dashboard.grid_items[0])
     assert dashboard.grid_items[0].w == 2
     assert dashboard.grid_items[0].h == 2
+    assert dashboard.grid_items[0].refresh_rate == 30
     mock_nh3_clean.assert_called()
 
 
@@ -265,6 +272,7 @@ def test_get_dashboards_all(dashboard, db_session, mock_app_get_ps_db, grid_item
                     "h": 1,
                     "source": "Custom Image",
                     "args_string": '{"uri": "some_path"}',
+                    "refresh_rate": 0,
                 }
             ],
         }

@@ -43,6 +43,7 @@ class GridItem(Base):
     h = Column(Integer, nullable=False)
     source = Column(String)
     args_string = Column(String)
+    refresh_rate = Column(Integer)
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
@@ -64,17 +65,7 @@ def add_new_dashboard(label, name, notes, owner, access_groups):
         session.commit()
         session.refresh(new_dashboard)
 
-        add_new_grid_item(
-            session,
-            new_dashboard.id,
-            "1",
-            0,
-            0,
-            20,
-            20,
-            "",
-            "{}",
-        )
+        add_new_grid_item(session, new_dashboard.id, "1", 0, 0, 20, 20, "", "{}", 0)
 
         # Commit the session and close the connection
         session.commit()
@@ -92,6 +83,7 @@ def add_new_grid_item(
     grid_item_h,
     grid_item_source,
     grid_item_args_string,
+    grid_item_refresh_rate,
 ):
     new_grid_item = GridItem(
         dashboard_id=dashboard_id,
@@ -102,6 +94,7 @@ def add_new_grid_item(
         h=grid_item_h,
         source=grid_item_source,
         args_string=grid_item_args_string,
+        refresh_rate=grid_item_refresh_rate,
     )
     session.add(new_grid_item)
     session.commit()
@@ -181,6 +174,7 @@ def update_named_dashboard(user, name, label, notes, grid_items, access_groups):
             grid_item_h = int(grid_item["h"])
             grid_item_source = grid_item["source"]
             grid_item_args_string = grid_item["args_string"]
+            grid_item_refresh_rate = grid_item["refresh_rate"]
             if grid_item_source == "Text":
                 clean_text = nh3.clean(json.loads(grid_item_args_string)["text"])
                 grid_item_args_string = json.dumps({"text": clean_text})
@@ -196,6 +190,7 @@ def update_named_dashboard(user, name, label, notes, grid_items, access_groups):
                     grid_item_h,
                     grid_item_source,
                     grid_item_args_string,
+                    grid_item_refresh_rate,
                 )
             else:
                 db_grid_item = (
@@ -211,6 +206,7 @@ def update_named_dashboard(user, name, label, notes, grid_items, access_groups):
                 db_grid_item.h = grid_item_h
                 db_grid_item.source = grid_item_source
                 db_grid_item.args_string = grid_item_args_string
+                db_grid_item.refresh_rate = grid_item_refresh_rate
 
         # Commit the session and close the connection
         session.commit()
@@ -260,6 +256,7 @@ def get_dashboards(user, name=None):
                     "h": griditem.h,
                     "source": griditem.source,
                     "args_string": griditem.args_string,
+                    "refresh_rate": griditem.refresh_rate,
                 }
                 griditems.append(griditem_data)
 

@@ -56,6 +56,16 @@ function DashboardLayout() {
   const [items, setItems] = useState([]);
 
   useEffect(() => {
+    updateGridLayout();
+    // eslint-disable-next-line
+  }, [gridItems]);
+
+  useEffect(() => {
+    updateGridEditing(gridItems);
+    // eslint-disable-next-line
+  }, [isEditing]);
+
+  function updateGridLayout() {
     setItems(
       gridItems.map((item, index) => (
         <StyledDiv key={item.i}>
@@ -64,6 +74,7 @@ function DashboardLayout() {
               gridItemSource={item.source}
               gridItemI={item.i}
               gridItemArgsString={item.args_string}
+              gridItemRefreshRate={item.refresh_rate}
               grid_item_index={index}
             />
           }
@@ -72,13 +83,7 @@ function DashboardLayout() {
     );
     setLayout(gridItems);
     updateGridEditing(gridItems);
-    // eslint-disable-next-line
-  }, [gridItems]);
-
-  useEffect(() => {
-    updateGridEditing(gridItems);
-    // eslint-disable-next-line
-  }, [isEditing]);
+  }
 
   function updateGridEditing(griditems) {
     const updatedLayout = [];
@@ -88,6 +93,7 @@ function DashboardLayout() {
         h: griditem.h,
         i: griditem.i,
         source: griditem.source,
+        refresh_rate: griditem.refresh_rate,
         w: griditem.w,
         x: griditem.x,
         y: griditem.y,
@@ -110,6 +116,7 @@ function DashboardLayout() {
         h: lay.h,
         i: result.i,
         source: result.source,
+        refresh_rate: result.refresh_rate,
         w: lay.w,
         x: lay.x,
         y: lay.y,
