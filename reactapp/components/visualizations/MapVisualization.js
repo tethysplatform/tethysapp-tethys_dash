@@ -6,11 +6,9 @@ import Source from "../../tethys-ol/lib/Source";
 import Layers from "../../tethys-ol/components/layers/Layers";
 import Controls from "../../tethys-ol/components/controls/Controls";
 import { LayersControl } from "../../tethys-ol/components/controls/LayersControl";
-import Overlay from "../../tethys-ol/components/overlays/Overlay";
-import Overlays from "../../tethys-ol/components/overlays/Overlays";
 import View from "../../tethys-ol/components/View";
 import MapEvents from "./mapEvents";
-
+import Format from "../../tethys-ol/lib/Format";
 
 const mapEvents = new MapEvents();
   
@@ -46,7 +44,8 @@ const MapVisualization = ({ viewConfig,layers }) => {
             duration: 10,
           })
           // remove any previous selection layers
-          removeItemsWithNameContaining('_huc_vector_selection')
+          removeItemsWithNameContaining('huc_vector_selection')
+          // removeItemsWithNameContaining('_huc_vector_selection')
           let response = await mapEvents.onClickMapEvent(evt);
           if (!response) return;
           if(response.hasOwnProperty('layer')){
@@ -77,40 +76,58 @@ const MapVisualization = ({ viewConfig,layers }) => {
     <Map {...MapConfig} >
         <View {...view} />
         <Layers>
-            {layersList && layersList.map((config, index) => {
-                const { type: LayerType, props: { source: { type: SourceType, props: sourceProps }, ...layerProps } } = config;
-                const source = Source({ is: SourceType, ...sourceProps });
-                return (
-                    <Layer 
-                        key={index} 
-                        is={LayerType}
-                        source={source}
-                        {...layerProps}
-                    />
-                );
-            })}
+        {layersList &&
+          layersList.map((config, index) => {
+            const {
+              type: LayerType,
+              props: {
+                source: { type: SourceType, props: sourceProps },
+                ...layerProps
+              },
+            } = config;
+
+            const sourceOptions = { ...sourceProps };
+
+            if (sourceProps.format) {
+              sourceOptions.format = Format({
+                is: sourceProps.format.type,
+              });
+            }
+
+            const source = Source({ is: SourceType, ...sourceOptions });
+
+            return (
+              <Layer key={index} is={LayerType} source={source} {...layerProps} />
+            );
+          })}
         </Layers>
         <Controls>
             <LayersControl />
         </Controls>
-        {/* <Overlays>
-            <Overlay
-              id="metadata"
-              autoPan= {{
-                animation: {
-                  duration: 250,
-                }
-              }}
-              content={
-                <Fragment>
-                  <div id="metadata"></div>
-                </Fragment>
 
-              }
-            />
-        </Overlays> */}
     </Map>
   );
 }
 
 export default memo(MapVisualization)
+
+
+// future 
+// import Overlay from "../../tethys-ol/components/overlays/Overlay";
+// import Overlays from "../../tethys-ol/components/overlays/Overlays";
+// <Overlays>
+//     <Overlay
+//       id="metadata"
+//       autoPan= {{
+//         animation: {
+//           duration: 250,
+//         }
+//       }}
+//       content={
+//         <Fragment>
+//           <div id="metadata"></div>
+//         </Fragment>
+
+//       }
+//     />
+// </Overlays> 

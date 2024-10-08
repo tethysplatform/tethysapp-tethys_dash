@@ -87,8 +87,11 @@ class MapEvents {
               return null;
             }
       
-            const layer_name = `${responseQuery.data['features'][0]['id']}_huc_vector_selection`;
+            // const layer_name = `${responseQuery.data['features'][0]['id']}_huc_vector_selection`;
+            const layer_name = 'huc_vector_selection';
+            
             const vector_layer = this.mapUtils.createHUCVectorLayer(layer_name, urlQuery.href);
+            console.log(urlQuery.href)
             const hucid = this.mapUtils.getValueStartingWith(responseQuery.data['features'][0]['properties'], 'huc');
             const rsp = {
                 layer: vector_layer,

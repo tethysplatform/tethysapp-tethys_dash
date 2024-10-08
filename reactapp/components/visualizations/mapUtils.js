@@ -46,7 +46,11 @@ class MapUtils {
             type: "Vector",
             props:{
               url: url,
-              format: new GeoJSON()
+              // format: new GeoJSON()
+              format: {
+                type: "GeoJSON",
+                props: {}
+              }
             }
           },
           style:
