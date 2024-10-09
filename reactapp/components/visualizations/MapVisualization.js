@@ -1,5 +1,4 @@
-import React, {Fragment, memo, useState} from "react";
-import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
+import React, {memo, useState} from "react";
 import { Map } from "../../tethys-ol/providers/Map";
 import Layer from "../../tethys-ol/components/layers/Layer";
 import Source from "../../tethys-ol/lib/Source";
@@ -7,77 +6,27 @@ import Layers from "../../tethys-ol/components/layers/Layers";
 import Controls from "../../tethys-ol/components/controls/Controls";
 import { LayersControl } from "../../tethys-ol/components/controls/LayersControl";
 import View from "../../tethys-ol/components/View";
-import MapEvents from "./mapEvents";
 import Format from "../../tethys-ol/lib/Format";
+import {Style, Stroke} from "ol/style.js";
 
-const mapEvents = new MapEvents();
-  
-const MapVisualization = ({ viewConfig,layers }) => {
-  const [variableInputValues, setVariableInputValues] = useVariableInputValuesContext();
-  const [layersList, setLayers] = useState(layers);
-  const [view, setView] = useState(viewConfig);
+const available_styles = {
+  "Polygon": new Style({
+    stroke: new Stroke({
+      color: 'black',
+      width: 2
+    })
+  })
+}
 
-
-  const removeItemsWithNameContaining = (substring) => {
-    setLayers((prevLayers) =>
-      prevLayers.filter((item) => {
-        if (item.props && item.props.name && typeof item.props.name === 'string') {
-          return !item.props.name.includes(substring);
-        }
-        return true;
-      })
-    );
-  };
-
-  const MapConfig = {
-    className: "ol-map",
-    style: {
-      width: "100%", 
-      height: "100%"
-    },
-    events:{
-      click: async (evt)=>{
-          // set center to clicked point
-          setView({
-            center: evt.coordinate,
-            zoom: evt.map.getView().getZoom(),
-            duration: 10,
-          })
-          // remove any previous selection layers
-          removeItemsWithNameContaining('huc_vector_selection')
-          // removeItemsWithNameContaining('_huc_vector_selection')
-          let response = await mapEvents.onClickMapEvent(evt);
-          if (!response) return;
-          if(response.hasOwnProperty('layer')){
-            setLayers((prevState) => {
-              return [...prevState, response.layer]
-            })
-          }
-          if (response.hasOwnProperty('hucid')){
-            setVariableInputValues((prevState) => ({
-              ...prevState,
-              HUC: `${response.hucid}`,
-            }));
-          }
-          if (response.hasOwnProperty('id')){
-            console.log(variableInputValues)
-            setVariableInputValues((prevState) => ({
-              ...prevState,
-              ID: `${response.id}`,
-            }));
-          }
-      }
-    }
-  };
-  
+const MapVisualization = ({ mapConfig, viewConfig,layers }) => {
   
   return (
 
-    <Map {...MapConfig} >
-        <View {...view} />
+    <Map {...mapConfig} >
+        <View {...viewConfig} />
         <Layers>
-        {layersList &&
-          layersList.map((config, index) => {
+        {layers &&
+          layers.map((config, index) => {
             const {
               type: LayerType,
               props: {
@@ -92,6 +41,9 @@ const MapVisualization = ({ viewConfig,layers }) => {
               sourceOptions.format = Format({
                 is: sourceProps.format.type,
               });
+            }
+            if (layerProps.style) {
+              layerProps.style = available_styles[layerProps.style];
             }
 
             const source = Source({ is: SourceType, ...sourceOptions });
@@ -110,24 +62,3 @@ const MapVisualization = ({ viewConfig,layers }) => {
 }
 
 export default memo(MapVisualization)
-
-
-// future 
-// import Overlay from "../../tethys-ol/components/overlays/Overlay";
-// import Overlays from "../../tethys-ol/components/overlays/Overlays";
-// <Overlays>
-//     <Overlay
-//       id="metadata"
-//       autoPan= {{
-//         animation: {
-//           duration: 250,
-//         }
-//       }}
-//       content={
-//         <Fragment>
-//           <div id="metadata"></div>
-//         </Fragment>
-
-//       }
-//     />
-// </Overlays> 

@@ -42,19 +42,11 @@ export function setVisualization(setViz, itemData) {
           />
         ); 
       } else if (response["viz_type"] === "map") {
-
-        const packageName = 'react-icons/fa'; // The npm package name
-        const componentName = 'FaAccessibleIcon'; // The component name from the package
-        const componentProps = { size: 50, color: 'blue' }; // Props for the component
-          setViz(            
-            // <DynamicVisualization
-            //   packageName={packageName}
-            //   componentName={componentName}
-            //   componentProps={componentProps}
-            // />
+          setViz(
             <MapVisualization
               viewConfig={response.data.view_config}
               layers={response.data.layers}
+              mapConfig={response.data.map_config}
           />
         );
       }else {

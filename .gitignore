@@ -15,5 +15,4 @@ reactapp/config/production.env
 test.py
 .coverage
 launch.json
-reactapp/tethys-ol
 cache
