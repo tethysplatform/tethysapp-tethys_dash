@@ -76,7 +76,7 @@ const Card = ({ title, description, data }) => {
           <StatIcon bgColor={"black"}><BiStats /></StatIcon>
           <StatContent>
             <StatTitle>0</StatTitle>
-            <StatValue>Reaches found</StatValue>
+            <StatValue>No Data found</StatValue>
           </StatContent>
         </StatItem>
       ) : (
