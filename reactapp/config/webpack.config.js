@@ -2,6 +2,7 @@ const path = require("path");
 const webpack = require("webpack");
 const Dotenv = require("dotenv-webpack");
 
+tethys_prefix_url='t'
 module.exports = (env, argv) => {
   const dotEnvPath = `./reactapp/config/${argv.mode}.env`;
   console.log(`Building in ${argv.mode} mode...`);
@@ -14,7 +15,8 @@ module.exports = (env, argv) => {
         "../../tethysapp/aquainsight/public/frontend",
       ),
       filename: "[name].js",
-      publicPath: "/static/aquainsight/frontend/",
+      publicPath: `/${tethys_prefix_url}/static/aquainsight/frontend/`,
+      
     },
     resolve: {
       modules: [
