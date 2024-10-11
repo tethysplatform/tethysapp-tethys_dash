@@ -6,7 +6,7 @@ import Spinner from "react-bootstrap/Spinner";
 import styled from "styled-components";
 import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/MapVisualization";
-import DynamicVisualization from "./DynamicVisualization";
+
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
