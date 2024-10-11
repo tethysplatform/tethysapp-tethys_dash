@@ -46,7 +46,8 @@ const StyledCol = styled(Col)`
 function DataViewerModal({
   grid_item_index,
   source,
-  args_string,
+  argsString,
+  refreshRate,
   showModal,
   handleModalClose,
   setGridItemMessage,
@@ -68,6 +69,7 @@ function DataViewerModal({
   const [showAlert, setShowAlert] = useState(false);
   const variableInputValues = useVariableInputValuesContext()[0];
   const setVariableInputValues = useVariableInputValuesContext()[1];
+  const [dashboardRefreshRate, setDashboardRefreshRate] = useState(0);
 
   useEffect(() => {
     let options = [...availableVisualizations];
@@ -105,6 +107,7 @@ function DataViewerModal({
         },
       ],
     });
+    setDashboardRefreshRate(refreshRate);
 
     setVizOptions(options);
     if (source) {
@@ -114,7 +117,7 @@ function DataViewerModal({
             setSelectedGroupName(p.label);
             setSelectVizTypeOption(i);
             let userInputsValues = [];
-            const existingArgs = JSON.parse(args_string);
+            const existingArgs = JSON.parse(argsString);
             if (source === "Variable Input") {
               setVariableInputValue(existingArgs.initial_value);
             }
@@ -227,7 +230,7 @@ function DataViewerModal({
 
         if (
           variableInputName in variableInputValues &&
-          JSON.parse(args_string).variable_name !== variableInputName
+          JSON.parse(argsString).variable_name !== variableInputName
         ) {
           setAlertMessage(
             variableInputName + " is already in use for a variable name"
@@ -256,6 +259,7 @@ function DataViewerModal({
           vizArgs[vizArg.name] = vizArg.value.value || vizArg.value;
         }
         updatedGridItems[grid_item_index].args_string = JSON.stringify(vizArgs);
+        updatedGridItems[grid_item_index].refresh_rate = dashboardRefreshRate;
 
         if (selectedVizTypeOption.source === "Variable Input") {
           updatedGridItems = updateVariableInputs(vizArgs, updatedGridItems);
@@ -277,7 +281,7 @@ function DataViewerModal({
   }
 
   function updateVariableInputs(vizArgs, updatedGridItems) {
-    const existingVariableName = JSON.parse(args_string).variable_name;
+    const existingVariableName = JSON.parse(argsString).variable_name;
     if (
       existingVariableName &&
       existingVariableName !== vizArgs.variable_name
@@ -353,6 +357,10 @@ function DataViewerModal({
     }
   }
 
+  function onRefreshRateChange(e) {
+    setDashboardRefreshRate(parseInt(e));
+  }
+
   return (
     <>
       <Modal
@@ -368,6 +376,15 @@ function DataViewerModal({
             <StyledContainer>
               <StyledRow>
                 <StyledCol className={"justify-content-center h-100 col-3"}>
+                  <DataInput
+                    objValue={{
+                      label: "Refresh Rate (Minutes)",
+                      type: "number",
+                      value: dashboardRefreshRate,
+                    }}
+                    onChange={onRefreshRateChange}
+                    index={0}
+                  />
                   <DataSelect
                     label="Visualization Type"
                     selectedOption={selectedVizTypeOption}
@@ -432,7 +449,8 @@ CustomTextOptions.propTypes = {
 DataViewerModal.propTypes = {
   grid_item_index: PropTypes.number,
   source: PropTypes.string,
-  args_string: PropTypes.string,
+  argsString: PropTypes.string,
+  refreshRate: PropTypes.number,
   setGridItemMessage: PropTypes.func,
   setShowGridItemMessage: PropTypes.func,
   showModal: PropTypes.bool,

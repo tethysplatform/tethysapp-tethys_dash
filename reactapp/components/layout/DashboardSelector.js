@@ -175,6 +175,7 @@ function DashboardSelector() {
       h: 20,
       source: "",
       args_string: "{}",
+      refresh_rate: 0,
     };
     layout["gridItems"] = [...layout["gridItems"], newGridItem];
     setLayoutContext(layout);

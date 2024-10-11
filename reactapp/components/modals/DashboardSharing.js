@@ -84,6 +84,7 @@ function DashboardSharingModal({ showModal, setShowModal }) {
           )}
           <Form id="dashboardSharing" onSubmit={handleSubmit}>
             <DataRadioSelect
+              label={"Sharing Status"}
               selectedRadio={selectedRadio}
               radioOptions={radioOptions}
               onChange={onChange}
