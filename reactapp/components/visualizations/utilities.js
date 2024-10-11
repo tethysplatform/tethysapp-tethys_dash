@@ -38,7 +38,9 @@ export function setVisualization(setViz, itemData) {
       } else if (response["viz_type"] === "card") {
         setViz(
           <Card
-            data={response.data.data} title={response.data.title} description={response.data.description}
+            data={response.data.data} 
+            title={response.data.title} 
+            description={response.data.description}
           />
         ); 
       } else if (response["viz_type"] === "map") {
