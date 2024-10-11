@@ -6,9 +6,9 @@ import Layers from "../../tethys-ol/components/layers/Layers";
 import Controls from "../../tethys-ol/components/controls/Controls";
 import { LayersControl } from "../../tethys-ol/components/controls/LayersControl";
 import View from "../../tethys-ol/components/View";
+import { LegendControl } from "tethys-ol/components/controls/Legend/Legend";
 
-
-const MapVisualization = ({ mapConfig, viewConfig,layers }) => {
+const MapVisualization = ({ mapConfig, viewConfig,layers,legend }) => {
   
   return (
 
@@ -34,6 +34,7 @@ const MapVisualization = ({ mapConfig, viewConfig,layers }) => {
         </Layers>
         <Controls>
             <LayersControl />
+            <LegendControl items={legend} />
         </Controls>
 
     </Map>

@@ -49,6 +49,7 @@ export function setVisualization(setViz, itemData) {
               viewConfig={response.data.view_config}
               layers={response.data.layers}
               mapConfig={response.data.map_config}
+              legend={response.data.legend}
           />
         );
       }else {
