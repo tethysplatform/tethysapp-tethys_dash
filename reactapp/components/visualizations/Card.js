@@ -28,6 +28,7 @@ const Header = styled.div`
 const StatsContainer = styled.div`
   display: flex;
   justify-content: space-between;
+  overflow: auto;
 `;
 
 const StatItem = styled.div`
