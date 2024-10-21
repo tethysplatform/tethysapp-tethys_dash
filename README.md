@@ -1,4 +1,4 @@
-# AquaInsight
+# TethysDash
 
 This app was created using an experimental Tethys + React app scaffold. It uses React for the frontend of the app and Tethys as the backend.
 
@@ -10,14 +10,14 @@ You need to install both the Tethys dependencies and the node dependencies:
 
 ```
 conda activate tethys
-cd tethysapp-aquainsight
+cd tethysapp-tethysdash
 tethys install -d
 ```
 
 2. Install the node and dependencies
 
 ```
-cd tethysapp-aquainsight
+cd tethysapp-tethysdash
 npm install --dev
 ```
 
@@ -60,7 +60,7 @@ The linting capability is powered by [eslint](https://eslint.org/) and a number 
 
 Dashboard visualizations plugins are based on the [intake](https://github.com/intake/intake) python package and can be developed following the information found in the [Making Driver](https://intake.readthedocs.io/en/latest/making-plugins.html) documentation.
 
-This section will cover the requirements needed to make plugins specifically for this application, including necessary setup, properties, and methods. An example plugin can be found [here](https://github.com/FIRO-Tethys/aquainsight_plugin_usace/tree/main).
+This section will cover the requirements needed to make plugins specifically for this application, including necessary setup, properties, and methods. An example plugin can be found [here](https://github.com/FIRO-Tethys/tethysdash_plugin_usace/tree/main).
 
 ### Developing
 

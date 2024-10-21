@@ -1,0 +1,14 @@
+var ratingStage = [];
+var ratingFlow = [];
+ratingStage.push(4.76);
+ratingFlow.push(329.9);
+ratingStage.push(4.77);
+ratingFlow.push(334.02);
+ratingStage.push(4.78);
+ratingFlow.push(338.18);
+ratingStage.push(4.79);
+ratingFlow.push(342.35);
+ratingStage.push(4.8);
+ratingFlow.push(346.55);
+ratingStage.push(4.81);
+ratingFlow.push(350.77);
