@@ -11,10 +11,10 @@ module.exports = (env, argv) => {
     output: {
       path: path.resolve(
         __dirname,
-        "../../tethysapp/aquainsight/public/frontend",
+        "../../tethysapp/tethysdash/public/frontend"
       ),
       filename: "[name].js",
-      publicPath: "/static/aquainsight/frontend/",
+      publicPath: "/static/tethysdash/frontend/",
     },
     resolve: {
       modules: [
@@ -83,7 +83,7 @@ module.exports = (env, argv) => {
     },
     devServer: {
       proxy: {
-        "!/static/aquainsight/frontend/**": {
+        "!/static/tethysdash/frontend/**": {
           target: "http://localhost:8000", // points to django dev server
           changeOrigin: true,
         },

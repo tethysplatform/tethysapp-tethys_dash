@@ -4,7 +4,7 @@ from tethys_apps.base.app_base import TethysAppBase
 import django
 
 # -- Apps Definition -- #
-app_package = "aquainsight"
+app_package = "tethysdash"
 release_package = f"{TethysAppBase.package_namespace}-{app_package}"
 
 # -- Python Dependencies -- #
