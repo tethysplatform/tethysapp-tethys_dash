@@ -1,0 +1,10 @@
+{% extends tethys_app.package|add:"/base.html" %} {% load tethys %} {% load
+reactpy %} {% block header_buttons %} {% component
+"tethysapp.tethysdash.components.home.header_buttons" %} {% endblock %} {% block
+app_content %} {% component "tethysapp.tethysdash.components.home.app_content"
+%} {% endblock %} {# Use the after_app_content block for modals #} {% block
+after_app_content %} {% component
+"tethysapp.tethysdash.components.home.after_app_content" %} {% endblock %} {%
+block app_actions %} {% gizmo save_button %} {% gizmo edit_button %} {% gizmo
+remove_button %} {% gizmo previous_button %} {% gizmo next_button %} {% endblock
+%}
