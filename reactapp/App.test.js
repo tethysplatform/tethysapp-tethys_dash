@@ -22,14 +22,14 @@ it("Renders the Loading message", async () => {
 it("Renders app title on Home view", async () => {
   renderWithRouter(<App />);
   // "find" queries wait until element matching description is found
-  const linkElement = await screen.findByText(/tethysdash/i);
+  const linkElement = await screen.findByText(/TethysDash/i);
   expect(linkElement).toBeInTheDocument();
 });
 
 it("Renders app title on Learn React view", async () => {
   renderWithRouter(<App />, "learn");
   // "find" queries wait until element matching description is found
-  const linkElement = await screen.findByText(/tethysdash/i);
+  const linkElement = await screen.findByText(/TethysDash/i);
   expect(linkElement).toBeInTheDocument();
 });
 
