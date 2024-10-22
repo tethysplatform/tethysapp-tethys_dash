@@ -57,13 +57,25 @@ const VariableInput = ({ args, onChange, dataviewer }) => {
     }
     onChange(e);
 
+    if (Array.isArray(type) || type === "checkbox") {
+      if (!dataviewer) {
+        if (typeof e.value !== "undefined") {
+          updateVariableInputs(e.value);
+        } else {
+          updateVariableInputs(e);
+        }
+      }
+    }
+  }
+
+  function handleInputEnter() {
     if (!dataviewer) {
-      updateVariableInputs(e.value || e);
+      updateVariableInputs(value.value || value);
     }
   }
 
   function updateVariableInputs(new_value) {
-    if (new_value) {
+    if (new_value || new_value === false) {
       const updatedVariableInputValues = { ...variableInputValues };
       updatedVariableInputValues[args.variable_name] = new_value;
       setVariableInputValues(updatedVariableInputValues);
@@ -75,6 +87,7 @@ const VariableInput = ({ args, onChange, dataviewer }) => {
       <DataInput
         objValue={{ label, type, value }}
         onChange={handleInputChange}
+        onEnter={handleInputEnter}
       />
     </StyledDiv>
   );

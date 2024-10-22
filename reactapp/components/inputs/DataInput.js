@@ -9,7 +9,15 @@ const StyledDiv = styled.div`
   width: 100%;
 `;
 
-const Input = ({ label, type, onChange, value, index, dataviewer }) => {
+const Input = ({
+  label,
+  type,
+  onChange,
+  onEnter,
+  value,
+  index,
+  dataviewer,
+}) => {
   const gridItems = useLayoutGridItemsContext()[0];
 
   function getAvailableVariableInputs() {
@@ -84,6 +92,12 @@ const Input = ({ label, type, onChange, value, index, dataviewer }) => {
           required
           type={type}
           onChange={(e) => onChange(e.target.value, index)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              onEnter();
+            }
+          }}
           value={value}
         />
       </>
@@ -91,7 +105,7 @@ const Input = ({ label, type, onChange, value, index, dataviewer }) => {
   }
 };
 
-const DataInput = ({ objValue, onChange, index, dataviewer }) => {
+const DataInput = ({ objValue, onChange, onEnter, index, dataviewer }) => {
   const { label, type, value } = objValue;
 
   return (
@@ -102,6 +116,7 @@ const DataInput = ({ objValue, onChange, index, dataviewer }) => {
             label={label}
             type={type}
             onChange={onChange}
+            onEnter={onEnter}
             value={value}
             index={index}
             dataviewer={dataviewer}

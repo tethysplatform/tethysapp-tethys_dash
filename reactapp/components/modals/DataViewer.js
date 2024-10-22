@@ -317,7 +317,11 @@ function DataViewerModal({
       args: {},
     };
     vizInputsValues.forEach((arg) => {
-      itemData["args"][arg.name] = arg.value.value || arg.value;
+      if (typeof arg.value.value !== "undefined") {
+        itemData["args"][arg.name] = arg.value.value;
+      } else {
+        itemData["args"][arg.name] = arg.value;
+      }
     });
     setVizMetadata(itemData);
     setGridItemMessage(

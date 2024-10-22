@@ -156,15 +156,7 @@ function DashboardLayout() {
   }
 
   return (
-    <Form
-      id="gridUpdate"
-      onSubmit={handleSubmit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-        }
-      }}
-    >
+    <Form id="gridUpdate" onSubmit={handleSubmit}>
       <GridLayout layout={layout} updateLayout={updateLayout} items={items} />
     </Form>
   );
