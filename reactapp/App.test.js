@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import App from "App";
 
 function renderWithRouter(ui, { route = "/" } = {}) {
-  route = `/apps/aquainsight/${route}`;
+  route = `/apps/tethysdash/${route}`;
   return {
     user: userEvent.setup(),
     ...render(<MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>),
@@ -22,14 +22,14 @@ it("Renders the Loading message", async () => {
 it("Renders app title on Home view", async () => {
   renderWithRouter(<App />);
   // "find" queries wait until element matching description is found
-  const linkElement = await screen.findByText(/AquaInsight/i);
+  const linkElement = await screen.findByText(/TethysDash/i);
   expect(linkElement).toBeInTheDocument();
 });
 
 it("Renders app title on Learn React view", async () => {
   renderWithRouter(<App />, "learn");
   // "find" queries wait until element matching description is found
-  const linkElement = await screen.findByText(/AquaInsight/i);
+  const linkElement = await screen.findByText(/TethysDash/i);
   expect(linkElement).toBeInTheDocument();
 });
 
