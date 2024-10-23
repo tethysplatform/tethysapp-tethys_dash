@@ -5,10 +5,18 @@ import DataInput from "components/inputs/DataInput";
 import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
+import VariableInputRefreshButton from "components/buttons/VariableInputRefresh";
 
 const StyledDiv = styled.div`
   padding: 1rem;
   width: 100%;
+`;
+const InLineInputDiv = styled.div`
+  display: inline-block;
+  width: calc(100% - 3em);
+`;
+const InLineButtonDiv = styled.div`
+  display: inline-block;
 `;
 
 const VariableInput = ({ args, onChange, dataviewer }) => {
@@ -68,7 +76,7 @@ const VariableInput = ({ args, onChange, dataviewer }) => {
     }
   }
 
-  function handleInputEnter() {
+  function handleInputRefresh() {
     if (!dataviewer) {
       updateVariableInputs(value.value || value);
     }
@@ -82,15 +90,30 @@ const VariableInput = ({ args, onChange, dataviewer }) => {
     }
   }
 
-  return (
-    <StyledDiv>
-      <DataInput
-        objValue={{ label, type, value }}
-        onChange={handleInputChange}
-        onEnter={handleInputEnter}
-      />
-    </StyledDiv>
-  );
+  if (Array.isArray(type) || type === "checkbox") {
+    return (
+      <StyledDiv>
+        <DataInput
+          objValue={{ label, type, value }}
+          onChange={handleInputChange}
+        />
+      </StyledDiv>
+    );
+  } else {
+    return (
+      <StyledDiv>
+        <InLineInputDiv>
+          <DataInput
+            objValue={{ label, type, value }}
+            onChange={handleInputChange}
+          />
+        </InLineInputDiv>
+        <InLineButtonDiv>
+          <VariableInputRefreshButton onClick={handleInputRefresh} />
+        </InLineButtonDiv>
+      </StyledDiv>
+    );
+  }
 };
 
 VariableInput.propTypes = {

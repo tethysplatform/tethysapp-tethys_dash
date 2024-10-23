@@ -6,18 +6,10 @@ import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboard
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
-  width: 100%;
+  margin-right: 1rem;
 `;
 
-const Input = ({
-  label,
-  type,
-  onChange,
-  onEnter,
-  value,
-  index,
-  dataviewer,
-}) => {
+const Input = ({ label, type, onChange, value, index, dataviewer }) => {
   const gridItems = useLayoutGridItemsContext()[0];
 
   function getAvailableVariableInputs() {
@@ -94,8 +86,7 @@ const Input = ({
           onChange={(e) => onChange(e.target.value, index)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              e.preventDefault();
-              onEnter();
+              e.preventDefault(); // prevents submitting form on enter
             }
           }}
           value={value}
@@ -105,7 +96,7 @@ const Input = ({
   }
 };
 
-const DataInput = ({ objValue, onChange, onEnter, index, dataviewer }) => {
+const DataInput = ({ objValue, onChange, index, dataviewer }) => {
   const { label, type, value } = objValue;
 
   return (
@@ -116,7 +107,6 @@ const DataInput = ({ objValue, onChange, onEnter, index, dataviewer }) => {
             label={label}
             type={type}
             onChange={onChange}
-            onEnter={onEnter}
             value={value}
             index={index}
             dataviewer={dataviewer}
