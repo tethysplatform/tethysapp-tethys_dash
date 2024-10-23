@@ -5,10 +5,18 @@ import DataInput from "components/inputs/DataInput";
 import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
+import VariableInputRefreshButton from "components/buttons/VariableInputRefresh";
 
 const StyledDiv = styled.div`
   padding: 1rem;
   width: 100%;
+`;
+const InLineInputDiv = styled.div`
+  display: inline-block;
+  width: calc(100% - 3em);
+`;
+const InLineButtonDiv = styled.div`
+  display: inline-block;
 `;
 
 const VariableInput = ({ args, onChange, dataviewer }) => {
@@ -57,27 +65,55 @@ const VariableInput = ({ args, onChange, dataviewer }) => {
     }
     onChange(e);
 
+    if (Array.isArray(type) || type === "checkbox") {
+      if (!dataviewer) {
+        if (typeof e.value !== "undefined") {
+          updateVariableInputs(e.value);
+        } else {
+          updateVariableInputs(e);
+        }
+      }
+    }
+  }
+
+  function handleInputRefresh() {
     if (!dataviewer) {
-      updateVariableInputs(e.value || e);
+      updateVariableInputs(value.value || value);
     }
   }
 
   function updateVariableInputs(new_value) {
-    if (new_value) {
+    if (new_value || new_value === false) {
       const updatedVariableInputValues = { ...variableInputValues };
       updatedVariableInputValues[args.variable_name] = new_value;
       setVariableInputValues(updatedVariableInputValues);
     }
   }
 
-  return (
-    <StyledDiv>
-      <DataInput
-        objValue={{ label, type, value }}
-        onChange={handleInputChange}
-      />
-    </StyledDiv>
-  );
+  if (Array.isArray(type) || type === "checkbox") {
+    return (
+      <StyledDiv>
+        <DataInput
+          objValue={{ label, type, value }}
+          onChange={handleInputChange}
+        />
+      </StyledDiv>
+    );
+  } else {
+    return (
+      <StyledDiv>
+        <InLineInputDiv>
+          <DataInput
+            objValue={{ label, type, value }}
+            onChange={handleInputChange}
+          />
+        </InLineInputDiv>
+        <InLineButtonDiv>
+          <VariableInputRefreshButton onClick={handleInputRefresh} />
+        </InLineButtonDiv>
+      </StyledDiv>
+    );
+  }
 };
 
 VariableInput.propTypes = {
