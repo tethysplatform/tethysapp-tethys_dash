@@ -4,6 +4,10 @@ import OverlayTrigger from "react-bootstrap/OverlayTrigger";
 import PropTypes from "prop-types";
 import Tooltip from "react-bootstrap/Tooltip";
 
+const StyledTooltip = styled(Tooltip)`
+  position: fixed;
+`;
+
 const StyledButton = styled(Button)`
   background-color: rgba(255, 255, 255, 0.1);
   border: none;
@@ -41,7 +45,9 @@ const HeaderButton = ({
       key={tooltipPlacement}
       placement={tooltipPlacement}
       overlay={
-        <Tooltip id={`tooltip-${tooltipPlacement}`}>{tooltipText}</Tooltip>
+        <StyledTooltip id={`tooltip-${tooltipPlacement}`}>
+          {tooltipText}
+        </StyledTooltip>
       }
     >
       {styledButton}
