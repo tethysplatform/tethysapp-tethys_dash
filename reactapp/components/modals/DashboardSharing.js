@@ -11,7 +11,17 @@ import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
 import { useLayoutNameContext } from "components/contexts/SelectedDashboardContext";
 import { getTethysPortalHost } from "services/utilities";
+import ClipboardCopyButton from "components/buttons/ClipboardCopy";
+import styled from "styled-components";
+
 const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
+const StyledDiv = styled.div`
+  display: inline-block;
+`;
+const StyledMarginDiv = styled.div`
+  display: inline-block;
+  margin-right: 1rem;
+`;
 
 function DashboardSharingModal({ showModal, setShowModal }) {
   const getLayoutContext = useLayoutContext()[2];
@@ -22,6 +32,7 @@ function DashboardSharingModal({ showModal, setShowModal }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [selectedRadio, setSelectedRadio] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(null);
   const name = useLayoutNameContext()[0];
   const dashboardPublicUrl =
     getTethysPortalHost() + APP_ROOT_URL + "dashboard/" + name;
@@ -71,6 +82,15 @@ function DashboardSharingModal({ showModal, setShowModal }) {
     });
   }
 
+  const handleCopyClick = async () => {
+    try {
+      await window.navigator.clipboard.writeText(dashboardPublicUrl);
+      setCopySuccess(true);
+    } catch (err) {
+      setCopySuccess(false);
+    }
+  };
+
   return (
     <>
       <Modal show={showModal} onHide={handleModalClose}>
@@ -98,9 +118,17 @@ function DashboardSharingModal({ showModal, setShowModal }) {
           </Form>
           {selectedRadio === "public" && (
             <>
-              <b>Public URL:</b>
-              <br></br>
-              <p>{dashboardPublicUrl}</p>
+              <StyledMarginDiv>
+                <b>Public URL:</b>
+                <br></br>
+                <p>{dashboardPublicUrl}</p>
+              </StyledMarginDiv>
+              <StyledDiv>
+                <ClipboardCopyButton
+                  success={copySuccess}
+                  onClick={handleCopyClick}
+                />
+              </StyledDiv>
             </>
           )}
         </Modal.Body>
