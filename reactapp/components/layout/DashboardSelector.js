@@ -33,7 +33,7 @@ const StyledDiv = styled.div`
   margin: auto;
 `;
 
-function DashboardSelector() {
+function DashboardSelector({ initialDashboard }) {
   const setLayoutContext = useLayoutContext()[0];
   const resetLayoutContext = useLayoutContext()[1];
   const getLayoutContext = useLayoutContext()[2];
@@ -72,7 +72,14 @@ function DashboardSelector() {
         { label: "Public", options: publicOptions },
         { label: "User", options: privateOptions },
       ]);
-      setDashboardLayoutConfigs(data);
+      if (initialDashboard) {
+        let selectedDashboard = dashboardLayoutConfigs[initialDashboard];
+        setSelectedOption({
+          value: initialDashboard,
+          label: selectedDashboard["label"],
+        });
+        setLayoutContext(selectedDashboard);
+      }
     });
     // eslint-disable-next-line
   }, []);

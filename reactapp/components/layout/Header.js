@@ -16,7 +16,7 @@ const CustomNavBar = styled(Navbar)`
   min-height: var(--ts-header-height);
 `;
 
-const Header = () => {
+const Header = ({ initialDashboard }) => {
   const { tethysApp, user } = useContext(AppContext);
   const location = useLocation();
 
@@ -27,7 +27,7 @@ const Header = () => {
           {(location.pathname.includes("/dashboard") ||
             location.pathname === "/") && (
             <AddDashboardModalShowContextProvider>
-              <DashboardSelector />
+              <DashboardSelector initialDashboard={initialDashboard} />
             </AddDashboardModalShowContextProvider>
           )}
           <Form inline="true">

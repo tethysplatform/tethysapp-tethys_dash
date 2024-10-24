@@ -3,11 +3,13 @@ import PropTypes from "prop-types";
 
 import Header from "components/layout/Header";
 import NotFound from "components/error/NotFound";
+import { useRoutesContext } from "components/contexts/RoutesContext";
 
-function Layout({ routes, children }) {
+function Layout({ children }) {
+  const routes = useRoutesContext()[0];
+
   return (
     <div className="h-100">
-      <Header />
       <Routes>
         {routes}
         <Route path="*" element={<NotFound />} />
