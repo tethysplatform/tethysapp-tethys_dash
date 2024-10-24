@@ -43,6 +43,7 @@ ClipboardCopyButton.propTypes = {
     PropTypes.node,
     PropTypes.element,
   ]),
+  success: PropTypes.bool,
   tooltipPlacement: PropTypes.oneOf(["top", "bottom", "left", "right"]),
   tooltipText: PropTypes.string,
   href: PropTypes.string,
