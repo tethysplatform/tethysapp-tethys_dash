@@ -3,6 +3,7 @@ import DashboardLayoutAlerts from "../../components/dashboard/DashboardLayoutAle
 import { useLayoutNameContext } from "components/contexts/SelectedDashboardContext";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import Header from "components/layout/Header";
+import PropTypes from "prop-types";
 
 function DashboardView({ initialDashboard }) {
   const name = useLayoutNameContext()[0];
@@ -20,5 +21,9 @@ function DashboardView({ initialDashboard }) {
     </>
   );
 }
+
+DashboardView.propTypes = {
+  initialDashboard: PropTypes.string,
+};
 
 export default DashboardView;

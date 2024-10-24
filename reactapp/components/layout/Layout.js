@@ -1,7 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import PropTypes from "prop-types";
 
-import Header from "components/layout/Header";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 import NotFound from "components/error/NotFound";
 import { useRoutesContext } from "components/contexts/RoutesContext";

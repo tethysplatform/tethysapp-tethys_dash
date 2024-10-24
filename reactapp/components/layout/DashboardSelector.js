@@ -28,6 +28,7 @@ import { useEditingContext } from "components/contexts/EditingContext";
 import { AppContext } from "components/contexts/AppContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import styled from "styled-components";
+import PropTypes from "prop-types";
 
 const StyledDiv = styled.div`
   margin: auto;
@@ -272,5 +273,9 @@ function DashboardSelector({ initialDashboard }) {
     </StyledDiv>
   );
 }
+
+DashboardSelector.propTypes = {
+  initialDashboard: PropTypes.string,
+};
 
 export default DashboardSelector;

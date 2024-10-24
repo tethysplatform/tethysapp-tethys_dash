@@ -1,5 +1,3 @@
-import { Route } from "react-router-dom";
-
 import ErrorBoundary from "components/error/ErrorBoundary";
 import Layout from "components/layout/Layout";
 import Loader from "components/loader/Loader";

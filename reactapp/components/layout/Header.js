@@ -55,7 +55,7 @@ const Header = ({ initialDashboard }) => {
 };
 
 Header.propTypes = {
-  onNavChange: PropTypes.func,
+  initialDashboard: PropTypes.string,
 };
 
 export default Header;
