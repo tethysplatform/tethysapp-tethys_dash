@@ -9,6 +9,9 @@ import { useContext, useState, useEffect } from "react";
 import appAPI from "services/api/app";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
+import { useLayoutNameContext } from "components/contexts/SelectedDashboardContext";
+import { getTethysPortalHost } from "services/utilities";
+const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
 
 function DashboardSharingModal({ showModal, setShowModal }) {
   const getLayoutContext = useLayoutContext()[2];
@@ -19,6 +22,9 @@ function DashboardSharingModal({ showModal, setShowModal }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [selectedRadio, setSelectedRadio] = useState(false);
+  const name = useLayoutNameContext()[0];
+  const dashboardPublicUrl =
+    getTethysPortalHost() + APP_ROOT_URL + "dashboard/" + name;
 
   const handleModalClose = () => setShowModal(false);
 
@@ -90,6 +96,13 @@ function DashboardSharingModal({ showModal, setShowModal }) {
               onChange={onChange}
             />
           </Form>
+          {selectedRadio === "public" && (
+            <>
+              <b>Public URL:</b>
+              <br></br>
+              <p>{dashboardPublicUrl}</p>
+            </>
+          )}
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={handleModalClose}>
@@ -105,7 +118,7 @@ function DashboardSharingModal({ showModal, setShowModal }) {
 }
 
 DashboardSharingModal.propTypes = {
-  showModal: PropTypes.func,
+  showModal: PropTypes.bool,
   setShowModal: PropTypes.func,
 };
 
