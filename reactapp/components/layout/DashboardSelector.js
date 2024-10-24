@@ -52,7 +52,7 @@ function DashboardSelector({ initialDashboard }) {
   const { csrf } = useContext(AppContext);
 
   useEffect(() => {
-    appAPI.getDashboards().then((data) => {
+    if (dashboardLayoutConfigs) {
       let createOption = {
         value: "Create a New Dashboard",
         label: "Create a New Dashboard",
@@ -60,7 +60,7 @@ function DashboardSelector({ initialDashboard }) {
       };
       let publicOptions = [];
       let privateOptions = [];
-      for (const [name, details] of Object.entries(data)) {
+      for (const [name, details] of Object.entries(dashboardLayoutConfigs)) {
         if (details.editable) {
           privateOptions.push({ value: name, label: details.label });
         } else {
@@ -72,6 +72,7 @@ function DashboardSelector({ initialDashboard }) {
         { label: "Public", options: publicOptions },
         { label: "User", options: privateOptions },
       ]);
+
       if (initialDashboard) {
         let selectedDashboard = dashboardLayoutConfigs[initialDashboard];
         setSelectedOption({
@@ -80,9 +81,9 @@ function DashboardSelector({ initialDashboard }) {
         });
         setLayoutContext(selectedDashboard);
       }
-    });
+    }
     // eslint-disable-next-line
-  }, []);
+  }, [dashboardLayoutConfigs]);
 
   function changeDashboard(e) {
     if (e.value === "Create a New Dashboard") {
