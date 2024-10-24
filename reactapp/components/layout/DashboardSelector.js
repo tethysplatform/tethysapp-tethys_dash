@@ -28,12 +28,13 @@ import { useEditingContext } from "components/contexts/EditingContext";
 import { AppContext } from "components/contexts/AppContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import styled from "styled-components";
+import PropTypes from "prop-types";
 
 const StyledDiv = styled.div`
   margin: auto;
 `;
 
-function DashboardSelector() {
+function DashboardSelector({ initialDashboard }) {
   const setLayoutContext = useLayoutContext()[0];
   const resetLayoutContext = useLayoutContext()[1];
   const getLayoutContext = useLayoutContext()[2];
@@ -52,7 +53,7 @@ function DashboardSelector() {
   const { csrf } = useContext(AppContext);
 
   useEffect(() => {
-    appAPI.getDashboards().then((data) => {
+    if (dashboardLayoutConfigs) {
       let createOption = {
         value: "Create a New Dashboard",
         label: "Create a New Dashboard",
@@ -60,7 +61,7 @@ function DashboardSelector() {
       };
       let publicOptions = [];
       let privateOptions = [];
-      for (const [name, details] of Object.entries(data)) {
+      for (const [name, details] of Object.entries(dashboardLayoutConfigs)) {
         if (details.editable) {
           privateOptions.push({ value: name, label: details.label });
         } else {
@@ -72,10 +73,18 @@ function DashboardSelector() {
         { label: "Public", options: publicOptions },
         { label: "User", options: privateOptions },
       ]);
-      setDashboardLayoutConfigs(data);
-    });
+
+      if (initialDashboard) {
+        let selectedDashboard = dashboardLayoutConfigs[initialDashboard];
+        setSelectedOption({
+          value: initialDashboard,
+          label: selectedDashboard["label"],
+        });
+        setLayoutContext(selectedDashboard);
+      }
+    }
     // eslint-disable-next-line
-  }, []);
+  }, [dashboardLayoutConfigs]);
 
   function changeDashboard(e) {
     if (e.value === "Create a New Dashboard") {
@@ -264,5 +273,9 @@ function DashboardSelector() {
     </StyledDiv>
   );
 }
+
+DashboardSelector.propTypes = {
+  initialDashboard: PropTypes.string,
+};
 
 export default DashboardSelector;
