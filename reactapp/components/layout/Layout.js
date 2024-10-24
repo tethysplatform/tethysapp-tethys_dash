@@ -2,6 +2,7 @@ import { Route, Routes } from "react-router-dom";
 import PropTypes from "prop-types";
 
 import Header from "components/layout/Header";
+import LoadingAnimation from "components/loader/LoadingAnimation";
 import NotFound from "components/error/NotFound";
 import { useRoutesContext } from "components/contexts/RoutesContext";
 
@@ -12,6 +13,7 @@ function Layout({ children }) {
     <div className="h-100">
       <Routes>
         {routes}
+        <Route path="/dashboard/*" element={<LoadingAnimation />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       {children}
