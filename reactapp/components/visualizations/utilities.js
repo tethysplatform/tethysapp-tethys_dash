@@ -2,13 +2,13 @@ import appAPI from "services/api/app";
 import BasePlot from "components/visualizations/BasePlot";
 import DataTable from "components/visualizations/DataTable";
 import Image from "components/visualizations/Image";
-import Spinner from "react-bootstrap/Spinner";
 import styled from "styled-components";
 import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/MapVisualization";
 import ModuleLoader from "./ModuleLoader";
+import LoadingAnimation from "components/loader/LoadingAnimation";
 
-const StyledSpinner = styled(Spinner)`
+const StyledSpinner = styled(LoadingAnimation)`
   margin: auto;
   display: block;
 `;
@@ -18,7 +18,8 @@ const StyledH2 = styled.h2`
 `;
 
 export function setVisualization(setViz, itemData) {
-  setViz(<StyledSpinner animation="border" variant="info" />);
+  // setViz(<StyledSpinner animation="border" variant="info" />);
+  setViz(<StyledSpinner/>);
 
   appAPI.getPlotData(itemData).then((response) => {
     if (response.success === true) {
