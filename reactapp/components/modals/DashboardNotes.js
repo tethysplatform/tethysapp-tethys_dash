@@ -6,12 +6,10 @@ import {
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
 import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
-import { useState, useContext, useEffect } from "react";
-import { AppContext } from "components/contexts/AppContext";
+import { useState, useEffect } from "react";
 import TextEditor from "components/inputs/TextEditor";
 import styles from "./DashboardNotes.module.css";
 import Alert from "react-bootstrap/Alert";
-import appAPI from "services/api/app";
 import styled from "styled-components";
 
 const StyledBody = styled(Modal.Body)`
@@ -33,14 +31,11 @@ const StyledDiv = styled.div`
 function DashboardNotesModal() {
   const [showModal, setShowModal] = useDashboardNotesModalShowContext();
   const notes = useLayoutNotesContext()[0];
-  const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
-  const [availableDashboards, setAvailableDashboards] =
-    useAvailableDashboardsContext();
+  const updateDashboard = useAvailableDashboardsContext()[4];
   const [showSaveMessage, setShowSaveMessage] = useState(false);
   const [showErrorMessage, setShowErrorMessage] = useState(false);
   const [localNotes, setLocalNotes] = useState(notes);
-  const { csrf } = useContext(AppContext);
 
   useEffect(() => {
     setLocalNotes(notes);
@@ -59,15 +54,9 @@ function DashboardNotesModal() {
     event.preventDefault();
     setShowSaveMessage(false);
     setShowErrorMessage(false);
-    const updatedLayoutContext = getLayoutContext();
-    updatedLayoutContext["notes"] = localNotes;
-    appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
-      if (response["success"]) {
-        const name = response["updated_dashboard"]["name"];
-        let OGLayouts = Object.assign({}, availableDashboards);
-        OGLayouts[name] = response["updated_dashboard"];
-        setAvailableDashboards(OGLayouts);
-        setLayoutContext(response["updated_dashboard"]);
+    const newNotes = { notes: localNotes };
+    updateDashboard(newNotes).then((success) => {
+      if (success) {
         setShowSaveMessage(true);
       } else {
         setShowErrorMessage(true);

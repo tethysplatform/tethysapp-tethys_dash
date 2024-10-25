@@ -1,4 +1,4 @@
-import { useEffect, useContext } from "react";
+import { useEffect } from "react";
 import DashboardSelect from "components/inputs/DashboardSelect";
 import HeaderButton from "components/buttons/HeaderButton";
 import NewDashboardModal from "components/modals/NewDashboard";
@@ -8,9 +8,10 @@ import {
   useLayoutNameContext,
   useLayoutEditableContext,
 } from "components/contexts/SelectedDashboardContext";
-import { useAvailableOptionsContext } from "components/contexts/AvailableOptionsContext";
-import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
-import { useSelectedOptionContext } from "components/contexts/SelectedOptionContext";
+import {
+  useAvailableDashboardsContext,
+  useDashboardDropwdownContext,
+} from "components/contexts/AvailableDashboardsContext";
 import { useAddDashboardModalShowContext } from "components/contexts/AddDashboardModalShowContext";
 import { useDashboardNotesModalShowContext } from "components/contexts/DashboardNotesModalShowContext";
 import {
@@ -21,7 +22,6 @@ import {
   BsPlus,
 } from "react-icons/bs";
 import { useEditingContext } from "components/contexts/EditingContext";
-import { AppContext } from "components/contexts/AppContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import styled from "styled-components";
 import PropTypes from "prop-types";
@@ -35,46 +35,30 @@ function DashboardSelector({ initialDashboard }) {
   const getLayoutContext = useLayoutContext()[2];
   const name = useLayoutNameContext()[0];
   const editableDashboard = useLayoutEditableContext();
-  const [selectOptions, setSelectOptions] = useAvailableOptionsContext();
   const availableDashboards = useAvailableDashboardsContext()[0];
-  const [selectedOption, setSelectedOption] = useSelectedOptionContext();
+  const [
+    dashboardDropdownOptions,
+    selectedDashboardDropdownOption,
+    setSelectedDashboardDropdownOption,
+  ] = useDashboardDropwdownContext();
   const [showAddDashboardModal, setShowAddDashboardModal] =
     useAddDashboardModalShowContext();
   const [showNotesModal, setShowNotesModal] =
     useDashboardNotesModalShowContext();
   const [isEditing, setIsEditing] = useEditingContext();
-  const { csrf } = useContext(AppContext);
 
   useEffect(() => {
-    if (availableDashboards) {
-      let createOption = {
-        value: "Create a New Dashboard",
-        label: "Create a New Dashboard",
-        color: "lightblue",
-      };
-      let publicOptions = [];
-      let privateOptions = [];
-      for (const [name, details] of Object.entries(availableDashboards)) {
-        if (details.editable) {
-          privateOptions.push({ value: name, label: details.label });
-        } else {
-          publicOptions.push({ value: name, label: details.label });
-        }
-      }
-      setSelectOptions([
-        createOption,
-        { label: "Public", options: publicOptions },
-        { label: "User", options: privateOptions },
-      ]);
-
-      if (initialDashboard) {
-        let selectedDashboard = availableDashboards[initialDashboard];
-        setSelectedOption({
-          value: initialDashboard,
-          label: selectedDashboard["label"],
-        });
-        setLayoutContext(selectedDashboard);
-      }
+    if (
+      availableDashboards &&
+      initialDashboard &&
+      !selectedDashboardDropdownOption
+    ) {
+      let selectedDashboard = availableDashboards[initialDashboard];
+      setSelectedDashboardDropdownOption({
+        value: initialDashboard,
+        label: selectedDashboard["label"],
+      });
+      setLayoutContext(selectedDashboard);
     }
     // eslint-disable-next-line
   }, [availableDashboards]);
@@ -84,7 +68,10 @@ function DashboardSelector({ initialDashboard }) {
       setShowAddDashboardModal(true);
     } else {
       let selectedDashboard = availableDashboards[e.value];
-      setSelectedOption({ value: e.value, label: selectedDashboard["label"] });
+      setSelectedDashboardDropdownOption({
+        value: e.value,
+        label: selectedDashboard["label"],
+      });
       setLayoutContext(selectedDashboard);
     }
     setIsEditing(false);
@@ -143,11 +130,11 @@ function DashboardSelector({ initialDashboard }) {
   return (
     <StyledDiv>
       <DashboardSelect
-        options={selectOptions}
-        value={selectedOption}
+        options={dashboardDropdownOptions}
+        value={selectedDashboardDropdownOption}
         onChange={updateLayout}
       ></DashboardSelect>
-      {selectedOption && (
+      {selectedDashboardDropdownOption && (
         <>
           <HeaderButton
             tooltipPlacement="bottom"

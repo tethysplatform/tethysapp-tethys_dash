@@ -2,7 +2,7 @@ import Offcanvas from "react-bootstrap/Offcanvas";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import Button from "react-bootstrap/Button";
 import Alert from "react-bootstrap/Alert";
-import { useContext, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   useLayoutContext,
   useLayoutNameContext,
@@ -10,12 +10,8 @@ import {
 import styled from "styled-components";
 import { getTethysPortalHost } from "services/utilities";
 import ClipboardCopyButton from "components/buttons/ClipboardCopy";
-import { confirm } from "components/dashboard/DeleteConfirmation";
 import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
-import { useSelectedOptionContext } from "components/contexts/SelectedOptionContext";
-import { useAvailableOptionsContext } from "components/contexts/AvailableOptionsContext";
-import appAPI from "services/api/app";
-import { AppContext } from "components/contexts/AppContext";
+import PropTypes from "prop-types";
 
 const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
 
@@ -43,16 +39,12 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
-  const resetLayoutContext = useLayoutContext()[1];
   const getLayoutContext = useLayoutContext()[2];
   const name = useLayoutNameContext()[0];
-  const [availableDashboards, setAvailableDashboards] =
-    useAvailableDashboardsContext();
+  const [deleteDashboard, updateDashboard] =
+    useAvailableDashboardsContext().slice(3, 5);
   const dashboardPublicUrl =
     getTethysPortalHost() + APP_ROOT_URL + "dashboard/" + name;
-  const [selectedOption, setSelectedOption] = useSelectedOptionContext();
-  const [selectOptions, setSelectOptions] = useAvailableOptionsContext();
-  const { csrf } = useContext(AppContext);
 
   const sharingStatusOptions = [
     { label: "Public", value: "public" },
@@ -84,67 +76,25 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
 
   function handleSubmit(event) {
     event.preventDefault();
+    setSuccessMessage("");
     setErrorMessage("");
-    setSuccessMessage("Successfully updated sharing status");
-    // const updatedLayoutContext = getLayoutContext();
-    // if (selectedSharingStatus === "public") {
-    //   updatedLayoutContext["access_groups"] = ["public"];
-    // } else {
-    //   updatedLayoutContext["access_groups"] = [];
-    // }
-    // appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
-    //   if (response["success"]) {
-    //     const name = response["updated_dashboard"]["name"];
-    //     let OGLayouts = Object.assign({}, availableDashboards);
-    //     OGLayouts[name] = response["updated_dashboard"];
-    //     setAvailableDashboards(OGLayouts);
-    //     setLayoutContext(response["updated_dashboard"]);
-    //     setSuccessMessage("Successfully updated sharing status");
-    //   } else {
-    //     setErrorMessage("Failed to update sharing status. Check server logs.");
-    //   }
-    // });
+    const newProperties = {
+      access_groups: selectedSharingStatus === "public" ? ["public"] : [],
+    };
+    updateDashboard(newProperties).then((success) => {
+      if (success) {
+        setSuccessMessage("Successfully updated dashboard settings");
+      } else {
+        setErrorMessage(
+          "Failed to update dashboard settings. Check server logs."
+        );
+      }
+    });
   }
 
   async function onDelete(e) {
-    const selectedOptionValue = selectedOption["value"];
-
-    if (
-      await confirm(
-        "Are your sure you want to delete the " +
-          selectedOptionValue +
-          " dashboard?"
-      )
-    ) {
-      const newavailableDashboards = Object.fromEntries(
-        Object.entries(availableDashboards).filter(
-          ([key]) => key !== selectedOptionValue
-        )
-      );
-      const userOptions = selectOptions.find(({ label }) => label === "User");
-      const userOptionsIndex = selectOptions.indexOf(userOptions);
-      const deletedOptionIndex = userOptions["options"].findIndex(
-        (x) => x.value === selectedOptionValue
-      );
-      const updatedUserOptions = userOptions["options"].toSpliced(
-        deletedOptionIndex,
-        1
-      );
-      const updatedSelectOptions = selectOptions.toSpliced(
-        userOptionsIndex,
-        1,
-        { label: "User", options: updatedUserOptions }
-      );
-      appAPI
-        .deleteDashboard({ name: selectedOptionValue }, csrf)
-        .then((response) => {
-          setAvailableDashboards(newavailableDashboards);
-          setSelectOptions(updatedSelectOptions);
-          setSelectedOption(null);
-          resetLayoutContext();
-          handleClose();
-        });
-    }
+    deleteDashboard();
+    handleClose();
   }
 
   return (
@@ -199,5 +149,10 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     </StyledOffcanvas>
   );
 }
+
+DashboardEditorCanvas.propTypes = {
+  showCanvas: PropTypes.bool,
+  setShowCanvas: PropTypes.func,
+};
 
 export default DashboardEditorCanvas;
