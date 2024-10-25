@@ -1,5 +1,6 @@
 import React, { Suspense } from "react";
 import useDynamicScript from 'hooks/useDynamicScript';
+import LoadingAnimation from "components/loader/LoadingAnimation";
 
 function loadComponent(scope, module) {
   return async () => {
@@ -24,7 +25,7 @@ function ModuleLoader(props) {
   }
 
   if (!ready) {
-    return <h2>Loading dynamic script: {props.url}</h2>;
+    return <LoadingAnimation/>;
   }
 
   if (failed) {
@@ -36,8 +37,8 @@ function ModuleLoader(props) {
   );
 
   return (
-    <Suspense fallback="Loading Module">
-      <Component />
+    <Suspense fallback={<LoadingAnimation/>}>
+      <Component {...props.props} />
     </Suspense>
   );
 }
