@@ -6,7 +6,7 @@ import Spinner from "react-bootstrap/Spinner";
 import styled from "styled-components";
 import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/MapVisualization";
-
+import ModuleLoader from "./ModuleLoader";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -44,15 +44,26 @@ export function setVisualization(setViz, itemData) {
           />
         ); 
       } else if (response["viz_type"] === "map") {
-          setViz(
-            <MapVisualization
-              viewConfig={response.data.view_config}
-              layers={response.data.layers}
-              mapConfig={response.data.map_config}
-              legend={response.data.legend}
+        setViz(
+          <MapVisualization
+            viewConfig={response.data.view_config}
+            layers={response.data.layers}
+            mapConfig={response.data.map_config}
+            legend={response.data.legend}
           />
         );
-      }else {
+      }
+      else if(response["viz_type"] === "custom"){
+        setViz(
+          <ModuleLoader
+            url={response.data.url}
+            scope={response.data.scope}
+            module={response.data.module}
+            props={response.data.props}
+          />
+        );
+      }
+      else {
         let message =
           response["viz_type"] + " visualizations still need to be configured";
         setViz(<StyledH2>{message}</StyledH2>);
