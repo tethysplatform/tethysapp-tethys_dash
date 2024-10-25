@@ -1,9 +1,8 @@
-import { useEffect, useContext, useState } from "react";
+import { useEffect, useContext } from "react";
 import DashboardSelect from "components/inputs/DashboardSelect";
 import HeaderButton from "components/buttons/HeaderButton";
 import NewDashboardModal from "components/modals/NewDashboard";
 import DashboardNotesModal from "components/modals/DashboardNotes";
-import DashboardSharingModal from "components/modals/DashboardSharing";
 import {
   useLayoutContext,
   useLayoutNameContext,
@@ -14,14 +13,11 @@ import { useAvailableDashboardContext } from "components/contexts/AvailableDashb
 import { useSelectedOptionContext } from "components/contexts/SelectedOptionContext";
 import { useAddDashboardModalShowContext } from "components/contexts/AddDashboardModalShowContext";
 import { useDashboardNotesModalShowContext } from "components/contexts/DashboardNotesModalShowContext";
-import appAPI from "services/api/app";
 import {
   BsArrowReturnLeft,
   BsSave,
   BsPencilSquare,
   BsFileText,
-  BsTrash,
-  BsPeopleFill,
   BsPlus,
 } from "react-icons/bs";
 import { useEditingContext } from "components/contexts/EditingContext";
@@ -36,19 +32,16 @@ const StyledDiv = styled.div`
 
 function DashboardSelector({ initialDashboard }) {
   const setLayoutContext = useLayoutContext()[0];
-  const resetLayoutContext = useLayoutContext()[1];
   const getLayoutContext = useLayoutContext()[2];
   const name = useLayoutNameContext()[0];
   const editableDashboard = useLayoutEditableContext();
   const [selectOptions, setSelectOptions] = useAvailableOptionsContext();
-  const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
-    useAvailableDashboardContext();
+  const dashboardLayoutConfigs = useAvailableDashboardContext()[0];
   const [selectedOption, setSelectedOption] = useSelectedOptionContext();
   const [showAddDashboardModal, setShowAddDashboardModal] =
     useAddDashboardModalShowContext();
   const [showNotesModal, setShowNotesModal] =
     useDashboardNotesModalShowContext();
-  const [showSharingModal, setShowSharingModal] = useState(false);
   const [isEditing, setIsEditing] = useEditingContext();
   const { csrf } = useContext(AppContext);
 
@@ -111,52 +104,8 @@ function DashboardSelector({ initialDashboard }) {
     }
   }
 
-  async function onDelete(e) {
-    const selectedOptionValue = selectedOption["value"];
-
-    if (
-      await confirm(
-        "Are your sure you want to delete the " +
-          selectedOptionValue +
-          " dashboard?"
-      )
-    ) {
-      const newdashboardLayoutConfigs = Object.fromEntries(
-        Object.entries(dashboardLayoutConfigs).filter(
-          ([key]) => key !== selectedOptionValue
-        )
-      );
-      const userOptions = selectOptions.find(({ label }) => label === "User");
-      const userOptionsIndex = selectOptions.indexOf(userOptions);
-      const deletedOptionIndex = userOptions["options"].findIndex(
-        (x) => x.value === selectedOptionValue
-      );
-      const updatedUserOptions = userOptions["options"].toSpliced(
-        deletedOptionIndex,
-        1
-      );
-      const updatedSelectOptions = selectOptions.toSpliced(
-        userOptionsIndex,
-        1,
-        { label: "User", options: updatedUserOptions }
-      );
-      appAPI
-        .deleteDashboard({ name: selectedOptionValue }, csrf)
-        .then((response) => {
-          setDashboardLayoutConfigs(newdashboardLayoutConfigs);
-          setSelectOptions(updatedSelectOptions);
-          setSelectedOption(null);
-          resetLayoutContext();
-        });
-    }
-  }
-
   function onEdit(e) {
     setIsEditing(true);
-  }
-
-  function onEditAccess(e) {
-    setShowSharingModal(true);
   }
 
   function onNotes(e) {
@@ -244,32 +193,12 @@ function DashboardSelector({ initialDashboard }) {
               >
                 <BsPlus size="1.5rem" />
               </HeaderButton>
-              <HeaderButton
-                tooltipPlacement="bottom"
-                tooltipText="Edit Access"
-                onClick={onEditAccess}
-              >
-                <BsPeopleFill size="1.5rem" />
-              </HeaderButton>
-              <HeaderButton
-                tooltipPlacement="bottom"
-                tooltipText="Delete Dashboard"
-                onClick={onDelete}
-              >
-                <BsTrash size="1.5rem" />
-              </HeaderButton>
             </>
           )}
         </>
       )}
       {showAddDashboardModal && <NewDashboardModal />}
       {showNotesModal && <DashboardNotesModal />}
-      {showSharingModal && (
-        <DashboardSharingModal
-          showModal={showSharingModal}
-          setShowModal={setShowSharingModal}
-        />
-      )}
     </StyledDiv>
   );
 }
