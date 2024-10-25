@@ -1,17 +1,15 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect } from "react";
 import RGL, { WidthProvider } from "react-grid-layout";
 import styled from "styled-components";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
-import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
+import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import {
   useLayoutSuccessAlertContext,
   useLayoutErrorAlertContext,
 } from "components/contexts/LayoutAlertContext";
 import { useEditingContext } from "components/contexts/EditingContext";
 import Form from "react-bootstrap/Form";
-import appAPI from "services/api/app";
-import { AppContext } from "components/contexts/AppContext";
 import DashboardItem from "components/dashboard/DashboardItem";
 import PropTypes from "prop-types";
 import "react-grid-layout/css/styles.css";
@@ -45,13 +43,11 @@ function DashboardLayout() {
   const setShowSuccessMessage = useLayoutSuccessAlertContext()[3];
   const setErrorMessage = useLayoutErrorAlertContext()[1];
   const setShowErrorMessage = useLayoutErrorAlertContext()[3];
-  const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
-    useAvailableDashboardContext();
+  const updateDashboard = useAvailableDashboardsContext()[4];
   const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
   const gridItems = useLayoutGridItemsContext()[0];
   const [isEditing, setIsEditing] = useEditingContext();
-  const { csrf } = useContext(AppContext);
   const [layout, setLayout] = useState([]);
   const [items, setItems] = useState([]);
 
@@ -134,16 +130,11 @@ function DashboardLayout() {
     setShowErrorMessage(false);
 
     if (isEditing) {
-      const updatedLayoutContext = getLayoutContext();
-      appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
-        if (response["success"]) {
-          const name = response["updated_dashboard"]["name"];
-          let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
-          OGLayouts[name] = response["updated_dashboard"];
-          setDashboardLayoutConfigs(OGLayouts);
-          setLayoutContext(response["updated_dashboard"]);
+      updateDashboard({}).then((success) => {
+        if (success) {
           setSuccessMessage("Change have been saved.");
           setShowSuccessMessage(true);
+          setIsEditing(false);
         } else {
           setErrorMessage(
             "Failed to save changes. Check server logs for more information."
@@ -151,7 +142,6 @@ function DashboardLayout() {
           setShowErrorMessage(true);
         }
       });
-      setIsEditing(false);
     }
   }
 
