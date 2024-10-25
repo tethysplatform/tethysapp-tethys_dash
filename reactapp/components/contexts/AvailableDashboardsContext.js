@@ -150,7 +150,11 @@ const AvailableDashboardsContextProvider = ({ children }) => {
         setSelectedDashboardDropdownOption(null);
         resetLayoutContext();
       }
-      return apiResponse["success"];
+      return { success: apiResponse["success"] };
+    } else {
+      return {
+        confirmExit: true,
+      };
     }
   }
 

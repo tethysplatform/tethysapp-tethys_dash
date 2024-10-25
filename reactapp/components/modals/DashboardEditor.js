@@ -112,12 +112,14 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   }
 
   async function onDelete(e) {
-    deleteDashboard().then((success) => {
-      if (success) {
+    deleteDashboard().then((response) => {
+      if (response["success"]) {
         setIsEditing(false);
         handleClose();
       } else {
-        setErrorMessage("Failed to delete dashboard. Check server logs.");
+        if (!response["confirmExit"]) {
+          setErrorMessage("Failed to delete dashboard. Check server logs.");
+        }
       }
     });
   }
