@@ -24,13 +24,13 @@ const Header = ({ initialDashboard }) => {
   const location = useLocation();
   const [showEditCanvas, setShowEditCanvas] = useState(false);
   const showNav = () => setShowEditCanvas(true);
-  const name = useLayoutNameContext()[0];
+  const dashBoardName = useLayoutNameContext()[0];
 
   return (
     <>
       <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
         <Container as="header" fluid className="px-4">
-          {name && <NavButton onClick={showNav}></NavButton>}
+          {dashBoardName && <NavButton onClick={showNav}></NavButton>}
           {(location.pathname.includes("/dashboard") ||
             location.pathname === "/") && (
             <AddDashboardModalShowContextProvider>

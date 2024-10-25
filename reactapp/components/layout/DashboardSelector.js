@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import DashboardSelect from "components/inputs/DashboardSelect";
 import HeaderButton from "components/buttons/HeaderButton";
 import NewDashboardModal from "components/modals/NewDashboard";
-import DashboardNotesModal from "components/modals/DashboardNotes";
 import {
   useLayoutContext,
   useLayoutNameContext,
@@ -13,12 +12,10 @@ import {
   useDashboardDropwdownContext,
 } from "components/contexts/AvailableDashboardsContext";
 import { useAddDashboardModalShowContext } from "components/contexts/AddDashboardModalShowContext";
-import { useDashboardNotesModalShowContext } from "components/contexts/DashboardNotesModalShowContext";
 import {
   BsArrowReturnLeft,
-  BsSave,
+  BsFloppy,
   BsPencilSquare,
-  BsFileText,
   BsPlus,
 } from "react-icons/bs";
 import { useEditingContext } from "components/contexts/EditingContext";
@@ -43,8 +40,6 @@ function DashboardSelector({ initialDashboard }) {
   ] = useDashboardDropwdownContext();
   const [showAddDashboardModal, setShowAddDashboardModal] =
     useAddDashboardModalShowContext();
-  const [showNotesModal, setShowNotesModal] =
-    useDashboardNotesModalShowContext();
   const [isEditing, setIsEditing] = useEditingContext();
 
   useEffect(() => {
@@ -95,10 +90,6 @@ function DashboardSelector({ initialDashboard }) {
     setIsEditing(true);
   }
 
-  function onNotes(e) {
-    setShowNotesModal(true);
-  }
-
   function onCancel(e) {
     const OGLayoutContext = JSON.parse(
       JSON.stringify(availableDashboards[name])
@@ -124,7 +115,6 @@ function DashboardSelector({ initialDashboard }) {
     };
     layout["gridItems"] = [...layout["gridItems"], newGridItem];
     setLayoutContext(layout);
-    setIsEditing(true);
   }
 
   return (
@@ -136,13 +126,6 @@ function DashboardSelector({ initialDashboard }) {
       ></DashboardSelect>
       {selectedDashboardDropdownOption && (
         <>
-          <HeaderButton
-            tooltipPlacement="bottom"
-            tooltipText="Open Notes"
-            onClick={onNotes}
-          >
-            <BsFileText size="1.5rem" />
-          </HeaderButton>
           {editableDashboard && (
             <>
               {isEditing && (
@@ -160,7 +143,14 @@ function DashboardSelector({ initialDashboard }) {
                     form="gridUpdate"
                     type="submit"
                   >
-                    <BsSave size="1.5rem" />
+                    <BsFloppy size="1.5rem" />
+                  </HeaderButton>
+                  <HeaderButton
+                    tooltipPlacement="bottom"
+                    tooltipText="Add Dashboard Item"
+                    onClick={onAddGridItem}
+                  >
+                    <BsPlus size="1.5rem" />
                   </HeaderButton>
                 </>
               )}
@@ -173,19 +163,11 @@ function DashboardSelector({ initialDashboard }) {
                   <BsPencilSquare size="1.5rem" />
                 </HeaderButton>
               )}
-              <HeaderButton
-                tooltipPlacement="bottom"
-                tooltipText="Add Dashboard Item"
-                onClick={onAddGridItem}
-              >
-                <BsPlus size="1.5rem" />
-              </HeaderButton>
             </>
           )}
         </>
       )}
       {showAddDashboardModal && <NewDashboardModal />}
-      {showNotesModal && <DashboardNotesModal />}
     </StyledDiv>
   );
 }

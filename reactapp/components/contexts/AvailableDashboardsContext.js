@@ -140,14 +140,17 @@ const AvailableDashboardsContextProvider = ({ children }) => {
         1,
         { label: "User", options: updatedUserOptions }
       );
-      appAPI
-        .deleteDashboard({ name: selectedOptionValue }, csrf)
-        .then((response) => {
-          setAvailableDashboards(newavailableDashboards);
-          setDashboardDropdownOptions(updatedSelectOptions);
-          setSelectedDashboardDropdownOption(null);
-          resetLayoutContext();
-        });
+      const apiResponse = await appAPI.deleteDashboard(
+        { name: selectedOptionValue },
+        csrf
+      );
+      if (apiResponse["success"]) {
+        setAvailableDashboards(newavailableDashboards);
+        setDashboardDropdownOptions(updatedSelectOptions);
+        setSelectedDashboardDropdownOption(null);
+        resetLayoutContext();
+      }
+      return apiResponse["success"];
     }
   }
 

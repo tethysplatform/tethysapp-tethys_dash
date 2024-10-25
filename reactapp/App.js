@@ -6,7 +6,6 @@ import SelectedDashboardContextProvider from "components/contexts/SelectedDashbo
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
 import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
 import EditingContextProvider from "components/contexts/EditingContext";
-import DashboardNotesModalShowContextProvider from "components/contexts/DashboardNotesModalShowContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 import RoutesContextProvider from "components/contexts/RoutesContext";
 
@@ -23,9 +22,7 @@ function App() {
                 <SelectedDashboardContextProvider>
                   <AvailableDashboardsContextProvider>
                     <EditingContextProvider>
-                      <DashboardNotesModalShowContextProvider>
-                        <Layout />
-                      </DashboardNotesModalShowContextProvider>
+                      <Layout />
                     </EditingContextProvider>
                   </AvailableDashboardsContextProvider>
                 </SelectedDashboardContextProvider>
