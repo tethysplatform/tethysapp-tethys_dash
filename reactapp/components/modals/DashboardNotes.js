@@ -5,7 +5,7 @@ import {
   useLayoutNotesContext,
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
-import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
+import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import { useState, useContext, useEffect } from "react";
 import { AppContext } from "components/contexts/AppContext";
 import TextEditor from "components/inputs/TextEditor";
@@ -35,8 +35,8 @@ function DashboardNotesModal() {
   const notes = useLayoutNotesContext()[0];
   const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
-  const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
-    useAvailableDashboardContext();
+  const [availableDashboards, setAvailableDashboards] =
+    useAvailableDashboardsContext();
   const [showSaveMessage, setShowSaveMessage] = useState(false);
   const [showErrorMessage, setShowErrorMessage] = useState(false);
   const [localNotes, setLocalNotes] = useState(notes);
@@ -64,9 +64,9 @@ function DashboardNotesModal() {
     appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
       if (response["success"]) {
         const name = response["updated_dashboard"]["name"];
-        let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
+        let OGLayouts = Object.assign({}, availableDashboards);
         OGLayouts[name] = response["updated_dashboard"];
-        setDashboardLayoutConfigs(OGLayouts);
+        setAvailableDashboards(OGLayouts);
         setLayoutContext(response["updated_dashboard"]);
         setShowSaveMessage(true);
       } else {

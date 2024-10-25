@@ -3,7 +3,7 @@ import RGL, { WidthProvider } from "react-grid-layout";
 import styled from "styled-components";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
-import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
+import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import {
   useLayoutSuccessAlertContext,
   useLayoutErrorAlertContext,
@@ -45,8 +45,8 @@ function DashboardLayout() {
   const setShowSuccessMessage = useLayoutSuccessAlertContext()[3];
   const setErrorMessage = useLayoutErrorAlertContext()[1];
   const setShowErrorMessage = useLayoutErrorAlertContext()[3];
-  const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
-    useAvailableDashboardContext();
+  const [availableDashboards, setAvailableDashboards] =
+    useAvailableDashboardsContext();
   const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
   const gridItems = useLayoutGridItemsContext()[0];
@@ -138,9 +138,9 @@ function DashboardLayout() {
       appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
         if (response["success"]) {
           const name = response["updated_dashboard"]["name"];
-          let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
+          let OGLayouts = Object.assign({}, availableDashboards);
           OGLayouts[name] = response["updated_dashboard"];
-          setDashboardLayoutConfigs(OGLayouts);
+          setAvailableDashboards(OGLayouts);
           setLayoutContext(response["updated_dashboard"]);
           setSuccessMessage("Change have been saved.");
           setShowSuccessMessage(true);

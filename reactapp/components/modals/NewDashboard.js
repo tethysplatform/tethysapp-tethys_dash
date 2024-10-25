@@ -6,7 +6,7 @@ import Form from "react-bootstrap/Form";
 import Alert from "react-bootstrap/Alert";
 import { useAddDashboardModalShowContext } from "components/contexts/AddDashboardModalShowContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
-import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
+import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import { useSelectedOptionContext } from "components/contexts/SelectedOptionContext";
 import { useAvailableOptionsContext } from "components/contexts/AvailableOptionsContext";
 import { useEditingContext } from "components/contexts/EditingContext";
@@ -19,8 +19,8 @@ function NewDashboardModal() {
 
   const [showModal, setShowModal] = useAddDashboardModalShowContext();
   const setLayoutContext = useLayoutContext()[0];
-  const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
-    useAvailableDashboardContext();
+  const [availableDashboards, setAvailableDashboards] =
+    useAvailableDashboardsContext();
   const setSelectedOption = useSelectedOptionContext()[1];
   const [selectOptions, setSelectOptions] = useAvailableOptionsContext();
   const { csrf } = useContext(AppContext);
@@ -38,7 +38,7 @@ function NewDashboardModal() {
     setHasError(false);
     let Name = dashboardName.replace(" ", "_").toLowerCase();
     let Label = dashboardName;
-    if (dashboardName in dashboardLayoutConfigs) {
+    if (dashboardName in availableDashboards) {
       setErrorMessage(
         "Dashboard with the Name " + dashboardName + " already exists."
       );
@@ -53,9 +53,9 @@ function NewDashboardModal() {
     };
     appAPI.addDashboard(inputData, csrf).then((response) => {
       if (response["success"]) {
-        let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
+        let OGLayouts = Object.assign({}, availableDashboards);
         OGLayouts[Name] = response["new_dashboard"];
-        setDashboardLayoutConfigs(OGLayouts);
+        setAvailableDashboards(OGLayouts);
         const userOptions = selectOptions.find(({ label }) => label === "User");
         const userOptionsIndex = selectOptions.indexOf(userOptions);
         userOptions["options"].push({ value: Name, label: Label });

@@ -6,10 +6,10 @@ import { Route } from "react-router-dom";
 import DashboardView from "views/dashboard/Dashboard";
 import NotFound from "components/error/NotFound";
 
-const AvailableDashboardContext = createContext();
+const AvailableDashboardsContext = createContext();
 
-const AvailableDashboardContextProvider = ({ children }) => {
-  const [dashboardLayoutConfigs, setDashboardLayoutConfigs] = useState(null);
+const AvailableDashboardsContextProvider = ({ children }) => {
+  const [availableDashboards, setAvailableDashboards] = useState(null);
   const [routes, setRoutes] = useRoutesContext();
 
   useEffect(() => {
@@ -31,30 +31,30 @@ const AvailableDashboardContextProvider = ({ children }) => {
           element={<NotFound />}
         />
       );
-      setDashboardLayoutConfigs(data);
+      setAvailableDashboards(data);
       setRoutes(updatedRoutes);
     });
     // eslint-disable-next-line
   }, []);
 
   return (
-    <AvailableDashboardContext.Provider
-      value={[dashboardLayoutConfigs, setDashboardLayoutConfigs]}
+    <AvailableDashboardsContext.Provider
+      value={[availableDashboards, setAvailableDashboards]}
     >
       {children}
-    </AvailableDashboardContext.Provider>
+    </AvailableDashboardsContext.Provider>
   );
 };
 
-AvailableDashboardContextProvider.propTypes = {
+AvailableDashboardsContextProvider.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.node),
     PropTypes.node,
   ]),
 };
 
-export default AvailableDashboardContextProvider;
+export default AvailableDashboardsContextProvider;
 
-export const useAvailableDashboardContext = () => {
-  return useContext(AvailableDashboardContext);
+export const useAvailableDashboardsContext = () => {
+  return useContext(AvailableDashboardsContext);
 };

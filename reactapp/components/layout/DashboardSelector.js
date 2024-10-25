@@ -9,7 +9,7 @@ import {
   useLayoutEditableContext,
 } from "components/contexts/SelectedDashboardContext";
 import { useAvailableOptionsContext } from "components/contexts/AvailableOptionsContext";
-import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
+import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import { useSelectedOptionContext } from "components/contexts/SelectedOptionContext";
 import { useAddDashboardModalShowContext } from "components/contexts/AddDashboardModalShowContext";
 import { useDashboardNotesModalShowContext } from "components/contexts/DashboardNotesModalShowContext";
@@ -36,7 +36,7 @@ function DashboardSelector({ initialDashboard }) {
   const name = useLayoutNameContext()[0];
   const editableDashboard = useLayoutEditableContext();
   const [selectOptions, setSelectOptions] = useAvailableOptionsContext();
-  const dashboardLayoutConfigs = useAvailableDashboardContext()[0];
+  const availableDashboards = useAvailableDashboardsContext()[0];
   const [selectedOption, setSelectedOption] = useSelectedOptionContext();
   const [showAddDashboardModal, setShowAddDashboardModal] =
     useAddDashboardModalShowContext();
@@ -46,7 +46,7 @@ function DashboardSelector({ initialDashboard }) {
   const { csrf } = useContext(AppContext);
 
   useEffect(() => {
-    if (dashboardLayoutConfigs) {
+    if (availableDashboards) {
       let createOption = {
         value: "Create a New Dashboard",
         label: "Create a New Dashboard",
@@ -54,7 +54,7 @@ function DashboardSelector({ initialDashboard }) {
       };
       let publicOptions = [];
       let privateOptions = [];
-      for (const [name, details] of Object.entries(dashboardLayoutConfigs)) {
+      for (const [name, details] of Object.entries(availableDashboards)) {
         if (details.editable) {
           privateOptions.push({ value: name, label: details.label });
         } else {
@@ -68,7 +68,7 @@ function DashboardSelector({ initialDashboard }) {
       ]);
 
       if (initialDashboard) {
-        let selectedDashboard = dashboardLayoutConfigs[initialDashboard];
+        let selectedDashboard = availableDashboards[initialDashboard];
         setSelectedOption({
           value: initialDashboard,
           label: selectedDashboard["label"],
@@ -77,13 +77,13 @@ function DashboardSelector({ initialDashboard }) {
       }
     }
     // eslint-disable-next-line
-  }, [dashboardLayoutConfigs]);
+  }, [availableDashboards]);
 
   function changeDashboard(e) {
     if (e.value === "Create a New Dashboard") {
       setShowAddDashboardModal(true);
     } else {
-      let selectedDashboard = dashboardLayoutConfigs[e.value];
+      let selectedDashboard = availableDashboards[e.value];
       setSelectedOption({ value: e.value, label: selectedDashboard["label"] });
       setLayoutContext(selectedDashboard);
     }
@@ -114,7 +114,7 @@ function DashboardSelector({ initialDashboard }) {
 
   function onCancel(e) {
     const OGLayoutContext = JSON.parse(
-      JSON.stringify(dashboardLayoutConfigs[name])
+      JSON.stringify(availableDashboards[name])
     );
     setLayoutContext(OGLayoutContext);
     setIsEditing(false);

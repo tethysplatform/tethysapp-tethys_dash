@@ -3,7 +3,7 @@ import Layout from "components/layout/Layout";
 import Loader from "components/loader/Loader";
 
 import SelectedDashboardContextProvider from "components/contexts/SelectedDashboardContext";
-import AvailableDashboardContextProvider from "components/contexts/AvailableDashboardContext";
+import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
 import SelectedOptionContextProvider from "components/contexts/SelectedOptionContext";
 import AvailableOptionsContextProvider from "components/contexts/AvailableOptionsContext";
 import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
@@ -21,7 +21,7 @@ function App() {
         <Loader>
           <RoutesContextProvider>
             <AvailableVisualizationsContextProvider>
-              <AvailableDashboardContextProvider>
+              <AvailableDashboardsContextProvider>
                 <AvailableOptionsContextProvider>
                   <SelectedOptionContextProvider>
                     <VariableInputsContextProvider>
@@ -35,7 +35,7 @@ function App() {
                     </VariableInputsContextProvider>
                   </SelectedOptionContextProvider>
                 </AvailableOptionsContextProvider>
-              </AvailableDashboardContextProvider>
+              </AvailableDashboardsContextProvider>
             </AvailableVisualizationsContextProvider>
           </RoutesContextProvider>
         </Loader>

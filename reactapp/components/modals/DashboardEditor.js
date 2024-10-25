@@ -11,7 +11,7 @@ import styled from "styled-components";
 import { getTethysPortalHost } from "services/utilities";
 import ClipboardCopyButton from "components/buttons/ClipboardCopy";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
+import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import { useSelectedOptionContext } from "components/contexts/SelectedOptionContext";
 import { useAvailableOptionsContext } from "components/contexts/AvailableOptionsContext";
 import appAPI from "services/api/app";
@@ -46,8 +46,8 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const resetLayoutContext = useLayoutContext()[1];
   const getLayoutContext = useLayoutContext()[2];
   const name = useLayoutNameContext()[0];
-  const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
-    useAvailableDashboardContext();
+  const [availableDashboards, setAvailableDashboards] =
+    useAvailableDashboardsContext();
   const dashboardPublicUrl =
     getTethysPortalHost() + APP_ROOT_URL + "dashboard/" + name;
   const [selectedOption, setSelectedOption] = useSelectedOptionContext();
@@ -95,9 +95,9 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     // appAPI.updateDashboard(updatedLayoutContext, csrf).then((response) => {
     //   if (response["success"]) {
     //     const name = response["updated_dashboard"]["name"];
-    //     let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
+    //     let OGLayouts = Object.assign({}, availableDashboards);
     //     OGLayouts[name] = response["updated_dashboard"];
-    //     setDashboardLayoutConfigs(OGLayouts);
+    //     setAvailableDashboards(OGLayouts);
     //     setLayoutContext(response["updated_dashboard"]);
     //     setSuccessMessage("Successfully updated sharing status");
     //   } else {
@@ -116,8 +116,8 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
           " dashboard?"
       )
     ) {
-      const newdashboardLayoutConfigs = Object.fromEntries(
-        Object.entries(dashboardLayoutConfigs).filter(
+      const newavailableDashboards = Object.fromEntries(
+        Object.entries(availableDashboards).filter(
           ([key]) => key !== selectedOptionValue
         )
       );
@@ -138,7 +138,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
       appAPI
         .deleteDashboard({ name: selectedOptionValue }, csrf)
         .then((response) => {
-          setDashboardLayoutConfigs(newdashboardLayoutConfigs);
+          setAvailableDashboards(newavailableDashboards);
           setSelectOptions(updatedSelectOptions);
           setSelectedOption(null);
           resetLayoutContext();
