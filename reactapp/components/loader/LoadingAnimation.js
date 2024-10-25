@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import { useState, useEffect } from "react";
 
-import "components/loader/LoadingAnimation.scss";
+// import "components/loader/LoadingAnimation.scss";
 
 const LoadingAnimation = ({ delay }) => {
   const [show, setShow] = useState(false);

@@ -6,20 +6,31 @@ import styled from "styled-components";
 import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/MapVisualization";
 import ModuleLoader from "./ModuleLoader";
-import LoadingAnimation from "components/loader/LoadingAnimation";
-
-const StyledSpinner = styled(LoadingAnimation)`
-  margin: auto;
-  display: block;
-`;
+import StyledLoader from "components/loader/StyledLoader";
 
 const StyledH2 = styled.h2`
   text-align: center;
 `;
 
 export function setVisualization(setViz, itemData) {
-  // setViz(<StyledSpinner animation="border" variant="info" />);
-  setViz(<StyledSpinner/>);
+  setViz(
+    <StyledLoader
+      width="200px"
+      height="200px"
+      centerDiameter="30px"
+      innerArcDiameter="100px"
+      outerArcDiameter="160px"
+      innerMoonDiameter="10px"
+      outerMoonDiameter="15px"
+      innerMoonOrbit="45px"
+      outerMoonOrbit="75px"
+      fontSize="16pt"
+      color="#007bff"
+      innerSpin="12s"
+      outerSpin="10s"
+      borderWidth="3px"
+    />
+  );
 
   appAPI.getPlotData(itemData).then((response) => {
     if (response.success === true) {
