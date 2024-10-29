@@ -76,6 +76,17 @@ def dashboard_data():
 
 
 @pytest.fixture(scope="function")
+def public_dashboard_data():
+    return {
+        "name": "public_dashboard",
+        "label": "public_dashboard",
+        "notes": "some notes",
+        "owner": "public_user",
+        "access_groups": ["public"],
+    }
+
+
+@pytest.fixture(scope="function")
 def grid_item():
     return json.dumps(
         [
@@ -108,6 +119,28 @@ def dashboard(db_session, dashboard_data):
     if (
         db_session.query(Dashboard)
         .filter(Dashboard.name == dashboard_data["name"])
+        .all()
+    ):
+        db_session.refresh(dashboard)
+        db_session.delete(dashboard)
+    db_session.commit()
+
+
+@pytest.fixture(scope="function")
+def public_dashboard(db_session, public_dashboard_data):
+    dashboard = Dashboard(
+        name=public_dashboard_data["name"],
+        label=public_dashboard_data["label"],
+        notes=public_dashboard_data["notes"],
+        owner=public_dashboard_data["owner"],
+        access_groups=public_dashboard_data["access_groups"],
+    )
+    db_session.add(dashboard)
+    db_session.commit()
+    yield dashboard
+    if (
+        db_session.query(Dashboard)
+        .filter(Dashboard.name == public_dashboard_data["name"])
         .all()
     ):
         db_session.refresh(dashboard)
