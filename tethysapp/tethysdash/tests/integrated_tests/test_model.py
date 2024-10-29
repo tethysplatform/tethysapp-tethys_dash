@@ -121,6 +121,7 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
         "tethysapp.tethysdash.model.nh3.clean", wraps=nh3.clean
     )
     dashboard_name = dashboard.name
+    new_dashboard_name = "new_name"
     dashboard_label = dashboard.label
     dashboard_owner = dashboard.owner
 
@@ -153,8 +154,9 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
     updated_notes = "Some new notes"
     updated_access_groups = ["public"]
     update_named_dashboard(
-        dashboard_owner,
         dashboard_name,
+        dashboard_owner,
+        new_dashboard_name,
         dashboard_label,
         updated_notes,
         grid_items,
@@ -162,6 +164,7 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
     )
 
     db_session.refresh(dashboard)
+    assert dashboard.name == new_dashboard_name
     assert dashboard.notes == updated_notes
     assert len(dashboard.grid_items) == 2
     assert dashboard.grid_items[0].args_string == json.dumps({"uri": "some_path"})
@@ -187,6 +190,7 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
         ]
     )
     update_named_dashboard(
+        new_dashboard_name,
         dashboard_owner,
         dashboard_name,
         dashboard_label,
@@ -196,6 +200,7 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
     )
 
     db_session.refresh(dashboard)
+    assert dashboard.name == dashboard_name
     assert len(dashboard.grid_items) == 1
 
     db_session.refresh(dashboard.grid_items[0])
@@ -219,6 +224,7 @@ def test_update_named_dashboard_not_allowed(
         updated_notes = "Some new notes"
         updated_access_groups = ["public"]
         update_named_dashboard(
+            dashboard_name,
             "test_not_valid_user",
             dashboard_name,
             dashboard_label,
@@ -245,6 +251,7 @@ def test_get_dashboards_all(dashboard, db_session, mock_app_get_ps_db, grid_item
     dashboard_access_groups = dashboard.access_groups
 
     update_named_dashboard(
+        dashboard_name,
         dashboard_owner,
         dashboard_name,
         dashboard_label,

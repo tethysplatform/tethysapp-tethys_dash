@@ -118,7 +118,9 @@ def update_dashboard(request):
     user = str(request.user)
 
     try:
-        update_named_dashboard(original_name, user, name, label, notes, grid_items, access_groups)
+        update_named_dashboard(
+            original_name, user, name, label, notes, grid_items, access_groups
+        )
         updated_dashboard = get_dashboards(user, name=name)[name]
         print(f"Successfully updated the dashboard named {name}")
 

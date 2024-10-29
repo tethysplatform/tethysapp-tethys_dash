@@ -223,6 +223,7 @@ def test_delete_dashboard_failed(client, admin_user, mock_app, mocker):
 def test_update_dashboard(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
+        "originalName": "dashboard_name",
         "name": "dashboard_name",
         "label": "label",
         "notes": "notes",
@@ -244,6 +245,7 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_update_dashboard.assert_called_with(
+        itemData["originalName"],
         "admin",
         itemData["name"],
         itemData["label"],
@@ -264,6 +266,7 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
 def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
+        "originalName": "dashboard_name",
         "name": "dashboard_name",
         "label": "label",
         "notes": "notes",
@@ -284,6 +287,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_update_dashboard.assert_called_with(
+        itemData["originalName"],
         "admin",
         itemData["name"],
         itemData["label"],

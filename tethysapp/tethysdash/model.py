@@ -133,13 +133,17 @@ def delete_named_dashboard(user, name):
         session.close()
 
 
-def update_named_dashboard(original_name, user, name, label, notes, grid_items, access_groups):
+def update_named_dashboard(
+    original_name, user, name, label, notes, grid_items, access_groups
+):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
-        db_dashboard = session.query(Dashboard).filter(Dashboard.name == original_name).first()
+        db_dashboard = (
+            session.query(Dashboard).filter(Dashboard.name == original_name).first()
+        )
         if db_dashboard.owner != user:
             raise Exception("Dashboards can only be updated by their owner")
 
