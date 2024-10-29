@@ -223,6 +223,7 @@ def test_delete_dashboard_failed(client, admin_user, mock_app, mocker):
 def test_update_dashboard(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
+        "originalName": "dashboard_name",
         "name": "dashboard_name",
         "label": "label",
         "notes": "notes",
@@ -244,6 +245,7 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_update_dashboard.assert_called_with(
+        itemData["originalName"],
         "admin",
         itemData["name"],
         itemData["label"],
@@ -264,6 +266,7 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
 def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
+        "originalName": "dashboard_name",
         "name": "dashboard_name",
         "label": "label",
         "notes": "notes",
@@ -284,6 +287,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_update_dashboard.assert_called_with(
+        itemData["originalName"],
         "admin",
         itemData["name"],
         itemData["label"],
@@ -293,3 +297,47 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
+    assert response.json()["message"] == "failed to update"
+
+
+@pytest.mark.django_db
+def test_update_dashboard_failed_unknown_exception(
+    client, admin_user, mock_app, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    itemData = {
+        "originalName": "dashboard_name",
+        "name": "dashboard_name",
+        "label": "label",
+        "notes": "notes",
+        "gridItems": [],
+        "access_groups": [],
+    }
+
+    url = reverse("tethysdash:update_dashboard")
+    client.force_login(admin_user)
+    mock_update_dashboard = mocker.patch(
+        "tethysapp.tethysdash.controllers.update_named_dashboard"
+    )
+    mock_get_dashboards = mocker.patch(
+        "tethysapp.tethysdash.controllers.get_dashboards"
+    )
+    mock_get_dashboards.side_effect = [Exception()]
+
+    response = client.generic("POST", url, json.dumps(itemData))
+
+    mock_update_dashboard.assert_called_with(
+        itemData["originalName"],
+        "admin",
+        itemData["name"],
+        itemData["label"],
+        itemData["notes"],
+        itemData["gridItems"],
+        itemData["access_groups"],
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert (
+        response.json()["message"]
+        == f"Failed to update the dashboard named {itemData["name"]}. Check server for logs."  # noqa: E501
+    )

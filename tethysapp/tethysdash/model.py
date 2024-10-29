@@ -121,9 +121,16 @@ def delete_named_dashboard(user, name):
     session = Session()
 
     try:
-        db_dashboard = session.query(Dashboard).filter(Dashboard.name == name).first()
-        if db_dashboard.owner != user:
-            raise Exception("Dashboards can only be deleted by their owner")
+        db_dashboard = (
+            session.query(Dashboard)
+            .filter(Dashboard.owner == user)
+            .filter(Dashboard.name == name)
+            .first()
+        )
+        if not db_dashboard:
+            raise Exception(
+                f"A dashboard with the name {name} does not exist for this user"
+            )
 
         session.delete(db_dashboard)
 
@@ -133,16 +140,43 @@ def delete_named_dashboard(user, name):
         session.close()
 
 
-def update_named_dashboard(user, name, label, notes, grid_items, access_groups):
+def update_named_dashboard(
+    original_name, user, name, label, notes, grid_items, access_groups
+):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
-        db_dashboard = session.query(Dashboard).filter(Dashboard.name == name).first()
-        if db_dashboard.owner != user:
-            raise Exception("Dashboards can only be updated by their owner")
+        db_dashboard = (
+            session.query(Dashboard)
+            .filter(Dashboard.owner == user)
+            .filter(Dashboard.name == original_name)
+            .first()
+        )
+        if not db_dashboard:
+            raise Exception(
+                f"A dashboard with the name {original_name} does not exist for this user"  # noqa: E501
+            )
 
+        if "public" in access_groups:
+            public_dashboards = (
+                session.query(Dashboard)
+                .filter(Dashboard.access_groups.any("public"))
+                .all()
+            )
+            public_names = [dashboard.name for dashboard in public_dashboards]
+            if name in public_names:
+                raise Exception(
+                    f"A dashboard with the name {name} is already public. Change the name before attempting again."  # noqa: E501
+                )
+            public_labels = [dashboard.name for dashboard in public_dashboards]
+            if label in public_labels:
+                raise Exception(
+                    f"A dashboard with the label {label} is already public. Change the label before attempting again."  # noqa: E501
+                )
+
+        db_dashboard.name = name
         db_dashboard.label = label
         db_dashboard.notes = notes
         grid_items = (

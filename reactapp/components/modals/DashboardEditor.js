@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import {
   useLayoutContext,
   useLayoutNameContext,
+  useLayoutLabelContext,
   useLayoutNotesContext,
   useLayoutEditableContext,
 } from "components/contexts/SelectedDashboardContext";
@@ -16,6 +17,8 @@ import { useAvailableDashboardsContext } from "components/contexts/AvailableDash
 import PropTypes from "prop-types";
 import TextEditor from "components/inputs/TextEditor";
 import { useEditingContext } from "components/contexts/EditingContext";
+import DataInput from "components/inputs/DataInput";
+import Text from "components/visualizations/Text";
 
 const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
 
@@ -46,6 +49,9 @@ const StyledFooter = styled.footer`
 const TextEditorDiv = styled.div`
   height: 60%;
 `;
+const TextDiv = styled.div`
+  border: #dcdcdc solid 1px;
+`;
 
 function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const handleClose = () => setShowCanvas(false);
@@ -55,11 +61,14 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
   const getLayoutContext = useLayoutContext()[2];
   const name = useLayoutNameContext()[0];
+  const label = useLayoutLabelContext()[0];
   const [deleteDashboard, updateDashboard] =
     useAvailableDashboardsContext().slice(3, 5);
   const notes = useLayoutNotesContext()[0];
   const editable = useLayoutEditableContext();
   const [localNotes, setLocalNotes] = useState(notes);
+  const [localName, setLocalName] = useState(name);
+  const [localLabel, setLocalLabel] = useState(label);
   const dashboardPublicUrl =
     getTethysPortalHost() + APP_ROOT_URL + "dashboard/" + name;
   const setIsEditing = useEditingContext()[1];
@@ -99,14 +108,20 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     const newProperties = {
       access_groups: selectedSharingStatus === "public" ? ["public"] : [],
       notes: localNotes,
+      name: localName,
+      label: localLabel,
     };
-    updateDashboard(newProperties).then((success) => {
-      if (success) {
+    updateDashboard(newProperties).then((response) => {
+      if (response["success"]) {
         setSuccessMessage("Successfully updated dashboard settings");
       } else {
-        setErrorMessage(
-          "Failed to update dashboard settings. Check server logs."
-        );
+        if ("message" in response) {
+          setErrorMessage(response["message"]);
+        } else {
+          setErrorMessage(
+            "Failed to update dashboard settings. Check server logs."
+          );
+        }
       }
     });
   }
@@ -144,13 +159,36 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
             {successMessage}
           </Alert>
         )}
-        {editable && (
-          <DataRadioSelect
-            label={"Sharing Status"}
-            selectedRadio={selectedSharingStatus}
-            radioOptions={sharingStatusOptions}
-            onChange={onSharingChange}
-          />
+        {editable ? (
+          <>
+            <DataInput
+              objValue={{ label: "Name", type: "text", value: localName }}
+              onChange={(e) => {
+                setLocalName(e);
+              }}
+            />
+            <DataInput
+              objValue={{ label: "Label", type: "text", value: localLabel }}
+              onChange={(e) => {
+                setLocalLabel(e);
+              }}
+            />
+            <DataRadioSelect
+              label={"Sharing Status"}
+              selectedRadio={selectedSharingStatus}
+              radioOptions={sharingStatusOptions}
+              onChange={onSharingChange}
+            />
+          </>
+        ) : (
+          <>
+            <b>Name:</b>
+            <br></br>
+            <p>{name}</p>
+            <b>Label:</b>
+            <br></br>
+            <p>{label}</p>
+          </>
         )}
         {selectedSharingStatus === "public" && (
           <>
@@ -173,7 +211,9 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
           {editable ? (
             <TextEditor textValue={localNotes} onChange={onNotesChange} />
           ) : (
-            localNotes
+            <TextDiv>
+              <Text textValue={localNotes} />
+            </TextDiv>
           )}
         </TextEditorDiv>
       </Offcanvas.Body>

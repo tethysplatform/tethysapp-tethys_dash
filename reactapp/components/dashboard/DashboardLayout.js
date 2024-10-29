@@ -130,8 +130,8 @@ function DashboardLayout() {
     setShowErrorMessage(false);
 
     if (isEditing) {
-      updateDashboard({}).then((success) => {
-        if (success) {
+      updateDashboard({}).then((response) => {
+        if (response["success"]) {
           setSuccessMessage("Change have been saved.");
           setShowSuccessMessage(true);
           setIsEditing(false);
