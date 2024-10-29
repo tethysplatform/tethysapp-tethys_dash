@@ -68,6 +68,17 @@ const AvailableDashboardsContextProvider = ({ children }) => {
     // eslint-disable-next-line
   }, []);
 
+  function addOptionFromDashboardDropdownOptions(
+    options,
+    optionName,
+    optionLabel
+  ) {
+    const userOptions = options.find(({ label }) => label === "User");
+    const userOptionsIndex = options.indexOf(userOptions);
+    userOptions["options"].push({ value: optionName, label: optionLabel });
+    return options.toSpliced(userOptionsIndex, 1, userOptions);
+  }
+
   async function addDashboard(dashboardName) {
     let response = { success: false };
 
@@ -89,15 +100,10 @@ const AvailableDashboardsContextProvider = ({ children }) => {
       let OGLayouts = Object.assign({}, availableDashboards);
       OGLayouts[name] = apiResponse["new_dashboard"];
       setAvailableDashboards(OGLayouts);
-      const userOptions = dashboardDropdownOptions.find(
-        ({ label }) => label === "User"
-      );
-      const userOptionsIndex = dashboardDropdownOptions.indexOf(userOptions);
-      userOptions["options"].push({ value: name, label: label });
-      const updatedSelectOptions = dashboardDropdownOptions.toSpliced(
-        userOptionsIndex,
-        1,
-        userOptions
+      const updatedSelectOptions = addOptionFromDashboardDropdownOptions(
+        dashboardDropdownOptions,
+        name,
+        label
       );
       setDashboardDropdownOptions(updatedSelectOptions);
       setLayoutContext(apiResponse["new_dashboard"]);
@@ -107,6 +113,22 @@ const AvailableDashboardsContextProvider = ({ children }) => {
       response["message"] = "Failed to add dashboard. Check server logs.";
     }
     return response;
+  }
+
+  function deleteOptionFromDashboardDropdownOptions(options, optionName) {
+    const userOptions = options.find(({ label }) => label === "User");
+    const userOptionsIndex = options.indexOf(userOptions);
+    const deletedOptionIndex = userOptions["options"].findIndex(
+      (x) => x.value === optionName
+    );
+    const updatedUserOptions = userOptions["options"].toSpliced(
+      deletedOptionIndex,
+      1
+    );
+    return options.toSpliced(userOptionsIndex, 1, {
+      label: "User",
+      options: updatedUserOptions,
+    });
   }
 
   async function deleteDashboard() {
@@ -119,32 +141,20 @@ const AvailableDashboardsContextProvider = ({ children }) => {
           " dashboard?"
       )
     ) {
-      const newavailableDashboards = Object.fromEntries(
-        Object.entries(availableDashboards).filter(
-          ([key]) => key !== selectedOptionValue
-        )
-      );
-      const userOptions = dashboardDropdownOptions.find(
-        ({ label }) => label === "User"
-      );
-      const userOptionsIndex = dashboardDropdownOptions.indexOf(userOptions);
-      const deletedOptionIndex = userOptions["options"].findIndex(
-        (x) => x.value === selectedOptionValue
-      );
-      const updatedUserOptions = userOptions["options"].toSpliced(
-        deletedOptionIndex,
-        1
-      );
-      const updatedSelectOptions = dashboardDropdownOptions.toSpliced(
-        userOptionsIndex,
-        1,
-        { label: "User", options: updatedUserOptions }
-      );
       const apiResponse = await appAPI.deleteDashboard(
         { name: selectedOptionValue },
         csrf
       );
       if (apiResponse["success"]) {
+        const newavailableDashboards = Object.fromEntries(
+          Object.entries(availableDashboards).filter(
+            ([key]) => key !== selectedOptionValue
+          )
+        );
+        const updatedSelectOptions = deleteOptionFromDashboardDropdownOptions(
+          dashboardDropdownOptions,
+          selectedOptionValue
+        );
         setAvailableDashboards(newavailableDashboards);
         setDashboardDropdownOptions(updatedSelectOptions);
         setSelectedDashboardDropdownOption(null);
@@ -159,19 +169,62 @@ const AvailableDashboardsContextProvider = ({ children }) => {
   }
 
   async function updateDashboard(updatedProperties) {
+    let response = { success: false };
+    const originalName = getLayoutContext()["name"];
+    const originalLabel = getLayoutContext()["label"];
+    const newName = updatedProperties["name"];
+    const newLabel = updatedProperties["label"];
+
+    if (newName && originalName !== newName) {
+      if (newName in availableDashboards) {
+        response["message"] =
+          "Dashboard with the name " + newName + " already exists.";
+        return response;
+      }
+    }
+
+    if (newLabel && originalLabel !== newLabel) {
+      const allLabels = Object.values(availableDashboards).map((a) => a.label);
+      if (allLabels.includes(newLabel)) {
+        response["message"] =
+          "Dashboard with the label " + newLabel + " already exists.";
+        return response;
+      }
+    }
+
+    updatedProperties["originalName"] = originalName;
     const updatedLayoutContext = {
       ...getLayoutContext(),
       ...updatedProperties,
     };
-    const response = await appAPI.updateDashboard(updatedLayoutContext, csrf);
-    if (response["success"]) {
-      const name = response["updated_dashboard"]["name"];
-      let OGLayouts = Object.assign({}, availableDashboards);
-      OGLayouts[name] = response["updated_dashboard"];
-      setAvailableDashboards(OGLayouts);
-      setLayoutContext(response["updated_dashboard"]);
+    const apiResponse = await appAPI.updateDashboard(
+      updatedLayoutContext,
+      csrf
+    );
+    if (apiResponse["success"]) {
+      const name = apiResponse["updated_dashboard"]["name"];
+      const label = apiResponse["updated_dashboard"]["label"];
+      let newavailableDashboards = Object.assign({}, availableDashboards);
+      newavailableDashboards[name] = apiResponse["updated_dashboard"];
+      if (originalName !== name || originalLabel !== label) {
+        delete newavailableDashboards[originalName];
+        let updatedSelectOptions = deleteOptionFromDashboardDropdownOptions(
+          dashboardDropdownOptions,
+          originalName
+        );
+        updatedSelectOptions = addOptionFromDashboardDropdownOptions(
+          updatedSelectOptions,
+          name,
+          label
+        );
+        setDashboardDropdownOptions(updatedSelectOptions);
+      }
+      setSelectedDashboardDropdownOption({ value: name, label: label });
+      setAvailableDashboards(newavailableDashboards);
+      setLayoutContext(apiResponse["updated_dashboard"]);
+      response["success"] = true;
     }
-    return response["success"];
+    return response;
   }
 
   return (

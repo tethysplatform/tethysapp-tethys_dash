@@ -109,6 +109,7 @@ def delete_dashboard(request):
 def update_dashboard(request):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
+    original_name = dashboard_metadata["originalName"]
     name = dashboard_metadata["name"]
     label = dashboard_metadata["label"]
     notes = dashboard_metadata["notes"]
@@ -117,7 +118,7 @@ def update_dashboard(request):
     user = str(request.user)
 
     try:
-        update_named_dashboard(user, name, label, notes, grid_items, access_groups)
+        update_named_dashboard(original_name, user, name, label, notes, grid_items, access_groups)
         updated_dashboard = get_dashboards(user, name=name)[name]
         print(f"Successfully updated the dashboard named {name}")
 
