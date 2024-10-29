@@ -222,9 +222,8 @@ const AvailableDashboardsContextProvider = ({ children }) => {
       setSelectedDashboardDropdownOption({ value: name, label: label });
       setAvailableDashboards(newavailableDashboards);
       setLayoutContext(apiResponse["updated_dashboard"]);
-      response["success"] = true;
     }
-    return response;
+    return apiResponse;
   }
 
   return (
