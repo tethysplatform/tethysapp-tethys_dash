@@ -19,12 +19,13 @@ import TextEditor from "components/inputs/TextEditor";
 import { useEditingContext } from "components/contexts/EditingContext";
 import DataInput from "components/inputs/DataInput";
 import Text from "components/visualizations/Text";
+import { confirm } from "components/dashboard/DeleteConfirmation";
 
 const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
 
 const StyledOffcanvas = styled(Offcanvas)`
   height: 100vh;
-  width: 25%;
+  width: 33%;
 `;
 const StyledDiv = styled.div`
   display: inline-block;
@@ -40,9 +41,13 @@ const StyledHeader = styled(Offcanvas.Header)`
 const StyledTitle = styled(Offcanvas.Title)`
   margin: auto;
 `;
+const StyledButton = styled(Button)`
+  margin: 0.25rem;
+`;
 const StyledFooter = styled.footer`
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
   padding: 15px;
   border-top: 1px solid #ccc;
 `;
@@ -62,8 +67,8 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const getLayoutContext = useLayoutContext()[2];
   const name = useLayoutNameContext()[0];
   const label = useLayoutLabelContext()[0];
-  const [deleteDashboard, updateDashboard] =
-    useAvailableDashboardsContext().slice(3, 5);
+  const [addDashboard, deleteDashboard, updateDashboard] =
+    useAvailableDashboardsContext().slice(2, 5);
   const notes = useLayoutNotesContext()[0];
   const editable = useLayoutEditableContext();
   const [localNotes, setLocalNotes] = useState(notes);
@@ -92,7 +97,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     setSelectedSharingStatus(e.target.value);
   }
 
-  const handleCopyClick = async () => {
+  const handleCopyURLClick = async () => {
     try {
       await window.navigator.clipboard.writeText(dashboardPublicUrl);
       setCopyClipboardSuccess(true);
@@ -101,8 +106,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     }
   };
 
-  function handleSubmit(event) {
-    event.preventDefault();
+  function onSave(e) {
     setSuccessMessage("");
     setErrorMessage("");
     const newProperties = {
@@ -127,6 +131,8 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   }
 
   async function onDelete(e) {
+    setSuccessMessage("");
+    setErrorMessage("");
     deleteDashboard().then((response) => {
       if (response["success"]) {
         setIsEditing(false);
@@ -137,6 +143,32 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
         }
       }
     });
+  }
+
+  async function onCopy(e) {
+    setSuccessMessage("");
+    setErrorMessage("");
+    if (
+      await confirm(
+        "Are your sure you want to copy the " + name + " dashboard?"
+      )
+    ) {
+      const newName = name + " Copy";
+      addDashboard(newName).then((response) => {
+        if (response["success"]) {
+          const newDashboard = response["new_dashboard"];
+          setLocalName(newDashboard.name);
+          setLocalLabel(newDashboard.label);
+          setSuccessMessage("Successfully copied dashboard");
+        } else {
+          if ("message" in response) {
+            setErrorMessage(response["message"]);
+          } else {
+            setErrorMessage("Failed to copy dashboard. Check server logs.");
+          }
+        }
+      });
+    }
   }
 
   function onNotesChange({ target: { value } }) {
@@ -150,12 +182,22 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
       </StyledHeader>
       <Offcanvas.Body>
         {errorMessage && (
-          <Alert key="danger" variant="danger" dismissible={true}>
+          <Alert
+            key="danger"
+            variant="danger"
+            onClose={() => setErrorMessage("")}
+            dismissible={true}
+          >
             {errorMessage}
           </Alert>
         )}
         {successMessage && (
-          <Alert key="success" variant="success" dismissible={true}>
+          <Alert
+            key="success"
+            variant="success"
+            onClose={() => setSuccessMessage("")}
+            dismissible={true}
+          >
             {successMessage}
           </Alert>
         )}
@@ -200,7 +242,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
             <StyledDiv>
               <ClipboardCopyButton
                 success={copyClipboardSuccess}
-                onClick={handleCopyClick}
+                onClick={handleCopyURLClick}
               />
             </StyledDiv>
           </>
@@ -218,17 +260,20 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
         </TextEditorDiv>
       </Offcanvas.Body>
       <StyledFooter>
-        <Button variant="secondary" onClick={handleClose}>
+        <StyledButton variant="secondary" onClick={handleClose}>
           Close
-        </Button>
+        </StyledButton>
+        <StyledButton variant="info" onClick={onCopy}>
+          Copy dashboard
+        </StyledButton>
         {editable && (
           <>
-            <Button variant="danger" onClick={onDelete}>
+            <StyledButton variant="danger" onClick={onDelete}>
               Delete dashboard
-            </Button>
-            <Button variant="success" onClick={handleSubmit}>
+            </StyledButton>
+            <StyledButton variant="success" onClick={onSave}>
               Save changes
-            </Button>
+            </StyledButton>
           </>
         )}
       </StyledFooter>

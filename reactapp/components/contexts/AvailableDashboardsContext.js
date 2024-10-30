@@ -84,7 +84,7 @@ const AvailableDashboardsContextProvider = ({ children }) => {
 
     let name = dashboardName.replace(" ", "_").toLowerCase();
     let label = dashboardName;
-    if (dashboardName in availableDashboards) {
+    if (name in availableDashboards) {
       response["message"] =
         "Dashboard with the name " + dashboardName + " already exists.";
       return response;
@@ -97,8 +97,9 @@ const AvailableDashboardsContextProvider = ({ children }) => {
     };
     const apiResponse = await appAPI.addDashboard(inputData, csrf);
     if (apiResponse["success"]) {
+      const newDashboard = apiResponse["new_dashboard"];
       let OGLayouts = Object.assign({}, availableDashboards);
-      OGLayouts[name] = apiResponse["new_dashboard"];
+      OGLayouts[name] = newDashboard;
       setAvailableDashboards(OGLayouts);
       const updatedSelectOptions = addOptionFromDashboardDropdownOptions(
         dashboardDropdownOptions,
@@ -106,13 +107,13 @@ const AvailableDashboardsContextProvider = ({ children }) => {
         label
       );
       setDashboardDropdownOptions(updatedSelectOptions);
-      setLayoutContext(apiResponse["new_dashboard"]);
-      setSelectedDashboardDropdownOption({ value: name, label: label });
-      response["success"] = true;
-    } else {
-      response["message"] = "Failed to add dashboard. Check server logs.";
+      setLayoutContext(newDashboard);
+      setSelectedDashboardDropdownOption({
+        value: newDashboard.name,
+        label: newDashboard.label,
+      });
     }
-    return response;
+    return apiResponse;
   }
 
   function deleteOptionFromDashboardDropdownOptions(options, optionName) {
@@ -160,7 +161,7 @@ const AvailableDashboardsContextProvider = ({ children }) => {
         setSelectedDashboardDropdownOption(null);
         resetLayoutContext();
       }
-      return { success: apiResponse["success"] };
+      return apiResponse;
     } else {
       return {
         confirmExit: true,
