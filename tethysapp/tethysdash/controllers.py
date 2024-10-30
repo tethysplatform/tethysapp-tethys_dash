@@ -78,6 +78,7 @@ def add_dashboard(request):
 
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})
     except Exception as e:
+        print(e)
         try:
             message = e.args[0]
         except Exception:
@@ -102,6 +103,7 @@ def delete_dashboard(request):
 
         return JsonResponse({"success": True})
     except Exception as e:
+        print(e)
         try:
             message = e.args[0]
         except Exception:
@@ -134,6 +136,7 @@ def update_dashboard(request):
 
         return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
     except Exception as e:
+        print(e)
         try:
             message = e.args[0]
         except Exception:
