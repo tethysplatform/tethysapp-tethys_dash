@@ -66,13 +66,14 @@ def add_dashboard(request):
     dashboard_metadata = json.loads(request.body)
     name = dashboard_metadata["name"]
     label = dashboard_metadata["label"]
-    notes = dashboard_metadata["notes"]
+    notes = dashboard_metadata.get("notes", "")
+    access_groups = dashboard_metadata.get("access_groups", [])
+    grid_items = dashboard_metadata.get("gridItems", [])
     owner = str(request.user)
-    access_groups = []
     print(f"Creating a dashboard named {label}")
 
     try:
-        add_new_dashboard(label, name, notes, owner, access_groups)
+        add_new_dashboard(label, name, notes, owner, access_groups, grid_items)
         new_dashboard = get_dashboards(owner, name=name)[name]
         print(f"Successfully created the dashboard named {name}")
 
@@ -120,6 +121,8 @@ def update_dashboard(request):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
     original_name = dashboard_metadata["originalName"]
+    original_label = dashboard_metadata["originalLabel"]
+    original_access_groups = dashboard_metadata["originalAccessGroups"]
     name = dashboard_metadata["name"]
     label = dashboard_metadata["label"]
     notes = dashboard_metadata["notes"]
@@ -129,7 +132,15 @@ def update_dashboard(request):
 
     try:
         update_named_dashboard(
-            original_name, user, name, label, notes, grid_items, access_groups
+            original_name,
+            original_label,
+            original_access_groups,
+            user,
+            name,
+            label,
+            notes,
+            grid_items,
+            access_groups,
         )
         updated_dashboard = get_dashboards(user, name=name)[name]
         print(f"Successfully updated the dashboard named {name}")

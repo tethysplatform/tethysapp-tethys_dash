@@ -79,32 +79,33 @@ const AvailableDashboardsContextProvider = ({ children }) => {
     return options.toSpliced(userOptionsIndex, 1, userOptions);
   }
 
-  async function addDashboard(dashboardName) {
-    let response = { success: false };
+  async function copyCurrentDashboard() {
+    const dashboardName = getLayoutContext()["name"] + "_copy";
+    const dashboardLabel = getLayoutContext()["label"] + " Copy";
 
-    let name = dashboardName.replace(" ", "_").toLowerCase();
-    let label = dashboardName;
-    if (name in availableDashboards) {
-      response["message"] =
-        "Dashboard with the name " + dashboardName + " already exists.";
-      return response;
-    }
-
-    const inputData = {
-      name: name,
-      label: label,
-      notes: "",
+    const newDashboardData = {
+      name: dashboardName,
+      label: dashboardLabel,
     };
-    const apiResponse = await appAPI.addDashboard(inputData, csrf);
+    const copiedLayoutContext = {
+      ...getLayoutContext(),
+      ...newDashboardData,
+    };
+    const apiResponse = await addDashboard(copiedLayoutContext);
+    return apiResponse;
+  }
+
+  async function addDashboard(dashboardContext) {
+    const apiResponse = await appAPI.addDashboard(dashboardContext, csrf);
     if (apiResponse["success"]) {
       const newDashboard = apiResponse["new_dashboard"];
       let OGLayouts = Object.assign({}, availableDashboards);
-      OGLayouts[name] = newDashboard;
+      OGLayouts[newDashboard.name] = newDashboard;
       setAvailableDashboards(OGLayouts);
       const updatedSelectOptions = addOptionFromDashboardDropdownOptions(
         dashboardDropdownOptions,
-        name,
-        label
+        newDashboard.name,
+        newDashboard.label
       );
       setDashboardDropdownOptions(updatedSelectOptions);
       setLayoutContext(newDashboard);
@@ -170,30 +171,13 @@ const AvailableDashboardsContextProvider = ({ children }) => {
   }
 
   async function updateDashboard(updatedProperties) {
-    let response = { success: false };
     const originalName = getLayoutContext()["name"];
     const originalLabel = getLayoutContext()["label"];
-    const newName = updatedProperties["name"];
-    const newLabel = updatedProperties["label"];
-
-    if (newName && originalName !== newName) {
-      if (newName in availableDashboards) {
-        response["message"] =
-          "Dashboard with the name " + newName + " already exists.";
-        return response;
-      }
-    }
-
-    if (newLabel && originalLabel !== newLabel) {
-      const allLabels = Object.values(availableDashboards).map((a) => a.label);
-      if (allLabels.includes(newLabel)) {
-        response["message"] =
-          "Dashboard with the label " + newLabel + " already exists.";
-        return response;
-      }
-    }
+    const originalAccessGroups = getLayoutContext()["access_groups"];
 
     updatedProperties["originalName"] = originalName;
+    updatedProperties["originalLabel"] = originalLabel;
+    updatedProperties["originalAccessGroups"] = originalAccessGroups;
     const updatedLayoutContext = {
       ...getLayoutContext(),
       ...updatedProperties,
@@ -235,6 +219,7 @@ const AvailableDashboardsContextProvider = ({ children }) => {
         addDashboard,
         deleteDashboard,
         updateDashboard,
+        copyCurrentDashboard,
       ]}
     >
       <DashboardDropwdownContext.Provider
