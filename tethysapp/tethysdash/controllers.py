@@ -78,10 +78,14 @@ def add_dashboard(request):
 
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})
     except Exception as e:
-        print(f"Failed to create the dashboard named {name}")
-        print(e)
+        try:
+            message = e.args[0]
+        except Exception:
+            message = (
+                f"Failed to create the dashboard named {name}. Check server for logs."
+            )
 
-        return JsonResponse({"success": False})
+        return JsonResponse({"success": False, "message": message})
 
 
 @api_view(["POST"])
@@ -98,10 +102,14 @@ def delete_dashboard(request):
 
         return JsonResponse({"success": True})
     except Exception as e:
-        print(f"Failed to delete the dashboard named {name}")
-        print(e)
+        try:
+            message = e.args[0]
+        except Exception:
+            message = (
+                f"Failed to delete the dashboard named {name}. Check server for logs."
+            )
 
-        return JsonResponse({"success": False})
+        return JsonResponse({"success": False, "message": message})
 
 
 @api_view(["POST"])
@@ -126,7 +134,6 @@ def update_dashboard(request):
 
         return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
     except Exception as e:
-        print(e)
         try:
             message = e.args[0]
         except Exception:
