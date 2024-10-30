@@ -47,12 +47,17 @@ class GridItem(Base):
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
-def add_new_dashboard(label, name, notes, owner, access_groups):
+def add_new_dashboard(label, name, notes, owner, access_groups, grid_items):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
+        check_existing_user_dashboard_names(session, owner, name)
+        check_existing_user_dashboard_labels(session, owner, label)
+        if "public" in access_groups:
+            check_existing_public_dashboards(session, name, label)
+
         new_dashboard = Dashboard(
             label=label,
             name=name,
@@ -65,7 +70,34 @@ def add_new_dashboard(label, name, notes, owner, access_groups):
         session.commit()
         session.refresh(new_dashboard)
 
-        add_new_grid_item(session, new_dashboard.id, "1", 0, 0, 20, 20, "", "{}", 0)
+        if grid_items:
+            for grid_item in grid_items:
+                grid_item_i = grid_item["i"]
+                grid_item_x = int(grid_item["x"])
+                grid_item_y = int(grid_item["y"])
+                grid_item_w = int(grid_item["w"])
+                grid_item_h = int(grid_item["h"])
+                grid_item_source = grid_item["source"]
+                grid_item_args_string = grid_item["args_string"]
+                grid_item_refresh_rate = grid_item["refresh_rate"]
+                if grid_item_source == "Text":
+                    clean_text = nh3.clean(json.loads(grid_item_args_string)["text"])
+                    grid_item_args_string = json.dumps({"text": clean_text})
+
+                add_new_grid_item(
+                    session,
+                    new_dashboard.id,
+                    grid_item_i,
+                    grid_item_x,
+                    grid_item_y,
+                    grid_item_w,
+                    grid_item_h,
+                    grid_item_source,
+                    grid_item_args_string,
+                    grid_item_refresh_rate,
+                )
+        else:
+            add_new_grid_item(session, new_dashboard.id, "1", 0, 0, 20, 20, "", "{}", 0)
 
         # Commit the session and close the connection
         session.commit()
@@ -141,7 +173,15 @@ def delete_named_dashboard(user, name):
 
 
 def update_named_dashboard(
-    original_name, user, name, label, notes, grid_items, access_groups
+    original_name,
+    original_label,
+    original_access_groups,
+    user,
+    name,
+    label,
+    notes,
+    grid_items,
+    access_groups,
 ):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
@@ -159,22 +199,14 @@ def update_named_dashboard(
                 f"A dashboard with the name {original_name} does not exist for this user"  # noqa: E501
             )
 
-        if "public" in access_groups:
-            public_dashboards = (
-                session.query(Dashboard)
-                .filter(Dashboard.access_groups.any("public"))
-                .all()
-            )
-            public_names = [dashboard.name for dashboard in public_dashboards]
-            if name in public_names:
-                raise Exception(
-                    f"A dashboard with the name {name} is already public. Change the name before attempting again."  # noqa: E501
-                )
-            public_labels = [dashboard.name for dashboard in public_dashboards]
-            if label in public_labels:
-                raise Exception(
-                    f"A dashboard with the label {label} is already public. Change the label before attempting again."  # noqa: E501
-                )
+        if original_name != name:
+            check_existing_user_dashboard_names(session, user, name)
+
+        if original_label != label:
+            check_existing_user_dashboard_labels(session, user, label)
+
+        if "public" in access_groups and original_access_groups != access_groups:
+            check_existing_public_dashboards(session, name, label)
 
         db_dashboard.name = name
         db_dashboard.label = label
@@ -300,6 +332,40 @@ def get_dashboards(user, name=None):
         session.close()
 
     return dashboard_dict
+
+
+def check_existing_user_dashboard_names(session, user, dashboard_name):
+    user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user).all()
+    user_dashboard_names = [dashboard.name for dashboard in user_dashboards]
+    if dashboard_name in user_dashboard_names:
+        raise Exception(
+            f"A dashboard with the name {dashboard_name} already exists. Change the name before attempting again."  # noqa: E501
+        )
+
+
+def check_existing_user_dashboard_labels(session, user, dashboard_label):
+    user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user).all()
+    user_dashboard_labels = [dashboard.label for dashboard in user_dashboards]
+    if dashboard_label in user_dashboard_labels:
+        raise Exception(
+            f"A dashboard with the label {dashboard_label} already exists. Change the label before attempting again."  # noqa: E501
+        )
+
+
+def check_existing_public_dashboards(session, dashboard_name, dashboard_label):
+    public_dashboards = (
+        session.query(Dashboard).filter(Dashboard.access_groups.any("public")).all()
+    )
+    public_dashboard_names = [dashboard.name for dashboard in public_dashboards]
+    if dashboard_name in public_dashboard_names:
+        raise Exception(
+            f"A dashboard with the name {dashboard_name} is already public. Change the name before attempting again."  # noqa: E501
+        )
+    public_dashboard_labels = [dashboard.name for dashboard in public_dashboards]
+    if dashboard_label in public_dashboard_labels:
+        raise Exception(
+            f"A dashboard with the label {dashboard_label} is already public. Change the label before attempting again."  # noqa: E501
+        )
 
 
 def init_primary_db(engine, first_time):

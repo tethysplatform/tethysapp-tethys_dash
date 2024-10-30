@@ -25,7 +25,13 @@ function NewDashboardModal() {
     event.preventDefault();
     setErrorMessage("");
     setHasError(false);
-    addDashboard(dashboardName).then((response) => {
+    let name = dashboardName.replace(" ", "_").toLowerCase();
+    let label = dashboardName;
+    const inputData = {
+      name: name,
+      label: label,
+    };
+    addDashboard(inputData).then((response) => {
       if (response["success"]) {
         setShowModal(false);
         setShowSaveMessage(true);

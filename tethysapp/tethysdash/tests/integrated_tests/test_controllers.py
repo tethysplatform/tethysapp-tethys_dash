@@ -135,11 +135,7 @@ def test_add_dashboard(client, admin_user, mock_app, mocker):
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_add_new_dashboard.assert_called_with(
-        itemData["label"],
-        itemData["name"],
-        itemData["notes"],
-        "admin",
-        [],
+        itemData["label"], itemData["name"], itemData["notes"], "admin", [], []
     )
     mock_get_dashboards.assert_called_with("admin", name=itemData["name"])
     assert response.status_code == 200
@@ -168,11 +164,7 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker):
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_add_new_dashboard.assert_called_with(
-        itemData["label"],
-        itemData["name"],
-        itemData["notes"],
-        "admin",
-        [],
+        itemData["label"], itemData["name"], itemData["notes"], "admin", [], []
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
@@ -198,11 +190,7 @@ def test_add_dashboard_failed_unknown_exception(client, admin_user, mock_app, mo
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_add_new_dashboard.assert_called_with(
-        itemData["label"],
-        itemData["name"],
-        itemData["notes"],
-        "admin",
-        [],
+        itemData["label"], itemData["name"], itemData["notes"], "admin", [], []
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
@@ -286,6 +274,8 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
         "originalName": "dashboard_name",
+        "originalLabel": "label",
+        "originalAccessGroups": [],
         "name": "dashboard_name",
         "label": "label",
         "notes": "notes",
@@ -308,6 +298,8 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
 
     mock_update_dashboard.assert_called_with(
         itemData["originalName"],
+        itemData["originalLabel"],
+        itemData["originalAccessGroups"],
         "admin",
         itemData["name"],
         itemData["label"],
@@ -329,6 +321,8 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
         "originalName": "dashboard_name",
+        "originalLabel": "label",
+        "originalAccessGroups": [],
         "name": "dashboard_name",
         "label": "label",
         "notes": "notes",
@@ -350,6 +344,8 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
 
     mock_update_dashboard.assert_called_with(
         itemData["originalName"],
+        itemData["originalLabel"],
+        itemData["originalAccessGroups"],
         "admin",
         itemData["name"],
         itemData["label"],
@@ -369,6 +365,8 @@ def test_update_dashboard_failed_unknown_exception(
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
         "originalName": "dashboard_name",
+        "originalLabel": "label",
+        "originalAccessGroups": [],
         "name": "dashboard_name",
         "label": "label",
         "notes": "notes",
@@ -390,6 +388,8 @@ def test_update_dashboard_failed_unknown_exception(
 
     mock_update_dashboard.assert_called_with(
         itemData["originalName"],
+        itemData["originalLabel"],
+        itemData["originalAccessGroups"],
         "admin",
         itemData["name"],
         itemData["label"],
