@@ -15,6 +15,7 @@ dependencies = [
     "pytest-mock",
     "pytest-cov",
     "intake",
+    "djangorestframework"
 ]
 
 # -- Get Resource File -- #
@@ -24,7 +25,7 @@ django.setup()
 
 setup(
     name=release_package,
-    version="0.2.4",
+    version="0.2.5",
     description="",
     long_description="",
     keywords="",

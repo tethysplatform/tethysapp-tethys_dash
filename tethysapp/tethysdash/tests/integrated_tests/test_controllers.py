@@ -176,6 +176,40 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker):
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
+    assert response.json()["message"] == "failed to add"
+
+
+@pytest.mark.django_db
+def test_add_dashboard_failed_unknown_exception(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    itemData = {
+        "name": "dashboard_name",
+        "label": "label",
+        "notes": "notes",
+    }
+
+    url = reverse("tethysdash:add_dashboard")
+    client.force_login(admin_user)
+    mock_add_new_dashboard = mocker.patch(
+        "tethysapp.tethysdash.controllers.add_new_dashboard"
+    )
+    mock_add_new_dashboard.side_effect = [Exception()]
+
+    response = client.generic("POST", url, json.dumps(itemData))
+
+    mock_add_new_dashboard.assert_called_with(
+        itemData["label"],
+        itemData["name"],
+        itemData["notes"],
+        "admin",
+        [],
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert (
+        response.json()["message"]
+        == f"Failed to create the dashboard named {itemData["name"]}. Check server for logs."  # noqa: E501
+    )
 
 
 @pytest.mark.django_db
@@ -217,6 +251,34 @@ def test_delete_dashboard_failed(client, admin_user, mock_app, mocker):
     mock_delete_named_dashboard.assert_called_with("admin", itemData["name"])
     assert response.status_code == 200
     assert response.json()["success"] is False
+    assert response.json()["message"] == "failed to delete"
+
+
+@pytest.mark.django_db
+def test_delete_dashboard_failed_unknown_exception(
+    client, admin_user, mock_app, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    itemData = {
+        "name": "dashboard_name",
+    }
+
+    url = reverse("tethysdash:delete_dashboard")
+    client.force_login(admin_user)
+    mock_delete_named_dashboard = mocker.patch(
+        "tethysapp.tethysdash.controllers.delete_named_dashboard"
+    )
+    mock_delete_named_dashboard.side_effect = [Exception()]
+
+    response = client.generic("POST", url, json.dumps(itemData))
+
+    mock_delete_named_dashboard.assert_called_with("admin", itemData["name"])
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert (
+        response.json()["message"]
+        == f"Failed to delete the dashboard named {itemData["name"]}. Check server for logs."  # noqa: E501
+    )
 
 
 @pytest.mark.django_db
