@@ -67,8 +67,8 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const getLayoutContext = useLayoutContext()[2];
   const name = useLayoutNameContext()[0];
   const label = useLayoutLabelContext()[0];
-  const [addDashboard, deleteDashboard, updateDashboard] =
-    useAvailableDashboardsContext().slice(2, 5);
+  const [deleteDashboard, updateDashboard, copyCurrentDashboard] =
+    useAvailableDashboardsContext().slice(3, 6);
   const notes = useLayoutNotesContext()[0];
   const editable = useLayoutEditableContext();
   const [localNotes, setLocalNotes] = useState(notes);
@@ -153,8 +153,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
         "Are your sure you want to copy the " + name + " dashboard?"
       )
     ) {
-      const newName = name + " Copy";
-      addDashboard(newName).then((response) => {
+      copyCurrentDashboard().then((response) => {
         if (response["success"]) {
           const newDashboard = response["new_dashboard"];
           setLocalName(newDashboard.name);
