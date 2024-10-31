@@ -6,7 +6,7 @@ import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboard
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
-  width: 100%;
+  margin-right: 1rem;
 `;
 
 const Input = ({ label, type, onChange, value, index, dataviewer }) => {
@@ -79,11 +79,18 @@ const Input = ({ label, type, onChange, value, index, dataviewer }) => {
   } else {
     return (
       <>
-        <Form.Label>{label}</Form.Label>
+        <Form.Label>
+          <b>{label}:</b>
+        </Form.Label>
         <Form.Control
           required
           type={type}
           onChange={(e) => onChange(e.target.value, index)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault(); // prevents submitting form on enter
+            }
+          }}
           value={value}
         />
       </>

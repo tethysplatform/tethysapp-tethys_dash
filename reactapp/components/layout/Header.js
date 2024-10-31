@@ -3,7 +3,7 @@ import Container from "react-bootstrap/Container";
 import Form from "react-bootstrap/Form";
 import Navbar from "react-bootstrap/Navbar";
 import PropTypes from "prop-types";
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import { BsX, BsGear } from "react-icons/bs";
 import { useLocation } from "react-router-dom";
 
@@ -11,23 +11,30 @@ import HeaderButton from "components/buttons/HeaderButton";
 import { AppContext } from "components/contexts/AppContext";
 import DashboardSelector from "components/layout/DashboardSelector";
 import AddDashboardModalShowContextProvider from "components/contexts/AddDashboardModalShowContext";
+import NavButton from "components/buttons/NavButton";
+import DashboardEditorCanvas from "components/modals/DashboardEditor";
+import { useLayoutNameContext } from "components/contexts/SelectedDashboardContext";
 
 const CustomNavBar = styled(Navbar)`
   min-height: var(--ts-header-height);
 `;
 
-const Header = () => {
+const Header = ({ initialDashboard }) => {
   const { tethysApp, user } = useContext(AppContext);
   const location = useLocation();
+  const [showEditCanvas, setShowEditCanvas] = useState(false);
+  const showNav = () => setShowEditCanvas(true);
+  const dashBoardName = useLayoutNameContext()[0];
 
   return (
     <>
       <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
         <Container as="header" fluid className="px-4">
+          {dashBoardName && <NavButton onClick={showNav}></NavButton>}
           {(location.pathname.includes("/dashboard") ||
             location.pathname === "/") && (
             <AddDashboardModalShowContextProvider>
-              <DashboardSelector />
+              <DashboardSelector initialDashboard={initialDashboard} />
             </AddDashboardModalShowContextProvider>
           )}
           <Form inline="true">
@@ -50,12 +57,18 @@ const Header = () => {
           </Form>
         </Container>
       </CustomNavBar>
+      {showEditCanvas && (
+        <DashboardEditorCanvas
+          showCanvas={showEditCanvas}
+          setShowCanvas={setShowEditCanvas}
+        />
+      )}
     </>
   );
 };
 
 Header.propTypes = {
-  onNavChange: PropTypes.func,
+  initialDashboard: PropTypes.string,
 };
 
 export default Header;

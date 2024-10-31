@@ -36,7 +36,7 @@ const DataRadioSelect = ({ label, selectedRadio, radioOptions, onChange }) => {
 DataRadioSelect.propTypes = {
   label: PropTypes.string,
   onChange: PropTypes.func,
-  selectedRadio: PropTypes.string,
+  selectedRadio: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
   radioOptions: PropTypes.array,
 };
 

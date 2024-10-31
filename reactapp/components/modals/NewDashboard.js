@@ -5,30 +5,19 @@ import Modal from "react-bootstrap/Modal";
 import Form from "react-bootstrap/Form";
 import Alert from "react-bootstrap/Alert";
 import { useAddDashboardModalShowContext } from "components/contexts/AddDashboardModalShowContext";
-import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
-import { useAvailableDashboardContext } from "components/contexts/AvailableDashboardContext";
-import { useSelectedOptionContext } from "components/contexts/SelectedOptionContext";
-import { useAvailableOptionsContext } from "components/contexts/AvailableOptionsContext";
+import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import { useEditingContext } from "components/contexts/EditingContext";
-import { AppContext } from "components/contexts/AppContext";
-import { useContext, useState } from "react";
-import appAPI from "services/api/app";
+import { useState } from "react";
 
 function NewDashboardModal() {
   const [dashboardName, setDashboardName] = useState("");
 
   const [showModal, setShowModal] = useAddDashboardModalShowContext();
-  const setLayoutContext = useLayoutContext()[0];
-  const [dashboardLayoutConfigs, setDashboardLayoutConfigs] =
-    useAvailableDashboardContext();
-  const setSelectedOption = useSelectedOptionContext()[1];
-  const [selectOptions, setSelectOptions] = useAvailableOptionsContext();
-  const { csrf } = useContext(AppContext);
+  const addDashboard = useAvailableDashboardsContext()[2];
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const setIsEditing = useEditingContext()[1];
   const setShowSaveMessage = useState(false)[1];
-  const setShowErrorMessage = useState(false)[1];
 
   const handleModalClose = () => setShowModal(false);
 
@@ -36,42 +25,20 @@ function NewDashboardModal() {
     event.preventDefault();
     setErrorMessage("");
     setHasError(false);
-    let Name = dashboardName.replace(" ", "_").toLowerCase();
-    let Label = dashboardName;
-    if (dashboardName in dashboardLayoutConfigs) {
-      setErrorMessage(
-        "Dashboard with the Name " + dashboardName + " already exists."
-      );
-      setHasError(true);
-      return;
-    }
-
+    let name = dashboardName.replace(" ", "_").toLowerCase();
+    let label = dashboardName;
     const inputData = {
-      name: Name,
-      label: Label,
-      notes: "",
+      name: name,
+      label: label,
     };
-    appAPI.addDashboard(inputData, csrf).then((response) => {
+    addDashboard(inputData).then((response) => {
       if (response["success"]) {
-        let OGLayouts = Object.assign({}, dashboardLayoutConfigs);
-        OGLayouts[Name] = response["new_dashboard"];
-        setDashboardLayoutConfigs(OGLayouts);
-        const userOptions = selectOptions.find(({ label }) => label === "User");
-        const userOptionsIndex = selectOptions.indexOf(userOptions);
-        userOptions["options"].push({ value: Name, label: Label });
-        const updatedSelectOptions = selectOptions.toSpliced(
-          userOptionsIndex,
-          1,
-          userOptions
-        );
-        setSelectOptions(updatedSelectOptions);
-        setLayoutContext(response["new_dashboard"]);
-        setSelectedOption({ value: Name, label: Label });
         setShowModal(false);
         setShowSaveMessage(true);
         setIsEditing(true);
       } else {
-        setShowErrorMessage(true);
+        setErrorMessage(response["message"]);
+        setHasError(true);
       }
     });
   }

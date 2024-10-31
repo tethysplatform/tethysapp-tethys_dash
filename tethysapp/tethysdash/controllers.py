@@ -66,22 +66,28 @@ def add_dashboard(request):
     dashboard_metadata = json.loads(request.body)
     name = dashboard_metadata["name"]
     label = dashboard_metadata["label"]
-    notes = dashboard_metadata["notes"]
+    notes = dashboard_metadata.get("notes", "")
+    access_groups = dashboard_metadata.get("access_groups", [])
+    grid_items = dashboard_metadata.get("gridItems", [])
     owner = str(request.user)
-    access_groups = []
     print(f"Creating a dashboard named {label}")
 
     try:
-        add_new_dashboard(label, name, notes, owner, access_groups)
+        add_new_dashboard(label, name, notes, owner, access_groups, grid_items)
         new_dashboard = get_dashboards(owner, name=name)[name]
         print(f"Successfully created the dashboard named {name}")
 
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})
     except Exception as e:
-        print(f"Failed to create the dashboard named {name}")
         print(e)
+        try:
+            message = e.args[0]
+        except Exception:
+            message = (
+                f"Failed to create the dashboard named {name}. Check server for logs."
+            )
 
-        return JsonResponse({"success": False})
+        return JsonResponse({"success": False, "message": message})
 
 
 @api_view(["POST"])
@@ -98,10 +104,15 @@ def delete_dashboard(request):
 
         return JsonResponse({"success": True})
     except Exception as e:
-        print(f"Failed to delete the dashboard named {name}")
         print(e)
+        try:
+            message = e.args[0]
+        except Exception:
+            message = (
+                f"Failed to delete the dashboard named {name}. Check server for logs."
+            )
 
-        return JsonResponse({"success": False})
+        return JsonResponse({"success": False, "message": message})
 
 
 @api_view(["POST"])
@@ -109,6 +120,9 @@ def delete_dashboard(request):
 def update_dashboard(request):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
+    original_name = dashboard_metadata["originalName"]
+    original_label = dashboard_metadata["originalLabel"]
+    original_access_groups = dashboard_metadata["originalAccessGroups"]
     name = dashboard_metadata["name"]
     label = dashboard_metadata["label"]
     notes = dashboard_metadata["notes"]
@@ -117,13 +131,28 @@ def update_dashboard(request):
     user = str(request.user)
 
     try:
-        update_named_dashboard(user, name, label, notes, grid_items, access_groups)
+        update_named_dashboard(
+            original_name,
+            original_label,
+            original_access_groups,
+            user,
+            name,
+            label,
+            notes,
+            grid_items,
+            access_groups,
+        )
         updated_dashboard = get_dashboards(user, name=name)[name]
         print(f"Successfully updated the dashboard named {name}")
 
         return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
     except Exception as e:
-        print(f"Failed to update the dashboard named {name}")
         print(e)
+        try:
+            message = e.args[0]
+        except Exception:
+            message = (
+                f"Failed to update the dashboard named {name}. Check server for logs."
+            )
 
-        return JsonResponse({"success": False})
+        return JsonResponse({"success": False, "message": message})

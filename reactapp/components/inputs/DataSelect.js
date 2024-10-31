@@ -10,7 +10,9 @@ const DataSelect = ({ label, selectedOption, onChange, options }) => {
   const id = label.toLowerCase().replace(" ", "");
   return (
     <StyledDiv>
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id}>
+        <b>{label}:</b>
+      </label>
       <Select
         options={options}
         value={selectedOption}
