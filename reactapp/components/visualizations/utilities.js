@@ -6,33 +6,23 @@ import styled from "styled-components";
 import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/MapVisualization";
 import ModuleLoader from "./ModuleLoader";
-import StyledLoader from "components/loader/StyledLoader";
+import Spinner from "react-bootstrap/Spinner";
+
+
+const StyledSpinner = styled(Spinner)`
+  margin: auto;
+  display: block;
+`;
 
 const StyledH2 = styled.h2`
   text-align: center;
 `;
 
 export function setVisualization(setViz, itemData) {
-  setViz(
-    <StyledLoader
-      width="200px"
-      height="200px"
-      centerDiameter="30px"
-      innerArcDiameter="100px"
-      outerArcDiameter="160px"
-      innerMoonDiameter="10px"
-      outerMoonDiameter="15px"
-      innerMoonOrbit="45px"
-      outerMoonOrbit="75px"
-      fontSize="16pt"
-      color="#007bff"
-      innerSpin="12s"
-      outerSpin="10s"
-      borderWidth="3px"
-    />
-  );
+  setViz(<StyledSpinner animation="border" variant="info" />);
 
   appAPI.getPlotData(itemData).then((response) => {
+    // var response = JSON.parse(rsp)
     if (response.success === true) {
       if (response["viz_type"] === "plotly") {
         const plotData = {
@@ -66,6 +56,7 @@ export function setVisualization(setViz, itemData) {
         );
       }
       else if(response["viz_type"] === "custom"){
+        console.log(response["viz_type"])
         setViz(
           <ModuleLoader
             url={response.data.url}
