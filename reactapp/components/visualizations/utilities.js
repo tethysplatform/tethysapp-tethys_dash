@@ -22,7 +22,7 @@ export function setVisualization(setViz, itemData) {
   setViz(<StyledSpinner animation="border" variant="info" />);
 
   appAPI.getPlotData(itemData).then((response) => {
-    // var response = JSON.parse(rsp)
+    
     if (response.success === true) {
       if (response["viz_type"] === "plotly") {
         const plotData = {
