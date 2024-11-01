@@ -56,7 +56,6 @@ export function setVisualization(setViz, itemData) {
         );
       }
       else if(response["viz_type"] === "custom"){
-        console.log(response["viz_type"])
         setViz(
           <ModuleLoader
             url={response.data.url}

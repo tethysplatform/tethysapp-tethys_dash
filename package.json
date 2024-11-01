@@ -16,6 +16,7 @@
   "dependencies": {
     "@arcgis/core": "^4.30.9",
     "axios": "^0.27.2",
+    "backlayer": "^0.0.1",
     "bootstrap": "^5.1.3",
     "color": "^4.2.3",
     "css-loader": "^6.5.1",
