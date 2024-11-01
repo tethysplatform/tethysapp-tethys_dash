@@ -21,6 +21,7 @@ const ReactGridLayout = WidthProvider(RGL);
 const StyledDiv = styled.div`
   border: #dcdcdc solid 1px;
   background: whitesmoke;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 `;
 
 const GridLayout = ({ layout, updateLayout, items }) => (

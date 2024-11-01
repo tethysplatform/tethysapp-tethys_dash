@@ -407,7 +407,9 @@ function DataViewerModal({
                       />
                     ))}
                 </StyledCol>
-                <Col className={"justify-content-center h-100"}>{viz}</Col>
+                <Col className={"justify-content-center h-100 col-9"}>
+                  {viz}
+                </Col>
               </StyledRow>
             </StyledContainer>
           </Form>
