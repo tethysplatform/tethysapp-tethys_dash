@@ -106,18 +106,246 @@ Properties:
 - <b>visualization_args</b>: This a property specific for the dashboard app. This is a dictionary containing the function arguments as keys with the data type as the value. This dictionary will be parsed in the application to dynamically create html inputs for the users. Values can be [HTML Input Types](https://www.w3schools.com/html/html_form_input_types.asp) or a list of values for a dropdown menu (i.e. `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`).
 - <b>visualization_group</b>: This a property specific for the dashboard app. List visualizations in the dashboard application will be grouped based on this property.
 - <b>visualization_label</b>: This a property specific for the dashboard app. Describes the formal name of the visualization that will be displayed in the visualization list in the dashboard app.
-- <b>visualization_type</b>: This a property specific for the dashboard app. Desribes the type of visualization this is created. Can be "plotly", "table", or "image". If another type is desired for the users, submit an issue in this repository requesting the new chart type.
+- <b>visualization_type</b>: This a property specific for the dashboard app. Desribes the type of visualization this is created. Can be "plotly", "table","image", "card", "map", "custom". If another type is desired for the users, submit an issue in this repository requesting the new chart type.
 
 Methods:
 
 - <b>**init**</b>: This is a typical python class **init** method. Set any class specific properties here for the visualization, such as the "continent" property in the example above.
 - <b>read</b>: This is the main function that developers will want to focus on. The dashboard app will call this method and use the results as the visualization data.
 
+#### Plugin Data Structure
+
+The five different plugins requires the data to be send with an specific structure for the Tethysdash application to render them
+
+##### `plotly`
+
+A dictionary containing a `data` and `layout` attribute are needed.
+
+```python
+data = [
+    {
+        'type': 'scatter',  # all "scatter" attributes: https://plotly.com/javascript/reference/#scatter
+        'x': [1, 2, 3],     # more about "x": #scatter-x
+        'y': [3, 1, 6],     # #scatter-y
+        'marker': {         # marker is an object, valid marker keys: #scatter-marker
+            'color': 'rgb(16, 32, 77)' # more about "marker.color": #scatter-marker-color
+        }
+    },
+    {
+        'type': 'bar',      # all "bar" chart attributes: #bar
+        'x': [1, 2, 3],     # more about "x": #bar-x
+        'y': [3, 1, 6],     # #bar-y
+        'name': 'bar chart example'  #bar-name
+    }
+];
+
+layout = {                     # all "layout" attributes: #layout
+    'title': 'simple example',  # more about "layout.title": #layout-title
+    'xaxis': {                  # all "layout.xaxis" attributes: #layout-xaxis
+        'title': 'time'         # more about "layout.xaxis.title": #layout-xaxis-title
+    },
+    'annotations': [            # all "annotation" attributes: #layout-annotations
+        {
+            'text': 'simple annotation',    # #layout-annotations-text
+            'x': 0,                         # #layout-annotations-x
+            'xref': 'paper',                # #layout-annotations-xref
+            'y': 0,                         # #layout-annotations-y
+            'yref': 'paper'                 # #layout-annotations-yref
+        }
+    ]
+}
+
+```
+
+Please note that the layout and data sent to the TethysDash application needs t be congruent to `JS` structure of the `plotly.js` library.
+[JavaScript Figure Reference](https://plotly.com/javascript/reference/index/)
+
+##### `table`
+
+A dictionary with `title` and `data` attributes. The data attribute needs the following structure:
+
+```python
+data = [
+  {
+    'name': 'Alice Johnson',
+    'age': 28,
+    'occupation': 'Engineer',
+  },
+  {
+    'name': 'Bob Smith',
+    'age': 34,
+    'occupation': 'Designer',
+  },
+  {
+    'name': 'Charlie Brown',
+    'age': 22,
+    'occupation': 'Teacher',
+  },
+];
+```
+
+##### `image`
+
+A url string
+
+##### `card`
+
+A dictionary with the attributes `data`, `title` and `description`. Both `title` and `description` are strings while `data` and object.
+
+```python
+data = [
+  {
+    'hex': '#ff0000', #Background color for the icon (in hex format)
+    'label': 'Total Sales', #Title or label for the statistic
+    'size': '1,500', #Value of the statistic
+  },
+  {
+    'hex': '#00ff00',
+    'label': 'New Customers',
+    'size': '350',
+  },
+  {
+    'hex': '#0000ff',
+    'label': 'Refund Requests',
+    'size': '5',
+  },
+];
+```
+
+##### `map`
+
+A dictionary with the attributes `mapConfig`, `viewConfig`, `layers`, and `legend`. All of the mentioned attributes ont the dictionary are objects.
+
+```python
+mapConfig = {
+  'className': 'ol-map',
+  'style': {
+    'width': '100%',
+    'height': '100vh',
+  },
+};
+viewConfig = {
+  'center': fromLonLat([-110.875, 37.345]),
+  'zoom': 5,
+};
+layers = [
+  {
+    'type': 'WebGLTile',
+    'props': {
+      'source': {
+        'type': 'ImageTile',
+        'props': {
+          'url': 'https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+          'attributions':
+            'Tiles © <a href="https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer">ArcGIS</a>',
+        },
+      },
+      'name': 'World Dark Gray Base Base Map',
+      'zIndex': 0,
+    },
+  },
+  {
+    'type': 'ImageLayer',
+    'props': {
+      'source': {
+        'type': 'ImageArcGISRest',
+        'props': {
+          'url': 'https://mapservices.weather.noaa.gov/eventdriven/rest/services/water/riv_gauges/MapServer',
+          'params': {
+            'LAYERS': 'show:0',
+          },
+        },
+      },
+      'name': 'Flooding River Gauges',
+      'zIndex': 1,
+    },
+  },
+  {
+    'type': 'VectorLayer',
+    'props': {
+      'source': {
+        'type': 'Vector',
+        'props': {
+          'url': 'https://services3.arcgis.com/GVgbJbqm8hXASVYi/arcgis/rest/services/Parks_and_Open_Space/FeatureServer/0/query?where=1%3D1&outFields=*&returnGeometry=true&f=geojson',
+          'format': {
+            'type': 'GeoJSON',
+            'props': {},
+          },
+        },
+      },
+      'style': {
+        'type': 'Style',
+        'props': {
+          'stroke': {
+            'type': 'Stroke',
+            'props': {
+              'color': '#501020',
+              'width': 1,
+            },
+          },
+        },
+      },
+      'name': 'rfc max forecast (Decreasing Forecast Trend)',
+      'zIndex': 2,
+    },
+  },
+];
+
+legend = [
+  {
+    'label': 'Major Flood',
+    'color': '#cc33ff',
+  },
+  {
+    'label': 'Moderate Flood',
+    'color': '#ff0000',
+  },
+  {
+    'label': 'Minor Flood',
+    'color': '#ff9900',
+  },
+  {
+    'label': 'Action',
+    'color': '#ffff00',
+  },
+  {
+    'label': 'No Flood',
+    'color': '#00ff00',
+  },
+  {
+    'label': 'Flood Category Not Defined',
+    'color': '#72afe9',
+  },
+  {
+    'label': 'Low Water Threshold',
+    'color': '#906320',
+  },
+  {
+    'label': 'Data Not Current',
+    'color': '#bdc2bb',
+  },
+  {
+    'label': 'Out of Service',
+    'color': '#666666',
+  },
+];
+```
+
+The Map Visualization is created using the third-party package called `backlayer`. If you have more question visit the [github repo](github.com/Aquaveo/backlayer)
+
+##### `custom`
+
+The custom plugin allows the intake driver to send Javascript UI through a url of a `js` file.
+
+Please use the following intake driver plugin as a guide: [nwmp_plugins](https://github.com/FIRO-Tethys/nwmp_plugins/blob/main/nwmps/olmap.py)
+
+Please use the following react component: [mfe-ol](https://github.com/Aquaveo/mfe-ol)
+
 #### Testing
 
 To test the plugin, simply run python in a command prompt or jupyter notebook, initialize the created class, and run the read method. As shown below, you can supply various arguments and run the desired workflows.
 
-![](docs/plugin_example.png "Title")
+![](docs/plugin_example.png 'Title')
 
 ### Installing
 
