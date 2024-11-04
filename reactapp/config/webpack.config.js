@@ -1,7 +1,7 @@
 const path = require("path");
 const webpack = require("webpack");
 const Dotenv = require("dotenv-webpack");
-const ModuleFederationPlugin = require('webpack/lib/container/ModuleFederationPlugin');
+const ModuleFederationPlugin = require("webpack/lib/container/ModuleFederationPlugin");
 
 module.exports = (env, argv) => {
   const dotEnvPath = `./reactapp/config/${argv.mode}.env`;
@@ -28,18 +28,17 @@ module.exports = (env, argv) => {
         path: dotEnvPath,
       }),
       new ModuleFederationPlugin({
-        name: 'host_react_module',
-        filename: 'remoteEntry.js',
-        remotes: {
-        },
+        name: "host_react_module",
+        filename: "remoteEntry.js",
+        remotes: {},
         shared: {
           react: {
             requiredVersion: false,
             singleton: true,
             eager: true,
           },
-    },
-}),
+        },
+      }),
     ],
     module: {
       rules: [

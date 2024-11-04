@@ -38,7 +38,7 @@ const useDynamicScript = (args) => {
 
   return {
     ready,
-    failed
+    failed,
   };
 };
 
