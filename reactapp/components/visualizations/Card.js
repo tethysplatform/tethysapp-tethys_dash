@@ -12,7 +12,8 @@ const CardContainer = styled.div`
 `;
 
 const Header = styled.div`
-  margin-bottom: 20px;
+  margin-bottom: 1.5rem;
+  text-align: center;
 
   h3 {
     margin: 0;
