@@ -1,7 +1,5 @@
-import React from 'react';
-import styled from 'styled-components';
-import { BiStats } from "react-icons/bi";
-
+import React, { Suspense } from "react";
+import styled from "styled-components";
 
 // Styled components
 const CardContainer = styled.div`
@@ -64,6 +62,28 @@ const StatValue = styled.p`
   font-weight: bold;
 `;
 
+const StatItemGroup = ({ item, index }) => {
+  const iconName = item.icon ? item.icon : "BiStats";
+  const Icon = React.lazy(async () => {
+    const module = await import(`react-icons/bi`);
+    return { default: module[iconName] };
+  });
+
+  return (
+    <Suspense>
+      <StatItem key={index ? index : 0}>
+        <StatIcon bgColor={item.color ? item.color : "black"}>
+          <Icon />
+        </StatIcon>
+        <StatContent>
+          <StatTitle>{item.label ? item.label : 0}</StatTitle>
+          <StatValue>{item.value ? item.value : "No Data found"}</StatValue>
+        </StatContent>
+      </StatItem>
+    </Suspense>
+  );
+};
+
 // Component to display the StatsCard
 const Card = ({ title, description, data }) => {
   return (
@@ -73,30 +93,16 @@ const Card = ({ title, description, data }) => {
         <p>{description}</p>
       </Header>
       {Object.keys(data).length === 0 ? (
-        <StatItem>
-          <StatIcon bgColor={"black"}><BiStats /></StatIcon>
-          <StatContent>
-            <StatTitle>0</StatTitle>
-            <StatValue>No Data found</StatValue>
-          </StatContent>
-        </StatItem>
+        <StatItemGroup />
       ) : (
         <StatsContainer>
           {data.map((item, index) => (
-            <StatItem key={index}>
-              <StatIcon bgColor={item.hex}><BiStats /></StatIcon>
-              <StatContent>
-                <StatTitle>{item.label}</StatTitle>
-                <StatValue>{item.size}</StatValue>
-              </StatContent>
-            </StatItem>
+            <StatItemGroup key={index} item={item} index={index} />
           ))}
         </StatsContainer>
       )}
     </CardContainer>
   );
 };
-
-
 
 export default Card;

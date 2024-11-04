@@ -1,5 +1,5 @@
 import React, { Suspense } from "react";
-import useDynamicScript from 'hooks/useDynamicScript';
+import useDynamicScript from "hooks/useDynamicScript";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 
 function loadComponent(scope, module) {
@@ -17,7 +17,7 @@ function loadComponent(scope, module) {
 
 function ModuleLoader(props) {
   const { ready, failed } = useDynamicScript({
-    url: props.module && props.url
+    url: props.module && props.url,
   });
 
   if (!props.module) {
@@ -25,19 +25,17 @@ function ModuleLoader(props) {
   }
 
   if (!ready) {
-    return <LoadingAnimation/>;
+    return <LoadingAnimation />;
   }
 
   if (failed) {
     return <h2>Failed to load dynamic script: {props.url}</h2>;
   }
 
-  const Component = React.lazy(
-    loadComponent(props.scope, props.module)
-  );
+  const Component = React.lazy(loadComponent(props.scope, props.module));
 
   return (
-    <Suspense fallback={<LoadingAnimation/>}>
+    <Suspense fallback={<LoadingAnimation />}>
       <Component {...props.props} />
     </Suspense>
   );
