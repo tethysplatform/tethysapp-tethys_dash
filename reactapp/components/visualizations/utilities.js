@@ -4,10 +4,9 @@ import DataTable from "components/visualizations/DataTable";
 import Image from "components/visualizations/Image";
 import styled from "styled-components";
 import Card from "components/visualizations/Card";
-import MapVisualization from "components/visualizations/MapVisualization";
+import MapVisualization from "components/visualizations/Map";
 import ModuleLoader from "./ModuleLoader";
 import Spinner from "react-bootstrap/Spinner";
-
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -22,7 +21,6 @@ export function setVisualization(setViz, itemData) {
   setViz(<StyledSpinner animation="border" variant="info" />);
 
   appAPI.getPlotData(itemData).then((response) => {
-    
     if (response.success === true) {
       if (response["viz_type"] === "plotly") {
         const plotData = {
@@ -36,15 +34,14 @@ export function setVisualization(setViz, itemData) {
         setViz(
           <DataTable data={response.data.data} title={response.data.title} />
         );
-      
       } else if (response["viz_type"] === "card") {
         setViz(
           <Card
-            data={response.data.data} 
-            title={response.data.title} 
+            data={response.data.data}
+            title={response.data.title}
             description={response.data.description}
           />
-        ); 
+        );
       } else if (response["viz_type"] === "map") {
         setViz(
           <MapVisualization
@@ -54,8 +51,7 @@ export function setVisualization(setViz, itemData) {
             legend={response.data.legend}
           />
         );
-      }
-      else if(response["viz_type"] === "custom"){
+      } else if (response["viz_type"] === "custom") {
         setViz(
           <ModuleLoader
             url={response.data.url}
@@ -64,8 +60,7 @@ export function setVisualization(setViz, itemData) {
             props={response.data.props}
           />
         );
-      }
-      else {
+      } else {
         let message =
           response["viz_type"] + " visualizations still need to be configured";
         setViz(<StyledH2>{message}</StyledH2>);
