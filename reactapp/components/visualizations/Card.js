@@ -1,5 +1,6 @@
 import React, { Suspense } from "react";
 import styled from "styled-components";
+import PropTypes from "prop-types";
 
 // Styled components
 const CardContainer = styled.div`
@@ -103,6 +104,17 @@ const Card = ({ title, description, data }) => {
       )}
     </CardContainer>
   );
+};
+
+Card.propTypes = {
+  title: PropTypes.string,
+  description: PropTypes.string,
+  data: PropTypes.array,
+};
+
+StatItemGroup.propTypes = {
+  item: PropTypes.object,
+  index: PropTypes.number,
 };
 
 export default Card;

@@ -1,4 +1,4 @@
-import React, { memo } from "react";
+import { memo } from "react";
 import {
   Map,
   View,
@@ -8,6 +8,7 @@ import {
   LegendControl,
   LayersControl,
 } from "backlayer";
+import PropTypes from "prop-types";
 
 const MapVisualization = ({ mapConfig, viewConfig, layers, legend }) => {
   const defaultMapConfig = {
@@ -55,6 +56,13 @@ const MapVisualization = ({ mapConfig, viewConfig, layers, legend }) => {
       </Controls>
     </Map>
   );
+};
+
+MapVisualization.propTypes = {
+  mapConfig: PropTypes.object,
+  viewConfig: PropTypes.object,
+  layers: PropTypes.array,
+  legend: PropTypes.array,
 };
 
 export default memo(MapVisualization);

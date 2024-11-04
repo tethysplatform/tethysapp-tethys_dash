@@ -1,6 +1,7 @@
 import React, { Suspense } from "react";
 import useDynamicScript from "hooks/useDynamicScript";
 import LoadingAnimation from "components/loader/LoadingAnimation";
+import PropTypes from "prop-types";
 
 function loadComponent(scope, module) {
   return async () => {
@@ -40,5 +41,12 @@ function ModuleLoader(props) {
     </Suspense>
   );
 }
+
+ModuleLoader.propTypes = {
+  props: PropTypes.object,
+  module: PropTypes.string,
+  url: PropTypes.string,
+  scope: PropTypes.string,
+};
 
 export default ModuleLoader;

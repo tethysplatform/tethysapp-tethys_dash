@@ -51,6 +51,7 @@
   "devDependencies": {
     "@babel/core": "^7.18.2",
     "@babel/plugin-proposal-class-properties": "^7.17.12",
+    "@babel/plugin-proposal-private-property-in-object": "^7.18.2",
     "@babel/plugin-transform-modules-commonjs": "^7.18.2",
     "@babel/preset-env": "^7.18.2",
     "@babel/preset-react": "^7.17.12",
@@ -102,7 +103,11 @@
     "ignorePatterns": [
       "**/transforms/*.js",
       "**/config/*"
-    ]
+    ],
+    "globals": {
+      "__webpack_init_sharing__": true,
+      "__webpack_share_scopes__": true
+    }
   },
   "jest": {
     "roots": [
