@@ -6,9 +6,9 @@ import { BiStats } from "react-icons/bi";
 // Styled components
 const CardContainer = styled.div`
   background-color: #fff;
-  border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  height: 100%;
+  width: 100%;
+  overflow-x: auto;
 `;
 
 const Header = styled.div`
