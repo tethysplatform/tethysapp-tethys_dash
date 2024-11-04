@@ -5,7 +5,7 @@ import { memo, useState } from "react";
 import { useEditingContext } from "components/contexts/EditingContext";
 import DataViewerModal from "components/modals/DataViewer";
 import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
-import BaseVisualization from "components/visualizations/BaseVisualization";
+import BaseVisualization from "components/visualizations/Base";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
