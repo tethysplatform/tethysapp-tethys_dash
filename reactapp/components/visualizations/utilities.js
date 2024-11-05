@@ -2,8 +2,11 @@ import appAPI from "services/api/app";
 import BasePlot from "components/visualizations/BasePlot";
 import DataTable from "components/visualizations/DataTable";
 import Image from "components/visualizations/Image";
-import Spinner from "react-bootstrap/Spinner";
 import styled from "styled-components";
+import Card from "components/visualizations/Card";
+import MapVisualization from "components/visualizations/Map";
+import ModuleLoader from "./ModuleLoader";
+import Spinner from "react-bootstrap/Spinner";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -30,6 +33,32 @@ export function setVisualization(setViz, itemData) {
       } else if (response["viz_type"] === "table") {
         setViz(
           <DataTable data={response.data.data} title={response.data.title} />
+        );
+      } else if (response["viz_type"] === "card") {
+        setViz(
+          <Card
+            data={response.data.data}
+            title={response.data.title}
+            description={response.data.description}
+          />
+        );
+      } else if (response["viz_type"] === "map") {
+        setViz(
+          <MapVisualization
+            viewConfig={response.data.view_config}
+            layers={response.data.layers}
+            mapConfig={response.data.map_config}
+            legend={response.data.legend}
+          />
+        );
+      } else if (response["viz_type"] === "custom") {
+        setViz(
+          <ModuleLoader
+            url={response.data.url}
+            scope={response.data.scope}
+            module={response.data.module}
+            props={response.data.props}
+          />
         );
       } else {
         let message =
