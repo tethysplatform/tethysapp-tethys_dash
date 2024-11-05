@@ -1,8 +1,11 @@
 import PropTypes from "prop-types";
 import styled from "styled-components";
-import Plot from "react-plotly.js";
+import createPlotlyComponent from "react-plotly.js/factory";
 import { useResizeDetector } from "react-resize-detector";
 import { memo } from "react";
+
+const Plotly = require("plotly.js-cartesian-dist-min");
+const Plot = createPlotlyComponent(Plotly);
 
 const StyledPlot = styled(Plot)`
   width: 100%;
