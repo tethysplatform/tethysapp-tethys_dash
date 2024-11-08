@@ -43,7 +43,7 @@ class GridItem(Base):
     h = Column(Integer, nullable=False)
     source = Column(String)
     args_string = Column(String)
-    refresh_rate = Column(Integer)
+    metadata_string = Column(String)
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
@@ -79,7 +79,7 @@ def add_new_dashboard(label, name, notes, owner, access_groups, grid_items):
                 grid_item_h = int(grid_item["h"])
                 grid_item_source = grid_item["source"]
                 grid_item_args_string = grid_item["args_string"]
-                grid_item_refresh_rate = grid_item["refresh_rate"]
+                grid_item_metadata_string = grid_item["metadata_string"]
                 if grid_item_source == "Text":
                     clean_text = nh3.clean(json.loads(grid_item_args_string)["text"])
                     grid_item_args_string = json.dumps({"text": clean_text})
@@ -94,7 +94,7 @@ def add_new_dashboard(label, name, notes, owner, access_groups, grid_items):
                     grid_item_h,
                     grid_item_source,
                     grid_item_args_string,
-                    grid_item_refresh_rate,
+                    grid_item_metadata_string,
                 )
         else:
             add_new_grid_item(session, new_dashboard.id, "1", 0, 0, 20, 20, "", "{}", 0)
@@ -115,7 +115,7 @@ def add_new_grid_item(
     grid_item_h,
     grid_item_source,
     grid_item_args_string,
-    grid_item_refresh_rate,
+    grid_item_metadata_string,
 ):
     new_grid_item = GridItem(
         dashboard_id=dashboard_id,
@@ -126,7 +126,7 @@ def add_new_grid_item(
         h=grid_item_h,
         source=grid_item_source,
         args_string=grid_item_args_string,
-        refresh_rate=grid_item_refresh_rate,
+        metadata_string=grid_item_metadata_string,
     )
     session.add(new_grid_item)
     session.commit()
@@ -240,7 +240,7 @@ def update_named_dashboard(
             grid_item_h = int(grid_item["h"])
             grid_item_source = grid_item["source"]
             grid_item_args_string = grid_item["args_string"]
-            grid_item_refresh_rate = grid_item["refresh_rate"]
+            grid_item_metadata_string = grid_item["metadata_string"]
             if grid_item_source == "Text":
                 clean_text = nh3.clean(json.loads(grid_item_args_string)["text"])
                 grid_item_args_string = json.dumps({"text": clean_text})
@@ -256,7 +256,7 @@ def update_named_dashboard(
                     grid_item_h,
                     grid_item_source,
                     grid_item_args_string,
-                    grid_item_refresh_rate,
+                    grid_item_metadata_string,
                 )
             else:
                 db_grid_item = (
@@ -272,7 +272,7 @@ def update_named_dashboard(
                 db_grid_item.h = grid_item_h
                 db_grid_item.source = grid_item_source
                 db_grid_item.args_string = grid_item_args_string
-                db_grid_item.refresh_rate = grid_item_refresh_rate
+                db_grid_item.metadata_string = grid_item_metadata_string
 
         # Commit the session and close the connection
         session.commit()
@@ -322,7 +322,7 @@ def get_dashboards(user, name=None):
                     "h": griditem.h,
                     "source": griditem.source,
                     "args_string": griditem.args_string,
-                    "refresh_rate": griditem.refresh_rate,
+                    "metadata_string": griditem.metadata_string,
                 }
                 griditems.append(griditem_data)
 

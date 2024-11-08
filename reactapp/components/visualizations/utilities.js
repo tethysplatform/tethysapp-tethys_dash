@@ -17,7 +17,7 @@ const StyledH2 = styled.h2`
   text-align: center;
 `;
 
-export function setVisualization(setViz, itemData) {
+export function setVisualization(setViz, itemData, visualizationMetadata) {
   setViz(<StyledSpinner animation="border" variant="info" />);
 
   appAPI.getPlotData(itemData).then((response) => {
@@ -29,7 +29,13 @@ export function setVisualization(setViz, itemData) {
         };
         setViz(<BasePlot plotData={plotData} />);
       } else if (response["viz_type"] === "image") {
-        setViz(<Image source={response.data} />);
+        const Visualization = (
+          <Image
+            source={response.data}
+            visualizationMetadata={visualizationMetadata}
+          />
+        );
+        setViz(Visualization);
       } else if (response["viz_type"] === "table") {
         setViz(
           <DataTable data={response.data.data} title={response.data.title} />

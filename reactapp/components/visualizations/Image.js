@@ -14,12 +14,21 @@ const StyledDiv = styled.div`
   height: 100%;
 `;
 
-const Image = ({ source }) => {
+const Image = ({ source, visualizationMetadata }) => {
   const [imageWarning, setImageWarning] = useState(null);
 
   useEffect(() => {
     setImageWarning(null);
   }, [source]);
+
+  function onImageLoad(e) {
+    if (visualizationMetadata) {
+      visualizationMetadata.current = {
+        type: "image",
+        aspectRatio: e.target.naturalWidth / e.target.naturalHeight,
+      };
+    }
+  }
 
   function onImageError() {
     setImageWarning(
@@ -34,7 +43,7 @@ const Image = ({ source }) => {
       {imageWarning ? (
         imageWarning
       ) : (
-        <StyledImg src={source} onError={onImageError} />
+        <StyledImg src={source} onError={onImageError} onLoad={onImageLoad} />
       )}
     </>
   );

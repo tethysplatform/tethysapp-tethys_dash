@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import PropTypes from "prop-types";
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
@@ -70,6 +70,7 @@ function DataViewerModal({
   const variableInputValues = useVariableInputValuesContext()[0];
   const setVariableInputValues = useVariableInputValuesContext()[1];
   const [dashboardRefreshRate, setDashboardRefreshRate] = useState(0);
+  const visualizationMetadata = useRef(null);
 
   useEffect(() => {
     let options = [...availableVisualizations];
@@ -259,7 +260,12 @@ function DataViewerModal({
           vizArgs[vizArg.name] = vizArg.value.value || vizArg.value;
         }
         updatedGridItems[grid_item_index].args_string = JSON.stringify(vizArgs);
-        updatedGridItems[grid_item_index].refresh_rate = dashboardRefreshRate;
+
+        const gridSettings = { refresh_rate: dashboardRefreshRate };
+        updatedGridItems[grid_item_index].metadata_string = JSON.stringify({
+          ...gridSettings,
+          ...visualizationMetadata.current,
+        });
 
         if (selectedVizTypeOption.source === "Variable Input") {
           updatedGridItems = updateVariableInputs(vizArgs, updatedGridItems);
@@ -357,7 +363,7 @@ function DataViewerModal({
         variableInputValues
       );
       itemData.args = updatedGridItemArgs;
-      setVisualization(setViz, itemData);
+      setVisualization(setViz, itemData, visualizationMetadata);
     }
   }
 

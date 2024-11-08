@@ -29,7 +29,7 @@ const DashboardItem = ({
   gridItemSource,
   gridItemI,
   gridItemArgsString,
-  gridItemRefreshRate,
+  gridItemMetadataString,
   grid_item_index,
 }) => {
   const [isEditing, setIsEditing] = useEditingContext();
@@ -42,6 +42,8 @@ const DashboardItem = ({
   const getLayoutContext = useLayoutContext()[2];
   const variableInputValues = useVariableInputValuesContext()[0];
   const setVariableInputValues = useVariableInputValuesContext()[1];
+  const gridMetadata = JSON.parse(gridItemMetadataString);
+  const gridItemRefreshRate = gridMetadata.refresh_rate;
 
   async function deleteGridItem(e) {
     if (await confirm("Are your sure you want to delete the item?")) {
@@ -158,7 +160,7 @@ DashboardItem.propTypes = {
   gridItemSource: PropTypes.string,
   gridItemI: PropTypes.string,
   gridItemArgsString: PropTypes.string,
-  gridItemRefreshRate: PropTypes.number,
+  gridItemMetadataString: PropTypes.string,
   grid_item_index: PropTypes.number,
 };
 
