@@ -13,7 +13,7 @@ import { useEditingContext } from "components/contexts/EditingContext";
 const BaseVisualization = ({
   source,
   argsString,
-  refreshRate,
+  metadataString,
   showFullscreen,
   hideFullscreen,
 }) => {
@@ -23,6 +23,8 @@ const BaseVisualization = ({
   const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
   const isEditing = useEditingContext()[0];
+  const gridMetadata = JSON.parse(metadataString);
+  const refreshRate = gridMetadata.refresh_rate;
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -53,7 +55,7 @@ const BaseVisualization = ({
         setVisualization(setViz, itemData);
       }
     }
-    if (refreshRate && refreshRate !== 0) {
+    if (refreshRate && refreshRate > 0) {
       const interval = setInterval(
         () => {
           if (!isEditing) {

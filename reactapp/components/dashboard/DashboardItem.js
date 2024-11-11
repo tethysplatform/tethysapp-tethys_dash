@@ -12,6 +12,8 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { getGridItem } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
+import VisualizationRefContextProvider from "components/contexts/VisualizationRefContext";
+import { useSetDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 
 const StyledContainer = styled(Container)`
   position: relative;
@@ -42,8 +44,7 @@ const DashboardItem = ({
   const getLayoutContext = useLayoutContext()[2];
   const variableInputValues = useVariableInputValuesContext()[0];
   const setVariableInputValues = useVariableInputValuesContext()[1];
-  const gridMetadata = JSON.parse(gridItemMetadataString);
-  const gridItemRefreshRate = gridMetadata.refresh_rate;
+  const setInDataViewerMode = useSetDataViewerModeContext();
 
   async function deleteGridItem(e) {
     if (await confirm("Are your sure you want to delete the item?")) {
@@ -70,6 +71,7 @@ const DashboardItem = ({
   function editGridItem() {
     setShowDataViewerModal(true);
     setIsEditing(true);
+    setInDataViewerMode(true);
   }
 
   function copyGridItem() {
@@ -111,6 +113,7 @@ const DashboardItem = ({
 
   function hideDataViewerModal() {
     setShowDataViewerModal(false);
+    setInDataViewerMode(false);
   }
 
   return (
@@ -135,22 +138,24 @@ const DashboardItem = ({
           key={gridItemI}
           source={gridItemSource}
           argsString={gridItemArgsString}
-          refreshRate={gridItemRefreshRate}
+          metadataString={gridItemMetadataString}
           showFullscreen={showFullscreen}
           hideFullscreen={hideFullscreen}
         />
       </StyledContainer>
       {showDataViewerModal && (
-        <DataViewerModal
-          grid_item_index={grid_item_index}
-          source={gridItemSource}
-          argsString={gridItemArgsString}
-          refreshRate={gridItemRefreshRate}
-          showModal={showDataViewerModal}
-          handleModalClose={hideDataViewerModal}
-          setGridItemMessage={setGridItemMessage}
-          setShowGridItemMessage={setShowGridItemMessage}
-        />
+        <VisualizationRefContextProvider>
+          <DataViewerModal
+            grid_item_index={grid_item_index}
+            source={gridItemSource}
+            argsString={gridItemArgsString}
+            metadataString={gridItemMetadataString}
+            showModal={showDataViewerModal}
+            handleModalClose={hideDataViewerModal}
+            setGridItemMessage={setGridItemMessage}
+            setShowGridItemMessage={setShowGridItemMessage}
+          />
+        </VisualizationRefContextProvider>
       )}
     </>
   );

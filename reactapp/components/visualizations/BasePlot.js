@@ -3,6 +3,7 @@ import styled from "styled-components";
 import createPlotlyComponent from "react-plotly.js/factory";
 import { useResizeDetector } from "react-resize-detector";
 import { memo } from "react";
+import { useVisualizationRefContext } from "components/contexts/VisualizationRefContext";
 
 const Plotly = require("plotly.js-cartesian-dist-min");
 const Plot = createPlotlyComponent(Plotly);
@@ -14,6 +15,7 @@ const StyledPlot = styled(Plot)`
 `;
 
 const BasePlot = ({ plotData }) => {
+  const visualizationRef = useVisualizationRefContext();
   const { width, height, ref } = useResizeDetector({
     refreshMode: "debounce",
     refreshRate: 100,
@@ -21,6 +23,7 @@ const BasePlot = ({ plotData }) => {
   return (
     <div ref={ref} style={{ display: "flex", height: "100%" }}>
       <StyledPlot
+        ref={visualizationRef}
         data={plotData.data}
         layout={{
           ...plotData.layout,

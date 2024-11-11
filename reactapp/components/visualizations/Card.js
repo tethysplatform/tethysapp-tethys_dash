@@ -1,6 +1,7 @@
-import React, { Suspense } from "react";
+import React, { Suspense, useRef } from "react";
 import styled from "styled-components";
 import PropTypes from "prop-types";
+import { useVisualizationRefContext } from "components/contexts/VisualizationRefContext";
 
 // Styled components
 const CardContainer = styled.div`
@@ -87,8 +88,14 @@ const StatItemGroup = ({ item, index }) => {
 
 // Component to display the StatsCard
 const Card = ({ title, description, data }) => {
+  let visualizationRef = useVisualizationRefContext();
+  if (!visualizationRef) {
+    // if image is not in the dataviewer then the refs will be undefined
+    visualizationRef = useRef({});
+  }
+
   return (
-    <CardContainer>
+    <CardContainer ref={visualizationRef}>
       <Header>
         <h3>{title}</h3>
         <p>{description}</p>

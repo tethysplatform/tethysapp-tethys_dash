@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useRef } from "react";
 import {
   Map,
   View,
@@ -9,8 +9,15 @@ import {
   LayersControl,
 } from "backlayer";
 import PropTypes from "prop-types";
+import { useVisualizationRefContext } from "components/contexts/VisualizationRefContext";
 
 const MapVisualization = ({ mapConfig, viewConfig, layers, legend }) => {
+  let visualizationRef = useVisualizationRefContext();
+  if (!visualizationRef) {
+    // if image is not in the dataviewer then the refs will be undefined
+    visualizationRef = useRef({});
+  }
+
   const defaultMapConfig = {
     className: "ol-map",
     style: { width: "100%", height: "100%", position: "relative" },
@@ -43,7 +50,7 @@ const MapVisualization = ({ mapConfig, viewConfig, layers, legend }) => {
   const customBaseLayers = layers ? layers : defaultBaseLayers;
 
   return (
-    <Map {...customMapConfig}>
+    <Map {...customMapConfig} ref={visualizationRef}>
       <View {...customViewConfig} />
       <Layers>
         {customBaseLayers.map((config, index) => (

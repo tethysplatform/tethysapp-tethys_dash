@@ -1,7 +1,8 @@
 import PropTypes from "prop-types";
 import styled from "styled-components";
-import { memo } from "react";
+import { memo, useRef } from "react";
 import Table from "react-bootstrap/Table";
+import { useVisualizationRefContext } from "components/contexts/VisualizationRefContext";
 
 const StyledDiv = styled.div`
   height: 100%;
@@ -10,6 +11,12 @@ const StyledDiv = styled.div`
 `;
 
 const DataTable = ({ data, title }) => {
+  let visualizationRef = useVisualizationRefContext();
+  if (!visualizationRef) {
+    // if image is not in the dataviewer then the refs will be undefined
+    visualizationRef = useRef({});
+  }
+
   if (data.length === 0) {
     return (
       <StyledDiv>
@@ -47,7 +54,7 @@ const DataTable = ({ data, title }) => {
   return (
     <StyledDiv>
       <h2>{title}</h2>
-      <Table striped bordered hover>
+      <Table striped bordered hover ref={visualizationRef}>
         {TableHead()}
         {TableBody()}
       </Table>

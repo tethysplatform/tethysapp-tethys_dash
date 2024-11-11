@@ -25,6 +25,12 @@ import { updateGridItemArgsWithVariableInputs } from "components/visualizations/
 import CustomAlert from "components/dashboard/CustomAlert";
 import VariableInput from "components/visualizations/VariableInput";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
+import {
+  useVisualizationRefContext,
+  useVisualizationRefMetadataContext,
+} from "components/contexts/VisualizationRefContext";
+import Tab from "react-bootstrap/Tab";
+import Tabs from "react-bootstrap/Tabs";
 import "components/modals/wideModal.css";
 
 const StyledDiv = styled.div`
@@ -47,7 +53,7 @@ function DataViewerModal({
   grid_item_index,
   source,
   argsString,
-  refreshRate,
+  metadataString,
   showModal,
   handleModalClose,
   setGridItemMessage,
@@ -69,8 +75,21 @@ function DataViewerModal({
   const [showAlert, setShowAlert] = useState(false);
   const variableInputValues = useVariableInputValuesContext()[0];
   const setVariableInputValues = useVariableInputValuesContext()[1];
-  const [dashboardRefreshRate, setDashboardRefreshRate] = useState(0);
-  const visualizationMetadata = useRef(null);
+  const visualizationRef = useVisualizationRefContext();
+  const visualizationRefMetadata = useVisualizationRefMetadataContext();
+
+  const gridMetadata = JSON.parse(metadataString);
+  const refreshRate = gridMetadata.refresh_rate;
+  const aspectRatio = gridMetadata.aspectRatio;
+
+  const [dashboardRefreshRate, setDashboardRefreshRate] = useState(refreshRate);
+  const [maintainAspectRatio, setMaintainAspectRatio] = useState(
+    aspectRatio ? true : false
+  );
+  const [visualizationMetadata, setVisualizationMetadata] = useState(
+    visualizationRefMetadata.current
+  );
+  const [tabKey, setTabKey] = useState("visualization");
 
   useEffect(() => {
     let options = [...availableVisualizations];
@@ -154,11 +173,10 @@ function DataViewerModal({
     setVizInputsValues(values);
   }
 
-  function handleVariableInputChange(e) {
-    setVariableInputValue(e);
-  }
-
   function onDataTypeChange(e) {
+    setVisualizationMetadata({});
+    visualizationRefMetadata.current = {};
+    visualizationRef.current = null;
     for (let p of vizOptions) {
       for (let i of p.options) {
         if (i === e) {
@@ -261,10 +279,16 @@ function DataViewerModal({
         }
         updatedGridItems[grid_item_index].args_string = JSON.stringify(vizArgs);
 
+        if (
+          maintainAspectRatio === false &&
+          "aspectRatio" in visualizationMetadata
+        ) {
+          delete visualizationMetadata.aspectRatio;
+        }
         const gridSettings = { refresh_rate: dashboardRefreshRate };
         updatedGridItems[grid_item_index].metadata_string = JSON.stringify({
           ...gridSettings,
-          ...visualizationMetadata.current,
+          ...visualizationRefMetadata.current,
         });
 
         if (selectedVizTypeOption.source === "Variable Input") {
@@ -350,11 +374,17 @@ function DataViewerModal({
       );
     } else if (selectedVizTypeOption["value"] === "Variable Input") {
       itemData.args.initial_value = variableInputValue;
+      if (itemData.args.initial_value === null) {
+        if (itemData.args.variable_options_source === "text") {
+          itemData.args.initial_value = "";
+        } else if (itemData.args.variable_options_source === "number") {
+          itemData.args.initial_value = 0;
+        }
+      }
       setViz(
         <VariableInput
           args={itemData.args}
-          onChange={handleVariableInputChange}
-          dataviewer={true}
+          onChange={(e) => setVariableInputValue(e)}
         />
       );
     } else {
@@ -363,12 +393,21 @@ function DataViewerModal({
         variableInputValues
       );
       itemData.args = updatedGridItemArgs;
-      setVisualization(setViz, itemData, visualizationMetadata);
+      setVisualization(setViz, itemData);
     }
   }
 
   function onRefreshRateChange(e) {
-    setDashboardRefreshRate(parseInt(e));
+    if (parseInt(e) >= 0) {
+      setDashboardRefreshRate(parseInt(e));
+    }
+  }
+
+  function onTabKeyChange(k) {
+    if (k === "settings") {
+      setVisualizationMetadata(visualizationRefMetadata.current);
+    }
+    setTabKey(k);
   }
 
   return (
@@ -386,32 +425,53 @@ function DataViewerModal({
             <StyledContainer>
               <StyledRow>
                 <StyledCol className={"justify-content-center h-100 col-3"}>
-                  <DataInput
-                    objValue={{
-                      label: "Refresh Rate (Minutes)",
-                      type: "number",
-                      value: dashboardRefreshRate,
-                    }}
-                    onChange={onRefreshRateChange}
-                    index={0}
-                  />
-                  <DataSelect
-                    label="Visualization Type"
-                    selectedOption={selectedVizTypeOption}
-                    onChange={onDataTypeChange}
-                    options={vizOptions}
-                  />
-                  {selectedVizTypeOption &&
-                    selectedVizTypeOption["value"] !== "Text" &&
-                    vizInputsValues.map((obj, index) => (
-                      <DataInput
-                        key={index}
-                        objValue={obj}
-                        onChange={handleInputChange}
-                        index={index}
-                        dataviewer={true}
+                  <Tabs
+                    activeKey={tabKey}
+                    onSelect={onTabKeyChange}
+                    id="controlled-tab-example"
+                    className="mb-3"
+                  >
+                    <Tab eventKey="visualization" title="Visualization">
+                      <DataSelect
+                        label="Visualization Type"
+                        selectedOption={selectedVizTypeOption}
+                        onChange={onDataTypeChange}
+                        options={vizOptions}
                       />
-                    ))}
+                      {selectedVizTypeOption &&
+                        selectedVizTypeOption["value"] !== "Text" &&
+                        vizInputsValues.map((obj, index) => (
+                          <DataInput
+                            key={index}
+                            objValue={obj}
+                            onChange={handleInputChange}
+                            index={index}
+                          />
+                        ))}
+                    </Tab>
+                    <Tab eventKey="settings" title="Settings">
+                      <DataInput
+                        objValue={{
+                          label: "Refresh Rate (Minutes)",
+                          type: "number",
+                          value: dashboardRefreshRate,
+                        }}
+                        onChange={onRefreshRateChange}
+                        index={0}
+                      />
+                      {"aspectRatio" in visualizationMetadata && (
+                        <DataInput
+                          objValue={{
+                            label: "Maintain Aspect Ratio",
+                            type: "checkbox",
+                            value: maintainAspectRatio,
+                          }}
+                          onChange={(e) => setMaintainAspectRatio(e)}
+                          index={0}
+                        />
+                      )}
+                    </Tab>
+                  </Tabs>
                 </StyledCol>
                 <Col className={"justify-content-center h-100 col-9"}>
                   {viz}

@@ -3,6 +3,7 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import DataInput from "components/inputs/DataInput";
 import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
+import { useInDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 import VariableInputRefreshButton from "components/buttons/VariableInputRefresh";
@@ -19,11 +20,12 @@ const InLineButtonDiv = styled.div`
   display: inline-block;
 `;
 
-const VariableInput = ({ args, onChange, dataviewer }) => {
+const VariableInput = ({ args, onChange }) => {
   const [value, setValue] = useState("");
   const [type, setType] = useState(null);
   const [label, setLabel] = useState(null);
   const availableVizArgs = useAvailableVisualizationsContext()[1];
+  const inDataViewerMode = useInDataViewerModeContext();
   const [variableInputValues, setVariableInputValues] =
     useVariableInputValuesContext();
 
@@ -51,7 +53,7 @@ const VariableInput = ({ args, onChange, dataviewer }) => {
       setValue(args.initial_value);
     }
 
-    if (!dataviewer) {
+    if (!inDataViewerMode) {
       updateVariableInputs(args.initial_value.value);
     }
     // eslint-disable-next-line
@@ -66,7 +68,7 @@ const VariableInput = ({ args, onChange, dataviewer }) => {
     onChange(e);
 
     if (Array.isArray(type) || type === "checkbox") {
-      if (!dataviewer) {
+      if (!inDataViewerMode) {
         if (typeof e.value !== "undefined") {
           updateVariableInputs(e.value);
         } else {
@@ -77,7 +79,7 @@ const VariableInput = ({ args, onChange, dataviewer }) => {
   }
 
   function handleInputRefresh() {
-    if (!dataviewer) {
+    if (!inDataViewerMode) {
       updateVariableInputs(value.value || value);
     }
   }
@@ -119,7 +121,6 @@ const VariableInput = ({ args, onChange, dataviewer }) => {
 VariableInput.propTypes = {
   args: PropTypes.object,
   onChange: PropTypes.func,
-  dataviewer: PropTypes.bool,
 };
 
 export default VariableInput;

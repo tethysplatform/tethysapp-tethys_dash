@@ -3,14 +3,16 @@ import styled from "styled-components";
 import Form from "react-bootstrap/Form";
 import DataSelect from "components/inputs/DataSelect";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
+import { useInDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
   margin-right: 1rem;
 `;
 
-const Input = ({ label, type, onChange, value, index, dataviewer }) => {
+const Input = ({ label, type, onChange, value, index }) => {
   const gridItems = useLayoutGridItemsContext()[0];
+  const inDataViewerMode = useInDataViewerModeContext();
 
   function getAvailableVariableInputs() {
     const availableVariableInputs = [];
@@ -43,7 +45,7 @@ const Input = ({ label, type, onChange, value, index, dataviewer }) => {
       }
     }
 
-    if (dataviewer && label !== "Variable Options Source") {
+    if (inDataViewerMode && label !== "Variable Options Source") {
       const availableVariableInputs = getAvailableVariableInputs(type);
       if (availableVariableInputs) {
         options.push({
@@ -98,8 +100,9 @@ const Input = ({ label, type, onChange, value, index, dataviewer }) => {
   }
 };
 
-const DataInput = ({ objValue, onChange, index, dataviewer }) => {
+const DataInput = ({ objValue, onChange, index }) => {
   const { label, type, value } = objValue;
+  const inDataViewerMode = useInDataViewerModeContext();
 
   return (
     <>
@@ -111,7 +114,7 @@ const DataInput = ({ objValue, onChange, index, dataviewer }) => {
             onChange={onChange}
             value={value}
             index={index}
-            dataviewer={dataviewer}
+            inDataViewerMode={inDataViewerMode}
           />
         </StyledDiv>
       )}
@@ -123,7 +126,6 @@ DataInput.propTypes = {
   objValue: PropTypes.object,
   onChange: PropTypes.func,
   index: PropTypes.number,
-  dataviewer: PropTypes.bool,
 };
 
 Input.propTypes = {
