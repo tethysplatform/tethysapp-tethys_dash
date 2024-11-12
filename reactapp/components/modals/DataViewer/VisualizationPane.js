@@ -34,6 +34,7 @@ function VisualizationPane({
   setVizInputsValues,
   variableInputValue,
   setVariableInputValue,
+  settingsRef,
   visualizationRef,
 }) {
   const [vizOptions, setVizOptions] = useState([]);
@@ -125,6 +126,7 @@ function VisualizationPane({
 
   function onDataTypeChange(e) {
     visualizationRef.current = null;
+    settingsRef.current = {};
     for (let p of vizOptions) {
       for (let i of p.options) {
         if (i === e) {

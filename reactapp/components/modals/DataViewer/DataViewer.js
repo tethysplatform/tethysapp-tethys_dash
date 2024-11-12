@@ -197,12 +197,14 @@ function DataViewerModal({
                         setVizInputsValues={setVizInputsValues}
                         variableInputValue={variableInputValue}
                         setVariableInputValue={setVariableInputValue}
+                        settingsRef={settingsRef}
                         visualizationRef={visualizationRef}
                       />
                     </Tab>
                     <Tab eventKey="settings" title="Settings">
                       <SettingsPane
                         settingsRef={settingsRef}
+                        viz={viz}
                         visualizationRef={visualizationRef}
                       />
                     </Tab>
