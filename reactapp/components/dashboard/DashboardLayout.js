@@ -27,22 +27,6 @@ const StyledDiv = styled.div`
 const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
-const GridLayout = ({ layout, updateLayout, items, onResize }) => (
-  <ReactGridLayout
-    className="complex-interface-layout"
-    layout={layout}
-    rowHeight={rowHeight}
-    cols={colCount}
-    onLayoutChange={(newLayout) => updateLayout(newLayout)}
-    isDraggable={false}
-    isResizable={false}
-    draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer"
-    onResize={onResize}
-  >
-    {items}
-  </ReactGridLayout>
-);
-
 function DashboardLayout() {
   const setSuccessMessage = useLayoutSuccessAlertContext()[1];
   const setShowSuccessMessage = useLayoutSuccessAlertContext()[3];
@@ -189,12 +173,5 @@ function DashboardLayout() {
     </Form>
   );
 }
-
-GridLayout.propTypes = {
-  isEditing: PropTypes.bool,
-  layout: PropTypes.array,
-  updateLayout: PropTypes.func,
-  items: PropTypes.array,
-};
 
 export default DashboardLayout;

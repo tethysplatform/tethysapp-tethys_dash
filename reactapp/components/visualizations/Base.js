@@ -24,7 +24,7 @@ const BaseVisualization = ({
   const [refreshCount, setRefreshCount] = useState(0);
   const isEditing = useEditingContext()[0];
   const gridMetadata = JSON.parse(metadataString);
-  const refreshRate = gridMetadata.refresh_rate;
+  const refreshRate = gridMetadata.refreshRate;
 
   useEffect(() => {
     const args = JSON.parse(argsString);

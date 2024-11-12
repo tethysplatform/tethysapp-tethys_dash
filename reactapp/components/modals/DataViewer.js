@@ -47,6 +47,7 @@ const StyledRow = styled(Row)`
 
 const StyledCol = styled(Col)`
   border-right: black solid 1px;
+  overflow: auto;
 `;
 
 function DataViewerModal({
@@ -79,16 +80,14 @@ function DataViewerModal({
   const visualizationRefMetadata = useVisualizationRefMetadataContext();
 
   const gridMetadata = JSON.parse(metadataString);
-  const refreshRate = gridMetadata.refresh_rate;
-  const aspectRatio = gridMetadata.aspectRatio;
 
-  const [dashboardRefreshRate, setDashboardRefreshRate] = useState(refreshRate);
+  const [gridItemRefreshRate, setGridItemRefreshRate] = useState(
+    gridMetadata.refreshRate
+  );
   const [maintainAspectRatio, setMaintainAspectRatio] = useState(
-    aspectRatio ? true : false
+    gridMetadata.aspectRatio ? true : false
   );
-  const [visualizationMetadata, setVisualizationMetadata] = useState(
-    visualizationRefMetadata.current
-  );
+  const [visualizationMetadata, setVisualizationMetadata] = useState({});
   const [tabKey, setTabKey] = useState("visualization");
 
   useEffect(() => {
@@ -127,7 +126,6 @@ function DataViewerModal({
         },
       ],
     });
-    setDashboardRefreshRate(refreshRate);
 
     setVizOptions(options);
     if (source) {
@@ -279,13 +277,15 @@ function DataViewerModal({
         }
         updatedGridItems[grid_item_index].args_string = JSON.stringify(vizArgs);
 
+        const gridSettings = {
+          refreshRate: gridItemRefreshRate,
+        };
         if (
           maintainAspectRatio === false &&
-          "aspectRatio" in visualizationMetadata
+          "aspectRatio" in visualizationRefMetadata.current
         ) {
-          delete visualizationMetadata.aspectRatio;
+          delete visualizationRefMetadata.current.aspectRatio;
         }
-        const gridSettings = { refresh_rate: dashboardRefreshRate };
         updatedGridItems[grid_item_index].metadata_string = JSON.stringify({
           ...gridSettings,
           ...visualizationRefMetadata.current,
@@ -399,7 +399,7 @@ function DataViewerModal({
 
   function onRefreshRateChange(e) {
     if (parseInt(e) >= 0) {
-      setDashboardRefreshRate(parseInt(e));
+      setGridItemRefreshRate(parseInt(e));
     }
   }
 
@@ -428,7 +428,7 @@ function DataViewerModal({
                   <Tabs
                     activeKey={tabKey}
                     onSelect={onTabKeyChange}
-                    id="controlled-tab-example"
+                    id="visualization-tabs"
                     className="mb-3"
                   >
                     <Tab eventKey="visualization" title="Visualization">
@@ -454,7 +454,7 @@ function DataViewerModal({
                         objValue={{
                           label: "Refresh Rate (Minutes)",
                           type: "number",
-                          value: dashboardRefreshRate,
+                          value: gridItemRefreshRate,
                         }}
                         onChange={onRefreshRateChange}
                         index={0}
@@ -462,7 +462,7 @@ function DataViewerModal({
                       {"aspectRatio" in visualizationMetadata && (
                         <DataInput
                           objValue={{
-                            label: "Maintain Aspect Ratio",
+                            label: "Enforce Aspect Ratio",
                             type: "checkbox",
                             value: maintainAspectRatio,
                           }}

@@ -4,13 +4,22 @@ import Form from "react-bootstrap/Form";
 import DataSelect from "components/inputs/DataSelect";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 import { useInDataViewerModeContext } from "components/contexts/DataViewerModeContext";
+import DataRadioSelect from "components/inputs/DataRadioSelect";
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
   margin-right: 1rem;
 `;
 
-const Input = ({ label, type, onChange, value, index }) => {
+const InlineLabel = styled.label`
+  display: inline;
+`;
+
+const InlineFormCheck = styled(Form.Check)`
+  display: inline;
+`;
+
+const Input = ({ label, type, onChange, value, index, valueOptions }) => {
   const gridItems = useLayoutGridItemsContext()[0];
   const inDataViewerMode = useInDataViewerModeContext();
 
@@ -68,15 +77,28 @@ const Input = ({ label, type, onChange, value, index }) => {
     );
   } else if (type === "checkbox") {
     return (
-      <>
-        <Form.Check
+      <div>
+        <InlineLabel>
+          <b>{label}: </b>
+        </InlineLabel>
+        <InlineFormCheck
           type={type}
           id={label.replace(" ", "_")}
-          label={label}
           checked={value}
           onChange={(e) => onChange(e.target.checked, index)}
         />
-      </>
+      </div>
+    );
+  } else if (type === "radio") {
+    return (
+      <DataRadioSelect
+        label={label}
+        selectedRadio={value}
+        radioOptions={valueOptions}
+        onChange={(e) => {
+          onChange(e.target.value, index);
+        }}
+      />
     );
   } else {
     return (
@@ -101,7 +123,7 @@ const Input = ({ label, type, onChange, value, index }) => {
 };
 
 const DataInput = ({ objValue, onChange, index }) => {
-  const { label, type, value } = objValue;
+  const { label, type, value, valueOptions } = objValue;
   const inDataViewerMode = useInDataViewerModeContext();
 
   return (
@@ -113,6 +135,7 @@ const DataInput = ({ objValue, onChange, index }) => {
             type={type}
             onChange={onChange}
             value={value}
+            valueOptions={valueOptions}
             index={index}
             inDataViewerMode={inDataViewerMode}
           />
