@@ -3,7 +3,7 @@ import styled from "styled-components";
 import Container from "react-bootstrap/Container";
 import { memo, useState } from "react";
 import { useEditingContext } from "components/contexts/EditingContext";
-import DataViewerModal from "components/modals/DataViewer";
+import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";

@@ -139,16 +139,20 @@ function DashboardLayout() {
       var result = gridItemsUpdated.current.find((obj) => {
         return obj.i === layoutItem.i;
       });
-      const aspectRatio = JSON.parse(result.metadata_string).aspectRatio;
-      if (aspectRatio) {
-        const heightDiff = layoutItem.h - oldLayoutItem.h;
-        const widthDiff = layoutItem.w - oldLayoutItem.w;
-        if (Math.abs(heightDiff) < Math.abs(widthDiff)) {
-          layoutItem.h = layoutItem.w / aspectRatio;
-          placeholder.h = layoutItem.w / aspectRatio;
-        } else {
-          layoutItem.w = layoutItem.h * aspectRatio;
-          placeholder.w = layoutItem.h * aspectRatio;
+      const metadata = JSON.parse(result.metadata_string);
+      const enforceAspectRatio = metadata.enforceAspectRatio;
+      if (enforceAspectRatio) {
+        const aspectRatio = metadata.aspectRatio;
+        if (aspectRatio) {
+          const heightDiff = layoutItem.h - oldLayoutItem.h;
+          const widthDiff = layoutItem.w - oldLayoutItem.w;
+          if (Math.abs(heightDiff) < Math.abs(widthDiff)) {
+            layoutItem.h = layoutItem.w / aspectRatio;
+            placeholder.h = layoutItem.w / aspectRatio;
+          } else {
+            layoutItem.w = layoutItem.h * aspectRatio;
+            placeholder.w = layoutItem.h * aspectRatio;
+          }
         }
       }
     },
