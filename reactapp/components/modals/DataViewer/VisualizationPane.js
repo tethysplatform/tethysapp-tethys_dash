@@ -292,6 +292,10 @@ VisualizationPane.propTypes = {
   setVizInputsValues: PropTypes.func,
   variableInputValue: PropTypes.object,
   setVariableInputValue: PropTypes.func,
+  settingsRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
