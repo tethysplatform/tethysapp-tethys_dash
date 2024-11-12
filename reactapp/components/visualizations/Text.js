@@ -22,6 +22,10 @@ const Text = ({ textValue, visualizationRef }) => {
 
 Text.propTypes = {
   textValue: PropTypes.string,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default memo(Text);

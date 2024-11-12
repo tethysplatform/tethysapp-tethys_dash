@@ -124,7 +124,6 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
 
 const DataInput = ({ objValue, onChange, index }) => {
   const { label, type, value, valueOptions } = objValue;
-  const inDataViewerMode = useInDataViewerModeContext();
 
   return (
     <>
@@ -137,7 +136,6 @@ const DataInput = ({ objValue, onChange, index }) => {
             value={value}
             valueOptions={valueOptions}
             index={index}
-            inDataViewerMode={inDataViewerMode}
           />
         </StyledDiv>
       )}
@@ -161,8 +159,8 @@ Input.propTypes = {
     PropTypes.bool,
     PropTypes.object,
   ]),
+  valueOptions: PropTypes.array,
   index: PropTypes.number,
-  dataviewer: PropTypes.bool,
 };
 
 export default DataInput;

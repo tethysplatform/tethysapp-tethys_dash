@@ -44,6 +44,10 @@ BasePlot.propTypes = {
   }),
   rowHeight: PropTypes.number,
   colWidth: PropTypes.number,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default memo(BasePlot);

@@ -279,14 +279,21 @@ CustomTextOptions.propTypes = {
 };
 
 VisualizationPane.propTypes = {
-  grid_item_index: PropTypes.number,
   source: PropTypes.string,
   argsString: PropTypes.string,
-  refreshRate: PropTypes.number,
   setGridItemMessage: PropTypes.func,
-  setShowGridItemMessage: PropTypes.func,
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
+  selectedVizTypeOption: PropTypes.string,
+  setSelectVizTypeOption: PropTypes.func,
+  setViz: PropTypes.func,
+  setVizMetadata: PropTypes.func,
+  vizInputsValues: PropTypes.object,
+  setVizInputsValues: PropTypes.func,
+  variableInputValue: PropTypes.object,
+  setVariableInputValue: PropTypes.func,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default VisualizationPane;

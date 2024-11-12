@@ -29,12 +29,6 @@ const Image = ({ source, visualizationRef }) => {
     );
   }
 
-  // function onImageLoad() {
-  //   visualizationRefMetadata.current["aspectRatio"] =
-  //     visualizationRef.current.naturalWidth /
-  //     visualizationRef.current.naturalHeight;
-  // }
-
   return (
     <>
       {imageWarning ? (
@@ -49,6 +43,10 @@ const Image = ({ source, visualizationRef }) => {
 Image.propTypes = {
   source: PropTypes.string,
   onError: PropTypes.func,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default memo(Image);

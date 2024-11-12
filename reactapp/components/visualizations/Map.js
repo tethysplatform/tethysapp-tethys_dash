@@ -69,6 +69,10 @@ MapVisualization.propTypes = {
   viewConfig: PropTypes.object,
   layers: PropTypes.array,
   legend: PropTypes.array,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default memo(MapVisualization);

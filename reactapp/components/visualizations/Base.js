@@ -111,7 +111,7 @@ const BaseVisualization = ({
 BaseVisualization.propTypes = {
   source: PropTypes.string,
   argsString: PropTypes.string,
-  refreshRate: PropTypes.number,
+  metadataString: PropTypes.string,
   showFullscreen: PropTypes.bool,
   hideFullscreen: PropTypes.func,
 };

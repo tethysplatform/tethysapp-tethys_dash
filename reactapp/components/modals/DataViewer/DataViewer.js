@@ -257,7 +257,7 @@ DataViewerModal.propTypes = {
   grid_item_index: PropTypes.number,
   source: PropTypes.string,
   argsString: PropTypes.string,
-  refreshRate: PropTypes.number,
+  metadataString: PropTypes.object,
   setGridItemMessage: PropTypes.func,
   setShowGridItemMessage: PropTypes.func,
   showModal: PropTypes.bool,

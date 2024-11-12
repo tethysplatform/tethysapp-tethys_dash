@@ -73,14 +73,14 @@ function SettingsPane({ settingsRef, visualizationRef }) {
 }
 
 SettingsPane.propTypes = {
-  grid_item_index: PropTypes.number,
-  source: PropTypes.string,
-  argsString: PropTypes.string,
-  refreshRate: PropTypes.number,
-  setGridItemMessage: PropTypes.func,
-  setShowGridItemMessage: PropTypes.func,
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
+  settingsRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default SettingsPane;

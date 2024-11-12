@@ -110,6 +110,10 @@ Card.propTypes = {
   title: PropTypes.string,
   description: PropTypes.string,
   data: PropTypes.array,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 StatItemGroup.propTypes = {
