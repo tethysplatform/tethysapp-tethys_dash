@@ -25,6 +25,7 @@ const BaseVisualization = ({
   const isEditing = useEditingContext()[0];
   const gridMetadata = JSON.parse(metadataString);
   const refreshRate = gridMetadata.refreshRate;
+  const visualizationRef = useRef();
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -52,7 +53,7 @@ const BaseVisualization = ({
         itemData.args = updatedGridItemArgs;
         gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
         gridItemSource.current = source;
-        setVisualization(setViz, itemData);
+        setVisualization(setViz, itemData, visualizationRef);
       }
     }
     if (refreshRate && refreshRate > 0) {
@@ -60,7 +61,7 @@ const BaseVisualization = ({
         () => {
           if (!isEditing) {
             setRefreshCount(refreshCount + 1);
-            setVisualization(setViz, itemData);
+            setVisualization(setViz, itemData, visualizationRef);
           }
         },
         parseInt(refreshRate) * 1000 * 60
@@ -88,7 +89,7 @@ const BaseVisualization = ({
         itemData.args = updatedGridItemArgs;
         gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
         gridItemSource.current = source;
-        setVisualization(setViz, itemData);
+        setVisualization(setViz, itemData, visualizationRef);
       }
     }
     // eslint-disable-next-line

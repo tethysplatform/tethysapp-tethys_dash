@@ -12,7 +12,6 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { getGridItem } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
-import VisualizationRefContextProvider from "components/contexts/VisualizationRefContext";
 import { useSetDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 
 const StyledContainer = styled(Container)`
@@ -144,18 +143,16 @@ const DashboardItem = ({
         />
       </StyledContainer>
       {showDataViewerModal && (
-        <VisualizationRefContextProvider>
-          <DataViewerModal
-            grid_item_index={grid_item_index}
-            source={gridItemSource}
-            argsString={gridItemArgsString}
-            metadataString={gridItemMetadataString}
-            showModal={showDataViewerModal}
-            handleModalClose={hideDataViewerModal}
-            setGridItemMessage={setGridItemMessage}
-            setShowGridItemMessage={setShowGridItemMessage}
-          />
-        </VisualizationRefContextProvider>
+        <DataViewerModal
+          grid_item_index={grid_item_index}
+          source={gridItemSource}
+          argsString={gridItemArgsString}
+          metadataString={gridItemMetadataString}
+          showModal={showDataViewerModal}
+          handleModalClose={hideDataViewerModal}
+          setGridItemMessage={setGridItemMessage}
+          setShowGridItemMessage={setShowGridItemMessage}
+        />
       )}
     </>
   );

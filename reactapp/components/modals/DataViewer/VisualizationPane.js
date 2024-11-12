@@ -16,10 +16,6 @@ import {
 import { updateGridItemArgsWithVariableInputs } from "components/visualizations/utilities";
 import VariableInput from "components/visualizations/VariableInput";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
-import {
-  useVisualizationRefContext,
-  useVisualizationRefMetadataContext,
-} from "components/contexts/VisualizationRefContext";
 import "components/modals/wideModal.css";
 
 const StyledDiv = styled.div`
@@ -38,14 +34,13 @@ function VisualizationPane({
   setVizInputsValues,
   variableInputValue,
   setVariableInputValue,
+  visualizationRef,
 }) {
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
   const availableVisualizations = useAvailableVisualizationsContext()[0];
   const availableVizArgs = useAvailableVisualizationsContext()[1];
   const variableInputValues = useVariableInputValuesContext()[0];
-  const visualizationRef = useVisualizationRefContext();
-  const visualizationRefMetadata = useVisualizationRefMetadataContext();
 
   useEffect(() => {
     let options = [...availableVisualizations];
@@ -129,7 +124,6 @@ function VisualizationPane({
   }
 
   function onDataTypeChange(e) {
-    visualizationRefMetadata.current = {};
     visualizationRef.current = null;
     for (let p of vizOptions) {
       for (let i of p.options) {
@@ -239,7 +233,7 @@ function VisualizationPane({
         variableInputValues
       );
       itemData.args = updatedGridItemArgs;
-      setVisualization(setViz, itemData);
+      setVisualization(setViz, itemData, visualizationRef);
     }
   }
 

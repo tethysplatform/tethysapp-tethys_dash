@@ -37,7 +37,7 @@ function ModuleLoader(props) {
 
   return (
     <Suspense fallback={<LoadingAnimation />}>
-      <Component {...props.props} />
+      <Component {...props.props} ref={props.visualizationRef} />
     </Suspense>
   );
 }

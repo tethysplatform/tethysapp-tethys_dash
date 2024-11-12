@@ -12,7 +12,6 @@ import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboard
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import CustomAlert from "components/dashboard/CustomAlert";
-import { useVisualizationRefMetadataContext } from "components/contexts/VisualizationRefContext";
 import VisualizationPane from "components/modals/DataViewer/VisualizationPane";
 import SettingsPane from "components/modals/DataViewer/SettingsPane";
 import Tab from "react-bootstrap/Tab";
@@ -58,9 +57,9 @@ function DataViewerModal({
   const [showAlert, setShowAlert] = useState(false);
   const variableInputValues = useVariableInputValuesContext()[0];
   const setVariableInputValues = useVariableInputValuesContext()[1];
-  const visualizationRefMetadata = useVisualizationRefMetadataContext();
 
   const gridMetadata = JSON.parse(metadataString);
+  const visualizationRef = useRef({});
   const settingsRef = useRef(gridMetadata);
   const [tabKey, setTabKey] = useState("visualization");
 
@@ -110,10 +109,9 @@ function DataViewerModal({
         }
         updatedGridItems[grid_item_index].args_string = JSON.stringify(vizArgs);
 
-        updatedGridItems[grid_item_index].metadata_string = JSON.stringify({
-          ...settingsRef.current,
-          ...visualizationRefMetadata.current,
-        });
+        updatedGridItems[grid_item_index].metadata_string = JSON.stringify(
+          settingsRef.current
+        );
 
         if (selectedVizTypeOption.source === "Variable Input") {
           updatedGridItems = updateVariableInputs(vizArgs, updatedGridItems);
@@ -199,10 +197,14 @@ function DataViewerModal({
                         setVizInputsValues={setVizInputsValues}
                         variableInputValue={variableInputValue}
                         setVariableInputValue={setVariableInputValue}
+                        visualizationRef={visualizationRef}
                       />
                     </Tab>
                     <Tab eventKey="settings" title="Settings">
-                      <SettingsPane settingsRef={settingsRef} />
+                      <SettingsPane
+                        settingsRef={settingsRef}
+                        visualizationRef={visualizationRef}
+                      />
                     </Tab>
                   </Tabs>
                 </StyledCol>

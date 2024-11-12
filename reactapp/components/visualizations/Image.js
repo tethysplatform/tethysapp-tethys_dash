@@ -1,10 +1,6 @@
 import PropTypes from "prop-types";
 import styled from "styled-components";
-import { memo, useState, useEffect, useRef } from "react";
-import {
-  useVisualizationRefContext,
-  useVisualizationRefMetadataContext,
-} from "components/contexts/VisualizationRefContext";
+import { memo, useState, useEffect } from "react";
 
 const StyledImg = styled.img`
   height: 100%;
@@ -18,15 +14,8 @@ const StyledDiv = styled.div`
   height: 100%;
 `;
 
-const Image = ({ source }) => {
+const Image = ({ source, visualizationRef }) => {
   const [imageWarning, setImageWarning] = useState(null);
-  let visualizationRef = useVisualizationRefContext();
-  let visualizationRefMetadata = useVisualizationRefMetadataContext();
-  if (!visualizationRef) {
-    // if image is not in the dataviewer then the refs will be undefined
-    visualizationRef = useRef({});
-    visualizationRefMetadata = useRef({});
-  }
 
   useEffect(() => {
     setImageWarning(null);
@@ -40,23 +29,18 @@ const Image = ({ source }) => {
     );
   }
 
-  function onImageLoad() {
-    visualizationRefMetadata.current["aspectRatio"] =
-      visualizationRef.current.naturalWidth /
-      visualizationRef.current.naturalHeight;
-  }
+  // function onImageLoad() {
+  //   visualizationRefMetadata.current["aspectRatio"] =
+  //     visualizationRef.current.naturalWidth /
+  //     visualizationRef.current.naturalHeight;
+  // }
 
   return (
     <>
       {imageWarning ? (
         imageWarning
       ) : (
-        <StyledImg
-          src={source}
-          onError={onImageError}
-          onLoad={onImageLoad}
-          ref={visualizationRef}
-        />
+        <StyledImg src={source} onError={onImageError} ref={visualizationRef} />
       )}
     </>
   );
