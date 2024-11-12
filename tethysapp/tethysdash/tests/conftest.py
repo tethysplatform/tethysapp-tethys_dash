@@ -98,7 +98,7 @@ def grid_item():
                 "h": 1,
                 "source": "Custom Image",
                 "args_string": json.dumps({"uri": "some_path"}),
-                "refreshRate": 0,
+                "metadata_string": json.dumps({"refreshRate": 0}),
             }
         ]
     )
