@@ -3,7 +3,7 @@ import styled from "styled-components";
 import Container from "react-bootstrap/Container";
 import { memo, useState } from "react";
 import { useEditingContext } from "components/contexts/EditingContext";
-import DataViewerModal from "components/modals/DataViewer";
+import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
@@ -12,6 +12,7 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { getGridItem } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
+import { useSetDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 
 const StyledContainer = styled(Container)`
   position: relative;
@@ -29,7 +30,7 @@ const DashboardItem = ({
   gridItemSource,
   gridItemI,
   gridItemArgsString,
-  gridItemRefreshRate,
+  gridItemMetadataString,
   grid_item_index,
 }) => {
   const [isEditing, setIsEditing] = useEditingContext();
@@ -42,6 +43,7 @@ const DashboardItem = ({
   const getLayoutContext = useLayoutContext()[2];
   const variableInputValues = useVariableInputValuesContext()[0];
   const setVariableInputValues = useVariableInputValuesContext()[1];
+  const setInDataViewerMode = useSetDataViewerModeContext();
 
   async function deleteGridItem(e) {
     if (await confirm("Are your sure you want to delete the item?")) {
@@ -68,6 +70,7 @@ const DashboardItem = ({
   function editGridItem() {
     setShowDataViewerModal(true);
     setIsEditing(true);
+    setInDataViewerMode(true);
   }
 
   function copyGridItem() {
@@ -109,6 +112,7 @@ const DashboardItem = ({
 
   function hideDataViewerModal() {
     setShowDataViewerModal(false);
+    setInDataViewerMode(false);
   }
 
   return (
@@ -133,7 +137,7 @@ const DashboardItem = ({
           key={gridItemI}
           source={gridItemSource}
           argsString={gridItemArgsString}
-          refreshRate={gridItemRefreshRate}
+          metadataString={gridItemMetadataString}
           showFullscreen={showFullscreen}
           hideFullscreen={hideFullscreen}
         />
@@ -143,7 +147,7 @@ const DashboardItem = ({
           grid_item_index={grid_item_index}
           source={gridItemSource}
           argsString={gridItemArgsString}
-          refreshRate={gridItemRefreshRate}
+          metadataString={gridItemMetadataString}
           showModal={showDataViewerModal}
           handleModalClose={hideDataViewerModal}
           setGridItemMessage={setGridItemMessage}
@@ -158,7 +162,7 @@ DashboardItem.propTypes = {
   gridItemSource: PropTypes.string,
   gridItemI: PropTypes.string,
   gridItemArgsString: PropTypes.string,
-  gridItemRefreshRate: PropTypes.number,
+  gridItemMetadataString: PropTypes.string,
   grid_item_index: PropTypes.number,
 };
 

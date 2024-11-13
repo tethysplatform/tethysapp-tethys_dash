@@ -13,7 +13,7 @@ const StyledPlot = styled(Plot)`
   padding: 0;
 `;
 
-const BasePlot = ({ plotData }) => {
+const BasePlot = ({ plotData, visualizationRef }) => {
   const { width, height, ref } = useResizeDetector({
     refreshMode: "debounce",
     refreshRate: 100,
@@ -21,6 +21,7 @@ const BasePlot = ({ plotData }) => {
   return (
     <div ref={ref} style={{ display: "flex", height: "100%" }}>
       <StyledPlot
+        ref={visualizationRef}
         data={plotData.data}
         layout={{
           ...plotData.layout,
@@ -43,6 +44,10 @@ BasePlot.propTypes = {
   }),
   rowHeight: PropTypes.number,
   colWidth: PropTypes.number,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default memo(BasePlot);

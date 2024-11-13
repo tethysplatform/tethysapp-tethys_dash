@@ -10,7 +10,13 @@ import {
 } from "backlayer";
 import PropTypes from "prop-types";
 
-const MapVisualization = ({ mapConfig, viewConfig, layers, legend }) => {
+const MapVisualization = ({
+  mapConfig,
+  viewConfig,
+  layers,
+  legend,
+  visualizationRef,
+}) => {
   const defaultMapConfig = {
     className: "ol-map",
     style: { width: "100%", height: "100%", position: "relative" },
@@ -43,7 +49,7 @@ const MapVisualization = ({ mapConfig, viewConfig, layers, legend }) => {
   const customBaseLayers = layers ? layers : defaultBaseLayers;
 
   return (
-    <Map {...customMapConfig}>
+    <Map {...customMapConfig} ref={visualizationRef}>
       <View {...customViewConfig} />
       <Layers>
         {customBaseLayers.map((config, index) => (
@@ -63,6 +69,10 @@ MapVisualization.propTypes = {
   viewConfig: PropTypes.object,
   layers: PropTypes.array,
   legend: PropTypes.array,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default memo(MapVisualization);

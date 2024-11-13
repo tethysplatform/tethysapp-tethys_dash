@@ -1,0 +1,13 @@
+Generic single-database configuration.
+
+Before running DB migrations, ensure that the following environment variables are declared.
+
+    - TETHYS_DB_USERNAME
+    - TETHYS_DB_PASSWORD
+    - TETHYS_DB_HOST
+    - TETHYS_DB_NAME
+    - TETHYS_DB_PORT
+
+To run the latest DB migration, run the `alembic upgrade head` command from the alembic directory.
+
+You can also upgrade or downgrade "N" versions by running `alembic upgrade +N` or `alembic downgrade +N`

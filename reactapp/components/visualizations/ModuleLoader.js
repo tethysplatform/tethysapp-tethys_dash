@@ -37,7 +37,7 @@ function ModuleLoader(props) {
 
   return (
     <Suspense fallback={<LoadingAnimation />}>
-      <Component {...props.props} />
+      <Component {...props.props} ref={props.visualizationRef} />
     </Suspense>
   );
 }
@@ -47,6 +47,10 @@ ModuleLoader.propTypes = {
   module: PropTypes.string,
   url: PropTypes.string,
   scope: PropTypes.string,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default ModuleLoader;

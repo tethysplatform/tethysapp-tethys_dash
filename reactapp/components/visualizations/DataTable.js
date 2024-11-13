@@ -9,7 +9,7 @@ const StyledDiv = styled.div`
   text-align: center;
 `;
 
-const DataTable = ({ data, title }) => {
+const DataTable = ({ data, title, visualizationRef }) => {
   if (data.length === 0) {
     return (
       <StyledDiv>
@@ -47,7 +47,7 @@ const DataTable = ({ data, title }) => {
   return (
     <StyledDiv>
       <h2>{title}</h2>
-      <Table striped bordered hover>
+      <Table striped bordered hover ref={visualizationRef}>
         {TableHead()}
         {TableBody()}
       </Table>
@@ -68,6 +68,10 @@ function capitalizePhrase(phrase) {
 DataTable.propTypes = {
   data: PropTypes.array,
   title: PropTypes.string,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default memo(DataTable);
