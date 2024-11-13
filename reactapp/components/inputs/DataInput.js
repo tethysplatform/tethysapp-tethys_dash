@@ -3,14 +3,25 @@ import styled from "styled-components";
 import Form from "react-bootstrap/Form";
 import DataSelect from "components/inputs/DataSelect";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
+import { useInDataViewerModeContext } from "components/contexts/DataViewerModeContext";
+import DataRadioSelect from "components/inputs/DataRadioSelect";
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
   margin-right: 1rem;
 `;
 
-const Input = ({ label, type, onChange, value, index, dataviewer }) => {
+const InlineLabel = styled.label`
+  display: inline;
+`;
+
+const InlineFormCheck = styled(Form.Check)`
+  display: inline;
+`;
+
+const Input = ({ label, type, onChange, value, index, valueOptions }) => {
   const gridItems = useLayoutGridItemsContext()[0];
+  const inDataViewerMode = useInDataViewerModeContext();
 
   function getAvailableVariableInputs() {
     const availableVariableInputs = [];
@@ -43,7 +54,7 @@ const Input = ({ label, type, onChange, value, index, dataviewer }) => {
       }
     }
 
-    if (dataviewer && label !== "Variable Options Source") {
+    if (inDataViewerMode && label !== "Variable Options Source") {
       const availableVariableInputs = getAvailableVariableInputs(type);
       if (availableVariableInputs) {
         options.push({
@@ -66,15 +77,28 @@ const Input = ({ label, type, onChange, value, index, dataviewer }) => {
     );
   } else if (type === "checkbox") {
     return (
-      <>
-        <Form.Check
+      <div>
+        <InlineLabel>
+          <b>{label}: </b>
+        </InlineLabel>
+        <InlineFormCheck
           type={type}
           id={label.replace(" ", "_")}
-          label={label}
           checked={value}
           onChange={(e) => onChange(e.target.checked, index)}
         />
-      </>
+      </div>
+    );
+  } else if (type === "radio") {
+    return (
+      <DataRadioSelect
+        label={label}
+        selectedRadio={value}
+        radioOptions={valueOptions}
+        onChange={(e) => {
+          onChange(e.target.value, index);
+        }}
+      />
     );
   } else {
     return (
@@ -98,8 +122,8 @@ const Input = ({ label, type, onChange, value, index, dataviewer }) => {
   }
 };
 
-const DataInput = ({ objValue, onChange, index, dataviewer }) => {
-  const { label, type, value } = objValue;
+const DataInput = ({ objValue, onChange, index }) => {
+  const { label, type, value, valueOptions } = objValue;
 
   return (
     <>
@@ -110,8 +134,8 @@ const DataInput = ({ objValue, onChange, index, dataviewer }) => {
             type={type}
             onChange={onChange}
             value={value}
+            valueOptions={valueOptions}
             index={index}
-            dataviewer={dataviewer}
           />
         </StyledDiv>
       )}
@@ -123,7 +147,6 @@ DataInput.propTypes = {
   objValue: PropTypes.object,
   onChange: PropTypes.func,
   index: PropTypes.number,
-  dataviewer: PropTypes.bool,
 };
 
 Input.propTypes = {
@@ -136,8 +159,8 @@ Input.propTypes = {
     PropTypes.bool,
     PropTypes.object,
   ]),
+  valueOptions: PropTypes.array,
   index: PropTypes.number,
-  dataviewer: PropTypes.bool,
 };
 
 export default DataInput;

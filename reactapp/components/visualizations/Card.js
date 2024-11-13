@@ -86,9 +86,9 @@ const StatItemGroup = ({ item, index }) => {
 };
 
 // Component to display the StatsCard
-const Card = ({ title, description, data }) => {
+const Card = ({ title, description, data, visualizationRef }) => {
   return (
-    <CardContainer>
+    <CardContainer ref={visualizationRef}>
       <Header>
         <h3>{title}</h3>
         <p>{description}</p>
@@ -110,6 +110,10 @@ Card.propTypes = {
   title: PropTypes.string,
   description: PropTypes.string,
   data: PropTypes.array,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 StatItemGroup.propTypes = {

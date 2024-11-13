@@ -13,7 +13,7 @@ import { useEditingContext } from "components/contexts/EditingContext";
 const BaseVisualization = ({
   source,
   argsString,
-  refreshRate,
+  metadataString,
   showFullscreen,
   hideFullscreen,
 }) => {
@@ -23,6 +23,9 @@ const BaseVisualization = ({
   const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
   const isEditing = useEditingContext()[0];
+  const gridMetadata = JSON.parse(metadataString);
+  const refreshRate = gridMetadata.refreshRate;
+  const visualizationRef = useRef();
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -50,15 +53,15 @@ const BaseVisualization = ({
         itemData.args = updatedGridItemArgs;
         gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
         gridItemSource.current = source;
-        setVisualization(setViz, itemData);
+        setVisualization(setViz, itemData, visualizationRef);
       }
     }
-    if (refreshRate && refreshRate !== 0) {
+    if (refreshRate && refreshRate > 0) {
       const interval = setInterval(
         () => {
           if (!isEditing) {
             setRefreshCount(refreshCount + 1);
-            setVisualization(setViz, itemData);
+            setVisualization(setViz, itemData, visualizationRef);
           }
         },
         parseInt(refreshRate) * 1000 * 60
@@ -86,7 +89,7 @@ const BaseVisualization = ({
         itemData.args = updatedGridItemArgs;
         gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
         gridItemSource.current = source;
-        setVisualization(setViz, itemData);
+        setVisualization(setViz, itemData, visualizationRef);
       }
     }
     // eslint-disable-next-line
@@ -108,7 +111,7 @@ const BaseVisualization = ({
 BaseVisualization.propTypes = {
   source: PropTypes.string,
   argsString: PropTypes.string,
-  refreshRate: PropTypes.number,
+  metadataString: PropTypes.string,
   showFullscreen: PropTypes.bool,
   hideFullscreen: PropTypes.func,
 };

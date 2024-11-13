@@ -17,7 +17,7 @@ const StyledH2 = styled.h2`
   text-align: center;
 `;
 
-export function setVisualization(setViz, itemData) {
+export function setVisualization(setViz, itemData, visualizationRef) {
   setViz(<StyledSpinner animation="border" variant="info" />);
 
   appAPI.getPlotData(itemData).then((response) => {
@@ -27,12 +27,20 @@ export function setVisualization(setViz, itemData) {
           data: response.data.data,
           layout: response.data.layout,
         };
-        setViz(<BasePlot plotData={plotData} />);
+        setViz(
+          <BasePlot plotData={plotData} visualizationRef={visualizationRef} />
+        );
       } else if (response["viz_type"] === "image") {
-        setViz(<Image source={response.data} />);
+        setViz(
+          <Image source={response.data} visualizationRef={visualizationRef} />
+        );
       } else if (response["viz_type"] === "table") {
         setViz(
-          <DataTable data={response.data.data} title={response.data.title} />
+          <DataTable
+            data={response.data.data}
+            title={response.data.title}
+            visualizationRef={visualizationRef}
+          />
         );
       } else if (response["viz_type"] === "card") {
         setViz(
@@ -40,6 +48,7 @@ export function setVisualization(setViz, itemData) {
             data={response.data.data}
             title={response.data.title}
             description={response.data.description}
+            visualizationRef={visualizationRef}
           />
         );
       } else if (response["viz_type"] === "map") {
@@ -49,6 +58,7 @@ export function setVisualization(setViz, itemData) {
             layers={response.data.layers}
             mapConfig={response.data.map_config}
             legend={response.data.legend}
+            visualizationRef={visualizationRef}
           />
         );
       } else if (response["viz_type"] === "custom") {
@@ -58,6 +68,7 @@ export function setVisualization(setViz, itemData) {
             scope={response.data.scope}
             module={response.data.module}
             props={response.data.props}
+            visualizationRef={visualizationRef}
           />
         );
       } else {

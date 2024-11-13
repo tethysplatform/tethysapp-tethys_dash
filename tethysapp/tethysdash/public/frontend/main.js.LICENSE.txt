@@ -4,8 +4,6 @@
 	http://jedwatson.github.io/classnames
 */
 
-/*! @license DOMPurify 3.1.7 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.1.7/LICENSE */
-
 /*! For license information please see index.js.LICENSE.txt */
 
 /*! For license information please see plotly-cartesian.min.js.LICENSE.txt */
@@ -61,7 +59,7 @@
  */
 
 /**
- * @remix-run/router v1.20.0
+ * @remix-run/router v1.21.0
  *
  * Copyright (c) Remix Software Inc.
  *
@@ -81,7 +79,7 @@
  */
 
 /**
- * React Router v6.27.0
+ * React Router v6.28.0
  *
  * Copyright (c) Remix Software Inc.
  *

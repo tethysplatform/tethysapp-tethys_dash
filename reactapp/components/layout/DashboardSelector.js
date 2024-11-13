@@ -111,7 +111,9 @@ function DashboardSelector({ initialDashboard }) {
       h: 20,
       source: "",
       args_string: "{}",
-      refresh_rate: 0,
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
     };
     layout["gridItems"] = [...layout["gridItems"], newGridItem];
     setLayoutContext(layout);
