@@ -15,7 +15,8 @@ dependencies = [
     "pytest-mock",
     "pytest-cov",
     "intake",
-    "djangorestframework"
+    "djangorestframework",
+    "alembic"
 ]
 
 # -- Get Resource File -- #
