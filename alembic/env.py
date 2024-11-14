@@ -31,7 +31,7 @@ def get_db_url():
     db_user = os.environ["TETHYS_DB_USERNAME"]
     db_pass = os.environ["TETHYS_DB_PASSWORD"]
     db_host = os.environ["TETHYS_DB_HOST"]
-    db_name = os.environ["TETHYS_DB_NAME"]
+    db_name = os.environ["TETHYSDASH_DB_NAME"]
     db_port = os.environ["TETHYS_DB_PORT"]
     return f"postgresql://{db_user}:{db_pass}@{db_host}:{db_port}/{db_name}"
 
