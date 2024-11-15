@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import DashboardSelect from "components/inputs/DashboardSelect";
 import TooltipButton from "components/buttons/TooltipButton";
 import NewDashboardModal from "components/modals/NewDashboard";
@@ -11,7 +11,6 @@ import {
   useAvailableDashboardsContext,
   useDashboardDropwdownContext,
 } from "components/contexts/AvailableDashboardsContext";
-import { useAddDashboardModalShowContext } from "components/contexts/AddDashboardModalShowContext";
 import {
   BsArrowReturnLeft,
   BsFloppy,
@@ -38,8 +37,7 @@ function DashboardSelector({ initialDashboard }) {
     selectedDashboardDropdownOption,
     setSelectedDashboardDropdownOption,
   ] = useDashboardDropwdownContext();
-  const [showAddDashboardModal, setShowAddDashboardModal] =
-    useAddDashboardModalShowContext();
+  const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useEditingContext();
 
   useEffect(() => {
@@ -60,7 +58,7 @@ function DashboardSelector({ initialDashboard }) {
 
   function changeDashboard(e) {
     if (e.value === "Create a New Dashboard") {
-      setShowAddDashboardModal(true);
+      setShowModal(true);
     } else {
       let selectedDashboard = availableDashboards[e.value];
       setSelectedDashboardDropdownOption({
@@ -169,7 +167,9 @@ function DashboardSelector({ initialDashboard }) {
           )}
         </>
       )}
-      {showAddDashboardModal && <NewDashboardModal />}
+      {showModal && (
+        <NewDashboardModal showModal={showModal} setShowModal={setShowModal} />
+      )}
     </StyledDiv>
   );
 }

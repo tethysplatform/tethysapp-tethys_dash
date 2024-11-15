@@ -4,15 +4,12 @@ import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import Form from "react-bootstrap/Form";
 import Alert from "react-bootstrap/Alert";
-import { useAddDashboardModalShowContext } from "components/contexts/AddDashboardModalShowContext";
 import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import { useEditingContext } from "components/contexts/EditingContext";
 import { useState } from "react";
 
-function NewDashboardModal() {
+function NewDashboardModal({ showModal, setShowModal }) {
   const [dashboardName, setDashboardName] = useState("");
-
-  const [showModal, setShowModal] = useAddDashboardModalShowContext();
   const addDashboard = useAvailableDashboardsContext()[2];
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
@@ -33,7 +30,7 @@ function NewDashboardModal() {
     };
     addDashboard(inputData).then((response) => {
       if (response["success"]) {
-        setShowModal(false);
+        handleModalClose();
         setShowSaveMessage(true);
         setIsEditing(true);
       } else {
