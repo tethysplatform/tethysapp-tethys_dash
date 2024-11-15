@@ -10,21 +10,19 @@ import "jest-location-mock";
 
 // Make .env files accessible to tests (path relative to project root)
 require("dotenv").config({ path: "./reactapp/__tests__/test.env" });
-const originalError = console.error.bind(console.error);
-const originalEnv = process.env;
 
 // Setup mocked Tethys API
 beforeAll(() => {
   server.listen();
-  console.error = (...args) => {
+  console.error = (msg) => {
     if (
-      !args
+      !msg
         .toString()
         .includes(
           "Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`."
         )
     ) {
-      originalError(...args);
+      originalWarn(msg);
     }
   };
 });
