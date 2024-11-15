@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import DashboardSelect from "components/inputs/DashboardSelect";
-import HeaderButton from "components/buttons/HeaderButton";
+import TooltipButton from "components/buttons/TooltipButton";
 import NewDashboardModal from "components/modals/NewDashboard";
 import {
   useLayoutContext,
@@ -132,38 +132,38 @@ function DashboardSelector({ initialDashboard }) {
             <>
               {isEditing && (
                 <>
-                  <HeaderButton
+                  <TooltipButton
                     tooltipPlacement="bottom"
                     tooltipText="Cancel Changes"
                     onClick={onCancel}
                   >
                     <BsArrowReturnLeft size="1.5rem" />
-                  </HeaderButton>
-                  <HeaderButton
+                  </TooltipButton>
+                  <TooltipButton
                     tooltipPlacement="bottom"
                     tooltipText="Save Changes"
                     form="gridUpdate"
                     type="submit"
                   >
                     <BsFloppy size="1.5rem" />
-                  </HeaderButton>
-                  <HeaderButton
+                  </TooltipButton>
+                  <TooltipButton
                     tooltipPlacement="bottom"
                     tooltipText="Add Dashboard Item"
                     onClick={onAddGridItem}
                   >
                     <BsPlus size="1.5rem" />
-                  </HeaderButton>
+                  </TooltipButton>
                 </>
               )}
               {!isEditing && (
-                <HeaderButton
+                <TooltipButton
                   tooltipPlacement="bottom"
                   tooltipText="Edit Dashboard"
                   onClick={onEdit}
                 >
                   <BsPencilSquare size="1.5rem" />
-                </HeaderButton>
+                </TooltipButton>
               )}
             </>
           )}

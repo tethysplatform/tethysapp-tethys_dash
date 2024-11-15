@@ -12,7 +12,7 @@ import {
 } from "components/contexts/SelectedDashboardContext";
 import styled from "styled-components";
 import { getTethysPortalHost } from "services/utilities";
-import ClipboardCopyButton from "components/buttons/ClipboardCopy";
+import TooltipButton from "components/buttons/TooltipButton";
 import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import PropTypes from "prop-types";
 import TextEditor from "components/inputs/TextEditor";
@@ -20,6 +20,7 @@ import { useEditingContext } from "components/contexts/EditingContext";
 import DataInput from "components/inputs/DataInput";
 import Text from "components/visualizations/Text";
 import { confirm } from "components/dashboard/DeleteConfirmation";
+import { BsClipboard } from "react-icons/bs";
 
 const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
 
@@ -239,10 +240,20 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
               <p>{dashboardPublicUrl}</p>
             </StyledMarginDiv>
             <StyledDiv>
-              <ClipboardCopyButton
-                success={copyClipboardSuccess}
+              <TooltipButton
+                tooltipPlacement={"right"}
+                tooltipText={
+                  copyClipboardSuccess === null
+                    ? "Copy to clipboard"
+                    : copyClipboardSuccess
+                      ? "Copied"
+                      : "Failed to Copy"
+                }
+                variant={"warning"}
                 onClick={handleCopyURLClick}
-              />
+              >
+                <BsClipboard />
+              </TooltipButton>
             </StyledDiv>
           </>
         )}

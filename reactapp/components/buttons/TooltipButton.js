@@ -8,21 +8,7 @@ const StyledTooltip = styled(Tooltip)`
   position: fixed;
 `;
 
-const StyledButton = styled(Button)`
-  background-color: rgba(255, 255, 255, 0.1);
-  border: none;
-  color: white;
-
-  &:hover,
-  &:focus {
-    background-color: rgba(0, 0, 0, 0.1) !important;
-    color: white;
-    border: none;
-    box-shadow: none;
-  }
-`;
-
-const HeaderButton = ({
+const TooltipButton = ({
   children,
   tooltipPlacement,
   tooltipText,
@@ -30,15 +16,15 @@ const HeaderButton = ({
   ...props
 }) => {
   const styledButton = (
-    <StyledButton
+    <Button
       href={href}
-      variant="info"
+      variant={props.variant ? props.variant : "info"}
       size="sm"
       className="me-2"
       {...props}
     >
       {children}
-    </StyledButton>
+    </Button>
   );
   const styledButtonWithTooltip = (
     <OverlayTrigger
@@ -56,7 +42,7 @@ const HeaderButton = ({
   return tooltipText ? styledButtonWithTooltip : styledButton;
 };
 
-HeaderButton.propTypes = {
+TooltipButton.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.node),
     PropTypes.node,
@@ -67,4 +53,4 @@ HeaderButton.propTypes = {
   href: PropTypes.string,
 };
 
-export default HeaderButton;
+export default TooltipButton;

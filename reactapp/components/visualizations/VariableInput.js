@@ -6,7 +6,8 @@ import { useAvailableVisualizationsContext } from "components/contexts/Available
 import { useInDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
-import VariableInputRefreshButton from "components/buttons/VariableInputRefresh";
+import TooltipButton from "components/buttons/TooltipButton";
+import { BsArrowClockwise } from "react-icons/bs";
 
 const StyledDiv = styled.div`
   padding: 1rem;
@@ -111,7 +112,14 @@ const VariableInput = ({ args, onChange }) => {
           />
         </InLineInputDiv>
         <InLineButtonDiv>
-          <VariableInputRefreshButton onClick={handleInputRefresh} />
+          <TooltipButton
+            onClick={handleInputRefresh}
+            tooltipPlacement={"right"}
+            tooltipText={"Refresh variable input"}
+            variant={"warning"}
+          >
+            <BsArrowClockwise />
+          </TooltipButton>
         </InLineButtonDiv>
       </StyledDiv>
     );
