@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
-import HeaderButton from "components/buttons/HeaderButton";
+import TooltipButton from "components/buttons/TooltipButton";
 
-test("HeaderButton tooltips and href", async () => {
+test("TooltipButton tooltips and href", async () => {
   render(
-    <HeaderButton
+    <TooltipButton
       tooltipPlacement={"right"}
       tooltipText={"Test"}
       href={"some/url"}
@@ -13,6 +13,7 @@ test("HeaderButton tooltips and href", async () => {
   );
 
   const button = screen.getByRole("button");
+  expect(button).toHaveClass("btn-info");
   await act(async () => {
     await userEvent.hover(button);
   });
@@ -22,16 +23,18 @@ test("HeaderButton tooltips and href", async () => {
   expect(tooltip).toHaveTextContent("Test");
 });
 
-test("HeaderButton no tooltips", async () => {
+test("TooltipButton no tooltips", async () => {
   const { container } = render(
-    <HeaderButton
+    <TooltipButton
       tooltipPlacement={"right"}
       tooltipText={null}
       href={"some/url"}
+      variant={"warning"}
     />
   );
 
   const button = screen.getByRole("button");
+  expect(button).toHaveClass("btn-warning");
   await act(async () => {
     await userEvent.hover(button);
   });

@@ -10,6 +10,7 @@ import { useLocation } from "react-router-dom";
 import TooltipButton from "components/buttons/TooltipButton";
 import { AppContext } from "components/contexts/AppContext";
 import DashboardSelector from "components/layout/DashboardSelector";
+import AddDashboardModalShowContextProvider from "components/contexts/AddDashboardModalShowContext";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import { useLayoutNameContext } from "components/contexts/SelectedDashboardContext";
 import "components/buttons/HeaderButton.css";
@@ -34,12 +35,11 @@ const Header = ({ initialDashboard }) => {
         className="header shadow"
       >
         <Container as="header" fluid className="px-4">
-          {name && (
+          {dashBoardName && (
             <TooltipButton
               onClick={showNav}
               tooltipPlacement="bottom"
               tooltipText="Dashboard Settings"
-              aria-label={"dashboardSettingButton"}
             >
               <BsList size="1.5rem" />
             </TooltipButton>
@@ -54,7 +54,6 @@ const Header = ({ initialDashboard }) => {
                 href={tethysApp.settingsUrl}
                 tooltipPlacement="bottom"
                 tooltipText="App Settings"
-                aria-label={"appSettingButton"}
               >
                 <BsGear size="1.5rem" />
               </TooltipButton>

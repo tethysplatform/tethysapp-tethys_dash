@@ -250,7 +250,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
                 }
                 variant={"warning"}
                 onClick={handleCopyURLClick}
-                aria-label={"Copy Clipboard Button"}
               >
                 <BsClipboard />
               </TooltipButton>
