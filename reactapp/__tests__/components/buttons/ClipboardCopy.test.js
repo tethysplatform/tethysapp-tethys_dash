@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
-import ClipboardCopy from "../../../components/buttons/ClipboardCopy";
+import ClipboardCopy from "components/buttons/ClipboardCopy";
 
 test("ClipboardCopy tooltips for null success", async () => {
   render(<ClipboardCopy success={null} />);
