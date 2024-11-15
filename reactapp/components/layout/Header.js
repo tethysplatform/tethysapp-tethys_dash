@@ -10,7 +10,6 @@ import { useLocation } from "react-router-dom";
 import TooltipButton from "components/buttons/TooltipButton";
 import { AppContext } from "components/contexts/AppContext";
 import DashboardSelector from "components/layout/DashboardSelector";
-import AddDashboardModalShowContextProvider from "components/contexts/AddDashboardModalShowContext";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import { useLayoutNameContext } from "components/contexts/SelectedDashboardContext";
 import "components/buttons/HeaderButton.css";

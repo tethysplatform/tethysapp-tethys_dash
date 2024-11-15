@@ -14,7 +14,6 @@ test("TooltipButton tooltips and href", async () => {
 
   const button = screen.getByRole("button");
   expect(button).toHaveClass("btn-info");
-  // eslint-disable-next-line
   await act(async () => {
     await userEvent.hover(button);
   });
@@ -25,7 +24,7 @@ test("TooltipButton tooltips and href", async () => {
 });
 
 test("TooltipButton no tooltips", async () => {
-  render(
+  const { container } = render(
     <TooltipButton
       tooltipPlacement={"right"}
       tooltipText={null}
@@ -36,7 +35,9 @@ test("TooltipButton no tooltips", async () => {
 
   const button = screen.getByRole("button");
   expect(button).toHaveClass("btn-warning");
-  userEvent.hover(button);
+  await act(async () => {
+    await userEvent.hover(button);
+  });
 
   const tooltip = screen.queryByRole("tooltip");
   expect(tooltip).not.toBeInTheDocument();

@@ -11,7 +11,8 @@ import PropTypes from "prop-types";
 
 function NewDashboardModal({ showModal, setShowModal }) {
   const [dashboardName, setDashboardName] = useState("");
-  const { addDashboard } = useAvailableDashboardsContext();
+  const addDashboard = useAvailableDashboardsContext()[2];
+  const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const { setIsEditing } = useEditingContext();
 
@@ -31,6 +32,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
     addDashboard(inputData).then((response) => {
       if (response["success"]) {
         handleModalClose();
+        setShowSaveMessage(true);
         setIsEditing(true);
       } else {
         setErrorMessage(response["message"]);
