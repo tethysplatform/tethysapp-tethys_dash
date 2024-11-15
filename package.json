@@ -8,7 +8,7 @@
     "build": "webpack --mode production --config ./reactapp/config/webpack.config.js",
     "lint": "npx eslint reactapp",
     "pretty": "prettier --write \"./**/*.{js,jsx,mjs,cjs,ts,tsx,json}\"",
-    "test": "jest",
+    "test": "jest --silent --coverage",
     "test:watch": "npm run test -- --watch"
   },
   "author": "",
@@ -69,7 +69,8 @@
     "jest-environment-jsdom": "^28.1.0",
     "jest-location-mock": "^1.0.9",
     "jest-watch-typeahead": "^1.1.0",
-    "msw": "^0.42.1",
+    "jest-fixed-jsdom": "",
+    "msw": "^1.3.3",
     "prettier": "",
     "react-app-polyfill": "^3.0.0",
     "react-test-renderer": "^18.1.0",
@@ -113,23 +114,28 @@
     "collectCoverageFrom": [
       "reactapp/**/*.{js,jsx,ts,tsx}",
       "!reactapp/**/*.d.ts",
-      "!reactapp/config/**/*"
+      "!reactapp/__tests__/**/*"
     ],
     "setupFiles": [
       "react-app-polyfill/jsdom"
     ],
     "setupFilesAfterEnv": [
-      "<rootDir>/reactapp/config/tests/setupTests.js"
+      "<rootDir>/reactapp/__tests__/setupTests.js"
     ],
     "testMatch": [
-      "<rootDir>/reactapp/**/__tests__/**/*.{js,jsx,ts,tsx}",
+      "<rootDir>/reactapp/__tests__/**/*.{js,jsx,ts,tsx}",
       "<rootDir>/reactapp/**/*.{spec,test}.{js,jsx,ts,tsx}"
+    ],
+    "testPathIgnorePatterns": [
+      "<rootDir>/reactapp/__tests__/utilities/*",
+      "<rootDir>/reactapp/__tests__/transforms/*",
+      "<rootDir>/reactapp/__tests__/setupTests.js"
     ],
     "testEnvironment": "jsdom",
     "transform": {
-      "^.+\\.(js|jsx|mjs|cjs|ts|tsx)$": "<rootDir>/reactapp/config/tests/transforms/babelTransform.js",
-      "^.+\\.css$": "<rootDir>/reactapp/config/tests/transforms/cssTransform.js",
-      "^(?!.*\\.(js|jsx|mjs|cjs|ts|tsx|css|json)$)": "<rootDir>/reactapp/config/tests/transforms/fileTransform.js"
+      "^.+\\.(js|jsx|mjs|cjs|ts|tsx)$": "<rootDir>/reactapp/__tests__/transforms/babelTransform.js",
+      "^.+\\.css$": "<rootDir>/reactapp/__tests__/transforms/cssTransform.js",
+      "^(?!.*\\.(js|jsx|mjs|cjs|ts|tsx|css|json)$)": "<rootDir>/reactapp/__tests__/transforms/fileTransform.js"
     },
     "transformIgnorePatterns": [
       "[/\\\\]node_modules[/\\\\](?!(ol|ol-mapbox-style|plotly.js|react-plotly.js)[/\\\\]).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
@@ -155,7 +161,7 @@
       "<rootDir>/node_modules"
     ],
     "moduleNameMapper": {
-      "\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$": "<rootDir>/reactapp/config/tests/mocks/fileMock.js",
+      "\\.(jpg|jpeg|png|gif|eot|otf|webp|svg|ttf|woff|woff2|mp4|webm|wav|mp3|m4a|aac|oga)$": "<rootDir>/reactapp/__tests__/utilities/fileMock.js",
       "^.+\\.module\\.(css|sass|scss|less)$": "identity-obj-proxy",
       "\\.(css|less|scss|sss|styl)$": "<rootDir>/node_modules/jest-css-modules"
     },

@@ -13,7 +13,7 @@ const StyledButton = styled(Button)`
   margin-bottom: 5px;
 `;
 
-const ClipboardCopyButton = ({ children, success, ...props }) => {
+const ClipboardCopyButton = ({ success, ...props }) => {
   const styledButton = (
     <OverlayTrigger
       placement={"right"}
@@ -38,11 +38,6 @@ const ClipboardCopyButton = ({ children, success, ...props }) => {
 };
 
 ClipboardCopyButton.propTypes = {
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.node),
-    PropTypes.node,
-    PropTypes.element,
-  ]),
   success: PropTypes.bool,
   tooltipPlacement: PropTypes.oneOf(["top", "bottom", "left", "right"]),
   tooltipText: PropTypes.string,

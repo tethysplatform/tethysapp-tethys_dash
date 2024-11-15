@@ -3,16 +3,29 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import "@testing-library/jest-dom";
-import { server } from "./mocks/server.js";
+import { server } from "./utilities/server.js";
 
 // Mock `window.location` with Jest spies and extend expect
 import "jest-location-mock";
 
 // Make .env files accessible to tests (path relative to project root)
-require("dotenv").config({ path: "./reactapp/config/tests/test.env" });
+require("dotenv").config({ path: "./reactapp/__tests__/test.env" });
 
 // Setup mocked Tethys API
-beforeAll(() => server.listen());
+beforeAll(() => {
+  server.listen();
+  console.error = (msg) => {
+    if (
+      !msg
+        .toString()
+        .includes(
+          "Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`."
+        )
+    ) {
+      originalWarn(msg);
+    }
+  };
+});
 // if you need to add a handler after calling setupServer for some specific test
 // this will remove that handler for the rest of them
 // (which is important for test isolation):
