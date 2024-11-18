@@ -1,6 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useEffect } from "react";
+import { act, useEffect } from "react";
 import AvailableDashboardsContextProvider, {
   useAvailableDashboardsContext,
   useDashboardDropdownContext,
@@ -12,16 +12,25 @@ import {
   updatedDashboard,
 } from "__tests__/utilities/constants";
 import appAPI from "services/api/app";
-import SelectedDashboardContextProvider, {
-  useLayoutContext,
-} from "components/contexts/SelectedDashboardContext";
-import RoutesContextProvider, {
-  useRoutesContext,
-} from "components/contexts/RoutesContext";
-import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
+import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
+import { useRoutesContext } from "components/contexts/RoutesContext";
 import { AppContext } from "components/contexts/AppContext";
+import { Route } from "react-router-dom";
+import NotFound from "components/error/NotFound";
+import DashboardView from "views/dashboard/Dashboard";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import PropTypes from "prop-types";
+
+jest.mock("components/contexts/SelectedDashboardContext", () => {
+  return {
+    useLayoutContext: jest.fn(),
+  };
+});
+
+jest.mock("components/contexts/RoutesContext", () => {
+  return {
+    useRoutesContext: jest.fn(),
+  };
+});
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
   return {
@@ -29,26 +38,27 @@ jest.mock("components/dashboard/DeleteConfirmation", () => {
   };
 });
 
-const TestingComponent = (props) => {
-  const {
+appAPI.getDashboards = () => {
+  return Promise.resolve(mockedDashboards);
+};
+
+const mockSetLayoutContext = jest.fn();
+const mockResetLayoutContext = jest.fn();
+
+const TestingDashboardDropdownComponent = () => {
+  const [
     dashboardDropdownOptions,
     selectedDashboardDropdownOption,
     setSelectedDashboardDropdownOption,
-  } = useDashboardDropdownContext();
-  const {
-    addDashboard,
-    deleteDashboard,
-    updateDashboard,
-    copyCurrentDashboard,
-  } = useAvailableDashboardsContext();
-  const { routes } = useRoutesContext();
-  const { setLayoutContext } = useLayoutContext();
+  ] = useDashboardDropdownContext();
+
+  const [addDashboard, deleteDashboard, updateDashboard, copyCurrentDashboard] =
+    useAvailableDashboardsContext().slice(2, 6);
 
   useEffect(() => {
-    setLayoutContext(props.layoutContext);
     setSelectedDashboardDropdownOption({
-      value: props.layoutContext.name,
-      label: props.layoutContext.label,
+      value: "test",
+      label: "test_label",
     });
     // eslint-disable-next-line
   }, []);
@@ -56,11 +66,10 @@ const TestingComponent = (props) => {
     <>
       <ul data-testid="options">
         {dashboardDropdownOptions.map((item) => {
-          function joinLabels(arrayItem) {
-            return item.label + "-" + arrayItem.label;
-          }
-
           if ("options" in item) {
+            function joinLabels(arrayItem) {
+              return item.label + "-" + arrayItem.label;
+            }
             return item.options.map((arrayItem) => {
               const newLabel = joinLabels(arrayItem);
               return <li key={arrayItem.label}>{newLabel}</li>;
@@ -68,11 +77,6 @@ const TestingComponent = (props) => {
           } else {
             return <li key={item.label}>{item.label}</li>;
           }
-        })}
-      </ul>
-      <ul data-testid="routes">
-        {routes.map((item, index) => {
-          return <li key={index}>{item.key}</li>;
         })}
       </ul>
       <p data-testid="selected">
@@ -97,31 +101,45 @@ const TestingComponent = (props) => {
 };
 
 test("available dashboard context", async () => {
+  let mockRoutes = [];
+  const mockSetRoutes = jest.fn((x) => (mockRoutes = x));
+  const mockedLayoutContext = jest.mocked(useLayoutContext);
+  const mockedRoutesContext = jest.mocked(useRoutesContext);
+  mockedLayoutContext.mockReturnValue([jest.fn(), jest.fn(), jest.fn()]);
+  mockedRoutesContext.mockReturnValue([mockRoutes, mockSetRoutes]);
+
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <AvailableDashboardsContextProvider>
+        <TestingDashboardDropdownComponent />
+      </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
 
-  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(await screen.findByTestId("selected").innerHTML).toEqual(undefined);
+  expect(await screen.findByText("test")).toBeInTheDocument();
 
   expect(await screen.findByText("Create a New Dashboard")).toBeInTheDocument();
   expect(await screen.findByText("User-test_label")).toBeInTheDocument();
   expect(await screen.findByText("Public-test_label2")).toBeInTheDocument();
 
-  expect(await screen.findByText("route-home")).toBeInTheDocument();
-  expect(await screen.findByText("route-dashboard")).toBeInTheDocument();
-  expect(await screen.findByText("route-not-found")).toBeInTheDocument();
-  expect(await screen.findByText("route-editable")).toBeInTheDocument();
-  expect(await screen.findByText("route-noneditable")).toBeInTheDocument();
+  expect(mockRoutes).toEqual([
+    <Route
+      key={"route-not-found"}
+      path="/dashboard/*"
+      element={<NotFound />}
+    />,
+    <Route
+      path={"/dashboard/test"}
+      element={<DashboardView initialDashboard={"test"} />}
+      key={"route-test"}
+    />,
+    <Route
+      path={"/dashboard/test2"}
+      element={<DashboardView initialDashboard={"test2"} />}
+      key={"route-test2"}
+    />,
+  ]);
 });
 
 test("available dashboard context for adding", async () => {
@@ -131,22 +149,23 @@ test("available dashboard context for adding", async () => {
       new_dashboard: newDashboard,
     });
   };
+  const mockedLayoutContext = jest.mocked(useLayoutContext);
+  const mockedRoutesContext = jest.mocked(useRoutesContext);
+  mockedLayoutContext.mockReturnValue([jest.fn(), jest.fn(), jest.fn()]);
+  mockedRoutesContext.mockReturnValue([[], jest.fn()]);
+
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <AvailableDashboardsContextProvider>
+        <TestingDashboardDropdownComponent />
+      </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
 
   const addDashboardButton = await screen.findByTestId("addDashboard");
-  await userEvent.click(addDashboardButton);
+  await act(async () => {
+    await userEvent.click(addDashboardButton);
+  });
   expect(await screen.findByText("User-test_label3")).toBeInTheDocument();
   expect(await screen.findByText("test3")).toBeInTheDocument();
 });
@@ -157,23 +176,23 @@ test("available dashboard context for failed adding", async () => {
       success: false,
     });
   };
+  const mockedLayoutContext = jest.mocked(useLayoutContext);
+  const mockedRoutesContext = jest.mocked(useRoutesContext);
+  mockedLayoutContext.mockReturnValue([jest.fn(), jest.fn(), jest.fn()]);
+  mockedRoutesContext.mockReturnValue([[], jest.fn()]);
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <AvailableDashboardsContextProvider>
+        <TestingDashboardDropdownComponent />
+      </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
 
   const addDashboardButton = await screen.findByTestId("addDashboard");
-  await userEvent.click(addDashboardButton);
+  await act(async () => {
+    await userEvent.click(addDashboardButton);
+  });
   expect(screen.queryByText("User-test_label3")).not.toBeInTheDocument();
   expect(screen.queryByText("test3")).not.toBeInTheDocument();
 });
@@ -182,111 +201,118 @@ test("available dashboard context for deleting", async () => {
   appAPI.deleteDashboard = () => {
     return Promise.resolve({ success: true });
   };
+  const mockedLayoutContext = jest.mocked(useLayoutContext);
+  const mockedRoutesContext = jest.mocked(useRoutesContext);
+  mockedLayoutContext.mockReturnValue([jest.fn(), jest.fn(), jest.fn()]);
+  mockedRoutesContext.mockReturnValue([[], jest.fn()]);
   const mockedConfirm = jest.mocked(confirm);
   mockedConfirm.mockReturnValue(Promise.resolve(true));
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <AvailableDashboardsContextProvider>
+        <TestingDashboardDropdownComponent />
+      </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
 
   const deleteDashboardButton = await screen.findByTestId("deleteDashboard");
-  await userEvent.click(deleteDashboardButton);
+  await act(async () => {
+    await userEvent.click(deleteDashboardButton);
+  });
   expect(screen.queryByText("User-test_label")).not.toBeInTheDocument();
   expect(screen.queryByText("test")).not.toBeInTheDocument();
 });
 
 test("available dashboard context for deleting cancel", async () => {
+  const mockedLayoutContext = jest.mocked(useLayoutContext);
+  const mockedRoutesContext = jest.mocked(useRoutesContext);
+  mockedLayoutContext.mockReturnValue([jest.fn(), jest.fn(), jest.fn()]);
+  mockedRoutesContext.mockReturnValue([[], jest.fn()]);
   const mockedConfirm = jest.mocked(confirm);
   mockedConfirm.mockReturnValue(Promise.resolve(false));
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <AvailableDashboardsContextProvider>
+        <TestingDashboardDropdownComponent />
+      </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
 
   const deleteDashboardButton = await screen.findByTestId("deleteDashboard");
-  await userEvent.click(deleteDashboardButton);
-  expect(screen.getByText("User-test_label")).toBeInTheDocument();
-  expect(screen.getByText("editable")).toBeInTheDocument();
+  await act(async () => {
+    await userEvent.click(deleteDashboardButton);
+  });
+  expect(screen.queryByText("User-test_label")).toBeInTheDocument();
+  expect(screen.queryByText("test")).toBeInTheDocument();
 });
 
 test("available dashboard context for deleting failed", async () => {
   appAPI.deleteDashboard = () => {
     return Promise.resolve({ success: false });
   };
+  const mockedLayoutContext = jest.mocked(useLayoutContext);
+  const mockedRoutesContext = jest.mocked(useRoutesContext);
+  mockedLayoutContext.mockReturnValue([jest.fn(), jest.fn(), jest.fn()]);
+  mockedRoutesContext.mockReturnValue([[], jest.fn()]);
   const mockedConfirm = jest.mocked(confirm);
   mockedConfirm.mockReturnValue(Promise.resolve(true));
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <AvailableDashboardsContextProvider>
+        <TestingDashboardDropdownComponent />
+      </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
 
   const deleteDashboardButton = await screen.findByTestId("deleteDashboard");
-  await userEvent.click(deleteDashboardButton);
-  expect(screen.getByText("User-test_label")).toBeInTheDocument();
-  expect(screen.getByText("editable")).toBeInTheDocument();
+  await act(async () => {
+    await userEvent.click(deleteDashboardButton);
+  });
+  expect(screen.queryByText("User-test_label")).toBeInTheDocument();
+  expect(screen.queryByText("test")).toBeInTheDocument();
 });
 
 test("available dashboard context for updating new label", async () => {
-  const dashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  dashboards.editable = updatedDashboard;
   appAPI.updateDashboard = () => {
     return Promise.resolve({
       success: true,
       updated_dashboard: updatedDashboard,
     });
   };
+  const mockGetLayoutContext = jest.fn(() => {
+    return mockedDashboards.test;
+  });
+  const mockedLayoutContext = jest.mocked(useLayoutContext);
+  const mockedRoutesContext = jest.mocked(useRoutesContext);
+  const mockedConfirm = jest.mocked(confirm);
+  mockedConfirm.mockReturnValue(Promise.resolve(true));
+  mockedLayoutContext.mockReturnValue([
+    mockSetLayoutContext,
+    mockResetLayoutContext,
+    mockGetLayoutContext,
+  ]);
+  mockedRoutesContext.mockReturnValue([[], jest.fn()]);
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <AvailableDashboardsContextProvider>
+        <TestingDashboardDropdownComponent />
+      </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
 
   const updateDashboardButton = await screen.findByTestId("updateDashboard");
-  await userEvent.click(updateDashboardButton);
+  await act(async () => {
+    await userEvent.click(updateDashboardButton);
+  });
   expect(
     await screen.findByText("User-test_label_updated")
   ).toBeInTheDocument();
   expect(screen.queryByText("User-test_label")).not.toBeInTheDocument();
-  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(await screen.findByText("test")).toBeInTheDocument();
 });
 
 test("available dashboard context for updating same name and label", async () => {
@@ -298,25 +324,34 @@ test("available dashboard context for updating same name and label", async () =>
       updated_dashboard: updatedDashboard,
     });
   };
+  const mockGetLayoutContext = jest.fn(() => {
+    return mockedDashboards.test;
+  });
+  const mockedLayoutContext = jest.mocked(useLayoutContext);
+  const mockedRoutesContext = jest.mocked(useRoutesContext);
+  const mockedConfirm = jest.mocked(confirm);
+  mockedConfirm.mockReturnValue(Promise.resolve(true));
+  mockedLayoutContext.mockReturnValue([
+    mockSetLayoutContext,
+    mockResetLayoutContext,
+    mockGetLayoutContext,
+  ]);
+  mockedRoutesContext.mockReturnValue([[], jest.fn()]);
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <AvailableDashboardsContextProvider>
+        <TestingDashboardDropdownComponent />
+      </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
 
   const updateDashboardButton = await screen.findByTestId("updateDashboard");
-  await userEvent.click(updateDashboardButton);
-  expect(screen.getByText("User-test_label")).toBeInTheDocument();
-  expect(await screen.findByText("editable")).toBeInTheDocument();
+  await act(async () => {
+    await userEvent.click(updateDashboardButton);
+  });
+  expect(screen.queryByText("User-test_label")).toBeInTheDocument();
+  expect(await screen.findByText("test")).toBeInTheDocument();
 });
 
 test("available dashboard context for updating failed", async () => {
@@ -325,59 +360,72 @@ test("available dashboard context for updating failed", async () => {
       success: false,
     });
   };
+  const mockGetLayoutContext = jest.fn(() => {
+    return mockedDashboards.test;
+  });
+  const mockedLayoutContext = jest.mocked(useLayoutContext);
+  const mockedRoutesContext = jest.mocked(useRoutesContext);
+  const mockedConfirm = jest.mocked(confirm);
+  mockedConfirm.mockReturnValue(Promise.resolve(true));
+  mockedLayoutContext.mockReturnValue([
+    mockSetLayoutContext,
+    mockResetLayoutContext,
+    mockGetLayoutContext,
+  ]);
+  mockedRoutesContext.mockReturnValue([[], jest.fn()]);
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <AvailableDashboardsContextProvider>
+        <TestingDashboardDropdownComponent />
+      </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
 
   const updateDashboardButton = await screen.findByTestId("updateDashboard");
-  await userEvent.click(updateDashboardButton);
+  await act(async () => {
+    await userEvent.click(updateDashboardButton);
+  });
   expect(screen.queryByText("User-test_label_updated")).not.toBeInTheDocument();
-  expect(screen.getByText("User-test_label")).toBeInTheDocument();
-  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(screen.queryByText("User-test_label")).toBeInTheDocument();
+  expect(await screen.findByText("test")).toBeInTheDocument();
 });
 
 test("available dashboard context for copying", async () => {
+  const mockGetLayoutContext = jest.fn(() => {
+    return mockedDashboards.test;
+  });
   appAPI.addDashboard = () => {
     return Promise.resolve({
       success: true,
       new_dashboard: copiedDashboard,
     });
   };
+  const mockedLayoutContext = jest.mocked(useLayoutContext);
+  const mockedRoutesContext = jest.mocked(useRoutesContext);
+  const mockedConfirm = jest.mocked(confirm);
+  mockedConfirm.mockReturnValue(Promise.resolve(true));
+  mockedLayoutContext.mockReturnValue([
+    mockSetLayoutContext,
+    mockResetLayoutContext,
+    mockGetLayoutContext,
+  ]);
+  mockedRoutesContext.mockReturnValue([[], jest.fn()]);
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <AvailableDashboardsContextProvider>
+        <TestingDashboardDropdownComponent />
+      </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
 
   const copyCurrentDashboardButton = await screen.findByTestId(
     "copyCurrentDashboard"
   );
-
-  await userEvent.click(copyCurrentDashboardButton);
+  await act(async () => {
+    await userEvent.click(copyCurrentDashboardButton);
+  });
   expect(await screen.findByText("User-test_label Copy")).toBeInTheDocument();
   expect(await screen.findByText("test_copy")).toBeInTheDocument();
 });
-
-TestingComponent.propTypes = {
-  layoutContext: PropTypes.object,
-};

@@ -9,7 +9,7 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import { AppContext } from "components/contexts/AppContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 
-export const AvailableDashboardsContext = createContext();
+const AvailableDashboardsContext = createContext();
 const DashboardDropdownContext = createContext();
 
 const AvailableDashboardsContextProvider = ({ children }) => {
@@ -227,7 +227,7 @@ const AvailableDashboardsContextProvider = ({ children }) => {
       }}
     >
       <DashboardDropdownContext.Provider
-        value={{
+        value={[
           dashboardDropdownOptions,
           selectedDashboardDropdownOption,
           setSelectedDashboardDropdownOption,
