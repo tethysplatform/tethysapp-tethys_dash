@@ -9,7 +9,7 @@ import {
 } from "components/contexts/SelectedDashboardContext";
 import {
   useAvailableDashboardsContext,
-  useDashboardDropwdownContext,
+  useDashboardDropdownContext,
 } from "components/contexts/AvailableDashboardsContext";
 import {
   BsArrowReturnLeft,
@@ -36,7 +36,7 @@ function DashboardSelector({ initialDashboard }) {
     dashboardDropdownOptions,
     selectedDashboardDropdownOption,
     setSelectedDashboardDropdownOption,
-  ] = useDashboardDropwdownContext();
+  ] = useDashboardDropdownContext();
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useEditingContext();
 

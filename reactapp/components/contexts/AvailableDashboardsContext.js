@@ -10,7 +10,7 @@ import { AppContext } from "components/contexts/AppContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 
 const AvailableDashboardsContext = createContext();
-const DashboardDropwdownContext = createContext();
+const DashboardDropdownContext = createContext();
 
 const AvailableDashboardsContextProvider = ({ children }) => {
   const [availableDashboards, setAvailableDashboards] = useState(null);
@@ -80,15 +80,16 @@ const AvailableDashboardsContextProvider = ({ children }) => {
   }
 
   async function copyCurrentDashboard() {
-    const dashboardName = getLayoutContext()["name"] + "_copy";
-    const dashboardLabel = getLayoutContext()["label"] + " Copy";
+    const originalDashboard = getLayoutContext();
+    const dashboardName = originalDashboard["name"] + "_copy";
+    const dashboardLabel = originalDashboard["label"] + " Copy";
 
     const newDashboardData = {
       name: dashboardName,
       label: dashboardLabel,
     };
     const copiedLayoutContext = {
-      ...getLayoutContext(),
+      ...originalDashboard,
       ...newDashboardData,
     };
     const apiResponse = await addDashboard(copiedLayoutContext);
@@ -97,7 +98,7 @@ const AvailableDashboardsContextProvider = ({ children }) => {
 
   async function addDashboard(dashboardContext) {
     const apiResponse = await appAPI.addDashboard(dashboardContext, csrf);
-    if (apiResponse["success"]) {
+    if (apiResponse.success) {
       const newDashboard = apiResponse["new_dashboard"];
       let OGLayouts = Object.assign({}, availableDashboards);
       OGLayouts[newDashboard.name] = newDashboard;
@@ -171,15 +172,16 @@ const AvailableDashboardsContextProvider = ({ children }) => {
   }
 
   async function updateDashboard(updatedProperties) {
-    const originalName = getLayoutContext()["name"];
-    const originalLabel = getLayoutContext()["label"];
-    const originalAccessGroups = getLayoutContext()["access_groups"];
+    const originalDashboard = getLayoutContext();
+    const originalName = originalDashboard["name"];
+    const originalLabel = originalDashboard["label"];
+    const originalAccessGroups = originalDashboard["access_groups"];
 
     updatedProperties["originalName"] = originalName;
     updatedProperties["originalLabel"] = originalLabel;
     updatedProperties["originalAccessGroups"] = originalAccessGroups;
     const updatedLayoutContext = {
-      ...getLayoutContext(),
+      ...originalDashboard,
       ...updatedProperties,
     };
     const apiResponse = await appAPI.updateDashboard(
@@ -222,7 +224,7 @@ const AvailableDashboardsContextProvider = ({ children }) => {
         copyCurrentDashboard,
       ]}
     >
-      <DashboardDropwdownContext.Provider
+      <DashboardDropdownContext.Provider
         value={[
           dashboardDropdownOptions,
           selectedDashboardDropdownOption,
@@ -230,7 +232,7 @@ const AvailableDashboardsContextProvider = ({ children }) => {
         ]}
       >
         {children}
-      </DashboardDropwdownContext.Provider>
+      </DashboardDropdownContext.Provider>
     </AvailableDashboardsContext.Provider>
   );
 };
@@ -248,6 +250,6 @@ export const useAvailableDashboardsContext = () => {
   return useContext(AvailableDashboardsContext);
 };
 
-export const useDashboardDropwdownContext = () => {
-  return useContext(DashboardDropwdownContext);
+export const useDashboardDropdownContext = () => {
+  return useContext(DashboardDropdownContext);
 };
