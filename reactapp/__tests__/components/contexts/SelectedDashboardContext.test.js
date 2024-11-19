@@ -14,17 +14,17 @@ import { mockedDashboards } from "__tests__/utilities/constants";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 
 const TestingComponent = () => {
-  const { setLayoutContext, resetLayoutContext, getLayoutContext } =
+  const [setLayoutContext, resetLayoutContext, getLayoutContext] =
     useLayoutContext();
-  const { name } = useLayoutNameContext();
-  const { label } = useLayoutLabelContext();
-  const { notes } = useLayoutNotesContext();
-  const { gridItems } = useLayoutGridItemsContext();
+  const name = useLayoutNameContext()[0];
+  const label = useLayoutLabelContext()[0];
+  const notes = useLayoutNotesContext()[0];
+  const gridItems = useLayoutGridItemsContext()[0];
   const editable = useLayoutEditableContext();
-  const { accessGroups } = useLayoutAccessGroupsContext();
+  const accessGroups = useLayoutAccessGroupsContext()[0];
 
   useEffect(() => {
-    setLayoutContext(mockedDashboards.noneditable);
+    setLayoutContext(mockedDashboards.test2);
     // eslint-disable-next-line
   }, []);
 
@@ -37,7 +37,7 @@ const TestingComponent = () => {
         <p>{notes}</p>
         <ul>
           {gridItems.map((gridItem, index) => {
-            return <li key={index}>{gridItem.i}</li>;
+            return <li key={index}>{gridItem.id}</li>;
           })}
         </ul>
         <p>{editable ? "yes" : "no"}</p>
@@ -53,7 +53,7 @@ const TestingComponent = () => {
         <p>{getLayoutContext().notes}</p>
         <ul>
           {getLayoutContext().gridItems.map((gridItem, index) => {
-            return <li key={index}>{gridItem.i}</li>;
+            return <li key={index}>{gridItem.id}</li>;
           })}
         </ul>
         <p>{getLayoutContext().editable ? "yes" : "no"}</p>
@@ -77,7 +77,7 @@ test("selected dashboard context", async () => {
   );
 
   const individualGetter = await screen.findByTestId("individual-getter");
-  expect(within(individualGetter).getByText("noneditable")).toBeInTheDocument();
+  expect(within(individualGetter).getByText("test2")).toBeInTheDocument();
   expect(within(individualGetter).getByText("test_label2")).toBeInTheDocument();
   expect(within(individualGetter).getByText("test_notes2")).toBeInTheDocument();
   expect(within(individualGetter).getByText("1")).toBeInTheDocument();
@@ -85,7 +85,7 @@ test("selected dashboard context", async () => {
   expect(within(individualGetter).getByText("public")).toBeInTheDocument();
 
   const groupGetter = await screen.findByTestId("group-getter");
-  expect(within(groupGetter).getByText("noneditable")).toBeInTheDocument();
+  expect(within(groupGetter).getByText("test2")).toBeInTheDocument();
   expect(within(groupGetter).getByText("test_label2")).toBeInTheDocument();
   expect(within(groupGetter).getByText("test_notes2")).toBeInTheDocument();
   expect(within(groupGetter).getByText("1")).toBeInTheDocument();
