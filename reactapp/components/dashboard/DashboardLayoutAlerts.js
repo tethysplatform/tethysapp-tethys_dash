@@ -34,7 +34,7 @@ function DashboardLayoutAlerts() {
         </Alert>
       )}
       {showWarningMessage && (
-        <Alert key="success" variant="warning" dismissible={true}>
+        <Alert key="warning" variant="warning" dismissible={true}>
           {warningMessage}
         </Alert>
       )}
