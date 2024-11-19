@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { act, useEffect } from "react";
+import { useEffect } from "react";
 import AvailableDashboardsContextProvider, {
   useAvailableDashboardsContext,
   useDashboardDropdownContext,
@@ -66,10 +66,11 @@ const TestingComponent = () => {
     <>
       <ul data-testid="options">
         {dashboardDropdownOptions.map((item) => {
+          function joinLabels(arrayItem) {
+            return item.label + "-" + arrayItem.label;
+          }
+
           if ("options" in item) {
-            function joinLabels(arrayItem) {
-              return item.label + "-" + arrayItem.label;
-            }
             return item.options.map((arrayItem) => {
               const newLabel = joinLabels(arrayItem);
               return <li key={arrayItem.label}>{newLabel}</li>;
@@ -116,7 +117,6 @@ test("available dashboard context", async () => {
     </AppContext.Provider>
   );
 
-  expect(await screen.findByTestId("selected").innerHTML).toEqual(undefined);
   expect(await screen.findByText("test")).toBeInTheDocument();
 
   expect(await screen.findByText("Create a New Dashboard")).toBeInTheDocument();
@@ -163,9 +163,7 @@ test("available dashboard context for adding", async () => {
   );
 
   const addDashboardButton = await screen.findByTestId("addDashboard");
-  await act(async () => {
-    await userEvent.click(addDashboardButton);
-  });
+  await userEvent.click(addDashboardButton);
   expect(await screen.findByText("User-test_label3")).toBeInTheDocument();
   expect(await screen.findByText("test3")).toBeInTheDocument();
 });
@@ -190,9 +188,7 @@ test("available dashboard context for failed adding", async () => {
   );
 
   const addDashboardButton = await screen.findByTestId("addDashboard");
-  await act(async () => {
-    await userEvent.click(addDashboardButton);
-  });
+  await userEvent.click(addDashboardButton);
   expect(screen.queryByText("User-test_label3")).not.toBeInTheDocument();
   expect(screen.queryByText("test3")).not.toBeInTheDocument();
 });
@@ -217,9 +213,7 @@ test("available dashboard context for deleting", async () => {
   );
 
   const deleteDashboardButton = await screen.findByTestId("deleteDashboard");
-  await act(async () => {
-    await userEvent.click(deleteDashboardButton);
-  });
+  await userEvent.click(deleteDashboardButton);
   expect(screen.queryByText("User-test_label")).not.toBeInTheDocument();
   expect(screen.queryByText("test")).not.toBeInTheDocument();
 });
@@ -241,11 +235,9 @@ test("available dashboard context for deleting cancel", async () => {
   );
 
   const deleteDashboardButton = await screen.findByTestId("deleteDashboard");
-  await act(async () => {
-    await userEvent.click(deleteDashboardButton);
-  });
-  expect(screen.queryByText("User-test_label")).toBeInTheDocument();
-  expect(screen.queryByText("test")).toBeInTheDocument();
+  await userEvent.click(deleteDashboardButton);
+  expect(screen.getByText("User-test_label")).toBeInTheDocument();
+  expect(screen.getByText("test")).toBeInTheDocument();
 });
 
 test("available dashboard context for deleting failed", async () => {
@@ -268,11 +260,9 @@ test("available dashboard context for deleting failed", async () => {
   );
 
   const deleteDashboardButton = await screen.findByTestId("deleteDashboard");
-  await act(async () => {
-    await userEvent.click(deleteDashboardButton);
-  });
-  expect(screen.queryByText("User-test_label")).toBeInTheDocument();
-  expect(screen.queryByText("test")).toBeInTheDocument();
+  await userEvent.click(deleteDashboardButton);
+  expect(screen.getByText("User-test_label")).toBeInTheDocument();
+  expect(screen.getByText("test")).toBeInTheDocument();
 });
 
 test("available dashboard context for updating new label", async () => {
@@ -305,9 +295,7 @@ test("available dashboard context for updating new label", async () => {
   );
 
   const updateDashboardButton = await screen.findByTestId("updateDashboard");
-  await act(async () => {
-    await userEvent.click(updateDashboardButton);
-  });
+  await userEvent.click(updateDashboardButton);
   expect(
     await screen.findByText("User-test_label_updated")
   ).toBeInTheDocument();
@@ -347,10 +335,8 @@ test("available dashboard context for updating same name and label", async () =>
   );
 
   const updateDashboardButton = await screen.findByTestId("updateDashboard");
-  await act(async () => {
-    await userEvent.click(updateDashboardButton);
-  });
-  expect(screen.queryByText("User-test_label")).toBeInTheDocument();
+  await userEvent.click(updateDashboardButton);
+  expect(screen.getByText("User-test_label")).toBeInTheDocument();
   expect(await screen.findByText("test")).toBeInTheDocument();
 });
 
@@ -383,11 +369,9 @@ test("available dashboard context for updating failed", async () => {
   );
 
   const updateDashboardButton = await screen.findByTestId("updateDashboard");
-  await act(async () => {
-    await userEvent.click(updateDashboardButton);
-  });
+  await userEvent.click(updateDashboardButton);
   expect(screen.queryByText("User-test_label_updated")).not.toBeInTheDocument();
-  expect(screen.queryByText("User-test_label")).toBeInTheDocument();
+  expect(screen.getByText("User-test_label")).toBeInTheDocument();
   expect(await screen.findByText("test")).toBeInTheDocument();
 });
 
@@ -423,9 +407,8 @@ test("available dashboard context for copying", async () => {
   const copyCurrentDashboardButton = await screen.findByTestId(
     "copyCurrentDashboard"
   );
-  await act(async () => {
-    await userEvent.click(copyCurrentDashboardButton);
-  });
+
+  await userEvent.click(copyCurrentDashboardButton);
   expect(await screen.findByText("User-test_label Copy")).toBeInTheDocument();
   expect(await screen.findByText("test_copy")).toBeInTheDocument();
 });

@@ -6,14 +6,14 @@ import {
   mockedVisualizations,
 } from "__tests__/utilities/constants";
 import appAPI from "services/api/app";
+import App from "App";
+
 appAPI.getDashboards = () => {
   return Promise.resolve(mockedDashboards);
 };
 appAPI.getVisualizations = () => {
   return Promise.resolve({ visualizations: mockedVisualizations });
 };
-
-import App from "App";
 
 function renderWithRouter(ui, { route = "/" } = {}) {
   route = `${route}`;
