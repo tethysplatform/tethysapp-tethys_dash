@@ -9,7 +9,7 @@ function sleep(ms) {
 }
 
 const TestingComponent = () => {
-  const { isEditing, setIsEditing } = useEditingContext();
+  const [isEditing, setIsEditing] = useEditingContext();
   useEffect(() => {
     sleep(1).then(() => {
       setIsEditing(true);
