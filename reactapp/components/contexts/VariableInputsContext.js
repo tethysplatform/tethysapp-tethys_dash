@@ -13,6 +13,7 @@ const VariableInputsContextProvider = ({ children }) => {
 
       if (gridItem.source === "Variable Input") {
         if (args.variable_name in variableInputValues) {
+          // Keep current selected value for dependent visualizations
           updatedVariableInputValues[args.variable_name] =
             variableInputValues[args.variable_name];
         } else {
