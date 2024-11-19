@@ -13,7 +13,7 @@ const LayoutEditableContext = createContext();
 const SelectedDashboardContextProvider = ({ children }) => {
   const [name, setName] = useState("");
   const [label, setLabel] = useState("");
-  const [accessGroups, setAccessGroups] = useState("");
+  const [accessGroups, setAccessGroups] = useState([]);
   const [editable, setEditable] = useState(false);
   const [notes, setNotes] = useState("");
   const [gridItems, setGridItems] = useState([]);
@@ -107,4 +107,8 @@ export const useLayoutGridItemsContext = () => {
 
 export const useLayoutEditableContext = () => {
   return useContext(LayoutEditableContext);
+};
+
+export const useLayoutAccessGroupsContext = () => {
+  return useContext(LayoutAccessGroupsContext);
 };
