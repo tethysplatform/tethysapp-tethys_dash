@@ -51,6 +51,7 @@ TooltipButton.propTypes = {
   tooltipPlacement: PropTypes.oneOf(["top", "bottom", "left", "right"]),
   tooltipText: PropTypes.string,
   href: PropTypes.string,
+  variant: PropTypes.string,
 };
 
 export default TooltipButton;

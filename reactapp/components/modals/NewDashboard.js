@@ -7,6 +7,7 @@ import Alert from "react-bootstrap/Alert";
 import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import { useEditingContext } from "components/contexts/EditingContext";
 import { useState } from "react";
+import PropTypes from "prop-types";
 
 function NewDashboardModal({ showModal, setShowModal }) {
   const [dashboardName, setDashboardName] = useState("");
@@ -86,5 +87,10 @@ function NewDashboardModal({ showModal, setShowModal }) {
     </>
   );
 }
+
+NewDashboardModal.propTypes = {
+  showModal: PropTypes.bool,
+  setShowModal: PropTypes.func,
+};
 
 export default NewDashboardModal;
