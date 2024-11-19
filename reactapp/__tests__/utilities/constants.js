@@ -53,6 +53,23 @@ export const mockedVisualizations = [
         label: "plugin_label",
         args: { plugin_arg1: "text" },
       },
+      {
+        source: "plugin_source2",
+        value: "plugin_value2",
+        label: "plugin_label2",
+        args: { plugin_arg2: "text" },
+      },
+    ],
+  },
+  {
+    label: "Visualization Group 2",
+    options: [
+      {
+        source: "plugin_source3",
+        value: "plugin_value3",
+        label: "plugin_label3",
+        args: { plugin_arg3: "text" },
+      },
     ],
   },
 ];

@@ -45,7 +45,7 @@ appAPI.getDashboards = () => {
 const mockSetLayoutContext = jest.fn();
 const mockResetLayoutContext = jest.fn();
 
-const TestingDashboardDropdownComponent = () => {
+const TestingComponent = () => {
   const [
     dashboardDropdownOptions,
     selectedDashboardDropdownOption,
@@ -111,7 +111,7 @@ test("available dashboard context", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <AvailableDashboardsContextProvider>
-        <TestingDashboardDropdownComponent />
+        <TestingComponent />
       </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
@@ -157,7 +157,7 @@ test("available dashboard context for adding", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <AvailableDashboardsContextProvider>
-        <TestingDashboardDropdownComponent />
+        <TestingComponent />
       </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
@@ -184,7 +184,7 @@ test("available dashboard context for failed adding", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <AvailableDashboardsContextProvider>
-        <TestingDashboardDropdownComponent />
+        <TestingComponent />
       </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
@@ -211,7 +211,7 @@ test("available dashboard context for deleting", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <AvailableDashboardsContextProvider>
-        <TestingDashboardDropdownComponent />
+        <TestingComponent />
       </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
@@ -235,7 +235,7 @@ test("available dashboard context for deleting cancel", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <AvailableDashboardsContextProvider>
-        <TestingDashboardDropdownComponent />
+        <TestingComponent />
       </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
@@ -262,7 +262,7 @@ test("available dashboard context for deleting failed", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <AvailableDashboardsContextProvider>
-        <TestingDashboardDropdownComponent />
+        <TestingComponent />
       </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
@@ -299,7 +299,7 @@ test("available dashboard context for updating new label", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <AvailableDashboardsContextProvider>
-        <TestingDashboardDropdownComponent />
+        <TestingComponent />
       </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
@@ -341,7 +341,7 @@ test("available dashboard context for updating same name and label", async () =>
   render(
     <AppContext.Provider value={"csrf"}>
       <AvailableDashboardsContextProvider>
-        <TestingDashboardDropdownComponent />
+        <TestingComponent />
       </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
@@ -377,7 +377,7 @@ test("available dashboard context for updating failed", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <AvailableDashboardsContextProvider>
-        <TestingDashboardDropdownComponent />
+        <TestingComponent />
       </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );
@@ -415,7 +415,7 @@ test("available dashboard context for copying", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <AvailableDashboardsContextProvider>
-        <TestingDashboardDropdownComponent />
+        <TestingComponent />
       </AvailableDashboardsContextProvider>
     </AppContext.Provider>
   );

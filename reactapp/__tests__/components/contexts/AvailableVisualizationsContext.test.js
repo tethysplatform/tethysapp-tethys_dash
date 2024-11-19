@@ -2,9 +2,15 @@ import { render, screen } from "@testing-library/react";
 import AvailableVisualizationsContextProvider, {
   useAvailableVisualizationsContext,
 } from "components/contexts/AvailableVisualizationsContext";
+import { mockedVisualizations } from "__tests__/utilities/constants";
+import appAPI from "services/api/app";
+
+appAPI.getVisualizations = () => {
+  return Promise.resolve({ visualizations: mockedVisualizations });
+};
 
 const TestingComponent = () => {
-  const { availableVisualizations, availableVizArgs } =
+  const [availableVisualizations, availableVizArgs] =
     useAvailableVisualizationsContext();
 
   return (
@@ -47,10 +53,10 @@ test("available visualization context", async () => {
   ).toBeInTheDocument();
 
   expect(
-    await screen.findByText("Visualization Group: plugin_label - Plugin Arg")
+    await screen.findByText("Visualization Group: plugin_label - Plugin Arg1")
   ).toBeInTheDocument();
   expect(
-    await screen.findByText("Visualization Group: plugin_label2 - Plugin Arg")
+    await screen.findByText("Visualization Group: plugin_label2 - Plugin Arg2")
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
