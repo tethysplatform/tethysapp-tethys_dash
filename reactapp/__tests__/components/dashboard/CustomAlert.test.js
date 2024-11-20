@@ -3,6 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import CustomAlert from "components/dashboard/CustomAlert";
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 const TestingComponent = () => {
   const [showAlert, setShowAlert] = useState(true);
   function showAlertMessage() {
