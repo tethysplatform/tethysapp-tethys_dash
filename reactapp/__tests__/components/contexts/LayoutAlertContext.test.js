@@ -59,6 +59,8 @@ const TestingComponent = () => {
 };
 
 test("layout alert context", async () => {
+  jest.useFakeTimers();
+
   render(
     <LayoutAlertContextProvider>
       <TestingComponent />
@@ -69,11 +71,13 @@ test("layout alert context", async () => {
   expect(await screen.findByText("error")).toBeInTheDocument();
   expect(await screen.findByText("warning")).toBeInTheDocument();
 
-  await act(async () => {
-    await sleep(6000);
+  act(() => {
+    jest.advanceTimersByTime(7000);
   });
 
   expect(screen.queryByText("success")).not.toBeInTheDocument();
   expect(screen.queryByText("error")).not.toBeInTheDocument();
   expect(screen.queryByText("warning")).not.toBeInTheDocument();
-}, 7000);
+
+  jest.useRealTimers();
+});

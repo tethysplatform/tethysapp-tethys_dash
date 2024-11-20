@@ -19,15 +19,18 @@ const CustomAlert = ({ alertType, showAlert, setShowAlert, alertMessage }) => {
     // eslint-disable-next-line
   }, [showAlert]);
 
+  function onClose() {
+    setShowAlert(false);
+  }
+
   return (
-    <StyledAlert
-      variant={alertType}
-      dismissible={true}
-      show={showAlert}
-      onClose={() => setShowAlert(false)}
-    >
-      {alertMessage}
-    </StyledAlert>
+    <>
+      {showAlert && (
+        <StyledAlert variant={alertType} dismissible={true} onClose={onClose}>
+          {alertMessage}
+        </StyledAlert>
+      )}
+    </>
   );
 };
 
