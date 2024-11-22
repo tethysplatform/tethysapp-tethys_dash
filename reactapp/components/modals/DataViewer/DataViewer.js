@@ -168,6 +168,7 @@ function DataViewerModal({
       <Modal
         show={showModal}
         onHide={handleModalClose}
+        className="dataviewer"
         dialogClassName="semiWideModalDialog"
       >
         <Modal.Header closeButton>
@@ -259,7 +260,7 @@ DataViewerModal.propTypes = {
   grid_item_index: PropTypes.number,
   source: PropTypes.string,
   argsString: PropTypes.string,
-  metadataString: PropTypes.object,
+  metadataString: PropTypes.string,
   setGridItemMessage: PropTypes.func,
   setShowGridItemMessage: PropTypes.func,
   showModal: PropTypes.bool,

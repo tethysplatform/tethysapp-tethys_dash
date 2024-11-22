@@ -21,6 +21,7 @@ const FullscreenPlotModal = ({ children, showModal, handleModalClose }) => {
       <StyledModal
         show={showModal}
         onHide={handleModalClose}
+        className="fullscreen"
         dialogClassName="wideModalDialog"
       >
         <StyledModalHeader closeButton></StyledModalHeader>

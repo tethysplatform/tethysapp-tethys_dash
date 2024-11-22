@@ -6,8 +6,10 @@ import { useEditingContext } from "components/contexts/EditingContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
-import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
-import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
+import {
+  useLayoutGridItemsContext,
+  useLayoutContext,
+} from "components/contexts/SelectedDashboardContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { getGridItem } from "components/visualizations/utilities";
@@ -58,9 +60,7 @@ const DashboardItem = ({
   }
 
   function onFullscreen() {
-    if (gridItemSource) {
-      setShowFullscreen(true);
-    }
+    setShowFullscreen(true);
   }
 
   function hideFullscreen() {

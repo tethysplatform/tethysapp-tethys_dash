@@ -8,7 +8,6 @@ export const mockedDashboards = {
     access_groups: [],
     gridItems: [
       {
-        id: 1,
         i: "1",
         x: 0,
         y: 0,
@@ -29,7 +28,6 @@ export const mockedDashboards = {
     access_groups: ["public"],
     gridItems: [
       {
-        id: 1,
         i: "1",
         x: 0,
         y: 0,
