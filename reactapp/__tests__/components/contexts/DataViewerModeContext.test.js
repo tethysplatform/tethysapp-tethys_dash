@@ -10,8 +10,8 @@ function sleep(ms) {
 }
 
 const TestingComponent = () => {
-  const inDataViewerMode = useInDataViewerModeContext();
-  const setInDataViewerMode = useSetDataViewerModeContext();
+  const { inDataViewerMode } = useInDataViewerModeContext();
+  const { setInDataViewerMode } = useSetDataViewerModeContext();
   useEffect(() => {
     sleep(1).then(() => {
       setInDataViewerMode(true);

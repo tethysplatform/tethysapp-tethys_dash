@@ -300,7 +300,7 @@ test("Dashboard Item edit item", async () => {
   const mockSetLayoutContext = jest.fn();
   const mockResetLayoutContext = jest.fn();
   const setVariableInputValues = jest.fn();
-  const mockSetInDataViewerMode = jest.fn((x) => (inDataViewerMode = x));
+  const setInDataViewerMode = jest.fn((x) => (inDataViewerMode = x));
 
   mockedEditingContext.mockReturnValue([isEditing, mockSetIsEditing]);
   mockedLayoutGridItemsContext.mockReturnValue([mockedDashboard.gridItems]);
@@ -319,8 +319,8 @@ test("Dashboard Item edit item", async () => {
     availableVisualizations,
     availableVizArgs
   });
-  mockedSetDataViewerModeContext.mockReturnValue(mockSetInDataViewerMode);
-  mockedInDataViewerModeContext.mockReturnValue(inDataViewerMode);
+  mockedSetDataViewerModeContext.mockReturnValue({setInDataViewerMode});
+  mockedInDataViewerModeContext.mockReturnValue({inDataViewerMode});
 
   const gridItem = mockedDashboard.gridItems[0];
   render(
@@ -349,14 +349,14 @@ test("Dashboard Item edit item", async () => {
   expect(dataViewerModal).toBeInTheDocument();
   expect(dataViewerModal).toHaveClass("dataviewer");
   expect(mockSetIsEditing).toHaveBeenCalledWith(true);
-  expect(mockSetInDataViewerMode).toHaveBeenCalledWith(true);
+  expect(setInDataViewerMode).toHaveBeenCalledWith(true);
 
   const closeDataViewerModalButton = within(dataViewerModal).getByText("Close");
   // eslint-disable-next-line
   await act(async () => {
     fireEvent.click(closeDataViewerModalButton);
   });
-  expect(mockSetInDataViewerMode).toHaveBeenCalledWith(false);
+  expect(setInDataViewerMode).toHaveBeenCalledWith(false);
 });
 
 test("Dashboard Item copy item", async () => {
@@ -404,7 +404,7 @@ test("Dashboard Item copy item", async () => {
   const mockSetLayoutContext = jest.fn();
   const mockResetLayoutContext = jest.fn();
   const setVariableInputValues = jest.fn();
-  const mockSetInDataViewerMode = jest.fn((x) => (inDataViewerMode = x));
+  const setInDataViewerMode = jest.fn((x) => (inDataViewerMode = x));
 
   mockedEditingContext.mockReturnValue([isEditing, mockSetIsEditing]);
   mockedLayoutGridItemsContext.mockReturnValue([mockedDashboard.gridItems]);
@@ -423,8 +423,8 @@ test("Dashboard Item copy item", async () => {
     availableVisualizations,
     availableVizArgs
   });
-  mockedSetDataViewerModeContext.mockReturnValue(mockSetInDataViewerMode);
-  mockedInDataViewerModeContext.mockReturnValue(inDataViewerMode);
+  mockedSetDataViewerModeContext.mockReturnValue({setInDataViewerMode});
+  mockedInDataViewerModeContext.mockReturnValue({inDataViewerMode});
 
   const gridItem = mockedDashboard.gridItems[2];
   render(
@@ -531,7 +531,7 @@ test("Dashboard Item copy item variable input", async () => {
   const mockSetLayoutContext = jest.fn();
   const mockResetLayoutContext = jest.fn();
   const setVariableInputValues = jest.fn();
-  const mockSetInDataViewerMode = jest.fn((x) => (inDataViewerMode = x));
+  const setInDataViewerMode = jest.fn((x) => (inDataViewerMode = x));
 
   mockedEditingContext.mockReturnValue([isEditing, mockSetIsEditing]);
   mockedLayoutGridItemsContext.mockReturnValue([mockedDashboard.gridItems]);
@@ -550,8 +550,8 @@ test("Dashboard Item copy item variable input", async () => {
     availableVisualizations,
     availableVizArgs
   });
-  mockedSetDataViewerModeContext.mockReturnValue(mockSetInDataViewerMode);
-  mockedInDataViewerModeContext.mockReturnValue(inDataViewerMode);
+  mockedSetDataViewerModeContext.mockReturnValue({setInDataViewerMode});
+  mockedInDataViewerModeContext.mockReturnValue({inDataViewerMode});
 
   const gridItem = mockedDashboard.gridItems[0];
   render(
@@ -650,7 +650,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
   const mockSetLayoutContext = jest.fn();
   const mockResetLayoutContext = jest.fn();
   const setVariableInputValues = jest.fn();
-  const mockSetInDataViewerMode = jest.fn((x) => (inDataViewerMode = x));
+  const setInDataViewerMode = jest.fn((x) => (inDataViewerMode = x));
 
   mockedEditingContext.mockReturnValue([isEditing, mockSetIsEditing]);
   mockedLayoutGridItemsContext.mockReturnValue([mockedDashboard.gridItems]);
@@ -669,8 +669,8 @@ test("Dashboard Item copy item variable input already exists", async () => {
     availableVisualizations,
     availableVizArgs
   });
-  mockedSetDataViewerModeContext.mockReturnValue(mockSetInDataViewerMode);
-  mockedInDataViewerModeContext.mockReturnValue(inDataViewerMode);
+  mockedSetDataViewerModeContext.mockReturnValue({setInDataViewerMode});
+  mockedInDataViewerModeContext.mockReturnValue({inDataViewerMode});
 
   const gridItem = mockedDashboard.gridItems[0];
   render(

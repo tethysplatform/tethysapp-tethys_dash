@@ -7,11 +7,11 @@ const DataViewerModeContextProvider = ({ children }) => {
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
 
   return (
-    <DataViewerModeContext.Provider
-      value={{ inDataViewerMode, setInDataViewerMode }}
-    >
-      {children}
-    </DataViewerModeContext.Provider>
+    <InDataViewerModeContext.Provider value={{inDataViewerMode}}>
+      <SetDataViewerModeContext.Provider value={{setInDataViewerMode}}>
+        {children}
+      </SetDataViewerModeContext.Provider>
+    </InDataViewerModeContext.Provider>
   );
 };
 

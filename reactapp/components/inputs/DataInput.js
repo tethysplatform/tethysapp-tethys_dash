@@ -20,8 +20,8 @@ const InlineFormCheck = styled(Form.Check)`
 `;
 
 const Input = ({ label, type, onChange, value, index, valueOptions }) => {
-  const { gridItems } = useLayoutGridItemsContext();
-  const { inDataViewerMode } = useDataViewerModeContext();
+  const gridItems = useLayoutGridItemsContext()[0];
+  const { inDataViewerMode } = useInDataViewerModeContext();
 
   function getAvailableVariableInputs() {
     const availableVariableInputs = [];
