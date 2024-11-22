@@ -8,8 +8,8 @@ const DataViewerModeContextProvider = ({ children }) => {
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
 
   return (
-    <InDataViewerModeContext.Provider value={inDataViewerMode}>
-      <SetDataViewerModeContext.Provider value={setInDataViewerMode}>
+    <InDataViewerModeContext.Provider value={{inDataViewerMode}}>
+      <SetDataViewerModeContext.Provider value={{setInDataViewerMode}}>
         {children}
       </SetDataViewerModeContext.Provider>
     </InDataViewerModeContext.Provider>
