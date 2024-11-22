@@ -37,7 +37,7 @@ const TestingComponent = () => {
         <p>{notes}</p>
         <ul>
           {gridItems.map((gridItem, index) => {
-            return <li key={index}>{gridItem.id}</li>;
+            return <li key={index}>{gridItem.i}</li>;
           })}
         </ul>
         <p>{editable ? "yes" : "no"}</p>
@@ -53,7 +53,7 @@ const TestingComponent = () => {
         <p>{getLayoutContext().notes}</p>
         <ul>
           {getLayoutContext().gridItems.map((gridItem, index) => {
-            return <li key={index}>{gridItem.id}</li>;
+            return <li key={index}>{gridItem.i}</li>;
           })}
         </ul>
         <p>{getLayoutContext().editable ? "yes" : "no"}</p>

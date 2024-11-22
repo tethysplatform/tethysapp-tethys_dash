@@ -7,10 +7,6 @@ import LayoutAlertContextProvider, {
 } from "components/contexts/LayoutAlertContext";
 import Alert from "react-bootstrap/Alert";
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 const TestingComponent = () => {
   const [
     successMessage,
