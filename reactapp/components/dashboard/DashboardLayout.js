@@ -35,7 +35,7 @@ function DashboardLayout() {
   const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
   const gridItems = useLayoutGridItemsContext()[0];
-  const [isEditing, setIsEditing] = useEditingContext();
+  const { isEditing, setIsEditing } = useEditingContext();
   const [layout, setLayout] = useState([]);
   const [items, setItems] = useState([]);
   const gridItemsUpdated = useRef();

@@ -7,7 +7,7 @@ const EditingContextProvider = ({ children }) => {
   const [isEditing, setIsEditing] = useState(false);
 
   return (
-    <EditingContext.Provider value={[isEditing, setIsEditing]}>
+    <EditingContext.Provider value={{isEditing, setIsEditing}}>
       {children}
     </EditingContext.Provider>
   );

@@ -80,7 +80,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [localLabel, setLocalLabel] = useState(label);
   const dashboardPublicUrl =
     getTethysPortalHost() + APP_ROOT_URL + "dashboard/" + name;
-  const setIsEditing = useEditingContext()[1];
+  const { setIsEditing } = useEditingContext();
 
   const sharingStatusOptions = [
     { label: "Public", value: "public" },

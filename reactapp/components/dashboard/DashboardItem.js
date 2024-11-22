@@ -35,7 +35,7 @@ const DashboardItem = ({
   gridItemMetadataString,
   grid_item_index,
 }) => {
-  const [isEditing, setIsEditing] = useEditingContext();
+  const { isEditing, setIsEditing } = useEditingContext();
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
