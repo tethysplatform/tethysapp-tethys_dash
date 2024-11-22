@@ -25,18 +25,12 @@ const VariableInput = ({ args, onChange }) => {
   const [value, setValue] = useState("");
   const [type, setType] = useState(null);
   const [label, setLabel] = useState(null);
-  const { availableVizArgs } = useAvailableVisualizationsContext();
-  const { inDataViewerMode } = useDataViewerModeContext();
-  const { setVariableInputValues } = useVariableInputValuesContext();
-
-  const updateVariableInputs = useCallback((new_value) => {
-    if (new_value || new_value === false) {
-      setVariableInputValues((prevVariableInputValues) => ({
-        ...prevVariableInputValues,
-        [args.variable_name]: new_value
-      }));
-    }
-  }, [args.variable_name, setVariableInputValues]);
+  const availableVizArgs = useAvailableVisualizationsContext()[1];
+  const inDataViewerMode = useInDataViewerModeContext();
+  const {
+    variableInputValues,
+    setVariableInputValues
+  } = useVariableInputValuesContext();
 
   useEffect(() => {
     // When any of the args are updated, the variable is changed to null

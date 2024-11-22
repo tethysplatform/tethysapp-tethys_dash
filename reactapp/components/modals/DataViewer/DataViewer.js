@@ -49,8 +49,10 @@ function DataViewerModal({
   const { setLayoutContext, getLayoutContext } = useLayoutContext();
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
-  const { variableInputValues, setVariableInputValues } =
-    useVariableInputValuesContext();
+  const {
+    variableInputValues,
+    setVariableInputValues
+  } = useVariableInputValuesContext();
 
   const gridMetadata = JSON.parse(metadataString);
   const visualizationRef = useRef({});
