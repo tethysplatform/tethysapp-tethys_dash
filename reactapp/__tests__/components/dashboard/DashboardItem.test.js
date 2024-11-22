@@ -292,6 +292,8 @@ test("Dashboard Item edit item", async () => {
   let isEditing = false;
   let inDataViewerMode = false;
   const variableInputValues = {};
+  const availableVisualizations = [];
+  const availableVizArgs = [];
 
   const mockSetIsEditing = jest.fn((x) => (isEditing = x));
   const mockGetLayoutContext = jest.fn(() => mockedDashboard);
@@ -313,7 +315,10 @@ test("Dashboard Item edit item", async () => {
   });
   mockedEditableContext.mockReturnValue(true);
   mockedConfirm.mockReturnValue(Promise.resolve(true));
-  mockedAvailableVisualizationsContext.mockReturnValue([[], []]);
+  mockedAvailableVisualizationsContext.mockReturnValue({
+    availableVisualizations,
+    availableVizArgs
+  });
   mockedSetDataViewerModeContext.mockReturnValue(mockSetInDataViewerMode);
   mockedInDataViewerModeContext.mockReturnValue(inDataViewerMode);
 
@@ -391,6 +396,8 @@ test("Dashboard Item copy item", async () => {
   let isEditing = false;
   let inDataViewerMode = false;
   const variableInputValues = {};
+  const availableVisualizations = [];
+  const availableVizArgs = [];
 
   const mockSetIsEditing = jest.fn((x) => (isEditing = x));
   const mockGetLayoutContext = jest.fn(() => mockedDashboard);
@@ -412,7 +419,10 @@ test("Dashboard Item copy item", async () => {
   });
   mockedEditableContext.mockReturnValue(true);
   mockedConfirm.mockReturnValue(Promise.resolve(true));
-  mockedAvailableVisualizationsContext.mockReturnValue([[], []]);
+  mockedAvailableVisualizationsContext.mockReturnValue({
+    availableVisualizations,
+    availableVizArgs
+  });
   mockedSetDataViewerModeContext.mockReturnValue(mockSetInDataViewerMode);
   mockedInDataViewerModeContext.mockReturnValue(inDataViewerMode);
 
@@ -513,6 +523,8 @@ test("Dashboard Item copy item variable input", async () => {
   let isEditing = false;
   let inDataViewerMode = false;
   const variableInputValues = { test_var: "test_value" };
+  const availableVisualizations = [];
+  const availableVizArgs = [];
 
   const mockSetIsEditing = jest.fn((x) => (isEditing = x));
   const mockGetLayoutContext = jest.fn(() => mockedDashboard);
@@ -534,7 +546,10 @@ test("Dashboard Item copy item variable input", async () => {
   });
   mockedEditableContext.mockReturnValue(true);
   mockedConfirm.mockReturnValue(Promise.resolve(true));
-  mockedAvailableVisualizationsContext.mockReturnValue([[], []]);
+  mockedAvailableVisualizationsContext.mockReturnValue({
+    availableVisualizations,
+    availableVizArgs
+  });
   mockedSetDataViewerModeContext.mockReturnValue(mockSetInDataViewerMode);
   mockedInDataViewerModeContext.mockReturnValue(inDataViewerMode);
 
@@ -627,6 +642,8 @@ test("Dashboard Item copy item variable input already exists", async () => {
   let isEditing = false;
   let inDataViewerMode = false;
   const variableInputValues = { test_var: "test_value", test_var_1: "test_value" };
+  const availableVisualizations = [];
+  const availableVizArgs = [];
 
   const mockSetIsEditing = jest.fn((x) => (isEditing = x));
   const mockGetLayoutContext = jest.fn(() => mockedDashboard);
@@ -648,7 +665,10 @@ test("Dashboard Item copy item variable input already exists", async () => {
   });
   mockedEditableContext.mockReturnValue(true);
   mockedConfirm.mockReturnValue(Promise.resolve(true));
-  mockedAvailableVisualizationsContext.mockReturnValue([[], []]);
+  mockedAvailableVisualizationsContext.mockReturnValue({
+    availableVisualizations,
+    availableVizArgs
+  });
   mockedSetDataViewerModeContext.mockReturnValue(mockSetInDataViewerMode);
   mockedInDataViewerModeContext.mockReturnValue(inDataViewerMode);
 

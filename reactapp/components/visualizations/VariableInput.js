@@ -25,7 +25,7 @@ const VariableInput = ({ args, onChange }) => {
   const [value, setValue] = useState("");
   const [type, setType] = useState(null);
   const [label, setLabel] = useState(null);
-  const availableVizArgs = useAvailableVisualizationsContext()[1];
+  const { availableVizArgs } = useAvailableVisualizationsContext();
   const inDataViewerMode = useInDataViewerModeContext();
   const {
     variableInputValues,

@@ -10,7 +10,7 @@ appAPI.getVisualizations = () => {
 };
 
 const TestingComponent = () => {
-  const [availableVisualizations, availableVizArgs] =
+  const {availableVisualizations, availableVizArgs} =
     useAvailableVisualizationsContext();
 
   return (
