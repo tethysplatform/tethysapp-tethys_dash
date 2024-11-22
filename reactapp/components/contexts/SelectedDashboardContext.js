@@ -17,8 +17,8 @@ const SelectedDashboardContextProvider = ({ children }) => {
   const [editable, setEditable] = useState(false);
   const [notes, setNotes] = useState("");
   const [gridItems, setGridItems] = useState([]);
-  const updateVariableInputValuesWithGridItems =
-    useVariableInputValuesContext()[2];
+  const { updateVariableInputValuesWithGridItems } =
+    useVariableInputValuesContext();
 
   function resetLayoutContext() {
     setName("");

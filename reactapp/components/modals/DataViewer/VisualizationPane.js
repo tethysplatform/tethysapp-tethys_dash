@@ -41,7 +41,7 @@ function VisualizationPane({
   const [selectedGroupName, setSelectedGroupName] = useState(null);
   const availableVisualizations = useAvailableVisualizationsContext()[0];
   const availableVizArgs = useAvailableVisualizationsContext()[1];
-  const variableInputValues = useVariableInputValuesContext()[0];
+  const { variableInputValues } = useVariableInputValuesContext();
 
   useEffect(() => {
     let options = [...availableVisualizations];

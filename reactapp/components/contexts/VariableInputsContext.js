@@ -27,11 +27,11 @@ const VariableInputsContextProvider = ({ children }) => {
 
   return (
     <VariableInputValuesContext.Provider
-      value={[
+      value={{
         variableInputValues,
         setVariableInputValues,
         updateVariableInputValuesWithGridItems,
-      ]}
+      }}
     >
       {children}
     </VariableInputValuesContext.Provider>

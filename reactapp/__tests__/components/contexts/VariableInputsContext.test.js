@@ -6,11 +6,11 @@ import VariableInputsContextProvider, {
 } from "components/contexts/VariableInputsContext";
 
 const TestingComponent = () => {
-  const [
+  const {
     variableInputValues,
     setVariableInputValues,
     updateVariableInputValuesWithGridItems,
-  ] = useVariableInputValuesContext();
+  } = useVariableInputValuesContext();
   const gridItems = [
     { args_string: "{}", source: "source" },
     {

@@ -27,8 +27,10 @@ const VariableInput = ({ args, onChange }) => {
   const [label, setLabel] = useState(null);
   const availableVizArgs = useAvailableVisualizationsContext()[1];
   const inDataViewerMode = useInDataViewerModeContext();
-  const [variableInputValues, setVariableInputValues] =
-    useVariableInputValuesContext();
+  const {
+    variableInputValues,
+    setVariableInputValues
+  } = useVariableInputValuesContext();
 
   useEffect(() => {
     setValue(null);

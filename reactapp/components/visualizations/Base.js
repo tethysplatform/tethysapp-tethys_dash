@@ -18,7 +18,7 @@ const BaseVisualization = ({
   hideFullscreen,
 }) => {
   const [viz, setViz] = useState(null);
-  const variableInputValues = useVariableInputValuesContext()[0];
+  const { variableInputValues } = useVariableInputValuesContext();
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
