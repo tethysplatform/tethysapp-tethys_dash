@@ -1,4 +1,4 @@
-import { act, useState } from "react";
+import { act } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, within, fireEvent } from "@testing-library/react";
 import DashboardItem from "components/dashboard/DashboardItem";
@@ -105,6 +105,7 @@ test("Dashboard Item delete grid item", async () => {
   );
 
   const dropdownToggle = screen.getByRole("button");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(dropdownToggle);
   });
@@ -162,11 +163,13 @@ test("Dashboard Item delete grid item cancel", async () => {
   );
 
   const dropdownToggle = screen.getByRole("button");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(dropdownToggle);
   });
 
   const deleteGridItemButton = await screen.findByText("Delete");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(deleteGridItemButton);
   });
@@ -209,6 +212,7 @@ test("Dashboard Item fullscreen but no source", async () => {
   );
 
   const dropdownToggle = screen.getByRole("button");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(dropdownToggle);
   });
@@ -255,11 +259,13 @@ test("Dashboard Item fullscreen", async () => {
   );
 
   const dropdownToggle = screen.getByRole("button");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(dropdownToggle);
   });
 
   const fullScreenButton = await screen.findByText("Fullscreen");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(fullScreenButton);
   });
@@ -270,6 +276,7 @@ test("Dashboard Item fullscreen", async () => {
   const closeFullScreenButton = await screen.findByRole("button", {
     name: "Close",
   });
+  // eslint-disable-next-line
   await act(async () => {
     fireEvent.click(closeFullScreenButton);
   });
@@ -318,11 +325,13 @@ test("Dashboard Item edit item", async () => {
   expect(isEditing).toBe(false);
 
   const dropdownToggle = screen.getByRole("button");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(dropdownToggle);
   });
 
   const editGridItemButton = await screen.findByText("Edit Visualization");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(editGridItemButton);
   });
@@ -333,6 +342,7 @@ test("Dashboard Item edit item", async () => {
   expect(mockSetInDataViewerMode).toHaveBeenCalledWith(true);
 
   const closeDataViewerModalButton = within(dataViewerModal).getByText("Close");
+  // eslint-disable-next-line
   await act(async () => {
     fireEvent.click(closeDataViewerModalButton);
   });
@@ -413,11 +423,13 @@ test("Dashboard Item copy item", async () => {
   expect(isEditing).toBe(false);
 
   const dropdownToggle = screen.getByRole("button");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(dropdownToggle);
   });
 
   const createCopyButton = await screen.findByText("Create Copy");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(createCopyButton);
   });
@@ -532,11 +544,13 @@ test("Dashboard Item copy item variable input", async () => {
   expect(isEditing).toBe(false);
 
   const dropdownToggle = screen.getByRole("button");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(dropdownToggle);
   });
 
   const createCopyButton = await screen.findByText("Create Copy");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(createCopyButton);
   });
@@ -643,11 +657,13 @@ test("Dashboard Item copy item variable input already exists", async () => {
   expect(isEditing).toBe(false);
 
   const dropdownToggle = screen.getByRole("button");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(dropdownToggle);
   });
 
   const createCopyButton = await screen.findByText("Create Copy");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(createCopyButton);
   });
@@ -736,11 +752,13 @@ test("Dashboard Item edit size", async () => {
   );
 
   const dropdownToggle = screen.getByRole("button");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(dropdownToggle);
   });
 
   const editSizeButton = await screen.findByText("Edit Size/Location");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(editSizeButton);
   });
