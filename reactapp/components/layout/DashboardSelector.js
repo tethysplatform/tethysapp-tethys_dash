@@ -31,12 +31,12 @@ function DashboardSelector({ initialDashboard }) {
   const getLayoutContext = useLayoutContext()[2];
   const name = useLayoutNameContext()[0];
   const editableDashboard = useLayoutEditableContext();
-  const availableDashboards = useAvailableDashboardsContext()[0];
-  const [
+  const { availableDashboards } = useAvailableDashboardsContext();
+  const {
     dashboardDropdownOptions,
     selectedDashboardDropdownOption,
     setSelectedDashboardDropdownOption,
-  ] = useDashboardDropdownContext();
+  } = useDashboardDropdownContext();
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useEditingContext();
 

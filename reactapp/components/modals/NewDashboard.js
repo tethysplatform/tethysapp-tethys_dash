@@ -11,7 +11,7 @@ import PropTypes from "prop-types";
 
 function NewDashboardModal({ showModal, setShowModal }) {
   const [dashboardName, setDashboardName] = useState("");
-  const addDashboard = useAvailableDashboardsContext()[2];
+  const { addDashboard } = useAvailableDashboardsContext();
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const setIsEditing = useEditingContext()[1];

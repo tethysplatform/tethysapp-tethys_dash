@@ -68,8 +68,11 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const getLayoutContext = useLayoutContext()[2];
   const name = useLayoutNameContext()[0];
   const label = useLayoutLabelContext()[0];
-  const [deleteDashboard, updateDashboard, copyCurrentDashboard] =
-    useAvailableDashboardsContext().slice(3, 6);
+  const {
+    deleteDashboard,
+    updateDashboard,
+    copyCurrentDashboard
+  } = useAvailableDashboardsContext();
   const notes = useLayoutNotesContext()[0];
   const editable = useLayoutEditableContext();
   const [localNotes, setLocalNotes] = useState(notes);

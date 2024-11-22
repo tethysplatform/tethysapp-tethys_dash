@@ -215,21 +215,21 @@ const AvailableDashboardsContextProvider = ({ children }) => {
 
   return (
     <AvailableDashboardsContext.Provider
-      value={[
+      value={{
         availableDashboards,
         setAvailableDashboards,
         addDashboard,
         deleteDashboard,
         updateDashboard,
         copyCurrentDashboard,
-      ]}
+      }}
     >
       <DashboardDropdownContext.Provider
-        value={[
+        value={{
           dashboardDropdownOptions,
           selectedDashboardDropdownOption,
           setSelectedDashboardDropdownOption,
-        ]}
+        }}
       >
         {children}
       </DashboardDropdownContext.Provider>

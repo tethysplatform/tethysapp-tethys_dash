@@ -31,7 +31,7 @@ function DashboardLayout() {
   const setShowSuccessMessage = useLayoutSuccessAlertContext()[3];
   const setErrorMessage = useLayoutErrorAlertContext()[1];
   const setShowErrorMessage = useLayoutErrorAlertContext()[3];
-  const updateDashboard = useAvailableDashboardsContext()[4];
+  const { updateDashboard } = useAvailableDashboardsContext();
   const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
   const gridItems = useLayoutGridItemsContext()[0];
