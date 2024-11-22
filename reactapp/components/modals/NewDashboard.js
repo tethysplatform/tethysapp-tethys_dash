@@ -15,6 +15,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const { setIsEditing } = useEditingContext();
+  const setShowSaveMessage = useState(false)[1];
 
   const handleModalClose = () => {
     setShowModal(false);

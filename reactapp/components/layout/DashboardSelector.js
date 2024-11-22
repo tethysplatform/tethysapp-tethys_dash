@@ -37,7 +37,7 @@ function DashboardSelector({ initialDashboard }) {
     setSelectedDashboardDropdownOption,
   } = useDashboardDropdownContext();
   const [showModal, setShowModal] = useState(false);
-  const [isEditing, setIsEditing] = useEditingContext();
+  const { isEditing, setIsEditing } = useEditingContext();
 
   useEffect(() => {
     if (
