@@ -27,13 +27,15 @@ const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
 function DashboardLayout() {
-  const { setSuccessMessage, setShowSuccessMessage } =
-    useLayoutSuccessAlertContext();
-  const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
+  const setSuccessMessage = useLayoutSuccessAlertContext()[1];
+  const setShowSuccessMessage = useLayoutSuccessAlertContext()[3];
+  const setErrorMessage = useLayoutErrorAlertContext()[1];
+  const setShowErrorMessage = useLayoutErrorAlertContext()[3];
   const { updateDashboard } = useAvailableDashboardsContext();
-  const { setLayoutContext, getLayoutContext } = useLayoutContext();
-  const { gridItems } = useLayoutGridItemsContext();
-  const { isEditing, setIsEditing } = useEditingContext();
+  const setLayoutContext = useLayoutContext()[0];
+  const getLayoutContext = useLayoutContext()[2];
+  const gridItems = useLayoutGridItemsContext()[0];
+  const [isEditing, setIsEditing] = useEditingContext();
   const [layout, setLayout] = useState([]);
   const [items, setItems] = useState([]);
   const gridItemsUpdated = useRef();

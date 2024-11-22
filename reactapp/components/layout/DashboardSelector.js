@@ -35,7 +35,7 @@ function DashboardSelector({ initialDashboard }) {
     dashboardDropdownOptions,
     selectedDashboardDropdownOption,
     setSelectedDashboardDropdownOption,
-  ] = useDashboardDropdownContext();
+  } = useDashboardDropdownContext();
   const [showModal, setShowModal] = useState(false);
   const [isEditing, setIsEditing] = useEditingContext();
 

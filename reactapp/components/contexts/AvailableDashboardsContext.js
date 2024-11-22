@@ -227,7 +227,7 @@ const AvailableDashboardsContextProvider = ({ children }) => {
       }}
     >
       <DashboardDropdownContext.Provider
-        value={[
+        value={{
           dashboardDropdownOptions,
           selectedDashboardDropdownOption,
           setSelectedDashboardDropdownOption,

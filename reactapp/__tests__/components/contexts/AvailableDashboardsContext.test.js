@@ -46,14 +46,18 @@ const mockSetLayoutContext = jest.fn();
 const mockResetLayoutContext = jest.fn();
 
 const TestingComponent = () => {
-  const [
+  const {
     dashboardDropdownOptions,
     selectedDashboardDropdownOption,
     setSelectedDashboardDropdownOption,
-  ] = useDashboardDropdownContext();
+  } = useDashboardDropdownContext();
 
-  const [addDashboard, deleteDashboard, updateDashboard, copyCurrentDashboard] =
-    useAvailableDashboardsContext().slice(2, 6);
+  const {
+    addDashboard,
+    deleteDashboard,
+    updateDashboard,
+    copyCurrentDashboard
+  } = useAvailableDashboardsContext();
 
   useEffect(() => {
     setSelectedDashboardDropdownOption({
