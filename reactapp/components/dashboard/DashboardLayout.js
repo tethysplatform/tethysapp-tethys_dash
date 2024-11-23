@@ -27,10 +27,8 @@ const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
 function DashboardLayout() {
-  const setSuccessMessage = useLayoutSuccessAlertContext()[1];
-  const setShowSuccessMessage = useLayoutSuccessAlertContext()[3];
-  const setErrorMessage = useLayoutErrorAlertContext()[1];
-  const setShowErrorMessage = useLayoutErrorAlertContext()[3];
+  const { setSuccessMessage, setShowSuccessMessage } = useLayoutSuccessAlertContext();
+  const {setErrorMessage, setShowErrorMessage} = useLayoutErrorAlertContext();
   const { updateDashboard } = useAvailableDashboardsContext();
   const setLayoutContext = useLayoutContext()[0];
   const getLayoutContext = useLayoutContext()[2];
