@@ -8,20 +8,24 @@ import LayoutAlertContextProvider, {
 import Alert from "react-bootstrap/Alert";
 
 const TestingComponent = () => {
-  const [
+  const {
     successMessage,
     setSuccessMessage,
     showSuccessMessage,
     setShowSuccessMessage,
-  ] = useLayoutSuccessAlertContext();
-  const [errorMessage, setErrorMessage, showErrorMessage, setShowErrorMessage] =
-    useLayoutErrorAlertContext();
-  const [
+  } = useLayoutSuccessAlertContext();
+  const {
+    errorMessage,
+    setErrorMessage,
+    showErrorMessage,
+    setShowErrorMessage
+  } = useLayoutErrorAlertContext();
+  const {
     warningMessage,
     setWarningMessage,
     showWarningMessage,
     setShowWarningMessage,
-  ] = useLayoutWarningAlertContext();
+  } = useLayoutWarningAlertContext();
 
   useEffect(() => {
     setSuccessMessage("success");
