@@ -1,5 +1,5 @@
 export const mockedDashboards = {
-  test: {
+  editable: {
     id: 1,
     name: "test",
     label: "test_label",
@@ -19,7 +19,7 @@ export const mockedDashboards = {
       },
     ],
   },
-  test2: {
+  noneditable: {
     id: 2,
     name: "test2",
     label: "test_label2",

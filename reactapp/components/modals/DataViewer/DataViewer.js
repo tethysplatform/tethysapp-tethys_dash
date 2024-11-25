@@ -36,7 +36,7 @@ const StyledCol = styled(Col)`
 `;
 
 function DataViewerModal({
-  grid_item_index,
+  gridItemIndex,
   source,
   argsString,
   metadataString,
@@ -50,15 +50,12 @@ function DataViewerModal({
   const [vizInputsValues, setVizInputsValues] = useState([]);
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
-  const gridItems = useLayoutGridItemsContext()[0];
-  const setLayoutContext = useLayoutContext()[0];
-  const getLayoutContext = useLayoutContext()[2];
+  const { gridItems } = useLayoutGridItemsContext();
+  const { setLayoutContext, getLayoutContext } = useLayoutContext();
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
-  const {
-    variableInputValues,
-    setVariableInputValues
-  } = useVariableInputValuesContext();
+  const { variableInputValues, setVariableInputValues } =
+    useVariableInputValuesContext();
 
   const gridMetadata = JSON.parse(metadataString);
   const visualizationRef = useRef({});
@@ -103,15 +100,15 @@ function DataViewerModal({
 
       if (inputValues.every((value) => value !== null)) {
         let updatedGridItems = structuredClone(gridItems);
-        updatedGridItems[grid_item_index].source = vizMetdata.source;
+        updatedGridItems[gridItemIndex].source = vizMetdata.source;
 
         let vizArgs = {};
         for (const vizArg of vizInputsValues) {
           vizArgs[vizArg.name] = vizArg.value.value || vizArg.value;
         }
-        updatedGridItems[grid_item_index].args_string = JSON.stringify(vizArgs);
+        updatedGridItems[gridItemIndex].args_string = JSON.stringify(vizArgs);
 
-        updatedGridItems[grid_item_index].metadata_string = JSON.stringify(
+        updatedGridItems[gridItemIndex].metadata_string = JSON.stringify(
           settingsRef.current
         );
 
@@ -259,7 +256,7 @@ CustomTextOptions.propTypes = {
 };
 
 DataViewerModal.propTypes = {
-  grid_item_index: PropTypes.number,
+  gridItemIndex: PropTypes.number,
   source: PropTypes.string,
   argsString: PropTypes.string,
   metadataString: PropTypes.string,

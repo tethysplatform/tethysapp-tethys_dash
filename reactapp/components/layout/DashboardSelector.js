@@ -27,9 +27,8 @@ const StyledDiv = styled.div`
 `;
 
 function DashboardSelector({ initialDashboard }) {
-  const setLayoutContext = useLayoutContext()[0];
-  const getLayoutContext = useLayoutContext()[2];
-  const name = useLayoutNameContext()[0];
+  const { setLayoutContext, getLayoutContext } = useLayoutContext();
+  const { name } = useLayoutNameContext();
   const editableDashboard = useLayoutEditableContext();
   const { availableDashboards } = useAvailableDashboardsContext();
   const {
@@ -123,7 +122,7 @@ function DashboardSelector({ initialDashboard }) {
         options={dashboardDropdownOptions}
         value={selectedDashboardDropdownOption}
         onChange={updateLayout}
-      ></DashboardSelect>
+      />
       {selectedDashboardDropdownOption && (
         <>
           {editableDashboard && (
@@ -134,6 +133,7 @@ function DashboardSelector({ initialDashboard }) {
                     tooltipPlacement="bottom"
                     tooltipText="Cancel Changes"
                     onClick={onCancel}
+                    className={"cancelButton"}
                   >
                     <BsArrowReturnLeft size="1.5rem" />
                   </TooltipButton>
@@ -142,6 +142,7 @@ function DashboardSelector({ initialDashboard }) {
                     tooltipText="Save Changes"
                     form="gridUpdate"
                     type="submit"
+                    className={"saveButton"}
                   >
                     <BsFloppy size="1.5rem" />
                   </TooltipButton>
@@ -149,6 +150,7 @@ function DashboardSelector({ initialDashboard }) {
                     tooltipPlacement="bottom"
                     tooltipText="Add Dashboard Item"
                     onClick={onAddGridItem}
+                    className={"addGridItemButton"}
                   >
                     <BsPlus size="1.5rem" />
                   </TooltipButton>
@@ -159,6 +161,7 @@ function DashboardSelector({ initialDashboard }) {
                   tooltipPlacement="bottom"
                   tooltipText="Edit Dashboard"
                   onClick={onEdit}
+                  className={"editButton"}
                 >
                   <BsPencilSquare size="1.5rem" />
                 </TooltipButton>

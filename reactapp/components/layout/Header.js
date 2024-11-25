@@ -23,7 +23,7 @@ const Header = ({ initialDashboard }) => {
   const location = useLocation();
   const [showEditCanvas, setShowEditCanvas] = useState(false);
   const showNav = () => setShowEditCanvas(true);
-  const dashBoardName = useLayoutNameContext()[0];
+  const { name } = useLayoutNameContext();
 
   return (
     <>
@@ -34,7 +34,7 @@ const Header = ({ initialDashboard }) => {
         className="header shadow"
       >
         <Container as="header" fluid className="px-4">
-          {dashBoardName && (
+          {name && (
             <TooltipButton
               onClick={showNav}
               tooltipPlacement="bottom"

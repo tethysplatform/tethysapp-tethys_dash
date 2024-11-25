@@ -27,12 +27,12 @@ const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
 function DashboardLayout() {
-  const { setSuccessMessage, setShowSuccessMessage } = useLayoutSuccessAlertContext();
-  const {setErrorMessage, setShowErrorMessage} = useLayoutErrorAlertContext();
+  const { setSuccessMessage, setShowSuccessMessage } =
+    useLayoutSuccessAlertContext();
+  const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
   const { updateDashboard } = useAvailableDashboardsContext();
-  const setLayoutContext = useLayoutContext()[0];
-  const getLayoutContext = useLayoutContext()[2];
-  const gridItems = useLayoutGridItemsContext()[0];
+  const { setLayoutContext, getLayoutContext } = useLayoutContext();
+  const { gridItems } = useLayoutGridItemsContext();
   const { isEditing, setIsEditing } = useEditingContext();
   const [layout, setLayout] = useState([]);
   const [items, setItems] = useState([]);
@@ -58,19 +58,18 @@ function DashboardLayout() {
             gridItemI={item.i}
             gridItemArgsString={item.args_string}
             gridItemMetadataString={item.metadata_string}
-            grid_item_index={index}
+            gridItemIndex={index}
           />
         </StyledDiv>
       ))
     );
-    setLayout(gridItems);
     updateGridEditing(gridItems);
   }
 
   function updateGridEditing(griditems) {
-    const updatedLayout = [];
+    const updatedGridItems = [];
     for (let griditem of griditems) {
-      updatedLayout.push({
+      updatedGridItems.push({
         args_string: griditem.args_string,
         h: griditem.h,
         i: griditem.i,
@@ -83,7 +82,7 @@ function DashboardLayout() {
         isResizable: isEditing,
       });
     }
-    setLayout(updatedLayout);
+    setLayout(updatedGridItems);
   }
 
   function updateLayout(newLayout) {
@@ -117,7 +116,7 @@ function DashboardLayout() {
 
     if (isEditing) {
       updateDashboard({}).then((response) => {
-        if (response["success"]) {
+        if (response.success) {
           setSuccessMessage("Change have been saved.");
           setShowSuccessMessage(true);
           setIsEditing(false);

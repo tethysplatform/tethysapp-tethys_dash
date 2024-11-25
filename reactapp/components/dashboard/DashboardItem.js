@@ -33,26 +33,23 @@ const DashboardItem = ({
   gridItemI,
   gridItemArgsString,
   gridItemMetadataString,
-  grid_item_index,
+  gridItemIndex,
 }) => {
   const { isEditing, setIsEditing } = useEditingContext();
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
-  const gridItems = useLayoutGridItemsContext()[0];
-  const setLayoutContext = useLayoutContext()[0];
-  const getLayoutContext = useLayoutContext()[2];
-  const {
-    variableInputValues,
-    setVariableInputValues
-  } = useVariableInputValuesContext();
+  const { gridItems } = useLayoutGridItemsContext();
+  const { setLayoutContext, getLayoutContext } = useLayoutContext();
+  const { variableInputValues, setVariableInputValues } =
+    useVariableInputValuesContext();
   const { setInDataViewerMode } = useSetDataViewerModeContext();
 
   async function deleteGridItem(e) {
-    if (await confirm("Are your sure you want to delete the item?")) {
+    if (await confirm("Are you sure you want to delete the item?")) {
       const updated_grid_items = [...gridItems];
-      updated_grid_items.splice(grid_item_index, 1);
+      updated_grid_items.splice(gridItemIndex, 1);
 
       const layout = getLayoutContext();
       layout["gridItems"] = updated_grid_items;
@@ -146,7 +143,7 @@ const DashboardItem = ({
       </StyledContainer>
       {showDataViewerModal && (
         <DataViewerModal
-          grid_item_index={grid_item_index}
+          gridItemIndex={gridItemIndex}
           source={gridItemSource}
           argsString={gridItemArgsString}
           metadataString={gridItemMetadataString}
@@ -165,7 +162,7 @@ DashboardItem.propTypes = {
   gridItemI: PropTypes.string,
   gridItemArgsString: PropTypes.string,
   gridItemMetadataString: PropTypes.string,
-  grid_item_index: PropTypes.number,
+  gridItemIndex: PropTypes.number,
 };
 
 export default memo(DashboardItem);

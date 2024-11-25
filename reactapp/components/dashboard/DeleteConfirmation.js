@@ -10,7 +10,6 @@ const Confirmation = ({
   confirmation,
   show,
   proceed,
-  enableEscape = true,
 }) => {
   return (
     <div className="static-modal">
@@ -18,8 +17,8 @@ const Confirmation = ({
         animation={false}
         show={show}
         onHide={() => proceed(false)}
-        backdrop={enableEscape ? true : "static"}
-        keyboard={enableEscape}
+        backdrop={true}
+        keyboard={true}
       >
         <Modal.Header>
           <Modal.Title>{title}</Modal.Title>
@@ -53,7 +52,7 @@ Confirmation.propTypes = {
 export function confirm(
   confirmation,
   proceedLabel = "OK",
-  cancelLabel = "cancel",
+  cancelLabel = "Cancel",
   options = {}
 ) {
   return createConfirmation(confirmable(Confirmation))({

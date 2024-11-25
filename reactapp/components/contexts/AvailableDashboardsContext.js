@@ -17,9 +17,9 @@ const AvailableDashboardsContextProvider = ({ children }) => {
   const [dashboardDropdownOptions, setDashboardDropdownOptions] = useState([]);
   const [selectedDashboardDropdownOption, setSelectedDashboardDropdownOption] =
     useState(null);
-  const [routes, setRoutes] = useRoutesContext();
+  const { routes, setRoutes } = useRoutesContext();
   const { csrf } = useContext(AppContext);
-  const [setLayoutContext, resetLayoutContext, getLayoutContext] =
+  const { setLayoutContext, resetLayoutContext, getLayoutContext } =
     useLayoutContext();
 
   useEffect(() => {
@@ -139,7 +139,7 @@ const AvailableDashboardsContextProvider = ({ children }) => {
 
     if (
       await confirm(
-        "Are your sure you want to delete the " +
+        "Are you sure you want to delete the " +
           selectedOptionValue +
           " dashboard?"
       )

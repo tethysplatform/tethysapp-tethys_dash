@@ -14,17 +14,17 @@ import { mockedDashboards } from "__tests__/utilities/constants";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 
 const TestingComponent = () => {
-  const [setLayoutContext, resetLayoutContext, getLayoutContext] =
+  const { setLayoutContext, resetLayoutContext, getLayoutContext } =
     useLayoutContext();
-  const name = useLayoutNameContext()[0];
-  const label = useLayoutLabelContext()[0];
-  const notes = useLayoutNotesContext()[0];
-  const gridItems = useLayoutGridItemsContext()[0];
+  const { name } = useLayoutNameContext();
+  const { label } = useLayoutLabelContext();
+  const { notes } = useLayoutNotesContext();
+  const { gridItems } = useLayoutGridItemsContext();
   const editable = useLayoutEditableContext();
-  const accessGroups = useLayoutAccessGroupsContext()[0];
+  const { accessGroups } = useLayoutAccessGroupsContext();
 
   useEffect(() => {
-    setLayoutContext(mockedDashboards.test2);
+    setLayoutContext(mockedDashboards.noneditable);
     // eslint-disable-next-line
   }, []);
 

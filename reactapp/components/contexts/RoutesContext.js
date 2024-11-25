@@ -19,7 +19,7 @@ const RoutesContextProvider = ({ children }) => {
   ]);
 
   return (
-    <RoutesContext.Provider value={[routes, setRoutes]}>
+    <RoutesContext.Provider value={{ routes, setRoutes }}>
       {children}
     </RoutesContext.Provider>
   );

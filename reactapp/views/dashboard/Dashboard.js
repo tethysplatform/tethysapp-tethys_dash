@@ -7,7 +7,7 @@ import Header from "components/layout/Header";
 import PropTypes from "prop-types";
 
 function DashboardView({ initialDashboard }) {
-  const name = useLayoutNameContext()[0];
+  const { name } = useLayoutNameContext();
 
   return (
     <>
