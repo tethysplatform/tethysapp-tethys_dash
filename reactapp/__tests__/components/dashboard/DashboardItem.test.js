@@ -1,4 +1,4 @@
-import { act, useEffect, useState } from "react";
+import { act, useEffect } from "react";
 import userEvent from "@testing-library/user-event";
 import {
   render,
@@ -26,6 +26,7 @@ import DataViewerModeContextProvider, {
 } from "components/contexts/DataViewerModeContext";
 import appAPI from "services/api/app";
 import { mockedVisualizations } from "__tests__/utilities/constants";
+import PropTypes from "prop-types";
 
 appAPI.getVisualizations = () => {
   return Promise.resolve({ visualizations: mockedVisualizations });
@@ -592,3 +593,13 @@ test("Dashboard Item edit size", async () => {
   });
   expect(await screen.findByText("yes editing")).toBeInTheDocument();
 });
+
+TestingComponent.propTypes = {
+  editing: PropTypes.bool,
+  layoutContext: PropTypes.object,
+  gridItemSource: PropTypes.string,
+  gridItemI: PropTypes.string,
+  gridItemArgsString: PropTypes.string,
+  gridItemMetadataString: PropTypes.string,
+  gridItemIndex: PropTypes.number,
+};

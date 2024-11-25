@@ -7,12 +7,14 @@ import SelectedDashboardContextProvider, {
 } from "components/contexts/SelectedDashboardContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 import { mockedDashboards } from "__tests__/utilities/constants";
+import PropTypes from "prop-types";
 
 const TestingComponent = (props) => {
   const { setLayoutContext } = useLayoutContext();
 
   useEffect(() => {
     setLayoutContext(props.layoutContext);
+    // eslint-disable-next-line
   }, []);
 
   return (
@@ -218,3 +220,12 @@ test("DashboardItemDropdown for editable item and not in edit mode", async () =>
   });
   expect(mockDeleteGridItem.mock.calls).toHaveLength(1);
 });
+
+TestingComponent.propTypes = {
+  layoutContext: PropTypes.object,
+  showFullscreen: PropTypes.func,
+  deleteGridItem: PropTypes.func,
+  editGridItem: PropTypes.func,
+  editSize: PropTypes.func,
+  copyGridItem: PropTypes.func,
+};

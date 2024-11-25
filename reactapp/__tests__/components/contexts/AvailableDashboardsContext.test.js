@@ -21,6 +21,7 @@ import RoutesContextProvider, {
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 import { AppContext } from "components/contexts/AppContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
+import PropTypes from "prop-types";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
   return {
@@ -383,3 +384,7 @@ test("available dashboard context for copying", async () => {
   expect(await screen.findByText("User-test_label Copy")).toBeInTheDocument();
   expect(await screen.findByText("test_copy")).toBeInTheDocument();
 });
+
+TestingComponent.propTypes = {
+  layoutContext: PropTypes.object,
+};
