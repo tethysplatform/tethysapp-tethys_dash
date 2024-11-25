@@ -1,5 +1,5 @@
-import { useEffect, act } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import {
   mockedDashboards,
@@ -22,6 +22,7 @@ import {
   useLayoutErrorAlertContext,
 } from "components/contexts/LayoutAlertContext";
 import appAPI from "services/api/app";
+import PropTypes from "prop-types";
 
 appAPI.getDashboards = () => {
   return Promise.resolve(mockedDashboards);
@@ -115,24 +116,23 @@ test("Dashboard Layout resize and update layout", async () => {
   fireEvent.mouseMove(resizeSpan, { clientX: 100, clientY: 0 });
   fireEvent.mouseUp(resizeSpan);
 
-  sleep(1).then(async () => {
-    expect(
-      await screen.findByText(
-        JSON.stringify([
-          {
-            args_string: "{}",
-            h: 20,
-            i: "1",
-            source: "",
-            metadata_string: "{}",
-            w: 28,
-            x: 0,
-            y: 0,
-          },
-        ])
-      )
-    ).toBeInTheDocument();
-  });
+  await sleep(1);
+  expect(
+    await screen.findByText(
+      JSON.stringify([
+        {
+          args_string: "{}",
+          h: 20,
+          i: "1",
+          source: "",
+          metadata_string: "{}",
+          w: 28,
+          x: 0,
+          y: 0,
+        },
+      ])
+    )
+  ).toBeInTheDocument();
 });
 
 test("Dashboard Layout submit changes not editing", async () => {
@@ -297,24 +297,23 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
   fireEvent.mouseMove(resizeSpan, { clientX: 100, clientY: 0 });
   fireEvent.mouseUp(resizeSpan);
 
-  sleep(1).then(async () => {
-    expect(
-      await screen.findByText(
-        JSON.stringify([
-          {
-            args_string: "{}",
-            h: 20,
-            i: "1",
-            source: "",
-            metadata_string: JSON.stringify({ enforceAspectRatio: true }),
-            w: 28,
-            x: 0,
-            y: 0,
-          },
-        ])
-      )
-    ).toBeInTheDocument();
-  });
+  await sleep(1);
+  expect(
+    await screen.findByText(
+      JSON.stringify([
+        {
+          args_string: "{}",
+          h: 20,
+          i: "1",
+          source: "",
+          metadata_string: JSON.stringify({ enforceAspectRatio: true }),
+          w: 28,
+          x: 0,
+          y: 0,
+        },
+      ])
+    )
+  ).toBeInTheDocument();
 });
 
 test("Dashboard Layout resize and enforce aspect ratio", async () => {
@@ -370,51 +369,54 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
   fireEvent.mouseMove(resizeSpan, { clientX: 100, clientY: 0 });
   fireEvent.mouseUp(resizeSpan);
 
-  sleep(1).then(async () => {
-    expect(
-      await screen.findByText(
-        JSON.stringify([
-          {
-            args_string: "{}",
-            h: 14,
-            i: "1",
-            source: "",
-            metadata_string: JSON.stringify({
-              enforceAspectRatio: true,
-              aspectRatio: 2,
-            }),
-            w: 28,
-            x: 0,
-            y: 0,
-          },
-        ])
-      )
-    ).toBeInTheDocument();
-  });
+  await sleep(1);
+  expect(
+    await screen.findByText(
+      JSON.stringify([
+        {
+          args_string: "{}",
+          h: 14,
+          i: "1",
+          source: "",
+          metadata_string: JSON.stringify({
+            enforceAspectRatio: true,
+            aspectRatio: 2,
+          }),
+          w: 28,
+          x: 0,
+          y: 0,
+        },
+      ])
+    )
+  ).toBeInTheDocument();
 
   fireEvent.mouseDown(resizeSpan, { clientX: 0, clientY: 0 });
   fireEvent.mouseMove(resizeSpan, { clientX: 0, clientY: 100 });
   fireEvent.mouseUp(resizeSpan);
 
-  sleep(1).then(async () => {
-    expect(
-      await screen.findByText(
-        JSON.stringify([
-          {
-            args_string: "{}",
-            h: 24,
-            i: "1",
-            source: "",
-            metadata_string: JSON.stringify({
-              enforceAspectRatio: true,
-              aspectRatio: 2,
-            }),
-            w: 48,
-            x: 0,
-            y: 0,
-          },
-        ])
-      )
-    ).toBeInTheDocument();
-  });
+  await sleep(1);
+  expect(
+    await screen.findByText(
+      JSON.stringify([
+        {
+          args_string: "{}",
+          h: 24,
+          i: "1",
+          source: "",
+          metadata_string: JSON.stringify({
+            enforceAspectRatio: true,
+            aspectRatio: 2,
+          }),
+          w: 48,
+          x: 0,
+          y: 0,
+        },
+      ])
+    )
+  ).toBeInTheDocument();
 });
+
+TestingComponent.propTypes = {
+  editing: PropTypes.bool,
+  layoutContext: PropTypes.object,
+};
