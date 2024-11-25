@@ -133,7 +133,7 @@ function DashboardSelector({ initialDashboard }) {
                     tooltipPlacement="bottom"
                     tooltipText="Cancel Changes"
                     onClick={onCancel}
-                    aria-label={"cancelButton"}
+                    className={"cancelButton"}
                   >
                     <BsArrowReturnLeft size="1.5rem" />
                   </TooltipButton>
@@ -142,7 +142,7 @@ function DashboardSelector({ initialDashboard }) {
                     tooltipText="Save Changes"
                     form="gridUpdate"
                     type="submit"
-                    aria-label={"saveButton"}
+                    className={"saveButton"}
                   >
                     <BsFloppy size="1.5rem" />
                   </TooltipButton>
@@ -150,7 +150,7 @@ function DashboardSelector({ initialDashboard }) {
                     tooltipPlacement="bottom"
                     tooltipText="Add Dashboard Item"
                     onClick={onAddGridItem}
-                    aria-label={"addGridItemButton"}
+                    className={"addGridItemButton"}
                   >
                     <BsPlus size="1.5rem" />
                   </TooltipButton>
@@ -161,7 +161,7 @@ function DashboardSelector({ initialDashboard }) {
                   tooltipPlacement="bottom"
                   tooltipText="Edit Dashboard"
                   onClick={onEdit}
-                  aria-label={"editButton"}
+                  className={"editButton"}
                 >
                   <BsPencilSquare size="1.5rem" />
                 </TooltipButton>

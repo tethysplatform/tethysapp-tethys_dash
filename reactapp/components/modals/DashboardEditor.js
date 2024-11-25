@@ -65,15 +65,12 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
-  const getLayoutContext = useLayoutContext()[2];
-  const name = useLayoutNameContext()[0];
-  const label = useLayoutLabelContext()[0];
-  const {
-    deleteDashboard,
-    updateDashboard,
-    copyCurrentDashboard
-  } = useAvailableDashboardsContext();
-  const notes = useLayoutNotesContext()[0];
+  const { getLayoutContext } = useLayoutContext();
+  const { name } = useLayoutNameContext();
+  const { label } = useLayoutLabelContext();
+  const { deleteDashboard, updateDashboard, copyCurrentDashboard } =
+    useAvailableDashboardsContext();
+  const { notes } = useLayoutNotesContext();
   const editable = useLayoutEditableContext();
   const { accessGroups } = useLayoutAccessGroupsContext();
   const [localNotes, setLocalNotes] = useState(notes);

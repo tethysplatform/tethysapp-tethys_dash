@@ -34,7 +34,7 @@ const Header = ({ initialDashboard }) => {
         className="header shadow"
       >
         <Container as="header" fluid className="px-4">
-          {dashBoardName && (
+          {name && (
             <TooltipButton
               onClick={showNav}
               tooltipPlacement="bottom"

@@ -6,7 +6,6 @@ import LayoutAlertContextProvider, {
   useLayoutErrorAlertContext,
   useLayoutWarningAlertContext,
 } from "components/contexts/LayoutAlertContext";
-import PropTypes from "prop-types";
 
 const TestingComponent = (props) => {
   const { setSuccessMessage, setShowSuccessMessage } =
@@ -61,9 +60,3 @@ test("Dashboard Layout Alerts not Shown", async () => {
   expect(screen.queryByText("error")).not.toBeInTheDocument();
   expect(screen.queryByText("warning")).not.toBeInTheDocument();
 });
-
-TestingComponent.propTypes = {
-  successMessage: PropTypes.string,
-  errorMessage: PropTypes.string,
-  warningMessage: PropTypes.string,
-};

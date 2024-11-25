@@ -11,6 +11,7 @@ import "jest-location-mock";
 // Make .env files accessible to tests (path relative to project root)
 require("dotenv").config({ path: "./reactapp/__tests__/test.env" });
 const originalError = console.error.bind(console.error);
+const originalEnv = process.env;
 
 // Setup mocked Tethys API
 beforeAll(() => {
@@ -32,6 +33,7 @@ beforeAll(() => {
 // (which is important for test isolation):
 afterEach(() => {
   server.resetHandlers();
+  process.env = originalEnv;
   jest.clearAllMocks();
 });
 afterAll(() => {

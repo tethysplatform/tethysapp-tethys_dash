@@ -49,10 +49,8 @@ function DataViewerModal({
   const { setLayoutContext, getLayoutContext } = useLayoutContext();
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
-  const {
-    variableInputValues,
-    setVariableInputValues
-  } = useVariableInputValuesContext();
+  const { variableInputValues, setVariableInputValues } =
+    useVariableInputValuesContext();
 
   const gridMetadata = JSON.parse(metadataString);
   const visualizationRef = useRef({});
@@ -96,8 +94,8 @@ function DataViewerModal({
         }
       }
 
-      if (inputValues.every((value) => ![null, ""].includes(value))) {
-        let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
+      if (inputValues.every((value) => value !== null)) {
+        let updatedGridItems = structuredClone(gridItems);
         updatedGridItems[gridItemIndex].source = vizMetdata.source;
 
         let vizArgs = {};
