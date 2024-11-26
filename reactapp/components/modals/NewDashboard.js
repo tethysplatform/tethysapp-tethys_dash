@@ -47,7 +47,11 @@ function NewDashboardModal({ showModal, setShowModal }) {
 
   return (
     <>
-      <Modal show={showModal} onHide={handleModalClose}>
+      <Modal
+        className="newdashboard"
+        show={showModal}
+        onHide={handleModalClose}
+      >
         <Modal.Header closeButton>
           <Modal.Title>Create a new dashboard</Modal.Title>
         </Modal.Header>

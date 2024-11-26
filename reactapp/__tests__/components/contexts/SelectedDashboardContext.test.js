@@ -77,7 +77,7 @@ test("selected dashboard context", async () => {
   );
 
   const individualGetter = await screen.findByTestId("individual-getter");
-  expect(within(individualGetter).getByText("test2")).toBeInTheDocument();
+  expect(within(individualGetter).getByText("noneditable")).toBeInTheDocument();
   expect(within(individualGetter).getByText("test_label2")).toBeInTheDocument();
   expect(within(individualGetter).getByText("test_notes2")).toBeInTheDocument();
   expect(within(individualGetter).getByText("1")).toBeInTheDocument();
@@ -85,7 +85,7 @@ test("selected dashboard context", async () => {
   expect(within(individualGetter).getByText("public")).toBeInTheDocument();
 
   const groupGetter = await screen.findByTestId("group-getter");
-  expect(within(groupGetter).getByText("test2")).toBeInTheDocument();
+  expect(within(groupGetter).getByText("noneditable")).toBeInTheDocument();
   expect(within(groupGetter).getByText("test_label2")).toBeInTheDocument();
   expect(within(groupGetter).getByText("test_notes2")).toBeInTheDocument();
   expect(within(groupGetter).getByText("1")).toBeInTheDocument();

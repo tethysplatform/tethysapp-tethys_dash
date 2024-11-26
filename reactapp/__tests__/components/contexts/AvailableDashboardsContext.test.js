@@ -115,7 +115,7 @@ test("available dashboard context", async () => {
     </AppContext.Provider>
   );
 
-  expect(await screen.findByText("test")).toBeInTheDocument();
+  expect(await screen.findByText("editable")).toBeInTheDocument();
 
   expect(await screen.findByText("Create a New Dashboard")).toBeInTheDocument();
   expect(await screen.findByText("User-test_label")).toBeInTheDocument();
@@ -230,7 +230,7 @@ test("available dashboard context for deleting cancel", async () => {
   const deleteDashboardButton = await screen.findByTestId("deleteDashboard");
   await userEvent.click(deleteDashboardButton);
   expect(screen.getByText("User-test_label")).toBeInTheDocument();
-  expect(screen.getByText("test")).toBeInTheDocument();
+  expect(screen.getByText("editable")).toBeInTheDocument();
 });
 
 test("available dashboard context for deleting failed", async () => {
@@ -257,7 +257,7 @@ test("available dashboard context for deleting failed", async () => {
   const deleteDashboardButton = await screen.findByTestId("deleteDashboard");
   await userEvent.click(deleteDashboardButton);
   expect(screen.getByText("User-test_label")).toBeInTheDocument();
-  expect(screen.getByText("test")).toBeInTheDocument();
+  expect(screen.getByText("editable")).toBeInTheDocument();
 });
 
 test("available dashboard context for updating new label", async () => {
@@ -293,7 +293,7 @@ test("available dashboard context for updating new label", async () => {
     await screen.findByText("User-test_label_updated")
   ).toBeInTheDocument();
   expect(screen.queryByText("User-test_label")).not.toBeInTheDocument();
-  expect(await screen.findByText("test")).toBeInTheDocument();
+  expect(await screen.findByText("editable")).toBeInTheDocument();
 });
 
 test("available dashboard context for updating same name and label", async () => {
@@ -323,7 +323,7 @@ test("available dashboard context for updating same name and label", async () =>
   const updateDashboardButton = await screen.findByTestId("updateDashboard");
   await userEvent.click(updateDashboardButton);
   expect(screen.getByText("User-test_label")).toBeInTheDocument();
-  expect(await screen.findByText("test")).toBeInTheDocument();
+  expect(await screen.findByText("editable")).toBeInTheDocument();
 });
 
 test("available dashboard context for updating failed", async () => {
@@ -351,7 +351,7 @@ test("available dashboard context for updating failed", async () => {
   await userEvent.click(updateDashboardButton);
   expect(screen.queryByText("User-test_label_updated")).not.toBeInTheDocument();
   expect(screen.getByText("User-test_label")).toBeInTheDocument();
-  expect(await screen.findByText("test")).toBeInTheDocument();
+  expect(await screen.findByText("editable")).toBeInTheDocument();
 });
 
 test("available dashboard context for copying", async () => {
