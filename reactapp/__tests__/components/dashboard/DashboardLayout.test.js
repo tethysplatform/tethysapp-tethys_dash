@@ -69,7 +69,7 @@ const TestingComponent = (props) => {
 test("Dashboard Layout resize and update layout", async () => {
   const mockedDashboard = {
     id: 1,
-    name: "test",
+    name: "editable",
     label: "test_label",
     notes: "test_notes",
     editable: true,
@@ -83,7 +83,9 @@ test("Dashboard Layout resize and update layout", async () => {
         h: 20,
         source: "",
         args_string: "{}",
-        metadata_string: JSON.stringify({}),
+        metadata_string: JSON.stringify({
+          refreshRate: 0,
+        }),
       },
     ],
   };
@@ -125,7 +127,9 @@ test("Dashboard Layout resize and update layout", async () => {
           h: 20,
           i: "1",
           source: "",
-          metadata_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
           w: 28,
           x: 0,
           y: 0,
@@ -250,7 +254,7 @@ test("Dashboard Layout submit changes fail", async () => {
 test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", async () => {
   const mockedDashboard = {
     id: 1,
-    name: "test",
+    name: "editable",
     label: "test_label",
     notes: "test_notes",
     editable: true,
@@ -319,7 +323,7 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
 test("Dashboard Layout resize and enforce aspect ratio", async () => {
   const mockedDashboard = {
     id: 1,
-    name: "test",
+    name: "editable",
     label: "test_label",
     notes: "test_notes",
     editable: true,

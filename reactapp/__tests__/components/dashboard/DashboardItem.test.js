@@ -316,7 +316,9 @@ test("Dashboard Item copy item", async () => {
       h: 10,
       source: "",
       args_string: "{}",
-      metadata_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
     },
     {
       i: "3",
@@ -326,7 +328,9 @@ test("Dashboard Item copy item", async () => {
       h: 30,
       source: "",
       args_string: "{}",
-      metadata_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
     },
     {
       i: "2",
@@ -336,7 +340,9 @@ test("Dashboard Item copy item", async () => {
       h: 20,
       source: "",
       args_string: "{}",
-      metadata_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
     },
   ];
 
@@ -390,7 +396,9 @@ test("Dashboard Item copy item variable input", async () => {
         variable_options_source: "checkbox",
         initial_value: { value: true },
       }),
-      metadata_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
     },
   ];
   const gridItem = mockedDashboard.gridItems[0];
@@ -464,7 +472,9 @@ test("Dashboard Item copy item variable input already exists", async () => {
         variable_options_source: "checkbox",
         initial_value: { value: true },
       }),
-      metadata_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
     },
     {
       i: "1",
@@ -478,7 +488,9 @@ test("Dashboard Item copy item variable input already exists", async () => {
         variable_options_source: "checkbox",
         initial_value: { value: true },
       }),
-      metadata_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
     },
   ];
   const gridItem = mockedDashboard.gridItems[0];

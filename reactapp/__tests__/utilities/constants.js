@@ -1,7 +1,7 @@
 export const mockedDashboards = {
   editable: {
     id: 1,
-    name: "test",
+    name: "editable",
     label: "test_label",
     notes: "test_notes",
     editable: true,
@@ -15,13 +15,15 @@ export const mockedDashboards = {
         h: 20,
         source: "",
         args_string: "{}",
-        metadata_string: "{}",
+        metadata_string: JSON.stringify({
+          refreshRate: 0,
+        }),
       },
     ],
   },
   noneditable: {
     id: 2,
-    name: "test2",
+    name: "noneditable",
     label: "test_label2",
     notes: "test_notes2",
     editable: false,
@@ -35,7 +37,9 @@ export const mockedDashboards = {
         h: 20,
         source: "",
         args_string: "{}",
-        metadata_string: "{}",
+        metadata_string: JSON.stringify({
+          refreshRate: 0,
+        }),
       },
     ],
   },
@@ -74,7 +78,7 @@ export const mockedVisualizations = [
 
 export const updatedDashboard = {
   id: 1,
-  name: "test",
+  name: "editable",
   label: "test_label_updated",
   notes: "test_notes",
   editable: true,
@@ -89,7 +93,9 @@ export const updatedDashboard = {
       h: 20,
       source: "",
       args_string: "{}",
-      metadata_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
     },
   ],
 };
@@ -111,7 +117,9 @@ export const newDashboard = {
       h: 20,
       source: "",
       args_string: "{}",
-      metadata_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
     },
   ],
 };
@@ -133,7 +141,9 @@ export const copiedDashboard = {
       h: 20,
       source: "",
       args_string: "{}",
-      metadata_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
     },
   ],
 };

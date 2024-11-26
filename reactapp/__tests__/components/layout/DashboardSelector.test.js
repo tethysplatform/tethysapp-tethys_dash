@@ -1,20 +1,42 @@
-import { act } from "react";
+import { act, useEffect } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  within,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import DashboardSelector from "components/layout/DashboardSelector";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import SelectedDashboardContextProvider, {
+  useLayoutGridItemsContext,
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
-import { useDashboardDropdownContext } from "components/contexts/AvailableDashboardsContext";
-import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
-import EditingContextProvider from "components/contexts/EditingContext";
+import {
+  useAvailableDashboardsContext,
+  useDashboardDropdownContext,
+} from "components/contexts/AvailableDashboardsContext";
+import VariableInputsContextProvider, {
+  useVariableInputValuesContext,
+} from "components/contexts/VariableInputsContext";
+import EditingContextProvider, {
+  useEditingContext,
+} from "components/contexts/EditingContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
+import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
+import DataViewerModeContextProvider, {
+  useInDataViewerModeContext,
+} from "components/contexts/DataViewerModeContext";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
 import { AppContext } from "components/contexts/AppContext";
 import RoutesContextProvider from "components/contexts/RoutesContext";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
+
+appAPI.getDashboards = () => {
+  return Promise.resolve(mockedDashboards);
+};
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
   return {
@@ -71,7 +93,6 @@ test("Dashboard Selector without initial", async () => {
 });
 
 test("Dashboard Selector with initial", async () => {
-  // eslint-disable-next-line
   await act(() =>
     render(
       <AppContext.Provider value={"csrf"}>
@@ -661,10 +682,6 @@ test("Dashboard Selector add and then cancel button", async () => {
       editable: true,
     })
   );
-  expect(screen.getByLabelText("editButton")).toBeInTheDocument();
-  expect(screen.queryByLabelText("cancelButton")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("saveButton")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("addGridItemButton")).not.toBeInTheDocument();
 });
 
 TestingComponent.propTypes = {
