@@ -12,8 +12,12 @@ function Layout({ children }) {
     <div className="h-100">
       <Routes>
         {routes}
-        <Route path="/dashboard/*" element={<LoadingAnimation />} />
-        <Route path="*" element={<NotFound />} />
+        <Route
+          key="route-dashboard-loading"
+          path="/dashboard/*"
+          element={<LoadingAnimation />}
+        />
+        <Route key="route-not-found" path="*" element={<NotFound />} />
       </Routes>
       {children}
     </div>
