@@ -39,6 +39,7 @@ const Header = ({ initialDashboard }) => {
               onClick={showNav}
               tooltipPlacement="bottom"
               tooltipText="Dashboard Settings"
+              aria-label={"dashboardSettingButton"}
             >
               <BsList size="1.5rem" />
             </TooltipButton>
@@ -53,6 +54,7 @@ const Header = ({ initialDashboard }) => {
                 href={tethysApp.settingsUrl}
                 tooltipPlacement="bottom"
                 tooltipText="App Settings"
+                aria-label={"appSettingButton"}
               >
                 <BsGear size="1.5rem" />
               </TooltipButton>
