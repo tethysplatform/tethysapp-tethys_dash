@@ -15,7 +15,7 @@ const StyledDiv = styled.div`
 `;
 
 const Image = ({ source, alt, visualizationRef }) => {
-  const [imageWarning, setImageWarning] = useState(false);
+  const [imageWarning, setImageWarning] = useState(null);
 
   useEffect(() => {
     setImageWarning(false);

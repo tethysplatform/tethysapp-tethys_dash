@@ -147,3 +147,18 @@ export const copiedDashboard = {
     },
   ],
 };
+
+export const mockedBase = {
+  i: "1",
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "cnrfc_5day_streamflow_volume_exceedance",
+  args_string: JSON.stringify({
+    gauge_location: "CREC1",
+  }),
+  metadata_string: JSON.stringify({
+    refreshRate: 0,
+  }),
+}
