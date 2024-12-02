@@ -14,7 +14,7 @@ const StyledDiv = styled.div`
   height: 100%;
 `;
 
-const Image = ({ source, visualizationRef }) => {
+const Image = ({ source, alt, visualizationRef }) => {
   const [imageWarning, setImageWarning] = useState(null);
 
   useEffect(() => {
@@ -34,7 +34,12 @@ const Image = ({ source, visualizationRef }) => {
       {imageWarning ? (
         imageWarning
       ) : (
-        <StyledImg src={source} onError={onImageError} ref={visualizationRef} />
+        <StyledImg
+          src={source}
+          alt={alt}
+          onError={onImageError}
+          ref={visualizationRef}
+        />
       )}
     </>
   );
@@ -42,6 +47,7 @@ const Image = ({ source, visualizationRef }) => {
 
 Image.propTypes = {
   source: PropTypes.string,
+  alt: PropTypes.string,
   onError: PropTypes.func,
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,

@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import { useContext, createContext, useState } from "react";
 
-const VariableInputValuesContext = createContext();
+export const VariableInputValuesContext = createContext();
 
 const VariableInputsContextProvider = ({ children }) => {
   const [variableInputValues, setVariableInputValues] = useState({});

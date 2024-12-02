@@ -18,7 +18,7 @@ const StyledH2 = styled.h2`
 `;
 
 export function setVisualization(setViz, itemData, visualizationRef) {
-  setViz(<StyledSpinner animation="border" variant="info" />);
+  setViz(<StyledSpinner data-testid="Loading..." animation="border" variant="info" />);
 
   appAPI.getPlotData(itemData).then((response) => {
     if (response.success === true) {
@@ -32,7 +32,7 @@ export function setVisualization(setViz, itemData, visualizationRef) {
         );
       } else if (response["viz_type"] === "image") {
         setViz(
-          <Image source={response.data} visualizationRef={visualizationRef} />
+          <Image source={response.data} alt={itemData.source} visualizationRef={visualizationRef} />
         );
       } else if (response["viz_type"] === "table") {
         setViz(
