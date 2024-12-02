@@ -65,6 +65,7 @@ function DataViewerModal({
   function handleSubmit(e) {
     e.preventDefault();
     e.stopPropagation();
+    setShowAlert(false);
     if (selectedVizTypeOption !== null) {
       let inputValues = vizInputsValues.map((value) => value.value);
 
@@ -98,8 +99,8 @@ function DataViewerModal({
         }
       }
 
-      if (inputValues.every((value) => value !== null)) {
-        let updatedGridItems = structuredClone(gridItems);
+      if (inputValues.every((value) => ![null, ""].includes(value))) {
+        let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
         updatedGridItems[gridItemIndex].source = vizMetdata.source;
 
         let vizArgs = {};
@@ -126,7 +127,7 @@ function DataViewerModal({
         setShowAlert(true);
       }
     } else {
-      setAlertMessage("All visualization must be chosen before saving");
+      setAlertMessage("A visualization must be chosen before saving");
       setShowAlert(true);
     }
   }
@@ -184,7 +185,11 @@ function DataViewerModal({
                     id="visualization-tabs"
                     className="mb-3"
                   >
-                    <Tab eventKey="visualization" title="Visualization">
+                    <Tab
+                      eventKey="visualization"
+                      title="Visualization"
+                      aria-label="visualizationTab"
+                    >
                       <VisualizationPane
                         source={source}
                         argsString={argsString}
@@ -201,7 +206,11 @@ function DataViewerModal({
                         visualizationRef={visualizationRef}
                       />
                     </Tab>
-                    <Tab eventKey="settings" title="Settings">
+                    <Tab
+                      eventKey="settings"
+                      title="Settings"
+                      aria-label="settingsTab"
+                    >
                       <SettingsPane
                         settingsRef={settingsRef}
                         viz={viz}
@@ -235,25 +244,6 @@ function DataViewerModal({
     </>
   );
 }
-
-function CustomTextOptions({ objValue, onChange, index }) {
-  const textValue = objValue.value;
-
-  return (
-    <StyledDiv>
-      <TextEditor
-        textValue={textValue}
-        onChange={(e) => onChange(e.target.value, index)}
-      />
-    </StyledDiv>
-  );
-}
-
-CustomTextOptions.propTypes = {
-  objValue: PropTypes.object,
-  onChange: PropTypes.func,
-  index: PropTypes.number,
-};
 
 DataViewerModal.propTypes = {
   gridItemIndex: PropTypes.number,

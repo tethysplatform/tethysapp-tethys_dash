@@ -70,6 +70,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
     return (
       <DataSelect
         label={label}
+        aria-label={label + " Input"}
         selectedOption={inputValue}
         onChange={(e) => onChange(e, index)}
         options={options}
@@ -82,6 +83,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
           <b>{label}: </b>
         </InlineLabel>
         <InlineFormCheck
+          aria-label={label + " Input"}
           type={type}
           id={label.replace(" ", "_")}
           checked={value}
@@ -93,6 +95,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
     return (
       <DataRadioSelect
         label={label}
+        aria-label={label + " Input"}
         selectedRadio={value}
         radioOptions={valueOptions}
         onChange={(e) => {
@@ -107,7 +110,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
           <b>{label}:</b>
         </Form.Label>
         <Form.Control
-          required
+          aria-label={label + " Input"}
           type={type}
           onChange={(e) => onChange(e.target.value, index)}
           onKeyDown={(e) => {
