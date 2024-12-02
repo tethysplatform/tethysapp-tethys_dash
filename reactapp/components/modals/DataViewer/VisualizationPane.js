@@ -39,10 +39,8 @@ function VisualizationPane({
 }) {
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
-  const {
-    availableVisualizations,
-    availableVizArgs
-  } = useAvailableVisualizationsContext();
+  const { availableVisualizations, availableVizArgs } =
+    useAvailableVisualizationsContext();
   const { variableInputValues } = useVariableInputValuesContext();
 
   useEffect(() => {
@@ -96,13 +94,15 @@ function VisualizationPane({
             }
 
             for (let arg in vizOptionGroupOption.args) {
-              const userInputsValue = {
-                label: spaceAndCapitalize(arg),
-                name: arg,
-                type: vizOptionGroupOption.args[arg],
-                value: existingArgs[arg],
-              };
-              userInputsValues.push(userInputsValue);
+              if (vizOptionGroupOption.args[arg]) {
+                const userInputsValue = {
+                  label: spaceAndCapitalize(arg),
+                  name: arg,
+                  type: vizOptionGroupOption.args[arg],
+                  value: existingArgs[arg],
+                };
+                userInputsValues.push(userInputsValue);
+              }
             }
             setVizInputsValues(userInputsValues);
             break;
@@ -294,7 +294,7 @@ VisualizationPane.propTypes = {
   setVizMetadata: PropTypes.func,
   vizInputsValues: PropTypes.array,
   setVizInputsValues: PropTypes.func,
-  variableInputValue: PropTypes.oneOfType([PropTypes.object, PropTypes.string]),
+  variableInputValue: PropTypes.string,
   setVariableInputValue: PropTypes.func,
   settingsRef: PropTypes.oneOfType([
     PropTypes.func,

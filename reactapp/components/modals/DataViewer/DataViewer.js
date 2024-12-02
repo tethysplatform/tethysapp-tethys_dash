@@ -94,8 +94,8 @@ function DataViewerModal({
         }
       }
 
-      if (inputValues.every((value) => value !== null)) {
-        let updatedGridItems = structuredClone(gridItems);
+      if (inputValues.every((value) => ![null, ""].includes(value))) {
+        let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
         updatedGridItems[gridItemIndex].source = vizMetdata.source;
 
         let vizArgs = {};
