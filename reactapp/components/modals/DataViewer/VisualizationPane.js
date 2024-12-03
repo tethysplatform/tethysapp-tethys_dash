@@ -203,12 +203,14 @@ function VisualizationPane({
         selectedVizTypeOption["label"]
     );
     if (selectedVizTypeOption["value"] === "Custom Image") {
-      setViz(
-        <Image
-          source={vizInputsValues[0].value}
-          visualizationRef={visualizationRef}
-        />
-      );
+      if (vizInputsValues[0].value) {
+        setViz(
+          <Image
+            source={vizInputsValues[0].value}
+            visualizationRef={visualizationRef}
+          />
+        );
+      }
     } else if (selectedVizTypeOption["value"] === "Text") {
       setViz(
         <CustomTextOptions

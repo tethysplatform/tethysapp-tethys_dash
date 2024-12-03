@@ -2,13 +2,24 @@ import { act, useEffect, useRef } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import SettingsPane from "components/modals/DataViewer/SettingsPane";
-import { mockedDashboards } from "__tests__/utilities/constants";
+import {
+  mockedDashboards,
+  mockedVisualizations,
+} from "__tests__/utilities/constants";
 import SelectedDashboardContextProvider, {
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
+import appAPI from "services/api/app";
 import PropTypes from "prop-types";
+
+appAPI.getDashboards = () => {
+  return Promise.resolve(mockedDashboards);
+};
+appAPI.getVisualizations = () => {
+  return Promise.resolve({ visualizations: mockedVisualizations });
+};
 
 const TestingComponent = ({
   layoutContext,
