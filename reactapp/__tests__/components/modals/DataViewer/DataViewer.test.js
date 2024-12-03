@@ -1,33 +1,20 @@
 import { act, useEffect } from "react";
 import userEvent from "@testing-library/user-event";
-import {
-  render,
-  screen,
-  within,
-  fireEvent,
-  waitFor,
-} from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
-import DashboardItem from "components/dashboard/DashboardItem";
 import {
   mockedDashboards,
   mockedVisualizations,
 } from "__tests__/utilities/constants";
 import SelectedDashboardContextProvider, {
-  useLayoutGridItemsContext,
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
 import VariableInputsContextProvider, {
   useVariableInputValuesContext,
 } from "components/contexts/VariableInputsContext";
-import EditingContextProvider, {
-  useEditingContext,
-} from "components/contexts/EditingContext";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import EditingContextProvider from "components/contexts/EditingContext";
 import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
-import DataViewerModeContextProvider, {
-  useInDataViewerModeContext,
-} from "components/contexts/DataViewerModeContext";
+import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
@@ -40,13 +27,6 @@ appAPI.getDashboards = () => {
 appAPI.getVisualizations = () => {
   return Promise.resolve({ visualizations: mockedVisualizations });
 };
-
-jest.mock("components/dashboard/DeleteConfirmation", () => {
-  return {
-    confirm: jest.fn(),
-  };
-});
-const mockedConfirm = jest.mocked(confirm);
 
 const TestingComponent = (props) => {
   const { setLayoutContext } = useLayoutContext();
@@ -123,6 +103,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(visualizationTypeSelect);
   });
@@ -191,6 +172,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(visualizationTypeSelect);
   });
@@ -207,6 +189,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   const variableOptionsSourceSelect = screen.getByLabelText(
     "Variable Options Source Input"
   );
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(variableOptionsSourceSelect);
   });
@@ -304,6 +287,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(visualizationTypeSelect);
   });
@@ -320,6 +304,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   const variableOptionsSourceSelect = screen.getByLabelText(
     "Variable Options Source Input"
   );
+  // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(variableOptionsSourceSelect);
   });
@@ -507,4 +492,8 @@ TestingComponent.propTypes = {
   gridItemArgsString: PropTypes.string,
   gridItemMetadataString: PropTypes.string,
   gridItemIndex: PropTypes.number,
+  showModal: PropTypes.bool,
+  handleModalClose: PropTypes.func,
+  setGridItemMessage: PropTypes.func,
+  setShowGridItemMessage: PropTypes.func,
 };

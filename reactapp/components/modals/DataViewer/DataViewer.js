@@ -7,7 +7,6 @@ import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import styled from "styled-components";
-import TextEditor from "components/inputs/TextEditor";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
@@ -17,10 +16,6 @@ import SettingsPane from "components/modals/DataViewer/SettingsPane";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import "components/modals/wideModal.css";
-
-const StyledDiv = styled.div`
-  height: 90%;
-`;
 
 const StyledContainer = styled(Container)`
   height: 35vw;

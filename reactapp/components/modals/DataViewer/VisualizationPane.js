@@ -204,7 +204,12 @@ function VisualizationPane({
     );
     if (selectedVizTypeOption["value"] === "Custom Image") {
       if (vizInputsValues[0].value) {
-        setViz(<Image source={vizInputsValues[0].value} />);
+        setViz(
+          <Image
+            source={vizInputsValues[0].value}
+            visualizationRef={visualizationRef}
+          />
+        );
       }
     } else if (selectedVizTypeOption["value"] === "Text") {
       setViz(
