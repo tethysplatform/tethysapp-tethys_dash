@@ -94,15 +94,13 @@ function VisualizationPane({
             }
 
             for (let arg in vizOptionGroupOption.args) {
-              if (vizOptionGroupOption.args[arg]) {
-                const userInputsValue = {
-                  label: spaceAndCapitalize(arg),
-                  name: arg,
-                  type: vizOptionGroupOption.args[arg],
-                  value: existingArgs[arg],
-                };
-                userInputsValues.push(userInputsValue);
-              }
+              const userInputsValue = {
+                label: spaceAndCapitalize(arg),
+                name: arg,
+                type: vizOptionGroupOption.args[arg],
+                value: existingArgs[arg],
+              };
+              userInputsValues.push(userInputsValue);
             }
             setVizInputsValues(userInputsValues);
             break;
@@ -203,14 +201,12 @@ function VisualizationPane({
         selectedVizTypeOption["label"]
     );
     if (selectedVizTypeOption["value"] === "Custom Image") {
-      if (vizInputsValues[0].value) {
-        setViz(
-          <Image
-            source={vizInputsValues[0].value}
-            visualizationRef={visualizationRef}
-          />
-        );
-      }
+      setViz(
+        <Image
+          source={vizInputsValues[0].value}
+          visualizationRef={visualizationRef}
+        />
+      );
     } else if (selectedVizTypeOption["value"] === "Text") {
       setViz(
         <CustomTextOptions

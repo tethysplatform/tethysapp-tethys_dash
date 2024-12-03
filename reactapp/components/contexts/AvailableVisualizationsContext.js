@@ -43,7 +43,7 @@ const AvailableVisualizationsContextProvider = ({ children }) => {
 
   return (
     <AvailableVisualizationsContext.Provider
-      value={{availableVisualizations, availableVizArgs}}
+      value={{ availableVisualizations, availableVizArgs }}
     >
       {children}
     </AvailableVisualizationsContext.Provider>
