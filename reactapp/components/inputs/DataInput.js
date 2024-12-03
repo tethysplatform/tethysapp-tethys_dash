@@ -54,7 +54,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
       }
     }
 
-    if (inDataViewerMode && label !== "Variable Options Source") {
+    if (inDataViewerMode !== undefined && label !== "Variable Options Source") {
       const availableVariableInputs = getAvailableVariableInputs(type);
       if (availableVariableInputs) {
         options.push({
