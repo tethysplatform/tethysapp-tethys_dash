@@ -10,7 +10,7 @@ appAPI.getVisualizations = () => {
 };
 
 const TestingComponent = () => {
-  const {availableVisualizations, availableVizArgs} =
+  const { availableVisualizations, availableVizArgs } =
     useAvailableVisualizationsContext();
 
   return (
@@ -53,10 +53,10 @@ test("available visualization context", async () => {
   ).toBeInTheDocument();
 
   expect(
-    await screen.findByText("Visualization Group: plugin_label - Plugin Arg1")
+    await screen.findByText("Visualization Group: plugin_label - Plugin Arg")
   ).toBeInTheDocument();
   expect(
-    await screen.findByText("Visualization Group: plugin_label2 - Plugin Arg2")
+    await screen.findByText("Visualization Group: plugin_label2 - Plugin Arg")
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
