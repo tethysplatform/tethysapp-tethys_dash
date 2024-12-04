@@ -8,7 +8,6 @@ import RoutesContextProvider from "components/contexts/RoutesContext";
 import { AppContext } from "components/contexts/AppContext";
 import SelectedDashboardContextProvider from "components/contexts/SelectedDashboardContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
-import PropTypes from "prop-types";
 
 const TestingComponent = () => {
   const [showModal, setShowModal] = useState(true);
@@ -122,7 +121,3 @@ test("New Dashboard Modal add dashboard fail", async () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
-
-TestingComponent.propTypes = {
-  layoutContext: PropTypes.object,
-};
