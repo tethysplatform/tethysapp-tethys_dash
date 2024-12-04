@@ -9,6 +9,7 @@ import {
   useLayoutLabelContext,
   useLayoutNotesContext,
   useLayoutEditableContext,
+  useLayoutAccessGroupsContext,
 } from "components/contexts/SelectedDashboardContext";
 import styled from "styled-components";
 import { getTethysPortalHost } from "services/utilities";
@@ -65,13 +66,13 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
-  const { getLayoutContext } = useLayoutContext();
   const { name } = useLayoutNameContext();
   const { label } = useLayoutLabelContext();
   const { deleteDashboard, updateDashboard, copyCurrentDashboard } =
     useAvailableDashboardsContext();
   const { notes } = useLayoutNotesContext();
   const editable = useLayoutEditableContext();
+  const { accessGroups } = useLayoutAccessGroupsContext();
   const [localNotes, setLocalNotes] = useState(notes);
   const [localName, setLocalName] = useState(name);
   const [localLabel, setLocalLabel] = useState(label);
@@ -85,14 +86,13 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   ];
 
   useEffect(() => {
-    const updatedLayoutContext = getLayoutContext();
-    if (updatedLayoutContext["access_groups"].includes("public")) {
+    if (accessGroups.includes("public")) {
       setSelectedSharingStatus("public");
     } else {
       setSelectedSharingStatus("private");
     }
     // eslint-disable-next-line
-  }, []);
+  }, [accessGroups]);
 
   function onSharingChange(e) {
     setSelectedSharingStatus(e.target.value);
@@ -251,6 +251,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
                 }
                 variant={"warning"}
                 onClick={handleCopyURLClick}
+                aria-label={"Copy Clipboard Button"}
               >
                 <BsClipboard />
               </TooltipButton>
@@ -273,15 +274,27 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
         <StyledButton variant="secondary" onClick={handleClose}>
           Close
         </StyledButton>
-        <StyledButton variant="info" onClick={onCopy}>
+        <StyledButton
+          variant="info"
+          onClick={onCopy}
+          aria-label={"Copy Dashboard Button"}
+        >
           Copy dashboard
         </StyledButton>
         {editable && (
           <>
-            <StyledButton variant="danger" onClick={onDelete}>
+            <StyledButton
+              variant="danger"
+              onClick={onDelete}
+              aria-label={"Delete Dashboard Button"}
+            >
               Delete dashboard
             </StyledButton>
-            <StyledButton variant="success" onClick={onSave}>
+            <StyledButton
+              variant="success"
+              onClick={onSave}
+              aria-label={"Save Dashboard Button"}
+            >
               Save changes
             </StyledButton>
           </>
