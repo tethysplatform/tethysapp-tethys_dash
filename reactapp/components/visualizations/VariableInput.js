@@ -26,11 +26,9 @@ const VariableInput = ({ args, onChange }) => {
   const [type, setType] = useState(null);
   const [label, setLabel] = useState(null);
   const { availableVizArgs } = useAvailableVisualizationsContext();
-  const { inDataViewerMode } = useInDataViewerModeContext();
-  const {
-    variableInputValues,
-    setVariableInputValues
-  } = useVariableInputValuesContext();
+  const { inDataViewerMode } = useDataViewerModeContext();
+  const { variableInputValues, setVariableInputValues } =
+    useVariableInputValuesContext();
 
   useEffect(() => {
     // When any of the args are updated, the variable is changed to null

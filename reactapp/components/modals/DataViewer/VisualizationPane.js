@@ -292,7 +292,7 @@ VisualizationPane.propTypes = {
   setVizMetadata: PropTypes.func,
   vizInputsValues: PropTypes.array,
   setVizInputsValues: PropTypes.func,
-  variableInputValue: PropTypes.string,
+  variableInputValue: PropTypes.oneOfType([PropTypes.object, PropTypes.string]),
   setVariableInputValue: PropTypes.func,
   settingsRef: PropTypes.oneOfType([
     PropTypes.func,

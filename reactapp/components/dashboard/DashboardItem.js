@@ -44,7 +44,7 @@ const DashboardItem = ({
   const { setLayoutContext, getLayoutContext } = useLayoutContext();
   const { variableInputValues, setVariableInputValues } =
     useVariableInputValuesContext();
-  const { setInDataViewerMode } = useSetDataViewerModeContext();
+  const { setInDataViewerMode } = useDataViewerModeContext();
 
   async function deleteGridItem(e) {
     if (await confirm("Are you sure you want to delete the item?")) {
