@@ -9,7 +9,7 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import { AppContext } from "components/contexts/AppContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 
-const AvailableDashboardsContext = createContext();
+export const AvailableDashboardsContext = createContext();
 const DashboardDropdownContext = createContext();
 
 const AvailableDashboardsContextProvider = ({ children }) => {

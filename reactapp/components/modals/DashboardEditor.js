@@ -65,7 +65,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
-  const { getLayoutContext } = useLayoutContext();
   const { name } = useLayoutNameContext();
   const { label } = useLayoutLabelContext();
   const { deleteDashboard, updateDashboard, copyCurrentDashboard } =
@@ -251,6 +250,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
                 }
                 variant={"warning"}
                 onClick={handleCopyURLClick}
+                aria-label={"Copy Clipboard Button"}
               >
                 <BsClipboard />
               </TooltipButton>
