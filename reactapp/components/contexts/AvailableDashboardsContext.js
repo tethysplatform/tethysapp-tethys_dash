@@ -172,7 +172,6 @@ const AvailableDashboardsContextProvider = ({ children }) => {
   }
 
   async function updateDashboard(updatedProperties) {
-    // BUG WHEN UPDATING LABEL AND THEN SELCTING THE NEW LABEL FROM THE DROPDOWN
     const originalDashboard = getLayoutContext();
     const originalName = originalDashboard["name"];
     const originalLabel = originalDashboard["label"];
@@ -190,12 +189,14 @@ const AvailableDashboardsContextProvider = ({ children }) => {
       csrf
     );
     if (apiResponse["success"]) {
-      const name = apiResponse["updated_dashboard"]["name"];
-      const label = apiResponse["updated_dashboard"]["label"];
       let newavailableDashboards = Object.assign({}, availableDashboards);
-      newavailableDashboards[name] = apiResponse["updated_dashboard"];
+      delete newavailableDashboards[originalName];
+
+      const updatedDashboard = apiResponse["updated_dashboard"];
+      const name = updatedDashboard["name"];
+      const label = updatedDashboard["label"];
+      newavailableDashboards[name] = updatedDashboard;
       if (originalName !== name || originalLabel !== label) {
-        delete newavailableDashboards[originalName];
         let updatedSelectOptions = deleteOptionFromDashboardDropdownOptions(
           dashboardDropdownOptions,
           originalName
