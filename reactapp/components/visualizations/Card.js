@@ -64,7 +64,7 @@ const StatValue = styled.p`
 `;
 
 const StatItemGroup = ({ item, index }) => {
-  const iconName = item.icon ? item.icon : "BiStats";
+  const iconName = item?.icon ? item.icon : "BiStats";
   const Icon = React.lazy(async () => {
     const module = await import(`react-icons/bi`);
     return { default: module[iconName] };
@@ -73,12 +73,12 @@ const StatItemGroup = ({ item, index }) => {
   return (
     <Suspense>
       <StatItem key={index ? index : 0}>
-        <StatIcon bgColor={item.color ? item.color : "black"}>
-          <Icon />
+        <StatIcon bgColor={item?.color ? item?.color : "black"}>
+          <Icon data-testid={item?.label ?? item?.icon ?? "BiStats"} />
         </StatIcon>
         <StatContent>
-          <StatTitle>{item.label ? item.label : 0}</StatTitle>
-          <StatValue>{item.value ? item.value : "No Data found"}</StatValue>
+          <StatTitle>{item?.label ? item?.label : 0}</StatTitle>
+          <StatValue>{item?.value ? item.value : "No Data found"}</StatValue>
         </StatContent>
       </StatItem>
     </Suspense>
@@ -93,7 +93,7 @@ const Card = ({ title, description, data, visualizationRef }) => {
         <h3>{title}</h3>
         <p>{description}</p>
       </Header>
-      {Object.keys(data).length === 0 ? (
+      {data.length === 0 ? (
         <StatItemGroup />
       ) : (
         <StatsContainer>

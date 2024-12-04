@@ -137,7 +137,7 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(50);
+  await sleep(100);
   const image = screen.getByAltText(gridItem.source);
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
@@ -190,7 +190,7 @@ it("Creates an Base Item with an image obtained from the api", async () => {
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(50);
+  await sleep(100);
   const image = screen.getByAltText(gridItem.source);
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
@@ -242,7 +242,7 @@ it("Creates an Base Item with a table obtained from the api", async () => {
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(50);
+  await sleep(100);
   const table = screen.getByText("User Information");
   expect(table).toBeInTheDocument();
 });
@@ -267,7 +267,7 @@ it("Creates an Base Item with a card obtained from the api", async () => {
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(50);
+  await sleep(100);
   const card = screen.getByText("Company Statistics");
   expect(card).toBeInTheDocument();
 });
@@ -293,7 +293,7 @@ it.skip("Creates an Base Item with a map obtained from the api", async () => {
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(50);
+  await sleep(100);
   const map = screen.getByTestId("Map-Test-Id");
   expect(map).toBeInTheDocument();
 });
@@ -318,7 +318,7 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(50);
+  await sleep(100);
   const message = screen.getByText(
     "random_viz_type visualizations still need to be configured"
   );
@@ -345,7 +345,7 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(50);
+  await sleep(100);
   const message = screen.getByText("Failed to retrieve data");
   expect(message).toBeInTheDocument();
 });
