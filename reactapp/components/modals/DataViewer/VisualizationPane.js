@@ -15,11 +15,22 @@ import {
 } from "components/modals/utilities";
 import { updateGridItemArgsWithVariableInputs } from "components/visualizations/utilities";
 import VariableInput from "components/visualizations/VariableInput";
+import TooltipButton from "components/buttons/TooltipButton";
+import { BsGear } from "react-icons/bs";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
+import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
 import "components/modals/wideModal.css";
 
 const StyledDiv = styled.div`
   height: 90%;
+`;
+
+const InLineInputDiv = styled.div`
+  display: inline-block;
+  width: calc(100% - 3.5em);
+`;
+const InLineButtonDiv = styled.div`
+  display: inline-block;
 `;
 
 function VisualizationPane({
@@ -36,6 +47,8 @@ function VisualizationPane({
   setVariableInputValue,
   settingsRef,
   visualizationRef,
+  showVisualizationTypeSettings,
+  setShowVisualizationTypeSettings,
 }) {
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
@@ -242,13 +255,25 @@ function VisualizationPane({
 
   return (
     <>
-      <DataSelect
-        label="Visualization Type"
-        selectedOption={selectedVizTypeOption}
-        onChange={onDataTypeChange}
-        options={vizOptions}
-        aria-label={"visualizationType"}
-      />
+      <InLineButtonDiv>
+        <TooltipButton
+          tooltipPlacement="bottom"
+          tooltipText="Visualization Settings"
+          aria-label={"visualizationSettingButton"}
+          onClick={() => setShowVisualizationTypeSettings(true)}
+        >
+          <BsGear size="1.5rem" />
+        </TooltipButton>
+      </InLineButtonDiv>
+      <InLineInputDiv>
+        <DataSelect
+          label="Visualization Type"
+          selectedOption={selectedVizTypeOption}
+          onChange={onDataTypeChange}
+          options={vizOptions}
+          aria-label={"visualizationType"}
+        />
+      </InLineInputDiv>
       {selectedVizTypeOption &&
         selectedVizTypeOption["value"] !== "Text" &&
         vizInputsValues.map((obj, index) => (
@@ -259,6 +284,13 @@ function VisualizationPane({
             index={index}
           />
         ))}
+      {showVisualizationTypeSettings && (
+        <SelectedVisualizationTypesModal
+          showModal={showVisualizationTypeSettings}
+          setShowModal={setShowVisualizationTypeSettings}
+          vizOptions={vizOptions}
+        />
+      )}
     </>
   );
 }

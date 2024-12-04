@@ -47,6 +47,19 @@ class GridItem(Base):
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
+class UserSettings(Base):
+    """
+    SQLAlchemy User Settings DB Model
+    """
+
+    __tablename__ = "usersettings"
+
+    # Columns
+    id = Column(Integer, primary_key=True)
+    username = Column(String, nullable=False)
+    deselected_visualizations = Column(ARRAY(String))
+
+
 def add_new_dashboard(label, name, notes, owner, access_groups, grid_items):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
@@ -332,6 +345,64 @@ def get_dashboards(user, name=None):
         session.close()
 
     return dashboard_dict
+
+
+def get_user_settings(username):
+    """
+    Get all persisted user settings.
+    """
+    user_settings_dict = {}
+    # Get connection/session to database
+    Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+
+    try:
+        # Query for all records
+        user_settings = (
+            session.query(UserSettings)
+            .filter(UserSettings.username == username)
+            .first()
+        )
+        
+        if user_settings:
+            user_settings_dict["deselected_visualizations"] = (
+                user_settings.deselected_visualizations,
+            )
+        else:
+            user_settings_dict["deselected_visualizations"] = []
+
+    finally:
+        session.close()
+
+    return user_settings_dict
+
+
+def update_user_setting(username, deselected_visualizations):
+    # Get connection/session to database
+    Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+
+    try:
+        user_settings = (
+            session.query(UserSettings)
+            .filter(UserSettings.username == username)
+            .first()
+        )
+
+        if user_settings:
+            user_settings.deselected_visualizations = deselected_visualizations
+        else:
+            new_user_setting = UserSettings(
+                username=username,
+                deselected_visualizations=deselected_visualizations,
+            )
+            session.add(new_user_setting)
+
+        # Commit the session and close the connection
+        session.commit()
+
+    finally:
+        session.close()
 
 
 def check_existing_user_dashboard_names(session, user, dashboard_name):
