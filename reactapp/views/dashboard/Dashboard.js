@@ -11,16 +11,16 @@ function DashboardView({ initialDashboard }) {
 
   return (
     <>
-      <Header initialDashboard={initialDashboard} />
-      {name && (
-        // {/* look at moving context here so that we can set name, griditems, etc? */}
-        <LayoutAlertContextProvider>
-          <DataViewerModeContextProvider>
+      <DataViewerModeContextProvider>
+        <Header initialDashboard={initialDashboard} />
+        {name && (
+          // {/* look at moving context here so that we can set name, griditems, etc? */}
+          <LayoutAlertContextProvider>
             <DashboardLayoutAlerts />
             <DashboardLayout key={name} />
-          </DataViewerModeContextProvider>
-        </LayoutAlertContextProvider>
-      )}
+          </LayoutAlertContextProvider>
+        )}
+      </DataViewerModeContextProvider>
     </>
   );
 }

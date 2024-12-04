@@ -1,8 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { useEffect } from "react";
 import DataViewerModeContextProvider, {
-  useInDataViewerModeContext,
-  useSetDataViewerModeContext,
+  useDataViewerModeContext,
 } from "components/contexts/DataViewerModeContext";
 
 function sleep(ms) {
@@ -10,8 +9,7 @@ function sleep(ms) {
 }
 
 const TestingComponent = () => {
-  const { inDataViewerMode } = useInDataViewerModeContext();
-  const { setInDataViewerMode } = useSetDataViewerModeContext();
+  const { inDataViewerMode, setInDataViewerMode } = useDataViewerModeContext();
   useEffect(() => {
     sleep(1).then(() => {
       setInDataViewerMode(true);

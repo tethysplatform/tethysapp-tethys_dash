@@ -14,7 +14,7 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { getGridItem } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
-import { useSetDataViewerModeContext } from "components/contexts/DataViewerModeContext";
+import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 
 const StyledContainer = styled(Container)`
   position: relative;
@@ -44,7 +44,7 @@ const DashboardItem = ({
   const { setLayoutContext, getLayoutContext } = useLayoutContext();
   const { variableInputValues, setVariableInputValues } =
     useVariableInputValuesContext();
-  const { setInDataViewerMode } = useSetDataViewerModeContext();
+  const { setInDataViewerMode } = useDataViewerModeContext();
 
   async function deleteGridItem(e) {
     if (await confirm("Are you sure you want to delete the item?")) {

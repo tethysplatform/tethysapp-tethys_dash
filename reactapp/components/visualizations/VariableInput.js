@@ -3,7 +3,7 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import DataInput from "components/inputs/DataInput";
 import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import { useInDataViewerModeContext } from "components/contexts/DataViewerModeContext";
+import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
@@ -26,11 +26,9 @@ const VariableInput = ({ args, onChange }) => {
   const [type, setType] = useState(null);
   const [label, setLabel] = useState(null);
   const { availableVizArgs } = useAvailableVisualizationsContext();
-  const { inDataViewerMode } = useInDataViewerModeContext();
-  const {
-    variableInputValues,
-    setVariableInputValues
-  } = useVariableInputValuesContext();
+  const { inDataViewerMode } = useDataViewerModeContext();
+  const { variableInputValues, setVariableInputValues } =
+    useVariableInputValuesContext();
 
   useEffect(() => {
     setValue(null);

@@ -22,7 +22,7 @@ import EditingContextProvider, {
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
 import DataViewerModeContextProvider, {
-  useInDataViewerModeContext,
+  useDataViewerModeContext,
 } from "components/contexts/DataViewerModeContext";
 import PropTypes from "prop-types";
 
@@ -37,7 +37,7 @@ const TestingComponent = (props) => {
   const { setLayoutContext } = useLayoutContext();
   const { gridItems } = useLayoutGridItemsContext();
   const { isEditing } = useEditingContext();
-  const { inDataViewerMode } = useInDataViewerModeContext();
+  const { inDataViewerMode } = useDataViewerModeContext();
   const { variableInputValues } = useVariableInputValuesContext();
 
   useEffect(() => {
