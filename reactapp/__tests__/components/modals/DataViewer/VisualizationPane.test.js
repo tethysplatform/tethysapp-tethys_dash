@@ -20,10 +20,6 @@ import Image from "components/visualizations/Image";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 
-appAPI.getVisualizations = () => {
-  return Promise.resolve({ visualizations: mockedVisualizations });
-};
-
 const TestingComponent = ({
   layoutContext,
   source,

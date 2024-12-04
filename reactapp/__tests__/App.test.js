@@ -1,19 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import {
-  mockedDashboards,
-  mockedVisualizations,
-} from "__tests__/utilities/constants";
-import appAPI from "services/api/app";
 import App from "App";
-
-appAPI.getDashboards = () => {
-  return Promise.resolve(mockedDashboards);
-};
-appAPI.getVisualizations = () => {
-  return Promise.resolve({ visualizations: mockedVisualizations });
-};
 
 function renderWithRouter(ui, { route = "/" } = {}) {
   route = `${route}`;

@@ -16,10 +16,6 @@ import RoutesContextProvider from "components/contexts/RoutesContext";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 
-appAPI.getDashboards = () => {
-  return Promise.resolve(mockedDashboards);
-};
-
 jest.mock("components/dashboard/DeleteConfirmation", () => {
   return {
     confirm: jest.fn(),

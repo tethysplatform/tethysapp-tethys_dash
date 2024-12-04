@@ -2,10 +2,7 @@ import { act, useEffect, useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
-import {
-  mockedDashboards,
-  mockedVisualizations,
-} from "__tests__/utilities/constants";
+import { mockedDashboards } from "__tests__/utilities/constants";
 import SelectedDashboardContextProvider, {
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
@@ -15,7 +12,6 @@ import EditingContextProvider, {
 } from "components/contexts/EditingContext";
 import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
 import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
-import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import AvailableDashboardsContextProvider, {
   AvailableDashboardsContext,
@@ -30,13 +26,6 @@ jest.mock("components/dashboard/DeleteConfirmation", () => {
   };
 });
 const mockedConfirm = jest.mocked(confirm);
-
-appAPI.getDashboards = () => {
-  return Promise.resolve(mockedDashboards);
-};
-appAPI.getVisualizations = () => {
-  return Promise.resolve({ visualizations: mockedVisualizations });
-};
 
 const TestingComponent = (props) => {
   const { setLayoutContext } = useLayoutContext();

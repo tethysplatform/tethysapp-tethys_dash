@@ -2,10 +2,7 @@ import { act, useEffect } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
-import {
-  mockedDashboards,
-  mockedVisualizations,
-} from "__tests__/utilities/constants";
+import { mockedDashboards } from "__tests__/utilities/constants";
 import SelectedDashboardContextProvider, {
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
@@ -15,18 +12,10 @@ import VariableInputsContextProvider, {
 import EditingContextProvider from "components/contexts/EditingContext";
 import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
 import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
-import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
 import RoutesContextProvider from "components/contexts/RoutesContext";
 import { AppContext } from "components/contexts/AppContext";
-
-appAPI.getDashboards = () => {
-  return Promise.resolve(mockedDashboards);
-};
-appAPI.getVisualizations = () => {
-  return Promise.resolve({ visualizations: mockedVisualizations });
-};
 
 const TestingComponent = (props) => {
   const { setLayoutContext } = useLayoutContext();
