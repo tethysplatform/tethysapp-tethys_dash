@@ -2,12 +2,6 @@ import { render, screen } from "@testing-library/react";
 import AvailableVisualizationsContextProvider, {
   useAvailableVisualizationsContext,
 } from "components/contexts/AvailableVisualizationsContext";
-import { mockedVisualizations } from "__tests__/utilities/constants";
-import appAPI from "services/api/app";
-
-appAPI.getVisualizations = () => {
-  return Promise.resolve({ visualizations: mockedVisualizations });
-};
 
 const TestingComponent = () => {
   const { availableVisualizations, availableVizArgs } =

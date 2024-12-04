@@ -24,13 +24,7 @@ import AvailableVisualizationsContextProvider from "components/contexts/Availabl
 import DataViewerModeContextProvider, {
   useInDataViewerModeContext,
 } from "components/contexts/DataViewerModeContext";
-import appAPI from "services/api/app";
-import { mockedVisualizations } from "__tests__/utilities/constants";
 import PropTypes from "prop-types";
-
-appAPI.getVisualizations = () => {
-  return Promise.resolve({ visualizations: mockedVisualizations });
-};
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
   return {
@@ -63,10 +57,10 @@ const TestingComponent = (props) => {
       <ul data-testid="grid-items">
         {gridItems.map((item, index) => {
           return (
-            <>
-              <li key={item.i}>{item.i}</li>
-              <li key={item.args_string}>{item.args_string}</li>
-            </>
+            <div key={index}>
+              <li>{item.i}</li>
+              <li>{item.args_string}</li>
+            </div>
           );
         })}
       </ul>

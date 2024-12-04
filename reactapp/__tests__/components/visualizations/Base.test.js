@@ -15,16 +15,11 @@ import {
   mockedTableData,
   mockedTextBase,
   mockedUnknownBase,
-  mockedVisualizations
 } from "__tests__/utilities/constants";
 import Base from "components/visualizations/Base";
 import appAPI from "services/api/app";
 import { EditingContext } from "components/contexts/EditingContext";
 import { VariableInputValuesContext } from "components/contexts/VariableInputsContext";
-
-appAPI.getVisualizations = () => {
-  return Promise.resolve({ visualizations: mockedVisualizations });
-};
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -62,7 +57,9 @@ function initAndRender(props) {
           updateVariableInputValuesWithGridItems,
         }}
       >
-        <EditingContext.Provider value={{isEditing: props.isEditing, setIsEditing}}>
+        <EditingContext.Provider
+          value={{ isEditing: props.isEditing, setIsEditing }}
+        >
           <Base
             source={props.source}
             argsString={props.argsString}
@@ -95,7 +92,7 @@ function initAndRender(props) {
     updateVariableInputValuesWithGridItems,
     setIsEditing,
     hideFullscreen,
-  }
+  };
 }
 
 it("Initializes a Base Item with an empty div", () => {
@@ -114,7 +111,7 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
     return Promise.resolve({
       success: true,
       data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-      viz_type: "image"
+      viz_type: "image",
     });
   };
 
@@ -128,20 +125,23 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
   expect(screen.getByTestId("Source_Unknown")).toBeInTheDocument();
 
   const gridItem = mockedApiImageBase;
-  rerender(BaseRender({
-    source: gridItem.source,
-    argsString: gridItem.args_string,
-    metadataString: gridItem.metadata_string,
-    showFullscreen: false,
-  }));
+  rerender(
+    BaseRender({
+      source: gridItem.source,
+      argsString: gridItem.args_string,
+      metadataString: gridItem.metadata_string,
+      showFullscreen: false,
+    })
+  );
 
-  const spinner = screen.getByTestId('Loading...');
+  const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   await sleep(50);
   const image = screen.getByAltText(gridItem.source);
-  expect(image.src).toBe("https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png");
-
+  expect(image.src).toBe(
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+  );
 });
 
 it("Creates an Base Item with a Custom Image", async () => {
@@ -175,7 +175,7 @@ it("Creates an Base Item with an image obtained from the api", async () => {
     return Promise.resolve({
       success: true,
       data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-      viz_type: "image"
+      viz_type: "image",
     });
   };
 
@@ -187,12 +187,14 @@ it("Creates an Base Item with an image obtained from the api", async () => {
     showFullscreen: false,
   });
 
-  const spinner = screen.getByTestId('Loading...');
+  const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   await sleep(50);
   const image = screen.getByAltText(gridItem.source);
-  expect(image.src).toBe("https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png");
+  expect(image.src).toBe(
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+  );
 });
 
 it("Creates an Base Item with a plot obtained from the api", async () => {
@@ -200,7 +202,7 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
     return Promise.resolve({
       success: true,
       data: mockedPlotData,
-      viz_type: "plotly"
+      viz_type: "plotly",
     });
   };
 
@@ -212,7 +214,7 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
     showFullscreen: false,
   });
 
-  const spinner = screen.getByTestId('Loading...');
+  const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   await sleep(100);
@@ -225,7 +227,7 @@ it("Creates an Base Item with a table obtained from the api", async () => {
     return Promise.resolve({
       success: true,
       data: mockedTableData,
-      viz_type: "table"
+      viz_type: "table",
     });
   };
 
@@ -237,7 +239,7 @@ it("Creates an Base Item with a table obtained from the api", async () => {
     showFullscreen: false,
   });
 
-  const spinner = screen.getByTestId('Loading...');
+  const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   await sleep(50);
@@ -250,7 +252,7 @@ it("Creates an Base Item with a card obtained from the api", async () => {
     return Promise.resolve({
       success: true,
       data: mockedCardData,
-      viz_type: "card"
+      viz_type: "card",
     });
   };
 
@@ -262,7 +264,7 @@ it("Creates an Base Item with a card obtained from the api", async () => {
     showFullscreen: false,
   });
 
-  const spinner = screen.getByTestId('Loading...');
+  const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   await sleep(50);
@@ -276,7 +278,7 @@ it.skip("Creates an Base Item with a map obtained from the api", async () => {
     return Promise.resolve({
       success: true,
       data: mockedMapData,
-      viz_type: "map"
+      viz_type: "map",
     });
   };
 
@@ -288,7 +290,7 @@ it.skip("Creates an Base Item with a map obtained from the api", async () => {
     showFullscreen: false,
   });
 
-  const spinner = screen.getByTestId('Loading...');
+  const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   await sleep(50);
@@ -301,7 +303,7 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
     return Promise.resolve({
       success: true,
       data: {},
-      viz_type: "random_viz_type"
+      viz_type: "random_viz_type",
     });
   };
 
@@ -313,11 +315,13 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
     showFullscreen: false,
   });
 
-  const spinner = screen.getByTestId('Loading...');
+  const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   await sleep(50);
-  const message = screen.getByText("random_viz_type visualizations still need to be configured");
+  const message = screen.getByText(
+    "random_viz_type visualizations still need to be configured"
+  );
   expect(message).toBeInTheDocument();
 });
 
@@ -326,7 +330,7 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
     return Promise.resolve({
       success: false,
       data: {},
-      viz_type: ""
+      viz_type: "",
     });
   };
 
@@ -338,7 +342,7 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
     showFullscreen: false,
   });
 
-  const spinner = screen.getByTestId('Loading...');
+  const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   await sleep(50);

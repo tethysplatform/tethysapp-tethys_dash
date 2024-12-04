@@ -24,9 +24,6 @@ import {
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 
-appAPI.getDashboards = () => {
-  return Promise.resolve(mockedDashboards);
-};
 // eslint-disable-next-line
 jest.mock("components/dashboard/DashboardItem", () => (props) => (
   <>

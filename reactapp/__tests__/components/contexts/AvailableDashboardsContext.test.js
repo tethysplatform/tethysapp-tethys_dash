@@ -29,10 +29,6 @@ jest.mock("components/dashboard/DeleteConfirmation", () => {
   };
 });
 
-appAPI.getDashboards = () => {
-  return Promise.resolve(mockedDashboards);
-};
-
 const TestingComponent = (props) => {
   const {
     dashboardDropdownOptions,
@@ -263,9 +259,6 @@ test("available dashboard context for deleting failed", async () => {
 test("available dashboard context for updating new label", async () => {
   const dashboards = JSON.parse(JSON.stringify(mockedDashboards));
   dashboards.editable = updatedDashboard;
-  appAPI.getDashboards = () => {
-    return Promise.resolve(dashboards);
-  };
   appAPI.updateDashboard = () => {
     return Promise.resolve({
       success: true,

@@ -2,7 +2,6 @@ import { act } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import Header from "components/layout/Header";
-import { mockedDashboards } from "__tests__/utilities/constants";
 import SelectedDashboardContextProvider from "components/contexts/SelectedDashboardContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 import EditingContextProvider from "components/contexts/EditingContext";
@@ -12,7 +11,6 @@ import AvailableDashboardsContextProvider from "components/contexts/AvailableDas
 import { AppContext } from "components/contexts/AppContext";
 import RoutesContextProvider from "components/contexts/RoutesContext";
 import { MemoryRouter } from "react-router-dom";
-import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 
 window.matchMedia =
@@ -24,10 +22,6 @@ window.matchMedia =
       removeListener: function () {},
     };
   };
-
-appAPI.getDashboards = () => {
-  return Promise.resolve(mockedDashboards);
-};
 
 const TestingComponent = (props) => {
   return (
