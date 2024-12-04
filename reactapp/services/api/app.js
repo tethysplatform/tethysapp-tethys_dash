@@ -12,6 +12,9 @@ const appAPI = {
   getVisualizations: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/`);
   },
+  getUserSettings: () => {
+    return apiClient.get(`${APP_ROOT_URL}usersettings/`);
+  },
   addDashboard: (data, csrf) => {
     return apiClient.post(`${APP_ROOT_URL}dashboards/add/`, data, {
       headers: { "x-csrftoken": csrf },
@@ -24,6 +27,11 @@ const appAPI = {
   },
   updateDashboard: (data, csrf) => {
     return apiClient.post(`${APP_ROOT_URL}dashboards/update/`, data, {
+      headers: { "x-csrftoken": csrf },
+    });
+  },
+  updateUserSettings: (data, csrf) => {
+    return apiClient.post(`${APP_ROOT_URL}usersettings/update/`, data, {
       headers: { "x-csrftoken": csrf },
     });
   },
