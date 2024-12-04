@@ -9,6 +9,8 @@ from .model import (
     add_new_dashboard,
     delete_named_dashboard,
     update_named_dashboard,
+    update_user_setting,
+    get_user_settings
 )
 from .visualizations import get_available_visualizations, get_visualization
 
@@ -57,6 +59,16 @@ def visualizations(request):
     visualizations = get_available_visualizations()
 
     return JsonResponse(visualizations)
+
+
+@api_view(["GET"])
+@controller(login_required=True)
+def usersettings(request):
+    """API controller for the dashboards page."""
+    username = str(request.user)
+    user_settings = get_user_settings(username)
+
+    return JsonResponse(user_settings)
 
 
 @api_view(["POST"])
@@ -154,5 +166,28 @@ def update_dashboard(request):
             message = (
                 f"Failed to update the dashboard named {name}. Check server for logs."
             )
+
+        return JsonResponse({"success": False, "message": message})
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/usersettings/update", login_required=True)
+def update_user_settings(request):
+    """API controller for the dashboards page."""
+    user_settings = json.loads(request.body)
+    deselected_visualizations = user_settings["deselected_visualizations"]
+    username = str(request.user)
+
+    try:
+        update_user_setting(username, deselected_visualizations)
+        print(f"Successfully updated settings for {username}")
+
+        return JsonResponse({"success": True})
+    except Exception as e:
+        print(e)
+        try:
+            message = e.args[0]
+        except Exception:
+            message = f"Failed to update user settings. Check server for logs."
 
         return JsonResponse({"success": False, "message": message})
