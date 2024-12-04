@@ -172,7 +172,6 @@ const AvailableDashboardsContextProvider = ({ children }) => {
   }
 
   async function updateDashboard(updatedProperties) {
-    // BUG WHEN UPDATING LABEL AND THEN SELCTING THE NEW LABEL FROM THE DROPDOWN
     const originalDashboard = getLayoutContext();
     const originalName = originalDashboard["name"];
     const originalLabel = originalDashboard["label"];
