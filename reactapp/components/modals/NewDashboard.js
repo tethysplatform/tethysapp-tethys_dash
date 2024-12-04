@@ -12,17 +12,16 @@ import PropTypes from "prop-types";
 function NewDashboardModal({ showModal, setShowModal }) {
   const [dashboardName, setDashboardName] = useState("");
   const { addDashboard } = useAvailableDashboardsContext();
-  const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const { setIsEditing } = useEditingContext();
-  const setShowSaveMessage = useState(false)[1];
 
-  const handleModalClose = () => setShowModal(false);
+  const handleModalClose = () => {
+    setShowModal(false);
+  };
 
   function handleSubmit(event) {
     event.preventDefault();
-    setErrorMessage("");
-    setHasError(false);
+    setErrorMessage(null);
     let name = dashboardName.replace(" ", "_").toLowerCase();
     let label = dashboardName;
     const inputData = {
@@ -32,11 +31,9 @@ function NewDashboardModal({ showModal, setShowModal }) {
     addDashboard(inputData).then((response) => {
       if (response["success"]) {
         handleModalClose();
-        setShowSaveMessage(true);
         setIsEditing(true);
       } else {
         setErrorMessage(response["message"]);
-        setHasError(true);
       }
     });
   }
@@ -56,7 +53,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
           <Modal.Title>Create a new dashboard</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {hasError && (
+          {errorMessage && (
             <Alert key="danger" variant="danger">
               {errorMessage}
             </Alert>
@@ -72,6 +69,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
                     placeholder="Enter dashboard name"
                     onChange={onNameInput}
                     value={dashboardName}
+                    aria-label={"Dashboard Name Input"}
                   />
                   <Form.Text className="text-muted"></Form.Text>
                 </Form.Group>
@@ -80,10 +78,19 @@ function NewDashboardModal({ showModal, setShowModal }) {
           </Form>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={handleModalClose}>
+          <Button
+            variant="secondary"
+            onClick={handleModalClose}
+            aria-label={"Close Modal Button"}
+          >
             Close
           </Button>
-          <Button variant="success" type="submit" form="dashboardCreation">
+          <Button
+            variant="success"
+            type="submit"
+            form="dashboardCreation"
+            aria-label={"Create Dashboard Button"}
+          >
             Create
           </Button>
         </Modal.Footer>

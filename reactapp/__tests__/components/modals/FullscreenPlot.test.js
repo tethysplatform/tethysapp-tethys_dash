@@ -23,7 +23,7 @@ const TestingComponent = () => {
   );
 };
 
-test("Dashboard Editor Canvas editable dashboard change sharing status", async () => {
+test("fullscreen modal and close", async () => {
   render(<TestingComponent />);
 
   expect(await screen.findByText("Hello World")).toBeInTheDocument();
