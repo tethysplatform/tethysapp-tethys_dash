@@ -3,6 +3,7 @@ import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import PropTypes from "prop-types";
 import styled from "styled-components";
+import CustomAlert from "components/dashboard/CustomAlert";
 import { useUserSettingsContext } from "components/contexts/UserSettingsContext";
 
 const StyledList = styled.ul`
@@ -22,8 +23,12 @@ function SelectedVisualizationTypesModal({
   setShowModal,
   vizOptions,
 }) {
-  const { userSettings } = useUserSettingsContext();
+  const { userSettings, updateUserSettings } = useUserSettingsContext();
   const [selectedOptions, setSelectedOptions] = useState([]);
+  const [successMessage, setSuccessMessage] = useState(null);
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [showErrorMessage, setShowErrorMessage] = useState(false);
 
   let allOptions = [];
   const vizOptionsGroups = {};
@@ -35,6 +40,8 @@ function SelectedVisualizationTypesModal({
     vizOptionsGroups[vizOptionGroup.label] = vizOptionGroupOptions;
     allOptions = [...allOptions, ...vizOptionGroupOptions];
   }
+
+  // TODO: Implement checking or unchecking group when all options are selected or deselected
 
   useEffect(() => {
     const deselectedVisualizations = userSettings.deselected_visualizations;
@@ -68,6 +75,27 @@ function SelectedVisualizationTypesModal({
     }
   };
 
+  const saveSettings = () => {
+    setShowSuccessMessage(false);
+    setShowErrorMessage(false);
+    const deselectedVisualizations = allOptions.filter((e) =>
+      selectedOptions.every((val) => val !== e)
+    );
+    updateUserSettings({
+      deselected_visualizations: deselectedVisualizations,
+    }).then((response) => {
+      if (response.success) {
+        setSuccessMessage("Settings have been saved.");
+        setShowSuccessMessage(true);
+      } else {
+        setErrorMessage(
+          "Failed to save settings. Check server logs for more information."
+        );
+        setShowErrorMessage(true);
+      }
+    });
+  };
+
   return (
     <>
       <Modal
@@ -85,8 +113,8 @@ function SelectedVisualizationTypesModal({
           </p>
           <br></br>
           {vizOptions.map((group, groupIndex) => (
-            <fieldset>
-              <label key={groupIndex}>
+            <fieldset key={groupIndex}>
+              <label>
                 <StyledInput
                   type="checkbox"
                   value={group.label}
@@ -97,8 +125,8 @@ function SelectedVisualizationTypesModal({
               </label>
               <StyledList>
                 {group.options.map((option, optionIndex) => (
-                  <li>
-                    <label key={optionIndex}>
+                  <li key={optionIndex}>
+                    <label>
                       <StyledInput
                         type="checkbox"
                         value={option.label}
@@ -114,6 +142,22 @@ function SelectedVisualizationTypesModal({
           ))}
         </StyledModalBody>
         <Modal.Footer>
+          {errorMessage && (
+            <CustomAlert
+              alertType={"danger"}
+              alertMessage={errorMessage}
+              showAlert={showErrorMessage}
+              setShowAlert={setShowErrorMessage}
+            />
+          )}
+          {successMessage && (
+            <CustomAlert
+              alertType={"success"}
+              alertMessage={successMessage}
+              showAlert={showSuccessMessage}
+              setShowAlert={setShowSuccessMessage}
+            />
+          )}
           <Button
             variant="secondary"
             onClick={() => setShowModal(false)}
@@ -126,6 +170,7 @@ function SelectedVisualizationTypesModal({
             type="submit"
             form="dashboardCreation"
             aria-label={"Create Dashboard Button"}
+            onClick={saveSettings}
           >
             Save
           </Button>

@@ -10,7 +10,7 @@ from .model import (
     delete_named_dashboard,
     update_named_dashboard,
     update_user_setting,
-    get_user_settings
+    get_user_settings,
 )
 from .visualizations import get_available_visualizations, get_visualization
 
