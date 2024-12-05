@@ -366,7 +366,7 @@ def get_user_settings(username):
         
         if user_settings:
             user_settings_dict["deselected_visualizations"] = (
-                user_settings.deselected_visualizations,
+                user_settings.deselected_visualizations
             )
         else:
             user_settings_dict["deselected_visualizations"] = []
