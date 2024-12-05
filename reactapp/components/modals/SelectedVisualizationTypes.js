@@ -41,7 +41,13 @@ function SelectedVisualizationTypesModal({
     allOptions = [...allOptions, ...vizOptionGroupOptions];
   }
 
-  // TODO: Implement checking or unchecking group when all options are selected or deselected
+  const findGroupByOption = (value) => {
+    for (const [key, arr] of Object.entries(vizOptionsGroups)) {
+      if (arr.includes(value)) {
+        return key;
+      }
+    }
+  };
 
   useEffect(() => {
     const deselectedVisualizations = userSettings.deselected_visualizations;
@@ -53,24 +59,47 @@ function SelectedVisualizationTypesModal({
   const handleCheckboxChange = (event) => {
     const value = event.target.value;
     const isChecked = event.target.checked;
+    const copiedVizOptionsGroups = JSON.parse(JSON.stringify(vizOptionsGroups));
 
-    if (isChecked) {
-      if (value in vizOptionsGroups) {
-        setSelectedOptions([...selectedOptions, ...vizOptionsGroups[value]]);
+    if (value in copiedVizOptionsGroups) {
+      if (isChecked) {
+        setSelectedOptions([
+          ...selectedOptions,
+          ...copiedVizOptionsGroups[value],
+        ]);
       } else {
-        setSelectedOptions([...selectedOptions, value]);
-      }
-    } else {
-      if (value in vizOptionsGroups) {
         setSelectedOptions(
           selectedOptions.filter(
-            (option) => !vizOptionsGroups[value].includes(option)
+            (option) => !copiedVizOptionsGroups[value].includes(option)
           )
         );
+      }
+    } else {
+      const valueGroup = findGroupByOption(value);
+      if (isChecked) {
+        if (!selectedOptions.includes(valueGroup)) {
+          setSelectedOptions([...selectedOptions, ...[value, valueGroup]]);
+        } else {
+          setSelectedOptions([...selectedOptions, value]);
+        }
       } else {
-        setSelectedOptions(
-          selectedOptions.filter((option) => option !== value)
-        );
+        const valueGroupOptions = copiedVizOptionsGroups[valueGroup];
+        valueGroupOptions.splice(0, 1);
+        if (
+          valueGroupOptions.every(
+            (val) => !selectedOptions.includes(val) || val === value
+          )
+        ) {
+          setSelectedOptions(
+            selectedOptions.filter(
+              (option) => ![value, valueGroup].includes(option)
+            )
+          );
+        } else {
+          setSelectedOptions(
+            selectedOptions.filter((option) => option !== value)
+          );
+        }
       }
     }
   };
