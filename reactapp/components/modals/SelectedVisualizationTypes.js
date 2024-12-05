@@ -5,6 +5,7 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import CustomAlert from "components/dashboard/CustomAlert";
 import { useUserSettingsContext } from "components/contexts/UserSettingsContext";
+import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
 
 const StyledList = styled.ul`
   list-style: none;
@@ -18,11 +19,8 @@ const StyledModalBody = styled(Modal.Body)`
   overflow-y: auto;
 `;
 
-function SelectedVisualizationTypesModal({
-  showModal,
-  setShowModal,
-  vizOptions,
-}) {
+function SelectedVisualizationTypesModal({ showModal, setShowModal }) {
+  const { availableVisualizations } = useAvailableVisualizationsContext();
   const { userSettings, updateUserSettings } = useUserSettingsContext();
   const [selectedOptions, setSelectedOptions] = useState([]);
   const [successMessage, setSuccessMessage] = useState(null);
@@ -32,7 +30,7 @@ function SelectedVisualizationTypesModal({
 
   let allOptions = [];
   const vizOptionsGroups = {};
-  for (const vizOptionGroup of vizOptions) {
+  for (const vizOptionGroup of availableVisualizations) {
     const vizOptionGroupOptions = [vizOptionGroup.label];
     for (const vizOptionGroupOption of vizOptionGroup.options) {
       vizOptionGroupOptions.push(vizOptionGroupOption.label);
@@ -141,7 +139,7 @@ function SelectedVisualizationTypesModal({
             Type" selector.
           </p>
           <br></br>
-          {vizOptions.map((group, groupIndex) => (
+          {availableVisualizations.map((group, groupIndex) => (
             <fieldset key={groupIndex}>
               <label>
                 <StyledInput
