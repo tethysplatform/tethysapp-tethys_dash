@@ -64,7 +64,7 @@ const AvailableVisualizationsContextProvider = ({ children }) => {
                 ...[
                   {
                     label: "Existing Visualization Inputs",
-                    options: availableVizArgs,
+                    options: all_viz_args,
                   },
                 ],
               ],

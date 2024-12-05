@@ -24,6 +24,8 @@ import AvailableVisualizationsContextProvider from "components/contexts/Availabl
 import DataViewerModeContextProvider, {
   useDataViewerModeContext,
 } from "components/contexts/DataViewerModeContext";
+import UserSettingsContextProvider from "components/contexts/UserSettingsContext";
+import { AppContext } from "components/contexts/AppContext";
 import PropTypes from "prop-types";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
@@ -250,24 +252,28 @@ test("Dashboard Item edit item", async () => {
   const gridItem = mockedDashboard.gridItems[0];
 
   render(
-    <AvailableVisualizationsContextProvider>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <EditingContextProvider>
-            <DataViewerModeContextProvider>
-              <TestingComponent
-                layoutContext={mockedDashboard}
-                gridItemSource={gridItem.source}
-                gridItemI={gridItem.i}
-                gridItemArgsString={gridItem.args_string}
-                gridItemMetadataString={gridItem.metadata_string}
-                gridItemIndex={0}
-              />
-            </DataViewerModeContextProvider>
-          </EditingContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AvailableVisualizationsContextProvider>
+    <AppContext.Provider value={"csrf"}>
+      <UserSettingsContextProvider>
+        <AvailableVisualizationsContextProvider>
+          <VariableInputsContextProvider>
+            <SelectedDashboardContextProvider>
+              <EditingContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent
+                    layoutContext={mockedDashboard}
+                    gridItemSource={gridItem.source}
+                    gridItemI={gridItem.i}
+                    gridItemArgsString={gridItem.args_string}
+                    gridItemMetadataString={gridItem.metadata_string}
+                    gridItemIndex={0}
+                  />
+                </DataViewerModeContextProvider>
+              </EditingContextProvider>
+            </SelectedDashboardContextProvider>
+          </VariableInputsContextProvider>
+        </AvailableVisualizationsContextProvider>
+      </UserSettingsContextProvider>
+    </AppContext.Provider>
   );
 
   const dropdownToggle = screen.getByRole("button");
