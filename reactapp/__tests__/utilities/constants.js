@@ -76,6 +76,87 @@ export const mockedVisualizations = [
   },
 ];
 
+export const mockedVisualizationsWithDefaults = [
+  {
+    label: "Visualization Group",
+    options: [
+      {
+        source: "plugin_source",
+        value: "plugin_value",
+        label: "plugin_label",
+        args: { plugin_arg: "text" },
+      },
+      {
+        source: "plugin_source2",
+        value: "plugin_value2",
+        label: "plugin_label2",
+        args: { plugin_arg: "text" },
+      },
+    ],
+  },
+  {
+    label: "Visualization Group 2",
+    options: [
+      {
+        source: "plugin_source3",
+        value: "plugin_value3",
+        label: "plugin_label3",
+        args: { plugin_arg3: "text" },
+      },
+    ],
+  },
+  {
+    label: "Other",
+    options: [
+      {
+        source: "Custom Image",
+        value: "Custom Image",
+        label: "Custom Image",
+        args: { image_source: "text" },
+      },
+      {
+        source: "Text",
+        value: "Text",
+        label: "Text",
+        args: { text: "text" },
+      },
+      {
+        source: "Variable Input",
+        value: "Variable Input",
+        label: "Variable Input",
+        args: {
+          variable_name: "text",
+          variable_options_source: [
+            "text",
+            "number",
+            "checkbox",
+            {
+              label: "Existing Visualization Inputs",
+              options: [
+                {
+                  argOptions: "text",
+                  label: "Visualization Group: plugin_label - plugin_arg",
+                  value: "Visualization Group: plugin_label - plugin_arg",
+                },
+                {
+                  argOptions: "text",
+                  label: "Visualization Group: plugin_label2 - plugin_arg",
+                  value: "Visualization Group: plugin_label2 - plugin_arg",
+                },
+                {
+                  argOptions: "text",
+                  label: "Visualization Group 2: plugin_label3 - plugin_arg3",
+                  value: "Visualization Group 2: plugin_label3 - plugin_arg3",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    ],
+  },
+];
+
 export const updatedDashboard = {
   id: 1,
   name: "editable",
@@ -452,4 +533,8 @@ export const mockedTextBase = {
   metadata_string: JSON.stringify({
     refreshRate: 0,
   }),
+};
+
+export const mockedUserSetting = {
+  deselected_visualizations: [],
 };
