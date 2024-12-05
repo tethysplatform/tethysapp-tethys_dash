@@ -2,6 +2,7 @@ import PropTypes from "prop-types";
 import appAPI from "services/api/app";
 import { useContext, useEffect, createContext, useState } from "react";
 import { spaceAndCapitalize } from "components/modals/utilities";
+import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 
 export const AvailableVisualizationsContext = createContext();
 
@@ -11,8 +12,7 @@ const AvailableVisualizationsContextProvider = ({ children }) => {
 
   useEffect(() => {
     appAPI.getVisualizations().then((data) => {
-      let options = data.visualizations;
-      setAvailableVisualizations(options);
+      const options = data.visualizations;
       let all_viz_args = [];
       for (let optionGroup of options) {
         for (let option of optionGroup.options) {
@@ -37,6 +37,42 @@ const AvailableVisualizationsContextProvider = ({ children }) => {
         }
       }
       setAvailableVizArgs(all_viz_args);
+
+      options.push({
+        label: "Other",
+        options: [
+          {
+            source: "Custom Image",
+            value: "Custom Image",
+            label: "Custom Image",
+            args: { image_source: "text" },
+          },
+          {
+            source: "Text",
+            value: "Text",
+            label: "Text",
+            args: { text: "text" },
+          },
+          {
+            source: "Variable Input",
+            value: "Variable Input",
+            label: "Variable Input",
+            args: {
+              variable_name: "text",
+              variable_options_source: [
+                ...nonDropDownVariableInputTypes,
+                ...[
+                  {
+                    label: "Existing Visualization Inputs",
+                    options: availableVizArgs,
+                  },
+                ],
+              ],
+            },
+          },
+        ],
+      });
+      setAvailableVisualizations(options);
     });
     // eslint-disable-next-line
   }, []);
