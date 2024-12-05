@@ -1,6 +1,6 @@
 import { act, useEffect } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import {
   mockedDashboards,
@@ -527,6 +527,84 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
   fireEvent.click(await screen.findByText("Settings"));
   expect(settingsTab).toHaveClass("active");
   expect(visualizationTab).not.toHaveClass("active");
+});
+
+test("Dashboard Viewer Modal selected visualization types modal", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockhandleModalClose = jest.fn();
+  const mocksetGridItemMessage = jest.fn();
+  const mocksetShowGridItemMessage = jest.fn();
+
+  render(
+    <AppContext.Provider value={"csrf"}>
+      <RoutesContextProvider>
+        <UserSettingsContext.Provider
+          value={{
+            userSettings: { deselected_visualizations: [] },
+          }}
+        >
+          <AvailableVisualizationsContext.Provider
+            value={{
+              availableVisualizations: mockedVisualizationsWithDefaults,
+            }}
+          >
+            <VariableInputsContextProvider>
+              <SelectedDashboardContextProvider>
+                <AvailableDashboardsContextProvider>
+                  <EditingContextProvider>
+                    <DataViewerModeContextProvider>
+                      <TestingComponent
+                        layoutContext={mockedDashboard}
+                        gridItemIndex={0}
+                        gridItemSource={gridItem.source}
+                        gridItemArgsString={gridItem.args_string}
+                        gridItemMetadataString={gridItem.metadata_string}
+                        gridItemI={gridItem.i}
+                        showModal={true}
+                        handleModalClose={mockhandleModalClose}
+                        setGridItemMessage={mocksetGridItemMessage}
+                        setShowGridItemMessage={mocksetShowGridItemMessage}
+                      />
+                    </DataViewerModeContextProvider>
+                  </EditingContextProvider>
+                </AvailableDashboardsContextProvider>
+              </SelectedDashboardContextProvider>
+            </VariableInputsContextProvider>
+          </AvailableVisualizationsContext.Provider>
+        </UserSettingsContext.Provider>
+      </RoutesContextProvider>
+    </AppContext.Provider>
+  );
+
+  const visualizationSettingButton = await screen.findByLabelText(
+    "visualizationSettingButton"
+  );
+  expect(visualizationSettingButton).toBeInTheDocument();
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.click(visualizationSettingButton);
+  });
+
+  const dataviewerModal = await screen.findByLabelText("DataViewer Modal");
+  expect(dataviewerModal).toBeInTheDocument();
+  expect(dataviewerModal).toHaveStyle({ "z-index": 1050 });
+
+  const selectedVisualizationTypeModal = await screen.findByLabelText(
+    "Selected Visualization Type Modal"
+  );
+  expect(selectedVisualizationTypeModal).toBeInTheDocument();
+
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.keyboard("{Escape}");
+  });
+  await waitFor(async () => {
+    expect(
+      screen.queryByLabelText("Selected Visualization Type Modal")
+    ).not.toBeInTheDocument();
+  });
+  expect(dataviewerModal).not.toHaveStyle({ "z-index": 1050 });
 });
 
 TestingComponent.propTypes = {
