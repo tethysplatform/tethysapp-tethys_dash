@@ -6,7 +6,7 @@ import { useContext, useEffect, createContext, useState } from "react";
 export const UserSettingsContext = createContext();
 
 const UserSettingsContextProvider = ({ children }) => {
-  const [userSettings, setUserSettings] = useState([]);
+  const [userSettings, setUserSettings] = useState({});
   const { csrf } = useContext(AppContext);
 
   useEffect(() => {
