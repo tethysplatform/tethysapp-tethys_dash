@@ -197,7 +197,7 @@ function SelectedVisualizationTypesModal({ showModal, setShowModal }) {
             variant="success"
             type="submit"
             form="dashboardCreation"
-            aria-label={"Create Dashboard Button"}
+            aria-label={"Save Settings Button"}
             onClick={saveSettings}
           >
             Save
