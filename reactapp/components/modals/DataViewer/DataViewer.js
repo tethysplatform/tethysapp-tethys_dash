@@ -169,6 +169,7 @@ function DataViewerModal({
         className="dataviewer"
         dialogClassName="semiWideModalDialog"
         style={showVisualizationTypeSettings && { zIndex: 1050 }}
+        aria-label={"DataViewer Modal"}
       >
         <Modal.Header closeButton>
           <Modal.Title>Select Cell Data</Modal.Title>

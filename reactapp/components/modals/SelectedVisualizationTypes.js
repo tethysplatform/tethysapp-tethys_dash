@@ -130,6 +130,7 @@ function SelectedVisualizationTypesModal({ showModal, setShowModal }) {
         className="visualization-type-settings"
         show={showModal}
         onHide={() => setShowModal(false)}
+        aria-label={"Selected Visualization Type Modal"}
       >
         <Modal.Header closeButton>
           <Modal.Title>Available Visualization Types</Modal.Title>
