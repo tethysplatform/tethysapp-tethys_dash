@@ -304,6 +304,8 @@ VisualizationPane.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
+  showVisualizationTypeSettings: PropTypes.bool,
+  setShowVisualizationTypeSettings: PropTypes.func,
 };
 
 export default VisualizationPane;

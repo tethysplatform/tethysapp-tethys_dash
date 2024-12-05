@@ -52,6 +52,7 @@ function SelectedVisualizationTypesModal({ showModal, setShowModal }) {
     setSelectedOptions(
       allOptions.filter((option) => !deselectedVisualizations.includes(option))
     );
+    // eslint-disable-next-line
   }, []);
 
   const handleCheckboxChange = (event) => {
@@ -135,8 +136,8 @@ function SelectedVisualizationTypesModal({ showModal, setShowModal }) {
         </Modal.Header>
         <StyledModalBody>
           <p>
-            Select/Deselect the options that will appear in the "Visualization
-            Type" selector.
+            Select/Deselect the options that will appear in the Visualization
+            Type selector.
           </p>
           <br></br>
           {availableVisualizations.map((group, groupIndex) => (
