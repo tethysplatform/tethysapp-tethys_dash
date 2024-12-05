@@ -17,7 +17,7 @@ import { updateGridItemArgsWithVariableInputs } from "components/visualizations/
 import VariableInput from "components/visualizations/VariableInput";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsGear } from "react-icons/bs";
-import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
+import { useUserSettingsContext } from "components/contexts/UserSettingsContext";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
 import "components/modals/wideModal.css";
 
@@ -50,52 +50,23 @@ function VisualizationPane({
   showVisualizationTypeSettings,
   setShowVisualizationTypeSettings,
 }) {
+  const { userSettings } = useUserSettingsContext();
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
-  const { availableVisualizations, availableVizArgs } =
-    useAvailableVisualizationsContext();
+  const { availableVisualizations } = useAvailableVisualizationsContext();
   const { variableInputValues } = useVariableInputValuesContext();
 
   useEffect(() => {
-    let vizOptions = [...availableVisualizations];
-    vizOptions.push({
-      label: "Other",
-      options: [
-        {
-          source: "Custom Image",
-          value: "Custom Image",
-          label: "Custom Image",
-          args: { image_source: "text" },
-        },
-        {
-          source: "Text",
-          value: "Text",
-          label: "Text",
-          args: { text: "text" },
-        },
-        {
-          source: "Variable Input",
-          value: "Variable Input",
-          label: "Variable Input",
-          args: {
-            variable_name: "text",
-            variable_options_source: [
-              ...nonDropDownVariableInputTypes,
-              ...[
-                {
-                  label: "Existing Visualization Inputs",
-                  options: availableVizArgs,
-                },
-              ],
-            ],
-          },
-        },
-      ],
-    });
+    let vizTypeOptions = JSON.parse(JSON.stringify(availableVisualizations));
+    for (let vizOptionGroup of vizTypeOptions) {
+      vizOptionGroup.options = vizOptionGroup.options.filter(function (item) {
+        return !userSettings.deselected_visualizations.includes(item.label);
+      });
+    }
+    setVizOptions(vizTypeOptions);
 
-    setVizOptions(vizOptions);
     if (source) {
-      for (let vizOptionGroup of vizOptions) {
+      for (let vizOptionGroup of vizTypeOptions) {
         for (let vizOptionGroupOption of vizOptionGroup.options) {
           if (vizOptionGroupOption.source === source) {
             setSelectedGroupName(vizOptionGroup.label);
@@ -122,7 +93,7 @@ function VisualizationPane({
       }
     }
     // eslint-disable-next-line
-  }, []);
+  }, [userSettings]);
 
   useEffect(() => {
     checkAllInputs();
@@ -288,7 +259,6 @@ function VisualizationPane({
         <SelectedVisualizationTypesModal
           showModal={showVisualizationTypeSettings}
           setShowModal={setShowVisualizationTypeSettings}
-          vizOptions={vizOptions}
         />
       )}
     </>
