@@ -5,7 +5,7 @@ import { Route } from "react-router-dom";
 import DashboardView from "views/dashboard/Dashboard";
 import NotFound from "components/error/NotFound";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import { AppContext } from "components/contexts/Contexts";
+import { AppContext } from "components/contexts/AppContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 
 export const AvailableDashboardsContext = createContext();

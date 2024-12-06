@@ -3,8 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
 import { UserSettingsContext } from "components/contexts/UserSettingsContext";
-import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import { AppContext } from "components/contexts/Contexts";
+import { AppContext } from "components/contexts/AppContext";
 import { mockedVisualizationsWithDefaults } from "__tests__/utilities/constants";
 
 const TestingComponent = () => {
@@ -23,20 +22,16 @@ test("selected visualization type modal save success and then close", async () =
   mockUpdateUserSettings.mockResolvedValue({ success: true });
 
   render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
+    <AppContext.Provider
+      value={{ csrf: "csrf", visualizations: mockedVisualizationsWithDefaults }}
+    >
       <UserSettingsContext.Provider
         value={{
           userSettings: { deselected_visualizations: [] },
           updateUserSettings: mockUpdateUserSettings,
         }}
       >
-        <AvailableVisualizationsContext.Provider
-          value={{
-            availableVisualizations: mockedVisualizationsWithDefaults,
-          }}
-        >
-          <TestingComponent />
-        </AvailableVisualizationsContext.Provider>
+        <TestingComponent />
       </UserSettingsContext.Provider>
     </AppContext.Provider>
   );
@@ -137,20 +132,16 @@ test("selected visualization type modal save failed and then escape", async () =
   mockUpdateUserSettings.mockResolvedValue({ success: false });
 
   render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
+    <AppContext.Provider
+      value={{ csrf: "csrf", visualizations: mockedVisualizationsWithDefaults }}
+    >
       <UserSettingsContext.Provider
         value={{
           userSettings: { deselected_visualizations: [] },
           updateUserSettings: mockUpdateUserSettings,
         }}
       >
-        <AvailableVisualizationsContext.Provider
-          value={{
-            availableVisualizations: mockedVisualizationsWithDefaults,
-          }}
-        >
-          <TestingComponent />
-        </AvailableVisualizationsContext.Provider>
+        <TestingComponent />
       </UserSettingsContext.Provider>
     </AppContext.Provider>
   );

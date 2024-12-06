@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
 import styled from "styled-components";
@@ -6,7 +6,7 @@ import Image from "components/visualizations/Image";
 import DataInput from "components/inputs/DataInput";
 import TextEditor from "components/inputs/TextEditor";
 import { setVisualization } from "components/visualizations/utilities";
-import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
+import { AppContext } from "components/contexts/AppContext";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import {
   getInitialInputValue,
@@ -53,11 +53,11 @@ function VisualizationPane({
   const { userSettings } = useUserSettingsContext();
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
-  const { availableVisualizations } = useAvailableVisualizationsContext();
+  const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useVariableInputValuesContext();
 
   useEffect(() => {
-    let vizTypeOptions = JSON.parse(JSON.stringify(availableVisualizations));
+    let vizTypeOptions = JSON.parse(JSON.stringify(visualizations));
     for (let vizOptionGroup of vizTypeOptions) {
       vizOptionGroup.options = vizOptionGroup.options.filter(function (item) {
         return !userSettings.deselected_visualizations.includes(item.label);

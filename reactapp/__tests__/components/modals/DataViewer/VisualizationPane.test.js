@@ -11,9 +11,9 @@ import {
 import SelectedDashboardContextProvider, {
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
+import { AppContext } from "components/contexts/AppContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
-import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
 import Image from "components/visualizations/Image";
 import appAPI from "services/api/app";
 import { UserSettingsContext } from "components/contexts/UserSettingsContext";
@@ -68,14 +68,14 @@ test("Visualization Pane Custom Image", async () => {
   const mockSetVizMetadata = jest.fn();
 
   render(
-    <UserSettingsContext.Provider
+    <AppContext.Provider
       value={{
-        userSettings: { deselected_visualizations: [] },
+        visualizations: mockedVisualizationsWithDefaults,
       }}
     >
-      <AvailableVisualizationsContext.Provider
+      <UserSettingsContext.Provider
         value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
+          userSettings: { deselected_visualizations: [] },
         }}
       >
         <VariableInputsContextProvider>
@@ -92,8 +92,8 @@ test("Visualization Pane Custom Image", async () => {
             </DataViewerModeContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
-    </UserSettingsContext.Provider>
+      </UserSettingsContext.Provider>
+    </AppContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -134,14 +134,14 @@ test("Visualization Pane Text", async () => {
   const mockSetVizMetadata = jest.fn();
 
   render(
-    <UserSettingsContext.Provider
+    <AppContext.Provider
       value={{
-        userSettings: { deselected_visualizations: [] },
+        visualizations: mockedVisualizationsWithDefaults,
       }}
     >
-      <AvailableVisualizationsContext.Provider
+      <UserSettingsContext.Provider
         value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
+          userSettings: { deselected_visualizations: [] },
         }}
       >
         <VariableInputsContextProvider>
@@ -158,8 +158,8 @@ test("Visualization Pane Text", async () => {
             </DataViewerModeContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
-    </UserSettingsContext.Provider>
+      </UserSettingsContext.Provider>
+    </AppContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -202,14 +202,14 @@ test("Visualization Pane Variable Input", async () => {
   const mockSetVizMetadata = jest.fn();
 
   render(
-    <UserSettingsContext.Provider
+    <AppContext.Provider
       value={{
-        userSettings: { deselected_visualizations: [] },
+        visualizations: mockedVisualizationsWithDefaults,
       }}
     >
-      <AvailableVisualizationsContext.Provider
+      <UserSettingsContext.Provider
         value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
+          userSettings: { deselected_visualizations: [] },
         }}
       >
         <VariableInputsContextProvider>
@@ -226,8 +226,8 @@ test("Visualization Pane Variable Input", async () => {
             </DataViewerModeContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
-    </UserSettingsContext.Provider>
+      </UserSettingsContext.Provider>
+    </AppContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -345,14 +345,14 @@ test("Visualization Pane Other Type", async () => {
   };
 
   render(
-    <UserSettingsContext.Provider
+    <AppContext.Provider
       value={{
-        userSettings: { deselected_visualizations: [] },
+        visualizations: mockedVisualizationsWithDefaults,
       }}
     >
-      <AvailableVisualizationsContext.Provider
+      <UserSettingsContext.Provider
         value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
+          userSettings: { deselected_visualizations: [] },
         }}
       >
         <VariableInputsContextProvider>
@@ -369,8 +369,8 @@ test("Visualization Pane Other Type", async () => {
             </DataViewerModeContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
-    </UserSettingsContext.Provider>
+      </UserSettingsContext.Provider>
+    </AppContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -489,14 +489,14 @@ test("Visualization Pane Other Type Checkbox", async () => {
   ];
 
   render(
-    <UserSettingsContext.Provider
+    <AppContext.Provider
       value={{
-        userSettings: { deselected_visualizations: [] },
+        visualizations: availableVisualizations,
       }}
     >
-      <AvailableVisualizationsContext.Provider
+      <UserSettingsContext.Provider
         value={{
-          availableVisualizations,
+          userSettings: { deselected_visualizations: [] },
         }}
       >
         <VariableInputsContextProvider>
@@ -513,8 +513,8 @@ test("Visualization Pane Other Type Checkbox", async () => {
             </DataViewerModeContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
-    </UserSettingsContext.Provider>
+      </UserSettingsContext.Provider>
+    </AppContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -587,14 +587,14 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
   const mockSetVizMetadata = jest.fn();
 
   render(
-    <UserSettingsContext.Provider
+    <AppContext.Provider
       value={{
-        userSettings: { deselected_visualizations: [] },
+        visualizations: mockedVisualizationsWithDefaults,
       }}
     >
-      <AvailableVisualizationsContext.Provider
+      <UserSettingsContext.Provider
         value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
+          userSettings: { deselected_visualizations: [] },
         }}
       >
         <VariableInputsContextProvider>
@@ -611,8 +611,8 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
             </DataViewerModeContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
-    </UserSettingsContext.Provider>
+      </UserSettingsContext.Provider>
+    </AppContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
@@ -660,14 +660,14 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
   const mockSetVizMetadata = jest.fn();
 
   render(
-    <UserSettingsContext.Provider
+    <AppContext.Provider
       value={{
-        userSettings: { deselected_visualizations: [] },
+        visualizations: mockedVisualizationsWithDefaults,
       }}
     >
-      <AvailableVisualizationsContext.Provider
+      <UserSettingsContext.Provider
         value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
+          userSettings: { deselected_visualizations: [] },
         }}
       >
         <VariableInputsContextProvider>
@@ -684,8 +684,8 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
             </DataViewerModeContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
-    </UserSettingsContext.Provider>
+      </UserSettingsContext.Provider>
+    </AppContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
@@ -740,14 +740,14 @@ test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
   const mockSetVizMetadata = jest.fn();
 
   render(
-    <UserSettingsContext.Provider
+    <AppContext.Provider
       value={{
-        userSettings: { deselected_visualizations: [] },
+        visualizations: mockedVisualizationsWithDefaults,
       }}
     >
-      <AvailableVisualizationsContext.Provider
+      <UserSettingsContext.Provider
         value={{
-          availableVisualizations: mockedVisualizations,
+          userSettings: { deselected_visualizations: [] },
         }}
       >
         <VariableInputsContextProvider>
@@ -764,8 +764,8 @@ test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
             </DataViewerModeContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
-    </UserSettingsContext.Provider>
+      </UserSettingsContext.Provider>
+    </AppContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({

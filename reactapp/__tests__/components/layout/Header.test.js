@@ -8,7 +8,7 @@ import EditingContextProvider from "components/contexts/EditingContext";
 import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
 import { Route, Routes } from "react-router-dom";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import { AppContext } from "components/contexts/Contexts";
+import { AppContext } from "components/contexts/AppContext";
 import { MemoryRouter } from "react-router-dom";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import PropTypes from "prop-types";

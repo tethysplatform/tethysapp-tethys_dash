@@ -4,7 +4,6 @@ import Loader from "components/loader/Loader";
 
 import SelectedDashboardContextProvider from "components/contexts/SelectedDashboardContext";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
 import EditingContextProvider from "components/contexts/EditingContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 import UserSettingsContextProvider from "components/contexts/UserSettingsContext";
@@ -17,17 +16,15 @@ function App() {
       <ErrorBoundary>
         <Loader>
           <UserSettingsContextProvider>
-            <AvailableVisualizationsContextProvider>
-              <VariableInputsContextProvider>
-                <SelectedDashboardContextProvider>
-                  <AvailableDashboardsContextProvider>
-                    <EditingContextProvider>
-                      <Layout />
-                    </EditingContextProvider>
-                  </AvailableDashboardsContextProvider>
-                </SelectedDashboardContextProvider>
-              </VariableInputsContextProvider>
-            </AvailableVisualizationsContextProvider>
+            <VariableInputsContextProvider>
+              <SelectedDashboardContextProvider>
+                <AvailableDashboardsContextProvider>
+                  <EditingContextProvider>
+                    <Layout />
+                  </EditingContextProvider>
+                </AvailableDashboardsContextProvider>
+              </SelectedDashboardContextProvider>
+            </VariableInputsContextProvider>
           </UserSettingsContextProvider>
         </Loader>
       </ErrorBoundary>

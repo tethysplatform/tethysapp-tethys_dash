@@ -12,7 +12,7 @@ import SelectedDashboardContextProvider, {
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import { AppContext } from "components/contexts/Contexts";
+import { AppContext } from "components/contexts/AppContext";
 import EditingContextProvider, {
   useEditingContext,
 } from "components/contexts/EditingContext";

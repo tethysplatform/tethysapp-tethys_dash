@@ -1,5 +1,5 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { AppContext } from "components/contexts/Contexts";
+import { AppContext } from "components/contexts/AppContext";
 import UserSettingsContextProvider, {
   useUserSettingsContext,
 } from "components/contexts/UserSettingsContext";
