@@ -8,8 +8,7 @@ import EditingContextProvider from "components/contexts/EditingContext";
 import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
 import { Route, Routes } from "react-router-dom";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import { AppContext } from "components/contexts/AppContext";
-import RoutesContextProvider from "components/contexts/RoutesContext";
+import { AppContext } from "components/contexts/Contexts";
 import { MemoryRouter } from "react-router-dom";
 import PropTypes from "prop-types";
 
@@ -44,19 +43,17 @@ test("Header, staff user", async () => {
   render(
     <MemoryRouter initialEntries={["/"]}>
       <AppContext.Provider value={{ tethysApp, user, csrf }}>
-        <RoutesContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </RoutesContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContextProvider>
+              <EditingContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent />
+                </DataViewerModeContextProvider>
+              </EditingContextProvider>
+            </AvailableDashboardsContextProvider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
       </AppContext.Provider>
     </MemoryRouter>
   );
@@ -97,17 +94,15 @@ test("Header, non staff user", async () => {
   render(
     <MemoryRouter initialEntries={["/"]}>
       <AppContext.Provider value={{ tethysApp, user, csrf }}>
-        <RoutesContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <TestingComponent />
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </RoutesContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContextProvider>
+              <EditingContextProvider>
+                <TestingComponent />
+              </EditingContextProvider>
+            </AvailableDashboardsContextProvider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
       </AppContext.Provider>
     </MemoryRouter>
   );

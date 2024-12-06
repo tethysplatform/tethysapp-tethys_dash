@@ -11,8 +11,7 @@ import VariableInputsContextProvider from "components/contexts/VariableInputsCon
 import EditingContextProvider from "components/contexts/EditingContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import { AppContext } from "components/contexts/AppContext";
-import RoutesContextProvider from "components/contexts/RoutesContext";
+import { AppContext } from "components/contexts/Contexts";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 
@@ -41,17 +40,15 @@ const TestingComponent = (props) => {
 test("Dashboard Selector without initial", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <TestingComponent />
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <TestingComponent />
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -75,17 +72,15 @@ test("Dashboard Selector with initial", async () => {
   await act(() =>
     render(
       <AppContext.Provider value={"csrf"}>
-        <RoutesContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <TestingComponent initialDashboard={"editable"} />
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </RoutesContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContextProvider>
+              <EditingContextProvider>
+                <TestingComponent initialDashboard={"editable"} />
+              </EditingContextProvider>
+            </AvailableDashboardsContextProvider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
       </AppContext.Provider>
     )
   );
@@ -126,17 +121,15 @@ test("Dashboard Selector with initial", async () => {
 test("Dashboard Selector changing between public and user options", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <TestingComponent />
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <TestingComponent />
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -207,17 +200,15 @@ test("Dashboard Selector changing between public and user options", async () => 
 test("Dashboard Selector create new dashboard", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <TestingComponent />
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <TestingComponent />
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -245,17 +236,15 @@ test("Dashboard Selector changing when editing, true confirm", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <TestingComponent />
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <TestingComponent />
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -353,17 +342,15 @@ test("Dashboard Selector changing when editing, false confirm", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <TestingComponent />
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <TestingComponent />
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -511,17 +498,15 @@ test("Dashboard Selector add and then cancel button", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <TestingComponent />
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <TestingComponent />
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 

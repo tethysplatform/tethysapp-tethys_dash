@@ -4,8 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import NewDashboardModal from "components/modals/NewDashboard";
 import { AvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import { EditingContext } from "components/contexts/EditingContext";
-import RoutesContextProvider from "components/contexts/RoutesContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import SelectedDashboardContextProvider from "components/contexts/SelectedDashboardContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 
@@ -26,23 +25,19 @@ test("New Dashboard Modal add dashboard success", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContext.Provider
-              value={{
-                addDashboard: mockAddDashboard,
-              }}
-            >
-              <EditingContext.Provider
-                value={{ setIsEditing: mockSetIsEditing }}
-              >
-                <TestingComponent />
-              </EditingContext.Provider>
-            </AvailableDashboardsContext.Provider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContext.Provider
+            value={{
+              addDashboard: mockAddDashboard,
+            }}
+          >
+            <EditingContext.Provider value={{ setIsEditing: mockSetIsEditing }}>
+              <TestingComponent />
+            </EditingContext.Provider>
+          </AvailableDashboardsContext.Provider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -75,23 +70,19 @@ test("New Dashboard Modal add dashboard fail", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContext.Provider
-              value={{
-                addDashboard: mockAddDashboard,
-              }}
-            >
-              <EditingContext.Provider
-                value={{ setIsEditing: mockSetIsEditing }}
-              >
-                <TestingComponent />
-              </EditingContext.Provider>
-            </AvailableDashboardsContext.Provider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContext.Provider
+            value={{
+              addDashboard: mockAddDashboard,
+            }}
+          >
+            <EditingContext.Provider value={{ setIsEditing: mockSetIsEditing }}>
+              <TestingComponent />
+            </EditingContext.Provider>
+          </AvailableDashboardsContext.Provider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 

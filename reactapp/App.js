@@ -7,7 +7,6 @@ import AvailableDashboardsContextProvider from "components/contexts/AvailableDas
 import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
 import EditingContextProvider from "components/contexts/EditingContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
-import RoutesContextProvider from "components/contexts/RoutesContext";
 
 import "App.scss";
 
@@ -16,19 +15,17 @@ function App() {
     <>
       <ErrorBoundary>
         <Loader>
-          <RoutesContextProvider>
-            <AvailableVisualizationsContextProvider>
-              <VariableInputsContextProvider>
-                <SelectedDashboardContextProvider>
-                  <AvailableDashboardsContextProvider>
-                    <EditingContextProvider>
-                      <Layout />
-                    </EditingContextProvider>
-                  </AvailableDashboardsContextProvider>
-                </SelectedDashboardContextProvider>
-              </VariableInputsContextProvider>
-            </AvailableVisualizationsContextProvider>
-          </RoutesContextProvider>
+          <AvailableVisualizationsContextProvider>
+            <VariableInputsContextProvider>
+              <SelectedDashboardContextProvider>
+                <AvailableDashboardsContextProvider>
+                  <EditingContextProvider>
+                    <Layout />
+                  </EditingContextProvider>
+                </AvailableDashboardsContextProvider>
+              </SelectedDashboardContextProvider>
+            </VariableInputsContextProvider>
+          </AvailableVisualizationsContextProvider>
         </Loader>
       </ErrorBoundary>
     </>
