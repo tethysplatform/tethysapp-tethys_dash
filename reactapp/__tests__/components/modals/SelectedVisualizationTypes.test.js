@@ -19,7 +19,7 @@ const TestingComponent = () => {
   );
 };
 
-test("selected visualization type modal", async () => {
+test("selected visualization type modal save success and then close", async () => {
   const mockUpdateUserSettings = jest.fn();
   mockUpdateUserSettings.mockResolvedValue({ success: true });
 
@@ -135,7 +135,7 @@ test("selected visualization type modal", async () => {
   });
 });
 
-test("selected visualization type modal", async () => {
+test("selected visualization type modal save failed and then escape", async () => {
   const mockUpdateUserSettings = jest.fn();
   mockUpdateUserSettings.mockResolvedValue({ success: false });
 
