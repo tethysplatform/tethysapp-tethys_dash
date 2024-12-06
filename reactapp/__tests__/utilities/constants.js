@@ -76,6 +76,24 @@ export const mockedVisualizations = [
   },
 ];
 
+export const mockedVisualizationArgs = [
+  {
+    argOptions: "text",
+    label: "Visualization Group: plugin_label - plugin_arg",
+    value: "Visualization Group: plugin_label - plugin_arg",
+  },
+  {
+    argOptions: "text",
+    label: "Visualization Group: plugin_label2 - plugin_arg",
+    value: "Visualization Group: plugin_label2 - plugin_arg",
+  },
+  {
+    argOptions: "text",
+    label: "Visualization Group 2: plugin_label3 - plugin_arg3",
+    value: "Visualization Group 2: plugin_label3 - plugin_arg3",
+  },
+];
+
 export const mockedVisualizationsWithDefaults = [
   {
     label: "Visualization Group",
@@ -132,23 +150,7 @@ export const mockedVisualizationsWithDefaults = [
             "checkbox",
             {
               label: "Existing Visualization Inputs",
-              options: [
-                {
-                  argOptions: "text",
-                  label: "Visualization Group: plugin_label - plugin_arg",
-                  value: "Visualization Group: plugin_label - plugin_arg",
-                },
-                {
-                  argOptions: "text",
-                  label: "Visualization Group: plugin_label2 - plugin_arg",
-                  value: "Visualization Group: plugin_label2 - plugin_arg",
-                },
-                {
-                  argOptions: "text",
-                  label: "Visualization Group 2: plugin_label3 - plugin_arg3",
-                  value: "Visualization Group 2: plugin_label3 - plugin_arg3",
-                },
-              ],
+              options: mockedVisualizationArgs,
             },
           ],
         },

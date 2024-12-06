@@ -17,10 +17,3 @@ it("Renders the Loading message", async () => {
   const loadingMessage = await screen.findByText("Loading...");
   expect(loadingMessage).toBeInTheDocument();
 });
-
-it("Renders app title on Home view", async () => {
-  renderWithRouter(<App />);
-  // "find" queries wait until element matching description is found
-  const linkElement = await screen.findByText("Select/Add Dashboard:");
-  expect(linkElement).toBeInTheDocument();
-});

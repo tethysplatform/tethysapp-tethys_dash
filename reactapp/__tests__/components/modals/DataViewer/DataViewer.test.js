@@ -13,12 +13,10 @@ import VariableInputsContextProvider, {
   useVariableInputValuesContext,
 } from "components/contexts/VariableInputsContext";
 import EditingContextProvider from "components/contexts/EditingContext";
-import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
 import { DataViewerModeContext } from "components/contexts/DataViewerModeContext";
 import PropTypes from "prop-types";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
 import { AppContext } from "components/contexts/AppContext";
-import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 
 const TestingComponent = (props) => {
   const { setLayoutContext } = useLayoutContext();
@@ -57,12 +55,13 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   const mocksetShowGridItemMessage = jest.fn();
 
   render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <AvailableVisualizationsContext.Provider
-        value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
-        }}
-      >
+    <AppContext.Provider
+      value={{
+        csrf: "csrf",
+        dashboards: mockedDashboards,
+        visualizations: mockedVisualizationsWithDefaults,
+      }}
+    >
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
             <AvailableDashboardsContextProvider>
@@ -89,7 +88,6 @@ test("Dashboard Viewer Modal Custom Image", async () => {
             </AvailableDashboardsContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
     </AppContext.Provider>
   );
 
@@ -132,12 +130,13 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   const mocksetShowGridItemMessage = jest.fn();
 
   render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <AvailableVisualizationsContext.Provider
-        value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
-        }}
-      >
+    <AppContext.Provider
+      value={{
+        csrf: "csrf",
+        dashboards: mockedDashboards,
+        visualizations: mockedVisualizationsWithDefaults,
+      }}
+    >
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
             <AvailableDashboardsContextProvider>
@@ -164,7 +163,6 @@ test("Dashboard Viewer Modal Variable Input", async () => {
             </AvailableDashboardsContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
     </AppContext.Provider>
   );
 
@@ -253,12 +251,13 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   const mocksetShowGridItemMessage = jest.fn();
 
   render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <AvailableVisualizationsContext.Provider
-        value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
-        }}
-      >
+    <AppContext.Provider
+      value={{
+        csrf: "csrf",
+        dashboards: mockedDashboards,
+        visualizations: mockedVisualizationsWithDefaults,
+      }}
+    >
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
             <AvailableDashboardsContextProvider>
@@ -285,7 +284,6 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
             </AvailableDashboardsContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
     </AppContext.Provider>
   );
 
@@ -397,7 +395,11 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
 
   render(
     <AppContext.Provider
-      value={{ csrf: "csrf", dashboards: updatedMockedDashboards }}
+      value={{
+        csrf: "csrf",
+        dashboards: updatedMockedDashboards,
+        visualizations: mockedVisualizationsWithDefaults,
+      }}
     >
       <AvailableVisualizationsContext.Provider
         value={{
@@ -430,7 +432,6 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
             </AvailableDashboardsContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
     </AppContext.Provider>
   );
 
@@ -461,12 +462,13 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
   const mocksetShowGridItemMessage = jest.fn();
 
   render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <AvailableVisualizationsContext.Provider
-        value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
-        }}
-      >
+    <AppContext.Provider
+      value={{
+        csrf: "csrf",
+        dashboards: mockedDashboards,
+        visualizations: mockedVisualizationsWithDefaults,
+      }}
+    >
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
             <AvailableDashboardsContextProvider>
@@ -493,7 +495,6 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
             </AvailableDashboardsContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
     </AppContext.Provider>
   );
 
@@ -519,12 +520,13 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
   const mocksetShowGridItemMessage = jest.fn();
 
   render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <AvailableVisualizationsContext.Provider
-        value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
-        }}
-      >
+    <AppContext.Provider
+      value={{
+        csrf: "csrf",
+        dashboards: mockedDashboards,
+        visualizations: mockedVisualizationsWithDefaults,
+      }}
+    >
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
             <AvailableDashboardsContextProvider>
@@ -551,7 +553,6 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
             </AvailableDashboardsContextProvider>
           </SelectedDashboardContextProvider>
         </VariableInputsContextProvider>
-      </AvailableVisualizationsContext.Provider>
     </AppContext.Provider>
   );
 

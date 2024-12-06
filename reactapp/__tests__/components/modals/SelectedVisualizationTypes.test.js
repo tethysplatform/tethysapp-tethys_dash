@@ -2,8 +2,7 @@ import { act, useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
-import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import { AppContext } from "components/contexts/Contexts";
+import { AppContext } from "components/contexts/AppContext";
 import { mockedVisualizationsWithDefaults } from "__tests__/utilities/constants";
 
 const TestingComponent = () => {
@@ -25,7 +24,9 @@ const TestingComponent = () => {
 
 test("selected visualization type modal save success and then close", async () => {
   render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
+    <AppContext.Provider
+      value={{ csrf: "csrf", visualizations: mockedVisualizationsWithDefaults }}
+    >
       <TestingComponent />
     </AppContext.Provider>
   );
@@ -125,7 +126,9 @@ test("selected visualization type modal save success and then close", async () =
 
 test("selected visualization type modal escape", async () => {
   render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
+    <AppContext.Provider
+      value={{ csrf: "csrf", visualizations: mockedVisualizationsWithDefaults }}
+    >
       <TestingComponent />
     </AppContext.Provider>
   );

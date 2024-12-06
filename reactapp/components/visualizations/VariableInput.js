@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useContext } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import DataInput from "components/inputs/DataInput";
-import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
+import { AppContext } from "components/contexts/AppContext";
 import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
@@ -25,7 +25,7 @@ const VariableInput = ({ args, onChange }) => {
   const [value, setValue] = useState("");
   const [type, setType] = useState(null);
   const [label, setLabel] = useState(null);
-  const { availableVizArgs } = useAvailableVisualizationsContext();
+  const { visualizationArgs } = useContext(AppContext);
   const { inDataViewerMode } = useDataViewerModeContext();
   const { setVariableInputValues } = useVariableInputValuesContext();
 
@@ -51,8 +51,7 @@ const VariableInput = ({ args, onChange }) => {
     if (nonDropDownVariableInputTypes.includes(args.variable_options_source)) {
       setType(args.variable_options_source);
     } else {
-      // If it is a dropdown, it searches for the matching dropdown options in availableVizArgs
-      var selectedArg = availableVizArgs.find((obj) => {
+      var selectedArg = visualizationArgs.find((obj) => {
         return obj.label === args.variable_options_source;
       });
       setType(selectedArg.argOptions);

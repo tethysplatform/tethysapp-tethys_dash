@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import NewDashboardModal from "components/modals/NewDashboard";
 import { AvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import { EditingContext } from "components/contexts/EditingContext";
-import { AppContext } from "components/contexts/Contexts";
+import { AppContext } from "components/contexts/AppContext";
 import SelectedDashboardContextProvider from "components/contexts/SelectedDashboardContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 

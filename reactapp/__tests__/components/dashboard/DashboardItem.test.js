@@ -8,7 +8,11 @@ import {
   waitFor,
 } from "@testing-library/react";
 import DashboardItem from "components/dashboard/DashboardItem";
-import { mockedDashboards } from "__tests__/utilities/constants";
+import {
+  mockedDashboards,
+  mockedVisualizationArgs,
+  mockedVisualizationsWithDefaults,
+} from "__tests__/utilities/constants";
 import SelectedDashboardContextProvider, {
   useLayoutGridItemsContext,
   useLayoutContext,
@@ -20,7 +24,6 @@ import EditingContextProvider, {
   useEditingContext,
 } from "components/contexts/EditingContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
 import DataViewerModeContextProvider, {
   useDataViewerModeContext,
 } from "components/contexts/DataViewerModeContext";
@@ -251,25 +254,25 @@ test("Dashboard Item edit item", async () => {
   const gridItem = mockedDashboard.gridItems[0];
 
   render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
-      <AvailableVisualizationsContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <EditingContextProvider>
-              <DataViewerModeContextProvider>
-                <TestingComponent
-                  layoutContext={mockedDashboard}
-                  gridItemSource={gridItem.source}
-                  gridItemI={gridItem.i}
-                  gridItemArgsString={gridItem.args_string}
-                  gridItemMetadataString={gridItem.metadata_string}
-                  gridItemIndex={0}
-                />
-              </DataViewerModeContextProvider>
-            </EditingContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </AvailableVisualizationsContextProvider>
+    <AppContext.Provider
+      value={{ csrf: "csrf", visualizations: mockedVisualizationsWithDefaults }}
+    >
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <EditingContextProvider>
+            <DataViewerModeContextProvider>
+              <TestingComponent
+                layoutContext={mockedDashboard}
+                gridItemSource={gridItem.source}
+                gridItemI={gridItem.i}
+                gridItemArgsString={gridItem.args_string}
+                gridItemMetadataString={gridItem.metadata_string}
+                gridItemIndex={0}
+              />
+            </DataViewerModeContextProvider>
+          </EditingContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -401,7 +404,7 @@ test("Dashboard Item copy item variable input", async () => {
   const gridItem = mockedDashboard.gridItems[0];
 
   render(
-    <AvailableVisualizationsContextProvider>
+    <AppContext.Provider value={{ visualizationArgs: mockedVisualizationArgs }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <EditingContextProvider>
@@ -418,7 +421,7 @@ test("Dashboard Item copy item variable input", async () => {
           </EditingContextProvider>
         </SelectedDashboardContextProvider>
       </VariableInputsContextProvider>
-    </AvailableVisualizationsContextProvider>
+    </AppContext.Provider>
   );
 
   const dropdownToggle = screen.getByRole("button");
@@ -493,7 +496,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
   const gridItem = mockedDashboard.gridItems[0];
 
   render(
-    <AvailableVisualizationsContextProvider>
+    <AppContext.Provider value={{ visualizationArgs: mockedVisualizationArgs }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <EditingContextProvider>
@@ -510,7 +513,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
           </EditingContextProvider>
         </SelectedDashboardContextProvider>
       </VariableInputsContextProvider>
-    </AvailableVisualizationsContextProvider>
+    </AppContext.Provider>
   );
 
   const dropdownToggle = screen.getByRole("button");
