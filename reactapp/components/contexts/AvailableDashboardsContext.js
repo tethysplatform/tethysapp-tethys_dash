@@ -16,35 +16,33 @@ const AvailableDashboardsContextProvider = ({ children }) => {
   const [dashboardDropdownOptions, setDashboardDropdownOptions] = useState([]);
   const [selectedDashboardDropdownOption, setSelectedDashboardDropdownOption] =
     useState(null);
-  const { csrf } = useContext(AppContext);
+  const { csrf, dashboards } = useContext(AppContext);
   const { setLayoutContext, resetLayoutContext, getLayoutContext } =
     useLayoutContext();
 
   useEffect(() => {
-    appAPI.getDashboards().then((data) => {
-      // Setting up dashboard dropdown
-      let createOption = {
-        value: "Create a New Dashboard",
-        label: "Create a New Dashboard",
-        color: "lightblue",
-      };
-      let publicOptions = [];
-      let privateOptions = [];
-      for (const [name, details] of Object.entries(data)) {
-        if (details.editable) {
-          privateOptions.push({ value: name, label: details.label });
-        } else {
-          publicOptions.push({ value: name, label: details.label });
-        }
+    // Setting up dashboard dropdown
+    let createOption = {
+      value: "Create a New Dashboard",
+      label: "Create a New Dashboard",
+      color: "lightblue",
+    };
+    let publicOptions = [];
+    let privateOptions = [];
+    for (const [name, details] of Object.entries(dashboards)) {
+      if (details.editable) {
+        privateOptions.push({ value: name, label: details.label });
+      } else {
+        publicOptions.push({ value: name, label: details.label });
       }
+    }
 
-      setDashboardDropdownOptions([
-        createOption,
-        { label: "Public", options: publicOptions },
-        { label: "User", options: privateOptions },
-      ]);
-      setAvailableDashboards(data);
-    });
+    setDashboardDropdownOptions([
+      createOption,
+      { label: "Public", options: publicOptions },
+      { label: "User", options: privateOptions },
+    ]);
+    setAvailableDashboards(dashboards);
     // eslint-disable-next-line
   }, []);
 

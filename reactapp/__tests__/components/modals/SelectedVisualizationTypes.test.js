@@ -23,7 +23,7 @@ test("selected visualization type modal save success and then close", async () =
   mockUpdateUserSettings.mockResolvedValue({ success: true });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <UserSettingsContext.Provider
         value={{
           userSettings: { deselected_visualizations: [] },
@@ -137,7 +137,7 @@ test("selected visualization type modal save failed and then escape", async () =
   mockUpdateUserSettings.mockResolvedValue({ success: false });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <UserSettingsContext.Provider
         value={{
           userSettings: { deselected_visualizations: [] },

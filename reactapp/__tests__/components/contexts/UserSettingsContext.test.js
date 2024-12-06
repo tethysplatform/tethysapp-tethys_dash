@@ -31,7 +31,7 @@ test("user setting context update success", async () => {
   };
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <UserSettingsContextProvider>
         <TestingComponent />
       </UserSettingsContextProvider>
@@ -62,7 +62,7 @@ test("user setting context update fail", async () => {
   };
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <UserSettingsContextProvider>
         <TestingComponent />
       </UserSettingsContextProvider>

@@ -14,7 +14,7 @@ import VariableInputsContextProvider, {
 } from "components/contexts/VariableInputsContext";
 import EditingContextProvider from "components/contexts/EditingContext";
 import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
+import { DataViewerModeContext } from "components/contexts/DataViewerModeContext";
 import PropTypes from "prop-types";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
 import { AppContext } from "components/contexts/Contexts";
@@ -55,7 +55,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   const mocksetShowGridItemMessage = jest.fn();
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <UserSettingsContext.Provider
         value={{
           userSettings: { deselected_visualizations: [] },
@@ -70,7 +70,11 @@ test("Dashboard Viewer Modal Custom Image", async () => {
             <SelectedDashboardContextProvider>
               <AvailableDashboardsContextProvider>
                 <EditingContextProvider>
-                  <DataViewerModeContextProvider>
+                  <DataViewerModeContext.Provider
+                    value={{
+                      inDataViewerMode: true,
+                    }}
+                  >
                     <TestingComponent
                       layoutContext={mockedDashboard}
                       gridItemIndex={0}
@@ -83,7 +87,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
                       setGridItemMessage={mocksetGridItemMessage}
                       setShowGridItemMessage={mocksetShowGridItemMessage}
                     />
-                  </DataViewerModeContextProvider>
+                  </DataViewerModeContext.Provider>
                 </EditingContextProvider>
               </AvailableDashboardsContextProvider>
             </SelectedDashboardContextProvider>
@@ -132,7 +136,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   const mocksetShowGridItemMessage = jest.fn();
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <UserSettingsContext.Provider
         value={{
           userSettings: { deselected_visualizations: [] },
@@ -147,7 +151,11 @@ test("Dashboard Viewer Modal Variable Input", async () => {
             <SelectedDashboardContextProvider>
               <AvailableDashboardsContextProvider>
                 <EditingContextProvider>
-                  <DataViewerModeContextProvider>
+                  <DataViewerModeContext.Provider
+                    value={{
+                      inDataViewerMode: true,
+                    }}
+                  >
                     <TestingComponent
                       layoutContext={mockedDashboard}
                       gridItemIndex={0}
@@ -160,7 +168,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
                       setGridItemMessage={mocksetGridItemMessage}
                       setShowGridItemMessage={mocksetShowGridItemMessage}
                     />
-                  </DataViewerModeContextProvider>
+                  </DataViewerModeContext.Provider>
                 </EditingContextProvider>
               </AvailableDashboardsContextProvider>
             </SelectedDashboardContextProvider>
@@ -255,7 +263,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   const mocksetShowGridItemMessage = jest.fn();
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <UserSettingsContext.Provider
         value={{
           userSettings: { deselected_visualizations: [] },
@@ -270,7 +278,11 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
             <SelectedDashboardContextProvider>
               <AvailableDashboardsContextProvider>
                 <EditingContextProvider>
-                  <DataViewerModeContextProvider>
+                  <DataViewerModeContext.Provider
+                    value={{
+                      inDataViewerMode: true,
+                    }}
+                  >
                     <TestingComponent
                       layoutContext={mockedDashboard}
                       gridItemIndex={0}
@@ -283,7 +295,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
                       setGridItemMessage={mocksetGridItemMessage}
                       setShowGridItemMessage={mocksetShowGridItemMessage}
                     />
-                  </DataViewerModeContextProvider>
+                  </DataViewerModeContext.Provider>
                 </EditingContextProvider>
               </AvailableDashboardsContextProvider>
             </SelectedDashboardContextProvider>
@@ -346,7 +358,8 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
 });
 
 test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -399,7 +412,9 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
   const mocksetShowGridItemMessage = jest.fn();
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider
+      value={{ csrf: "csrf", dashboards: updatedMockedDashboards }}
+    >
       <UserSettingsContext.Provider
         value={{
           userSettings: { deselected_visualizations: [] },
@@ -414,7 +429,11 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
             <SelectedDashboardContextProvider>
               <AvailableDashboardsContextProvider>
                 <EditingContextProvider>
-                  <DataViewerModeContextProvider>
+                  <DataViewerModeContext.Provider
+                    value={{
+                      inDataViewerMode: true,
+                    }}
+                  >
                     <TestingComponent
                       layoutContext={mockedDashboard}
                       gridItemIndex={1}
@@ -427,7 +446,7 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
                       setGridItemMessage={mocksetGridItemMessage}
                       setShowGridItemMessage={mocksetShowGridItemMessage}
                     />
-                  </DataViewerModeContextProvider>
+                  </DataViewerModeContext.Provider>
                 </EditingContextProvider>
               </AvailableDashboardsContextProvider>
             </SelectedDashboardContextProvider>
@@ -464,7 +483,7 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
   const mocksetShowGridItemMessage = jest.fn();
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <UserSettingsContext.Provider
         value={{
           userSettings: { deselected_visualizations: [] },
@@ -479,7 +498,11 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
             <SelectedDashboardContextProvider>
               <AvailableDashboardsContextProvider>
                 <EditingContextProvider>
-                  <DataViewerModeContextProvider>
+                  <DataViewerModeContext.Provider
+                    value={{
+                      inDataViewerMode: true,
+                    }}
+                  >
                     <TestingComponent
                       layoutContext={mockedDashboard}
                       gridItemIndex={0}
@@ -492,7 +515,7 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
                       setGridItemMessage={mocksetGridItemMessage}
                       setShowGridItemMessage={mocksetShowGridItemMessage}
                     />
-                  </DataViewerModeContextProvider>
+                  </DataViewerModeContext.Provider>
                 </EditingContextProvider>
               </AvailableDashboardsContextProvider>
             </SelectedDashboardContextProvider>
@@ -524,7 +547,7 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
   const mocksetShowGridItemMessage = jest.fn();
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <UserSettingsContext.Provider
         value={{
           userSettings: { deselected_visualizations: [] },
@@ -539,7 +562,11 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
             <SelectedDashboardContextProvider>
               <AvailableDashboardsContextProvider>
                 <EditingContextProvider>
-                  <DataViewerModeContextProvider>
+                  <DataViewerModeContext.Provider
+                    value={{
+                      inDataViewerMode: true,
+                    }}
+                  >
                     <TestingComponent
                       layoutContext={mockedDashboard}
                       gridItemIndex={0}
@@ -552,7 +579,7 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
                       setGridItemMessage={mocksetGridItemMessage}
                       setShowGridItemMessage={mocksetShowGridItemMessage}
                     />
-                  </DataViewerModeContextProvider>
+                  </DataViewerModeContext.Provider>
                 </EditingContextProvider>
               </AvailableDashboardsContextProvider>
             </SelectedDashboardContextProvider>

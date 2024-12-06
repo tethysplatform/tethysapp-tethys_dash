@@ -63,7 +63,7 @@ test("Dashboard Editor Canvas editable dashboard change sharing status", async (
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -133,7 +133,7 @@ test("Dashboard Editor Canvas copy public url failed", async () => {
   );
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -209,7 +209,7 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
   );
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -293,7 +293,7 @@ test("Dashboard Editor Canvas edit and save", async () => {
   mockUpdateDashboard.mockResolvedValue({ success: true });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -383,7 +383,7 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
   mockUpdateDashboard.mockResolvedValue({ success: false });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -454,7 +454,7 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
   });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -521,7 +521,7 @@ test("Dashboard Editor Canvas delete success", async () => {
   });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -581,7 +581,7 @@ test("Dashboard Editor Canvas delete fail", async () => {
   });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -651,7 +651,7 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
   });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -708,7 +708,7 @@ test("Dashboard Editor Canvas copy and not confirm", async () => {
   mockedConfirm.mockResolvedValue(false);
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -789,7 +789,7 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
   });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -856,7 +856,7 @@ test("Dashboard Editor Canvas copy and confirm and fail with message", async () 
   });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
@@ -918,7 +918,7 @@ test("Dashboard Editor Canvas copy and confirm and fail without message", async 
   });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>

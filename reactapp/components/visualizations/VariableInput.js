@@ -55,7 +55,7 @@ const VariableInput = ({ args, onChange }) => {
     }
 
     if (!inDataViewerMode) {
-      updateVariableInputs(args.initial_value.value);
+      updateVariableInputs(args.initial_value.value || args.initial_value);
     }
     // eslint-disable-next-line
   }, [args]);
