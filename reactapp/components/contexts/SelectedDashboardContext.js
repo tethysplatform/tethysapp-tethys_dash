@@ -7,7 +7,7 @@ const LayoutNameContext = createContext();
 const LayoutLabelContext = createContext();
 const LayoutAccessGroupsContext = createContext();
 const LayoutNotesContext = createContext();
-const LayoutGridItemsContext = createContext();
+export const LayoutGridItemsContext = createContext();
 const LayoutEditableContext = createContext();
 
 const SelectedDashboardContextProvider = ({ children }) => {
