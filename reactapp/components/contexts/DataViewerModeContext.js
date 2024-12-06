@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import { useContext, createContext, useState } from "react";
 
-const DataViewerModeContext = createContext();
+export const DataViewerModeContext = createContext();
 
 const DataViewerModeContextProvider = ({ children }) => {
   const [inDataViewerMode, setInDataViewerMode] = useState(false);

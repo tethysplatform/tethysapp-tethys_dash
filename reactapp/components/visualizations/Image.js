@@ -15,24 +15,22 @@ const StyledDiv = styled.div`
 `;
 
 const Image = ({ source, alt, visualizationRef }) => {
-  const [imageWarning, setImageWarning] = useState(null);
+  const [imageWarning, setImageWarning] = useState(false);
 
   useEffect(() => {
-    setImageWarning(null);
+    setImageWarning(false);
   }, [source]);
 
-  function onImageError() {
-    setImageWarning(
-      <StyledDiv>
-        <h2>Failed to get image.</h2>
-      </StyledDiv>
-    );
+  function onImageError({currentTarget}) {
+    setImageWarning(true);
   }
 
   return (
     <>
       {imageWarning ? (
-        imageWarning
+        <StyledDiv>
+          <h2>Failed to get image.</h2>
+        </StyledDiv>
       ) : (
         <StyledImg
           src={source}

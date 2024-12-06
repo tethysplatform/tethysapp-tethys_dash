@@ -20,36 +20,37 @@ const DataTable = ({ data, title, visualizationRef }) => {
   const tableKeys = Object.keys(data[0]);
 
   const TableHead = () => {
-    const ths = [];
-    for (let key of tableKeys) {
-      ths.push(<th key={key}>{capitalizePhrase(key)}</th>);
-    }
     return (
       <thead>
-        <tr>{ths}</tr>
+        <tr>
+          {tableKeys.map(key => (
+            <th key={key}>{capitalizePhrase(key)}</th>
+          ))}
+        </tr>
       </thead>
     );
   };
 
   const TableBody = () => {
-    const trs = [];
-    for (let i = 0; i < data.length; i++) {
-      const tds = [];
-      const dataPoint = data[i];
-      for (let key of tableKeys) {
-        tds.push(<th key={key}>{dataPoint[key]}</th>);
-      }
-      trs.push(<tr key={i}>{tds}</tr>);
-    }
-    return <tbody>{trs}</tbody>;
+    return (
+      <tbody>
+        {data.map((data, index) => (
+          <tr key={index}>
+            {Object.keys(data).map(key => (
+              <th key={key}>{data[key]}</th>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    );
   };
 
   return (
     <StyledDiv>
       <h2>{title}</h2>
       <Table striped bordered hover ref={visualizationRef}>
-        {TableHead()}
-        {TableBody()}
+        <TableHead />
+        <TableBody />
       </Table>
     </StyledDiv>
   );
