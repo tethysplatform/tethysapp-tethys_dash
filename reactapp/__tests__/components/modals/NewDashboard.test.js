@@ -24,7 +24,7 @@ test("New Dashboard Modal add dashboard success", async () => {
   mockAddDashboard.mockResolvedValue({ success: true });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContext.Provider
@@ -69,7 +69,7 @@ test("New Dashboard Modal add dashboard fail", async () => {
   });
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContext.Provider

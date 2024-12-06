@@ -12,7 +12,6 @@ import EditingContextProvider from "components/contexts/EditingContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
 import { AppContext } from "components/contexts/Contexts";
-import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
@@ -39,7 +38,7 @@ const TestingComponent = (props) => {
 
 test("Dashboard Selector without initial", async () => {
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -71,7 +70,9 @@ test("Dashboard Selector with initial", async () => {
   // eslint-disable-next-line
   await act(() =>
     render(
-      <AppContext.Provider value={"csrf"}>
+      <AppContext.Provider
+        value={{ csrf: "csrf", dashboards: mockedDashboards }}
+      >
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
             <AvailableDashboardsContextProvider>
@@ -120,7 +121,7 @@ test("Dashboard Selector with initial", async () => {
 
 test("Dashboard Selector changing between public and user options", async () => {
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -199,7 +200,7 @@ test("Dashboard Selector changing between public and user options", async () => 
 
 test("Dashboard Selector create new dashboard", async () => {
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -235,7 +236,7 @@ test("Dashboard Selector changing when editing, true confirm", async () => {
   mockedConfirm.mockResolvedValue(true);
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -341,7 +342,7 @@ test("Dashboard Selector changing when editing, false confirm", async () => {
   mockedConfirm.mockResolvedValue(false);
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -492,12 +493,10 @@ test("Dashboard Selector add and then cancel button", async () => {
     ],
   };
 
-  appAPI.getDashboards = () => {
-    return Promise.resolve(copiedMockedDashboards);
-  };
-
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider
+      value={{ csrf: "csrf", dashboards: copiedMockedDashboards }}
+    >
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>

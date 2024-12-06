@@ -89,7 +89,7 @@ const TestingComponent = (props) => {
 
 test("available dashboard context", async () => {
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -115,7 +115,7 @@ test("available dashboard context for adding", async () => {
     });
   };
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -140,7 +140,7 @@ test("available dashboard context for failed adding", async () => {
   };
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -165,7 +165,7 @@ test("available dashboard context for deleting", async () => {
   mockedConfirm.mockReturnValue(Promise.resolve(true));
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -187,7 +187,7 @@ test("available dashboard context for deleting cancel", async () => {
   mockedConfirm.mockReturnValue(Promise.resolve(false));
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -212,7 +212,7 @@ test("available dashboard context for deleting failed", async () => {
   mockedConfirm.mockReturnValue(Promise.resolve(true));
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -240,7 +240,7 @@ test("available dashboard context for updating new label", async () => {
   };
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: dashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -271,7 +271,7 @@ test("available dashboard context for updating same name and label", async () =>
   };
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -296,7 +296,7 @@ test("available dashboard context for updating failed", async () => {
   };
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -323,7 +323,7 @@ test("available dashboard context for copying", async () => {
   };
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>

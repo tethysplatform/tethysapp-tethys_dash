@@ -251,7 +251,7 @@ test("Dashboard Item edit item", async () => {
   const gridItem = mockedDashboard.gridItems[0];
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
       <AvailableVisualizationsContextProvider>
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>

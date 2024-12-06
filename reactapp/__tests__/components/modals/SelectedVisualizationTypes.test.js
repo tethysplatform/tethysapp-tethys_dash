@@ -25,14 +25,8 @@ const TestingComponent = () => {
 
 test("selected visualization type modal save success and then close", async () => {
   render(
-    <AppContext.Provider value={"csrf"}>
-      <AvailableVisualizationsContext.Provider
-        value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
-        }}
-      >
-        <TestingComponent />
-      </AvailableVisualizationsContext.Provider>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
+      <TestingComponent />
     </AppContext.Provider>
   );
 
@@ -131,14 +125,8 @@ test("selected visualization type modal save success and then close", async () =
 
 test("selected visualization type modal escape", async () => {
   render(
-    <AppContext.Provider value={"csrf"}>
-      <AvailableVisualizationsContext.Provider
-        value={{
-          availableVisualizations: mockedVisualizationsWithDefaults,
-        }}
-      >
-        <TestingComponent />
-      </AvailableVisualizationsContext.Provider>
+    <AppContext.Provider value={{ csrf: "csrf" }}>
+      <TestingComponent />
     </AppContext.Provider>
   );
   // eslint-disable-next-line

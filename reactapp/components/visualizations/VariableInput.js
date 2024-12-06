@@ -29,14 +29,17 @@ const VariableInput = ({ args, onChange }) => {
   const { inDataViewerMode } = useDataViewerModeContext();
   const { setVariableInputValues } = useVariableInputValuesContext();
 
-  const updateVariableInputs = useCallback((new_value) => {
-    if (new_value || new_value === false) {
-      setVariableInputValues((prevVariableInputValues) => ({
-        ...prevVariableInputValues,
-        [args.variable_name]: new_value
-      }));
-    }
-  }, [args.variable_name, setVariableInputValues]);
+  const updateVariableInputs = useCallback(
+    (new_value) => {
+      if (new_value || new_value === false) {
+        setVariableInputValues((prevVariableInputValues) => ({
+          ...prevVariableInputValues,
+          [args.variable_name]: new_value,
+        }));
+      }
+    },
+    [args.variable_name, setVariableInputValues]
+  );
 
   useEffect(() => {
     // When any of the args are updated, the variable is changed to null
@@ -71,11 +74,9 @@ const VariableInput = ({ args, onChange }) => {
     }
 
     if (!inDataViewerMode) {
-      // This prevents the Edit Visualization Modal's variable input selector from
-      // changing the Dashboard variable input selector.
-      updateVariableInputs(args.initial_value);
+      updateVariableInputs(args.initial_value.value || args.initial_value);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args]);
 
   function handleInputChange(e) {
@@ -138,10 +139,15 @@ const VariableInput = ({ args, onChange }) => {
 
 VariableInput.propTypes = {
   args: PropTypes.shape({
-    variable_input_type: PropTypes.oneOf(["text", "number", "checkbox", "dropdown"]), // This just defines the type of input
+    variable_input_type: PropTypes.oneOf([
+      "text",
+      "number",
+      "checkbox",
+      "dropdown",
+    ]), // This just defines the type of input
     initial_value: PropTypes.string,
     variable_name: PropTypes.string,
-    variable_options_source: PropTypes.string // This is where the name of the source comes in like in the dropdown
+    variable_options_source: PropTypes.string, // This is where the name of the source comes in like in the dropdown
   }),
   onChange: PropTypes.func,
 };

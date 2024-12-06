@@ -87,7 +87,7 @@ test("Dashboard Layout resize and update layout", async () => {
   };
 
   const { container } = render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -140,7 +140,7 @@ test("Dashboard Layout submit changes not editing", async () => {
   appAPI.updateDashboard = mockUpdateDashboard;
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -175,7 +175,7 @@ test("Dashboard Layout submit changes success", async () => {
   appAPI.updateDashboard = mockUpdateDashboard;
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -210,7 +210,7 @@ test("Dashboard Layout submit changes fail", async () => {
   appAPI.updateDashboard = mockUpdateDashboard;
 
   render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -262,7 +262,7 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
   };
 
   const { container } = render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>
@@ -332,7 +332,7 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
   };
 
   const { container } = render(
-    <AppContext.Provider value={"csrf"}>
+    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <AvailableDashboardsContextProvider>

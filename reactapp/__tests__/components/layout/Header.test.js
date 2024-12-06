@@ -10,6 +10,7 @@ import { Route, Routes } from "react-router-dom";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
 import { AppContext } from "components/contexts/Contexts";
 import { MemoryRouter } from "react-router-dom";
+import { mockedDashboards } from "__tests__/utilities/constants";
 import PropTypes from "prop-types";
 
 window.matchMedia =
@@ -42,7 +43,9 @@ test("Header, staff user", async () => {
   const csrf = "csrf";
   render(
     <MemoryRouter initialEntries={["/"]}>
-      <AppContext.Provider value={{ tethysApp, user, csrf }}>
+      <AppContext.Provider
+        value={{ tethysApp, user, csrf, dashboards: mockedDashboards }}
+      >
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
             <AvailableDashboardsContextProvider>
@@ -93,7 +96,9 @@ test("Header, non staff user", async () => {
   const csrf = "csrf";
   render(
     <MemoryRouter initialEntries={["/"]}>
-      <AppContext.Provider value={{ tethysApp, user, csrf }}>
+      <AppContext.Provider
+        value={{ tethysApp, user, csrf, dashboards: mockedDashboards }}
+      >
         <VariableInputsContextProvider>
           <SelectedDashboardContextProvider>
             <AvailableDashboardsContextProvider>
