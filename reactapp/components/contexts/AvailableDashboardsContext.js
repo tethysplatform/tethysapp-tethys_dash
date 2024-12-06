@@ -1,12 +1,11 @@
 import PropTypes from "prop-types";
 import { useContext, createContext, useState, useEffect } from "react";
 import appAPI from "services/api/app";
-import { useRoutesContext } from "components/contexts/RoutesContext";
 import { Route } from "react-router-dom";
 import DashboardView from "views/dashboard/Dashboard";
 import NotFound from "components/error/NotFound";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 
 export const AvailableDashboardsContext = createContext();
@@ -17,23 +16,12 @@ const AvailableDashboardsContextProvider = ({ children }) => {
   const [dashboardDropdownOptions, setDashboardDropdownOptions] = useState([]);
   const [selectedDashboardDropdownOption, setSelectedDashboardDropdownOption] =
     useState(null);
-  const { routes, setRoutes } = useRoutesContext();
   const { csrf } = useContext(AppContext);
   const { setLayoutContext, resetLayoutContext, getLayoutContext } =
     useLayoutContext();
 
   useEffect(() => {
     appAPI.getDashboards().then((data) => {
-      // Setting up dynamic routing
-      const updatedRoutes = [...routes];
-      updatedRoutes.push(
-        <Route
-          key={"route-not-found"}
-          path="/dashboard/*"
-          element={<NotFound />}
-        />
-      );
-
       // Setting up dashboard dropdown
       let createOption = {
         value: "Create a New Dashboard",
@@ -48,13 +36,6 @@ const AvailableDashboardsContextProvider = ({ children }) => {
         } else {
           publicOptions.push({ value: name, label: details.label });
         }
-        updatedRoutes.push(
-          <Route
-            path={"/dashboard/" + name}
-            element={<DashboardView initialDashboard={name} />}
-            key={"route-" + name}
-          />
-        );
       }
 
       setDashboardDropdownOptions([
@@ -63,7 +44,6 @@ const AvailableDashboardsContextProvider = ({ children }) => {
         { label: "User", options: privateOptions },
       ]);
       setAvailableDashboards(data);
-      setRoutes(updatedRoutes);
     });
     // eslint-disable-next-line
   }, []);

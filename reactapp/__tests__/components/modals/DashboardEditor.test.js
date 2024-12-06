@@ -16,8 +16,7 @@ import PropTypes from "prop-types";
 import AvailableDashboardsContextProvider, {
   AvailableDashboardsContext,
 } from "components/contexts/AvailableDashboardsContext";
-import RoutesContextProvider from "components/contexts/RoutesContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
@@ -65,21 +64,19 @@ test("Dashboard Editor Canvas editable dashboard change sharing status", async (
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContextProvider>
+              <EditingContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContextProvider>
+            </AvailableDashboardsContextProvider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 
@@ -137,21 +134,19 @@ test("Dashboard Editor Canvas copy public url failed", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContextProvider>
+              <EditingContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContextProvider>
+            </AvailableDashboardsContextProvider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 
@@ -215,21 +210,19 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContextProvider>
+              <EditingContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContextProvider>
+            </AvailableDashboardsContextProvider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 
@@ -301,27 +294,25 @@ test("Dashboard Editor Canvas edit and save", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContext.Provider
-                value={{
-                  deleteDashboard: mockDeleteDashboard,
-                  updateDashboard: mockUpdateDashboard,
-                  copyCurrentDashboard: mockCopyCurrentDashboard,
-                }}
-              >
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContext.Provider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                deleteDashboard: mockDeleteDashboard,
+                updateDashboard: mockUpdateDashboard,
+                copyCurrentDashboard: mockCopyCurrentDashboard,
+              }}
+            >
+              <EditingContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContextProvider>
+            </AvailableDashboardsContext.Provider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
   const publicRadioButton = screen.getByLabelText("Public");
@@ -393,27 +384,25 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContext.Provider
-                value={{
-                  deleteDashboard: mockDeleteDashboard,
-                  updateDashboard: mockUpdateDashboard,
-                  copyCurrentDashboard: mockCopyCurrentDashboard,
-                }}
-              >
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContext.Provider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                deleteDashboard: mockDeleteDashboard,
+                updateDashboard: mockUpdateDashboard,
+                copyCurrentDashboard: mockCopyCurrentDashboard,
+              }}
+            >
+              <EditingContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContextProvider>
+            </AvailableDashboardsContext.Provider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 
@@ -466,27 +455,25 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContext.Provider
-                value={{
-                  deleteDashboard: mockDeleteDashboard,
-                  updateDashboard: mockUpdateDashboard,
-                  copyCurrentDashboard: mockCopyCurrentDashboard,
-                }}
-              >
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContext.Provider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                deleteDashboard: mockDeleteDashboard,
+                updateDashboard: mockUpdateDashboard,
+                copyCurrentDashboard: mockCopyCurrentDashboard,
+              }}
+            >
+              <EditingContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContextProvider>
+            </AvailableDashboardsContext.Provider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 
@@ -535,29 +522,27 @@ test("Dashboard Editor Canvas delete success", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContext.Provider
-                value={{
-                  deleteDashboard: mockDeleteDashboard,
-                  updateDashboard: mockUpdateDashboard,
-                  copyCurrentDashboard: mockCopyCurrentDashboard,
-                }}
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                deleteDashboard: mockDeleteDashboard,
+                updateDashboard: mockUpdateDashboard,
+                copyCurrentDashboard: mockCopyCurrentDashboard,
+              }}
+            >
+              <EditingContext.Provider
+                value={{ setIsEditing: mockSetIsEditing }}
               >
-                <EditingContext.Provider
-                  value={{ setIsEditing: mockSetIsEditing }}
-                >
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContext.Provider>
-              </AvailableDashboardsContext.Provider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContext.Provider>
+            </AvailableDashboardsContext.Provider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 
@@ -597,29 +582,27 @@ test("Dashboard Editor Canvas delete fail", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContext.Provider
-                value={{
-                  deleteDashboard: mockDeleteDashboard,
-                  updateDashboard: mockUpdateDashboard,
-                  copyCurrentDashboard: mockCopyCurrentDashboard,
-                }}
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                deleteDashboard: mockDeleteDashboard,
+                updateDashboard: mockUpdateDashboard,
+                copyCurrentDashboard: mockCopyCurrentDashboard,
+              }}
+            >
+              <EditingContext.Provider
+                value={{ setIsEditing: mockSetIsEditing }}
               >
-                <EditingContext.Provider
-                  value={{ setIsEditing: mockSetIsEditing }}
-                >
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContext.Provider>
-              </AvailableDashboardsContext.Provider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContext.Provider>
+            </AvailableDashboardsContext.Provider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 
@@ -669,29 +652,27 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContext.Provider
-                value={{
-                  deleteDashboard: mockDeleteDashboard,
-                  updateDashboard: mockUpdateDashboard,
-                  copyCurrentDashboard: mockCopyCurrentDashboard,
-                }}
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                deleteDashboard: mockDeleteDashboard,
+                updateDashboard: mockUpdateDashboard,
+                copyCurrentDashboard: mockCopyCurrentDashboard,
+              }}
+            >
+              <EditingContext.Provider
+                value={{ setIsEditing: mockSetIsEditing }}
               >
-                <EditingContext.Provider
-                  value={{ setIsEditing: mockSetIsEditing }}
-                >
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContext.Provider>
-              </AvailableDashboardsContext.Provider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContext.Provider>
+            </AvailableDashboardsContext.Provider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 
@@ -728,29 +709,27 @@ test("Dashboard Editor Canvas copy and not confirm", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContext.Provider
-                value={{
-                  deleteDashboard: mockDeleteDashboard,
-                  updateDashboard: mockUpdateDashboard,
-                  copyCurrentDashboard: mockCopyCurrentDashboard,
-                }}
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                deleteDashboard: mockDeleteDashboard,
+                updateDashboard: mockUpdateDashboard,
+                copyCurrentDashboard: mockCopyCurrentDashboard,
+              }}
+            >
+              <EditingContext.Provider
+                value={{ setIsEditing: mockSetIsEditing }}
               >
-                <EditingContext.Provider
-                  value={{ setIsEditing: mockSetIsEditing }}
-                >
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContext.Provider>
-              </AvailableDashboardsContext.Provider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContext.Provider>
+            </AvailableDashboardsContext.Provider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 
@@ -811,29 +790,27 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContext.Provider
-                value={{
-                  deleteDashboard: mockDeleteDashboard,
-                  updateDashboard: mockUpdateDashboard,
-                  copyCurrentDashboard: mockCopyCurrentDashboard,
-                }}
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                deleteDashboard: mockDeleteDashboard,
+                updateDashboard: mockUpdateDashboard,
+                copyCurrentDashboard: mockCopyCurrentDashboard,
+              }}
+            >
+              <EditingContext.Provider
+                value={{ setIsEditing: mockSetIsEditing }}
               >
-                <EditingContext.Provider
-                  value={{ setIsEditing: mockSetIsEditing }}
-                >
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContext.Provider>
-              </AvailableDashboardsContext.Provider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContext.Provider>
+            </AvailableDashboardsContext.Provider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 
@@ -880,29 +857,27 @@ test("Dashboard Editor Canvas copy and confirm and fail with message", async () 
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContext.Provider
-                value={{
-                  deleteDashboard: mockDeleteDashboard,
-                  updateDashboard: mockUpdateDashboard,
-                  copyCurrentDashboard: mockCopyCurrentDashboard,
-                }}
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                deleteDashboard: mockDeleteDashboard,
+                updateDashboard: mockUpdateDashboard,
+                copyCurrentDashboard: mockCopyCurrentDashboard,
+              }}
+            >
+              <EditingContext.Provider
+                value={{ setIsEditing: mockSetIsEditing }}
               >
-                <EditingContext.Provider
-                  value={{ setIsEditing: mockSetIsEditing }}
-                >
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContext.Provider>
-              </AvailableDashboardsContext.Provider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContext.Provider>
+            </AvailableDashboardsContext.Provider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 
@@ -944,29 +919,27 @@ test("Dashboard Editor Canvas copy and confirm and fail without message", async 
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContext.Provider
-                value={{
-                  deleteDashboard: mockDeleteDashboard,
-                  updateDashboard: mockUpdateDashboard,
-                  copyCurrentDashboard: mockCopyCurrentDashboard,
-                }}
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                deleteDashboard: mockDeleteDashboard,
+                updateDashboard: mockUpdateDashboard,
+                copyCurrentDashboard: mockCopyCurrentDashboard,
+              }}
+            >
+              <EditingContext.Provider
+                value={{ setIsEditing: mockSetIsEditing }}
               >
-                <EditingContext.Provider
-                  value={{ setIsEditing: mockSetIsEditing }}
-                >
-                  <DataViewerModeContextProvider>
-                    <TestingComponent layoutContext={mockedDashboard} />
-                  </DataViewerModeContextProvider>
-                </EditingContext.Provider>
-              </AvailableDashboardsContext.Provider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </RoutesContextProvider>
+                <DataViewerModeContextProvider>
+                  <TestingComponent layoutContext={mockedDashboard} />
+                </DataViewerModeContextProvider>
+              </EditingContext.Provider>
+            </AvailableDashboardsContext.Provider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 

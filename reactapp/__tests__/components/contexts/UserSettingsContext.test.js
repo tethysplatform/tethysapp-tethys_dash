@@ -1,6 +1,5 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { AppContext } from "components/contexts/AppContext";
-import RoutesContextProvider from "components/contexts/RoutesContext";
+import { AppContext } from "components/contexts/Contexts";
 import UserSettingsContextProvider, {
   useUserSettingsContext,
 } from "components/contexts/UserSettingsContext";
@@ -33,11 +32,9 @@ test("user setting context update success", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <UserSettingsContextProvider>
-          <TestingComponent />
-        </UserSettingsContextProvider>
-      </RoutesContextProvider>
+      <UserSettingsContextProvider>
+        <TestingComponent />
+      </UserSettingsContextProvider>
     </AppContext.Provider>
   );
 
@@ -66,11 +63,9 @@ test("user setting context update fail", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <UserSettingsContextProvider>
-          <TestingComponent />
-        </UserSettingsContextProvider>
-      </RoutesContextProvider>
+      <UserSettingsContextProvider>
+        <TestingComponent />
+      </UserSettingsContextProvider>
     </AppContext.Provider>
   );
 

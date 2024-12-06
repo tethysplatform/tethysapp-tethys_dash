@@ -2,10 +2,9 @@ import { act, useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
-import RoutesContextProvider from "components/contexts/RoutesContext";
 import { UserSettingsContext } from "components/contexts/UserSettingsContext";
 import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import { mockedVisualizationsWithDefaults } from "__tests__/utilities/constants";
 
 const TestingComponent = () => {
@@ -25,22 +24,20 @@ test("selected visualization type modal save success and then close", async () =
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <UserSettingsContext.Provider
+      <UserSettingsContext.Provider
+        value={{
+          userSettings: { deselected_visualizations: [] },
+          updateUserSettings: mockUpdateUserSettings,
+        }}
+      >
+        <AvailableVisualizationsContext.Provider
           value={{
-            userSettings: { deselected_visualizations: [] },
-            updateUserSettings: mockUpdateUserSettings,
+            availableVisualizations: mockedVisualizationsWithDefaults,
           }}
         >
-          <AvailableVisualizationsContext.Provider
-            value={{
-              availableVisualizations: mockedVisualizationsWithDefaults,
-            }}
-          >
-            <TestingComponent />
-          </AvailableVisualizationsContext.Provider>
-        </UserSettingsContext.Provider>
-      </RoutesContextProvider>
+          <TestingComponent />
+        </AvailableVisualizationsContext.Provider>
+      </UserSettingsContext.Provider>
     </AppContext.Provider>
   );
 
@@ -141,22 +138,20 @@ test("selected visualization type modal save failed and then escape", async () =
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <UserSettingsContext.Provider
+      <UserSettingsContext.Provider
+        value={{
+          userSettings: { deselected_visualizations: [] },
+          updateUserSettings: mockUpdateUserSettings,
+        }}
+      >
+        <AvailableVisualizationsContext.Provider
           value={{
-            userSettings: { deselected_visualizations: [] },
-            updateUserSettings: mockUpdateUserSettings,
+            availableVisualizations: mockedVisualizationsWithDefaults,
           }}
         >
-          <AvailableVisualizationsContext.Provider
-            value={{
-              availableVisualizations: mockedVisualizationsWithDefaults,
-            }}
-          >
-            <TestingComponent />
-          </AvailableVisualizationsContext.Provider>
-        </UserSettingsContext.Provider>
-      </RoutesContextProvider>
+          <TestingComponent />
+        </AvailableVisualizationsContext.Provider>
+      </UserSettingsContext.Provider>
     </AppContext.Provider>
   );
 

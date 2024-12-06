@@ -1,6 +1,6 @@
 import PropTypes from "prop-types";
 import appAPI from "services/api/app";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import { useContext, useEffect, createContext, useState } from "react";
 
 export const UserSettingsContext = createContext();

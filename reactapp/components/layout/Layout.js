@@ -1,17 +1,17 @@
 import { Route, Routes } from "react-router-dom";
 import PropTypes from "prop-types";
-
+import { useContext } from "react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 import NotFound from "components/error/NotFound";
-import { useRoutesContext } from "components/contexts/RoutesContext";
+import { RoutesContext } from "components/contexts/Contexts";
 
 function Layout({ children }) {
-  const { routes } = useRoutesContext();
+  const appRoutes = useContext(RoutesContext);
 
   return (
     <div className="h-100">
       <Routes>
-        {routes}
+        {appRoutes}
         <Route
           key="route-dashboard-loading"
           path="/dashboard/*"

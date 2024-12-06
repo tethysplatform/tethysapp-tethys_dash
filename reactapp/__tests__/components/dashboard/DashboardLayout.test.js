@@ -12,8 +12,7 @@ import SelectedDashboardContextProvider, {
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import RoutesContextProvider from "components/contexts/RoutesContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import EditingContextProvider, {
   useEditingContext,
 } from "components/contexts/EditingContext";
@@ -89,22 +88,20 @@ test("Dashboard Layout resize and update layout", async () => {
 
   const { container } = render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <LayoutAlertContextProvider>
-                  <TestingComponent
-                    editing={true}
-                    layoutContext={mockedDashboard}
-                  />
-                </LayoutAlertContextProvider>
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <LayoutAlertContextProvider>
+                <TestingComponent
+                  editing={true}
+                  layoutContext={mockedDashboard}
+                />
+              </LayoutAlertContextProvider>
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -144,22 +141,20 @@ test("Dashboard Layout submit changes not editing", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <LayoutAlertContextProvider>
-                  <TestingComponent
-                    editing={false}
-                    layoutContext={mockedDashboard}
-                  />
-                </LayoutAlertContextProvider>
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <LayoutAlertContextProvider>
+                <TestingComponent
+                  editing={false}
+                  layoutContext={mockedDashboard}
+                />
+              </LayoutAlertContextProvider>
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -181,22 +176,20 @@ test("Dashboard Layout submit changes success", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <LayoutAlertContextProvider>
-                  <TestingComponent
-                    editing={true}
-                    layoutContext={mockedDashboard}
-                  />
-                </LayoutAlertContextProvider>
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <LayoutAlertContextProvider>
+                <TestingComponent
+                  editing={true}
+                  layoutContext={mockedDashboard}
+                />
+              </LayoutAlertContextProvider>
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -218,22 +211,20 @@ test("Dashboard Layout submit changes fail", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <LayoutAlertContextProvider>
-                  <TestingComponent
-                    editing={true}
-                    layoutContext={mockedDashboard}
-                  />
-                </LayoutAlertContextProvider>
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <LayoutAlertContextProvider>
+                <TestingComponent
+                  editing={true}
+                  layoutContext={mockedDashboard}
+                />
+              </LayoutAlertContextProvider>
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -272,22 +263,20 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
 
   const { container } = render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <LayoutAlertContextProvider>
-                  <TestingComponent
-                    editing={true}
-                    layoutContext={mockedDashboard}
-                  />
-                </LayoutAlertContextProvider>
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <LayoutAlertContextProvider>
+                <TestingComponent
+                  editing={true}
+                  layoutContext={mockedDashboard}
+                />
+              </LayoutAlertContextProvider>
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -344,22 +333,20 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
 
   const { container } = render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <LayoutAlertContextProvider>
-                  <TestingComponent
-                    editing={true}
-                    layoutContext={mockedDashboard}
-                  />
-                </LayoutAlertContextProvider>
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <EditingContextProvider>
+              <LayoutAlertContextProvider>
+                <TestingComponent
+                  editing={true}
+                  layoutContext={mockedDashboard}
+                />
+              </LayoutAlertContextProvider>
+            </EditingContextProvider>
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 

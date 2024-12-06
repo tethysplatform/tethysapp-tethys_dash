@@ -17,8 +17,7 @@ import { AvailableVisualizationsContext } from "components/contexts/AvailableVis
 import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
 import PropTypes from "prop-types";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import RoutesContextProvider from "components/contexts/RoutesContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import { UserSettingsContext } from "components/contexts/UserSettingsContext";
 
 const TestingComponent = (props) => {
@@ -57,42 +56,40 @@ test("Dashboard Viewer Modal Custom Image", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <UserSettingsContext.Provider
+      <UserSettingsContext.Provider
+        value={{
+          userSettings: { deselected_visualizations: [] },
+        }}
+      >
+        <AvailableVisualizationsContext.Provider
           value={{
-            userSettings: { deselected_visualizations: [] },
+            availableVisualizations: mockedVisualizationsWithDefaults,
           }}
         >
-          <AvailableVisualizationsContext.Provider
-            value={{
-              availableVisualizations: mockedVisualizationsWithDefaults,
-            }}
-          >
-            <VariableInputsContextProvider>
-              <SelectedDashboardContextProvider>
-                <AvailableDashboardsContextProvider>
-                  <EditingContextProvider>
-                    <DataViewerModeContextProvider>
-                      <TestingComponent
-                        layoutContext={mockedDashboard}
-                        gridItemIndex={0}
-                        gridItemSource={gridItem.source}
-                        gridItemArgsString={gridItem.args_string}
-                        gridItemMetadataString={gridItem.metadata_string}
-                        gridItemI={gridItem.i}
-                        showModal={true}
-                        handleModalClose={mockhandleModalClose}
-                        setGridItemMessage={mocksetGridItemMessage}
-                        setShowGridItemMessage={mocksetShowGridItemMessage}
-                      />
-                    </DataViewerModeContextProvider>
-                  </EditingContextProvider>
-                </AvailableDashboardsContextProvider>
-              </SelectedDashboardContextProvider>
-            </VariableInputsContextProvider>
-          </AvailableVisualizationsContext.Provider>
-        </UserSettingsContext.Provider>
-      </RoutesContextProvider>
+          <VariableInputsContextProvider>
+            <SelectedDashboardContextProvider>
+              <AvailableDashboardsContextProvider>
+                <EditingContextProvider>
+                  <DataViewerModeContextProvider>
+                    <TestingComponent
+                      layoutContext={mockedDashboard}
+                      gridItemIndex={0}
+                      gridItemSource={gridItem.source}
+                      gridItemArgsString={gridItem.args_string}
+                      gridItemMetadataString={gridItem.metadata_string}
+                      gridItemI={gridItem.i}
+                      showModal={true}
+                      handleModalClose={mockhandleModalClose}
+                      setGridItemMessage={mocksetGridItemMessage}
+                      setShowGridItemMessage={mocksetShowGridItemMessage}
+                    />
+                  </DataViewerModeContextProvider>
+                </EditingContextProvider>
+              </AvailableDashboardsContextProvider>
+            </SelectedDashboardContextProvider>
+          </VariableInputsContextProvider>
+        </AvailableVisualizationsContext.Provider>
+      </UserSettingsContext.Provider>
     </AppContext.Provider>
   );
 
@@ -136,42 +133,40 @@ test("Dashboard Viewer Modal Variable Input", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <UserSettingsContext.Provider
+      <UserSettingsContext.Provider
+        value={{
+          userSettings: { deselected_visualizations: [] },
+        }}
+      >
+        <AvailableVisualizationsContext.Provider
           value={{
-            userSettings: { deselected_visualizations: [] },
+            availableVisualizations: mockedVisualizationsWithDefaults,
           }}
         >
-          <AvailableVisualizationsContext.Provider
-            value={{
-              availableVisualizations: mockedVisualizationsWithDefaults,
-            }}
-          >
-            <VariableInputsContextProvider>
-              <SelectedDashboardContextProvider>
-                <AvailableDashboardsContextProvider>
-                  <EditingContextProvider>
-                    <DataViewerModeContextProvider>
-                      <TestingComponent
-                        layoutContext={mockedDashboard}
-                        gridItemIndex={0}
-                        gridItemSource={gridItem.source}
-                        gridItemArgsString={gridItem.args_string}
-                        gridItemMetadataString={gridItem.metadata_string}
-                        gridItemI={gridItem.i}
-                        showModal={true}
-                        handleModalClose={mockhandleModalClose}
-                        setGridItemMessage={mocksetGridItemMessage}
-                        setShowGridItemMessage={mocksetShowGridItemMessage}
-                      />
-                    </DataViewerModeContextProvider>
-                  </EditingContextProvider>
-                </AvailableDashboardsContextProvider>
-              </SelectedDashboardContextProvider>
-            </VariableInputsContextProvider>
-          </AvailableVisualizationsContext.Provider>
-        </UserSettingsContext.Provider>
-      </RoutesContextProvider>
+          <VariableInputsContextProvider>
+            <SelectedDashboardContextProvider>
+              <AvailableDashboardsContextProvider>
+                <EditingContextProvider>
+                  <DataViewerModeContextProvider>
+                    <TestingComponent
+                      layoutContext={mockedDashboard}
+                      gridItemIndex={0}
+                      gridItemSource={gridItem.source}
+                      gridItemArgsString={gridItem.args_string}
+                      gridItemMetadataString={gridItem.metadata_string}
+                      gridItemI={gridItem.i}
+                      showModal={true}
+                      handleModalClose={mockhandleModalClose}
+                      setGridItemMessage={mocksetGridItemMessage}
+                      setShowGridItemMessage={mocksetShowGridItemMessage}
+                    />
+                  </DataViewerModeContextProvider>
+                </EditingContextProvider>
+              </AvailableDashboardsContextProvider>
+            </SelectedDashboardContextProvider>
+          </VariableInputsContextProvider>
+        </AvailableVisualizationsContext.Provider>
+      </UserSettingsContext.Provider>
     </AppContext.Provider>
   );
 
@@ -261,42 +256,40 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <UserSettingsContext.Provider
+      <UserSettingsContext.Provider
+        value={{
+          userSettings: { deselected_visualizations: [] },
+        }}
+      >
+        <AvailableVisualizationsContext.Provider
           value={{
-            userSettings: { deselected_visualizations: [] },
+            availableVisualizations: mockedVisualizationsWithDefaults,
           }}
         >
-          <AvailableVisualizationsContext.Provider
-            value={{
-              availableVisualizations: mockedVisualizationsWithDefaults,
-            }}
-          >
-            <VariableInputsContextProvider>
-              <SelectedDashboardContextProvider>
-                <AvailableDashboardsContextProvider>
-                  <EditingContextProvider>
-                    <DataViewerModeContextProvider>
-                      <TestingComponent
-                        layoutContext={mockedDashboard}
-                        gridItemIndex={0}
-                        gridItemSource={gridItem.source}
-                        gridItemArgsString={gridItem.args_string}
-                        gridItemMetadataString={gridItem.metadata_string}
-                        gridItemI={gridItem.i}
-                        showModal={true}
-                        handleModalClose={mockhandleModalClose}
-                        setGridItemMessage={mocksetGridItemMessage}
-                        setShowGridItemMessage={mocksetShowGridItemMessage}
-                      />
-                    </DataViewerModeContextProvider>
-                  </EditingContextProvider>
-                </AvailableDashboardsContextProvider>
-              </SelectedDashboardContextProvider>
-            </VariableInputsContextProvider>
-          </AvailableVisualizationsContext.Provider>
-        </UserSettingsContext.Provider>
-      </RoutesContextProvider>
+          <VariableInputsContextProvider>
+            <SelectedDashboardContextProvider>
+              <AvailableDashboardsContextProvider>
+                <EditingContextProvider>
+                  <DataViewerModeContextProvider>
+                    <TestingComponent
+                      layoutContext={mockedDashboard}
+                      gridItemIndex={0}
+                      gridItemSource={gridItem.source}
+                      gridItemArgsString={gridItem.args_string}
+                      gridItemMetadataString={gridItem.metadata_string}
+                      gridItemI={gridItem.i}
+                      showModal={true}
+                      handleModalClose={mockhandleModalClose}
+                      setGridItemMessage={mocksetGridItemMessage}
+                      setShowGridItemMessage={mocksetShowGridItemMessage}
+                    />
+                  </DataViewerModeContextProvider>
+                </EditingContextProvider>
+              </AvailableDashboardsContextProvider>
+            </SelectedDashboardContextProvider>
+          </VariableInputsContextProvider>
+        </AvailableVisualizationsContext.Provider>
+      </UserSettingsContext.Provider>
     </AppContext.Provider>
   );
 
@@ -407,42 +400,40 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <UserSettingsContext.Provider
+      <UserSettingsContext.Provider
+        value={{
+          userSettings: { deselected_visualizations: [] },
+        }}
+      >
+        <AvailableVisualizationsContext.Provider
           value={{
-            userSettings: { deselected_visualizations: [] },
+            availableVisualizations: mockedVisualizationsWithDefaults,
           }}
         >
-          <AvailableVisualizationsContext.Provider
-            value={{
-              availableVisualizations: mockedVisualizationsWithDefaults,
-            }}
-          >
-            <VariableInputsContextProvider>
-              <SelectedDashboardContextProvider>
-                <AvailableDashboardsContextProvider>
-                  <EditingContextProvider>
-                    <DataViewerModeContextProvider>
-                      <TestingComponent
-                        layoutContext={mockedDashboard}
-                        gridItemIndex={1}
-                        gridItemSource={gridItem.source}
-                        gridItemArgsString={gridItem.args_string}
-                        gridItemMetadataString={gridItem.metadata_string}
-                        gridItemI={gridItem.i}
-                        showModal={true}
-                        handleModalClose={mockhandleModalClose}
-                        setGridItemMessage={mocksetGridItemMessage}
-                        setShowGridItemMessage={mocksetShowGridItemMessage}
-                      />
-                    </DataViewerModeContextProvider>
-                  </EditingContextProvider>
-                </AvailableDashboardsContextProvider>
-              </SelectedDashboardContextProvider>
-            </VariableInputsContextProvider>
-          </AvailableVisualizationsContext.Provider>
-        </UserSettingsContext.Provider>
-      </RoutesContextProvider>
+          <VariableInputsContextProvider>
+            <SelectedDashboardContextProvider>
+              <AvailableDashboardsContextProvider>
+                <EditingContextProvider>
+                  <DataViewerModeContextProvider>
+                    <TestingComponent
+                      layoutContext={mockedDashboard}
+                      gridItemIndex={1}
+                      gridItemSource={gridItem.source}
+                      gridItemArgsString={gridItem.args_string}
+                      gridItemMetadataString={gridItem.metadata_string}
+                      gridItemI={gridItem.i}
+                      showModal={true}
+                      handleModalClose={mockhandleModalClose}
+                      setGridItemMessage={mocksetGridItemMessage}
+                      setShowGridItemMessage={mocksetShowGridItemMessage}
+                    />
+                  </DataViewerModeContextProvider>
+                </EditingContextProvider>
+              </AvailableDashboardsContextProvider>
+            </SelectedDashboardContextProvider>
+          </VariableInputsContextProvider>
+        </AvailableVisualizationsContext.Provider>
+      </UserSettingsContext.Provider>
     </AppContext.Provider>
   );
 
@@ -474,42 +465,40 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <UserSettingsContext.Provider
+      <UserSettingsContext.Provider
+        value={{
+          userSettings: { deselected_visualizations: [] },
+        }}
+      >
+        <AvailableVisualizationsContext.Provider
           value={{
-            userSettings: { deselected_visualizations: [] },
+            availableVisualizations: mockedVisualizationsWithDefaults,
           }}
         >
-          <AvailableVisualizationsContext.Provider
-            value={{
-              availableVisualizations: mockedVisualizationsWithDefaults,
-            }}
-          >
-            <VariableInputsContextProvider>
-              <SelectedDashboardContextProvider>
-                <AvailableDashboardsContextProvider>
-                  <EditingContextProvider>
-                    <DataViewerModeContextProvider>
-                      <TestingComponent
-                        layoutContext={mockedDashboard}
-                        gridItemIndex={0}
-                        gridItemSource={gridItem.source}
-                        gridItemArgsString={gridItem.args_string}
-                        gridItemMetadataString={gridItem.metadata_string}
-                        gridItemI={gridItem.i}
-                        showModal={true}
-                        handleModalClose={mockhandleModalClose}
-                        setGridItemMessage={mocksetGridItemMessage}
-                        setShowGridItemMessage={mocksetShowGridItemMessage}
-                      />
-                    </DataViewerModeContextProvider>
-                  </EditingContextProvider>
-                </AvailableDashboardsContextProvider>
-              </SelectedDashboardContextProvider>
-            </VariableInputsContextProvider>
-          </AvailableVisualizationsContext.Provider>
-        </UserSettingsContext.Provider>
-      </RoutesContextProvider>
+          <VariableInputsContextProvider>
+            <SelectedDashboardContextProvider>
+              <AvailableDashboardsContextProvider>
+                <EditingContextProvider>
+                  <DataViewerModeContextProvider>
+                    <TestingComponent
+                      layoutContext={mockedDashboard}
+                      gridItemIndex={0}
+                      gridItemSource={gridItem.source}
+                      gridItemArgsString={gridItem.args_string}
+                      gridItemMetadataString={gridItem.metadata_string}
+                      gridItemI={gridItem.i}
+                      showModal={true}
+                      handleModalClose={mockhandleModalClose}
+                      setGridItemMessage={mocksetGridItemMessage}
+                      setShowGridItemMessage={mocksetShowGridItemMessage}
+                    />
+                  </DataViewerModeContextProvider>
+                </EditingContextProvider>
+              </AvailableDashboardsContextProvider>
+            </SelectedDashboardContextProvider>
+          </VariableInputsContextProvider>
+        </AvailableVisualizationsContext.Provider>
+      </UserSettingsContext.Provider>
     </AppContext.Provider>
   );
 
@@ -536,42 +525,40 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <UserSettingsContext.Provider
+      <UserSettingsContext.Provider
+        value={{
+          userSettings: { deselected_visualizations: [] },
+        }}
+      >
+        <AvailableVisualizationsContext.Provider
           value={{
-            userSettings: { deselected_visualizations: [] },
+            availableVisualizations: mockedVisualizationsWithDefaults,
           }}
         >
-          <AvailableVisualizationsContext.Provider
-            value={{
-              availableVisualizations: mockedVisualizationsWithDefaults,
-            }}
-          >
-            <VariableInputsContextProvider>
-              <SelectedDashboardContextProvider>
-                <AvailableDashboardsContextProvider>
-                  <EditingContextProvider>
-                    <DataViewerModeContextProvider>
-                      <TestingComponent
-                        layoutContext={mockedDashboard}
-                        gridItemIndex={0}
-                        gridItemSource={gridItem.source}
-                        gridItemArgsString={gridItem.args_string}
-                        gridItemMetadataString={gridItem.metadata_string}
-                        gridItemI={gridItem.i}
-                        showModal={true}
-                        handleModalClose={mockhandleModalClose}
-                        setGridItemMessage={mocksetGridItemMessage}
-                        setShowGridItemMessage={mocksetShowGridItemMessage}
-                      />
-                    </DataViewerModeContextProvider>
-                  </EditingContextProvider>
-                </AvailableDashboardsContextProvider>
-              </SelectedDashboardContextProvider>
-            </VariableInputsContextProvider>
-          </AvailableVisualizationsContext.Provider>
-        </UserSettingsContext.Provider>
-      </RoutesContextProvider>
+          <VariableInputsContextProvider>
+            <SelectedDashboardContextProvider>
+              <AvailableDashboardsContextProvider>
+                <EditingContextProvider>
+                  <DataViewerModeContextProvider>
+                    <TestingComponent
+                      layoutContext={mockedDashboard}
+                      gridItemIndex={0}
+                      gridItemSource={gridItem.source}
+                      gridItemArgsString={gridItem.args_string}
+                      gridItemMetadataString={gridItem.metadata_string}
+                      gridItemI={gridItem.i}
+                      showModal={true}
+                      handleModalClose={mockhandleModalClose}
+                      setGridItemMessage={mocksetGridItemMessage}
+                      setShowGridItemMessage={mocksetShowGridItemMessage}
+                    />
+                  </DataViewerModeContextProvider>
+                </EditingContextProvider>
+              </AvailableDashboardsContextProvider>
+            </SelectedDashboardContextProvider>
+          </VariableInputsContextProvider>
+        </AvailableVisualizationsContext.Provider>
+      </UserSettingsContext.Provider>
     </AppContext.Provider>
   );
 

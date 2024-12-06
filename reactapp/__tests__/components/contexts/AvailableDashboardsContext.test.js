@@ -15,11 +15,8 @@ import appAPI from "services/api/app";
 import SelectedDashboardContextProvider, {
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
-import RoutesContextProvider, {
-  useRoutesContext,
-} from "components/contexts/RoutesContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import PropTypes from "prop-types";
 
@@ -41,7 +38,6 @@ const TestingComponent = (props) => {
     updateDashboard,
     copyCurrentDashboard,
   } = useAvailableDashboardsContext();
-  const { routes } = useRoutesContext();
   const { setLayoutContext } = useLayoutContext();
 
   useEffect(() => {
@@ -70,11 +66,6 @@ const TestingComponent = (props) => {
           }
         })}
       </ul>
-      <ul data-testid="routes">
-        {routes.map((item, index) => {
-          return <li key={index}>{item.key}</li>;
-        })}
-      </ul>
       <p data-testid="selected">
         {selectedDashboardDropdownOption &&
           selectedDashboardDropdownOption.value}
@@ -99,15 +90,13 @@ const TestingComponent = (props) => {
 test("available dashboard context", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <TestingComponent layoutContext={mockedDashboards.editable} />
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -116,12 +105,6 @@ test("available dashboard context", async () => {
   expect(await screen.findByText("Create a New Dashboard")).toBeInTheDocument();
   expect(await screen.findByText("User-test_label")).toBeInTheDocument();
   expect(await screen.findByText("Public-test_label2")).toBeInTheDocument();
-
-  expect(await screen.findByText("route-home")).toBeInTheDocument();
-  expect(await screen.findByText("route-dashboard")).toBeInTheDocument();
-  expect(await screen.findByText("route-not-found")).toBeInTheDocument();
-  expect(await screen.findByText("route-editable")).toBeInTheDocument();
-  expect(await screen.findByText("route-noneditable")).toBeInTheDocument();
 });
 
 test("available dashboard context for adding", async () => {
@@ -133,15 +116,13 @@ test("available dashboard context for adding", async () => {
   };
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <TestingComponent layoutContext={mockedDashboards.editable} />
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -160,15 +141,13 @@ test("available dashboard context for failed adding", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <TestingComponent layoutContext={mockedDashboards.editable} />
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -187,15 +166,13 @@ test("available dashboard context for deleting", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <TestingComponent layoutContext={mockedDashboards.editable} />
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -211,15 +188,13 @@ test("available dashboard context for deleting cancel", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <TestingComponent layoutContext={mockedDashboards.editable} />
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -238,15 +213,13 @@ test("available dashboard context for deleting failed", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <TestingComponent layoutContext={mockedDashboards.editable} />
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -268,15 +241,13 @@ test("available dashboard context for updating new label", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <TestingComponent layoutContext={mockedDashboards.editable} />
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -301,15 +272,13 @@ test("available dashboard context for updating same name and label", async () =>
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <TestingComponent layoutContext={mockedDashboards.editable} />
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -328,15 +297,13 @@ test("available dashboard context for updating failed", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <TestingComponent layoutContext={mockedDashboards.editable} />
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
@@ -357,15 +324,13 @@ test("available dashboard context for copying", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <TestingComponent layoutContext={mockedDashboards.editable} />
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <AvailableDashboardsContextProvider>
+            <TestingComponent layoutContext={mockedDashboards.editable} />
+          </AvailableDashboardsContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
     </AppContext.Provider>
   );
 
