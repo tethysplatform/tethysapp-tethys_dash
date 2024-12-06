@@ -703,6 +703,88 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
   );
 });
 
+test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  mockedDashboard.gridItems = [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "plugin_source",
+      args_string: JSON.stringify({
+        plugin_arg: true,
+      }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ];
+  const mockedVisualizations = [
+    {
+      label: "Visualization Group",
+      options: [
+        {
+          source: "plugin_source",
+          value: "plugin_value",
+          label: "plugin_label",
+          args: { plugin_arg: "checkbox" },
+        },
+      ],
+    },
+  ];
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetViz = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+
+  render(
+    <UserSettingsContext.Provider
+      value={{
+        userSettings: { deselected_visualizations: [] },
+      }}
+    >
+      <AvailableVisualizationsContext.Provider
+        value={{
+          availableVisualizations: mockedVisualizations,
+        }}
+      >
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <DataViewerModeContextProvider>
+              <TestingComponent
+                layoutContext={mockedDashboard}
+                source={gridItem.source}
+                argsString={gridItem.args_string}
+                setGridItemMessage={mockSetGridItemMessage}
+                setViz={mockSetViz}
+                setVizMetadata={mockSetVizMetadata}
+              />
+            </DataViewerModeContextProvider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContext.Provider>
+    </UserSettingsContext.Provider>
+  );
+
+  expect(mockSetVizMetadata).toHaveBeenCalledWith({
+    source: "plugin_source",
+    args: {
+      plugin_arg: true,
+    },
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show Visualization Group plugin_label"
+  );
+  expect(mockSetViz).toHaveBeenCalled();
+  expect(mockSetViz.mock.calls[0][0].props).toStrictEqual({
+    animation: "border",
+    "data-testid": "Loading...",
+    variant: "info",
+  });
+});
+
 test("CustomTextOptions", async () => {
   function onChange(new_value, index) {}
   render(
