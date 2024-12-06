@@ -742,7 +742,7 @@ test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
   render(
     <AppContext.Provider
       value={{
-        visualizations: mockedVisualizationsWithDefaults,
+        visualizations: mockedVisualizations,
       }}
     >
       <UserSettingsContext.Provider

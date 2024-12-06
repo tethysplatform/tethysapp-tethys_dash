@@ -1,6 +1,7 @@
 import PropTypes from "prop-types";
 import { useState, useEffect } from "react";
-
+import { spaceAndCapitalize } from "components/modals/utilities";
+import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 import tethysAPI from "services/api/tethys";
 import appAPI from "services/api/app";
 import LoadingAnimation from "components/loader/LoadingAnimation";
@@ -16,7 +17,6 @@ function Loader({ children }) {
   const [error, setError] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [appContext, setAppContext] = useState(null);
-  const [appRoutes, setAppRoutes] = useState(null);
 
   const handleError = (error) => {
     // Delay setting the error to avoid flashing the loading animation
@@ -99,7 +99,7 @@ function Loader({ children }) {
                         ...[
                           {
                             label: "Existing Visualization Inputs",
-                            options: all_viz_args,
+                            options: visualizationArgs,
                           },
                         ],
                       ],

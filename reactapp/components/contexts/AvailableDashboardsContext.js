@@ -1,9 +1,6 @@
 import PropTypes from "prop-types";
 import { useContext, createContext, useState, useEffect } from "react";
 import appAPI from "services/api/app";
-import { Route } from "react-router-dom";
-import DashboardView from "views/dashboard/Dashboard";
-import NotFound from "components/error/NotFound";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import { AppContext } from "components/contexts/AppContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";

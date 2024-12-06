@@ -6,7 +6,7 @@ import NotFound from "components/error/NotFound";
 import { AppContext } from "components/contexts/AppContext";
 
 function Layout({ children }) {
-  const routes = useContext(AppContext);
+  const { routes } = useContext(AppContext);
 
   return (
     <div className="h-100">
