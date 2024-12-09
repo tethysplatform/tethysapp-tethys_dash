@@ -16,7 +16,7 @@ import SelectedDashboardContextProvider, {
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import PropTypes from "prop-types";
 

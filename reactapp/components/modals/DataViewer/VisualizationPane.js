@@ -6,8 +6,11 @@ import Image from "components/visualizations/Image";
 import DataInput from "components/inputs/DataInput";
 import TextEditor from "components/inputs/TextEditor";
 import { setVisualization } from "components/visualizations/utilities";
-import { AppContext } from "components/contexts/AppContext";
-import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
+import {
+  AppContext,
+  UserSettingsContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import {
   getInitialInputValue,
   spaceAndCapitalize,
@@ -17,7 +20,6 @@ import { updateGridItemArgsWithVariableInputs } from "components/visualizations/
 import VariableInput from "components/visualizations/VariableInput";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsGear } from "react-icons/bs";
-import { useUserSettingsContext } from "components/contexts/UserSettingsContext";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
 import "components/modals/wideModal.css";
 
@@ -50,17 +52,19 @@ function VisualizationPane({
   showVisualizationTypeSettings,
   setShowVisualizationTypeSettings,
 }) {
-  const { userSettings } = useUserSettingsContext();
+  const { updatedUserSettings } = useContext(UserSettingsContext);
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
   const { visualizations } = useContext(AppContext);
-  const { variableInputValues } = useVariableInputValuesContext();
+  const { variableInputValues } = useContext(VariableInputsContext);
 
   useEffect(() => {
     let vizTypeOptions = JSON.parse(JSON.stringify(visualizations));
     for (let vizOptionGroup of vizTypeOptions) {
       vizOptionGroup.options = vizOptionGroup.options.filter(function (item) {
-        return !userSettings.deselected_visualizations.includes(item.label);
+        return !updatedUserSettings.deselected_visualizations.includes(
+          item.label
+        );
       });
     }
     setVizOptions(vizTypeOptions);
@@ -100,7 +104,7 @@ function VisualizationPane({
       }
     }
     // eslint-disable-next-line
-  }, [userSettings]);
+  }, [updatedUserSettings]);
 
   useEffect(() => {
     checkAllInputs();

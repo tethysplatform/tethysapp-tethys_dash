@@ -1,12 +1,13 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import UserSettingsContextProvider, {
   useUserSettingsContext,
 } from "components/contexts/UserSettingsContext";
+import { mockedUserSetting } from "__tests__/utilities/constants";
 import appAPI from "services/api/app";
 
 const TestingComponent = () => {
-  const { userSettings, updateUserSettings } = useUserSettingsContext();
+  const { updatedUserSettings, updateUserSettings } = useUserSettingsContext();
 
   function updateSettings() {
     updateUserSettings({ deselected_visualizations: [1, 2] });
@@ -18,7 +19,7 @@ const TestingComponent = () => {
         data-testid="user-settings-button"
         onClick={updateSettings}
       ></button>
-      <p data-testid="user-settings">{JSON.stringify(userSettings)}</p>
+      <p data-testid="user-settings">{JSON.stringify(updatedUserSettings)}</p>
     </>
   );
 };
@@ -31,7 +32,9 @@ test("user setting context update success", async () => {
   };
 
   render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
+    <AppContext.Provider
+      value={{ csrf: "csrf", userSettings: mockedUserSetting }}
+    >
       <UserSettingsContextProvider>
         <TestingComponent />
       </UserSettingsContextProvider>
@@ -62,7 +65,9 @@ test("user setting context update fail", async () => {
   };
 
   render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
+    <AppContext.Provider
+      value={{ csrf: "csrf", userSettings: mockedUserSetting }}
+    >
       <UserSettingsContextProvider>
         <TestingComponent />
       </UserSettingsContextProvider>

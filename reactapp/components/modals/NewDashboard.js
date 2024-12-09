@@ -4,16 +4,18 @@ import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import Form from "react-bootstrap/Form";
 import Alert from "react-bootstrap/Alert";
-import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
-import { useEditingContext } from "components/contexts/EditingContext";
-import { useState } from "react";
+import {
+  AvailableDashboardsContext,
+  EditingContext,
+} from "components/contexts/Contexts";
+import { useState, useContext } from "react";
 import PropTypes from "prop-types";
 
 function NewDashboardModal({ showModal, setShowModal }) {
   const [dashboardName, setDashboardName] = useState("");
-  const { addDashboard } = useAvailableDashboardsContext();
+  const { addDashboard } = useContext(AvailableDashboardsContext);
   const [errorMessage, setErrorMessage] = useState(null);
-  const { setIsEditing } = useEditingContext();
+  const { setIsEditing } = useContext(EditingContext);
 
   const handleModalClose = () => {
     setShowModal(false);

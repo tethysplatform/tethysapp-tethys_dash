@@ -1,17 +1,17 @@
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import Container from "react-bootstrap/Container";
-import { memo, useState } from "react";
-import { useEditingContext } from "components/contexts/EditingContext";
+import { memo, useState, useContext } from "react";
+import {
+  LayoutContext,
+  EditingContext,
+  LayoutGridItemsContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
-import {
-  useLayoutGridItemsContext,
-  useLayoutContext,
-} from "components/contexts/SelectedDashboardContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { getGridItem } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
 import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
@@ -35,15 +35,16 @@ const DashboardItem = ({
   gridItemMetadataString,
   gridItemIndex,
 }) => {
-  const { isEditing, setIsEditing } = useEditingContext();
+  const { isEditing, setIsEditing } = useContext(EditingContext);
   const [showFullscreen, setShowFullscreen] = useState(false);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
-  const { gridItems } = useLayoutGridItemsContext();
-  const { setLayoutContext, getLayoutContext } = useLayoutContext();
-  const { variableInputValues, setVariableInputValues } =
-    useVariableInputValuesContext();
+  const { gridItems } = useContext(LayoutGridItemsContext);
+  const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
+  const { variableInputValues, setVariableInputValues } = useContext(
+    VariableInputsContext
+  );
   const { setInDataViewerMode } = useDataViewerModeContext();
 
   async function deleteGridItem(e) {

@@ -16,7 +16,7 @@ import EditingContextProvider from "components/contexts/EditingContext";
 import { DataViewerModeContext } from "components/contexts/DataViewerModeContext";
 import PropTypes from "prop-types";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import { UserSettingsContext } from "components/contexts/UserSettingsContext";
 
 const TestingComponent = (props) => {

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useContext } from "react";
 import PropTypes from "prop-types";
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
@@ -7,9 +7,11 @@ import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import styled from "styled-components";
-import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
-import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
-import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
+import {
+  LayoutContext,
+  LayoutGridItemsContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import CustomAlert from "components/dashboard/CustomAlert";
 import VisualizationPane from "components/modals/DataViewer/VisualizationPane";
 import SettingsPane from "components/modals/DataViewer/SettingsPane";
@@ -46,12 +48,13 @@ function DataViewerModal({
   const [vizInputsValues, setVizInputsValues] = useState([]);
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
-  const { gridItems } = useLayoutGridItemsContext();
-  const { setLayoutContext, getLayoutContext } = useLayoutContext();
+  const { gridItems } = useContext(LayoutGridItemsContext);
+  const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
-  const { variableInputValues, setVariableInputValues } =
-    useVariableInputValuesContext();
+  const { variableInputValues, setVariableInputValues } = useContext(
+    VariableInputsContext
+  );
   const [showVisualizationTypeSettings, setShowVisualizationTypeSettings] =
     useState(false);
 

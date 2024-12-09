@@ -5,7 +5,7 @@ import { nonDropDownVariableInputTypes } from "components/visualizations/utiliti
 import tethysAPI from "services/api/tethys";
 import appAPI from "services/api/app";
 import LoadingAnimation from "components/loader/LoadingAnimation";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import { Route } from "react-router-dom";
 import NotFound from "components/error/NotFound";
 import DashboardView from "views/dashboard/Dashboard";

@@ -11,7 +11,7 @@ import VariableInputsContextProvider from "components/contexts/VariableInputsCon
 import EditingContextProvider from "components/contexts/EditingContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import PropTypes from "prop-types";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {

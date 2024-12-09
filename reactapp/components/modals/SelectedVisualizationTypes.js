@@ -4,8 +4,7 @@ import Modal from "react-bootstrap/Modal";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import CustomAlert from "components/dashboard/CustomAlert";
-import { useUserSettingsContext } from "components/contexts/UserSettingsContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext, UserSettingsContext } from "components/contexts/Contexts";
 
 const StyledList = styled.ul`
   list-style: none;
@@ -21,7 +20,8 @@ const StyledModalBody = styled(Modal.Body)`
 
 function SelectedVisualizationTypesModal({ showModal, setShowModal }) {
   const { visualizations } = useContext(AppContext);
-  const { userSettings, updateUserSettings } = useUserSettingsContext();
+  const { updatedUserSettings, updateUserSettings } =
+    useContext(UserSettingsContext);
   const [selectedOptions, setSelectedOptions] = useState([]);
   const [successMessage, setSuccessMessage] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
@@ -48,7 +48,8 @@ function SelectedVisualizationTypesModal({ showModal, setShowModal }) {
   };
 
   useEffect(() => {
-    const deselectedVisualizations = userSettings.deselected_visualizations;
+    const deselectedVisualizations =
+      updatedUserSettings.deselected_visualizations;
     setSelectedOptions(
       allOptions.filter((option) => !deselectedVisualizations.includes(option))
     );
