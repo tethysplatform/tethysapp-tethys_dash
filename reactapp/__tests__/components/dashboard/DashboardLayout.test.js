@@ -1,17 +1,16 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import {
   mockedDashboards,
   updatedDashboard,
 } from "__tests__/utilities/constants";
-import {
-  AvailableDashboardsContext,
-  LayoutGridItemsContext,
-  LayoutContext,
-  EditingContext,
-} from "components/contexts/Contexts";
+import renderWithLoaders, {
+  ContextLayoutPComponent,
+  EditingPComponent,
+} from "__tests__/utilities/customRender";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
+import appAPI from "services/api/app";
 
 // eslint-disable-next-line
 jest.mock("components/dashboard/DashboardItem", () => (props) => (
@@ -23,55 +22,20 @@ jest.mock("components/dashboard/DashboardItem", () => (props) => (
 ));
 
 test("Dashboard Layout resize and update layout", async () => {
-  const mockedDashboard = {
-    id: 1,
-    name: "editable",
-    label: "test_label",
-    notes: "test_notes",
-    editable: true,
-    access_groups: [],
-    gridItems: [
-      {
-        i: "1",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-    ],
-  };
-
-  const mockSetLayoutContext = jest.fn();
-  const mockGetLayoutContext = jest.fn();
-  mockGetLayoutContext.mockReturnValue(mockedDashboard);
-
-  const { container } = render(
-    <AvailableDashboardsContext.Provider value={{ updateDashboard: jest.fn() }}>
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: mockSetLayoutContext,
-            getLayoutContext: mockGetLayoutContext,
-          }}
-        >
-          <EditingContext.Provider
-            value={{ isEditing: true, setIsEditing: jest.fn() }}
-          >
-            <LayoutAlertContextProvider>
-              <DashboardLayout />
-            </LayoutAlertContextProvider>
-          </EditingContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </AvailableDashboardsContext.Provider>
-  );
+  const { container } = renderWithLoaders({
+    children: (
+      <>
+        <LayoutAlertContextProvider>
+          <DashboardLayout />
+        </LayoutAlertContextProvider>
+        <ContextLayoutPComponent />
+      </>
+    ),
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+      inEditing: true,
+    },
+  });
 
   // eslint-disable-next-line
   const resizeSpan = container.querySelector(".react-resizable-handle");
@@ -80,58 +44,46 @@ test("Dashboard Layout resize and update layout", async () => {
   fireEvent.mouseMove(resizeSpan, { clientX: 100, clientY: 0 });
   fireEvent.mouseUp(resizeSpan);
 
-  expect(mockSetLayoutContext).toHaveBeenCalledWith({
-    access_groups: [],
-    editable: true,
-    gridItems: [
-      {
-        args_string: "{}",
-        h: 20,
-        i: "1",
-        metadata_string: JSON.stringify({ refreshRate: 0 }),
-        source: "",
-        w: 28,
-        x: 0,
-        y: 0,
-      },
-    ],
-    id: 1,
-    label: "test_label",
-    name: "editable",
-    notes: "test_notes",
-  });
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      name: "editable",
+      label: "test_label",
+      access_groups: [],
+      notes: "test_notes",
+      gridItems: [
+        {
+          args_string: "{}",
+          h: 20,
+          i: "1",
+          source: "",
+          metadata_string: JSON.stringify({ refreshRate: 0 }),
+          w: 28,
+          x: 0,
+          y: 0,
+        },
+      ],
+      editable: true,
+    })
+  );
 });
 
 test("Dashboard Layout submit changes not editing", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
   const mockUpdateDashboard = jest.fn();
-  const mockGetLayoutContext = jest.fn();
-  mockGetLayoutContext.mockReturnValue(mockedDashboard);
 
-  render(
-    <AvailableDashboardsContext.Provider
-      value={{ updateDashboard: mockUpdateDashboard }}
-    >
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: jest.fn(),
-            getLayoutContext: mockGetLayoutContext,
-          }}
-        >
-          <EditingContext.Provider
-            value={{ isEditing: false, setIsEditing: jest.fn() }}
-          >
-            <LayoutAlertContextProvider>
-              <DashboardLayout />
-            </LayoutAlertContextProvider>
-          </EditingContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </AvailableDashboardsContext.Provider>
-  );
+  appAPI.updateDashboard = mockUpdateDashboard;
+
+  renderWithLoaders({
+    children: (
+      <>
+        <LayoutAlertContextProvider>
+          <DashboardLayout />
+        </LayoutAlertContextProvider>
+      </>
+    ),
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
+  });
 
   const submitButton = screen.getByTestId("test-submit");
   fireEvent.click(submitButton);
@@ -140,42 +92,30 @@ test("Dashboard Layout submit changes not editing", async () => {
 });
 
 test("Dashboard Layout submit changes success", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
   const newUpdatedDashboard = updatedDashboard;
   newUpdatedDashboard.label = "test_label";
-  const mockUpdateDashboard = jest.fn().mockResolvedValue({
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
     success: true,
     updated_dashboard: newUpdatedDashboard,
   });
-  const mockGetLayoutContext = jest.fn();
-  const mockSetIsEditing = jest.fn();
-  mockGetLayoutContext.mockReturnValue(mockedDashboard);
+  appAPI.updateDashboard = mockUpdateDashboard;
 
-  render(
-    <AvailableDashboardsContext.Provider
-      value={{ updateDashboard: mockUpdateDashboard }}
-    >
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: jest.fn(),
-            getLayoutContext: mockGetLayoutContext,
-          }}
-        >
-          <EditingContext.Provider
-            value={{ isEditing: true, setIsEditing: mockSetIsEditing }}
-          >
-            <LayoutAlertContextProvider>
-              <DashboardLayoutAlerts />
-              <DashboardLayout />
-            </LayoutAlertContextProvider>
-          </EditingContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </AvailableDashboardsContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <LayoutAlertContextProvider>
+          <DashboardLayoutAlerts />
+          <DashboardLayout />
+        </LayoutAlertContextProvider>
+        <EditingPComponent />
+      </>
+    ),
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+      inEditing: true,
+    },
+  });
 
   const submitButton = screen.getByTestId("test-submit");
   fireEvent.click(submitButton);
@@ -183,43 +123,31 @@ test("Dashboard Layout submit changes success", async () => {
   expect(
     await screen.findByText("Change have been saved.")
   ).toBeInTheDocument();
-  expect(mockSetIsEditing).toHaveBeenCalledWith(false);
+  expect(await screen.findByTestId("editing")).toHaveTextContent("not editing");
 });
 
 test("Dashboard Layout submit changes fail", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
-  const mockUpdateDashboard = jest.fn().mockResolvedValue({
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
     success: false,
   });
-  const mockGetLayoutContext = jest.fn();
-  const mockSetIsEditing = jest.fn();
-  mockGetLayoutContext.mockReturnValue(mockedDashboard);
+  appAPI.updateDashboard = mockUpdateDashboard;
 
-  render(
-    <AvailableDashboardsContext.Provider
-      value={{ updateDashboard: mockUpdateDashboard }}
-    >
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: jest.fn(),
-            getLayoutContext: mockGetLayoutContext,
-          }}
-        >
-          <EditingContext.Provider
-            value={{ isEditing: true, setIsEditing: mockSetIsEditing }}
-          >
-            <LayoutAlertContextProvider>
-              <DashboardLayoutAlerts />
-              <DashboardLayout />
-            </LayoutAlertContextProvider>
-          </EditingContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </AvailableDashboardsContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <LayoutAlertContextProvider>
+          <DashboardLayoutAlerts />
+          <DashboardLayout />
+        </LayoutAlertContextProvider>
+        <EditingPComponent />
+      </>
+    ),
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+      inEditing: true,
+    },
+  });
 
   const submitButton = screen.getByTestId("test-submit");
   fireEvent.click(submitButton);
@@ -229,7 +157,7 @@ test("Dashboard Layout submit changes fail", async () => {
       "Failed to save changes. Check server logs for more information."
     )
   ).toBeInTheDocument();
-  expect(mockSetIsEditing).not.toHaveBeenCalled();
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
 
 test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", async () => {
@@ -253,33 +181,23 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
       },
     ],
   };
+  const dashboards = { editable: mockedDashboard };
 
-  const mockSetLayoutContext = jest.fn();
-  const mockGetLayoutContext = jest.fn();
-  mockGetLayoutContext.mockReturnValue(mockedDashboard);
-
-  const { container } = render(
-    <AvailableDashboardsContext.Provider value={{ updateDashboard: jest.fn() }}>
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: mockSetLayoutContext,
-            getLayoutContext: mockGetLayoutContext,
-          }}
-        >
-          <EditingContext.Provider
-            value={{ isEditing: true, setIsEditing: jest.fn() }}
-          >
-            <LayoutAlertContextProvider>
-              <DashboardLayout />
-            </LayoutAlertContextProvider>
-          </EditingContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </AvailableDashboardsContext.Provider>
-  );
+  const { container } = renderWithLoaders({
+    children: (
+      <>
+        <LayoutAlertContextProvider>
+          <DashboardLayout />
+        </LayoutAlertContextProvider>
+        <ContextLayoutPComponent />
+      </>
+    ),
+    options: {
+      dashboards: dashboards,
+      initialDashboard: mockedDashboards.editable.name,
+      inEditing: true,
+    },
+  });
 
   // eslint-disable-next-line
   const resizeSpan = container.querySelector(".react-resizable-handle");
@@ -288,28 +206,27 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
   fireEvent.mouseMove(resizeSpan, { clientX: 100, clientY: 0 });
   fireEvent.mouseUp(resizeSpan);
 
-  expect(mockSetLayoutContext).toHaveBeenCalledWith({
-    access_groups: [],
-    editable: true,
-    gridItems: [
-      {
-        args_string: "{}",
-        h: 20,
-        i: "1",
-        metadata_string: JSON.stringify({
-          enforceAspectRatio: true,
-        }),
-        source: "",
-        w: 28,
-        x: 0,
-        y: 0,
-      },
-    ],
-    id: 1,
-    label: "test_label",
-    name: "editable",
-    notes: "test_notes",
-  });
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      name: "editable",
+      label: "test_label",
+      access_groups: [],
+      notes: "test_notes",
+      gridItems: [
+        {
+          args_string: "{}",
+          h: 20,
+          i: "1",
+          source: "",
+          metadata_string: JSON.stringify({ enforceAspectRatio: true }),
+          w: 28,
+          x: 0,
+          y: 0,
+        },
+      ],
+      editable: true,
+    })
+  );
 });
 
 test("Dashboard Layout resize and enforce aspect ratio", async () => {
@@ -336,33 +253,23 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
       },
     ],
   };
+  const dashboards = { editable: mockedDashboard };
 
-  const mockSetLayoutContext = jest.fn();
-  const mockGetLayoutContext = jest.fn();
-  mockGetLayoutContext.mockReturnValue(mockedDashboard);
-
-  const { container } = render(
-    <AvailableDashboardsContext.Provider value={{ updateDashboard: jest.fn() }}>
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: mockSetLayoutContext,
-            getLayoutContext: mockGetLayoutContext,
-          }}
-        >
-          <EditingContext.Provider
-            value={{ isEditing: true, setIsEditing: jest.fn() }}
-          >
-            <LayoutAlertContextProvider>
-              <DashboardLayout />
-            </LayoutAlertContextProvider>
-          </EditingContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </AvailableDashboardsContext.Provider>
-  );
+  const { container } = renderWithLoaders({
+    children: (
+      <>
+        <LayoutAlertContextProvider>
+          <DashboardLayout />
+        </LayoutAlertContextProvider>
+        <ContextLayoutPComponent />
+      </>
+    ),
+    options: {
+      dashboards: dashboards,
+      initialDashboard: mockedDashboards.editable.name,
+      inEditing: true,
+    },
+  });
 
   // eslint-disable-next-line
   const resizeSpan = container.querySelector(".react-resizable-handle");
@@ -371,55 +278,57 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
   fireEvent.mouseMove(resizeSpan, { clientX: 100, clientY: 0 });
   fireEvent.mouseUp(resizeSpan);
 
-  expect(mockSetLayoutContext).toHaveBeenCalledWith({
-    access_groups: [],
-    editable: true,
-    gridItems: [
-      {
-        args_string: "{}",
-        h: 14,
-        i: "1",
-        metadata_string: JSON.stringify({
-          enforceAspectRatio: true,
-          aspectRatio: 2,
-        }),
-        source: "",
-        w: 28,
-        x: 0,
-        y: 0,
-      },
-    ],
-    id: 1,
-    label: "test_label",
-    name: "editable",
-    notes: "test_notes",
-  });
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      name: "editable",
+      label: "test_label",
+      access_groups: [],
+      notes: "test_notes",
+      gridItems: [
+        {
+          args_string: "{}",
+          h: 14,
+          i: "1",
+          source: "",
+          metadata_string: JSON.stringify({
+            enforceAspectRatio: true,
+            aspectRatio: 2,
+          }),
+          w: 28,
+          x: 0,
+          y: 0,
+        },
+      ],
+      editable: true,
+    })
+  );
 
   fireEvent.mouseDown(resizeSpan, { clientX: 0, clientY: 0 });
   fireEvent.mouseMove(resizeSpan, { clientX: 0, clientY: 100 });
   fireEvent.mouseUp(resizeSpan);
 
-  expect(mockSetLayoutContext).toHaveBeenCalledWith({
-    access_groups: [],
-    editable: true,
-    gridItems: [
-      {
-        args_string: "{}",
-        h: 24,
-        i: "1",
-        metadata_string: JSON.stringify({
-          enforceAspectRatio: true,
-          aspectRatio: 2,
-        }),
-        source: "",
-        w: 48,
-        x: 0,
-        y: 0,
-      },
-    ],
-    id: 1,
-    label: "test_label",
-    name: "editable",
-    notes: "test_notes",
-  });
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      name: "editable",
+      label: "test_label",
+      access_groups: [],
+      notes: "test_notes",
+      gridItems: [
+        {
+          args_string: "{}",
+          h: 24,
+          i: "1",
+          source: "",
+          metadata_string: JSON.stringify({
+            enforceAspectRatio: true,
+            aspectRatio: 2,
+          }),
+          w: 48,
+          x: 0,
+          y: 0,
+        },
+      ],
+      editable: true,
+    })
+  );
 });

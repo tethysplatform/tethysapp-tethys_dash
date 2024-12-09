@@ -16,6 +16,7 @@ import {
   AvailableDashboardsContext,
   DashboardDropdownContext,
   EditingContext,
+  DataViewerModeContext,
 } from "components/contexts/Contexts";
 
 function PostLoader({ children }) {
@@ -35,6 +36,7 @@ function PostLoader({ children }) {
   const [selectedDashboardDropdownOption, setSelectedDashboardDropdownOption] =
     useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [inDataViewerMode, setInDataViewerMode] = useState(false);
 
   useEffect(() => {
     // Setting up dashboard dropdown
@@ -60,7 +62,6 @@ function PostLoader({ children }) {
     ]);
     setAvailableDashboards(dashboards);
     setIsLoaded(true);
-    console.log("here");
   }, []);
 
   async function updateUserSettings(updatedProperties) {
@@ -320,7 +321,14 @@ function PostLoader({ children }) {
                               <EditingContext.Provider
                                 value={{ isEditing, setIsEditing }}
                               >
-                                {children}
+                                <DataViewerModeContext.Provider
+                                  value={{
+                                    inDataViewerMode,
+                                    setInDataViewerMode,
+                                  }}
+                                >
+                                  {children}
+                                </DataViewerModeContext.Provider>
                               </EditingContext.Provider>
                             </DashboardDropdownContext.Provider>
                           </AvailableDashboardsContext.Provider>

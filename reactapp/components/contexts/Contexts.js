@@ -13,3 +13,4 @@ export const LayoutEditableContext = createContext();
 export const AvailableDashboardsContext = createContext();
 export const DashboardDropdownContext = createContext();
 export const EditingContext = createContext();
+export const DataViewerModeContext = createContext();

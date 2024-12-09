@@ -1,27 +1,15 @@
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import {
-  render,
-  screen,
-  within,
-  fireEvent,
-  waitFor,
-} from "@testing-library/react";
+import { screen, within, fireEvent, waitFor } from "@testing-library/react";
 import DashboardItem from "components/dashboard/DashboardItem";
-import {
-  mockedDashboards,
-  mockedVisualizationArgs,
-} from "__tests__/utilities/constants";
+import { mockedDashboards } from "__tests__/utilities/constants";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import { DataViewerModeContext } from "components/contexts/DataViewerModeContext";
-import {
-  AppContext,
-  EditingContext,
-  LayoutGridItemsContext,
-  LayoutContext,
-  VariableInputsContext,
-  LayoutEditableContext,
-} from "components/contexts/Contexts";
+import renderWithLoaders, {
+  ContextLayoutPComponent,
+  EditingPComponent,
+  DataViewerPComponent,
+  InputVariablePComponent,
+} from "__tests__/utilities/customRender";
 
 // eslint-disable-next-line
 jest.mock("components/modals/DataViewer/VisualizationPane", () => (props) => (
@@ -48,53 +36,23 @@ test("Dashboard Item delete grid item", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
   const gridItem = mockedDashboard.gridItems[0];
   mockedConfirm.mockResolvedValue(true);
-  const mockSetIsEditing = jest.fn();
-  const mockSetLayoutContext = jest.fn();
-  const mockGetLayoutContext = jest.fn();
 
-  mockGetLayoutContext.mockReturnValue(mockedDashboard);
-
-  render(
-    <EditingContext.Provider
-      value={{ isEditing: false, setIsEditing: mockSetIsEditing }}
-    >
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: mockSetLayoutContext,
-            getLayoutContext: mockGetLayoutContext,
-          }}
-        >
-          <LayoutEditableContext.Provider
-            value={{
-              editableDashboard: true,
-            }}
-          >
-            <VariableInputsContext.Provider
-              value={{
-                variableInputValues: [],
-                setVariableInputValues: jest.fn(),
-              }}
-            >
-              <DataViewerModeContext.Provider
-                value={{ setInDataViewerMode: jest.fn() }}
-              >
-                <DashboardItem
-                  gridItemSource={gridItem.source}
-                  gridItemI={gridItem.i}
-                  gridItemArgsString={gridItem.args_string}
-                  gridItemMetadataString={gridItem.metadata_string}
-                  gridItemIndex={0}
-                />
-              </DataViewerModeContext.Provider>
-            </VariableInputsContext.Provider>
-          </LayoutEditableContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </EditingContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={0}
+        />
+        <ContextLayoutPComponent />
+        <EditingPComponent />
+      </>
+    ),
+    options: { initialDashboard: mockedDashboards.editable.name },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -108,66 +66,40 @@ test("Dashboard Item delete grid item", async () => {
     await userEvent.click(deleteGridItemButton);
   });
 
-  expect(mockSetLayoutContext).toHaveBeenCalledWith({
-    access_groups: [],
-    editable: true,
-    gridItems: [],
-    id: 1,
-    label: "test_label",
-    name: "editable",
-    notes: "test_notes",
-  });
-  expect(mockSetIsEditing).toHaveBeenCalledWith(true);
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      name: "editable",
+      label: "test_label",
+      access_groups: [],
+      notes: "test_notes",
+      gridItems: [],
+      editable: true,
+    })
+  );
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
 
 test("Dashboard Item delete grid item cancel", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
   const gridItem = mockedDashboard.gridItems[0];
   mockedConfirm.mockResolvedValue(false);
-  const mockSetIsEditing = jest.fn();
-  const mockSetLayoutContext = jest.fn();
 
-  render(
-    <EditingContext.Provider
-      value={{ isEditing: false, setIsEditing: mockSetIsEditing }}
-    >
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: mockSetLayoutContext,
-            getLayoutContext: jest.fn(),
-          }}
-        >
-          <LayoutEditableContext.Provider
-            value={{
-              editableDashboard: true,
-            }}
-          >
-            <VariableInputsContext.Provider
-              value={{
-                variableInputValues: [],
-                setVariableInputValues: jest.fn(),
-              }}
-            >
-              <DataViewerModeContext.Provider
-                value={{ setInDataViewerMode: jest.fn() }}
-              >
-                <DashboardItem
-                  gridItemSource={gridItem.source}
-                  gridItemI={gridItem.i}
-                  gridItemArgsString={gridItem.args_string}
-                  gridItemMetadataString={gridItem.metadata_string}
-                  gridItemIndex={0}
-                />
-              </DataViewerModeContext.Provider>
-            </VariableInputsContext.Provider>
-          </LayoutEditableContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </EditingContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={0}
+        />
+        <ContextLayoutPComponent />
+        <EditingPComponent />
+      </>
+    ),
+    options: { initialDashboard: mockedDashboards.editable.name },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -181,55 +113,48 @@ test("Dashboard Item delete grid item cancel", async () => {
     await userEvent.click(deleteGridItemButton);
   });
 
-  expect(mockSetLayoutContext).not.toHaveBeenCalled();
-  expect(mockSetIsEditing).not.toHaveBeenCalled();
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      name: "editable",
+      label: "test_label",
+      access_groups: [],
+      notes: "test_notes",
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
+      editable: true,
+    })
+  );
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
 
 test("Dashboard Item fullscreen but no source", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
   const gridItem = mockedDashboard.gridItems[0];
 
-  render(
-    <EditingContext.Provider
-      value={{ isEditing: false, setIsEditing: jest.fn() }}
-    >
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: jest.fn(),
-            getLayoutContext: jest.fn(),
-          }}
-        >
-          <LayoutEditableContext.Provider
-            value={{
-              editableDashboard: true,
-            }}
-          >
-            <VariableInputsContext.Provider
-              value={{
-                variableInputValues: [],
-                setVariableInputValues: jest.fn(),
-              }}
-            >
-              <DataViewerModeContext.Provider
-                value={{ setInDataViewerMode: jest.fn() }}
-              >
-                <DashboardItem
-                  gridItemSource={gridItem.source}
-                  gridItemI={gridItem.i}
-                  gridItemArgsString={gridItem.args_string}
-                  gridItemMetadataString={gridItem.metadata_string}
-                  gridItemIndex={0}
-                />
-              </DataViewerModeContext.Provider>
-            </VariableInputsContext.Provider>
-          </LayoutEditableContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </EditingContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <DashboardItem
+        gridItemSource={gridItem.source}
+        gridItemI={gridItem.i}
+        gridItemArgsString={gridItem.args_string}
+        gridItemMetadataString={gridItem.metadata_string}
+        gridItemIndex={0}
+      />
+    ),
+    options: { initialDashboard: mockedDashboards.editable.name },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -241,54 +166,29 @@ test("Dashboard Item fullscreen but no source", async () => {
 });
 
 test("Dashboard Item fullscreen", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
   const gridItem = mockedDashboard.gridItems[0];
   gridItem.source = "Custom Image";
   gridItem.args_string = JSON.stringify({
     image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
   });
 
-  render(
-    <EditingContext.Provider
-      value={{ isEditing: false, setIsEditing: jest.fn() }}
-    >
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: jest.fn(),
-            getLayoutContext: jest.fn(),
-          }}
-        >
-          <LayoutEditableContext.Provider
-            value={{
-              editableDashboard: true,
-            }}
-          >
-            <VariableInputsContext.Provider
-              value={{
-                variableInputValues: [],
-                setVariableInputValues: jest.fn(),
-              }}
-            >
-              <DataViewerModeContext.Provider
-                value={{ setInDataViewerMode: jest.fn() }}
-              >
-                <DashboardItem
-                  gridItemSource={gridItem.source}
-                  gridItemI={gridItem.i}
-                  gridItemArgsString={gridItem.args_string}
-                  gridItemMetadataString={gridItem.metadata_string}
-                  gridItemIndex={0}
-                />
-              </DataViewerModeContext.Provider>
-            </VariableInputsContext.Provider>
-          </LayoutEditableContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </EditingContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <DashboardItem
+        gridItemSource={gridItem.source}
+        gridItemI={gridItem.i}
+        gridItemArgsString={gridItem.args_string}
+        gridItemMetadataString={gridItem.metadata_string}
+        gridItemIndex={0}
+      />
+    ),
+    options: {
+      dashboards: updatedMockedDashboards,
+      initialDashboard: updatedMockedDashboards.editable.name,
+    },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -320,50 +220,26 @@ test("Dashboard Item fullscreen", async () => {
 test("Dashboard Item edit item", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
   const gridItem = mockedDashboard.gridItems[0];
-  const mockSetIsEditing = jest.fn();
-  const mockSetInDataViewerMode = jest.fn();
 
-  render(
-    <EditingContext.Provider
-      value={{ isEditing: false, setIsEditing: mockSetIsEditing }}
-    >
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: jest.fn(),
-            getLayoutContext: jest.fn(),
-          }}
-        >
-          <LayoutEditableContext.Provider
-            value={{
-              editableDashboard: true,
-            }}
-          >
-            <VariableInputsContext.Provider
-              value={{
-                variableInputValues: [],
-                setVariableInputValues: jest.fn(),
-              }}
-            >
-              <DataViewerModeContext.Provider
-                value={{ setInDataViewerMode: mockSetInDataViewerMode }}
-              >
-                <DashboardItem
-                  gridItemSource={gridItem.source}
-                  gridItemI={gridItem.i}
-                  gridItemArgsString={gridItem.args_string}
-                  gridItemMetadataString={gridItem.metadata_string}
-                  gridItemIndex={0}
-                />
-              </DataViewerModeContext.Provider>
-            </VariableInputsContext.Provider>
-          </LayoutEditableContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </EditingContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={0}
+        />
+        <ContextLayoutPComponent />
+        <EditingPComponent />
+        <DataViewerPComponent />
+      </>
+    ),
+    options: {
+      initialDashboard: mockedDashboard.name,
+    },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -380,19 +256,24 @@ test("Dashboard Item edit item", async () => {
   expect(dataViewerModal).toBeInTheDocument();
   expect(dataViewerModal).toHaveClass("dataviewer");
 
-  expect(mockSetIsEditing).toHaveBeenCalledWith(true);
-  expect(mockSetInDataViewerMode).toHaveBeenCalledWith(true);
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
+  expect(await screen.findByTestId("dataviewer-mode")).toHaveTextContent(
+    "dataviewer-mode"
+  );
 
   const closeDataViewerModalButton = within(dataViewerModal).getByText("Close");
   // eslint-disable-next-line
   await act(async () => {
     fireEvent.click(closeDataViewerModalButton);
   });
-  expect(mockSetInDataViewerMode).toHaveBeenCalledWith(false);
+  expect(await screen.findByTestId("dataviewer-mode")).toHaveTextContent(
+    "not in dataviewer-mode"
+  );
 });
 
 test("Dashboard Item copy item", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -433,53 +314,26 @@ test("Dashboard Item copy item", async () => {
   ];
 
   const gridItem = mockedDashboard.gridItems[2];
-  const mockSetIsEditing = jest.fn();
-  const mockSetLayoutContext = jest.fn();
-  const mockGetLayoutContext = jest.fn();
 
-  mockGetLayoutContext.mockReturnValue(mockedDashboard);
-
-  render(
-    <EditingContext.Provider
-      value={{ isEditing: false, setIsEditing: mockSetIsEditing }}
-    >
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: mockSetLayoutContext,
-            getLayoutContext: mockGetLayoutContext,
-          }}
-        >
-          <LayoutEditableContext.Provider
-            value={{
-              editableDashboard: true,
-            }}
-          >
-            <VariableInputsContext.Provider
-              value={{
-                variableInputValues: [],
-                setVariableInputValues: jest.fn(),
-              }}
-            >
-              <DataViewerModeContext.Provider
-                value={{ setInDataViewerMode: jest.fn() }}
-              >
-                <DashboardItem
-                  gridItemSource={gridItem.source}
-                  gridItemI={gridItem.i}
-                  gridItemArgsString={gridItem.args_string}
-                  gridItemMetadataString={gridItem.metadata_string}
-                  gridItemIndex={2}
-                />
-              </DataViewerModeContext.Provider>
-            </VariableInputsContext.Provider>
-          </LayoutEditableContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </EditingContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={2}
+        />
+        <ContextLayoutPComponent />
+        <EditingPComponent />
+      </>
+    ),
+    options: {
+      dashboards: updatedMockedDashboards,
+      initialDashboard: updatedMockedDashboards.editable.name,
+    },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -493,69 +347,71 @@ test("Dashboard Item copy item", async () => {
     await userEvent.click(createCopyButton);
   });
 
-  expect(mockSetLayoutContext).toHaveBeenCalledWith({
-    access_groups: [],
-    editable: true,
-    gridItems: [
-      {
-        i: "1",
-        x: 0,
-        y: 0,
-        w: 10,
-        h: 10,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-      {
-        i: "3",
-        x: 0,
-        y: 0,
-        w: 30,
-        h: 30,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-      {
-        i: "2",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-      {
-        i: "4",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-    ],
-    id: 1,
-    label: "test_label",
-    name: "editable",
-    notes: "test_notes",
-  });
-  expect(mockSetIsEditing).toHaveBeenCalledWith(true);
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      name: "editable",
+      label: "test_label",
+      access_groups: [],
+      notes: "test_notes",
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 10,
+          h: 10,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+        {
+          i: "3",
+          x: 0,
+          y: 0,
+          w: 30,
+          h: 30,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+        {
+          i: "2",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+        {
+          i: "4",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
+      editable: true,
+    })
+  );
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
 
 test("Dashboard Item copy item variable input", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -575,58 +431,27 @@ test("Dashboard Item copy item variable input", async () => {
     },
   ];
   const gridItem = mockedDashboard.gridItems[0];
-  const mockSetIsEditing = jest.fn();
-  const mockSetLayoutContext = jest.fn();
-  const mockGetLayoutContext = jest.fn();
-  const mockSetVariableInputValues = jest.fn();
 
-  mockGetLayoutContext.mockReturnValue(mockedDashboard);
-
-  render(
-    <AppContext.Provider value={{ visualizationArgs: mockedVisualizationArgs }}>
-      <EditingContext.Provider
-        value={{ isEditing: false, setIsEditing: mockSetIsEditing }}
-      >
-        <LayoutGridItemsContext.Provider
-          value={{ gridItems: mockedDashboard.gridItems }}
-        >
-          <LayoutContext.Provider
-            value={{
-              setLayoutContext: mockSetLayoutContext,
-              getLayoutContext: mockGetLayoutContext,
-            }}
-          >
-            <LayoutEditableContext.Provider
-              value={{
-                editableDashboard: true,
-              }}
-            >
-              <VariableInputsContext.Provider
-                value={{
-                  variableInputValues: {
-                    test_var: true,
-                  },
-                  setVariableInputValues: mockSetVariableInputValues,
-                }}
-              >
-                <DataViewerModeContext.Provider
-                  value={{ setInDataViewerMode: jest.fn() }}
-                >
-                  <DashboardItem
-                    gridItemSource={gridItem.source}
-                    gridItemI={gridItem.i}
-                    gridItemArgsString={gridItem.args_string}
-                    gridItemMetadataString={gridItem.metadata_string}
-                    gridItemIndex={0}
-                  />
-                </DataViewerModeContext.Provider>
-              </VariableInputsContext.Provider>
-            </LayoutEditableContext.Provider>
-          </LayoutContext.Provider>
-        </LayoutGridItemsContext.Provider>
-      </EditingContext.Provider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={2}
+        />
+        <ContextLayoutPComponent />
+        <EditingPComponent />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: {
+      dashboards: updatedMockedDashboards,
+      initialDashboard: updatedMockedDashboards.editable.name,
+    },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -639,56 +464,62 @@ test("Dashboard Item copy item variable input", async () => {
   await act(async () => {
     await userEvent.click(createCopyButton);
   });
-  expect(mockSetVariableInputValues).toHaveBeenCalledWith({
-    test_var: true,
-  });
-  expect(mockSetLayoutContext).toHaveBeenCalledWith({
-    access_groups: [],
-    editable: true,
-    gridItems: [
-      {
-        i: "1",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "Variable Input",
-        args_string: JSON.stringify({
-          variable_name: "test_var",
-          variable_options_source: "checkbox",
-          initial_value: { value: true },
-        }),
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-      {
-        i: "2",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "Variable Input",
-        args_string: JSON.stringify({
-          variable_name: "test_var_1",
-          variable_options_source: "checkbox",
-          initial_value: { value: true },
-        }),
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-    ],
-    id: 1,
-    label: "test_label",
-    name: "editable",
-    notes: "test_notes",
-  });
-  expect(mockSetIsEditing).toHaveBeenCalledWith(true);
+
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      name: "editable",
+      label: "test_label",
+      access_groups: [],
+      notes: "test_notes",
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "Variable Input",
+          args_string: JSON.stringify({
+            variable_name: "test_var",
+            variable_options_source: "checkbox",
+            initial_value: { value: true },
+          }),
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+        {
+          i: "2",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "Variable Input",
+          args_string: JSON.stringify({
+            variable_name: "test_var_1",
+            variable_options_source: "checkbox",
+            initial_value: { value: true },
+          }),
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
+      editable: true,
+    })
+  );
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      test_var: true,
+      test_var_1: true,
+    })
+  );
 });
 
 test("Dashboard Item copy item variable input already exists", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -724,59 +555,27 @@ test("Dashboard Item copy item variable input already exists", async () => {
     },
   ];
   const gridItem = mockedDashboard.gridItems[0];
-  const mockSetIsEditing = jest.fn();
-  const mockSetLayoutContext = jest.fn();
-  const mockGetLayoutContext = jest.fn();
-  const mockSetVariableInputValues = jest.fn();
 
-  mockGetLayoutContext.mockReturnValue(mockedDashboard);
-
-  render(
-    <AppContext.Provider value={{ visualizationArgs: mockedVisualizationArgs }}>
-      <EditingContext.Provider
-        value={{ isEditing: false, setIsEditing: mockSetIsEditing }}
-      >
-        <LayoutGridItemsContext.Provider
-          value={{ gridItems: mockedDashboard.gridItems }}
-        >
-          <LayoutContext.Provider
-            value={{
-              setLayoutContext: mockSetLayoutContext,
-              getLayoutContext: mockGetLayoutContext,
-            }}
-          >
-            <LayoutEditableContext.Provider
-              value={{
-                editableDashboard: true,
-              }}
-            >
-              <VariableInputsContext.Provider
-                value={{
-                  variableInputValues: {
-                    test_var: true,
-                    test_var_1: true,
-                  },
-                  setVariableInputValues: mockSetVariableInputValues,
-                }}
-              >
-                <DataViewerModeContext.Provider
-                  value={{ setInDataViewerMode: jest.fn() }}
-                >
-                  <DashboardItem
-                    gridItemSource={gridItem.source}
-                    gridItemI={gridItem.i}
-                    gridItemArgsString={gridItem.args_string}
-                    gridItemMetadataString={gridItem.metadata_string}
-                    gridItemIndex={0}
-                  />
-                </DataViewerModeContext.Provider>
-              </VariableInputsContext.Provider>
-            </LayoutEditableContext.Provider>
-          </LayoutContext.Provider>
-        </LayoutGridItemsContext.Provider>
-      </EditingContext.Provider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={0}
+        />
+        <ContextLayoutPComponent />
+        <EditingPComponent />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: {
+      dashboards: updatedMockedDashboards,
+      initialDashboard: updatedMockedDashboards.editable.name,
+    },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -789,124 +588,103 @@ test("Dashboard Item copy item variable input already exists", async () => {
   await act(async () => {
     await userEvent.click(createCopyButton);
   });
-  expect(mockSetVariableInputValues).toHaveBeenCalledWith({
-    test_var: true,
-    test_var_1: true,
-  });
-  expect(mockSetLayoutContext).toHaveBeenCalledWith({
-    access_groups: [],
-    editable: true,
-    gridItems: [
-      {
-        i: "1",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "Variable Input",
-        args_string: JSON.stringify({
-          variable_name: "test_var",
-          variable_options_source: "checkbox",
-          initial_value: { value: true },
-        }),
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-      {
-        i: "2",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "Variable Input",
-        args_string: JSON.stringify({
-          variable_name: "test_var_1",
-          variable_options_source: "checkbox",
-          initial_value: { value: true },
-        }),
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-      {
-        i: "3",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "Variable Input",
-        args_string: JSON.stringify({
-          variable_name: "test_var_2",
-          variable_options_source: "checkbox",
-          initial_value: { value: true },
-        }),
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-    ],
-    id: 1,
-    label: "test_label",
-    name: "editable",
-    notes: "test_notes",
-  });
-  expect(mockSetIsEditing).toHaveBeenCalledWith(true);
+
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      name: "editable",
+      label: "test_label",
+      access_groups: [],
+      notes: "test_notes",
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "Variable Input",
+          args_string: JSON.stringify({
+            variable_name: "test_var",
+            variable_options_source: "checkbox",
+            initial_value: { value: true },
+          }),
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+        {
+          i: "2",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "Variable Input",
+          args_string: JSON.stringify({
+            variable_name: "test_var_1",
+            variable_options_source: "checkbox",
+            initial_value: { value: true },
+          }),
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+        {
+          i: "3",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "Variable Input",
+          args_string: JSON.stringify({
+            variable_name: "test_var_2",
+            variable_options_source: "checkbox",
+            initial_value: { value: true },
+          }),
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
+      editable: true,
+    })
+  );
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      test_var: true,
+      test_var_1: true,
+      test_var_2: true,
+    })
+  );
 });
 
 test("Dashboard Item edit size", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
   const gridItem = mockedDashboard.gridItems[0];
   gridItem.source = "Custom Image";
   gridItem.args_string = JSON.stringify({
     image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
   });
-  const mockSetIsEditing = jest.fn();
 
-  render(
-    <EditingContext.Provider
-      value={{ isEditing: false, setIsEditing: mockSetIsEditing }}
-    >
-      <LayoutGridItemsContext.Provider
-        value={{ gridItems: mockedDashboard.gridItems }}
-      >
-        <LayoutContext.Provider
-          value={{
-            setLayoutContext: jest.fn(),
-            getLayoutContext: jest.fn(),
-          }}
-        >
-          <LayoutEditableContext.Provider
-            value={{
-              editableDashboard: true,
-            }}
-          >
-            <VariableInputsContext.Provider
-              value={{
-                variableInputValues: {
-                  test_var: true,
-                  test_var_1: true,
-                },
-                setVariableInputValues: jest.fn(),
-              }}
-            >
-              <DataViewerModeContext.Provider
-                value={{ setInDataViewerMode: jest.fn() }}
-              >
-                <DashboardItem
-                  gridItemSource={gridItem.source}
-                  gridItemI={gridItem.i}
-                  gridItemArgsString={gridItem.args_string}
-                  gridItemMetadataString={gridItem.metadata_string}
-                  gridItemIndex={0}
-                />
-              </DataViewerModeContext.Provider>
-            </VariableInputsContext.Provider>
-          </LayoutEditableContext.Provider>
-        </LayoutContext.Provider>
-      </LayoutGridItemsContext.Provider>
-    </EditingContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={0}
+        />
+        <EditingPComponent />
+      </>
+    ),
+    options: {
+      dashboards: updatedMockedDashboards,
+      initialDashboard: updatedMockedDashboards.editable.name,
+    },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -919,5 +697,5 @@ test("Dashboard Item edit size", async () => {
   await act(async () => {
     await userEvent.click(editSizeButton);
   });
-  expect(mockSetIsEditing).toHaveBeenCalledWith(true);
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });

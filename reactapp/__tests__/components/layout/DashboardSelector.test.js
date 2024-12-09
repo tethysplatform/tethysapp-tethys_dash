@@ -1,18 +1,12 @@
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import DashboardSelector from "components/layout/DashboardSelector";
 import { mockedDashboards } from "__tests__/utilities/constants";
-import SelectedDashboardContextProvider, {
-  useLayoutContext,
-} from "components/contexts/SelectedDashboardContext";
-import { useDashboardDropdownContext } from "components/contexts/AvailableDashboardsContext";
-import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
-import EditingContextProvider from "components/contexts/EditingContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import { AppContext } from "components/contexts/Contexts";
-import PropTypes from "prop-types";
+import renderWithLoaders, {
+  ContextLayoutPComponent,
+} from "__tests__/utilities/customRender";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
   return {
@@ -21,118 +15,31 @@ jest.mock("components/dashboard/DeleteConfirmation", () => {
 });
 const mockedConfirm = jest.mocked(confirm);
 
-const TestingComponent = (props) => {
-  const { getLayoutContext } = useLayoutContext();
-  const { selectedDashboardDropdownOption } = useDashboardDropdownContext();
-
-  return (
-    <>
-      <DashboardSelector initialDashboard={props.initialDashboard} />
-      <p data-testid="layout-context">{JSON.stringify(getLayoutContext())}</p>
-      <p data-testid="selected-dropdown">
-        {JSON.stringify(selectedDashboardDropdownOption)}
-      </p>
-    </>
-  );
-};
-
 test("Dashboard Selector without initial", async () => {
-  render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContextProvider>
-            <EditingContextProvider>
-              <TestingComponent />
-            </EditingContextProvider>
-          </AvailableDashboardsContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({ children: <DashboardSelector /> });
 
-  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({
-      name: "",
-      label: "",
-      access_groups: [],
-      notes: "",
-      gridItems: [],
-      editable: false,
-    })
-  );
-  expect(await screen.findByTestId("selected-dropdown")).toHaveTextContent(
-    null
-  );
+  expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
+  expect(await screen.findByRole("combobox")).toBeInTheDocument();
+  expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
 });
 
 test("Dashboard Selector with initial", async () => {
-  // eslint-disable-next-line
-  await act(() =>
-    render(
-      <AppContext.Provider
-        value={{ csrf: "csrf", dashboards: mockedDashboards }}
-      >
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <TestingComponent initialDashboard={"editable"} />
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </AppContext.Provider>
-    )
-  );
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
 
-  await waitFor(async () => {
-    expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-      JSON.stringify({
-        name: "editable",
-        label: "test_label",
-        access_groups: [],
-        notes: "test_notes",
-        gridItems: [
-          {
-            i: "1",
-            x: 0,
-            y: 0,
-            w: 20,
-            h: 20,
-            source: "",
-            args_string: "{}",
-            metadata_string: JSON.stringify({
-              refreshRate: 0,
-            }),
-          },
-        ],
-        editable: true,
-      })
-    );
+  renderWithLoaders({
+    children: <DashboardSelector initialDashboard={mockedDashboard.name} />,
   });
-  expect(await screen.findByTestId("selected-dropdown")).toHaveTextContent(
-    JSON.stringify({
-      value: "editable",
-      label: "test_label",
-    })
-  );
+
+  expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
+  expect(await screen.findByRole("combobox")).toBeInTheDocument();
+  expect(await screen.findByText("test_label")).toBeInTheDocument();
+  expect(await screen.findByLabelText("editButton")).toBeInTheDocument();
 });
 
 test("Dashboard Selector changing between public and user options", async () => {
-  render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContextProvider>
-            <EditingContextProvider>
-              <TestingComponent />
-            </EditingContextProvider>
-          </AvailableDashboardsContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <DashboardSelector />,
+  });
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
@@ -199,19 +106,9 @@ test("Dashboard Selector changing between public and user options", async () => 
 });
 
 test("Dashboard Selector create new dashboard", async () => {
-  render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContextProvider>
-            <EditingContextProvider>
-              <TestingComponent />
-            </EditingContextProvider>
-          </AvailableDashboardsContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <DashboardSelector />,
+  });
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
@@ -235,19 +132,9 @@ test("Dashboard Selector create new dashboard", async () => {
 test("Dashboard Selector changing when editing, true confirm", async () => {
   mockedConfirm.mockResolvedValue(true);
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContextProvider>
-            <EditingContextProvider>
-              <TestingComponent />
-            </EditingContextProvider>
-          </AvailableDashboardsContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <DashboardSelector />,
+  });
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
@@ -261,41 +148,13 @@ test("Dashboard Selector changing when editing, true confirm", async () => {
   await act(async () => {
     await userEvent.click(userOption);
   });
-  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({
-      name: "editable",
-      label: "test_label",
-      access_groups: [],
-      notes: "test_notes",
-      gridItems: [
-        {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
-        },
-      ],
-      editable: true,
-    })
-  );
-  expect(await screen.findByTestId("selected-dropdown")).toHaveTextContent(
-    JSON.stringify({
-      value: "editable",
-      label: "test_label",
-    })
-  );
-
+  expect(await screen.findByText("test_label")).toBeInTheDocument();
   const editButton = screen.getByLabelText("editButton");
   // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(editButton);
   });
+  expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
 
   // eslint-disable-next-line
   await act(async () => {
@@ -307,53 +166,16 @@ test("Dashboard Selector changing when editing, true confirm", async () => {
   await act(async () => {
     await userEvent.click(publicOption);
   });
-  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({
-      name: "noneditable",
-      label: "test_label2",
-      access_groups: ["public"],
-      notes: "test_notes2",
-      gridItems: [
-        {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
-        },
-      ],
-      editable: false,
-    })
-  );
-  expect(await screen.findByTestId("selected-dropdown")).toHaveTextContent(
-    JSON.stringify({
-      value: "noneditable",
-      label: "test_label2",
-    })
-  );
+  expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
+  expect(await screen.findByText("test_label2")).toBeInTheDocument();
 });
 
 test("Dashboard Selector changing when editing, false confirm", async () => {
   mockedConfirm.mockResolvedValue(false);
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContextProvider>
-            <EditingContextProvider>
-              <TestingComponent />
-            </EditingContextProvider>
-          </AvailableDashboardsContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <DashboardSelector />,
+  });
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
@@ -367,41 +189,13 @@ test("Dashboard Selector changing when editing, false confirm", async () => {
   await act(async () => {
     await userEvent.click(userOption);
   });
-  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({
-      name: "editable",
-      label: "test_label",
-      access_groups: [],
-      notes: "test_notes",
-      gridItems: [
-        {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
-        },
-      ],
-      editable: true,
-    })
-  );
-  expect(await screen.findByTestId("selected-dropdown")).toHaveTextContent(
-    JSON.stringify({
-      value: "editable",
-      label: "test_label",
-    })
-  );
 
   const editButton = screen.getByLabelText("editButton");
   // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(editButton);
   });
+  expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
 
   // eslint-disable-next-line
   await act(async () => {
@@ -413,35 +207,9 @@ test("Dashboard Selector changing when editing, false confirm", async () => {
   await act(async () => {
     await userEvent.click(publicOption);
   });
-  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({
-      name: "editable",
-      label: "test_label",
-      access_groups: [],
-      notes: "test_notes",
-      gridItems: [
-        {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
-        },
-      ],
-      editable: true,
-    })
-  );
-  expect(await screen.findByTestId("selected-dropdown")).toHaveTextContent(
-    JSON.stringify({
-      value: "editable",
-      label: "test_label",
-    })
-  );
+  expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
+  expect(screen.queryByText("test_label2")).not.toBeInTheDocument();
+  expect(await screen.findByText("test_label")).toBeInTheDocument();
 });
 
 test("Dashboard Selector add and then cancel button", async () => {
@@ -493,21 +261,15 @@ test("Dashboard Selector add and then cancel button", async () => {
     ],
   };
 
-  render(
-    <AppContext.Provider
-      value={{ csrf: "csrf", dashboards: copiedMockedDashboards }}
-    >
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContextProvider>
-            <EditingContextProvider>
-              <TestingComponent />
-            </EditingContextProvider>
-          </AvailableDashboardsContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <DashboardSelector />
+        <ContextLayoutPComponent />
+      </>
+    ),
+    options: { dashboards: copiedMockedDashboards },
+  });
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
@@ -650,7 +412,3 @@ test("Dashboard Selector add and then cancel button", async () => {
   expect(screen.queryByLabelText("saveButton")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("addGridItemButton")).not.toBeInTheDocument();
 });
-
-TestingComponent.propTypes = {
-  initialDashboard: PropTypes.string,
-};
