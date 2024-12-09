@@ -509,6 +509,24 @@ export const mockedCheckboxVariable = {
   }),
 };
 
+export const mockedNullCheckboxVariable = {
+  i: "1",
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Variable Input",
+  args_string: JSON.stringify({
+    initial_value: null,
+    variable_name: "Test Variable",
+    variable_options_source: "checkbox", // TODO Change this to be an empty string or null
+    variable_input_type: "number",
+  }),
+  metadata_string: JSON.stringify({
+    refreshRate: 0,
+  }),
+};
+
 export const mockedDropdownVariable = {
   i: "1",
   x: 0,
@@ -526,3 +544,85 @@ export const mockedDropdownVariable = {
     refreshRate: 0,
   }),
 };
+
+export const mockedAvailableVizArgs = [
+  {
+    "label": "Some Visualization Group Name: Some Visualization Name - Some Visualization Arg",
+    "value": "Some Visualization Group Name: Some Visualization Name - Some Visualization Arg",
+    "argOptions": [
+      {
+        "label": "North Coast",
+        "options": [
+          {
+            "label": "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
+            "value": "CREC1"
+          },
+          {
+            "label": "FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE",
+            "value": "FTDC1"
+          },
+          {
+            "label": "ORIC1 - REDWOOD CREEK - ORICK",
+            "value": "ORIC1"
+          },
+          {
+            "label": "ARCC1 - MAD RIVER - ARCATA",
+            "value": "ARCC1"
+          },
+          {
+            "label": "PLBC1 - EEL RIVER - LAKE PILLSBURY",
+            "value": "PLBC1"
+          },
+          {
+            "label": "DOSC1 - MIDDLE FORK EEL RIVER - DOS RIOS",
+            "value": "DOSC1"
+          },
+          {
+            "label": "FTSC1 - EEL RIVER - FORT SEWARD",
+            "value": "FTSC1"
+          },
+          {
+            "label": "LEGC1 - SOUTH FORK EEL RIVER - LEGGETT",
+            "value": "LEGC1"
+          },
+          {
+            "label": "MRNC1 - SOUTH FORK EEL RIVER - MIRANDA",
+            "value": "MRNC1"
+          },
+          {
+            "label": "SCOC1 - EEL RIVER - SCOTIA",
+            "value": "SCOC1"
+          },
+          {
+            "label": "BRGC1 - VAN DUZEN RIVER - BRIDGEVILLE",
+            "value": "BRGC1"
+          },
+          {
+            "label": "FRNC1 - EEL RIVER - FERNBRIDGE",
+            "value": "FRNC1"
+          },
+          {
+            "label": "BLKC1 - REDWOOD CREEK - BLUE LAKE",
+            "value": "BLKC1"
+          },
+          {
+            "label": "MAUC1 - MAD RIVER - ABOVE RUTH RESERVOIR",
+            "value": "MAUC1"
+          },
+          {
+            "label": "ETTC1 - MATTOLE RIVER - ETTERSBURG",
+            "value": "ETTC1"
+          },
+          {
+            "label": "MTOC1 - MATTOLE RIVER - PETROLIA",
+            "value": "MTOC1"
+          },
+          {
+            "label": "FTBC1 - NOYO RIVER - FORT BRAGG",
+            "value": "FTBC1"
+          }
+        ]
+      },
+    ]
+  },
+]
