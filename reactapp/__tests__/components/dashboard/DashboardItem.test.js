@@ -12,6 +12,7 @@ import {
   mockedDashboards,
   mockedVisualizationArgs,
   mockedVisualizationsWithDefaults,
+  mockedUserSetting,
 } from "__tests__/utilities/constants";
 import SelectedDashboardContextProvider, {
   useLayoutGridItemsContext,
@@ -27,7 +28,7 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import DataViewerModeContextProvider, {
   useDataViewerModeContext,
 } from "components/contexts/DataViewerModeContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import PropTypes from "prop-types";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
@@ -255,7 +256,11 @@ test("Dashboard Item edit item", async () => {
 
   render(
     <AppContext.Provider
-      value={{ csrf: "csrf", visualizations: mockedVisualizationsWithDefaults }}
+      value={{
+        csrf: "csrf",
+        visualizations: mockedVisualizationsWithDefaults,
+        userSettings: mockedUserSetting,
+      }}
     >
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>

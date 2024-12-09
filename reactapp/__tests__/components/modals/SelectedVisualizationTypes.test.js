@@ -2,7 +2,7 @@ import { act, useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import { mockedVisualizationsWithDefaults } from "__tests__/utilities/constants";
 
 const TestingComponent = () => {

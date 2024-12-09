@@ -2,9 +2,11 @@ import { useCallback, useEffect, useState, useContext } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import DataInput from "components/inputs/DataInput";
-import { AppContext } from "components/contexts/AppContext";
+import {
+  AppContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
-import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
@@ -27,18 +29,8 @@ const VariableInput = ({ args, onChange }) => {
   const [label, setLabel] = useState(null);
   const { visualizationArgs } = useContext(AppContext);
   const { inDataViewerMode } = useDataViewerModeContext();
-  const { setVariableInputValues } = useVariableInputValuesContext();
-
-  const updateVariableInputs = useCallback(
-    (new_value) => {
-      if (new_value || new_value === false) {
-        setVariableInputValues((prevVariableInputValues) => ({
-          ...prevVariableInputValues,
-          [args.variable_name]: new_value,
-        }));
-      }
-    },
-    [args.variable_name, setVariableInputValues]
+  const { variableInputValues, setVariableInputValues } = useContext(
+    VariableInputsContext
   );
 
   useEffect(() => {

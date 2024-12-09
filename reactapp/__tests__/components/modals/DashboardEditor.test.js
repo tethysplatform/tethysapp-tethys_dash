@@ -15,7 +15,7 @@ import PropTypes from "prop-types";
 import AvailableDashboardsContextProvider, {
   AvailableDashboardsContext,
 } from "components/contexts/AvailableDashboardsContext";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {

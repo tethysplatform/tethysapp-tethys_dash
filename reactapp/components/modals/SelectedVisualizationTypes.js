@@ -4,7 +4,7 @@ import Modal from "react-bootstrap/Modal";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import CustomAlert from "components/dashboard/CustomAlert";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 
 const StyledList = styled.ul`
   list-style: none;

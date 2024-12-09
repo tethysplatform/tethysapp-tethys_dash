@@ -1,21 +1,40 @@
 import PropTypes from "prop-types";
-import { useContext, createContext, useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
+import LoadingAnimation from "components/loader/LoadingAnimation";
 import appAPI from "services/api/app";
-import { confirm } from "components/dashboard/DeleteConfirmation";
-import { AppContext } from "components/contexts/AppContext";
-import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
+import {
+  AppContext,
+  UserSettingsContext,
+  VariableInputsContext,
+  LayoutContext,
+  LayoutNameContext,
+  LayoutLabelContext,
+  LayoutAccessGroupsContext,
+  LayoutNotesContext,
+  LayoutGridItemsContext,
+  LayoutEditableContext,
+  AvailableDashboardsContext,
+  DashboardDropdownContext,
+  EditingContext,
+} from "components/contexts/Contexts";
 
-export const AvailableDashboardsContext = createContext();
-const DashboardDropdownContext = createContext();
+function PostLoader({ children }) {
+  const { csrf, userSettings, dashboards } = useContext(AppContext);
 
-const AvailableDashboardsContextProvider = ({ children }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [updatedUserSettings, setUpdatedUserSettings] = useState(userSettings);
+  const [variableInputValues, setVariableInputValues] = useState({});
+  const [name, setName] = useState("");
+  const [label, setLabel] = useState("");
+  const [accessGroups, setAccessGroups] = useState([]);
+  const [editable, setEditable] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [gridItems, setGridItems] = useState([]);
   const [availableDashboards, setAvailableDashboards] = useState(null);
   const [dashboardDropdownOptions, setDashboardDropdownOptions] = useState([]);
   const [selectedDashboardDropdownOption, setSelectedDashboardDropdownOption] =
     useState(null);
-  const { csrf, dashboards } = useContext(AppContext);
-  const { setLayoutContext, resetLayoutContext, getLayoutContext } =
-    useLayoutContext();
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     // Setting up dashboard dropdown
@@ -40,8 +59,71 @@ const AvailableDashboardsContextProvider = ({ children }) => {
       { label: "User", options: privateOptions },
     ]);
     setAvailableDashboards(dashboards);
-    // eslint-disable-next-line
+    setIsLoaded(true);
+    console.log("here");
   }, []);
+
+  async function updateUserSettings(updatedProperties) {
+    const newUserSettings = {
+      ...updatedUserSettings,
+      ...updatedProperties,
+    };
+    const apiResponse = await appAPI.updateUserSettings(newUserSettings, csrf);
+    if (apiResponse["success"]) {
+      setUpdatedUserSettings(newUserSettings);
+    }
+    return apiResponse;
+  }
+
+  function updateVariableInputValuesWithGridItems(gridItems) {
+    const updatedVariableInputValues = {};
+    for (let gridItem of gridItems) {
+      const args = JSON.parse(gridItem.args_string);
+
+      if (gridItem.source === "Variable Input") {
+        if (args.variable_name in variableInputValues) {
+          // Keep current selected value for dependent visualizations
+          updatedVariableInputValues[args.variable_name] =
+            variableInputValues[args.variable_name];
+        } else {
+          updatedVariableInputValues[args.variable_name] =
+            args.initial_value.value || args.initial_value;
+        }
+      }
+    }
+    setVariableInputValues(updatedVariableInputValues);
+  }
+
+  function resetLayoutContext() {
+    setName("");
+    setLabel("");
+    setAccessGroups([]);
+    setNotes("");
+    setGridItems([]);
+    setEditable(false);
+    updateVariableInputValuesWithGridItems([]);
+  }
+
+  function setLayoutContext(dashboardContext) {
+    setName(dashboardContext["name"]);
+    setLabel(dashboardContext["label"]);
+    setAccessGroups(dashboardContext["access_groups"]);
+    setNotes(dashboardContext["notes"]);
+    setGridItems(dashboardContext["gridItems"]);
+    setEditable(dashboardContext["editable"]);
+    updateVariableInputValuesWithGridItems(dashboardContext["gridItems"]);
+  }
+
+  function getLayoutContext() {
+    return {
+      name: name,
+      label: label,
+      access_groups: accessGroups,
+      notes: notes,
+      gridItems: gridItems,
+      editable: editable,
+    };
+  }
 
   function addOptionFromDashboardDropdownOptions(
     options,
@@ -190,43 +272,77 @@ const AvailableDashboardsContextProvider = ({ children }) => {
     return apiResponse;
   }
 
-  return (
-    <AvailableDashboardsContext.Provider
-      value={{
-        availableDashboards,
-        setAvailableDashboards,
-        addDashboard,
-        deleteDashboard,
-        updateDashboard,
-        copyCurrentDashboard,
-      }}
-    >
-      <DashboardDropdownContext.Provider
-        value={{
-          dashboardDropdownOptions,
-          selectedDashboardDropdownOption,
-          setSelectedDashboardDropdownOption,
-        }}
-      >
-        {children}
-      </DashboardDropdownContext.Provider>
-    </AvailableDashboardsContext.Provider>
-  );
-};
+  if (!isLoaded) {
+    return <LoadingAnimation />;
+  } else {
+    return (
+      <>
+        <UserSettingsContext.Provider
+          value={{ updatedUserSettings, updateUserSettings }}
+        >
+          <VariableInputsContext.Provider
+            value={{
+              variableInputValues,
+              setVariableInputValues,
+              updateVariableInputValuesWithGridItems,
+            }}
+          >
+            <LayoutContext.Provider
+              value={{ setLayoutContext, resetLayoutContext, getLayoutContext }}
+            >
+              <LayoutNameContext.Provider value={{ name, setName }}>
+                <LayoutLabelContext.Provider value={{ label, setLabel }}>
+                  <LayoutEditableContext.Provider value={editable}>
+                    <LayoutAccessGroupsContext.Provider
+                      value={{ accessGroups, setAccessGroups }}
+                    >
+                      <LayoutNotesContext.Provider value={{ notes, setNotes }}>
+                        <LayoutGridItemsContext.Provider
+                          value={{ gridItems, setGridItems }}
+                        >
+                          <AvailableDashboardsContext.Provider
+                            value={{
+                              availableDashboards,
+                              setAvailableDashboards,
+                              addDashboard,
+                              deleteDashboard,
+                              updateDashboard,
+                              copyCurrentDashboard,
+                            }}
+                          >
+                            <DashboardDropdownContext.Provider
+                              value={{
+                                dashboardDropdownOptions,
+                                selectedDashboardDropdownOption,
+                                setSelectedDashboardDropdownOption,
+                              }}
+                            >
+                              <EditingContext.Provider
+                                value={{ isEditing, setIsEditing }}
+                              >
+                                {children}
+                              </EditingContext.Provider>
+                            </DashboardDropdownContext.Provider>
+                          </AvailableDashboardsContext.Provider>
+                        </LayoutGridItemsContext.Provider>
+                      </LayoutNotesContext.Provider>
+                    </LayoutAccessGroupsContext.Provider>
+                  </LayoutEditableContext.Provider>
+                </LayoutLabelContext.Provider>
+              </LayoutNameContext.Provider>
+            </LayoutContext.Provider>
+          </VariableInputsContext.Provider>
+        </UserSettingsContext.Provider>
+      </>
+    );
+  }
+}
 
-AvailableDashboardsContextProvider.propTypes = {
+PostLoader.propTypes = {
   children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.node),
-    PropTypes.node,
+    PropTypes.arrayOf(PropTypes.element),
+    PropTypes.element,
   ]),
 };
 
-export default AvailableDashboardsContextProvider;
-
-export const useAvailableDashboardsContext = () => {
-  return useContext(AvailableDashboardsContext);
-};
-
-export const useDashboardDropdownContext = () => {
-  return useContext(DashboardDropdownContext);
-};
+export default PostLoader;

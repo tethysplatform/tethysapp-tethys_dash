@@ -1,14 +1,18 @@
 import PropTypes from "prop-types";
-import { useEffect, useState, memo, useRef } from "react";
+import { useEffect, useState, memo, useRef, useContext } from "react";
 import FullscreenPlotModal from "components/modals/FullscreenPlot";
 import Image from "components/visualizations/Image";
 import Text from "components/visualizations/Text";
 import VariableInput from "components/visualizations/VariableInput";
-import { setVisualization } from "components/visualizations/utilities";
-import { updateGridItemArgsWithVariableInputs } from "components/visualizations/utilities";
-import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
+import {
+  setVisualization,
+  updateGridItemArgsWithVariableInputs,
+} from "components/visualizations/utilities";
+import {
+  EditingContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import { valuesEqual } from "components/modals/utilities";
-import { useEditingContext } from "components/contexts/EditingContext";
 
 const BaseVisualization = ({
   source,
@@ -18,11 +22,11 @@ const BaseVisualization = ({
   hideFullscreen,
 }) => {
   const [viz, setViz] = useState(null);
-  const { variableInputValues } = useVariableInputValuesContext();
+  const { variableInputValues } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
-  const { isEditing } = useEditingContext();
+  const { isEditing } = useContext(EditingContext);
   const gridMetadata = JSON.parse(metadataString);
   const refreshRate = gridMetadata.refreshRate;
   const visualizationRef = useRef();
@@ -33,7 +37,7 @@ const BaseVisualization = ({
     if (source === "") {
       setViz(<div data-testid="Source_Unknown"></div>);
     } else if (source === "Custom Image") {
-      setViz(<Image source={args["image_source"]} alt="custom_image"/>);
+      setViz(<Image source={args["image_source"]} alt="custom_image" />);
     } else if (source === "Text") {
       setViz(<Text textValue={args["text"]} />);
     } else if (source === "Variable Input") {

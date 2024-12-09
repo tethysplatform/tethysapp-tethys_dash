@@ -3,7 +3,7 @@ import PropTypes from "prop-types";
 import { useContext } from "react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 import NotFound from "components/error/NotFound";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 
 function Layout({ children }) {
   const { routes } = useContext(AppContext);

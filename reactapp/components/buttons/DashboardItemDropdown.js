@@ -2,7 +2,8 @@ import styled from "styled-components";
 import PropTypes from "prop-types";
 import Dropdown from "react-bootstrap/Dropdown";
 import { BsThreeDotsVertical } from "react-icons/bs";
-import { useLayoutEditableContext } from "components/contexts/SelectedDashboardContext";
+import { useContext } from "react";
+import { LayoutEditableContext } from "components/contexts/Contexts";
 import "components/buttons/itemDropdown.css";
 
 const StyledDropdownToggle = styled(Dropdown.Toggle)`
@@ -19,7 +20,7 @@ const DashboardItemDropdown = ({
   editSize,
   copyGridItem,
 }) => {
-  const editableDashboard = useLayoutEditableContext();
+  const editableDashboard = useContext(LayoutEditableContext);
   return (
     <Dropdown>
       <StyledDropdownToggle id="dropdown-basic">

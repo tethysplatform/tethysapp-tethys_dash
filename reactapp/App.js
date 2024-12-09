@@ -1,11 +1,7 @@
 import ErrorBoundary from "components/error/ErrorBoundary";
 import Layout from "components/layout/Layout";
 import Loader from "components/loader/Loader";
-
-import SelectedDashboardContextProvider from "components/contexts/SelectedDashboardContext";
-import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import EditingContextProvider from "components/contexts/EditingContext";
-import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
+import PostLoader from "components/loader/PostLoader";
 
 import "App.scss";
 
@@ -14,15 +10,9 @@ function App() {
     <>
       <ErrorBoundary>
         <Loader>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <Layout />
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
+          <PostLoader>
+            <Layout />
+          </PostLoader>
         </Loader>
       </ErrorBoundary>
     </>

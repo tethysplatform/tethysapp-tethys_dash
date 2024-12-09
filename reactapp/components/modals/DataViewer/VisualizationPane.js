@@ -6,8 +6,11 @@ import Image from "components/visualizations/Image";
 import DataInput from "components/inputs/DataInput";
 import TextEditor from "components/inputs/TextEditor";
 import { setVisualization } from "components/visualizations/utilities";
-import { AppContext } from "components/contexts/AppContext";
-import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
+import {
+  AppContext,
+  UserSettingsContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import {
   getInitialInputValue,
   spaceAndCapitalize,
@@ -55,7 +58,7 @@ function VisualizationPane({
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
   const { visualizations } = useContext(AppContext);
-  const { variableInputValues } = useVariableInputValuesContext();
+  const { variableInputValues } = useContext(VariableInputsContext);
 
   useEffect(() => {
     localStorage.setItem("deselected_visualizations", deselectedVisualizations);
