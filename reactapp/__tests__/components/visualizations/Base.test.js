@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 import {
   mockedApiImageBase,
+  mockedAvailableVizArgs,
   mockedCardBase,
   mockedCardData,
   mockedCustomImageBase,
@@ -14,12 +15,16 @@ import {
   mockedTableBase,
   mockedTableData,
   mockedTextBase,
+  mockedTextVariable,
   mockedUnknownBase,
 } from "__tests__/utilities/constants";
 import Base from "components/visualizations/Base";
 import appAPI from "services/api/app";
 import { EditingContext } from "components/contexts/EditingContext";
 import { VariableInputValuesContext } from "components/contexts/VariableInputsContext";
+import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
+import { DataViewerModeContext } from "components/contexts/DataViewerModeContext";
+import { LayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -45,30 +50,44 @@ function initAndRender(props) {
   const user = userEvent.setup();
   const hideFullscreen = jest.fn();
   const setVariableInputValues = jest.fn();
+  const setInDataViewerMode = jest.fn();
+  const setGridItems = jest.fn();
   const updateVariableInputValuesWithGridItems = jest.fn();
   const setIsEditing = jest.fn();
 
   const BaseRender = (props) => {
     return (
-      <VariableInputValuesContext.Provider
-        value={{
-          variableInputValues: props.variableInputValues,
-          setVariableInputValues,
-          updateVariableInputValuesWithGridItems,
-        }}
+      <AvailableVisualizationsContext.Provider
+        value={{ availableVizArgs: mockedAvailableVizArgs }}
       >
-        <EditingContext.Provider
-          value={{ isEditing: props.isEditing, setIsEditing }}
+        <LayoutGridItemsContext.Provider
+          value={{ gridItems: props.gridItems, setGridItems }}
         >
-          <Base
-            source={props.source}
-            argsString={props.argsString}
-            metadataString={props.metadataString}
-            showFullscreen={props.showFullscreen}
-            hideFullscreen={hideFullscreen}
-          />
-        </EditingContext.Provider>
-      </VariableInputValuesContext.Provider>
+          <DataViewerModeContext.Provider
+            value={{ inDataViewerMode: props.inDataViewer, setInDataViewerMode}}
+          >
+            <VariableInputValuesContext.Provider
+              value={{
+                variableInputValues: props.variableInputValues,
+                setVariableInputValues,
+                updateVariableInputValuesWithGridItems,
+              }}
+            >
+              <EditingContext.Provider
+                value={{ isEditing: props.isEditing, setIsEditing }}
+              >
+                <Base
+                  source={props.source}
+                  argsString={props.argsString}
+                  metadataString={props.metadataString}
+                  showFullscreen={props.showFullscreen}
+                  hideFullscreen={hideFullscreen}
+                />
+              </EditingContext.Provider>
+            </VariableInputValuesContext.Provider>
+          </DataViewerModeContext.Provider>
+        </LayoutGridItemsContext.Provider>
+      </AvailableVisualizationsContext.Provider>
     );
   };
 
@@ -80,6 +99,8 @@ function initAndRender(props) {
     hideFullscreen: PropTypes.func,
     variableInputValues: PropTypes.array,
     isEditing: PropTypes.bool,
+    inDataViewer: PropTypes.bool,
+    gridItems: PropTypes.object,
   };
 
   const { rerender } = render(BaseRender(props));
@@ -168,6 +189,38 @@ it("Creates an Base Item with a Text Box", async () => {
 
   const text = screen.getByText("Custom Text");
   expect(text).toBeInTheDocument();
+});
+
+it("Creates an Base Item with a variable input text box", async () => {
+  const gridItem = mockedTextVariable;
+  const { user, setVariableInputValues } = initAndRender({
+    source: gridItem.source,
+    argsString: gridItem.args_string,
+    metadataString: gridItem.metadata_string,
+    showFullscreen: false,
+    gridItems: [mockedTextVariable]
+  });
+
+  const variableInput = screen.getByLabelText("Test Variable Input")
+  expect(variableInput).toBeInTheDocument();
+  await user.type(variableInput, "Hello World");
+
+  expect(variableInput).toHaveValue("Hello World");
+
+  // Only update the Text Input after clicking the input refresh button
+  expect(setVariableInputValues).not.toHaveBeenCalled();
+
+  const refreshButton = screen.getByRole("button");
+  expect(refreshButton).toBeInTheDocument();
+  await user.click(refreshButton);
+
+  expect(setVariableInputValues).toHaveBeenCalled();
+
+  // Because we used a callback in the setVariableInputValues,
+  // We have to dig a bit into the mock to see what values were passed.
+  const updater = setVariableInputValues.mock.calls[0][0];
+  const result = updater({}); // This is what the existing state would be
+  expect(result).toEqual({"Test Variable": "Hello World"});
 });
 
 it("Creates an Base Item with an image obtained from the api", async () => {
