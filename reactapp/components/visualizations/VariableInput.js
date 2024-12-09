@@ -5,8 +5,8 @@ import DataInput from "components/inputs/DataInput";
 import {
   AppContext,
   VariableInputsContext,
+  DataViewerModeContext,
 } from "components/contexts/Contexts";
-import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
@@ -28,7 +28,7 @@ const VariableInput = ({ args, onChange }) => {
   const [type, setType] = useState(null);
   const [label, setLabel] = useState(null);
   const { visualizationArgs } = useContext(AppContext);
-  const { inDataViewerMode } = useDataViewerModeContext();
+  const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );

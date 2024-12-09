@@ -3,8 +3,10 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import Form from "react-bootstrap/Form";
 import DataSelect from "components/inputs/DataSelect";
-import { LayoutGridItemsContext } from "components/contexts/Contexts";
-import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
+import {
+  LayoutGridItemsContext,
+  DataViewerModeContext,
+} from "components/contexts/Contexts";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 
 const StyledDiv = styled.div`
@@ -22,7 +24,7 @@ const InlineFormCheck = styled(Form.Check)`
 
 const Input = ({ label, type, onChange, value, index, valueOptions }) => {
   const { gridItems } = useContext(LayoutGridItemsContext);
-  const { inDataViewerMode } = useDataViewerModeContext();
+  const { inDataViewerMode } = useContext(DataViewerModeContext);
 
   function getAvailableVariableInputs() {
     const availableVariableInputs = [];
