@@ -1,22 +1,16 @@
-import { act, useEffect, useState } from "react";
+import { act, useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
-import { mockedDashboards } from "__tests__/utilities/constants";
-import SelectedDashboardContextProvider, {
-  useLayoutContext,
-} from "components/contexts/SelectedDashboardContext";
-import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
-import EditingContextProvider, {
-  EditingContext,
-} from "components/contexts/EditingContext";
-import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
-import PropTypes from "prop-types";
-import AvailableDashboardsContextProvider, {
-  AvailableDashboardsContext,
-} from "components/contexts/AvailableDashboardsContext";
-import { AppContext } from "components/contexts/Contexts";
+import {
+  mockedDashboards,
+  updatedDashboard,
+} from "__tests__/utilities/constants";
 import { confirm } from "components/dashboard/DeleteConfirmation";
+import renderWithLoaders, {
+  EditingPComponent,
+} from "__tests__/utilities/customRender";
+import appAPI from "services/api/app";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
   return {
@@ -25,14 +19,8 @@ jest.mock("components/dashboard/DeleteConfirmation", () => {
 });
 const mockedConfirm = jest.mocked(confirm);
 
-const TestingComponent = (props) => {
-  const { setLayoutContext } = useLayoutContext();
+const TestingComponent = () => {
   const [showCanvas, setShowCanvas] = useState(true);
-
-  useEffect(() => {
-    setLayoutContext(props.layoutContext);
-    // eslint-disable-next-line
-  }, []);
 
   return (
     <>
@@ -40,6 +28,7 @@ const TestingComponent = (props) => {
         showCanvas={showCanvas}
         setShowCanvas={setShowCanvas}
       />
+      <EditingPComponent />
       <p>{showCanvas ? "yes show canvas" : "not show canvas"}</p>
     </>
   );
@@ -59,23 +48,13 @@ test("Dashboard Editor Canvas editable dashboard change sharing status", async (
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContextProvider>
-            <EditingContextProvider>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContextProvider>
-          </AvailableDashboardsContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
+  });
 
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
   expect(await screen.findByText("Name:")).toBeInTheDocument();
@@ -125,25 +104,13 @@ test("Dashboard Editor Canvas copy public url failed", async () => {
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(
-    JSON.stringify(mockedDashboards.noneditable)
-  );
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContextProvider>
-            <EditingContextProvider>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContextProvider>
-          </AvailableDashboardsContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.noneditable.name,
+    },
+  });
 
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
   expect(await screen.findByText("Name:")).toBeInTheDocument();
@@ -199,25 +166,13 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
       writeText: mockWriteText,
     },
   });
-  const mockedDashboard = JSON.parse(
-    JSON.stringify(mockedDashboards.noneditable)
-  );
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf", dashboards: mockedDashboards }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContextProvider>
-            <EditingContextProvider>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContextProvider>
-          </AvailableDashboardsContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.noneditable.name,
+    },
+  });
 
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
   expect(await screen.findByText("Name:")).toBeInTheDocument();
@@ -278,34 +233,21 @@ test("Dashboard Editor Canvas edit and save", async () => {
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
-  const mockDeleteDashboard = jest.fn();
   const mockUpdateDashboard = jest.fn();
-  const mockCopyCurrentDashboard = jest.fn();
 
-  mockUpdateDashboard.mockResolvedValue({ success: true });
+  mockUpdateDashboard.mockResolvedValue({
+    success: true,
+    updated_dashboard: updatedDashboard,
+  });
+  appAPI.updateDashboard = mockUpdateDashboard;
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContext.Provider
-            value={{
-              deleteDashboard: mockDeleteDashboard,
-              updateDashboard: mockUpdateDashboard,
-              copyCurrentDashboard: mockCopyCurrentDashboard,
-            }}
-          >
-            <EditingContextProvider>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContextProvider>
-          </AvailableDashboardsContext.Provider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
+  });
+
   const publicRadioButton = screen.getByLabelText("Public");
   fireEvent.click(publicRadioButton);
 
@@ -335,12 +277,31 @@ test("Dashboard Editor Canvas edit and save", async () => {
   await act(async () => {
     await userEvent.click(saveButton);
   });
-  expect(mockUpdateDashboard).toHaveBeenCalledWith({
-    access_groups: ["public"],
-    label: "New Label",
-    name: "new_name",
-    notes: "Here are some notes",
-  });
+  expect(mockUpdateDashboard).toHaveBeenCalledWith(
+    {
+      access_groups: ["public"],
+      editable: true,
+      gridItems: [
+        {
+          args_string: "{}",
+          h: 20,
+          i: "1",
+          metadata_string: '{"refreshRate":0}',
+          source: "",
+          w: 20,
+          x: 0,
+          y: 0,
+        },
+      ],
+      label: "New Label",
+      name: "new_name",
+      notes: "Here are some notes",
+      originalAccessGroups: [],
+      originalLabel: "test_label",
+      originalName: "editable",
+    },
+    "Token"
+  );
   expect(
     await screen.findByText("Successfully updated dashboard settings")
   ).toBeInTheDocument();
@@ -366,34 +327,17 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
-  const mockDeleteDashboard = jest.fn();
   const mockUpdateDashboard = jest.fn();
-  const mockCopyCurrentDashboard = jest.fn();
 
   mockUpdateDashboard.mockResolvedValue({ success: false });
+  appAPI.updateDashboard = mockUpdateDashboard;
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContext.Provider
-            value={{
-              deleteDashboard: mockDeleteDashboard,
-              updateDashboard: mockUpdateDashboard,
-              copyCurrentDashboard: mockCopyCurrentDashboard,
-            }}
-          >
-            <EditingContextProvider>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContextProvider>
-          </AvailableDashboardsContext.Provider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
+  });
 
   const labelInput = await screen.findByLabelText("Label Input");
   fireEvent.change(labelInput, { target: { value: "New Label" } });
@@ -405,12 +349,31 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
   await act(async () => {
     await userEvent.click(saveButton);
   });
-  expect(mockUpdateDashboard).toHaveBeenCalledWith({
-    access_groups: [],
-    label: "New Label",
-    name: "",
-    notes: "",
-  });
+  expect(mockUpdateDashboard).toHaveBeenCalledWith(
+    {
+      access_groups: [],
+      editable: true,
+      gridItems: [
+        {
+          args_string: "{}",
+          h: 20,
+          i: "1",
+          metadata_string: '{"refreshRate":0}',
+          source: "",
+          w: 20,
+          x: 0,
+          y: 0,
+        },
+      ],
+      label: "New Label",
+      name: "",
+      notes: "",
+      originalAccessGroups: [],
+      originalLabel: "test_label",
+      originalName: "editable",
+    },
+    "Token"
+  );
   expect(
     await screen.findByText(
       "Failed to update dashboard settings. Check server logs."
@@ -432,37 +395,20 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
-  const mockDeleteDashboard = jest.fn();
   const mockUpdateDashboard = jest.fn();
-  const mockCopyCurrentDashboard = jest.fn();
 
   mockUpdateDashboard.mockResolvedValue({
     success: false,
     message: "failed to update",
   });
+  appAPI.updateDashboard = mockUpdateDashboard;
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContext.Provider
-            value={{
-              deleteDashboard: mockDeleteDashboard,
-              updateDashboard: mockUpdateDashboard,
-              copyCurrentDashboard: mockCopyCurrentDashboard,
-            }}
-          >
-            <EditingContextProvider>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContextProvider>
-          </AvailableDashboardsContext.Provider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
+  });
 
   const labelInput = await screen.findByLabelText("Label Input");
   fireEvent.change(labelInput, { target: { value: "New Label" } });
@@ -474,12 +420,31 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
   await act(async () => {
     await userEvent.click(saveButton);
   });
-  expect(mockUpdateDashboard).toHaveBeenCalledWith({
-    access_groups: [],
-    label: "New Label",
-    name: "",
-    notes: "",
-  });
+  expect(mockUpdateDashboard).toHaveBeenCalledWith(
+    {
+      access_groups: [],
+      editable: true,
+      gridItems: [
+        {
+          args_string: "{}",
+          h: 20,
+          i: "1",
+          metadata_string: '{"refreshRate":0}',
+          source: "",
+          w: 20,
+          x: 0,
+          y: 0,
+        },
+      ],
+      label: "New Label",
+      name: "",
+      notes: "",
+      originalAccessGroups: [],
+      originalLabel: "test_label",
+      originalName: "editable",
+    },
+    "Token"
+  );
   expect(await screen.findByText("failed to update")).toBeInTheDocument();
 });
 
@@ -497,37 +462,20 @@ test("Dashboard Editor Canvas delete success", async () => {
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
   const mockDeleteDashboard = jest.fn();
-  const mockUpdateDashboard = jest.fn();
-  const mockCopyCurrentDashboard = jest.fn();
-  const mockSetIsEditing = jest.fn();
 
   mockDeleteDashboard.mockResolvedValue({
     success: true,
   });
+  appAPI.deleteDashboard = mockDeleteDashboard;
+  mockedConfirm.mockResolvedValue(true);
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContext.Provider
-            value={{
-              deleteDashboard: mockDeleteDashboard,
-              updateDashboard: mockUpdateDashboard,
-              copyCurrentDashboard: mockCopyCurrentDashboard,
-            }}
-          >
-            <EditingContext.Provider value={{ setIsEditing: mockSetIsEditing }}>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContext.Provider>
-          </AvailableDashboardsContext.Provider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
+  });
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
   // eslint-disable-next-line
@@ -535,7 +483,7 @@ test("Dashboard Editor Canvas delete success", async () => {
     await userEvent.click(deleteButton);
   });
   expect(mockDeleteDashboard).toHaveBeenCalled();
-  expect(mockSetIsEditing).toHaveBeenCalled();
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(await screen.findByText("not show canvas")).toBeInTheDocument();
 });
 
@@ -553,37 +501,20 @@ test("Dashboard Editor Canvas delete fail", async () => {
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
   const mockDeleteDashboard = jest.fn();
-  const mockUpdateDashboard = jest.fn();
-  const mockCopyCurrentDashboard = jest.fn();
-  const mockSetIsEditing = jest.fn();
 
   mockDeleteDashboard.mockResolvedValue({
     success: false,
   });
+  appAPI.deleteDashboard = mockDeleteDashboard;
+  mockedConfirm.mockResolvedValue(true);
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContext.Provider
-            value={{
-              deleteDashboard: mockDeleteDashboard,
-              updateDashboard: mockUpdateDashboard,
-              copyCurrentDashboard: mockCopyCurrentDashboard,
-            }}
-          >
-            <EditingContext.Provider value={{ setIsEditing: mockSetIsEditing }}>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContext.Provider>
-          </AvailableDashboardsContext.Provider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
+  });
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
   // eslint-disable-next-line
@@ -591,7 +522,7 @@ test("Dashboard Editor Canvas delete fail", async () => {
     await userEvent.click(deleteButton);
   });
   expect(mockDeleteDashboard).toHaveBeenCalled();
-  expect(mockSetIsEditing).not.toHaveBeenCalled();
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(await screen.findByText("yes show canvas")).toBeInTheDocument();
   expect(
     await screen.findByText("Failed to delete dashboard. Check server logs.")
@@ -618,46 +549,24 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
   const mockDeleteDashboard = jest.fn();
-  const mockUpdateDashboard = jest.fn();
-  const mockCopyCurrentDashboard = jest.fn();
-  const mockSetIsEditing = jest.fn();
+  appAPI.deleteDashboard = mockDeleteDashboard;
+  mockedConfirm.mockResolvedValue(false);
 
-  mockDeleteDashboard.mockResolvedValue({
-    success: false,
-    confirmExit: true,
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
   });
-
-  render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContext.Provider
-            value={{
-              deleteDashboard: mockDeleteDashboard,
-              updateDashboard: mockUpdateDashboard,
-              copyCurrentDashboard: mockCopyCurrentDashboard,
-            }}
-          >
-            <EditingContext.Provider value={{ setIsEditing: mockSetIsEditing }}>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContext.Provider>
-          </AvailableDashboardsContext.Provider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
   // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(deleteButton);
   });
-  expect(mockDeleteDashboard).toHaveBeenCalled();
-  expect(mockSetIsEditing).not.toHaveBeenCalled();
+  expect(mockDeleteDashboard).not.toHaveBeenCalled();
+  expect(await screen.findByTestId("editing")).toHaveTextContent("not editing");
   expect(await screen.findByText("yes show canvas")).toBeInTheDocument();
 });
 
@@ -675,41 +584,23 @@ test("Dashboard Editor Canvas copy and not confirm", async () => {
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
-  const mockDeleteDashboard = jest.fn();
-  const mockUpdateDashboard = jest.fn();
-  const mockCopyCurrentDashboard = jest.fn();
-  const mockSetIsEditing = jest.fn();
+  const mockAddDashboardDashboard = jest.fn();
+  appAPI.addDashboard = mockAddDashboardDashboard;
   mockedConfirm.mockResolvedValue(false);
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContext.Provider
-            value={{
-              deleteDashboard: mockDeleteDashboard,
-              updateDashboard: mockUpdateDashboard,
-              copyCurrentDashboard: mockCopyCurrentDashboard,
-            }}
-          >
-            <EditingContext.Provider value={{ setIsEditing: mockSetIsEditing }}>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContext.Provider>
-          </AvailableDashboardsContext.Provider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
+  });
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(copyButton);
   });
-  expect(mockCopyCurrentDashboard).not.toHaveBeenCalled();
+  expect(mockAddDashboardDashboard).not.toHaveBeenCalled();
 });
 
 test("Dashboard Editor Canvas copy and confirm and success", async () => {
@@ -726,14 +617,8 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
-  const mockDeleteDashboard = jest.fn();
-  const mockUpdateDashboard = jest.fn();
-  const mockCopyCurrentDashboard = jest.fn();
-  const mockSetIsEditing = jest.fn();
-  mockedConfirm.mockResolvedValue(true);
-
-  mockCopyCurrentDashboard.mockResolvedValue({
+  const mockAddDashboardDashboard = jest.fn();
+  mockAddDashboardDashboard.mockResolvedValue({
     success: true,
     new_dashboard: {
       id: 1,
@@ -758,35 +643,22 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
       ],
     },
   });
+  appAPI.addDashboard = mockAddDashboardDashboard;
+  mockedConfirm.mockResolvedValue(true);
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContext.Provider
-            value={{
-              deleteDashboard: mockDeleteDashboard,
-              updateDashboard: mockUpdateDashboard,
-              copyCurrentDashboard: mockCopyCurrentDashboard,
-            }}
-          >
-            <EditingContext.Provider value={{ setIsEditing: mockSetIsEditing }}>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContext.Provider>
-          </AvailableDashboardsContext.Provider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
+  });
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(copyButton);
   });
-  expect(mockCopyCurrentDashboard).toHaveBeenCalled();
+  expect(mockAddDashboardDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("Successfully copied dashboard")
   ).toBeInTheDocument();
@@ -810,46 +682,27 @@ test("Dashboard Editor Canvas copy and confirm and fail with message", async () 
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
-  const mockDeleteDashboard = jest.fn();
-  const mockUpdateDashboard = jest.fn();
-  const mockCopyCurrentDashboard = jest.fn();
-  const mockSetIsEditing = jest.fn();
-  mockedConfirm.mockResolvedValue(true);
-
-  mockCopyCurrentDashboard.mockResolvedValue({
+  const mockAddDashboardDashboard = jest.fn();
+  mockAddDashboardDashboard.mockResolvedValue({
     success: false,
     message: "failed to copy for some reason",
   });
+  appAPI.addDashboard = mockAddDashboardDashboard;
+  mockedConfirm.mockResolvedValue(true);
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContext.Provider
-            value={{
-              deleteDashboard: mockDeleteDashboard,
-              updateDashboard: mockUpdateDashboard,
-              copyCurrentDashboard: mockCopyCurrentDashboard,
-            }}
-          >
-            <EditingContext.Provider value={{ setIsEditing: mockSetIsEditing }}>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContext.Provider>
-          </AvailableDashboardsContext.Provider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
+  });
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(copyButton);
   });
-  expect(mockCopyCurrentDashboard).toHaveBeenCalled();
+  expect(mockAddDashboardDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("failed to copy for some reason")
   ).toBeInTheDocument();
@@ -869,50 +722,27 @@ test("Dashboard Editor Canvas copy and confirm and fail without message", async 
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
-  const mockDeleteDashboard = jest.fn();
-  const mockUpdateDashboard = jest.fn();
-  const mockCopyCurrentDashboard = jest.fn();
-  const mockSetIsEditing = jest.fn();
-  mockedConfirm.mockResolvedValue(true);
-
-  mockCopyCurrentDashboard.mockResolvedValue({
+  const mockAddDashboardDashboard = jest.fn();
+  mockAddDashboardDashboard.mockResolvedValue({
     success: false,
   });
+  appAPI.addDashboard = mockAddDashboardDashboard;
+  mockedConfirm.mockResolvedValue(true);
 
-  render(
-    <AppContext.Provider value={{ csrf: "csrf" }}>
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <AvailableDashboardsContext.Provider
-            value={{
-              deleteDashboard: mockDeleteDashboard,
-              updateDashboard: mockUpdateDashboard,
-              copyCurrentDashboard: mockCopyCurrentDashboard,
-            }}
-          >
-            <EditingContext.Provider value={{ setIsEditing: mockSetIsEditing }}>
-              <DataViewerModeContextProvider>
-                <TestingComponent layoutContext={mockedDashboard} />
-              </DataViewerModeContextProvider>
-            </EditingContext.Provider>
-          </AvailableDashboardsContext.Provider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+    },
+  });
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(copyButton);
   });
-  expect(mockCopyCurrentDashboard).toHaveBeenCalled();
+  expect(mockAddDashboardDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("Failed to copy dashboard. Check server logs.")
   ).toBeInTheDocument();
 });
-
-TestingComponent.propTypes = {
-  layoutContext: PropTypes.object,
-};

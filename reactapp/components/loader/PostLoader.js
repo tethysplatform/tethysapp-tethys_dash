@@ -18,8 +18,9 @@ import {
   EditingContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
+import { confirm } from "components/dashboard/DeleteConfirmation";
 
-function PostLoader({ children }) {
+const PostLoader = ({ children }) => {
   const { csrf, userSettings, dashboards } = useContext(AppContext);
 
   const [isLoaded, setIsLoaded] = useState(false);
@@ -344,7 +345,7 @@ function PostLoader({ children }) {
       </>
     );
   }
-}
+};
 
 PostLoader.propTypes = {
   children: PropTypes.oneOfType([
