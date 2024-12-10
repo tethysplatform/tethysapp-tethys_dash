@@ -18,8 +18,10 @@ import {
 } from "__tests__/utilities/constants";
 import Base from "components/visualizations/Base";
 import appAPI from "services/api/app";
-import { EditingContext } from "components/contexts/EditingContext";
-import { VariableInputValuesContext } from "components/contexts/VariableInputsContext";
+import {
+  EditingContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,7 +52,7 @@ function initAndRender(props) {
 
   const BaseRender = (props) => {
     return (
-      <VariableInputValuesContext.Provider
+      <VariableInputsContext.Provider
         value={{
           variableInputValues: props.variableInputValues,
           setVariableInputValues,
@@ -68,7 +70,7 @@ function initAndRender(props) {
             hideFullscreen={hideFullscreen}
           />
         </EditingContext.Provider>
-      </VariableInputValuesContext.Provider>
+      </VariableInputsContext.Provider>
     );
   };
 
