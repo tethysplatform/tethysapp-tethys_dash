@@ -584,8 +584,8 @@ test("Dashboard Editor Canvas copy and not confirm", async () => {
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockAddDashboardDashboard = jest.fn();
-  appAPI.addDashboard = mockAddDashboardDashboard;
+  const mockAddDashboard = jest.fn();
+  appAPI.addDashboard = mockAddDashboard;
   mockedConfirm.mockResolvedValue(false);
 
   renderWithLoaders({
@@ -600,7 +600,7 @@ test("Dashboard Editor Canvas copy and not confirm", async () => {
   await act(async () => {
     await userEvent.click(copyButton);
   });
-  expect(mockAddDashboardDashboard).not.toHaveBeenCalled();
+  expect(mockAddDashboard).not.toHaveBeenCalled();
 });
 
 test("Dashboard Editor Canvas copy and confirm and success", async () => {
@@ -617,8 +617,8 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockAddDashboardDashboard = jest.fn();
-  mockAddDashboardDashboard.mockResolvedValue({
+  const mockAddDashboard = jest.fn();
+  mockAddDashboard.mockResolvedValue({
     success: true,
     new_dashboard: {
       id: 1,
@@ -643,7 +643,7 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
       ],
     },
   });
-  appAPI.addDashboard = mockAddDashboardDashboard;
+  appAPI.addDashboard = mockAddDashboard;
   mockedConfirm.mockResolvedValue(true);
 
   renderWithLoaders({
@@ -658,7 +658,7 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
   await act(async () => {
     await userEvent.click(copyButton);
   });
-  expect(mockAddDashboardDashboard).toHaveBeenCalled();
+  expect(mockAddDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("Successfully copied dashboard")
   ).toBeInTheDocument();
@@ -682,12 +682,12 @@ test("Dashboard Editor Canvas copy and confirm and fail with message", async () 
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockAddDashboardDashboard = jest.fn();
-  mockAddDashboardDashboard.mockResolvedValue({
+  const mockAddDashboard = jest.fn();
+  mockAddDashboard.mockResolvedValue({
     success: false,
     message: "failed to copy for some reason",
   });
-  appAPI.addDashboard = mockAddDashboardDashboard;
+  appAPI.addDashboard = mockAddDashboard;
   mockedConfirm.mockResolvedValue(true);
 
   renderWithLoaders({
@@ -702,7 +702,7 @@ test("Dashboard Editor Canvas copy and confirm and fail with message", async () 
   await act(async () => {
     await userEvent.click(copyButton);
   });
-  expect(mockAddDashboardDashboard).toHaveBeenCalled();
+  expect(mockAddDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("failed to copy for some reason")
   ).toBeInTheDocument();
@@ -722,11 +722,11 @@ test("Dashboard Editor Canvas copy and confirm and fail without message", async 
       dispatchEvent: jest.fn(),
     })),
   });
-  const mockAddDashboardDashboard = jest.fn();
-  mockAddDashboardDashboard.mockResolvedValue({
+  const mockAddDashboard = jest.fn();
+  mockAddDashboard.mockResolvedValue({
     success: false,
   });
-  appAPI.addDashboard = mockAddDashboardDashboard;
+  appAPI.addDashboard = mockAddDashboard;
   mockedConfirm.mockResolvedValue(true);
 
   renderWithLoaders({
@@ -741,7 +741,7 @@ test("Dashboard Editor Canvas copy and confirm and fail without message", async 
   await act(async () => {
     await userEvent.click(copyButton);
   });
-  expect(mockAddDashboardDashboard).toHaveBeenCalled();
+  expect(mockAddDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("Failed to copy dashboard. Check server logs.")
   ).toBeInTheDocument();
