@@ -48,7 +48,7 @@ test("Dashboard Layout resize and update layout", async () => {
     JSON.stringify({
       name: "editable",
       label: "test_label",
-      access_groups: [],
+      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -167,7 +167,7 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
     label: "test_label",
     notes: "test_notes",
     editable: true,
-    access_groups: [],
+    accessGroups: [],
     gridItems: [
       {
         i: "1",
@@ -210,7 +210,7 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
     JSON.stringify({
       name: "editable",
       label: "test_label",
-      access_groups: [],
+      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -236,7 +236,7 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
     label: "test_label",
     notes: "test_notes",
     editable: true,
-    access_groups: [],
+    accessGroups: [],
     gridItems: [
       {
         i: "1",
@@ -282,7 +282,7 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
     JSON.stringify({
       name: "editable",
       label: "test_label",
-      access_groups: [],
+      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -311,7 +311,7 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
     JSON.stringify({
       name: "editable",
       label: "test_label",
-      access_groups: [],
+      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {

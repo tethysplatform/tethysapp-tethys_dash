@@ -4,7 +4,6 @@ import styled from "styled-components";
 import {
   LayoutContext,
   AvailableDashboardsContext,
-  LayoutGridItemsContext,
   EditingContext,
 } from "components/contexts/Contexts";
 import {
@@ -34,7 +33,7 @@ function DashboardLayout() {
   const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
   const { updateDashboard } = useContext(AvailableDashboardsContext);
   const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
-  const { gridItems } = useContext(LayoutGridItemsContext);
+  const { gridItems } = getLayoutContext();
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [layout, setLayout] = useState([]);
   const [items, setItems] = useState([]);

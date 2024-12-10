@@ -5,7 +5,6 @@ import { memo, useState, useContext } from "react";
 import {
   LayoutContext,
   EditingContext,
-  LayoutGridItemsContext,
   VariableInputsContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
@@ -40,8 +39,8 @@ const DashboardItem = ({
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
-  const { gridItems } = useContext(LayoutGridItemsContext);
   const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
+  const { gridItems } = getLayoutContext();
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );

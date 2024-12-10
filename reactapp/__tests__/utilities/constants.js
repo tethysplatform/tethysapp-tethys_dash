@@ -5,7 +5,7 @@ export const mockedDashboards = {
     label: "test_label",
     notes: "test_notes",
     editable: true,
-    access_groups: [],
+    accessGroups: [],
     gridItems: [
       {
         i: "1",
@@ -27,7 +27,7 @@ export const mockedDashboards = {
     label: "test_label2",
     notes: "test_notes2",
     editable: false,
-    access_groups: ["public"],
+    accessGroups: ["public"],
     gridItems: [
       {
         i: "1",
@@ -165,7 +165,7 @@ export const updatedDashboard = {
   label: "test_label_updated",
   notes: "test_notes",
   editable: true,
-  access_groups: [],
+  accessGroups: [],
   gridItems: [
     {
       id: 1,
@@ -189,7 +189,7 @@ export const newDashboard = {
   label: "test_label3",
   notes: "test_notes3",
   editable: true,
-  access_groups: [],
+  accessGroups: [],
   gridItems: [
     {
       id: 1,
@@ -213,7 +213,7 @@ export const copiedDashboard = {
   label: "test_label Copy",
   notes: "test_notes",
   editable: true,
-  access_groups: [],
+  accessGroups: [],
   gridItems: [
     {
       id: 1,

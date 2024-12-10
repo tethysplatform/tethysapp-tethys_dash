@@ -11,7 +11,7 @@ import TooltipButton from "components/buttons/TooltipButton";
 import { AppContext } from "components/contexts/Contexts";
 import DashboardSelector from "components/layout/DashboardSelector";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
-import { LayoutNameContext } from "components/contexts/Contexts";
+import { LayoutContext } from "components/contexts/Contexts";
 import "components/buttons/HeaderButton.css";
 
 const CustomNavBar = styled(Navbar)`
@@ -23,7 +23,8 @@ const Header = ({ initialDashboard }) => {
   const location = useLocation();
   const [showEditCanvas, setShowEditCanvas] = useState(false);
   const showNav = () => setShowEditCanvas(true);
-  const { name } = useContext(LayoutNameContext);
+  const { getLayoutContext } = useContext(LayoutContext);
+  const { name } = getLayoutContext();
 
   return (
     <>

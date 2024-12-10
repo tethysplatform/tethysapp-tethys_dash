@@ -7,12 +7,6 @@ import {
   UserSettingsContext,
   VariableInputsContext,
   LayoutContext,
-  LayoutNameContext,
-  LayoutLabelContext,
-  LayoutAccessGroupsContext,
-  LayoutNotesContext,
-  LayoutGridItemsContext,
-  LayoutEditableContext,
   AvailableDashboardsContext,
   DashboardDropdownContext,
   EditingContext,
@@ -109,7 +103,7 @@ const PostLoader = ({ children }) => {
   function setLayoutContext(dashboardContext) {
     setName(dashboardContext["name"]);
     setLabel(dashboardContext["label"]);
-    setAccessGroups(dashboardContext["access_groups"]);
+    setAccessGroups(dashboardContext["accessGroups"]);
     setNotes(dashboardContext["notes"]);
     setGridItems(dashboardContext["gridItems"]);
     setEditable(dashboardContext["editable"]);
@@ -120,7 +114,7 @@ const PostLoader = ({ children }) => {
     return {
       name: name,
       label: label,
-      access_groups: accessGroups,
+      accessGroups: accessGroups,
       notes: notes,
       gridItems: gridItems,
       editable: editable,
@@ -234,7 +228,7 @@ const PostLoader = ({ children }) => {
     const originalDashboard = getLayoutContext();
     const originalName = originalDashboard["name"];
     const originalLabel = originalDashboard["label"];
-    const originalAccessGroups = originalDashboard["access_groups"];
+    const originalAccessGroups = originalDashboard["accessGroups"];
 
     updatedProperties["originalName"] = originalName;
     updatedProperties["originalLabel"] = originalLabel;
@@ -292,53 +286,35 @@ const PostLoader = ({ children }) => {
             <LayoutContext.Provider
               value={{ setLayoutContext, resetLayoutContext, getLayoutContext }}
             >
-              <LayoutNameContext.Provider value={{ name, setName }}>
-                <LayoutLabelContext.Provider value={{ label, setLabel }}>
-                  <LayoutEditableContext.Provider value={editable}>
-                    <LayoutAccessGroupsContext.Provider
-                      value={{ accessGroups, setAccessGroups }}
+              <AvailableDashboardsContext.Provider
+                value={{
+                  availableDashboards,
+                  setAvailableDashboards,
+                  addDashboard,
+                  deleteDashboard,
+                  updateDashboard,
+                  copyCurrentDashboard,
+                }}
+              >
+                <DashboardDropdownContext.Provider
+                  value={{
+                    dashboardDropdownOptions,
+                    selectedDashboardDropdownOption,
+                    setSelectedDashboardDropdownOption,
+                  }}
+                >
+                  <EditingContext.Provider value={{ isEditing, setIsEditing }}>
+                    <DataViewerModeContext.Provider
+                      value={{
+                        inDataViewerMode,
+                        setInDataViewerMode,
+                      }}
                     >
-                      <LayoutNotesContext.Provider value={{ notes, setNotes }}>
-                        <LayoutGridItemsContext.Provider
-                          value={{ gridItems, setGridItems }}
-                        >
-                          <AvailableDashboardsContext.Provider
-                            value={{
-                              availableDashboards,
-                              setAvailableDashboards,
-                              addDashboard,
-                              deleteDashboard,
-                              updateDashboard,
-                              copyCurrentDashboard,
-                            }}
-                          >
-                            <DashboardDropdownContext.Provider
-                              value={{
-                                dashboardDropdownOptions,
-                                selectedDashboardDropdownOption,
-                                setSelectedDashboardDropdownOption,
-                              }}
-                            >
-                              <EditingContext.Provider
-                                value={{ isEditing, setIsEditing }}
-                              >
-                                <DataViewerModeContext.Provider
-                                  value={{
-                                    inDataViewerMode,
-                                    setInDataViewerMode,
-                                  }}
-                                >
-                                  {children}
-                                </DataViewerModeContext.Provider>
-                              </EditingContext.Provider>
-                            </DashboardDropdownContext.Provider>
-                          </AvailableDashboardsContext.Provider>
-                        </LayoutGridItemsContext.Provider>
-                      </LayoutNotesContext.Provider>
-                    </LayoutAccessGroupsContext.Provider>
-                  </LayoutEditableContext.Provider>
-                </LayoutLabelContext.Provider>
-              </LayoutNameContext.Provider>
+                      {children}
+                    </DataViewerModeContext.Provider>
+                  </EditingContext.Provider>
+                </DashboardDropdownContext.Provider>
+              </AvailableDashboardsContext.Provider>
             </LayoutContext.Provider>
           </VariableInputsContext.Provider>
         </UserSettingsContext.Provider>
