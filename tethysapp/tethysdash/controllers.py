@@ -188,6 +188,6 @@ def update_user_settings(request):
         try:
             message = e.args[0]
         except Exception:
-            message = f"Failed to update user settings. Check server for logs."
+            message = "Failed to update user settings. Check server for logs."
 
         return JsonResponse({"success": False, "message": message})

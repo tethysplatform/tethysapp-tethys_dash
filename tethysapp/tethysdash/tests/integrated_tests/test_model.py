@@ -10,9 +10,12 @@ from tethysapp.tethysdash.model import (
     delete_grid_item,
     Dashboard,
     GridItem,
+    UserSettings,
     check_existing_user_dashboard_names,
     check_existing_user_dashboard_labels,
     check_existing_public_dashboards,
+    get_user_settings,
+    update_user_setting,
 )
 
 
@@ -419,7 +422,7 @@ def test_get_dashboards_all(dashboard, mock_app_get_ps_db, grid_item):
 
 
 @pytest.mark.django_db
-def test_get_dashboards_specific(dashboard, db_session, mock_app_get_ps_db, grid_item):
+def test_get_dashboards_specific(dashboard, mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
     dashboard_name = dashboard.name
     dashboard_label = dashboard.label
@@ -491,9 +494,7 @@ def test_check_existing_user_dashboard_labels_fail(
 
 
 @pytest.mark.django_db
-def test_check_existing_public_dashboards(
-    public_dashboard, db_session, mock_app_get_ps_db
-):
+def test_check_existing_public_dashboards(db_session, mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
 
     check_existing_public_dashboards(
@@ -531,3 +532,51 @@ def test_check_existing_public_dashboards_failed_label(
         f"A dashboard with the label {public_dashboard.label} is already public. Change the label before attempting again."  # noqa: E501
         in str(excinfo.value)
     )
+
+
+@pytest.mark.django_db
+def test_get_user_settings_user_exists(user_setting, mock_app_get_ps_db):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    username = user_setting.username
+
+    db_user_settings = get_user_settings(username)
+    assert db_user_settings == {"deselected_visualizations": ["plugin1"]}
+
+
+@pytest.mark.django_db
+def test_get_user_settings_user_doesnt_exist(mock_app_get_ps_db):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+
+    db_user_settings = get_user_settings("some_user")
+    assert db_user_settings == {"deselected_visualizations": []}
+
+
+@pytest.mark.django_db
+def test_update_user_settings(db_session, user_setting, mock_app_get_ps_db):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    username = user_setting.username
+
+    update_user_setting(username, ["new_plugin"])
+    user_settings = (
+        db_session.query(UserSettings).filter(UserSettings.username == username).first()
+    )
+    user_settings.deselected_visualizations = ["new_plugin"]
+
+
+@pytest.mark.django_db
+def test_update_user_settings_new_user(db_session, mock_app_get_ps_db):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    user_settings = (
+        db_session.query(UserSettings)
+        .filter(UserSettings.username == "some_new_user")
+        .first()
+    )
+    assert user_settings is None
+
+    update_user_setting("some_new_user", ["some_new_plugin"])
+    user_settings = (
+        db_session.query(UserSettings)
+        .filter(UserSettings.username == "some_new_user")
+        .first()
+    )
+    user_settings.deselected_visualizations = ["some_new_plugin"]

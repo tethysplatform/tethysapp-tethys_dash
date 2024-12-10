@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from tethysapp.tethysdash.tests.integrated_tests import TEST_DB_URL
 from django.http import HttpResponse
 from unittest.mock import MagicMock
-from tethysapp.tethysdash.model import init_primary_db, Dashboard
+from tethysapp.tethysdash.model import init_primary_db, Dashboard, UserSettings
 
 
 @pytest.fixture(scope="module")
@@ -149,6 +149,21 @@ def public_dashboard(db_session, public_dashboard_data):
 
 
 @pytest.fixture(scope="function")
+def user_setting(db_session):
+    user_setting = UserSettings(
+        username="admin",
+        deselected_visualizations=["plugin1"],
+    )
+    db_session.add(user_setting)
+    db_session.commit()
+    yield user_setting
+    if db_session.query(UserSettings).filter(UserSettings.username == "admin").all():
+        db_session.refresh(user_setting)
+        db_session.delete(user_setting)
+    db_session.commit()
+
+
+@pytest.fixture(scope="function")
 def mock_app(mocker):
     def mocked_path(mock_path):
         mock_app = mocker.patch(mock_path)
@@ -222,3 +237,11 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
     }
 
     return plugin_visualization
+
+
+@pytest.fixture(scope="function")
+def mock_user_setting():
+
+    return {
+        "deselected_visualizations": [],
+    }

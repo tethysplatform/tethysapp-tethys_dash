@@ -363,7 +363,7 @@ def get_user_settings(username):
             .filter(UserSettings.username == username)
             .first()
         )
-        
+
         if user_settings:
             user_settings_dict["deselected_visualizations"] = (
                 user_settings.deselected_visualizations
