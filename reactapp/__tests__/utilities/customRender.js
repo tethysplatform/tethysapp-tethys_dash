@@ -1,3 +1,4 @@
+import PropTypes from "prop-types";
 import { useContext, useEffect } from "react";
 import { render } from "@testing-library/react";
 import { Route } from "react-router-dom";
@@ -52,7 +53,7 @@ const TestingComponent = ({ children, options = {} }) => {
   return <>{children}</>;
 };
 
-export default renderWithLoaders = ({ children, options = {} }) => {
+const renderWithLoaders = ({ children, options = {} }) => {
   const tethysApp = {
     title: "TethysDash",
     description: "",
@@ -153,3 +154,21 @@ export const InputVariablePComponent = () => {
     <p data-testid="input-variables">{JSON.stringify(variableInputValues)}</p>
   );
 };
+
+renderWithLoaders.propTypes = {
+  children: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.element),
+    PropTypes.element,
+  ]),
+  options: PropTypes.object,
+};
+
+TestingComponent.propTypes = {
+  children: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.element),
+    PropTypes.element,
+  ]),
+  options: PropTypes.object,
+};
+
+export default renderWithLoaders;
