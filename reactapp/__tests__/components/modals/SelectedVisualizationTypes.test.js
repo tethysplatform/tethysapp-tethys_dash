@@ -1,10 +1,9 @@
 import { act, useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
-import { UserSettingsContext } from "components/contexts/UserSettingsContext";
-import { AppContext } from "components/contexts/Contexts";
-import { mockedVisualizationsWithDefaults } from "__tests__/utilities/constants";
+import renderWithLoaders from "__tests__/utilities/customRender";
+import appAPI from "services/api/app";
 
 const TestingComponent = () => {
   const [showModal, setShowmodal] = useState(true);
@@ -19,22 +18,12 @@ const TestingComponent = () => {
 
 test("selected visualization type modal save success and then close", async () => {
   const mockUpdateUserSettings = jest.fn();
+  appAPI.updateUserSettings = mockUpdateUserSettings;
   mockUpdateUserSettings.mockResolvedValue({ success: true });
 
-  render(
-    <AppContext.Provider
-      value={{ csrf: "csrf", visualizations: mockedVisualizationsWithDefaults }}
-    >
-      <UserSettingsContext.Provider
-        value={{
-          userSettings: { deselected_visualizations: [] },
-          updateUserSettings: mockUpdateUserSettings,
-        }}
-      >
-        <TestingComponent />
-      </UserSettingsContext.Provider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+  });
 
   expect(
     await screen.findByText(
@@ -109,9 +98,12 @@ test("selected visualization type modal save success and then close", async () =
   expect(
     await screen.findByText("Settings have been saved.")
   ).toBeInTheDocument();
-  expect(mockUpdateUserSettings).toHaveBeenCalledWith({
-    deselected_visualizations: ["Visualization Group 2", "plugin_label3"],
-  });
+  expect(mockUpdateUserSettings).toHaveBeenCalledWith(
+    {
+      deselected_visualizations: ["Visualization Group 2", "plugin_label3"],
+    },
+    "Token"
+  );
 
   const closeModalButton = await screen.findByLabelText("Close Modal Button");
   // eslint-disable-next-line
@@ -129,22 +121,12 @@ test("selected visualization type modal save success and then close", async () =
 
 test("selected visualization type modal save failed and then escape", async () => {
   const mockUpdateUserSettings = jest.fn();
+  appAPI.updateUserSettings = mockUpdateUserSettings;
   mockUpdateUserSettings.mockResolvedValue({ success: false });
 
-  render(
-    <AppContext.Provider
-      value={{ csrf: "csrf", visualizations: mockedVisualizationsWithDefaults }}
-    >
-      <UserSettingsContext.Provider
-        value={{
-          userSettings: { deselected_visualizations: [] },
-          updateUserSettings: mockUpdateUserSettings,
-        }}
-      >
-        <TestingComponent />
-      </UserSettingsContext.Provider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+  });
 
   const saveSettingsButton = await screen.findByLabelText(
     "Save Settings Button"
