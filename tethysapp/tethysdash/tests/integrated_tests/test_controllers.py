@@ -280,7 +280,7 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
         "label": "label",
         "notes": "notes",
         "gridItems": [],
-        "access_groups": [],
+        "accessGroups": [],
     }
 
     url = reverse("tethysdash:update_dashboard")
@@ -305,7 +305,7 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
         itemData["label"],
         itemData["notes"],
         itemData["gridItems"],
-        itemData["access_groups"],
+        itemData["accessGroups"],
     )
     mock_get_dashboards.assert_called_with("admin", name=itemData["name"])
     assert response.status_code == 200
@@ -327,7 +327,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
         "label": "label",
         "notes": "notes",
         "gridItems": [],
-        "access_groups": [],
+        "accessGroups": [],
     }
 
     url = reverse("tethysdash:update_dashboard")
@@ -351,7 +351,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
         itemData["label"],
         itemData["notes"],
         itemData["gridItems"],
-        itemData["access_groups"],
+        itemData["accessGroups"],
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
@@ -371,7 +371,7 @@ def test_update_dashboard_failed_unknown_exception(
         "label": "label",
         "notes": "notes",
         "gridItems": [],
-        "access_groups": [],
+        "accessGroups": [],
     }
 
     url = reverse("tethysdash:update_dashboard")
@@ -395,11 +395,104 @@ def test_update_dashboard_failed_unknown_exception(
         itemData["label"],
         itemData["notes"],
         itemData["gridItems"],
-        itemData["access_groups"],
+        itemData["accessGroups"],
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert (
         response.json()["message"]
         == f"Failed to update the dashboard named {itemData["name"]}. Check server for logs."  # noqa: E501
+    )
+
+
+@pytest.mark.django_db
+def test_usersettings(client, admin_user, mock_app, mocker, mock_user_setting):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:usersettings")
+    client.force_login(admin_user)
+    mock_gav = mocker.patch("tethysapp.tethysdash.controllers.get_user_settings")
+    mock_gav.return_value = mock_user_setting
+
+    response = client.get(url)
+
+    mock_gav.assert_called_once()
+    assert response.status_code == 200
+    assert response.json() == mock_user_setting
+
+
+@pytest.mark.django_db
+def test_update_user_settings(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    itemData = {
+        "deselected_visualizations": ["plugin1"],
+    }
+
+    url = reverse("tethysdash:update_user_settings")
+    client.force_login(admin_user)
+    mock_update_dashboard = mocker.patch(
+        "tethysapp.tethysdash.controllers.update_user_setting"
+    )
+
+    response = client.generic("POST", url, json.dumps(itemData))
+
+    mock_update_dashboard.assert_called_with(
+        "admin",
+        itemData["deselected_visualizations"],
+    )
+    assert response.status_code == 200
+    assert response.json()["success"]
+
+
+@pytest.mark.django_db
+def test_update_user_settings_failed(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    itemData = {
+        "deselected_visualizations": ["plugin1"],
+    }
+
+    url = reverse("tethysdash:update_user_settings")
+    client.force_login(admin_user)
+    mock_update_dashboard = mocker.patch(
+        "tethysapp.tethysdash.controllers.update_user_setting"
+    )
+    mock_update_dashboard.side_effect = [Exception("failed to update")]
+
+    response = client.generic("POST", url, json.dumps(itemData))
+
+    mock_update_dashboard.assert_called_with(
+        "admin",
+        itemData["deselected_visualizations"],
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert response.json()["message"] == "failed to update"
+
+
+@pytest.mark.django_db
+def test_update_user_settings_failed_unknown_exception(
+    client, admin_user, mock_app, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    itemData = {
+        "deselected_visualizations": ["plugin1"],
+    }
+
+    url = reverse("tethysdash:update_user_settings")
+    client.force_login(admin_user)
+    mock_update_dashboard = mocker.patch(
+        "tethysapp.tethysdash.controllers.update_user_setting"
+    )
+    mock_update_dashboard.side_effect = [Exception()]
+
+    response = client.generic("POST", url, json.dumps(itemData))
+
+    mock_update_dashboard.assert_called_with(
+        "admin",
+        itemData["deselected_visualizations"],
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert (
+        response.json()["message"]
+        == "Failed to update user settings. Check server for logs."
     )
