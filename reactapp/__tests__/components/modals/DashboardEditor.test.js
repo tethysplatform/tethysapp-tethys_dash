@@ -248,7 +248,7 @@ test("Dashboard Editor Canvas edit and save", async () => {
   });
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
-      access_groups: ["public"],
+      accessGroups: ["public"],
       editable: true,
       gridItems: [
         {
@@ -307,7 +307,7 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
   });
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
-      access_groups: [],
+      accessGroups: [],
       editable: true,
       gridItems: [
         {
@@ -365,7 +365,7 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
   });
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
-      access_groups: [],
+      accessGroups: [],
       editable: true,
       gridItems: [
         {
@@ -504,7 +504,7 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
       label: "test_label Copy",
       notes: "test_notes",
       editable: true,
-      access_groups: [],
+      accessGroups: [],
       gridItems: [
         {
           i: "1",

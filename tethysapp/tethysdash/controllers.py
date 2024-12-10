@@ -79,7 +79,7 @@ def add_dashboard(request):
     name = dashboard_metadata["name"]
     label = dashboard_metadata["label"]
     notes = dashboard_metadata.get("notes", "")
-    access_groups = dashboard_metadata.get("access_groups", [])
+    access_groups = dashboard_metadata.get("accessGroups", [])
     grid_items = dashboard_metadata.get("gridItems", [])
     owner = str(request.user)
     print(f"Creating a dashboard named {label}")
@@ -139,7 +139,7 @@ def update_dashboard(request):
     label = dashboard_metadata["label"]
     notes = dashboard_metadata["notes"]
     grid_items = dashboard_metadata["gridItems"]
-    access_groups = dashboard_metadata["access_groups"]
+    access_groups = dashboard_metadata["accessGroups"]
     user = str(request.user)
 
     try:

@@ -29,7 +29,7 @@ test("New Dashboard Modal add dashboard success", async () => {
       label: "test_label Copy",
       notes: "test_notes",
       editable: true,
-      access_groups: [],
+      accessGroups: [],
       gridItems: [
         {
           i: "1",

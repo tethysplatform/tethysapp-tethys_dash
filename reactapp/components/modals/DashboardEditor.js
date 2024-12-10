@@ -4,11 +4,7 @@ import Button from "react-bootstrap/Button";
 import Alert from "react-bootstrap/Alert";
 import { useState, useEffect, useContext } from "react";
 import {
-  LayoutNameContext,
-  LayoutLabelContext,
-  LayoutNotesContext,
-  LayoutEditableContext,
-  LayoutAccessGroupsContext,
+  LayoutContext,
   AvailableDashboardsContext,
   EditingContext,
 } from "components/contexts/Contexts";
@@ -65,14 +61,11 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
-  const { name } = useContext(LayoutNameContext);
-  const { label } = useContext(LayoutLabelContext);
+  const { getLayoutContext } = useContext(LayoutContext);
+  const { name, label, editable, accessGroups, notes } = getLayoutContext();
   const { deleteDashboard, updateDashboard, copyCurrentDashboard } = useContext(
     AvailableDashboardsContext
   );
-  const { notes } = useContext(LayoutNotesContext);
-  const editable = useContext(LayoutEditableContext);
-  const { accessGroups } = useContext(LayoutAccessGroupsContext);
   const [localNotes, setLocalNotes] = useState(notes);
   const [localName, setLocalName] = useState(name);
   const [localLabel, setLocalLabel] = useState(label);
@@ -111,7 +104,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     setSuccessMessage("");
     setErrorMessage("");
     const newProperties = {
-      access_groups: selectedSharingStatus === "public" ? ["public"] : [],
+      accessGroups: selectedSharingStatus === "public" ? ["public"] : [],
       notes: localNotes,
       name: localName,
       label: localLabel,

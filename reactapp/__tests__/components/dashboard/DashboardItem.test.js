@@ -70,7 +70,7 @@ test("Dashboard Item delete grid item", async () => {
     JSON.stringify({
       name: "editable",
       label: "test_label",
-      access_groups: [],
+      accessGroups: [],
       notes: "test_notes",
       gridItems: [],
       editable: true,
@@ -117,7 +117,7 @@ test("Dashboard Item delete grid item cancel", async () => {
     JSON.stringify({
       name: "editable",
       label: "test_label",
-      access_groups: [],
+      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -351,7 +351,7 @@ test("Dashboard Item copy item", async () => {
     JSON.stringify({
       name: "editable",
       label: "test_label",
-      access_groups: [],
+      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -469,7 +469,7 @@ test("Dashboard Item copy item variable input", async () => {
     JSON.stringify({
       name: "editable",
       label: "test_label",
-      access_groups: [],
+      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -593,7 +593,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
     JSON.stringify({
       name: "editable",
       label: "test_label",
-      access_groups: [],
+      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {

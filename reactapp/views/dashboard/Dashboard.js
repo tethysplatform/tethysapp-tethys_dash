@@ -4,10 +4,11 @@ import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import Header from "components/layout/Header";
 import PropTypes from "prop-types";
 import { useContext } from "react";
-import { LayoutNameContext } from "components/contexts/Contexts";
+import { LayoutContext } from "components/contexts/Contexts";
 
 function DashboardView({ initialDashboard }) {
-  const { name } = useContext(LayoutNameContext);
+  const { getLayoutContext } = useContext(LayoutContext);
+  const { name } = getLayoutContext();
 
   return (
     <>

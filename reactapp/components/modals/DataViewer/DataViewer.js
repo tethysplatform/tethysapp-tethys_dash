@@ -9,7 +9,6 @@ import Col from "react-bootstrap/Col";
 import styled from "styled-components";
 import {
   LayoutContext,
-  LayoutGridItemsContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import CustomAlert from "components/dashboard/CustomAlert";
@@ -48,8 +47,8 @@ function DataViewerModal({
   const [vizInputsValues, setVizInputsValues] = useState([]);
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
-  const { gridItems } = useContext(LayoutGridItemsContext);
   const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
+  const { gridItems } = getLayoutContext();
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
   const { variableInputValues, setVariableInputValues } = useContext(

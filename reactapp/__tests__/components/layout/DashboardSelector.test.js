@@ -220,7 +220,7 @@ test("Dashboard Selector add and then cancel button", async () => {
     label: "test_label",
     notes: "test_notes",
     editable: true,
-    access_groups: [],
+    accessGroups: [],
     gridItems: [
       {
         i: "2",
@@ -299,7 +299,7 @@ test("Dashboard Selector add and then cancel button", async () => {
     JSON.stringify({
       name: "editable",
       label: "test_label",
-      access_groups: [],
+      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -364,7 +364,7 @@ test("Dashboard Selector add and then cancel button", async () => {
     JSON.stringify({
       name: "editable",
       label: "test_label",
-      access_groups: [],
+      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {

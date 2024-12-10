@@ -4,11 +4,9 @@ import TooltipButton from "components/buttons/TooltipButton";
 import NewDashboardModal from "components/modals/NewDashboard";
 import {
   LayoutContext,
-  LayoutNameContext,
   AvailableDashboardsContext,
   DashboardDropdownContext,
   EditingContext,
-  LayoutEditableContext,
 } from "components/contexts/Contexts";
 import {
   BsArrowReturnLeft,
@@ -26,8 +24,7 @@ const StyledDiv = styled.div`
 
 function DashboardSelector({ initialDashboard }) {
   const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
-  const { name } = useContext(LayoutNameContext);
-  const editableDashboard = useContext(LayoutEditableContext);
+  const { name, editable } = getLayoutContext();
   const { availableDashboards } = useContext(AvailableDashboardsContext);
   const {
     dashboardDropdownOptions,
@@ -123,7 +120,7 @@ function DashboardSelector({ initialDashboard }) {
       />
       {selectedDashboardDropdownOption && (
         <>
-          {editableDashboard && (
+          {editable && (
             <>
               {isEditing && (
                 <>
