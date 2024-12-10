@@ -660,7 +660,7 @@ test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
     options: {
       inDataViewerMode: true,
       dashboards: updatedMockedDashboards,
-      visualizaions: mockedVisualizations,
+      visualizations: mockedVisualizations,
     },
   });
 
