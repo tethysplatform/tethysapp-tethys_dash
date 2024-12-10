@@ -1,6 +1,6 @@
 import { act, useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import NewDashboardModal from "components/modals/NewDashboard";
 import renderWithLoaders, {
   EditingPComponent,
