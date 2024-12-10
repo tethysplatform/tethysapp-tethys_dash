@@ -20,11 +20,10 @@ import {
 } from "__tests__/utilities/constants";
 import Base from "components/visualizations/Base";
 import appAPI from "services/api/app";
-import { EditingContext } from "components/contexts/EditingContext";
-import { VariableInputValuesContext } from "components/contexts/VariableInputsContext";
-import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import { DataViewerModeContext } from "components/contexts/DataViewerModeContext";
-import { LayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
+import {
+  EditingContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -57,40 +56,25 @@ function initAndRender(props) {
 
   const BaseRender = (props) => {
     return (
-      <AvailableVisualizationsContext.Provider
-        value={{ availableVizArgs: mockedAvailableVizArgs }}
+      <VariableInputsContext.Provider
+        value={{
+          variableInputValues: props.variableInputValues,
+          setVariableInputValues,
+          updateVariableInputValuesWithGridItems,
+        }}
       >
         <LayoutGridItemsContext.Provider
           value={{ gridItems: props.gridItems, setGridItems }}
         >
-          <DataViewerModeContext.Provider
-            value={{
-              inDataViewerMode: props.inDataViewer,
-              setInDataViewerMode,
-            }}
-          >
-            <VariableInputValuesContext.Provider
-              value={{
-                variableInputValues: props.variableInputValues,
-                setVariableInputValues,
-                updateVariableInputValuesWithGridItems,
-              }}
-            >
-              <EditingContext.Provider
-                value={{ isEditing: props.isEditing, setIsEditing }}
-              >
-                <Base
-                  source={props.source}
-                  argsString={props.argsString}
-                  metadataString={props.metadataString}
-                  showFullscreen={props.showFullscreen}
-                  hideFullscreen={hideFullscreen}
-                />
-              </EditingContext.Provider>
-            </VariableInputValuesContext.Provider>
-          </DataViewerModeContext.Provider>
+          <Base
+            source={props.source}
+            argsString={props.argsString}
+            metadataString={props.metadataString}
+            showFullscreen={props.showFullscreen}
+            hideFullscreen={hideFullscreen}
+          />
         </LayoutGridItemsContext.Provider>
-      </AvailableVisualizationsContext.Provider>
+      </VariableInputsContext.Provider>
     );
   };
 
