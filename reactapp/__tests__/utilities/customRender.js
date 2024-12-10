@@ -4,7 +4,7 @@ import { Route } from "react-router-dom";
 import { AppContext } from "components/contexts/Contexts";
 import {
   mockedDashboards,
-  mockedVisualizations,
+  mockedVisualizationsWithDefaults,
   mockedVisualizationArgs,
   mockedUserSetting,
 } from "__tests__/utilities/constants";
@@ -23,6 +23,7 @@ import {
 const TestingComponent = ({ children, options = {} }) => {
   const { setLayoutContext } = useContext(LayoutContext);
   const { setIsEditing } = useContext(EditingContext);
+  const { setInDataViewerMode } = useContext(DataViewerModeContext);
   const { setSelectedDashboardDropdownOption } = useContext(
     DashboardDropdownContext
   );
@@ -40,6 +41,10 @@ const TestingComponent = ({ children, options = {} }) => {
 
     if (options.inEditing) {
       setIsEditing(true);
+    }
+
+    if (options.inDataViewerMode) {
+      setInDataViewerMode(true);
     }
     // eslint-disable-next-line
   }, []);
@@ -61,7 +66,7 @@ export default renderWithLoaders = ({ children, options = {} }) => {
     settingsUrl: "/admin/tethys_apps/tethysapp/999/change/",
   };
 
-  const user = { isAuthenticated: true };
+  const user = { isAuthenticated: true, isStaff: true };
 
   const csrf = "Token";
 
@@ -101,7 +106,7 @@ export default renderWithLoaders = ({ children, options = {} }) => {
         dashboards: options.dashboards ? options.dashboards : mockedDashboards,
         visualizations: options.visualizations
           ? options.visualizations
-          : mockedVisualizations,
+          : mockedVisualizationsWithDefaults,
         visualizationArgs: options.visualizationArgs
           ? options.visualizationArgs
           : mockedVisualizationArgs,

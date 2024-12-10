@@ -1,13 +1,10 @@
-import { act, useEffect, useRef } from "react";
+import { act, useEffect, useRef, useContext } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import SettingsPane from "components/modals/DataViewer/SettingsPane";
 import { mockedDashboards } from "__tests__/utilities/constants";
-import SelectedDashboardContextProvider, {
-  useLayoutContext,
-} from "components/contexts/SelectedDashboardContext";
-import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
-import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
+import { LayoutContext } from "components/contexts/Contexts";
+import renderWithLoaders from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 
 const TestingComponent = ({
@@ -15,7 +12,7 @@ const TestingComponent = ({
   visualizationRefElement,
   currentSettings = {},
 }) => {
-  const { setLayoutContext } = useLayoutContext();
+  const { setLayoutContext } = useContext(LayoutContext);
   const settingsRef = useRef(currentSettings);
   const visualizationRef = useRef();
 
@@ -41,15 +38,12 @@ const TestingComponent = ({
 test("Settings Pane", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
 
-  render(
-    <VariableInputsContextProvider>
-      <SelectedDashboardContextProvider>
-        <DataViewerModeContextProvider>
-          <TestingComponent layoutContext={mockedDashboard} />
-        </DataViewerModeContextProvider>
-      </SelectedDashboardContextProvider>
-    </VariableInputsContextProvider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent layoutContext={mockedDashboard} />,
+    options: {
+      inDataViewerMode: true,
+    },
+  });
 
   expect(
     screen.getByText("Visualization must be loaded to change settings.")
@@ -59,20 +53,19 @@ test("Settings Pane", async () => {
 test("Settings Pane with visualizationRef Element", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
 
-  render(
-    <VariableInputsContextProvider>
-      <SelectedDashboardContextProvider>
-        <DataViewerModeContextProvider>
-          <TestingComponent
-            layoutContext={mockedDashboard}
-            visualizationRefElement={{
-              tagName: "div",
-            }}
-          />
-        </DataViewerModeContextProvider>
-      </SelectedDashboardContextProvider>
-    </VariableInputsContextProvider>
-  );
+  renderWithLoaders({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        visualizationRefElement={{
+          tagName: "div",
+        }}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+    },
+  });
 
   const refreshRateInput = screen.getByLabelText(
     "Refresh Rate (Minutes) Input"
@@ -88,23 +81,22 @@ test("Settings Pane with visualizationRef Element", async () => {
 test("Settings Pane with visualizationRef Image Element with current settings", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
 
-  render(
-    <VariableInputsContextProvider>
-      <SelectedDashboardContextProvider>
-        <DataViewerModeContextProvider>
-          <TestingComponent
-            layoutContext={mockedDashboard}
-            visualizationRefElement={{
-              tagName: "img",
-              naturalWidth: 1,
-              naturalHeight: 2,
-            }}
-            currentSettings={{ refreshRate: 5, enforceAspectRatio: true }}
-          />
-        </DataViewerModeContextProvider>
-      </SelectedDashboardContextProvider>
-    </VariableInputsContextProvider>
-  );
+  renderWithLoaders({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        visualizationRefElement={{
+          tagName: "img",
+          naturalWidth: 1,
+          naturalHeight: 2,
+        }}
+        currentSettings={{ refreshRate: 5, enforceAspectRatio: true }}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+    },
+  });
 
   const refreshRateInput = screen.getByLabelText(
     "Refresh Rate (Minutes) Input"
@@ -130,20 +122,19 @@ test("Settings Pane with visualizationRef Image Element with current settings", 
 test("Settings Pane with visualizationRef Image Element but no natural width", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
 
-  render(
-    <VariableInputsContextProvider>
-      <SelectedDashboardContextProvider>
-        <DataViewerModeContextProvider>
-          <TestingComponent
-            layoutContext={mockedDashboard}
-            visualizationRefElement={{
-              tagName: "img",
-            }}
-          />
-        </DataViewerModeContextProvider>
-      </SelectedDashboardContextProvider>
-    </VariableInputsContextProvider>
-  );
+  renderWithLoaders({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        visualizationRefElement={{
+          tagName: "img",
+        }}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+    },
+  });
 
   const enforceAspectRationInput = screen.queryByLabelText(
     "Enforce Aspect Ratio Input"

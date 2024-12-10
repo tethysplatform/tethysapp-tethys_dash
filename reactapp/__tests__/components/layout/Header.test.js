@@ -1,17 +1,9 @@
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import Header from "components/layout/Header";
-import SelectedDashboardContextProvider from "components/contexts/SelectedDashboardContext";
-import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
-import EditingContextProvider from "components/contexts/EditingContext";
-import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
-import { Route, Routes } from "react-router-dom";
-import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import { AppContext } from "components/contexts/Contexts";
 import { MemoryRouter } from "react-router-dom";
-import { mockedDashboards } from "__tests__/utilities/constants";
-import PropTypes from "prop-types";
+import renderWithLoaders from "__tests__/utilities/customRender";
 
 window.matchMedia =
   window.matchMedia ||
@@ -23,43 +15,14 @@ window.matchMedia =
     };
   };
 
-const TestingComponent = (props) => {
-  return (
-    <>
-      <Routes>
-        <Route
-          path={"/"}
-          element={<Header initialDashboard={props.initialDashboard} />}
-          key="route-dashboard"
-        />
-      </Routes>
-    </>
-  );
-};
-
 test("Header, staff user", async () => {
-  const tethysApp = {};
-  const user = { isStaff: true };
-  const csrf = "csrf";
-  render(
-    <MemoryRouter initialEntries={["/"]}>
-      <AppContext.Provider
-        value={{ tethysApp, user, csrf, dashboards: mockedDashboards }}
-      >
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <DataViewerModeContextProvider>
-                  <TestingComponent />
-                </DataViewerModeContextProvider>
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </AppContext.Provider>
-    </MemoryRouter>
-  );
+  renderWithLoaders({
+    children: (
+      <MemoryRouter initialEntries={["/"]}>
+        <Header />
+      </MemoryRouter>
+    ),
+  });
 
   expect(
     screen.queryByLabelText("dashboardSettingButton")
@@ -91,26 +54,14 @@ test("Header, staff user", async () => {
 });
 
 test("Header, non staff user", async () => {
-  const tethysApp = {};
-  const user = { isStaff: false };
-  const csrf = "csrf";
-  render(
-    <MemoryRouter initialEntries={["/"]}>
-      <AppContext.Provider
-        value={{ tethysApp, user, csrf, dashboards: mockedDashboards }}
-      >
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContextProvider>
-              <EditingContextProvider>
-                <TestingComponent />
-              </EditingContextProvider>
-            </AvailableDashboardsContextProvider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </AppContext.Provider>
-    </MemoryRouter>
-  );
+  renderWithLoaders({
+    children: (
+      <MemoryRouter initialEntries={["/"]}>
+        <Header />
+      </MemoryRouter>
+    ),
+    options: { user: { isAuthenticated: true, isStaff: false } },
+  });
 
   expect(
     screen.queryByLabelText("dashboardSettingButton")
@@ -120,7 +71,3 @@ test("Header, non staff user", async () => {
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
 });
-
-TestingComponent.propTypes = {
-  initialDashboard: PropTypes.string,
-};
