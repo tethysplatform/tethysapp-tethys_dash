@@ -19,6 +19,29 @@ jest.mock("components/dashboard/DeleteConfirmation", () => {
 });
 const mockedConfirm = jest.mocked(confirm);
 
+const { matchMedia } = window;
+
+beforeEach(() => {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: jest.fn().mockImplementation((query) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(), // deprecated
+      removeListener: jest.fn(), // deprecated
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    })),
+  });
+});
+
+afterEach(() => {
+  window.matchMedia = matchMedia;
+  jest.restoreAllMocks();
+});
+
 const TestingComponent = () => {
   const [showCanvas, setShowCanvas] = useState(true);
 
@@ -35,20 +58,6 @@ const TestingComponent = () => {
 };
 
 test("Dashboard Editor Canvas editable dashboard change sharing status", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
-
   renderWithLoaders({
     children: <TestingComponent />,
     options: {
@@ -91,20 +100,6 @@ test("Dashboard Editor Canvas editable dashboard change sharing status", async (
 });
 
 test("Dashboard Editor Canvas copy public url failed", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
-
   renderWithLoaders({
     children: <TestingComponent />,
     options: {
@@ -148,19 +143,6 @@ test("Dashboard Editor Canvas copy public url failed", async () => {
 
 test("Dashboard Editor Canvas noneditable and copy public url", async () => {
   const mockWriteText = jest.fn();
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
   Object.defineProperty(navigator, "clipboard", {
     value: {
       writeText: mockWriteText,
@@ -220,19 +202,6 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
 });
 
 test("Dashboard Editor Canvas edit and save", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
   const mockUpdateDashboard = jest.fn();
 
   mockUpdateDashboard.mockResolvedValue({
@@ -314,19 +283,6 @@ test("Dashboard Editor Canvas edit and save", async () => {
 });
 
 test("Dashboard Editor Canvas edit and save fail without message", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
   const mockUpdateDashboard = jest.fn();
 
   mockUpdateDashboard.mockResolvedValue({ success: false });
@@ -382,19 +338,6 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
 });
 
 test("Dashboard Editor Canvas edit and save fail with message", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
   const mockUpdateDashboard = jest.fn();
 
   mockUpdateDashboard.mockResolvedValue({
@@ -449,19 +392,6 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
 });
 
 test("Dashboard Editor Canvas delete success", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
   const mockDeleteDashboard = jest.fn();
 
   mockDeleteDashboard.mockResolvedValue({
@@ -488,19 +418,6 @@ test("Dashboard Editor Canvas delete success", async () => {
 });
 
 test("Dashboard Editor Canvas delete fail", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
   const mockDeleteDashboard = jest.fn();
 
   mockDeleteDashboard.mockResolvedValue({
@@ -536,19 +453,6 @@ test("Dashboard Editor Canvas delete fail", async () => {
 });
 
 test("Dashboard Editor Canvas delete not confirm", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
   const mockDeleteDashboard = jest.fn();
   appAPI.deleteDashboard = mockDeleteDashboard;
   mockedConfirm.mockResolvedValue(false);
@@ -571,19 +475,6 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
 });
 
 test("Dashboard Editor Canvas copy and not confirm", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
   const mockAddDashboard = jest.fn();
   appAPI.addDashboard = mockAddDashboard;
   mockedConfirm.mockResolvedValue(false);
@@ -604,19 +495,6 @@ test("Dashboard Editor Canvas copy and not confirm", async () => {
 });
 
 test("Dashboard Editor Canvas copy and confirm and success", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
   const mockAddDashboard = jest.fn();
   mockAddDashboard.mockResolvedValue({
     success: true,
@@ -669,19 +547,6 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
 });
 
 test("Dashboard Editor Canvas copy and confirm and fail with message", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
   const mockAddDashboard = jest.fn();
   mockAddDashboard.mockResolvedValue({
     success: false,
@@ -709,19 +574,6 @@ test("Dashboard Editor Canvas copy and confirm and fail with message", async () 
 });
 
 test("Dashboard Editor Canvas copy and confirm and fail without message", async () => {
-  Object.defineProperty(window, "matchMedia", {
-    writable: true,
-    value: jest.fn().mockImplementation((query) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addListener: jest.fn(), // deprecated
-      removeListener: jest.fn(), // deprecated
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
-    })),
-  });
   const mockAddDashboard = jest.fn();
   mockAddDashboard.mockResolvedValue({
     success: false,
