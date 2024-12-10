@@ -57,6 +57,7 @@ const PostLoader = ({ children }) => {
     ]);
     setAvailableDashboards(dashboards);
     setIsLoaded(true);
+    // eslint-disable-next-line
   }, []);
 
   async function updateUserSettings(updatedProperties) {
