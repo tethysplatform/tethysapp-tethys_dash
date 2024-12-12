@@ -319,7 +319,7 @@ def get_dashboards(user, name=None):
                 "label": dashboard.label,
                 "notes": dashboard.notes,
                 "editable": True if dashboard.owner == user else False,
-                "access_groups": (
+                "accessGroups": (
                     ["public"] if "public" in dashboard.access_groups else []
                 ),
             }

@@ -12,6 +12,7 @@ import {
   EditingContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
+import AppTourContextProvider from "components/contexts/AppTourContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 
 const PostLoader = ({ children }) => {
@@ -311,7 +312,9 @@ const PostLoader = ({ children }) => {
                         setInDataViewerMode,
                       }}
                     >
-                      {children}
+                      <AppTourContextProvider>
+                        {children}
+                      </AppTourContextProvider>
                     </DataViewerModeContext.Provider>
                   </EditingContext.Provider>
                 </DashboardDropdownContext.Provider>
