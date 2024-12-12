@@ -24,6 +24,11 @@ function DashboardView({ initialDashboard }) {
     ) {
       setActiveAppTour(false);
     }
+
+    if ([4, 5, 7].includes(index) && type == EVENTS.STEP_AFTER) {
+      const nextStepIndex = index + 1;
+      setAppTourStep(nextStepIndex);
+    }
   };
 
   const steps = [
@@ -37,7 +42,6 @@ function DashboardView({ initialDashboard }) {
       disableBeacon: true,
       disableOverlayClose: true,
       hideFooter: true,
-      placement: "bottom",
       spotlightClicks: true,
     },
     {
@@ -51,7 +55,6 @@ function DashboardView({ initialDashboard }) {
       disableBeacon: true,
       disableOverlayClose: true,
       hideFooter: true,
-      placement: "bottom",
       spotlightClicks: true,
     },
     {
@@ -60,7 +63,6 @@ function DashboardView({ initialDashboard }) {
       disableBeacon: true,
       disableOverlayClose: true,
       hideFooter: true,
-      placement: "left",
       spotlightClicks: true,
     },
     {
@@ -74,7 +76,6 @@ function DashboardView({ initialDashboard }) {
       disableBeacon: true,
       disableOverlayClose: true,
       hideFooter: true,
-      placement: "left",
       spotlightClicks: true,
     },
     {
@@ -87,7 +88,61 @@ function DashboardView({ initialDashboard }) {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      placement: "top",
+      spotlightClicks: true,
+      hideBackButton: true,
+    },
+    {
+      target: ".gridVisualization:first-child", // 5
+      content: (
+        <div>
+          Dashboards are composed of dashboard items. Each dashboard item can be
+          customized to show visualizations and be changed in size to the users
+          liking. Dashboards and items can only be changed by the dashboard
+          owner and when the dashboard is in edit mode.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      hideBackButton: true,
+    },
+    {
+      target: ".editDashboardButton", // 6
+      content: <div>To turn on edit mode, click on the edit button</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      hideFooter: true,
+    },
+    {
+      target: "#gridUpdate > div > div:nth-child(1) > span", // 7
+      content: (
+        <div>
+          Once in edit mode, update the size of a dashboard item by dragging the
+          resize handle.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      hideBackButton: true,
+      styles: {
+        options: {
+          arrowColor: "transparent",
+        },
+      },
+    },
+    {
+      target: "#gridUpdate > div > div:nth-child(1) > div > div", // 8
+      content: (
+        <div>
+          While in edit mode, update the visualization by clicking on the 3 dot
+          menu within the dashboard item.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      placement: "bottom",
       spotlightClicks: true,
       hideBackButton: true,
     },
@@ -97,12 +152,13 @@ function DashboardView({ initialDashboard }) {
     <>
       <Joyride
         callback={handleCallback}
+        continuous
         scrollToFirstStep
-        showProgress
         showSkipButton
         steps={steps}
         stepIndex={appTourStep}
         run={activeAppTour}
+        locale={{ skip: "End App Tour", last: "End App Tour" }}
         styles={{
           options: {
             zIndex: 10000,

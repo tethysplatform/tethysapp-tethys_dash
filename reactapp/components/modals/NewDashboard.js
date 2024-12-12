@@ -39,12 +39,13 @@ function NewDashboardModal({ showModal, setShowModal }) {
     addDashboard(inputData).then((response) => {
       if (response["success"]) {
         handleModalClose();
-        setIsEditing(true);
-
         if (activeAppTour) {
           setTimeout(() => {
+            setIsEditing(false);
             setAppTourStep(4);
           }, 400);
+        } else {
+          setIsEditing(true);
         }
       } else {
         setErrorMessage(response["message"]);
