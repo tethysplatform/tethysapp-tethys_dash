@@ -54,9 +54,9 @@ export function setVisualization(setViz, itemData, visualizationRef) {
       } else if (response["viz_type"] === "map") {
         setViz(
           <MapVisualization
-            viewConfig={response.data.view_config}
+            viewConfig={response.data.viewConfig}
             layers={response.data.layers}
-            mapConfig={response.data.map_config}
+            mapConfig={response.data.mapConfig}
             legend={response.data.legend}
             visualizationRef={visualizationRef}
           />
