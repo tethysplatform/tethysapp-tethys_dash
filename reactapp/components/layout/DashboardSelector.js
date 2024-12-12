@@ -16,6 +16,7 @@ import {
 } from "react-icons/bs";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import styled from "styled-components";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import PropTypes from "prop-types";
 
 const StyledDiv = styled.div`
@@ -33,6 +34,8 @@ function DashboardSelector({ initialDashboard }) {
   } = useContext(DashboardDropdownContext);
   const [showModal, setShowModal] = useState(false);
   const { isEditing, setIsEditing } = useContext(EditingContext);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
+  const [menuIsOpen, setMenuIsOpen] = useState(false);
 
   useEffect(() => {
     if (
@@ -53,6 +56,9 @@ function DashboardSelector({ initialDashboard }) {
   function changeDashboard(e) {
     if (e.value === "Create a New Dashboard") {
       setShowModal(true);
+      if (activeAppTour) {
+        setAppTourStep(2);
+      }
     } else {
       let selectedDashboard = availableDashboards[e.value];
       setSelectedDashboardDropdownOption({
@@ -60,8 +66,14 @@ function DashboardSelector({ initialDashboard }) {
         label: selectedDashboard["label"],
       });
       setLayoutContext(selectedDashboard);
+      if (activeAppTour) {
+        setTimeout(() => {
+          setAppTourStep(4);
+        }, 400);
+      }
     }
     setIsEditing(false);
+    setMenuIsOpen(false);
   }
 
   async function updateLayout(e) {
@@ -111,12 +123,27 @@ function DashboardSelector({ initialDashboard }) {
     setLayoutContext(layout);
   }
 
+  const handleMenuOpen = () => {
+    setMenuIsOpen(true);
+    setAppTourStep((previousStep) => previousStep + 1);
+  };
+
+  const handleMenuClose = (e) => {
+    if (!activeAppTour) {
+      setMenuIsOpen(false);
+    }
+  };
+
   return (
-    <StyledDiv>
+    <StyledDiv className={"wizard-step-1"}>
       <DashboardSelect
         options={dashboardDropdownOptions}
         value={selectedDashboardDropdownOption}
         onChange={updateLayout}
+        menuIsOpen={menuIsOpen}
+        onMenuOpen={handleMenuOpen}
+        onMenuClose={handleMenuClose}
+        classNamePrefix="wizard-step-2"
       />
       {selectedDashboardDropdownOption && (
         <>
