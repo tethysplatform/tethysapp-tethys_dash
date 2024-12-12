@@ -36,6 +36,9 @@ function DashboardSelector({ initialDashboard }) {
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const [menuIsOpen, setMenuIsOpen] = useState(false);
+  const userDashboardDropdownOptions = dashboardDropdownOptions.filter(
+    (dashboardDropdownOption) => dashboardDropdownOption.label !== "Public"
+  );
 
   useEffect(() => {
     if (
@@ -92,6 +95,11 @@ function DashboardSelector({ initialDashboard }) {
 
   function onEdit(e) {
     setIsEditing(true);
+    if (activeAppTour) {
+      setTimeout(() => {
+        setAppTourStep((previousStep) => previousStep + 1);
+      }, 400);
+    }
   }
 
   function onCancel(e) {
@@ -137,7 +145,11 @@ function DashboardSelector({ initialDashboard }) {
   return (
     <StyledDiv className={"wizard-step-1"}>
       <DashboardSelect
-        options={dashboardDropdownOptions}
+        options={
+          activeAppTour
+            ? userDashboardDropdownOptions
+            : dashboardDropdownOptions
+        }
         value={selectedDashboardDropdownOption}
         onChange={updateLayout}
         menuIsOpen={menuIsOpen}
@@ -184,6 +196,7 @@ function DashboardSelector({ initialDashboard }) {
                   tooltipText="Edit Dashboard"
                   onClick={onEdit}
                   aria-label={"editButton"}
+                  className={"editDashboardButton"}
                 >
                   <BsPencilSquare size="1.5rem" />
                 </TooltipButton>
