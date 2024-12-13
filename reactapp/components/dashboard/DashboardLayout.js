@@ -12,6 +12,7 @@ import {
 } from "components/contexts/LayoutAlertContext";
 import Form from "react-bootstrap/Form";
 import DashboardItem from "components/dashboard/DashboardItem";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import "components/dashboard/DashboardLayout.css";
@@ -38,6 +39,7 @@ function DashboardLayout() {
   const [layout, setLayout] = useState([]);
   const [items, setItems] = useState([]);
   const gridItemsUpdated = useRef();
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   useEffect(() => {
     updateGridLayout();
@@ -112,6 +114,9 @@ function DashboardLayout() {
 
   function handleSubmit(event) {
     event.preventDefault();
+    if (activeAppTour) {
+      return;
+    }
     setShowSuccessMessage(false);
     setShowErrorMessage(false);
 

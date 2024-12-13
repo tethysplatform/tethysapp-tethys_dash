@@ -8,6 +8,7 @@ import {
   VariableInputsContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
@@ -45,6 +46,7 @@ const DashboardItem = ({
     VariableInputsContext
   );
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   async function deleteGridItem(e) {
     if (await confirm("Are you sure you want to delete the item?")) {
@@ -114,6 +116,8 @@ const DashboardItem = ({
     setInDataViewerMode(false);
   }
 
+  function emptyFunction() {}
+
   return (
     <>
       <StyledContainer fluid className="h-100 gridVisualization">
@@ -126,10 +130,10 @@ const DashboardItem = ({
         <StyledButtonDiv>
           <DashboardItemDropdown
             showFullscreen={gridItemSource ? onFullscreen : null}
-            deleteGridItem={deleteGridItem}
-            editGridItem={editGridItem}
+            deleteGridItem={activeAppTour ? emptyFunction : deleteGridItem}
+            editGridItem={activeAppTour ? emptyFunction : editGridItem}
             editSize={isEditing ? null : editSize}
-            copyGridItem={copyGridItem}
+            copyGridItem={activeAppTour ? emptyFunction : copyGridItem}
           />
         </StyledButtonDiv>
         <BaseVisualization
