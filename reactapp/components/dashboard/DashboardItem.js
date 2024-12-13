@@ -72,6 +72,11 @@ const DashboardItem = ({
     setShowDataViewerModal(true);
     setIsEditing(true);
     setInDataViewerMode(true);
+    if (activeAppTour) {
+      setTimeout(() => {
+        setAppTourStep(15);
+      });
+    }
   }
 
   function copyGridItem() {
@@ -131,7 +136,7 @@ const DashboardItem = ({
           <DashboardItemDropdown
             showFullscreen={gridItemSource ? onFullscreen : null}
             deleteGridItem={activeAppTour ? emptyFunction : deleteGridItem}
-            editGridItem={activeAppTour ? emptyFunction : editGridItem}
+            editGridItem={editGridItem}
             editSize={isEditing ? null : editSize}
             copyGridItem={activeAppTour ? emptyFunction : copyGridItem}
           />

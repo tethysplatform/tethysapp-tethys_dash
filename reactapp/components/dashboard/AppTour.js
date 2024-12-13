@@ -15,6 +15,10 @@ function AppTour() {
       setActiveAppTour(false);
     }
 
+    if (step.data && step.data.endAppTourStep && type == EVENTS.STEP_AFTER) {
+      setActiveAppTour(false);
+    }
+
     if (step.data && step.data.callbackNext && type == EVENTS.STEP_AFTER) {
       const nextStepIndex = index + (action === ACTIONS.PREV ? -1 : 1);
       setAppTourStep(nextStepIndex);
@@ -100,7 +104,7 @@ function AppTour() {
     },
     {
       target: ".editDashboardButton", // 6
-      content: <div>To turn on edit mode, click on the edit button</div>,
+      content: <div>Click on the edit button to turn on edit mode.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
       spotlightClicks: true,
@@ -151,7 +155,6 @@ function AppTour() {
       disableOverlayClose: true,
       spotlightClicks: true,
       hideBackButton: true,
-      data: { callbackNext: true },
     },
     {
       target: ".dashboard-item-dropdown-create-copy", // 10
@@ -215,7 +218,87 @@ function AppTour() {
       disableBeacon: true,
       disableOverlayClose: true,
       spotlightClicks: true,
+      data: { endAppTourStep: true },
+      locale: { next: "End App Tour" },
+    },
+    {
+      target: ".dataviewer", // 15
+      content: (
+        <div>
+          This is a modal for configuring and previewing visualizations.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      hideBackButton: true,
+      placement: "center",
+      styles: {
+        options: {
+          arrowColor: "transparent",
+        },
+      },
       data: { callbackNext: true },
+    },
+    {
+      target: "#visualization-tabs > li:nth-child(1)", // 16
+      content: (
+        <div>
+          The visualization tab will show options for configuring the
+          visualization and any visualization arguments.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      data: { callbackNext: true },
+    },
+    {
+      target: ".dataviewer-inputs", // 18
+      content: (
+        <div>
+          Begin by selecting a "Visualization Type" to pick a visualization.
+          <br />
+          <br />
+          Once a visualization type has been chosen, additional inputs for
+          arguments will appear for the given visualization. In this example,
+          the argument is asking for an publicly accessible image url.
+          <br />
+          <br />
+          You can use <b>/static/tethysdash/images/tethys_dash.png</b> as as
+          example.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      data: { callbackNext: true },
+      hideFooter: true,
+      placement: "right",
+    },
+    {
+      target: "#visualization-tabs > li:nth-child(2)", // 17
+      content: (
+        <div>
+          The settings tab will show options for configuring any dashboard item
+          settings. Setting options will not be available until a visualization
+          is configured and in the preview.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      data: { callbackNext: true },
+    },
+    {
+      target: ".dataviewer-inputs", // 18
+      content: <div>settings</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      data: { callbackNext: true },
+      hideFooter: true,
+      placement: "right",
     },
   ];
 
