@@ -142,6 +142,8 @@ function DashboardSelector({ initialDashboard }) {
     }
   };
 
+  function emptyFunction() {}
+
   return (
     <StyledDiv className={"wizard-step-1"}>
       <DashboardSelect
@@ -166,8 +168,9 @@ function DashboardSelector({ initialDashboard }) {
                   <TooltipButton
                     tooltipPlacement="bottom"
                     tooltipText="Cancel Changes"
-                    onClick={onCancel}
-                    aria-label={"cancelButton"}
+                    onClick={activeAppTour ? emptyFunction : onCancel}
+                    aria-label="cancelButton"
+                    className="cancelChangesButton"
                   >
                     <BsArrowReturnLeft size="1.5rem" />
                   </TooltipButton>
@@ -176,15 +179,17 @@ function DashboardSelector({ initialDashboard }) {
                     tooltipText="Save Changes"
                     form="gridUpdate"
                     type="submit"
-                    aria-label={"saveButton"}
+                    aria-label="saveButton"
+                    className="saveChangesButton"
                   >
                     <BsFloppy size="1.5rem" />
                   </TooltipButton>
                   <TooltipButton
                     tooltipPlacement="bottom"
                     tooltipText="Add Dashboard Item"
-                    onClick={onAddGridItem}
-                    aria-label={"addGridItemButton"}
+                    onClick={activeAppTour ? emptyFunction : onAddGridItem}
+                    aria-label="addGridItemButton"
+                    className="addGridItemsButton"
                   >
                     <BsPlus size="1.5rem" />
                   </TooltipButton>
