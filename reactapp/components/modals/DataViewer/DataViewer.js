@@ -11,6 +11,7 @@ import {
   LayoutContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import CustomAlert from "components/dashboard/CustomAlert";
 import VisualizationPane from "components/modals/DataViewer/VisualizationPane";
 import SettingsPane from "components/modals/DataViewer/SettingsPane";
@@ -56,6 +57,7 @@ function DataViewerModal({
   );
   const [showVisualizationTypeSettings, setShowVisualizationTypeSettings] =
     useState(false);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   const gridMetadata = JSON.parse(metadataString);
   const visualizationRef = useRef({});
@@ -180,7 +182,11 @@ function DataViewerModal({
           <Form id="dataSelect" onSubmit={handleSubmit}>
             <StyledContainer>
               <StyledRow>
-                <StyledCol className={"justify-content-center h-100 col-3"}>
+                <StyledCol
+                  className={
+                    "justify-content-center h-100 col-3 dataviewer-inputs"
+                  }
+                >
                   <Tabs
                     activeKey={tabKey}
                     onSelect={(k) => setTabKey(k)}
@@ -191,6 +197,7 @@ function DataViewerModal({
                       eventKey="visualization"
                       title="Visualization"
                       aria-label="visualizationTab"
+                      className="visualizationTab"
                     >
                       <VisualizationPane
                         source={source}
@@ -218,6 +225,7 @@ function DataViewerModal({
                       eventKey="settings"
                       title="Settings"
                       aria-label="settingsTab"
+                      className="settingsTab"
                     >
                       <SettingsPane
                         settingsRef={settingsRef}
