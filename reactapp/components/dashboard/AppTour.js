@@ -5,6 +5,7 @@ function AppTour() {
   const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
     useAppTourContext();
   const handleCallback = (event) => {
+    console.log(event);
     const { status, action, index, type, step } = event;
 
     if (
@@ -19,8 +20,19 @@ function AppTour() {
       setActiveAppTour(false);
     }
 
+    console.log("index - " + index);
+    console.log("app tour step - " + appTourStep);
+
     if (step.data && step.data.callbackNext && type == EVENTS.STEP_AFTER) {
-      const nextStepIndex = index + (action === ACTIONS.PREV ? -1 : 1);
+      let nextStepIndex;
+      if (step.data.nextStepIndex) {
+        nextStepIndex = step.data.nextStepIndex;
+      } else if (index !== appTourStep) {
+        nextStepIndex = appTourStep;
+      } else {
+        nextStepIndex = index + (action === ACTIONS.PREV ? -1 : 1);
+      }
+      console.log("next step - " + nextStepIndex);
       setAppTourStep(nextStepIndex);
     }
   };
@@ -122,11 +134,7 @@ function AppTour() {
       disableOverlayClose: true,
       spotlightClicks: true,
       hideBackButton: true,
-      styles: {
-        options: {
-          arrowColor: "transparent",
-        },
-      },
+      floaterProps: { hideArrow: true },
       data: { callbackNext: true },
     },
     {
@@ -149,12 +157,17 @@ function AppTour() {
         <div>
           Editing the visualization will change the dashboard visualization as
           well as any dashboard item settings.
+          <br />
+          <br />
+          Click on "Edit Visualization" in the menu to learn more or continue
+          with "Next"
         </div>
       ),
       disableBeacon: true,
       disableOverlayClose: true,
       spotlightClicks: true,
       hideBackButton: true,
+      data: { callbackNext: true },
     },
     {
       target: ".dashboard-item-dropdown-create-copy", // 10
@@ -233,11 +246,7 @@ function AppTour() {
       spotlightClicks: true,
       hideBackButton: true,
       placement: "center",
-      styles: {
-        options: {
-          arrowColor: "transparent",
-        },
-      },
+      floaterProps: { hideArrow: true },
       data: { callbackNext: true },
     },
     {
@@ -254,7 +263,7 @@ function AppTour() {
       data: { callbackNext: true },
     },
     {
-      target: ".dataviewer-inputs", // 18
+      target: ".dataviewer-inputs", // 17
       content: (
         <div>
           Begin by selecting a "Visualization Type" to pick a visualization.
@@ -273,16 +282,56 @@ function AppTour() {
       disableOverlayClose: true,
       spotlightClicks: true,
       data: { callbackNext: true },
-      hideFooter: true,
       placement: "right",
     },
     {
-      target: "#visualization-tabs > li:nth-child(2)", // 17
+      target: ".dataviewer-inputs", // 18
       content: (
         <div>
           The settings tab will show options for configuring any dashboard item
           settings. Setting options will not be available until a visualization
           is configured and in the preview.
+          <br />
+          <br />
+          Click on the "Settings" tab once the image is loaded.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      data: { callbackNext: true },
+      placement: "right",
+    },
+    {
+      target: ".dataviewer-inputs", // 19
+      content: (
+        <div>
+          Once the visualization is loaded, available settings for the
+          visualization will be shown. For more information on potential
+          settings and what they do, please check the official{" "}
+          <a
+            href="https://tethysdashdocs.readthedocs.io/en/latest/usage/settings_tab.html"
+            target="_black"
+            rel="noopener noreferrer"
+          >
+            TethysDash documentation
+          </a>
+          .
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      data: { callbackNext: true },
+      placement: "right",
+    },
+    {
+      target: ".dataviewer-save-button", // 20
+      content: (
+        <div>
+          After the visualization is configured correctly, click on the "Save"
+          button to exit the data viewer and save any changes to the dashboard
+          item.
         </div>
       ),
       disableBeacon: true,
@@ -291,14 +340,17 @@ function AppTour() {
       data: { callbackNext: true },
     },
     {
-      target: ".dataviewer-inputs", // 18
-      content: <div>settings</div>,
+      target: ".dataviewer-close-button", // 21
+      content: (
+        <div>
+          Click on the "Close" button to exit the data viewer and continue with
+          the App Tour.
+        </div>
+      ),
       disableBeacon: true,
       disableOverlayClose: true,
       spotlightClicks: true,
-      data: { callbackNext: true },
       hideFooter: true,
-      placement: "right",
     },
   ];
 
