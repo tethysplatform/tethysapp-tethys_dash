@@ -8,6 +8,7 @@ import {
   AvailableDashboardsContext,
   EditingContext,
 } from "components/contexts/Contexts";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import styled from "styled-components";
 import { getTethysPortalHost } from "services/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
@@ -56,7 +57,6 @@ const TextDiv = styled.div`
 `;
 
 function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
-  const handleClose = () => setShowCanvas(false);
   const [selectedSharingStatus, setSelectedSharingStatus] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
@@ -72,11 +72,18 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const dashboardPublicUrl =
     getTethysPortalHost() + APP_ROOT_URL + "dashboard/" + name;
   const { setIsEditing } = useContext(EditingContext);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   const sharingStatusOptions = [
     { label: "Public", value: "public" },
     { label: "Private", value: "private" },
   ];
+  const handleClose = () => {
+    setShowCanvas(false);
+    if (activeAppTour) {
+      setAppTourStep(16);
+    }
+  };
 
   useEffect(() => {
     if (accessGroups.includes("public")) {
@@ -168,8 +175,15 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     setLocalNotes(value);
   }
 
+  function emptyFunction() {}
+
   return (
-    <StyledOffcanvas show={showCanvas} onHide={handleClose} placement={"left"}>
+    <StyledOffcanvas
+      show={showCanvas}
+      onHide={handleClose}
+      placement={"left"}
+      className="dashboard-settings-editor"
+    >
       <StyledHeader closeButton>
         <StyledTitle>Dashboard Settings</StyledTitle>
       </StyledHeader>
@@ -264,13 +278,18 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
         </TextEditorDiv>
       </Offcanvas.Body>
       <StyledFooter>
-        <StyledButton variant="secondary" onClick={handleClose}>
+        <StyledButton
+          variant="secondary"
+          onClick={handleClose}
+          className="cancel-dashboard-editor-button"
+        >
           Close
         </StyledButton>
         <StyledButton
           variant="info"
-          onClick={onCopy}
-          aria-label={"Copy Dashboard Button"}
+          onClick={activeAppTour ? emptyFunction : onCopy}
+          aria-label="Copy Dashboard Button"
+          className="copy-dashboard-button"
         >
           Copy dashboard
         </StyledButton>
@@ -278,15 +297,17 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
           <>
             <StyledButton
               variant="danger"
-              onClick={onDelete}
-              aria-label={"Delete Dashboard Button"}
+              onClick={activeAppTour ? emptyFunction : onDelete}
+              aria-label="Delete Dashboard Button"
+              className="delete-dashboard-button"
             >
               Delete dashboard
             </StyledButton>
             <StyledButton
               variant="success"
-              onClick={onSave}
-              aria-label={"Save Dashboard Button"}
+              onClick={activeAppTour ? emptyFunction : onSave}
+              aria-label="Save Dashboard Button"
+              className="save-dashboard-button"
             >
               Save changes
             </StyledButton>

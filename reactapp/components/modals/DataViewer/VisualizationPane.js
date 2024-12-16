@@ -59,7 +59,7 @@ function VisualizationPane({
   const [selectedGroupName, setSelectedGroupName] = useState(null);
   const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useContext(VariableInputsContext);
-  const { setAppTourStep, activeAppTour } = useAppTourContext();
+  const { activeAppTour } = useAppTourContext();
   const otherVisualizationOptions = visualizations.find((obj) => {
     return obj.label === "Other";
   });

@@ -1,11 +1,10 @@
-import Joyride, { ACTIONS, EVENTS, STATUS, ORIGIN } from "react-joyride";
+import Joyride, { ACTIONS, EVENTS, STATUS } from "react-joyride";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 
 function AppTour() {
   const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
     useAppTourContext();
   const handleCallback = (event) => {
-    console.log(event);
     const { status, action, index, type, step } = event;
 
     if (
@@ -16,24 +15,20 @@ function AppTour() {
       setActiveAppTour(false);
     }
 
-    if (step.data && step.data.endAppTourStep && type == EVENTS.STEP_AFTER) {
-      setActiveAppTour(false);
-    }
-
-    console.log("index - " + index);
-    console.log("app tour step - " + appTourStep);
-
-    if (step.data && step.data.callbackNext && type == EVENTS.STEP_AFTER) {
-      let nextStepIndex;
+    if (step.data && type === EVENTS.STEP_AFTER) {
       if (step.data.nextStepIndex) {
-        nextStepIndex = step.data.nextStepIndex;
+        setAppTourStep(step.data.nextStepIndex);
       } else if (index !== appTourStep) {
-        nextStepIndex = appTourStep;
-      } else {
-        nextStepIndex = index + (action === ACTIONS.PREV ? -1 : 1);
+        setAppTourStep(appTourStep);
+      } else if (action === ACTIONS.PREV) {
+        const nextStepIndex = index - 1;
+        setAppTourStep(nextStepIndex);
+      } else if (step.data.callbackNext) {
+        const nextStepIndex = index + 1;
+        setAppTourStep(nextStepIndex);
+      } else if (action === ACTIONS.NEXT && step.data.endAppTourStep) {
+        setActiveAppTour(false);
       }
-      console.log("next step - " + nextStepIndex);
-      setAppTourStep(nextStepIndex);
     }
   };
 
@@ -111,7 +106,6 @@ function AppTour() {
       disableBeacon: true,
       disableOverlayClose: true,
       spotlightClicks: true,
-      hideBackButton: true,
       data: { callbackNext: true },
     },
     {
@@ -231,11 +225,59 @@ function AppTour() {
       disableBeacon: true,
       disableOverlayClose: true,
       spotlightClicks: true,
-      data: { endAppTourStep: true },
-      locale: { next: "End App Tour" },
+      data: { callbackNext: true },
     },
     {
-      target: ".dataviewer", // 15
+      target: ".dashboardSettingButton", // 15
+      content: (
+        <div>
+          Each dashboard has general settings like names, labels, sharing
+          status, and notes. These settings, as well as copying and deleting
+          dashboard actions, can be found in this menu.
+          <br />
+          <br />
+          Click on the hamburger menu to learn more about dashboard settings.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      data: { callbackNext: true },
+    },
+    {
+      target: ".react-grid-layout", // 16
+      content: (
+        <div>
+          For more information about TethysDash, visit the{" "}
+          <a
+            href="https://tethysdashdocs.readthedocs.io/en/latest/usage/settings_tab.html"
+            target="_black"
+            rel="noopener noreferrer"
+          >
+            TethysDash documentation
+          </a>
+          . Please follow instructions found in the{" "}
+          <a
+            href="https://tethysdashdocs.readthedocs.io/en/latest/feedback.html"
+            target="_black"
+            rel="noopener noreferrer"
+          >
+            feedback
+          </a>{" "}
+          sessions for reporting any bugs or issues.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      locale: { next: "End App Tour" },
+      showSkipButton: false,
+      data: { endAppTourStep: true },
+      placement: "center",
+    },
+    // DATAVIEWER STEPS
+    {
+      target: ".dataviewer", // 17
       content: (
         <div>
           This is a modal for configuring and previewing visualizations.
@@ -250,7 +292,7 @@ function AppTour() {
       data: { callbackNext: true },
     },
     {
-      target: "#visualization-tabs > li:nth-child(1)", // 16
+      target: "#visualization-tabs > li:nth-child(1)", // 18
       content: (
         <div>
           The visualization tab will show options for configuring the
@@ -263,7 +305,7 @@ function AppTour() {
       data: { callbackNext: true },
     },
     {
-      target: ".dataviewer-inputs", // 17
+      target: ".dataviewer-inputs", // 19
       content: (
         <div>
           Begin by selecting a "Visualization Type" to pick a visualization.
@@ -285,7 +327,7 @@ function AppTour() {
       placement: "right",
     },
     {
-      target: ".dataviewer-inputs", // 18
+      target: ".dataviewer-inputs", // 20
       content: (
         <div>
           The settings tab will show options for configuring any dashboard item
@@ -303,7 +345,7 @@ function AppTour() {
       placement: "right",
     },
     {
-      target: ".dataviewer-inputs", // 19
+      target: ".dataviewer-inputs", // 21
       content: (
         <div>
           Once the visualization is loaded, available settings for the
@@ -326,7 +368,7 @@ function AppTour() {
       placement: "right",
     },
     {
-      target: ".dataviewer-save-button", // 20
+      target: ".dataviewer-save-button", // 22
       content: (
         <div>
           After the visualization is configured correctly, click on the "Save"
@@ -340,11 +382,98 @@ function AppTour() {
       data: { callbackNext: true },
     },
     {
-      target: ".dataviewer-close-button", // 21
+      target: ".dataviewer-close-button", // 23
       content: (
         <div>
           Click on the "Close" button to exit the data viewer and continue with
           the App Tour.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      hideFooter: true,
+    },
+    // DASHBOARD SETTINGS
+    {
+      target: ".dashboard-settings-editor", // 24
+      content: (
+        <div>
+          General dashboard settings can be altered in this menu. General
+          settings include the following:
+          <br />
+          <ul>
+            <li>
+              Name: The name of dashboard. This will be the name in the url of a
+              public dashboard.
+            </li>
+            <br />
+            <li>
+              Label: The label for the dashboard that will show in the Dashboard
+              selection dropdown.
+            </li>
+            <br />
+            <li>
+              Sharing Status: Determines if the dashboard is publicly available.
+            </li>
+            <br />
+            <li>
+              Notes: Write and persist any text for future reference. These
+              notes are publicly viewable if the dashboard is public.
+            </li>
+          </ul>
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      hideBackButton: true,
+      data: { callbackNext: true },
+      placement: "right",
+    },
+    {
+      target: ".save-dashboard-button", // 25
+      content: <div>Persist dashboard setting changes by saving them.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      data: { callbackNext: true },
+      placement: "top",
+    },
+    {
+      target: ".copy-dashboard-button", // 26
+      content: (
+        <div>
+          Dashboards can be copied with the same settings and dashboard items.
+          The new dashboard will have the name with "_copy" at the end.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      data: { callbackNext: true },
+      placement: "top",
+    },
+    {
+      target: ".delete-dashboard-button", // 27
+      content: (
+        <div>
+          Dashboards can be deleted. Once deleted, they can not be retrieved
+          again.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      data: { callbackNext: true },
+      placement: "top",
+    },
+    {
+      target: ".cancel-dashboard-editor-button", // 28
+      content: (
+        <div>
+          Click on the "Close" button to exit the settings editor and continue
+          with the App Tour.
         </div>
       ),
       disableBeacon: true,

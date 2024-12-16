@@ -13,6 +13,7 @@ import DashboardSelector from "components/layout/DashboardSelector";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import AppInfoModal from "components/modals/AppInfo";
 import { LayoutContext } from "components/contexts/Contexts";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import "components/buttons/HeaderButton.css";
 
 const CustomNavBar = styled(Navbar)`
@@ -27,7 +28,16 @@ const Header = ({ initialDashboard }) => {
   const [showInfoModal, setShowInfoModal] = useState(
     dontShowInfoOnStart !== "true"
   );
-  const showNav = () => setShowEditCanvas(true);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
+
+  const showNav = () => {
+    setShowEditCanvas(true);
+    if (activeAppTour) {
+      setTimeout(() => {
+        setAppTourStep(24);
+      }, 400);
+    }
+  };
   const { getLayoutContext } = useContext(LayoutContext);
   const { name } = getLayoutContext();
 
@@ -45,7 +55,8 @@ const Header = ({ initialDashboard }) => {
               onClick={showNav}
               tooltipPlacement="bottom"
               tooltipText="Dashboard Settings"
-              aria-label={"dashboardSettingButton"}
+              aria-label="dashboardSettingButton"
+              className="dashboardSettingButton"
             >
               <BsList size="1.5rem" />
             </TooltipButton>
