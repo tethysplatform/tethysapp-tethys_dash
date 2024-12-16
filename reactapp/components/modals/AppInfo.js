@@ -110,14 +110,8 @@ function AppInfoModal({ showModal, setShowModal }) {
 }
 
 AppInfoModal.propTypes = {
-  gridItemIndex: PropTypes.number,
-  source: PropTypes.string,
-  argsString: PropTypes.string,
-  metadataString: PropTypes.string,
-  setGridItemMessage: PropTypes.func,
-  setShowGridItemMessage: PropTypes.func,
   showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
+  setShowModal: PropTypes.func,
 };
 
 export default AppInfoModal;

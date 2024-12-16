@@ -52,6 +52,7 @@ TooltipButton.propTypes = {
   tooltipText: PropTypes.string,
   href: PropTypes.string,
   variant: PropTypes.string,
+  className: PropTypes.string,
 };
 
 export default TooltipButton;

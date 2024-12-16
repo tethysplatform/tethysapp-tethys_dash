@@ -39,7 +39,7 @@ function DashboardLayout() {
   const [layout, setLayout] = useState([]);
   const [items, setItems] = useState([]);
   const gridItemsUpdated = useRef();
-  const { setAppTourStep, activeAppTour } = useAppTourContext();
+  const { activeAppTour } = useAppTourContext();
 
   useEffect(() => {
     updateGridLayout();
