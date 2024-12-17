@@ -21,7 +21,6 @@ function NewDashboardModal({ showModal, setShowModal }) {
 
   const handleModalClose = () => {
     setShowModal(false);
-
     if (activeAppTour) {
       setAppTourStep(0);
     }

@@ -263,6 +263,7 @@ function DataViewerModal({
           <Button
             variant="secondary"
             onClick={activeAppTour ? closeAndSetAppTour : handleModalClose}
+            aria-label="dataviewer-close-button"
             className="dataviewer-close-button"
           >
             Close
@@ -270,6 +271,7 @@ function DataViewerModal({
           <Button
             variant="success"
             className="dataviewer-save-button"
+            aria-label="dataviewer-save-button"
             onClick={activeAppTour ? emptyFunction : saveChanges}
           >
             Save

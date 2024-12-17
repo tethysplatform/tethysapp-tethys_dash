@@ -42,6 +42,7 @@ const DashboardItemDropdown = ({
       <StyledDropdownToggle
         id="dropdown-basic"
         className="dashboard-item-dropdown-toggle"
+        aria-label="dashboard-item-dropdown-toggle"
       >
         <BsThreeDotsVertical />
       </StyledDropdownToggle>
