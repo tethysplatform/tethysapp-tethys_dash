@@ -145,7 +145,7 @@ function DashboardSelector({ initialDashboard }) {
   function emptyFunction() {}
 
   return (
-    <StyledDiv className={"wizard-step-1"}>
+    <StyledDiv className={"dashboard-selector"}>
       <DashboardSelect
         options={
           activeAppTour
@@ -157,7 +157,7 @@ function DashboardSelector({ initialDashboard }) {
         menuIsOpen={menuIsOpen}
         onMenuOpen={handleMenuOpen}
         onMenuClose={handleMenuClose}
-        classNamePrefix="wizard-step-2"
+        classNamePrefix="dashboard-selector-prefix"
       />
       {selectedDashboardDropdownOption && (
         <>

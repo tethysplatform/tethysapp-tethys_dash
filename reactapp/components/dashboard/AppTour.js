@@ -1,7 +1,7 @@
 import Joyride, { ACTIONS, EVENTS, STATUS } from "react-joyride";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 
-function AppTour() {
+const AppTour = () => {
   const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
     useAppTourContext();
   const handleCallback = (event) => {
@@ -34,7 +34,7 @@ function AppTour() {
 
   const steps = [
     {
-      target: ".wizard-step-1", // 0
+      target: ".dashboard-selector", // 0
       content: (
         <div>
           Begin by clicking on the dropdown to select or create a dashboard.
@@ -46,7 +46,7 @@ function AppTour() {
       spotlightClicks: true,
     },
     {
-      target: ".wizard-step-2__menu", // 1
+      target: ".dashboard-selector-prefix__menu", // 1
       content: (
         <div>
           Select an existing dashboard to view or create a new dashboard with
@@ -154,7 +154,7 @@ function AppTour() {
           <br />
           <br />
           Click on "Edit Visualization" in the menu to learn more or continue
-          with "Next"
+          the App Tour by clicking on "Next".
         </div>
       ),
       disableBeacon: true,
@@ -206,7 +206,7 @@ function AppTour() {
       content: (
         <div>
           Click on the save changes button to save any changes made and persist
-          for later sessions
+          for later sessions.
         </div>
       ),
       disableBeacon: true,
@@ -219,7 +219,7 @@ function AppTour() {
       content: (
         <div>
           Click on the add dashboard items button to add new dashboard items to
-          the layout
+          the layout.
         </div>
       ),
       disableBeacon: true,
@@ -316,7 +316,7 @@ function AppTour() {
           the argument is asking for an publicly accessible image url.
           <br />
           <br />
-          You can use <b>/static/tethysdash/images/tethys_dash.png</b> as as
+          You can use <b>/static/tethysdash/images/tethys_dash.png</b> as an
           example.
         </div>
       ),
@@ -500,6 +500,6 @@ function AppTour() {
       }}
     />
   );
-}
+};
 
 export default AppTour;

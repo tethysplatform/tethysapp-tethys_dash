@@ -282,6 +282,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
           variant="secondary"
           onClick={handleClose}
           className="cancel-dashboard-editor-button"
+          aria-label="Cancel Dashboard Editor Button"
         >
           Close
         </StyledButton>

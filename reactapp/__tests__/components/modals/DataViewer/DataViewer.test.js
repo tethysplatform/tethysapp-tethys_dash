@@ -35,7 +35,10 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   expect(await screen.findByText("Visualization")).toBeInTheDocument();
   expect(await screen.findByText("Settings")).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button"
+  );
+  fireEvent.click(dataviewerSaveButton);
   expect(
     await screen.findByText("A visualization must be chosen before saving")
   ).toBeInTheDocument();
@@ -50,13 +53,13 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   expect(await screen.findByText("Image Source:")).toBeInTheDocument();
   const imageSourceInput = screen.getByLabelText("Image Source Input");
 
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  fireEvent.click(dataviewerSaveButton);
   expect(
     await screen.findByText("All arguments must be filled out before saving")
   ).toBeInTheDocument();
 
   fireEvent.change(imageSourceInput, { target: { value: "some_png" } });
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  fireEvent.click(dataviewerSaveButton);
 
   expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
   expect(mocksetShowGridItemMessage).toHaveBeenCalledTimes(1);
@@ -90,7 +93,10 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   expect(await screen.findByText("Visualization")).toBeInTheDocument();
   expect(await screen.findByText("Settings")).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button"
+  );
+  fireEvent.click(dataviewerSaveButton);
   expect(
     await screen.findByText("A visualization must be chosen before saving")
   ).toBeInTheDocument();
@@ -120,7 +126,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   const textOption = await screen.findByText("text");
   fireEvent.click(textOption);
 
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  fireEvent.click(dataviewerSaveButton);
   expect(
     await screen.findByText("Initial value must be selected in the dropdown")
   ).toBeInTheDocument();
@@ -128,7 +134,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   const testVariableInput = await screen.findByLabelText("Test Variable Input");
   fireEvent.change(testVariableInput, { target: { value: "Some Value" } });
 
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  fireEvent.click(dataviewerSaveButton);
   expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
   expect(mocksetShowGridItemMessage).toHaveBeenCalledTimes(1);
 });
@@ -195,7 +201,10 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   expect(await screen.findByText("Visualization")).toBeInTheDocument();
   expect(await screen.findByText("Settings")).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button"
+  );
+  fireEvent.click(dataviewerSaveButton);
   expect(
     await screen.findByText("A visualization must be chosen before saving")
   ).toBeInTheDocument();
@@ -225,7 +234,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   const textOption = await screen.findByText("text");
   fireEvent.click(textOption);
 
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  fireEvent.click(dataviewerSaveButton);
   expect(
     await screen.findByText(
       "Test Variable is already in use for a variable name"
@@ -238,7 +247,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   );
   fireEvent.change(testVariableInput, { target: { value: "Some Value" } });
 
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  fireEvent.click(dataviewerSaveButton);
   expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
   expect(mocksetShowGridItemMessage).toHaveBeenCalledTimes(1);
 });
@@ -330,7 +339,10 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
   const variableNameInput = screen.getByLabelText("Variable Name Input");
   fireEvent.change(variableNameInput, { target: { value: "Test Variable 2" } });
 
-  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button"
+  );
+  fireEvent.click(dataviewerSaveButton);
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable 2": "some value",
