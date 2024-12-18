@@ -27,13 +27,9 @@ const DashboardItemDropdown = ({
   const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   const onToggle = ({ nextShow }) => {
+    setShowMenu(nextShow);
     if (activeAppTour) {
-      if (nextShow) {
-        setShowMenu(nextShow);
-      }
       setAppTourStep((previousStep) => previousStep + 1);
-    } else {
-      setShowMenu(nextShow);
     }
   };
 

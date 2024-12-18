@@ -137,12 +137,8 @@ function DashboardSelector({ initialDashboard }) {
   };
 
   const handleMenuClose = (e) => {
-    if (!activeAppTour) {
-      setMenuIsOpen(false);
-    }
+    setMenuIsOpen(false);
   };
-
-  function emptyFunction() {}
 
   return (
     <StyledDiv className={"dashboard-selector"}>
@@ -168,7 +164,7 @@ function DashboardSelector({ initialDashboard }) {
                   <TooltipButton
                     tooltipPlacement="bottom"
                     tooltipText="Cancel Changes"
-                    onClick={activeAppTour ? emptyFunction : onCancel}
+                    onClick={onCancel}
                     aria-label="cancelButton"
                     className="cancelChangesButton"
                   >
@@ -187,7 +183,7 @@ function DashboardSelector({ initialDashboard }) {
                   <TooltipButton
                     tooltipPlacement="bottom"
                     tooltipText="Add Dashboard Item"
-                    onClick={activeAppTour ? emptyFunction : onAddGridItem}
+                    onClick={onAddGridItem}
                     aria-label="addGridItemButton"
                     className="addGridItemsButton"
                   >
