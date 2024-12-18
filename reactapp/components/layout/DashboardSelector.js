@@ -137,7 +137,9 @@ function DashboardSelector({ initialDashboard }) {
   };
 
   const handleMenuClose = (e) => {
-    setMenuIsOpen(false);
+    if (!activeAppTour) {
+      setMenuIsOpen(false);
+    }
   };
 
   return (
