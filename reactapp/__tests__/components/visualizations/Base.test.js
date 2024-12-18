@@ -326,7 +326,7 @@ it("Creates an Base Item with a card obtained from the api", async () => {
 });
 
 // Waiting on Gio to pass through props with the backlayer npm package https://github.com/Aquaveo/backlayer/tree/main
-it.skip("Creates an Base Item with a map obtained from the api", async () => {
+it("Creates an Base Item with a map obtained from the api", async () => {
   appAPI.getPlotData = () => {
     return Promise.resolve({
       success: true,
@@ -347,7 +347,7 @@ it.skip("Creates an Base Item with a map obtained from the api", async () => {
   expect(spinner).toBeInTheDocument();
 
   await sleep(100);
-  const map = screen.getByTestId("Map-Test-Id");
+  const map = screen.getByTestId("backlayer-map");
   expect(map).toBeInTheDocument();
 });
 
