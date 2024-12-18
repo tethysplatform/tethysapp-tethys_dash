@@ -85,6 +85,7 @@ const PostLoader = ({ children }) => {
     setGridItems([]);
     setEditable(false);
     updateVariableInputValuesWithGridItems([]);
+    setSelectedDashboardDropdownOption({});
   }
 
   function setLayoutContext(dashboardContext) {

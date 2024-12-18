@@ -250,7 +250,11 @@ function VisualizationPane({
           tooltipPlacement="bottom"
           tooltipText="Visualization Settings"
           aria-label={"visualizationSettingButton"}
-          onClick={() => setShowVisualizationTypeSettings(true)}
+          onClick={
+            activeAppTour
+              ? () => {}
+              : () => setShowVisualizationTypeSettings(true)
+          }
         >
           <BsGear size="1.5rem" />
         </TooltipButton>

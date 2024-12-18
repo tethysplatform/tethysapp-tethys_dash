@@ -89,8 +89,10 @@ const AppTour = () => {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
       hideBackButton: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
       data: { callbackNext: true },
     },
     {
@@ -105,7 +107,9 @@ const AppTour = () => {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
       data: { callbackNext: true },
     },
     {
@@ -115,6 +119,7 @@ const AppTour = () => {
       disableOverlayClose: true,
       spotlightClicks: true,
       hideFooter: true,
+      spotlightPadding: 5,
     },
     {
       target: "#gridUpdate > div > div:nth-child(1) > span", // 7
@@ -162,6 +167,7 @@ const AppTour = () => {
       spotlightClicks: true,
       hideBackButton: true,
       data: { callbackNext: true },
+      spotlightPadding: -1,
     },
     {
       target: ".dashboard-item-dropdown-create-copy", // 10
@@ -173,8 +179,11 @@ const AppTour = () => {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
       data: { callbackNext: true },
+      spotlightPadding: -1,
     },
     {
       target: ".dashboard-item-dropdown-delete", // 11
@@ -185,21 +194,27 @@ const AppTour = () => {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
       data: { callbackNext: true },
+      spotlightPadding: -1,
     },
     {
       target: ".cancelChangesButton", // 12
       content: (
         <div>
-          Click on the cancel changes button to revert any changes made and
+          Click on the revert changes button to cancel any changes made and
           return the layout to the latest saved version.
         </div>
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
       data: { callbackNext: true },
+      spotlightPadding: 5,
     },
     {
       target: ".saveChangesButton", // 13
@@ -211,8 +226,11 @@ const AppTour = () => {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
       data: { callbackNext: true },
+      spotlightPadding: 5,
     },
     {
       target: ".addGridItemsButton", // 14
@@ -224,8 +242,11 @@ const AppTour = () => {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
       data: { callbackNext: true },
+      spotlightPadding: 5,
     },
     {
       target: ".dashboardSettingButton", // 15
@@ -243,6 +264,7 @@ const AppTour = () => {
       disableOverlayClose: true,
       spotlightClicks: true,
       data: { callbackNext: true },
+      spotlightPadding: 5,
     },
     {
       target: ".react-grid-layout", // 16
@@ -269,15 +291,17 @@ const AppTour = () => {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
       locale: { next: "End App Tour" },
       showSkipButton: false,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
       data: { endAppTourStep: true },
       placement: "center",
     },
     // DATAVIEWER STEPS
     {
-      target: ".dataviewer", // 17
+      target: ".modal-content", // 17
       content: (
         <div>
           This is a modal for configuring and previewing visualizations.
@@ -285,9 +309,11 @@ const AppTour = () => {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
       hideBackButton: true,
       placement: "center",
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
       floaterProps: { hideArrow: true },
       data: { callbackNext: true },
     },
@@ -303,6 +329,7 @@ const AppTour = () => {
       disableOverlayClose: true,
       spotlightClicks: true,
       data: { callbackNext: true },
+      spotlightPadding: -1,
     },
     {
       target: ".dataviewer-inputs", // 19
@@ -327,15 +354,12 @@ const AppTour = () => {
       placement: "right",
     },
     {
-      target: ".dataviewer-inputs", // 20
+      target: "#visualization-tabs > li:nth-child(2)", // 20
       content: (
         <div>
           The settings tab will show options for configuring any dashboard item
           settings. Setting options will not be available until a visualization
           is configured and in the preview.
-          <br />
-          <br />
-          Click on the "Settings" tab once the image is loaded.
         </div>
       ),
       disableBeacon: true,
@@ -343,6 +367,7 @@ const AppTour = () => {
       spotlightClicks: true,
       data: { callbackNext: true },
       placement: "right",
+      spotlightPadding: -1,
     },
     {
       target: ".dataviewer-inputs", // 21
@@ -378,8 +403,8 @@ const AppTour = () => {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
       data: { callbackNext: true },
+      spotlightPadding: 5,
     },
     {
       target: ".dataviewer-close-button", // 23
@@ -393,6 +418,7 @@ const AppTour = () => {
       disableOverlayClose: true,
       spotlightClicks: true,
       hideFooter: true,
+      spotlightPadding: 5,
     },
     // DASHBOARD SETTINGS
     {
@@ -426,7 +452,6 @@ const AppTour = () => {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
       hideBackButton: true,
       data: { callbackNext: true },
       placement: "right",
@@ -436,26 +461,12 @@ const AppTour = () => {
       content: <div>Persist dashboard setting changes by saving them.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
       data: { callbackNext: true },
       placement: "top",
+      spotlightPadding: 5,
     },
     {
-      target: ".copy-dashboard-button", // 26
-      content: (
-        <div>
-          Dashboards can be copied with the same settings and dashboard items.
-          The new dashboard will have the name with "_copy" at the end.
-        </div>
-      ),
-      disableBeacon: true,
-      disableOverlayClose: true,
-      spotlightClicks: true,
-      data: { callbackNext: true },
-      placement: "top",
-    },
-    {
-      target: ".delete-dashboard-button", // 27
+      target: ".delete-dashboard-button", // 26
       content: (
         <div>
           Dashboards can be deleted. Once deleted, they can not be retrieved
@@ -464,9 +475,23 @@ const AppTour = () => {
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
       data: { callbackNext: true },
       placement: "top",
+      spotlightPadding: 5,
+    },
+    {
+      target: ".copy-dashboard-button", // 27
+      content: (
+        <div>
+          Dashboards can be copied with the same settings and dashboard items.
+          The new dashboard will have the name with "_copy" at the end.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      data: { callbackNext: true },
+      placement: "top",
+      spotlightPadding: 5,
     },
     {
       target: ".cancel-dashboard-editor-button", // 28
@@ -480,6 +505,7 @@ const AppTour = () => {
       disableOverlayClose: true,
       spotlightClicks: true,
       hideFooter: true,
+      spotlightPadding: 5,
     },
   ];
 
