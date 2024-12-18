@@ -5,11 +5,7 @@ import Modal from "react-bootstrap/Modal";
 import Form from "react-bootstrap/Form";
 import styled from "styled-components";
 import { useAppTourContext } from "components/contexts/AppTourContext";
-import {
-  EditingContext,
-  AvailableDashboardsContext,
-  LayoutContext,
-} from "components/contexts/Contexts";
+import { EditingContext, LayoutContext } from "components/contexts/Contexts";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 
 const StyledCheck = styled(Form.Check)`
@@ -21,7 +17,7 @@ const StyledBody = styled(Modal.Body)`
 `;
 
 function AppInfoModal({ showModal, setShowModal }) {
-  const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
+  const { resetLayoutContext } = useContext(LayoutContext);
   const { setActiveAppTour, setAppTourStep } = useAppTourContext();
   const dontShowInfoOnStart = localStorage.getItem("dontShowInfoOnStart");
   const [checked, setChecked] = useState(
@@ -29,28 +25,22 @@ function AppInfoModal({ showModal, setShowModal }) {
   );
   const [showingConfirm, setShowingConfirm] = useState(false);
   const { isEditing, setIsEditing } = useContext(EditingContext);
-  const { availableDashboards } = useContext(AvailableDashboardsContext);
   const handleClose = () => setShowModal(false);
 
   const startAppTour = async () => {
     if (isEditing) {
       setShowingConfirm(true);
       if (
-        await confirm(
+        !(await confirm(
           "Starting the app tour will cancel any changes you have made to the current dashboard. Are your sure you want to start the tour?"
-        )
+        ))
       ) {
-        setIsEditing(false);
-        const { name } = getLayoutContext();
-        const OGLayoutContext = JSON.parse(
-          JSON.stringify(availableDashboards[name])
-        );
-        setLayoutContext(OGLayoutContext);
-      } else {
         return;
       }
       setShowingConfirm(false);
     }
+    resetLayoutContext();
+    setIsEditing(false);
     setShowModal(false);
     setAppTourStep(0);
     setActiveAppTour(true);

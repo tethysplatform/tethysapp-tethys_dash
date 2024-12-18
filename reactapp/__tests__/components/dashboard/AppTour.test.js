@@ -344,11 +344,6 @@ test("App Tour skip steps 3", async () => {
       /The settings tab will show options for configuring any dashboard item settings. Setting options will not be available until a visualization is configured and in the preview./i
     )
   ).toBeInTheDocument();
-  expect(
-    await screen.findByText(
-      /Click on the "Settings" tab once the image is loaded./i
-    )
-  ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
   // eslint-disable-next-line
@@ -477,7 +472,7 @@ test("App Tour skip steps 3", async () => {
   /////////////
   expect(
     await screen.findByText(
-      "Click on the cancel changes button to revert any changes made and return the layout to the latest saved version."
+      "Click on the revert changes button to cancel any changes made and return the layout to the latest saved version."
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -595,7 +590,7 @@ test("App Tour skip steps 3", async () => {
   ////////////////////////////////
   expect(
     await screen.findByText(
-      'Dashboards can be copied with the same settings and dashboard items. The new dashboard will have the name with "_copy" at the end.'
+      "Dashboards can be deleted. Once deleted, they can not be retrieved again."
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -610,7 +605,7 @@ test("App Tour skip steps 3", async () => {
   ////////////////////////////////
   expect(
     await screen.findByText(
-      "Dashboards can be deleted. Once deleted, they can not be retrieved again."
+      'Dashboards can be copied with the same settings and dashboard items. The new dashboard will have the name with "_copy" at the end.'
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");

@@ -182,7 +182,7 @@ function DataViewerModal({
     <>
       <Modal
         show={showModal}
-        onHide={handleModalClose}
+        onHide={activeAppTour ? closeAndSetAppTour : handleModalClose}
         className="dataviewer"
         dialogClassName="semiWideModalDialog"
         style={showVisualizationTypeSettings && { zIndex: 1050 }}
