@@ -39,7 +39,6 @@ function DashboardLayout() {
   const [layout, setLayout] = useState([]);
   const [items, setItems] = useState([]);
   const gridItemsUpdated = useRef();
-  const { activeAppTour } = useAppTourContext();
 
   useEffect(() => {
     updateGridLayout();
@@ -114,9 +113,6 @@ function DashboardLayout() {
 
   function handleSubmit(event) {
     event.preventDefault();
-    if (activeAppTour) {
-      return;
-    }
     setShowSuccessMessage(false);
     setShowErrorMessage(false);
 

@@ -119,8 +119,6 @@ const DashboardItem = ({
     setInDataViewerMode(false);
   }
 
-  function emptyFunction() {}
-
   return (
     <>
       <StyledContainer fluid className="h-100 gridVisualization">
@@ -133,10 +131,10 @@ const DashboardItem = ({
         <StyledButtonDiv>
           <DashboardItemDropdown
             showFullscreen={gridItemSource ? onFullscreen : null}
-            deleteGridItem={activeAppTour ? emptyFunction : deleteGridItem}
+            deleteGridItem={deleteGridItem}
             editGridItem={editGridItem}
             editSize={isEditing ? null : editSize}
-            copyGridItem={activeAppTour ? emptyFunction : copyGridItem}
+            copyGridItem={copyGridItem}
           />
         </StyledButtonDiv>
         <BaseVisualization

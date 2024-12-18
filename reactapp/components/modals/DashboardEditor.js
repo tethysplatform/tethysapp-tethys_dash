@@ -175,8 +175,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     setLocalNotes(value);
   }
 
-  function emptyFunction() {}
-
   return (
     <StyledOffcanvas
       show={showCanvas}
@@ -288,7 +286,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
         </StyledButton>
         <StyledButton
           variant="info"
-          onClick={activeAppTour ? emptyFunction : onCopy}
+          onClick={onCopy}
           aria-label="Copy Dashboard Button"
           className="copy-dashboard-button"
         >
@@ -298,7 +296,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
           <>
             <StyledButton
               variant="danger"
-              onClick={activeAppTour ? emptyFunction : onDelete}
+              onClick={onDelete}
               aria-label="Delete Dashboard Button"
               className="delete-dashboard-button"
             >
@@ -306,7 +304,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
             </StyledButton>
             <StyledButton
               variant="success"
-              onClick={activeAppTour ? emptyFunction : onSave}
+              onClick={onSave}
               aria-label="Save Dashboard Button"
               className="save-dashboard-button"
             >
