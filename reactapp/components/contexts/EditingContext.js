@@ -1,13 +1,13 @@
 import PropTypes from "prop-types";
 import { useContext, createContext, useState } from "react";
 
-const EditingContext = createContext();
+export const EditingContext = createContext();
 
 const EditingContextProvider = ({ children }) => {
   const [isEditing, setIsEditing] = useState(false);
 
   return (
-    <EditingContext.Provider value={[isEditing, setIsEditing]}>
+    <EditingContext.Provider value={{isEditing, setIsEditing}}>
       {children}
     </EditingContext.Provider>
   );

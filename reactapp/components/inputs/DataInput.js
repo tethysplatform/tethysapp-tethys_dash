@@ -3,7 +3,7 @@ import styled from "styled-components";
 import Form from "react-bootstrap/Form";
 import DataSelect from "components/inputs/DataSelect";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
-import { useInDataViewerModeContext } from "components/contexts/DataViewerModeContext";
+import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 
 const StyledDiv = styled.div`
@@ -20,8 +20,8 @@ const InlineFormCheck = styled(Form.Check)`
 `;
 
 const Input = ({ label, type, onChange, value, index, valueOptions }) => {
-  const gridItems = useLayoutGridItemsContext()[0];
-  const inDataViewerMode = useInDataViewerModeContext();
+  const { gridItems } = useLayoutGridItemsContext();
+  const { inDataViewerMode } = useDataViewerModeContext();
 
   function getAvailableVariableInputs() {
     const availableVariableInputs = [];
@@ -54,7 +54,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
       }
     }
 
-    if (inDataViewerMode && label !== "Variable Options Source") {
+    if (inDataViewerMode !== undefined && label !== "Variable Options Source") {
       const availableVariableInputs = getAvailableVariableInputs(type);
       if (availableVariableInputs) {
         options.push({
@@ -70,6 +70,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
     return (
       <DataSelect
         label={label}
+        aria-label={label + " Input"}
         selectedOption={inputValue}
         onChange={(e) => onChange(e, index)}
         options={options}
@@ -82,6 +83,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
           <b>{label}: </b>
         </InlineLabel>
         <InlineFormCheck
+          aria-label={label + " Input"}
           type={type}
           id={label.replace(" ", "_")}
           checked={value}
@@ -93,6 +95,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
     return (
       <DataRadioSelect
         label={label}
+        aria-label={label + " Input"}
         selectedRadio={value}
         radioOptions={valueOptions}
         onChange={(e) => {
@@ -107,7 +110,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
           <b>{label}:</b>
         </Form.Label>
         <Form.Control
-          required
+          aria-label={label + " Input"}
           type={type}
           onChange={(e) => onChange(e.target.value, index)}
           onKeyDown={(e) => {

@@ -27,6 +27,7 @@ const TextEditor = ({ textValue, onChange }) => {
         containerProps={{ style: { height: "100%", overflowY: "auto" } }}
         value={textValue}
         onChange={onChange}
+        aria-label={"textEditor"}
       ></Editor>
     </EditorProvider>
   );

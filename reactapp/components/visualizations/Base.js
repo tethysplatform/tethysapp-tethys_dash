@@ -18,11 +18,11 @@ const BaseVisualization = ({
   hideFullscreen,
 }) => {
   const [viz, setViz] = useState(null);
-  const variableInputValues = useVariableInputValuesContext()[0];
+  const { variableInputValues } = useVariableInputValuesContext();
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
-  const isEditing = useEditingContext()[0];
+  const { isEditing } = useEditingContext();
   const gridMetadata = JSON.parse(metadataString);
   const refreshRate = gridMetadata.refreshRate;
   const visualizationRef = useRef();
@@ -31,9 +31,9 @@ const BaseVisualization = ({
     const args = JSON.parse(argsString);
     const itemData = { source: source, args: args };
     if (source === "") {
-      setViz(<div></div>);
+      setViz(<div data-testid="Source_Unknown"></div>);
     } else if (source === "Custom Image") {
-      setViz(<Image source={args["image_source"]} />);
+      setViz(<Image source={args["image_source"]} alt="custom_image"/>);
     } else if (source === "Text") {
       setViz(<Text textValue={args["text"]} />);
     } else if (source === "Variable Input") {

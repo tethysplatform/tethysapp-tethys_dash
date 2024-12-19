@@ -1,3 +1,5 @@
 {
-  "editor.rulers": [88]
+  "editor.rulers": [88],
+  "terminal.integrated.cwd": "",
+  "terminal.integrated.splitCwd": "workspaceRoot"
 }

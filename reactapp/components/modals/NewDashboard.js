@@ -4,27 +4,24 @@ import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import Form from "react-bootstrap/Form";
 import Alert from "react-bootstrap/Alert";
-import { useAddDashboardModalShowContext } from "components/contexts/AddDashboardModalShowContext";
 import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import { useEditingContext } from "components/contexts/EditingContext";
 import { useState } from "react";
+import PropTypes from "prop-types";
 
-function NewDashboardModal() {
+function NewDashboardModal({ showModal, setShowModal }) {
   const [dashboardName, setDashboardName] = useState("");
-
-  const [showModal, setShowModal] = useAddDashboardModalShowContext();
-  const addDashboard = useAvailableDashboardsContext()[2];
-  const [hasError, setHasError] = useState(false);
+  const { addDashboard } = useAvailableDashboardsContext();
   const [errorMessage, setErrorMessage] = useState(null);
-  const setIsEditing = useEditingContext()[1];
-  const setShowSaveMessage = useState(false)[1];
+  const { setIsEditing } = useEditingContext();
 
-  const handleModalClose = () => setShowModal(false);
+  const handleModalClose = () => {
+    setShowModal(false);
+  };
 
   function handleSubmit(event) {
     event.preventDefault();
-    setErrorMessage("");
-    setHasError(false);
+    setErrorMessage(null);
     let name = dashboardName.replace(" ", "_").toLowerCase();
     let label = dashboardName;
     const inputData = {
@@ -33,12 +30,10 @@ function NewDashboardModal() {
     };
     addDashboard(inputData).then((response) => {
       if (response["success"]) {
-        setShowModal(false);
-        setShowSaveMessage(true);
+        handleModalClose();
         setIsEditing(true);
       } else {
         setErrorMessage(response["message"]);
-        setHasError(true);
       }
     });
   }
@@ -49,12 +44,16 @@ function NewDashboardModal() {
 
   return (
     <>
-      <Modal show={showModal} onHide={handleModalClose}>
+      <Modal
+        className="newdashboard"
+        show={showModal}
+        onHide={handleModalClose}
+      >
         <Modal.Header closeButton>
           <Modal.Title>Create a new dashboard</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {hasError && (
+          {errorMessage && (
             <Alert key="danger" variant="danger">
               {errorMessage}
             </Alert>
@@ -70,6 +69,7 @@ function NewDashboardModal() {
                     placeholder="Enter dashboard name"
                     onChange={onNameInput}
                     value={dashboardName}
+                    aria-label={"Dashboard Name Input"}
                   />
                   <Form.Text className="text-muted"></Form.Text>
                 </Form.Group>
@@ -78,10 +78,19 @@ function NewDashboardModal() {
           </Form>
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" onClick={handleModalClose}>
+          <Button
+            variant="secondary"
+            onClick={handleModalClose}
+            aria-label={"Close Modal Button"}
+          >
             Close
           </Button>
-          <Button variant="success" type="submit" form="dashboardCreation">
+          <Button
+            variant="success"
+            type="submit"
+            form="dashboardCreation"
+            aria-label={"Create Dashboard Button"}
+          >
             Create
           </Button>
         </Modal.Footer>
@@ -89,5 +98,10 @@ function NewDashboardModal() {
     </>
   );
 }
+
+NewDashboardModal.propTypes = {
+  showModal: PropTypes.bool,
+  setShowModal: PropTypes.func,
+};
 
 export default NewDashboardModal;

@@ -4,15 +4,15 @@ import Button from "react-bootstrap/Button";
 import Alert from "react-bootstrap/Alert";
 import { useState, useEffect } from "react";
 import {
-  useLayoutContext,
   useLayoutNameContext,
   useLayoutLabelContext,
   useLayoutNotesContext,
   useLayoutEditableContext,
+  useLayoutAccessGroupsContext,
 } from "components/contexts/SelectedDashboardContext";
 import styled from "styled-components";
 import { getTethysPortalHost } from "services/utilities";
-import ClipboardCopyButton from "components/buttons/ClipboardCopy";
+import TooltipButton from "components/buttons/TooltipButton";
 import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import PropTypes from "prop-types";
 import TextEditor from "components/inputs/TextEditor";
@@ -20,6 +20,7 @@ import { useEditingContext } from "components/contexts/EditingContext";
 import DataInput from "components/inputs/DataInput";
 import Text from "components/visualizations/Text";
 import { confirm } from "components/dashboard/DeleteConfirmation";
+import { BsClipboard } from "react-icons/bs";
 
 const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
 
@@ -64,19 +65,19 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
-  const getLayoutContext = useLayoutContext()[2];
-  const name = useLayoutNameContext()[0];
-  const label = useLayoutLabelContext()[0];
-  const [deleteDashboard, updateDashboard, copyCurrentDashboard] =
-    useAvailableDashboardsContext().slice(3, 6);
-  const notes = useLayoutNotesContext()[0];
+  const { name } = useLayoutNameContext();
+  const { label } = useLayoutLabelContext();
+  const { deleteDashboard, updateDashboard, copyCurrentDashboard } =
+    useAvailableDashboardsContext();
+  const { notes } = useLayoutNotesContext();
   const editable = useLayoutEditableContext();
+  const { accessGroups } = useLayoutAccessGroupsContext();
   const [localNotes, setLocalNotes] = useState(notes);
   const [localName, setLocalName] = useState(name);
   const [localLabel, setLocalLabel] = useState(label);
   const dashboardPublicUrl =
     getTethysPortalHost() + APP_ROOT_URL + "dashboard/" + name;
-  const setIsEditing = useEditingContext()[1];
+  const { setIsEditing } = useEditingContext();
 
   const sharingStatusOptions = [
     { label: "Public", value: "public" },
@@ -84,14 +85,13 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   ];
 
   useEffect(() => {
-    const updatedLayoutContext = getLayoutContext();
-    if (updatedLayoutContext["access_groups"].includes("public")) {
+    if (accessGroups.includes("public")) {
       setSelectedSharingStatus("public");
     } else {
       setSelectedSharingStatus("private");
     }
     // eslint-disable-next-line
-  }, []);
+  }, [accessGroups]);
 
   function onSharingChange(e) {
     setSelectedSharingStatus(e.target.value);
@@ -239,10 +239,21 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
               <p>{dashboardPublicUrl}</p>
             </StyledMarginDiv>
             <StyledDiv>
-              <ClipboardCopyButton
-                success={copyClipboardSuccess}
+              <TooltipButton
+                tooltipPlacement={"right"}
+                tooltipText={
+                  copyClipboardSuccess === null
+                    ? "Copy to clipboard"
+                    : copyClipboardSuccess
+                      ? "Copied"
+                      : "Failed to Copy"
+                }
+                variant={"warning"}
                 onClick={handleCopyURLClick}
-              />
+                aria-label={"Copy Clipboard Button"}
+              >
+                <BsClipboard />
+              </TooltipButton>
             </StyledDiv>
           </>
         )}
@@ -262,15 +273,27 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
         <StyledButton variant="secondary" onClick={handleClose}>
           Close
         </StyledButton>
-        <StyledButton variant="info" onClick={onCopy}>
+        <StyledButton
+          variant="info"
+          onClick={onCopy}
+          aria-label={"Copy Dashboard Button"}
+        >
           Copy dashboard
         </StyledButton>
         {editable && (
           <>
-            <StyledButton variant="danger" onClick={onDelete}>
+            <StyledButton
+              variant="danger"
+              onClick={onDelete}
+              aria-label={"Delete Dashboard Button"}
+            >
               Delete dashboard
             </StyledButton>
-            <StyledButton variant="success" onClick={onSave}>
+            <StyledButton
+              variant="success"
+              onClick={onSave}
+              aria-label={"Save Dashboard Button"}
+            >
               Save changes
             </StyledButton>
           </>

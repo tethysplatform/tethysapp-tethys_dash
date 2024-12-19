@@ -7,7 +7,6 @@ import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
 import styled from "styled-components";
-import TextEditor from "components/inputs/TextEditor";
 import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
@@ -17,10 +16,6 @@ import SettingsPane from "components/modals/DataViewer/SettingsPane";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import "components/modals/wideModal.css";
-
-const StyledDiv = styled.div`
-  height: 90%;
-`;
 
 const StyledContainer = styled(Container)`
   height: 35vw;
@@ -36,7 +31,7 @@ const StyledCol = styled(Col)`
 `;
 
 function DataViewerModal({
-  grid_item_index,
+  gridItemIndex,
   source,
   argsString,
   metadataString,
@@ -50,13 +45,12 @@ function DataViewerModal({
   const [vizInputsValues, setVizInputsValues] = useState([]);
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
-  const gridItems = useLayoutGridItemsContext()[0];
-  const setLayoutContext = useLayoutContext()[0];
-  const getLayoutContext = useLayoutContext()[2];
+  const { gridItems } = useLayoutGridItemsContext();
+  const { setLayoutContext, getLayoutContext } = useLayoutContext();
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
-  const variableInputValues = useVariableInputValuesContext()[0];
-  const setVariableInputValues = useVariableInputValuesContext()[1];
+  const { variableInputValues, setVariableInputValues } =
+    useVariableInputValuesContext();
 
   const gridMetadata = JSON.parse(metadataString);
   const visualizationRef = useRef({});
@@ -66,6 +60,7 @@ function DataViewerModal({
   function handleSubmit(e) {
     e.preventDefault();
     e.stopPropagation();
+    setShowAlert(false);
     if (selectedVizTypeOption !== null) {
       let inputValues = vizInputsValues.map((value) => value.value);
 
@@ -99,17 +94,17 @@ function DataViewerModal({
         }
       }
 
-      if (inputValues.every((value) => value !== null)) {
-        let updatedGridItems = structuredClone(gridItems);
-        updatedGridItems[grid_item_index].source = vizMetdata.source;
+      if (inputValues.every((value) => ![null, ""].includes(value))) {
+        let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
+        updatedGridItems[gridItemIndex].source = vizMetdata.source;
 
         let vizArgs = {};
         for (const vizArg of vizInputsValues) {
           vizArgs[vizArg.name] = vizArg.value.value || vizArg.value;
         }
-        updatedGridItems[grid_item_index].args_string = JSON.stringify(vizArgs);
+        updatedGridItems[gridItemIndex].args_string = JSON.stringify(vizArgs);
 
-        updatedGridItems[grid_item_index].metadata_string = JSON.stringify(
+        updatedGridItems[gridItemIndex].metadata_string = JSON.stringify(
           settingsRef.current
         );
 
@@ -127,7 +122,7 @@ function DataViewerModal({
         setShowAlert(true);
       }
     } else {
-      setAlertMessage("All visualization must be chosen before saving");
+      setAlertMessage("A visualization must be chosen before saving");
       setShowAlert(true);
     }
   }
@@ -168,6 +163,7 @@ function DataViewerModal({
       <Modal
         show={showModal}
         onHide={handleModalClose}
+        className="dataviewer"
         dialogClassName="semiWideModalDialog"
       >
         <Modal.Header closeButton>
@@ -184,7 +180,11 @@ function DataViewerModal({
                     id="visualization-tabs"
                     className="mb-3"
                   >
-                    <Tab eventKey="visualization" title="Visualization">
+                    <Tab
+                      eventKey="visualization"
+                      title="Visualization"
+                      aria-label="visualizationTab"
+                    >
                       <VisualizationPane
                         source={source}
                         argsString={argsString}
@@ -201,7 +201,11 @@ function DataViewerModal({
                         visualizationRef={visualizationRef}
                       />
                     </Tab>
-                    <Tab eventKey="settings" title="Settings">
+                    <Tab
+                      eventKey="settings"
+                      title="Settings"
+                      aria-label="settingsTab"
+                    >
                       <SettingsPane
                         settingsRef={settingsRef}
                         viz={viz}
@@ -236,30 +240,11 @@ function DataViewerModal({
   );
 }
 
-function CustomTextOptions({ objValue, onChange, index }) {
-  const textValue = objValue.value;
-
-  return (
-    <StyledDiv>
-      <TextEditor
-        textValue={textValue}
-        onChange={(e) => onChange(e.target.value, index)}
-      />
-    </StyledDiv>
-  );
-}
-
-CustomTextOptions.propTypes = {
-  objValue: PropTypes.object,
-  onChange: PropTypes.func,
-  index: PropTypes.number,
-};
-
 DataViewerModal.propTypes = {
-  grid_item_index: PropTypes.number,
+  gridItemIndex: PropTypes.number,
   source: PropTypes.string,
   argsString: PropTypes.string,
-  metadataString: PropTypes.object,
+  metadataString: PropTypes.string,
   setGridItemMessage: PropTypes.func,
   setShowGridItemMessage: PropTypes.func,
   showModal: PropTypes.bool,

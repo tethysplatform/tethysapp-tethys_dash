@@ -4,16 +4,15 @@ import Form from "react-bootstrap/Form";
 import Navbar from "react-bootstrap/Navbar";
 import PropTypes from "prop-types";
 import { useContext, useState } from "react";
-import { BsX, BsGear } from "react-icons/bs";
+import { BsX, BsGear, BsList } from "react-icons/bs";
 import { useLocation } from "react-router-dom";
 
-import HeaderButton from "components/buttons/HeaderButton";
+import TooltipButton from "components/buttons/TooltipButton";
 import { AppContext } from "components/contexts/AppContext";
 import DashboardSelector from "components/layout/DashboardSelector";
-import AddDashboardModalShowContextProvider from "components/contexts/AddDashboardModalShowContext";
-import NavButton from "components/buttons/NavButton";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import { useLayoutNameContext } from "components/contexts/SelectedDashboardContext";
+import "components/buttons/HeaderButton.css";
 
 const CustomNavBar = styled(Navbar)`
   min-height: var(--ts-header-height);
@@ -24,36 +23,50 @@ const Header = ({ initialDashboard }) => {
   const location = useLocation();
   const [showEditCanvas, setShowEditCanvas] = useState(false);
   const showNav = () => setShowEditCanvas(true);
-  const dashBoardName = useLayoutNameContext()[0];
+  const { name } = useLayoutNameContext();
 
   return (
     <>
-      <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
+      <CustomNavBar
+        fixed="top"
+        bg="primary"
+        variant="dark"
+        className="header shadow"
+      >
         <Container as="header" fluid className="px-4">
-          {dashBoardName && <NavButton onClick={showNav}></NavButton>}
+          {name && (
+            <TooltipButton
+              onClick={showNav}
+              tooltipPlacement="bottom"
+              tooltipText="Dashboard Settings"
+              aria-label={"dashboardSettingButton"}
+            >
+              <BsList size="1.5rem" />
+            </TooltipButton>
+          )}
           {(location.pathname.includes("/dashboard") ||
             location.pathname === "/") && (
-            <AddDashboardModalShowContextProvider>
-              <DashboardSelector initialDashboard={initialDashboard} />
-            </AddDashboardModalShowContextProvider>
+            <DashboardSelector initialDashboard={initialDashboard} />
           )}
           <Form inline="true">
             {user.isStaff && (
-              <HeaderButton
+              <TooltipButton
                 href={tethysApp.settingsUrl}
                 tooltipPlacement="bottom"
-                tooltipText="Settings"
+                tooltipText="App Settings"
+                aria-label={"appSettingButton"}
               >
                 <BsGear size="1.5rem" />
-              </HeaderButton>
+              </TooltipButton>
             )}
-            <HeaderButton
+            <TooltipButton
               href={tethysApp.exitUrl}
               tooltipPlacement="bottom"
               tooltipText="Exit"
+              aria-label={"appExitButton"}
             >
               <BsX size="1.5rem" />
-            </HeaderButton>
+            </TooltipButton>
           </Form>
         </Container>
       </CustomNavBar>

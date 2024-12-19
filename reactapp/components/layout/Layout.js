@@ -6,14 +6,18 @@ import NotFound from "components/error/NotFound";
 import { useRoutesContext } from "components/contexts/RoutesContext";
 
 function Layout({ children }) {
-  const routes = useRoutesContext()[0];
+  const { routes } = useRoutesContext();
 
   return (
     <div className="h-100">
       <Routes>
         {routes}
-        <Route path="/dashboard/*" element={<LoadingAnimation />} />
-        <Route path="*" element={<NotFound />} />
+        <Route
+          key="route-dashboard-loading"
+          path="/dashboard/*"
+          element={<LoadingAnimation />}
+        />
+        <Route key="route-not-found" path="*" element={<NotFound />} />
       </Routes>
       {children}
     </div>

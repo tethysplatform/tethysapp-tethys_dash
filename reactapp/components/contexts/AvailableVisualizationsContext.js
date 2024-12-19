@@ -3,7 +3,7 @@ import appAPI from "services/api/app";
 import { useContext, useEffect, createContext, useState } from "react";
 import { spaceAndCapitalize } from "components/modals/utilities";
 
-const AvailableVisualizationsContext = createContext();
+export const AvailableVisualizationsContext = createContext();
 
 const AvailableVisualizationsContextProvider = ({ children }) => {
   const [availableVisualizations, setAvailableVisualizations] = useState([]);
@@ -43,7 +43,7 @@ const AvailableVisualizationsContextProvider = ({ children }) => {
 
   return (
     <AvailableVisualizationsContext.Provider
-      value={[availableVisualizations, availableVizArgs]}
+      value={{ availableVisualizations, availableVizArgs }}
     >
       {children}
     </AvailableVisualizationsContext.Provider>
