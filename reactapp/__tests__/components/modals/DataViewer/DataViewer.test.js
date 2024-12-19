@@ -20,6 +20,7 @@ import AvailableDashboardsContextProvider from "components/contexts/AvailableDas
 import RoutesContextProvider from "components/contexts/RoutesContext";
 import { AppContext } from "components/contexts/AppContext";
 import { UserSettingsContext } from "components/contexts/UserSettingsContext";
+import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 
 const TestingComponent = (props) => {
   const { setLayoutContext } = useLayoutContext();
