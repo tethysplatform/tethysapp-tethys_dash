@@ -1,7 +1,6 @@
 import { createContext } from "react";
 
 export const AppContext = createContext();
-export const UserSettingsContext = createContext();
 export const VariableInputsContext = createContext();
 export const LayoutContext = createContext();
 export const AvailableDashboardsContext = createContext();

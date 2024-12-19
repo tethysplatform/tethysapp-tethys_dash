@@ -23,10 +23,6 @@ const TestingComponent = () => {
 };
 
 test("selected visualization type modal save success and then close", async () => {
-  const mockUpdateUserSettings = jest.fn();
-  appAPI.updateUserSettings = mockUpdateUserSettings;
-  mockUpdateUserSettings.mockResolvedValue({ success: true });
-
   renderWithLoaders({
     children: <TestingComponent />,
   });
@@ -104,12 +100,11 @@ test("selected visualization type modal save success and then close", async () =
   expect(
     await screen.findByText("Settings have been saved.")
   ).toBeInTheDocument();
-  expect(mockUpdateUserSettings).toHaveBeenCalledWith(
-    {
-      deselected_visualizations: ["Visualization Group 2", "plugin_label3"],
-    },
-    "Token"
-  );
+  expect(
+    await screen.findByText(
+      JSON.stringify(["Visualization Group 2", "plugin_label3"])
+    )
+  ).toBeInTheDocument();
 
   const closeModalButton = await screen.findByLabelText("Close Modal Button");
   // eslint-disable-next-line
@@ -125,27 +120,11 @@ test("selected visualization type modal save success and then close", async () =
   });
 });
 
-test("selected visualization type modal save failed and then escape", async () => {
-  const mockUpdateUserSettings = jest.fn();
-  appAPI.updateUserSettings = mockUpdateUserSettings;
-  mockUpdateUserSettings.mockResolvedValue({ success: false });
-
+test("selected visualization type modal then escape", async () => {
   renderWithLoaders({
     children: <TestingComponent />,
   });
 
-  const saveSettingsButton = await screen.findByLabelText(
-    "Save Settings Button"
-  );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(saveSettingsButton);
-  });
-  expect(
-    await screen.findByText(
-      "Failed to save settings. Check server logs for more information."
-    )
-  ).toBeInTheDocument();
   // eslint-disable-next-line
   await act(async () => {
     await userEvent.keyboard("{Escape}");

@@ -4,7 +4,6 @@ import LoadingAnimation from "components/loader/LoadingAnimation";
 import appAPI from "services/api/app";
 import {
   AppContext,
-  UserSettingsContext,
   VariableInputsContext,
   LayoutContext,
   AvailableDashboardsContext,
@@ -15,10 +14,9 @@ import {
 import { confirm } from "components/dashboard/DeleteConfirmation";
 
 const PostLoader = ({ children }) => {
-  const { csrf, userSettings, dashboards } = useContext(AppContext);
+  const { csrf, dashboards } = useContext(AppContext);
 
   const [isLoaded, setIsLoaded] = useState(false);
-  const [updatedUserSettings, setUpdatedUserSettings] = useState(userSettings);
   const [variableInputValues, setVariableInputValues] = useState({});
   const [name, setName] = useState("");
   const [label, setLabel] = useState("");
@@ -59,18 +57,6 @@ const PostLoader = ({ children }) => {
     setIsLoaded(true);
     // eslint-disable-next-line
   }, []);
-
-  async function updateUserSettings(updatedProperties) {
-    const newUserSettings = {
-      ...updatedUserSettings,
-      ...updatedProperties,
-    };
-    const apiResponse = await appAPI.updateUserSettings(newUserSettings, csrf);
-    if (apiResponse["success"]) {
-      setUpdatedUserSettings(newUserSettings);
-    }
-    return apiResponse;
-  }
 
   function updateVariableInputValuesWithGridItems(gridItems) {
     const updatedVariableInputValues = {};
@@ -274,51 +260,47 @@ const PostLoader = ({ children }) => {
   } else {
     return (
       <>
-        <UserSettingsContext.Provider
-          value={{ updatedUserSettings, updateUserSettings }}
+        <VariableInputsContext.Provider
+          value={{
+            variableInputValues,
+            setVariableInputValues,
+            updateVariableInputValuesWithGridItems,
+          }}
         >
-          <VariableInputsContext.Provider
-            value={{
-              variableInputValues,
-              setVariableInputValues,
-              updateVariableInputValuesWithGridItems,
-            }}
+          <LayoutContext.Provider
+            value={{ setLayoutContext, resetLayoutContext, getLayoutContext }}
           >
-            <LayoutContext.Provider
-              value={{ setLayoutContext, resetLayoutContext, getLayoutContext }}
+            <AvailableDashboardsContext.Provider
+              value={{
+                availableDashboards,
+                setAvailableDashboards,
+                addDashboard,
+                deleteDashboard,
+                updateDashboard,
+                copyCurrentDashboard,
+              }}
             >
-              <AvailableDashboardsContext.Provider
+              <DashboardDropdownContext.Provider
                 value={{
-                  availableDashboards,
-                  setAvailableDashboards,
-                  addDashboard,
-                  deleteDashboard,
-                  updateDashboard,
-                  copyCurrentDashboard,
+                  dashboardDropdownOptions,
+                  selectedDashboardDropdownOption,
+                  setSelectedDashboardDropdownOption,
                 }}
               >
-                <DashboardDropdownContext.Provider
-                  value={{
-                    dashboardDropdownOptions,
-                    selectedDashboardDropdownOption,
-                    setSelectedDashboardDropdownOption,
-                  }}
-                >
-                  <EditingContext.Provider value={{ isEditing, setIsEditing }}>
-                    <DataViewerModeContext.Provider
-                      value={{
-                        inDataViewerMode,
-                        setInDataViewerMode,
-                      }}
-                    >
-                      {children}
-                    </DataViewerModeContext.Provider>
-                  </EditingContext.Provider>
-                </DashboardDropdownContext.Provider>
-              </AvailableDashboardsContext.Provider>
-            </LayoutContext.Provider>
-          </VariableInputsContext.Provider>
-        </UserSettingsContext.Provider>
+                <EditingContext.Provider value={{ isEditing, setIsEditing }}>
+                  <DataViewerModeContext.Provider
+                    value={{
+                      inDataViewerMode,
+                      setInDataViewerMode,
+                    }}
+                  >
+                    {children}
+                  </DataViewerModeContext.Provider>
+                </EditingContext.Provider>
+              </DashboardDropdownContext.Provider>
+            </AvailableDashboardsContext.Provider>
+          </LayoutContext.Provider>
+        </VariableInputsContext.Provider>
       </>
     );
   }
