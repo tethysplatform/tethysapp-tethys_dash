@@ -64,7 +64,10 @@ function initAndRender(props) {
           value={{ gridItems: props.gridItems, setGridItems }}
         >
           <DataViewerModeContext.Provider
-            value={{ inDataViewerMode: props.inDataViewer, setInDataViewerMode}}
+            value={{
+              inDataViewerMode: props.inDataViewer,
+              setInDataViewerMode,
+            }}
           >
             <VariableInputValuesContext.Provider
               value={{
@@ -198,10 +201,10 @@ it("Creates an Base Item with a variable input text box", async () => {
     argsString: gridItem.args_string,
     metadataString: gridItem.metadata_string,
     showFullscreen: false,
-    gridItems: [mockedTextVariable]
+    gridItems: [mockedTextVariable],
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input")
+  const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "Hello World");
 
@@ -220,7 +223,7 @@ it("Creates an Base Item with a variable input text box", async () => {
   // We have to dig a bit into the mock to see what values were passed.
   const updater = setVariableInputValues.mock.calls[0][0];
   const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({"Test Variable": "Hello World"});
+  expect(result).toEqual({ "Test Variable": "Hello World" });
 });
 
 it("Creates an Base Item with an image obtained from the api", async () => {
@@ -346,9 +349,7 @@ it("Creates an Base Item with a map obtained from the api", async () => {
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(100);
-  const map = screen.getByTestId("backlayer-map");
-  expect(map).toBeInTheDocument();
+  expect(await screen.findByTestId("backlayer-map")).toBeInTheDocument();
 });
 
 it("Gives the user an error message if an unknown viz type is obtained from the api", async () => {
