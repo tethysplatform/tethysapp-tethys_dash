@@ -11,7 +11,9 @@ import VariableInputsContextProvider, {
 } from "components/contexts/VariableInputsContext";
 import EditingContextProvider from "components/contexts/EditingContext";
 import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
-import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
+import DataViewerModeContextProvider, {
+  useDataViewerModeContext,
+} from "components/contexts/DataViewerModeContext";
 import PropTypes from "prop-types";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
 import RoutesContextProvider from "components/contexts/RoutesContext";
@@ -20,9 +22,11 @@ import { AppContext } from "components/contexts/AppContext";
 const TestingComponent = (props) => {
   const { setLayoutContext } = useLayoutContext();
   const { variableInputValues } = useVariableInputValuesContext();
+  const { setInDataViewerMode } = useDataViewerModeContext();
 
   useEffect(() => {
     setLayoutContext(props.layoutContext);
+    setInDataViewerMode(true);
     // eslint-disable-next-line
   }, []);
 
