@@ -18,7 +18,8 @@ import Tabs from "react-bootstrap/Tabs";
 import "components/modals/wideModal.css";
 
 const StyledContainer = styled(Container)`
-  height: 35vw;
+  height: 75vh;
+  max-width: 100%;
 `;
 
 const StyledRow = styled(Row)`
@@ -51,6 +52,8 @@ function DataViewerModal({
   const [showAlert, setShowAlert] = useState(false);
   const { variableInputValues, setVariableInputValues } =
     useVariableInputValuesContext();
+  const [showVisualizationTypeSettings, setShowVisualizationTypeSettings] =
+    useState(false);
 
   const gridMetadata = JSON.parse(metadataString);
   const visualizationRef = useRef({});
@@ -165,6 +168,8 @@ function DataViewerModal({
         onHide={handleModalClose}
         className="dataviewer"
         dialogClassName="semiWideModalDialog"
+        style={showVisualizationTypeSettings && { zIndex: 1050 }}
+        aria-label={"DataViewer Modal"}
       >
         <Modal.Header closeButton>
           <Modal.Title>Select Cell Data</Modal.Title>
@@ -199,6 +204,12 @@ function DataViewerModal({
                         setVariableInputValue={setVariableInputValue}
                         settingsRef={settingsRef}
                         visualizationRef={visualizationRef}
+                        showVisualizationTypeSettings={
+                          showVisualizationTypeSettings
+                        }
+                        setShowVisualizationTypeSettings={
+                          setShowVisualizationTypeSettings
+                        }
                       />
                     </Tab>
                     <Tab

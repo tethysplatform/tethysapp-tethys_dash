@@ -6,16 +6,14 @@ import VisualizationPane, {
 } from "components/modals/DataViewer/VisualizationPane";
 import {
   mockedDashboards,
-  mockedVisualizations,
+  mockedVisualizationsWithDefaults,
 } from "__tests__/utilities/constants";
 import SelectedDashboardContextProvider, {
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
-import AvailableVisualizationsContextProvider, {
-  AvailableVisualizationsContext,
-} from "components/contexts/AvailableVisualizationsContext";
+import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
 import Image from "components/visualizations/Image";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
@@ -69,7 +67,11 @@ test("Visualization Pane Custom Image", async () => {
   const mockSetVizMetadata = jest.fn();
 
   render(
-    <AvailableVisualizationsContextProvider>
+    <AvailableVisualizationsContext.Provider
+      value={{
+        availableVisualizations: mockedVisualizationsWithDefaults,
+      }}
+    >
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <DataViewerModeContextProvider>
@@ -84,7 +86,7 @@ test("Visualization Pane Custom Image", async () => {
           </DataViewerModeContextProvider>
         </SelectedDashboardContextProvider>
       </VariableInputsContextProvider>
-    </AvailableVisualizationsContextProvider>
+    </AvailableVisualizationsContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -125,7 +127,11 @@ test("Visualization Pane Text", async () => {
   const mockSetVizMetadata = jest.fn();
 
   render(
-    <AvailableVisualizationsContextProvider>
+    <AvailableVisualizationsContext.Provider
+      value={{
+        availableVisualizations: mockedVisualizationsWithDefaults,
+      }}
+    >
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <DataViewerModeContextProvider>
@@ -140,7 +146,7 @@ test("Visualization Pane Text", async () => {
           </DataViewerModeContextProvider>
         </SelectedDashboardContextProvider>
       </VariableInputsContextProvider>
-    </AvailableVisualizationsContextProvider>
+    </AvailableVisualizationsContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -183,7 +189,11 @@ test("Visualization Pane Variable Input", async () => {
   const mockSetVizMetadata = jest.fn();
 
   render(
-    <AvailableVisualizationsContextProvider>
+    <AvailableVisualizationsContext.Provider
+      value={{
+        availableVisualizations: mockedVisualizationsWithDefaults,
+      }}
+    >
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <DataViewerModeContextProvider>
@@ -198,7 +208,7 @@ test("Visualization Pane Variable Input", async () => {
           </DataViewerModeContextProvider>
         </SelectedDashboardContextProvider>
       </VariableInputsContextProvider>
-    </AvailableVisualizationsContextProvider>
+    </AvailableVisualizationsContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -317,7 +327,9 @@ test("Visualization Pane Other Type", async () => {
 
   render(
     <AvailableVisualizationsContext.Provider
-      value={{ availableVisualizations: mockedVisualizations }}
+      value={{
+        availableVisualizations: mockedVisualizationsWithDefaults,
+      }}
     >
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
@@ -453,7 +465,9 @@ test("Visualization Pane Other Type Checkbox", async () => {
 
   render(
     <AvailableVisualizationsContext.Provider
-      value={{ availableVisualizations }}
+      value={{
+        availableVisualizations,
+      }}
     >
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
@@ -542,7 +556,11 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
   const mockSetVizMetadata = jest.fn();
 
   render(
-    <AvailableVisualizationsContextProvider>
+    <AvailableVisualizationsContext.Provider
+      value={{
+        availableVisualizations: mockedVisualizationsWithDefaults,
+      }}
+    >
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <DataViewerModeContextProvider>
@@ -557,7 +575,7 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
           </DataViewerModeContextProvider>
         </SelectedDashboardContextProvider>
       </VariableInputsContextProvider>
-    </AvailableVisualizationsContextProvider>
+    </AvailableVisualizationsContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
@@ -605,7 +623,11 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
   const mockSetVizMetadata = jest.fn();
 
   render(
-    <AvailableVisualizationsContextProvider>
+    <AvailableVisualizationsContext.Provider
+      value={{
+        availableVisualizations: mockedVisualizationsWithDefaults,
+      }}
+    >
       <VariableInputsContextProvider>
         <SelectedDashboardContextProvider>
           <DataViewerModeContextProvider>
@@ -620,7 +642,7 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
           </DataViewerModeContextProvider>
         </SelectedDashboardContextProvider>
       </VariableInputsContextProvider>
-    </AvailableVisualizationsContextProvider>
+    </AvailableVisualizationsContext.Provider>
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
@@ -636,6 +658,82 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
   expect(mockSetViz).toHaveBeenCalledWith(
     <Image source={"some_png"} visualizationRef={{ current: undefined }} />
   );
+});
+
+test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  mockedDashboard.gridItems = [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "plugin_source",
+      args_string: JSON.stringify({
+        plugin_arg: true,
+      }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ];
+  const mockedVisualizations = [
+    {
+      label: "Visualization Group",
+      options: [
+        {
+          source: "plugin_source",
+          value: "plugin_value",
+          label: "plugin_label",
+          args: { plugin_arg: "checkbox" },
+        },
+      ],
+    },
+  ];
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetViz = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+
+  render(
+    <AvailableVisualizationsContext.Provider
+      value={{
+        availableVisualizations: mockedVisualizations,
+      }}
+    >
+      <VariableInputsContextProvider>
+        <SelectedDashboardContextProvider>
+          <DataViewerModeContextProvider>
+            <TestingComponent
+              layoutContext={mockedDashboard}
+              source={gridItem.source}
+              argsString={gridItem.args_string}
+              setGridItemMessage={mockSetGridItemMessage}
+              setViz={mockSetViz}
+              setVizMetadata={mockSetVizMetadata}
+            />
+          </DataViewerModeContextProvider>
+        </SelectedDashboardContextProvider>
+      </VariableInputsContextProvider>
+    </AvailableVisualizationsContext.Provider>
+  );
+
+  expect(mockSetVizMetadata).toHaveBeenCalledWith({
+    source: "plugin_source",
+    args: {
+      plugin_arg: true,
+    },
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show Visualization Group plugin_label"
+  );
+  expect(mockSetViz).toHaveBeenCalled();
+  expect(mockSetViz.mock.calls[0][0].props).toStrictEqual({
+    animation: "border",
+    "data-testid": "Loading...",
+    variant: "info",
+  });
 });
 
 test("CustomTextOptions", async () => {

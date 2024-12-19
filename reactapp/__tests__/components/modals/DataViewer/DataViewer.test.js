@@ -1,8 +1,11 @@
 import { act, useEffect } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
-import { mockedDashboards } from "__tests__/utilities/constants";
+import {
+  mockedDashboards,
+  mockedVisualizationsWithDefaults,
+} from "__tests__/utilities/constants";
 import SelectedDashboardContextProvider, {
   useLayoutContext,
 } from "components/contexts/SelectedDashboardContext";
@@ -10,14 +13,13 @@ import VariableInputsContextProvider, {
   useVariableInputValuesContext,
 } from "components/contexts/VariableInputsContext";
 import EditingContextProvider from "components/contexts/EditingContext";
-import AvailableVisualizationsContextProvider from "components/contexts/AvailableVisualizationsContext";
-import DataViewerModeContextProvider, {
-  useDataViewerModeContext,
-} from "components/contexts/DataViewerModeContext";
+import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
+import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
 import PropTypes from "prop-types";
 import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
 import RoutesContextProvider from "components/contexts/RoutesContext";
 import { AppContext } from "components/contexts/AppContext";
+import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
 
 const TestingComponent = (props) => {
   const { setLayoutContext } = useLayoutContext();
@@ -58,7 +60,11 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
+        <AvailableVisualizationsContext.Provider
+          value={{
+            availableVisualizations: mockedVisualizationsWithDefaults,
+          }}
+        >
           <VariableInputsContextProvider>
             <SelectedDashboardContextProvider>
               <AvailableDashboardsContextProvider>
@@ -81,7 +87,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
               </AvailableDashboardsContextProvider>
             </SelectedDashboardContextProvider>
           </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
+        </AvailableVisualizationsContext.Provider>
       </RoutesContextProvider>
     </AppContext.Provider>
   );
@@ -127,7 +133,11 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
+        <AvailableVisualizationsContext.Provider
+          value={{
+            availableVisualizations: mockedVisualizationsWithDefaults,
+          }}
+        >
           <VariableInputsContextProvider>
             <SelectedDashboardContextProvider>
               <AvailableDashboardsContextProvider>
@@ -150,7 +160,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
               </AvailableDashboardsContextProvider>
             </SelectedDashboardContextProvider>
           </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
+        </AvailableVisualizationsContext.Provider>
       </RoutesContextProvider>
     </AppContext.Provider>
   );
@@ -242,7 +252,11 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
+        <AvailableVisualizationsContext.Provider
+          value={{
+            availableVisualizations: mockedVisualizationsWithDefaults,
+          }}
+        >
           <VariableInputsContextProvider>
             <SelectedDashboardContextProvider>
               <AvailableDashboardsContextProvider>
@@ -265,7 +279,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
               </AvailableDashboardsContextProvider>
             </SelectedDashboardContextProvider>
           </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
+        </AvailableVisualizationsContext.Provider>
       </RoutesContextProvider>
     </AppContext.Provider>
   );
@@ -378,7 +392,11 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
+        <AvailableVisualizationsContext.Provider
+          value={{
+            availableVisualizations: mockedVisualizationsWithDefaults,
+          }}
+        >
           <VariableInputsContextProvider>
             <SelectedDashboardContextProvider>
               <AvailableDashboardsContextProvider>
@@ -401,7 +419,7 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
               </AvailableDashboardsContextProvider>
             </SelectedDashboardContextProvider>
           </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
+        </AvailableVisualizationsContext.Provider>
       </RoutesContextProvider>
     </AppContext.Provider>
   );
@@ -435,7 +453,11 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <RoutesContextProvider>
-        <AvailableVisualizationsContextProvider>
+        <AvailableVisualizationsContext.Provider
+          value={{
+            availableVisualizations: mockedVisualizationsWithDefaults,
+          }}
+        >
           <VariableInputsContextProvider>
             <SelectedDashboardContextProvider>
               <AvailableDashboardsContextProvider>
@@ -458,7 +480,7 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
               </AvailableDashboardsContextProvider>
             </SelectedDashboardContextProvider>
           </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
+        </AvailableVisualizationsContext.Provider>
       </RoutesContextProvider>
     </AppContext.Provider>
   );
@@ -475,6 +497,78 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
   fireEvent.click(await screen.findByText("Settings"));
   expect(settingsTab).toHaveClass("active");
   expect(visualizationTab).not.toHaveClass("active");
+});
+
+test("Dashboard Viewer Modal selected visualization types modal", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockhandleModalClose = jest.fn();
+  const mocksetGridItemMessage = jest.fn();
+  const mocksetShowGridItemMessage = jest.fn();
+
+  render(
+    <AppContext.Provider value={"csrf"}>
+      <RoutesContextProvider>
+        <AvailableVisualizationsContext.Provider
+          value={{
+            availableVisualizations: mockedVisualizationsWithDefaults,
+          }}
+        >
+          <VariableInputsContextProvider>
+            <SelectedDashboardContextProvider>
+              <AvailableDashboardsContextProvider>
+                <EditingContextProvider>
+                  <DataViewerModeContextProvider>
+                    <TestingComponent
+                      layoutContext={mockedDashboard}
+                      gridItemIndex={0}
+                      gridItemSource={gridItem.source}
+                      gridItemArgsString={gridItem.args_string}
+                      gridItemMetadataString={gridItem.metadata_string}
+                      gridItemI={gridItem.i}
+                      showModal={true}
+                      handleModalClose={mockhandleModalClose}
+                      setGridItemMessage={mocksetGridItemMessage}
+                      setShowGridItemMessage={mocksetShowGridItemMessage}
+                    />
+                  </DataViewerModeContextProvider>
+                </EditingContextProvider>
+              </AvailableDashboardsContextProvider>
+            </SelectedDashboardContextProvider>
+          </VariableInputsContextProvider>
+        </AvailableVisualizationsContext.Provider>
+      </RoutesContextProvider>
+    </AppContext.Provider>
+  );
+
+  const visualizationSettingButton = await screen.findByLabelText(
+    "visualizationSettingButton"
+  );
+  expect(visualizationSettingButton).toBeInTheDocument();
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.click(visualizationSettingButton);
+  });
+
+  const dataviewerModal = await screen.findByLabelText("DataViewer Modal");
+  expect(dataviewerModal).toBeInTheDocument();
+  expect(dataviewerModal).toHaveStyle({ "z-index": 1050 });
+
+  const selectedVisualizationTypeModal = await screen.findByLabelText(
+    "Selected Visualization Type Modal"
+  );
+  expect(selectedVisualizationTypeModal).toBeInTheDocument();
+
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.keyboard("{Escape}");
+  });
+  await waitFor(async () => {
+    expect(
+      screen.queryByLabelText("Selected Visualization Type Modal")
+    ).not.toBeInTheDocument();
+  });
+  expect(dataviewerModal).not.toHaveStyle({ "z-index": 1050 });
 });
 
 TestingComponent.propTypes = {
