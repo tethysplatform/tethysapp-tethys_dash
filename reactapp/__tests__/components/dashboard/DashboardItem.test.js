@@ -464,7 +464,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
       args_string: JSON.stringify({
         variable_name: "test_var",
         variable_options_source: "checkbox",
-        initial_value: { value: true },
+        initial_value: true,
       }),
       metadata_string: JSON.stringify({
         refreshRate: 0,
@@ -480,7 +480,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
       args_string: JSON.stringify({
         variable_name: "test_var_1",
         variable_options_source: "checkbox",
-        initial_value: { value: true },
+        initial_value: true,
       }),
       metadata_string: JSON.stringify({
         refreshRate: 0,
@@ -527,7 +527,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
       JSON.stringify({
         variable_name: "test_var",
         variable_options_source: "checkbox",
-        initial_value: { value: true },
+        initial_value: true,
       })
     )
   ).toBeInTheDocument();
@@ -536,7 +536,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
       JSON.stringify({
         variable_name: "test_var_1",
         variable_options_source: "checkbox",
-        initial_value: { value: true },
+        initial_value: true,
       })
     )
   ).toBeInTheDocument();
@@ -545,7 +545,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
       JSON.stringify({
         variable_name: "test_var_2",
         variable_options_source: "checkbox",
-        initial_value: { value: true },
+        initial_value: true,
       })
     )
   ).toBeInTheDocument();
