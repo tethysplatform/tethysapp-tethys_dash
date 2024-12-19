@@ -4,7 +4,6 @@ import Modal from "react-bootstrap/Modal";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import CustomAlert from "components/dashboard/CustomAlert";
-import { useUserSettingsContext } from "components/contexts/UserSettingsContext";
 import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
 
 const StyledList = styled.ul`
@@ -19,14 +18,16 @@ const StyledModalBody = styled(Modal.Body)`
   overflow-y: auto;
 `;
 
-function SelectedVisualizationTypesModal({ showModal, setShowModal }) {
+function SelectedVisualizationTypesModal({
+  showModal,
+  setShowModal,
+  deselectedVisualizations,
+  setDeselectedVisualizations,
+}) {
   const { availableVisualizations } = useAvailableVisualizationsContext();
-  const { userSettings, updateUserSettings } = useUserSettingsContext();
   const [selectedOptions, setSelectedOptions] = useState([]);
   const [successMessage, setSuccessMessage] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(null);
-  const [showErrorMessage, setShowErrorMessage] = useState(false);
 
   let allOptions = [];
   const vizOptionsGroups = {};
@@ -48,7 +49,6 @@ function SelectedVisualizationTypesModal({ showModal, setShowModal }) {
   };
 
   useEffect(() => {
-    const deselectedVisualizations = userSettings.deselected_visualizations;
     setSelectedOptions(
       allOptions.filter((option) => !deselectedVisualizations.includes(option))
     );
@@ -105,23 +105,12 @@ function SelectedVisualizationTypesModal({ showModal, setShowModal }) {
 
   const saveSettings = () => {
     setShowSuccessMessage(false);
-    setShowErrorMessage(false);
-    const deselectedVisualizations = allOptions.filter((e) =>
+    const deselectedOptions = allOptions.filter((e) =>
       selectedOptions.every((val) => val !== e)
     );
-    updateUserSettings({
-      deselected_visualizations: deselectedVisualizations,
-    }).then((response) => {
-      if (response.success) {
-        setSuccessMessage("Settings have been saved.");
-        setShowSuccessMessage(true);
-      } else {
-        setErrorMessage(
-          "Failed to save settings. Check server logs for more information."
-        );
-        setShowErrorMessage(true);
-      }
-    });
+    setDeselectedVisualizations(deselectedOptions);
+    setSuccessMessage("Settings have been saved.");
+    setShowSuccessMessage(true);
   };
 
   return (
@@ -171,14 +160,6 @@ function SelectedVisualizationTypesModal({ showModal, setShowModal }) {
           ))}
         </StyledModalBody>
         <Modal.Footer>
-          {errorMessage && (
-            <CustomAlert
-              alertType={"danger"}
-              alertMessage={errorMessage}
-              showAlert={showErrorMessage}
-              setShowAlert={setShowErrorMessage}
-            />
-          )}
           {successMessage && (
             <CustomAlert
               alertType={"success"}

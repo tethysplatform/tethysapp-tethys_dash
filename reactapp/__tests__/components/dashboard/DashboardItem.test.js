@@ -24,7 +24,6 @@ import AvailableVisualizationsContextProvider from "components/contexts/Availabl
 import DataViewerModeContextProvider, {
   useDataViewerModeContext,
 } from "components/contexts/DataViewerModeContext";
-import UserSettingsContextProvider from "components/contexts/UserSettingsContext";
 import { AppContext } from "components/contexts/AppContext";
 import PropTypes from "prop-types";
 
@@ -253,26 +252,24 @@ test("Dashboard Item edit item", async () => {
 
   render(
     <AppContext.Provider value={"csrf"}>
-      <UserSettingsContextProvider>
-        <AvailableVisualizationsContextProvider>
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <EditingContextProvider>
-                <DataViewerModeContextProvider>
-                  <TestingComponent
-                    layoutContext={mockedDashboard}
-                    gridItemSource={gridItem.source}
-                    gridItemI={gridItem.i}
-                    gridItemArgsString={gridItem.args_string}
-                    gridItemMetadataString={gridItem.metadata_string}
-                    gridItemIndex={0}
-                  />
-                </DataViewerModeContextProvider>
-              </EditingContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContextProvider>
-      </UserSettingsContextProvider>
+      <AvailableVisualizationsContextProvider>
+        <VariableInputsContextProvider>
+          <SelectedDashboardContextProvider>
+            <EditingContextProvider>
+              <DataViewerModeContextProvider>
+                <TestingComponent
+                  layoutContext={mockedDashboard}
+                  gridItemSource={gridItem.source}
+                  gridItemI={gridItem.i}
+                  gridItemArgsString={gridItem.args_string}
+                  gridItemMetadataString={gridItem.metadata_string}
+                  gridItemIndex={0}
+                />
+              </DataViewerModeContextProvider>
+            </EditingContextProvider>
+          </SelectedDashboardContextProvider>
+        </VariableInputsContextProvider>
+      </AvailableVisualizationsContextProvider>
     </AppContext.Provider>
   );
 

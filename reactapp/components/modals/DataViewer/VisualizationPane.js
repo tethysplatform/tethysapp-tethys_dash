@@ -17,7 +17,6 @@ import { updateGridItemArgsWithVariableInputs } from "components/visualizations/
 import VariableInput from "components/visualizations/VariableInput";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsGear } from "react-icons/bs";
-import { useUserSettingsContext } from "components/contexts/UserSettingsContext";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
 import "components/modals/wideModal.css";
 
@@ -50,17 +49,20 @@ function VisualizationPane({
   showVisualizationTypeSettings,
   setShowVisualizationTypeSettings,
 }) {
-  const { userSettings } = useUserSettingsContext();
+  const [deselectedVisualizations, setDeselectedVisualizations] = useState(
+    localStorage.getItem("deselected_visualizations") || []
+  );
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
   const { availableVisualizations } = useAvailableVisualizationsContext();
   const { variableInputValues } = useVariableInputValuesContext();
 
   useEffect(() => {
+    localStorage.setItem("deselected_visualizations", deselectedVisualizations);
     let vizTypeOptions = JSON.parse(JSON.stringify(availableVisualizations));
     for (let vizOptionGroup of vizTypeOptions) {
       vizOptionGroup.options = vizOptionGroup.options.filter(function (item) {
-        return !userSettings.deselected_visualizations.includes(item.label);
+        return !deselectedVisualizations.includes(item.label);
       });
     }
     setVizOptions(vizTypeOptions);
@@ -100,7 +102,7 @@ function VisualizationPane({
       }
     }
     // eslint-disable-next-line
-  }, [userSettings]);
+  }, [deselectedVisualizations]);
 
   useEffect(() => {
     checkAllInputs();
@@ -266,6 +268,8 @@ function VisualizationPane({
         <SelectedVisualizationTypesModal
           showModal={showVisualizationTypeSettings}
           setShowModal={setShowVisualizationTypeSettings}
+          deselectedVisualizations={deselectedVisualizations}
+          setDeselectedVisualizations={setDeselectedVisualizations}
         />
       )}
     </>

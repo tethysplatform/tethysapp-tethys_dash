@@ -8,7 +8,6 @@ import AvailableVisualizationsContextProvider from "components/contexts/Availabl
 import EditingContextProvider from "components/contexts/EditingContext";
 import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
 import RoutesContextProvider from "components/contexts/RoutesContext";
-import UserSettingsContextProvider from "components/contexts/UserSettingsContext";
 
 import "App.scss";
 
@@ -17,21 +16,19 @@ function App() {
     <>
       <ErrorBoundary>
         <Loader>
-          <UserSettingsContextProvider>
-            <RoutesContextProvider>
-              <AvailableVisualizationsContextProvider>
-                <VariableInputsContextProvider>
-                  <SelectedDashboardContextProvider>
-                    <AvailableDashboardsContextProvider>
-                      <EditingContextProvider>
-                        <Layout />
-                      </EditingContextProvider>
-                    </AvailableDashboardsContextProvider>
-                  </SelectedDashboardContextProvider>
-                </VariableInputsContextProvider>
-              </AvailableVisualizationsContextProvider>
-            </RoutesContextProvider>
-          </UserSettingsContextProvider>
+          <RoutesContextProvider>
+            <AvailableVisualizationsContextProvider>
+              <VariableInputsContextProvider>
+                <SelectedDashboardContextProvider>
+                  <AvailableDashboardsContextProvider>
+                    <EditingContextProvider>
+                      <Layout />
+                    </EditingContextProvider>
+                  </AvailableDashboardsContextProvider>
+                </SelectedDashboardContextProvider>
+              </VariableInputsContextProvider>
+            </AvailableVisualizationsContextProvider>
+          </RoutesContextProvider>
         </Loader>
       </ErrorBoundary>
     </>

@@ -3,43 +3,38 @@ import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
 import RoutesContextProvider from "components/contexts/RoutesContext";
-import { UserSettingsContext } from "components/contexts/UserSettingsContext";
 import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
 import { AppContext } from "components/contexts/AppContext";
 import { mockedVisualizationsWithDefaults } from "__tests__/utilities/constants";
 
 const TestingComponent = () => {
   const [showModal, setShowmodal] = useState(true);
+  const [deselectedVisualizations, setDeselectedVisualizations] = useState([]);
 
   return (
-    <SelectedVisualizationTypesModal
-      showModal={showModal}
-      setShowModal={setShowmodal}
-    />
+    <>
+      <SelectedVisualizationTypesModal
+        showModal={showModal}
+        setShowModal={setShowmodal}
+        deselectedVisualizations={deselectedVisualizations}
+        setDeselectedVisualizations={setDeselectedVisualizations}
+      />
+      <p>{JSON.stringify(deselectedVisualizations)}</p>
+    </>
   );
 };
 
 test("selected visualization type modal save success and then close", async () => {
-  const mockUpdateUserSettings = jest.fn();
-  mockUpdateUserSettings.mockResolvedValue({ success: true });
-
   render(
     <AppContext.Provider value={"csrf"}>
       <RoutesContextProvider>
-        <UserSettingsContext.Provider
+        <AvailableVisualizationsContext.Provider
           value={{
-            userSettings: { deselected_visualizations: [] },
-            updateUserSettings: mockUpdateUserSettings,
+            availableVisualizations: mockedVisualizationsWithDefaults,
           }}
         >
-          <AvailableVisualizationsContext.Provider
-            value={{
-              availableVisualizations: mockedVisualizationsWithDefaults,
-            }}
-          >
-            <TestingComponent />
-          </AvailableVisualizationsContext.Provider>
-        </UserSettingsContext.Provider>
+          <TestingComponent />
+        </AvailableVisualizationsContext.Provider>
       </RoutesContextProvider>
     </AppContext.Provider>
   );
@@ -117,9 +112,11 @@ test("selected visualization type modal save success and then close", async () =
   expect(
     await screen.findByText("Settings have been saved.")
   ).toBeInTheDocument();
-  expect(mockUpdateUserSettings).toHaveBeenCalledWith({
-    deselected_visualizations: ["Visualization Group 2", "plugin_label3"],
-  });
+  expect(
+    await screen.findByText(
+      JSON.stringify(["Visualization Group 2", "plugin_label3"])
+    )
+  ).toBeInTheDocument();
 
   const closeModalButton = await screen.findByLabelText("Close Modal Button");
   // eslint-disable-next-line
@@ -135,43 +132,20 @@ test("selected visualization type modal save success and then close", async () =
   });
 });
 
-test("selected visualization type modal save failed and then escape", async () => {
-  const mockUpdateUserSettings = jest.fn();
-  mockUpdateUserSettings.mockResolvedValue({ success: false });
-
+test("selected visualization type modal escape", async () => {
   render(
     <AppContext.Provider value={"csrf"}>
       <RoutesContextProvider>
-        <UserSettingsContext.Provider
+        <AvailableVisualizationsContext.Provider
           value={{
-            userSettings: { deselected_visualizations: [] },
-            updateUserSettings: mockUpdateUserSettings,
+            availableVisualizations: mockedVisualizationsWithDefaults,
           }}
         >
-          <AvailableVisualizationsContext.Provider
-            value={{
-              availableVisualizations: mockedVisualizationsWithDefaults,
-            }}
-          >
-            <TestingComponent />
-          </AvailableVisualizationsContext.Provider>
-        </UserSettingsContext.Provider>
+          <TestingComponent />
+        </AvailableVisualizationsContext.Provider>
       </RoutesContextProvider>
     </AppContext.Provider>
   );
-
-  const saveSettingsButton = await screen.findByLabelText(
-    "Save Settings Button"
-  );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(saveSettingsButton);
-  });
-  expect(
-    await screen.findByText(
-      "Failed to save settings. Check server logs for more information."
-    )
-  ).toBeInTheDocument();
   // eslint-disable-next-line
   await act(async () => {
     await userEvent.keyboard("{Escape}");
