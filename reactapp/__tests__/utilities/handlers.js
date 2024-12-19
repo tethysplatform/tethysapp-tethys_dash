@@ -2,6 +2,7 @@ import { rest } from "msw";
 import {
   mockedVisualizations,
   mockedDashboards,
+  mockedUserSetting,
 } from "__tests__/utilities/constants";
 
 const handlers = [
@@ -39,6 +40,13 @@ const handlers = [
     return res(
       ctx.status(200),
       ctx.json(mockedDashboards),
+      ctx.set("Content-Type", "application/json")
+    );
+  }),
+  rest.get("http://api.test/apps/tethysdash/usersettings/", (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json(mockedUserSetting),
       ctx.set("Content-Type", "application/json")
     );
   }),

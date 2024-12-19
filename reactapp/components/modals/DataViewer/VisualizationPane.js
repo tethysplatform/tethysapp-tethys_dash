@@ -15,11 +15,21 @@ import {
 } from "components/modals/utilities";
 import { updateGridItemArgsWithVariableInputs } from "components/visualizations/utilities";
 import VariableInput from "components/visualizations/VariableInput";
-import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
+import TooltipButton from "components/buttons/TooltipButton";
+import { BsGear } from "react-icons/bs";
+import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
 import "components/modals/wideModal.css";
 
 const StyledDiv = styled.div`
   height: 90%;
+`;
+
+const InLineInputDiv = styled.div`
+  display: inline-block;
+  width: calc(100% - 3.5em);
+`;
+const InLineButtonDiv = styled.div`
+  display: inline-block;
 `;
 
 function VisualizationPane({
@@ -36,53 +46,29 @@ function VisualizationPane({
   setVariableInputValue,
   settingsRef,
   visualizationRef,
+  showVisualizationTypeSettings,
+  setShowVisualizationTypeSettings,
 }) {
+  const [deselectedVisualizations, setDeselectedVisualizations] = useState(
+    localStorage.getItem("deselected_visualizations") || []
+  );
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
-  const { availableVisualizations, availableVizArgs } =
-    useAvailableVisualizationsContext();
+  const { availableVisualizations } = useAvailableVisualizationsContext();
   const { variableInputValues } = useVariableInputValuesContext();
 
   useEffect(() => {
-    let vizOptions = [...availableVisualizations];
-    vizOptions.push({
-      label: "Other",
-      options: [
-        {
-          source: "Custom Image",
-          value: "Custom Image",
-          label: "Custom Image",
-          args: { image_source: "text" },
-        },
-        {
-          source: "Text",
-          value: "Text",
-          label: "Text",
-          args: { text: "text" },
-        },
-        {
-          source: "Variable Input",
-          value: "Variable Input",
-          label: "Variable Input",
-          args: {
-            variable_name: "text",
-            variable_options_source: [
-              ...nonDropDownVariableInputTypes,
-              ...[
-                {
-                  label: "Existing Visualization Inputs",
-                  options: availableVizArgs,
-                },
-              ],
-            ],
-          },
-        },
-      ],
-    });
+    localStorage.setItem("deselected_visualizations", deselectedVisualizations);
+    let vizTypeOptions = JSON.parse(JSON.stringify(availableVisualizations));
+    for (let vizOptionGroup of vizTypeOptions) {
+      vizOptionGroup.options = vizOptionGroup.options.filter(function (item) {
+        return !deselectedVisualizations.includes(item.label);
+      });
+    }
+    setVizOptions(vizTypeOptions);
 
-    setVizOptions(vizOptions);
     if (source) {
-      for (let vizOptionGroup of vizOptions) {
+      for (let vizOptionGroup of vizTypeOptions) {
         for (let vizOptionGroupOption of vizOptionGroup.options) {
           if (vizOptionGroupOption.source === source) {
             setSelectedGroupName(vizOptionGroup.label);
@@ -94,6 +80,13 @@ function VisualizationPane({
             }
 
             for (let arg in vizOptionGroupOption.args) {
+              if (vizOptionGroupOption.args[arg] === "checkbox") {
+                vizOptionGroupOption.args[arg] = [
+                  { label: "True", value: true },
+                  { label: "False", value: false },
+                ];
+              }
+
               const userInputsValue = {
                 label: spaceAndCapitalize(arg),
                 name: arg,
@@ -109,7 +102,7 @@ function VisualizationPane({
       }
     }
     // eslint-disable-next-line
-  }, []);
+  }, [deselectedVisualizations]);
 
   useEffect(() => {
     checkAllInputs();
@@ -242,13 +235,25 @@ function VisualizationPane({
 
   return (
     <>
-      <DataSelect
-        label="Visualization Type"
-        selectedOption={selectedVizTypeOption}
-        onChange={onDataTypeChange}
-        options={vizOptions}
-        aria-label={"visualizationType"}
-      />
+      <InLineButtonDiv>
+        <TooltipButton
+          tooltipPlacement="bottom"
+          tooltipText="Visualization Settings"
+          aria-label={"visualizationSettingButton"}
+          onClick={() => setShowVisualizationTypeSettings(true)}
+        >
+          <BsGear size="1.5rem" />
+        </TooltipButton>
+      </InLineButtonDiv>
+      <InLineInputDiv>
+        <DataSelect
+          label="Visualization Type"
+          selectedOption={selectedVizTypeOption}
+          onChange={onDataTypeChange}
+          options={vizOptions}
+          aria-label={"visualizationType"}
+        />
+      </InLineInputDiv>
       {selectedVizTypeOption &&
         selectedVizTypeOption["value"] !== "Text" &&
         vizInputsValues.map((obj, index) => (
@@ -259,6 +264,14 @@ function VisualizationPane({
             index={index}
           />
         ))}
+      {showVisualizationTypeSettings && (
+        <SelectedVisualizationTypesModal
+          showModal={showVisualizationTypeSettings}
+          setShowModal={setShowVisualizationTypeSettings}
+          deselectedVisualizations={deselectedVisualizations}
+          setDeselectedVisualizations={setDeselectedVisualizations}
+        />
+      )}
     </>
   );
 }
@@ -302,6 +315,8 @@ VisualizationPane.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
+  showVisualizationTypeSettings: PropTypes.bool,
+  setShowVisualizationTypeSettings: PropTypes.func,
 };
 
 export default VisualizationPane;
