@@ -31,17 +31,14 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
 
   function onEnforceAspectRatioChange(e) {
     if (e === true) {
-      if (visualizationRef.current.naturalWidth) {
-        settingsRef.current.aspectRatio =
-          visualizationRef.current.naturalWidth /
-          visualizationRef.current.naturalHeight;
-        settingsRef.current.enforceAspectRatio = true;
-        setEnforceAspectRatio(e);
-      }
-    } else if ("enforceAspectRatio" in settingsRef.current) {
+      settingsRef.current.aspectRatio =
+        visualizationRef.current.naturalWidth /
+        visualizationRef.current.naturalHeight;
+      settingsRef.current.enforceAspectRatio = true;
+    } else {
       delete settingsRef.current.enforceAspectRatio;
-      setEnforceAspectRatio(e);
     }
+    setEnforceAspectRatio(e);
   }
 
   return (
@@ -59,17 +56,18 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
           />
           {visualizationRef.current.tagName && (
             <>
-              {visualizationRef.current.tagName.toLowerCase() === "img" && (
-                <DataInput
-                  objValue={{
-                    label: "Enforce Aspect Ratio",
-                    type: "checkbox",
-                    value: enforceAspectRatio,
-                  }}
-                  onChange={onEnforceAspectRatioChange}
-                  index={0}
-                />
-              )}
+              {visualizationRef.current.tagName.toLowerCase() === "img" &&
+                visualizationRef.current.naturalWidth && (
+                  <DataInput
+                    objValue={{
+                      label: "Enforce Aspect Ratio",
+                      type: "checkbox",
+                      value: enforceAspectRatio,
+                    }}
+                    onChange={onEnforceAspectRatioChange}
+                    index={0}
+                  />
+                )}
             </>
           )}
         </>

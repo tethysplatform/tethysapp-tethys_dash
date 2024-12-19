@@ -1,18 +1,17 @@
 import PropTypes from "prop-types";
 import { useContext, createContext, useState } from "react";
 
-const InDataViewerModeContext = createContext();
-const SetDataViewerModeContext = createContext();
+export const DataViewerModeContext = createContext();
 
 const DataViewerModeContextProvider = ({ children }) => {
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
 
   return (
-    <InDataViewerModeContext.Provider value={inDataViewerMode}>
-      <SetDataViewerModeContext.Provider value={setInDataViewerMode}>
-        {children}
-      </SetDataViewerModeContext.Provider>
-    </InDataViewerModeContext.Provider>
+    <DataViewerModeContext.Provider
+      value={{ inDataViewerMode, setInDataViewerMode }}
+    >
+      {children}
+    </DataViewerModeContext.Provider>
   );
 };
 
@@ -25,10 +24,6 @@ DataViewerModeContextProvider.propTypes = {
 
 export default DataViewerModeContextProvider;
 
-export const useInDataViewerModeContext = () => {
-  return useContext(InDataViewerModeContext);
-};
-
-export const useSetDataViewerModeContext = () => {
-  return useContext(SetDataViewerModeContext);
+export const useDataViewerModeContext = () => {
+  return useContext(DataViewerModeContext);
 };

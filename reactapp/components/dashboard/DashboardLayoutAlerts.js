@@ -14,12 +14,9 @@ const StyledAbsDiv = styled.div`
 `;
 
 function DashboardLayoutAlerts() {
-  const successMessage = useLayoutSuccessAlertContext()[0];
-  const showSuccessMessage = useLayoutSuccessAlertContext()[2];
-  const errorMessage = useLayoutErrorAlertContext()[0];
-  const showErrorMessage = useLayoutErrorAlertContext()[2];
-  const warningMessage = useLayoutWarningAlertContext()[0];
-  const showWarningMessage = useLayoutWarningAlertContext()[2];
+  const {successMessage, showSuccessMessage} = useLayoutSuccessAlertContext();
+  const {errorMessage, showErrorMessage} = useLayoutErrorAlertContext();
+  const {warningMessage, showWarningMessage} = useLayoutWarningAlertContext();
 
   return (
     <StyledAbsDiv>
@@ -34,7 +31,7 @@ function DashboardLayoutAlerts() {
         </Alert>
       )}
       {showWarningMessage && (
-        <Alert key="success" variant="warning" dismissible={true}>
+        <Alert key="warning" variant="warning" dismissible={true}>
           {warningMessage}
         </Alert>
       )}

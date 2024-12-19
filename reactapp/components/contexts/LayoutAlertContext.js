@@ -39,28 +39,28 @@ const LayoutAlertContextProvider = ({ children }) => {
 
   return (
     <LayoutSuccessAlertContext.Provider
-      value={[
+      value={{
         successMessage,
         setSuccessMessage,
         showSuccessMessage,
         setShowSuccessMessage,
-      ]}
+      }}
     >
       <LayoutErrorAlertContext.Provider
-        value={[
+        value={{
           errorMessage,
           setErrorMessage,
           showErrorMessage,
           setShowErrorMessage,
-        ]}
+        }}
       >
         <LayoutWarningAlertContext.Provider
-          value={[
+          value={{
             warningMessage,
             setWarningMessage,
             showWarningMessage,
             setShowWarningMessage,
-          ]}
+          }}
         >
           {children}
         </LayoutWarningAlertContext.Provider>

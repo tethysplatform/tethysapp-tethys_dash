@@ -39,13 +39,13 @@ function VisualizationPane({
 }) {
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
-  const availableVisualizations = useAvailableVisualizationsContext()[0];
-  const availableVizArgs = useAvailableVisualizationsContext()[1];
-  const variableInputValues = useVariableInputValuesContext()[0];
+  const { availableVisualizations, availableVizArgs } =
+    useAvailableVisualizationsContext();
+  const { variableInputValues } = useVariableInputValuesContext();
 
   useEffect(() => {
-    let options = [...availableVisualizations];
-    options.push({
+    let vizOptions = [...availableVisualizations];
+    vizOptions.push({
       label: "Other",
       options: [
         {
@@ -80,29 +80,27 @@ function VisualizationPane({
       ],
     });
 
-    setVizOptions(options);
+    setVizOptions(vizOptions);
     if (source) {
-      for (let p of options) {
-        for (let i of p.options) {
-          if (i.source === source) {
-            setSelectedGroupName(p.label);
-            setSelectVizTypeOption(i);
+      for (let vizOptionGroup of vizOptions) {
+        for (let vizOptionGroupOption of vizOptionGroup.options) {
+          if (vizOptionGroupOption.source === source) {
+            setSelectedGroupName(vizOptionGroup.label);
+            setSelectVizTypeOption(vizOptionGroupOption);
             let userInputsValues = [];
             const existingArgs = JSON.parse(argsString);
             if (source === "Variable Input") {
               setVariableInputValue(existingArgs.initial_value);
             }
 
-            for (let arg in i.args) {
-              if (i.args[arg]) {
-                const userInputsValue = {
-                  label: spaceAndCapitalize(arg),
-                  name: arg,
-                  type: i.args[arg],
-                  value: existingArgs[arg],
-                };
-                userInputsValues.push(userInputsValue);
-              }
+            for (let arg in vizOptionGroupOption.args) {
+              const userInputsValue = {
+                label: spaceAndCapitalize(arg),
+                name: arg,
+                type: vizOptionGroupOption.args[arg],
+                value: existingArgs[arg],
+              };
+              userInputsValues.push(userInputsValue);
             }
             setVizInputsValues(userInputsValues);
             break;
@@ -203,9 +201,12 @@ function VisualizationPane({
         selectedVizTypeOption["label"]
     );
     if (selectedVizTypeOption["value"] === "Custom Image") {
-      if (vizInputsValues[0].value) {
-        setViz(<Image source={vizInputsValues[0].value} />);
-      }
+      setViz(
+        <Image
+          source={vizInputsValues[0].value}
+          visualizationRef={visualizationRef}
+        />
+      );
     } else if (selectedVizTypeOption["value"] === "Text") {
       setViz(
         <CustomTextOptions
@@ -246,6 +247,7 @@ function VisualizationPane({
         selectedOption={selectedVizTypeOption}
         onChange={onDataTypeChange}
         options={vizOptions}
+        aria-label={"visualizationType"}
       />
       {selectedVizTypeOption &&
         selectedVizTypeOption["value"] !== "Text" &&
@@ -261,7 +263,7 @@ function VisualizationPane({
   );
 }
 
-function CustomTextOptions({ objValue, onChange, index }) {
+export function CustomTextOptions({ objValue, onChange, index }) {
   const textValue = objValue.value;
 
   return (
@@ -284,13 +286,13 @@ VisualizationPane.propTypes = {
   source: PropTypes.string,
   argsString: PropTypes.string,
   setGridItemMessage: PropTypes.func,
-  selectedVizTypeOption: PropTypes.string,
+  selectedVizTypeOption: PropTypes.object,
   setSelectVizTypeOption: PropTypes.func,
   setViz: PropTypes.func,
   setVizMetadata: PropTypes.func,
-  vizInputsValues: PropTypes.object,
+  vizInputsValues: PropTypes.array,
   setVizInputsValues: PropTypes.func,
-  variableInputValue: PropTypes.object,
+  variableInputValue: PropTypes.oneOfType([PropTypes.object, PropTypes.string]),
   setVariableInputValue: PropTypes.func,
   settingsRef: PropTypes.oneOfType([
     PropTypes.func,

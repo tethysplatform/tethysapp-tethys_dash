@@ -7,18 +7,18 @@ const LayoutNameContext = createContext();
 const LayoutLabelContext = createContext();
 const LayoutAccessGroupsContext = createContext();
 const LayoutNotesContext = createContext();
-const LayoutGridItemsContext = createContext();
+export const LayoutGridItemsContext = createContext();
 const LayoutEditableContext = createContext();
 
 const SelectedDashboardContextProvider = ({ children }) => {
   const [name, setName] = useState("");
   const [label, setLabel] = useState("");
-  const [accessGroups, setAccessGroups] = useState("");
+  const [accessGroups, setAccessGroups] = useState([]);
   const [editable, setEditable] = useState(false);
   const [notes, setNotes] = useState("");
   const [gridItems, setGridItems] = useState([]);
-  const updateVariableInputValuesWithGridItems =
-    useVariableInputValuesContext()[2];
+  const { updateVariableInputValuesWithGridItems } =
+    useVariableInputValuesContext();
 
   function resetLayoutContext() {
     setName("");
@@ -53,17 +53,17 @@ const SelectedDashboardContextProvider = ({ children }) => {
 
   return (
     <LayoutContext.Provider
-      value={[setLayoutContext, resetLayoutContext, getLayoutContext]}
+      value={{ setLayoutContext, resetLayoutContext, getLayoutContext }}
     >
-      <LayoutNameContext.Provider value={[name, setName]}>
-        <LayoutLabelContext.Provider value={[label, setLabel]}>
+      <LayoutNameContext.Provider value={{ name, setName }}>
+        <LayoutLabelContext.Provider value={{ label, setLabel }}>
           <LayoutEditableContext.Provider value={editable}>
             <LayoutAccessGroupsContext.Provider
-              value={[accessGroups, setAccessGroups]}
+              value={{ accessGroups, setAccessGroups }}
             >
-              <LayoutNotesContext.Provider value={[notes, setNotes]}>
+              <LayoutNotesContext.Provider value={{ notes, setNotes }}>
                 <LayoutGridItemsContext.Provider
-                  value={[gridItems, setGridItems]}
+                  value={{ gridItems, setGridItems }}
                 >
                   {children}
                 </LayoutGridItemsContext.Provider>
@@ -107,4 +107,8 @@ export const useLayoutGridItemsContext = () => {
 
 export const useLayoutEditableContext = () => {
   return useContext(LayoutEditableContext);
+};
+
+export const useLayoutAccessGroupsContext = () => {
+  return useContext(LayoutAccessGroupsContext);
 };

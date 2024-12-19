@@ -6,7 +6,7 @@ const StyledDiv = styled.div`
   padding-bottom: 1rem;
 `;
 
-const DataSelect = ({ label, selectedOption, onChange, options }) => {
+const DataSelect = ({ label, selectedOption, onChange, options, ...props }) => {
   const id = label.toLowerCase().replace(" ", "");
   return (
     <StyledDiv>
@@ -28,6 +28,7 @@ const DataSelect = ({ label, selectedOption, onChange, options }) => {
             fontSize: "12",
           }),
         }}
+        {...props}
       />
     </StyledDiv>
   );

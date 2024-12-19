@@ -9,17 +9,17 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import { AppContext } from "components/contexts/AppContext";
 import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
 
-const AvailableDashboardsContext = createContext();
-const DashboardDropwdownContext = createContext();
+export const AvailableDashboardsContext = createContext();
+const DashboardDropdownContext = createContext();
 
 const AvailableDashboardsContextProvider = ({ children }) => {
   const [availableDashboards, setAvailableDashboards] = useState(null);
   const [dashboardDropdownOptions, setDashboardDropdownOptions] = useState([]);
   const [selectedDashboardDropdownOption, setSelectedDashboardDropdownOption] =
     useState(null);
-  const [routes, setRoutes] = useRoutesContext();
+  const { routes, setRoutes } = useRoutesContext();
   const { csrf } = useContext(AppContext);
-  const [setLayoutContext, resetLayoutContext, getLayoutContext] =
+  const { setLayoutContext, resetLayoutContext, getLayoutContext } =
     useLayoutContext();
 
   useEffect(() => {
@@ -80,15 +80,16 @@ const AvailableDashboardsContextProvider = ({ children }) => {
   }
 
   async function copyCurrentDashboard() {
-    const dashboardName = getLayoutContext()["name"] + "_copy";
-    const dashboardLabel = getLayoutContext()["label"] + " Copy";
+    const originalDashboard = getLayoutContext();
+    const dashboardName = originalDashboard["name"] + "_copy";
+    const dashboardLabel = originalDashboard["label"] + " Copy";
 
     const newDashboardData = {
       name: dashboardName,
       label: dashboardLabel,
     };
     const copiedLayoutContext = {
-      ...getLayoutContext(),
+      ...originalDashboard,
       ...newDashboardData,
     };
     const apiResponse = await addDashboard(copiedLayoutContext);
@@ -97,7 +98,7 @@ const AvailableDashboardsContextProvider = ({ children }) => {
 
   async function addDashboard(dashboardContext) {
     const apiResponse = await appAPI.addDashboard(dashboardContext, csrf);
-    if (apiResponse["success"]) {
+    if (apiResponse.success) {
       const newDashboard = apiResponse["new_dashboard"];
       let OGLayouts = Object.assign({}, availableDashboards);
       OGLayouts[newDashboard.name] = newDashboard;
@@ -138,7 +139,7 @@ const AvailableDashboardsContextProvider = ({ children }) => {
 
     if (
       await confirm(
-        "Are your sure you want to delete the " +
+        "Are you sure you want to delete the " +
           selectedOptionValue +
           " dashboard?"
       )
@@ -171,15 +172,16 @@ const AvailableDashboardsContextProvider = ({ children }) => {
   }
 
   async function updateDashboard(updatedProperties) {
-    const originalName = getLayoutContext()["name"];
-    const originalLabel = getLayoutContext()["label"];
-    const originalAccessGroups = getLayoutContext()["access_groups"];
+    const originalDashboard = getLayoutContext();
+    const originalName = originalDashboard["name"];
+    const originalLabel = originalDashboard["label"];
+    const originalAccessGroups = originalDashboard["access_groups"];
 
     updatedProperties["originalName"] = originalName;
     updatedProperties["originalLabel"] = originalLabel;
     updatedProperties["originalAccessGroups"] = originalAccessGroups;
     const updatedLayoutContext = {
-      ...getLayoutContext(),
+      ...originalDashboard,
       ...updatedProperties,
     };
     const apiResponse = await appAPI.updateDashboard(
@@ -187,12 +189,14 @@ const AvailableDashboardsContextProvider = ({ children }) => {
       csrf
     );
     if (apiResponse["success"]) {
-      const name = apiResponse["updated_dashboard"]["name"];
-      const label = apiResponse["updated_dashboard"]["label"];
       let newavailableDashboards = Object.assign({}, availableDashboards);
-      newavailableDashboards[name] = apiResponse["updated_dashboard"];
+      delete newavailableDashboards[originalName];
+
+      const updatedDashboard = apiResponse["updated_dashboard"];
+      const name = updatedDashboard["name"];
+      const label = updatedDashboard["label"];
+      newavailableDashboards[name] = updatedDashboard;
       if (originalName !== name || originalLabel !== label) {
-        delete newavailableDashboards[originalName];
         let updatedSelectOptions = deleteOptionFromDashboardDropdownOptions(
           dashboardDropdownOptions,
           originalName
@@ -213,24 +217,24 @@ const AvailableDashboardsContextProvider = ({ children }) => {
 
   return (
     <AvailableDashboardsContext.Provider
-      value={[
+      value={{
         availableDashboards,
         setAvailableDashboards,
         addDashboard,
         deleteDashboard,
         updateDashboard,
         copyCurrentDashboard,
-      ]}
+      }}
     >
-      <DashboardDropwdownContext.Provider
-        value={[
+      <DashboardDropdownContext.Provider
+        value={{
           dashboardDropdownOptions,
           selectedDashboardDropdownOption,
           setSelectedDashboardDropdownOption,
-        ]}
+        }}
       >
         {children}
-      </DashboardDropwdownContext.Provider>
+      </DashboardDropdownContext.Provider>
     </AvailableDashboardsContext.Provider>
   );
 };
@@ -248,6 +252,6 @@ export const useAvailableDashboardsContext = () => {
   return useContext(AvailableDashboardsContext);
 };
 
-export const useDashboardDropwdownContext = () => {
-  return useContext(DashboardDropwdownContext);
+export const useDashboardDropdownContext = () => {
+  return useContext(DashboardDropdownContext);
 };

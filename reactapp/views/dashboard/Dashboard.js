@@ -7,20 +7,20 @@ import Header from "components/layout/Header";
 import PropTypes from "prop-types";
 
 function DashboardView({ initialDashboard }) {
-  const name = useLayoutNameContext()[0];
+  const { name } = useLayoutNameContext();
 
   return (
     <>
-      <Header initialDashboard={initialDashboard} />
-      {name && (
-        // {/* look at moving context here so that we can set name, griditems, etc? */}
-        <LayoutAlertContextProvider>
-          <DataViewerModeContextProvider>
+      <DataViewerModeContextProvider>
+        <Header initialDashboard={initialDashboard} />
+        {name && (
+          // {/* look at moving context here so that we can set name, griditems, etc? */}
+          <LayoutAlertContextProvider>
             <DashboardLayoutAlerts />
             <DashboardLayout key={name} />
-          </DataViewerModeContextProvider>
-        </LayoutAlertContextProvider>
-      )}
+          </LayoutAlertContextProvider>
+        )}
+      </DataViewerModeContextProvider>
     </>
   );
 }

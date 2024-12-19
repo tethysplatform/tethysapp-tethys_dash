@@ -15,6 +15,7 @@ const DataRadioSelect = ({ label, selectedRadio, radioOptions, onChange }) => {
         inline
         key={i}
         label={radioOptions[i]["label"]}
+        aria-label={radioOptions[i]["label"]}
         name="group1"
         type="radio"
         onChange={onChange}

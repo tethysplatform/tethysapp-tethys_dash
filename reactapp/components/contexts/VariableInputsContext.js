@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import { useContext, createContext, useState } from "react";
 
-const VariableInputValuesContext = createContext();
+export const VariableInputValuesContext = createContext();
 
 const VariableInputsContextProvider = ({ children }) => {
   const [variableInputValues, setVariableInputValues] = useState({});
@@ -13,6 +13,7 @@ const VariableInputsContextProvider = ({ children }) => {
 
       if (gridItem.source === "Variable Input") {
         if (args.variable_name in variableInputValues) {
+          // Keep current selected value for dependent visualizations
           updatedVariableInputValues[args.variable_name] =
             variableInputValues[args.variable_name];
         } else {
@@ -26,11 +27,11 @@ const VariableInputsContextProvider = ({ children }) => {
 
   return (
     <VariableInputValuesContext.Provider
-      value={[
+      value={{
         variableInputValues,
         setVariableInputValues,
         updateVariableInputValuesWithGridItems,
-      ]}
+      }}
     >
       {children}
     </VariableInputValuesContext.Provider>

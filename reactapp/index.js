@@ -1,6 +1,5 @@
 import { BrowserRouter } from "react-router-dom";
 import { createRoot } from "react-dom/client";
-
 import App from "App";
 
 const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
@@ -13,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
     root.render(
       <BrowserRouter basename={APP_ROOT_URL}>
         <App />
-      </BrowserRouter>,
+      </BrowserRouter>
     );
 
     if (module.hot) {

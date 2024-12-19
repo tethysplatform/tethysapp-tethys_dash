@@ -1,6 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import DashboardSelect from "components/inputs/DashboardSelect";
-import HeaderButton from "components/buttons/HeaderButton";
+import TooltipButton from "components/buttons/TooltipButton";
 import NewDashboardModal from "components/modals/NewDashboard";
 import {
   useLayoutContext,
@@ -9,9 +9,8 @@ import {
 } from "components/contexts/SelectedDashboardContext";
 import {
   useAvailableDashboardsContext,
-  useDashboardDropwdownContext,
+  useDashboardDropdownContext,
 } from "components/contexts/AvailableDashboardsContext";
-import { useAddDashboardModalShowContext } from "components/contexts/AddDashboardModalShowContext";
 import {
   BsArrowReturnLeft,
   BsFloppy,
@@ -28,19 +27,17 @@ const StyledDiv = styled.div`
 `;
 
 function DashboardSelector({ initialDashboard }) {
-  const setLayoutContext = useLayoutContext()[0];
-  const getLayoutContext = useLayoutContext()[2];
-  const name = useLayoutNameContext()[0];
+  const { setLayoutContext, getLayoutContext } = useLayoutContext();
+  const { name } = useLayoutNameContext();
   const editableDashboard = useLayoutEditableContext();
-  const availableDashboards = useAvailableDashboardsContext()[0];
-  const [
+  const { availableDashboards } = useAvailableDashboardsContext();
+  const {
     dashboardDropdownOptions,
     selectedDashboardDropdownOption,
     setSelectedDashboardDropdownOption,
-  ] = useDashboardDropwdownContext();
-  const [showAddDashboardModal, setShowAddDashboardModal] =
-    useAddDashboardModalShowContext();
-  const [isEditing, setIsEditing] = useEditingContext();
+  } = useDashboardDropdownContext();
+  const [showModal, setShowModal] = useState(false);
+  const { isEditing, setIsEditing } = useEditingContext();
 
   useEffect(() => {
     if (
@@ -60,7 +57,7 @@ function DashboardSelector({ initialDashboard }) {
 
   function changeDashboard(e) {
     if (e.value === "Create a New Dashboard") {
-      setShowAddDashboardModal(true);
+      setShowModal(true);
     } else {
       let selectedDashboard = availableDashboards[e.value];
       setSelectedDashboardDropdownOption({
@@ -125,51 +122,57 @@ function DashboardSelector({ initialDashboard }) {
         options={dashboardDropdownOptions}
         value={selectedDashboardDropdownOption}
         onChange={updateLayout}
-      ></DashboardSelect>
+      />
       {selectedDashboardDropdownOption && (
         <>
           {editableDashboard && (
             <>
               {isEditing && (
                 <>
-                  <HeaderButton
+                  <TooltipButton
                     tooltipPlacement="bottom"
                     tooltipText="Cancel Changes"
                     onClick={onCancel}
+                    aria-label={"cancelButton"}
                   >
                     <BsArrowReturnLeft size="1.5rem" />
-                  </HeaderButton>
-                  <HeaderButton
+                  </TooltipButton>
+                  <TooltipButton
                     tooltipPlacement="bottom"
                     tooltipText="Save Changes"
                     form="gridUpdate"
                     type="submit"
+                    aria-label={"saveButton"}
                   >
                     <BsFloppy size="1.5rem" />
-                  </HeaderButton>
-                  <HeaderButton
+                  </TooltipButton>
+                  <TooltipButton
                     tooltipPlacement="bottom"
                     tooltipText="Add Dashboard Item"
                     onClick={onAddGridItem}
+                    aria-label={"addGridItemButton"}
                   >
                     <BsPlus size="1.5rem" />
-                  </HeaderButton>
+                  </TooltipButton>
                 </>
               )}
               {!isEditing && (
-                <HeaderButton
+                <TooltipButton
                   tooltipPlacement="bottom"
                   tooltipText="Edit Dashboard"
                   onClick={onEdit}
+                  aria-label={"editButton"}
                 >
                   <BsPencilSquare size="1.5rem" />
-                </HeaderButton>
+                </TooltipButton>
               )}
             </>
           )}
         </>
       )}
-      {showAddDashboardModal && <NewDashboardModal />}
+      {showModal && (
+        <NewDashboardModal showModal={showModal} setShowModal={setShowModal} />
+      )}
     </StyledDiv>
   );
 }

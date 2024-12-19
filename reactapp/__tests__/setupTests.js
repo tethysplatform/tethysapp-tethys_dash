@@ -3,21 +3,43 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import "@testing-library/jest-dom";
-import { server } from "./mocks/server.js";
+import { server } from "./utilities/server.js";
 
 // Mock `window.location` with Jest spies and extend expect
 import "jest-location-mock";
 
 // Make .env files accessible to tests (path relative to project root)
-require("dotenv").config({ path: "./reactapp/config/tests/test.env" });
+require("dotenv").config({ path: "./reactapp/__tests__/test.env" });
+const originalError = console.error.bind(console.error);
+const originalEnv = process.env;
 
 // Setup mocked Tethys API
-beforeAll(() => server.listen());
+beforeAll(() => {
+  server.listen();
+  console.error = (...args) => {
+    if (
+      !args
+        .toString()
+        .includes(
+          "Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`."
+        )
+    ) {
+      originalError(...args);
+    }
+  };
+});
 // if you need to add a handler after calling setupServer for some specific test
 // this will remove that handler for the rest of them
 // (which is important for test isolation):
-afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
+afterEach(() => {
+  server.resetHandlers();
+  process.env = originalEnv;
+  jest.clearAllMocks();
+});
+afterAll(() => {
+  server.close();
+  console.error = originalError;
+});
 
 // Mocks for tests involving plotly
 window.URL.createObjectURL = jest.fn();

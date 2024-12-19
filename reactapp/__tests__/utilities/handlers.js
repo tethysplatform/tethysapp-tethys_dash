@@ -1,4 +1,8 @@
 import { rest } from "msw";
+import {
+  mockedVisualizations,
+  mockedDashboards,
+} from "__tests__/utilities/constants";
 
 const handlers = [
   rest.get("http://api.test/api/apps/tethysdash/", (req, res, ctx) => {
@@ -16,6 +20,25 @@ const handlers = [
         rootUrl: "/apps/tethysdash/",
         settingsUrl: "/admin/tethys_apps/tethysapp/999/change/",
       }),
+      ctx.set("Content-Type", "application/json")
+    );
+  }),
+  rest.get(
+    "http://api.test/apps/tethysdash/visualizations/",
+    (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          visualizations: mockedVisualizations,
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    }
+  ),
+  rest.get("http://api.test/apps/tethysdash/dashboards/", (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json(mockedDashboards),
       ctx.set("Content-Type", "application/json")
     );
   }),

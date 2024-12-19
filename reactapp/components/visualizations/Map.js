@@ -49,7 +49,7 @@ const MapVisualization = ({
   const customBaseLayers = layers ? layers : defaultBaseLayers;
 
   return (
-    <Map {...customMapConfig} ref={visualizationRef}>
+    <Map {...customMapConfig} ref={visualizationRef} data-testid="backlayer-map">
       <View {...customViewConfig} />
       <Layers>
         {customBaseLayers.map((config, index) => (
