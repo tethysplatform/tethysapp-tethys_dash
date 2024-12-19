@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import selectEvent from "react-select-event";
 
@@ -10,16 +10,9 @@ describe("DashboardSelect Component", () => {
     { value: "dashboard2", label: "Dashboard 2", color: "lightgreen" },
   ];
 
-  const nullOptions = [
-    { value: "dashboard1", label: "Dashboard 1", color: null },
-    { value: "dashboard2", label: "Dashboard 2", color: "lightgreen" },
-  ];
-
   it("renders the label correctly", () => {
     render(<DashboardSelect options={options} />);
-    expect(
-      screen.getByLabelText("Select/Add Dashboard:")
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Select/Add Dashboard:")).toBeInTheDocument();
   });
 
   it("renders the select component with provided options", async () => {
