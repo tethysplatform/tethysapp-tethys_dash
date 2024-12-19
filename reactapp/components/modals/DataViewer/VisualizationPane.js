@@ -8,7 +8,6 @@ import TextEditor from "components/inputs/TextEditor";
 import { setVisualization } from "components/visualizations/utilities";
 import {
   AppContext,
-  UserSettingsContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import {
@@ -71,7 +70,7 @@ function VisualizationPane({
     setVizOptions(vizTypeOptions);
 
     if (source) {
-      for (let vizOptionGroup of vizTypeOptions) {
+      for (let vizOptionGroup of visualizations) {
         for (let vizOptionGroupOption of vizOptionGroup.options) {
           if (vizOptionGroupOption.source === source) {
             setSelectedGroupName(vizOptionGroup.label);
@@ -308,7 +307,7 @@ VisualizationPane.propTypes = {
   setVizMetadata: PropTypes.func,
   vizInputsValues: PropTypes.array,
   setVizInputsValues: PropTypes.func,
-  variableInputValue: PropTypes.oneOfType([PropTypes.object, PropTypes.string]),
+  variableInputValue: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
   setVariableInputValue: PropTypes.func,
   settingsRef: PropTypes.oneOfType([
     PropTypes.func,

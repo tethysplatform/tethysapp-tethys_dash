@@ -2,7 +2,6 @@ import PropTypes from "prop-types";
 import { useContext, useEffect } from "react";
 import { render } from "@testing-library/react";
 import { Route } from "react-router-dom";
-import { AppContext } from "components/contexts/Contexts";
 import {
   mockedDashboards,
   mockedVisualizationsWithDefaults,
@@ -13,6 +12,7 @@ import NotFound from "components/error/NotFound";
 import DashboardView from "views/dashboard/Dashboard";
 import PostLoader from "components/loader/PostLoader";
 import {
+  AppContext,
   LayoutContext,
   DashboardDropdownContext,
   AvailableDashboardsContext,

@@ -29,8 +29,18 @@ const VariableInput = ({ args, onChange }) => {
   const [label, setLabel] = useState(null);
   const { visualizationArgs } = useContext(AppContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
-  const { variableInputValues, setVariableInputValues } = useContext(
-    VariableInputsContext
+  const { setVariableInputValues } = useContext(VariableInputsContext);
+
+  const updateVariableInputs = useCallback(
+    (new_value) => {
+      if (new_value || new_value === false) {
+        setVariableInputValues((prevVariableInputValues) => ({
+          ...prevVariableInputValues,
+          [args.variable_name]: new_value,
+        }));
+      }
+    },
+    [args.variable_name, setVariableInputValues]
   );
 
   useEffect(() => {
@@ -65,7 +75,7 @@ const VariableInput = ({ args, onChange }) => {
     }
 
     if (!inDataViewerMode) {
-      updateVariableInputs(args.initial_value.value || args.initial_value);
+      updateVariableInputs(args.initial_value);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args]);
@@ -80,18 +90,14 @@ const VariableInput = ({ args, onChange }) => {
 
     if (Array.isArray(type) || type === "checkbox") {
       if (!inDataViewerMode) {
-        if (typeof e.value !== "undefined") {
-          updateVariableInputs(e.value);
-        } else {
-          updateVariableInputs(e);
-        }
+        updateVariableInputs(e.value || e);
       }
     }
   }
 
   function handleInputRefresh() {
     if (!inDataViewerMode) {
-      updateVariableInputs(value.value || value);
+      updateVariableInputs(value);
     }
   }
 
@@ -136,7 +142,7 @@ VariableInput.propTypes = {
       "checkbox",
       "dropdown",
     ]), // This just defines the type of input
-    initial_value: PropTypes.string,
+    initial_value: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
     variable_name: PropTypes.string,
     variable_options_source: PropTypes.string, // This is where the name of the source comes in like in the dropdown
   }),

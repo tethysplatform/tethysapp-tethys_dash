@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
 import renderWithLoaders from "__tests__/utilities/customRender";
-import appAPI from "services/api/app";
 
 const TestingComponent = () => {
   const [showModal, setShowmodal] = useState(true);

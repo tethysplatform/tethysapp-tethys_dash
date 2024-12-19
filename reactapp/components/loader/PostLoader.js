@@ -69,8 +69,7 @@ const PostLoader = ({ children }) => {
           updatedVariableInputValues[args.variable_name] =
             variableInputValues[args.variable_name];
         } else {
-          updatedVariableInputValues[args.variable_name] =
-            args.initial_value.value || args.initial_value;
+          updatedVariableInputValues[args.variable_name] = args.initial_value;
         }
       }
     }

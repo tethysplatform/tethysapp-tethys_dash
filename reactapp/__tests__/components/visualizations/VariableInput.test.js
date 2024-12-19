@@ -2,9 +2,6 @@ import PropTypes from "prop-types";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { VariableInputValuesContext } from "components/contexts/VariableInputsContext";
-import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import { DataViewerModeContext } from "components/contexts/DataViewerModeContext";
 import VariableInput from "components/visualizations/VariableInput";
 import {
   mockedAvailableVizArgs,
@@ -13,8 +10,15 @@ import {
   mockedNullCheckboxVariable,
   mockedNumberVariable,
   mockedTextVariable,
+  mockedDashboards,
 } from "__tests__/utilities/constants";
-import { LayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
+
+import {
+  AppContext,
+  LayoutContext,
+  DataViewerModeContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import { select } from "react-select-event";
 import appAPI from "services/api/app";
 
@@ -28,40 +32,49 @@ function initAndRender(props) {
   const setVariableInputValues = jest.fn();
   const setInDataViewerMode = jest.fn();
   const handleChange = jest.fn();
-  const setGridItems = jest.fn();
+  const mockGetLayoutContext = jest.fn();
+  mockGetLayoutContext.mockReturnValue(mockedDashboards.editable);
 
   const VariableInputRender = (props) => {
     return (
-      <AvailableVisualizationsContext.Provider
-        value={{ availableVizArgs: mockedAvailableVizArgs }}
+      <AppContext.Provider
+        value={{ visualizationArgs: mockedAvailableVizArgs }}
       >
-        <LayoutGridItemsContext.Provider
-          value={{ gridItems: props.gridItems, setGridItems }}
+        <LayoutContext.Provider
+          value={{ getLayoutContext: mockGetLayoutContext }}
         >
           <DataViewerModeContext.Provider
-            value={{ inDataViewerMode: props.inDataViewer, setInDataViewerMode}}
+            value={{
+              inDataViewerMode: props.inDataViewer,
+              setInDataViewerMode,
+            }}
           >
-            <VariableInputValuesContext.Provider
+            <VariableInputsContext.Provider
               value={{
                 variableInputValues: props.variableInputValues,
                 setVariableInputValues,
-                updateVariableInputValuesWithGridItems
+                updateVariableInputValuesWithGridItems,
               }}
             >
               <VariableInput args={props.args} onChange={handleChange} />
-            </VariableInputValuesContext.Provider>
+            </VariableInputsContext.Provider>
           </DataViewerModeContext.Provider>
-        </LayoutGridItemsContext.Provider>
-      </AvailableVisualizationsContext.Provider>
+        </LayoutContext.Provider>
+      </AppContext.Provider>
     );
   };
 
   VariableInputRender.propTypes = {
     args: PropTypes.shape({
-      variable_input_type: PropTypes.oneOf(["text", "number", "checkbox", "dropdown"]), // This just defines the type of input
+      variable_input_type: PropTypes.oneOf([
+        "text",
+        "number",
+        "checkbox",
+        "dropdown",
+      ]), // This just defines the type of input
       initial_value: PropTypes.string,
       variable_name: PropTypes.string,
-      variable_options_source: PropTypes.string // This is where the name of the source comes in like in the dropdown  
+      variable_options_source: PropTypes.string, // This is where the name of the source comes in like in the dropdown
     }),
     inDataViewer: PropTypes.bool,
     variableInputValues: PropTypes.array,
@@ -84,10 +97,10 @@ function initAndRender(props) {
 it("Creates a Text Input for a Variable Input", async () => {
   const { user, setVariableInputValues, handleChange } = initAndRender({
     args: JSON.parse(mockedTextVariable.args_string),
-    gridItems: [mockedTextVariable]
+    gridItems: [mockedTextVariable],
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input")
+  const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "Hello World");
 
@@ -107,16 +120,16 @@ it("Creates a Text Input for a Variable Input", async () => {
   // We have to dig a bit into the mock to see what values were passed.
   const updater = setVariableInputValues.mock.calls[0][0];
   const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({"Test Variable": "Hello World"});
+  expect(result).toEqual({ "Test Variable": "Hello World" });
 });
 
 it("Creates a Number Input for a Variable Input", async () => {
   const { user, setVariableInputValues, handleChange } = initAndRender({
     args: JSON.parse(mockedNumberVariable.args_string),
-    gridItems: [mockedNumberVariable]
+    gridItems: [mockedNumberVariable],
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input")
+  const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "9");
 
@@ -136,16 +149,16 @@ it("Creates a Number Input for a Variable Input", async () => {
   // We have to dig a bit into the mock to see what values were passed.
   const updater = setVariableInputValues.mock.calls[0][0];
   const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({"Test Variable": 9});
+  expect(result).toEqual({ "Test Variable": 9 });
 });
 
 it("Creates a Checkbox Input for a Variable Input", async () => {
   const { user, setVariableInputValues, handleChange } = initAndRender({
     args: JSON.parse(mockedCheckboxVariable.args_string),
-    gridItems: [mockedCheckboxVariable]
+    gridItems: [mockedCheckboxVariable],
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input")
+  const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   expect(variableInput).toBeChecked();
   await user.click(variableInput);
@@ -163,16 +176,16 @@ it("Creates a Checkbox Input for a Variable Input", async () => {
   // We have to dig a bit into the mock to see what values were passed.
   const updater = setVariableInputValues.mock.calls[1][0];
   const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({"Test Variable": false});
+  expect(result).toEqual({ "Test Variable": false });
 });
 
 it("Creates a Checkbox Input for a Variable Input with a null value", async () => {
   const { user, setVariableInputValues, handleChange } = initAndRender({
     args: JSON.parse(mockedNullCheckboxVariable.args_string),
-    gridItems: [mockedNullCheckboxVariable]
+    gridItems: [mockedNullCheckboxVariable],
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input")
+  const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   expect(variableInput).not.toBeChecked();
   await user.click(variableInput);
@@ -188,7 +201,7 @@ it("Creates a Checkbox Input for a Variable Input with a null value", async () =
   // We have to dig a bit into the mock to see what values were passed.
   const updater = setVariableInputValues.mock.calls[0][0];
   const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({"Test Variable": true});
+  expect(result).toEqual({ "Test Variable": true });
 });
 
 it("Creates a Dropdown Input for a Variable Input", async () => {
@@ -200,17 +213,24 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
   };
   const { setVariableInputValues, handleChange } = initAndRender({
     args: JSON.parse(mockedDropdownVariable.args_string),
-    gridItems: [mockedDropdownVariable]
+    gridItems: [mockedDropdownVariable],
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input")
+  const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
-  await select(variableInput, "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY");
+  await select(
+    variableInput,
+    "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
+  );
 
-  expect(screen.getByText("CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY")).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
+    )
+  ).toBeInTheDocument();
   expect(handleChange).toHaveBeenCalledWith({
     label: "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
-    value: "CREC1"
+    value: "CREC1",
   });
 
   // The first time the function is called, the initial_value is provided.
@@ -221,7 +241,7 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
   // We have to dig a bit into the mock to see what values were passed.
   const updater = setVariableInputValues.mock.calls[1][0]; // Grab the second call
   const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({"Test Variable": "CREC1"});
+  expect(result).toEqual({ "Test Variable": "CREC1" });
 });
 
 describe("When inDataViewerMode", () => {
@@ -230,10 +250,10 @@ describe("When inDataViewerMode", () => {
     const { user, setVariableInputValues, handleChange } = initAndRender({
       args: JSON.parse(mockedTextVariable.args_string),
       gridItems: [mockedTextVariable],
-      inDataViewer: true
+      inDataViewer: true,
     });
 
-    const variableInput = screen.getByLabelText("Test Variable Input")
+    const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     await user.type(variableInput, "Hello World");
 
@@ -254,10 +274,10 @@ describe("When inDataViewerMode", () => {
     const { user, setVariableInputValues, handleChange } = initAndRender({
       args: JSON.parse(mockedNumberVariable.args_string),
       gridItems: [mockedNumberVariable],
-      inDataViewer: true
+      inDataViewer: true,
     });
 
-    const variableInput = screen.getByLabelText("Test Variable Input")
+    const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     await user.type(variableInput, "9");
 
@@ -278,10 +298,10 @@ describe("When inDataViewerMode", () => {
     const { user, setVariableInputValues, handleChange } = initAndRender({
       args: JSON.parse(mockedCheckboxVariable.args_string),
       gridItems: [mockedCheckboxVariable],
-      inDataViewer: true
+      inDataViewer: true,
     });
 
-    const variableInput = screen.getByLabelText("Test Variable Input")
+    const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     expect(variableInput).toBeChecked();
     await user.click(variableInput);
@@ -296,10 +316,10 @@ describe("When inDataViewerMode", () => {
     const { user, setVariableInputValues, handleChange } = initAndRender({
       args: JSON.parse(mockedNullCheckboxVariable.args_string),
       gridItems: [mockedNullCheckboxVariable],
-      inDataViewer: true
+      inDataViewer: true,
     });
 
-    const variableInput = screen.getByLabelText("Test Variable Input")
+    const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     expect(variableInput).not.toBeChecked();
     await user.click(variableInput);
@@ -320,19 +340,26 @@ describe("When inDataViewerMode", () => {
     const { setVariableInputValues, handleChange } = initAndRender({
       args: JSON.parse(mockedDropdownVariable.args_string),
       gridItems: [mockedDropdownVariable],
-      inDataViewer: true
+      inDataViewer: true,
     });
 
-    const variableInput = screen.getByLabelText("Test Variable Input")
+    const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
-    await select(variableInput, "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY");
+    await select(
+      variableInput,
+      "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
+    );
 
-    expect(screen.getByText("CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
+      )
+    ).toBeInTheDocument();
     expect(handleChange).toHaveBeenCalledWith({
       label: "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
-      value: "CREC1"
+      value: "CREC1",
     });
 
     expect(setVariableInputValues).not.toHaveBeenCalled();
-  });  
+  });
 });
