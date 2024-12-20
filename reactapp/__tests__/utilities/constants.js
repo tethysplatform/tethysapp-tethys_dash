@@ -628,7 +628,7 @@ export const mockedDropdownVariable = {
   }),
 };
 
-export const mockedAvailableVizArgs = [
+export const mockedDropdownVizArgs = [
   {
     label:
       "Some Visualization Group Name: Some Visualization Name - Some Visualization Arg",
@@ -649,62 +649,6 @@ export const mockedAvailableVizArgs = [
           {
             label: "ORIC1 - REDWOOD CREEK - ORICK",
             value: "ORIC1",
-          },
-          {
-            label: "ARCC1 - MAD RIVER - ARCATA",
-            value: "ARCC1",
-          },
-          {
-            label: "PLBC1 - EEL RIVER - LAKE PILLSBURY",
-            value: "PLBC1",
-          },
-          {
-            label: "DOSC1 - MIDDLE FORK EEL RIVER - DOS RIOS",
-            value: "DOSC1",
-          },
-          {
-            label: "FTSC1 - EEL RIVER - FORT SEWARD",
-            value: "FTSC1",
-          },
-          {
-            label: "LEGC1 - SOUTH FORK EEL RIVER - LEGGETT",
-            value: "LEGC1",
-          },
-          {
-            label: "MRNC1 - SOUTH FORK EEL RIVER - MIRANDA",
-            value: "MRNC1",
-          },
-          {
-            label: "SCOC1 - EEL RIVER - SCOTIA",
-            value: "SCOC1",
-          },
-          {
-            label: "BRGC1 - VAN DUZEN RIVER - BRIDGEVILLE",
-            value: "BRGC1",
-          },
-          {
-            label: "FRNC1 - EEL RIVER - FERNBRIDGE",
-            value: "FRNC1",
-          },
-          {
-            label: "BLKC1 - REDWOOD CREEK - BLUE LAKE",
-            value: "BLKC1",
-          },
-          {
-            label: "MAUC1 - MAD RIVER - ABOVE RUTH RESERVOIR",
-            value: "MAUC1",
-          },
-          {
-            label: "ETTC1 - MATTOLE RIVER - ETTERSBURG",
-            value: "ETTC1",
-          },
-          {
-            label: "MTOC1 - MATTOLE RIVER - PETROLIA",
-            value: "MTOC1",
-          },
-          {
-            label: "FTBC1 - NOYO RIVER - FORT BRAGG",
-            value: "FTBC1",
           },
         ],
       },

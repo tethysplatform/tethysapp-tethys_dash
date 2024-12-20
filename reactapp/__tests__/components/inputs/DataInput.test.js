@@ -4,6 +4,10 @@ import selectEvent from "react-select-event";
 import DataInput from "components/inputs/DataInput";
 import { act } from "react";
 import renderWithLoaders from "__tests__/utilities/customRender";
+import {
+  mockedTextVariable,
+  mockedDashboards,
+} from "__tests__/utilities/constants";
 
 describe("DataInput Component", () => {
   const mockOnChange = jest.fn();
@@ -37,6 +41,72 @@ describe("DataInput Component", () => {
       { label: "Option 1", value: "option1" },
       0
     );
+  });
+
+  test("renders DataSelect dropdown in dataviewer mode and no variable inputs as options", async () => {
+    const options = [
+      { label: "Option 1", value: "option1" },
+      { label: "Option 2", value: "option2" },
+    ];
+
+    renderWithLoaders({
+      children: (
+        <DataInput
+          objValue={{ label: "Test Dropdown", type: options, value: "" }}
+          onChange={mockOnChange}
+          index={0}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    });
+
+    const dropdown = screen.getByLabelText("Test Dropdown Input");
+
+    // Open the dropdown
+    await selectEvent.openMenu(dropdown);
+
+    // Check if the options are rendered
+    expect(screen.getByText("Option 1")).toBeInTheDocument();
+    expect(screen.getByText("Option 2")).toBeInTheDocument();
+    expect(screen.queryByText("Variable Inputs")).not.toBeInTheDocument();
+    expect(screen.queryByText("Test Variable")).not.toBeInTheDocument();
+  });
+
+  test("renders DataSelect dropdown in dataviewer mode and has variable inputs as options", async () => {
+    const options = [
+      { label: "Option 1", value: "option1" },
+      { label: "Option 2", value: "option2" },
+    ];
+    const dashboards = JSON.parse(JSON.stringify(mockedDashboards));
+    dashboards.editable.gridItems = [mockedTextVariable];
+
+    renderWithLoaders({
+      children: (
+        <DataInput
+          objValue={{ label: "Test Dropdown", type: options, value: "" }}
+          onChange={mockOnChange}
+          index={0}
+        />
+      ),
+      options: {
+        dashboards: dashboards,
+        inDataViewerMode: true,
+        initialDashboard: dashboards.editable.name,
+      },
+    });
+
+    const dropdown = screen.getByLabelText("Test Dropdown Input");
+
+    // Open the dropdown
+    await selectEvent.openMenu(dropdown);
+
+    // Check if the options are rendered
+    expect(screen.getByText("Option 1")).toBeInTheDocument();
+    expect(screen.getByText("Option 2")).toBeInTheDocument();
+    expect(screen.getByText("Variable Inputs")).toBeInTheDocument();
+    expect(screen.getByText("Test Variable")).toBeInTheDocument();
   });
 
   test("renders checkbox and handles change", () => {
@@ -97,15 +167,19 @@ describe("DataInput Component", () => {
     expect(mockOnChange).toHaveBeenCalledWith("option2", 0);
   });
 
-  test("renders text input and handles typing", async () => {
+  test("renders text input and handles typing. make sure enter does not submit form", async () => {
     const user = userEvent.setup();
+    const mockHandleSubmit = jest.fn();
+
     renderWithLoaders({
       children: (
-        <DataInput
-          objValue={{ label: "Test Text", type: "text", value: "initial" }}
-          onChange={mockOnChange}
-          index={0}
-        />
+        <form onSubmit={mockHandleSubmit}>
+          <DataInput
+            objValue={{ label: "Test Text", type: "text", value: "initial" }}
+            onChange={mockOnChange}
+            index={0}
+          />
+        </form>
       ),
     });
 
@@ -122,5 +196,9 @@ describe("DataInput Component", () => {
 
     // Ensure onChange is triggered with the correct value
     expect(mockOnChange).toHaveBeenCalledWith("initialM", 0);
+
+    // Ensure Enter does not submit a form
+    await userEvent.keyboard("{Enter}");
+    expect(mockHandleSubmit).toHaveBeenCalledTimes(0);
   });
 });

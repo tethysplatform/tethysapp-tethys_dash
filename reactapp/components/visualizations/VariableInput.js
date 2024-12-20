@@ -59,23 +59,22 @@ const VariableInput = ({ args, onChange }) => {
       setType(selectedArg.argOptions);
     }
 
+    let initialVariableValue = args.initial_value;
     if (args.variable_options_source === "number") {
       // If the variable_options_source is a number, it parses the int value from initial_value
-      setValue(parseInt(args.initial_value));
+      initialVariableValue = parseInt(args.initial_value);
     } else if (
       args.variable_options_source === "checkbox" &&
       args.initial_value === null
     ) {
       // This sets to false because null isn't a valid value for a checkbox
       // But I've never been able to get this to fire.
-      setValue(false);
-      onChange(false);
-    } else {
-      setValue(args.initial_value);
+      initialVariableValue = false;
     }
+    setValue(initialVariableValue);
 
     if (!inDataViewerMode) {
-      updateVariableInputs(args.initial_value);
+      updateVariableInputs(initialVariableValue);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args]);

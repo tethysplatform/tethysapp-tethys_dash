@@ -1,4 +1,5 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import { act } from "react";
 import userEvent from "@testing-library/user-event";
 
 import {
@@ -158,34 +159,140 @@ it("Creates an Base Item with a variable input text box", async () => {
   );
 });
 
-it("Creates an Base Item with an image obtained from the api", async () => {
+it("Creates an Base Item with an image obtained from the api, 1 min refresh rate", async () => {
+  jest.useFakeTimers();
+
   appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-      viz_type: "image",
-    });
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            success: true,
+            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+            viz_type: "image",
+          }),
+        2000
+      )
+    );
   };
 
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={mockedApiImageBase.source}
-        argsString={mockedApiImageBase.args_string}
-        metadataString={mockedApiImageBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
+  const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
+  apiImageBase.metadata_string = JSON.stringify({
+    refreshRate: 1,
+  });
+
+  act(() => {
+    renderWithLoaders({
+      children: (
+        <BaseVisualization
+          source={apiImageBase.source}
+          argsString={apiImageBase.args_string}
+          metadataString={apiImageBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    });
   });
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
+  act(() => {
+    jest.runOnlyPendingTimers();
+  });
+
   const image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );
+
+  // for refresh rate of 1 minute, doesnt update after 50 seconds
+  act(() => {
+    jest.advanceTimersByTime(50000);
+  });
+  expect(screen.queryByTestId("Loading...")).not.toBeInTheDocument();
+
+  // for refresh rate of 1 minute, updates after 10 more seconds
+  act(() => {
+    jest.advanceTimersByTime(10000);
+  });
+  expect(await screen.findByTestId("Loading...")).toBeInTheDocument();
+
+  act(() => {
+    jest.runOnlyPendingTimers();
+  });
+
+  const anotherImage = await screen.findByAltText(mockedApiImageBase.source);
+  expect(anotherImage.src).toBe(
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+  );
+
+  jest.useRealTimers();
+});
+
+it("Creates an Base Item with an image obtained from the api, no refresh when editing", async () => {
+  jest.useFakeTimers();
+
+  appAPI.getPlotData = () => {
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            success: true,
+            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+            viz_type: "image",
+          }),
+        2000
+      )
+    );
+  };
+
+  const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
+  apiImageBase.metadata_string = JSON.stringify({
+    refreshRate: 1,
+  });
+
+  act(() => {
+    renderWithLoaders({
+      children: (
+        <BaseVisualization
+          source={apiImageBase.source}
+          argsString={apiImageBase.args_string}
+          metadataString={apiImageBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+      options: { inEditing: true },
+    });
+  });
+
+  const spinner = screen.getByTestId("Loading...");
+  expect(spinner).toBeInTheDocument();
+
+  act(() => {
+    jest.runOnlyPendingTimers();
+  });
+
+  const image = await screen.findByAltText(mockedApiImageBase.source);
+  expect(image.src).toBe(
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+  );
+
+  // for refresh rate of 1 minute, doesnt update after 50 seconds
+  act(() => {
+    jest.advanceTimersByTime(50000);
+  });
+  expect(screen.queryByTestId("Loading...")).not.toBeInTheDocument();
+
+  // for refresh rate of 1 minute, updates after 10 more seconds
+  act(() => {
+    jest.advanceTimersByTime(10000);
+  });
+  expect(screen.queryByTestId("Loading...")).not.toBeInTheDocument();
+
+  jest.useRealTimers();
 });
 
 it("Creates an Base Item with a plot obtained from the api", async () => {

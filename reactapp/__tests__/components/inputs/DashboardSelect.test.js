@@ -1,12 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import selectEvent from "react-select-event";
-
 import DashboardSelect from "components/inputs/DashboardSelect";
 
 describe("DashboardSelect Component", () => {
   const options = [
-    { value: "dashboard1", label: "Dashboard 1", color: "lightblue" },
+    { value: "dashboard1", label: "Dashboard 1" },
     { value: "dashboard2", label: "Dashboard 2", color: "lightgreen" },
   ];
 
@@ -25,12 +24,22 @@ describe("DashboardSelect Component", () => {
     // Check if the options are rendered
     expect(screen.getByText("Dashboard 1")).toBeInTheDocument();
     expect(screen.getByText("Dashboard 2")).toBeInTheDocument();
+
+    const optionElement = await screen.findByText("Dashboard 1");
+    expect(optionElement).toHaveStyle("backgroundColor: rgb(178, 212, 255)");
+    // hover over an option
+    fireEvent.mouseEnter(optionElement);
+    expect(optionElement).toHaveStyle(
+      "backgroundColor: rgb(163, 196, 247, .5)"
+    );
+    // stop hovering over an option
+    fireEvent.mouseEnter(optionElement);
+    expect(optionElement).toHaveStyle("backgroundColor: rgb(178, 212, 255)");
   });
 
   it("selects an option from the dropdown", async () => {
     render(<DashboardSelect options={options} />);
     const select = screen.getByLabelText("Select/Add Dashboard:");
-
     // Select an option
     await selectEvent.select(select, "Dashboard 1");
 

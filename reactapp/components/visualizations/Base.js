@@ -47,6 +47,7 @@ const BaseVisualization = ({
         argsString,
         variableInputValues
       );
+      itemData.args = updatedGridItemArgs;
       if (
         !valuesEqual(
           gridItemArgsWithVariableInputs.current,
@@ -54,26 +55,13 @@ const BaseVisualization = ({
         ) ||
         !valuesEqual(gridItemSource.current, source)
       ) {
-        itemData.args = updatedGridItemArgs;
         gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
         gridItemSource.current = source;
         setVisualization(setViz, itemData, visualizationRef);
       }
     }
-    if (refreshRate && refreshRate > 0) {
-      const interval = setInterval(
-        () => {
-          if (!isEditing) {
-            setRefreshCount(refreshCount + 1);
-            setVisualization(setViz, itemData, visualizationRef);
-          }
-        },
-        parseInt(refreshRate) * 1000 * 60
-      );
-      return () => clearInterval(interval);
-    }
     // eslint-disable-next-line
-  }, [source, argsString, refreshRate]);
+  }, [source, argsString]);
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -98,6 +86,31 @@ const BaseVisualization = ({
     }
     // eslint-disable-next-line
   }, [variableInputValues]);
+
+  useEffect(() => {
+    if (refreshRate && refreshRate > 0) {
+      const args = JSON.parse(argsString);
+      const itemData = { source: source, args: args };
+      if (!["", "Custom Image", "Text", "Variable Input"].includes(source)) {
+        const updatedGridItemArgs = updateGridItemArgsWithVariableInputs(
+          argsString,
+          variableInputValues
+        );
+        itemData.args = updatedGridItemArgs;
+      }
+      const interval = setInterval(
+        () => {
+          if (!isEditing) {
+            setRefreshCount(refreshCount + 1);
+            setVisualization(setViz, itemData, visualizationRef);
+          }
+        },
+        parseInt(refreshRate) * 1000 * 60
+      );
+      return () => clearInterval(interval);
+    }
+    // eslint-disable-next-line
+  }, [refreshRate, isEditing]);
 
   return (
     <>

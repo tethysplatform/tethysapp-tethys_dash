@@ -4,7 +4,7 @@ import styled from "styled-components";
 import Form from "react-bootstrap/Form";
 import DataSelect from "components/inputs/DataSelect";
 import {
-  LayoutContext,
+  VariableInputsContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
@@ -23,24 +23,8 @@ const InlineFormCheck = styled(Form.Check)`
 `;
 
 const Input = ({ label, type, onChange, value, index, valueOptions }) => {
-  const { getLayoutContext } = useContext(LayoutContext);
-  const { gridItems } = getLayoutContext();
+  const { variableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
-
-  function getAvailableVariableInputs() {
-    const availableVariableInputs = [];
-    const variableInputs = gridItems.filter(
-      (item) => item.source === "Variable Input"
-    );
-    if (variableInputs) {
-      for (let variableInput of variableInputs) {
-        const variableInputInfo = JSON.parse(variableInput.args_string);
-        availableVariableInputs.push(variableInputInfo.variable_name);
-      }
-    }
-
-    return availableVariableInputs;
-  }
 
   if (Array.isArray(type)) {
     let options = [];
@@ -57,10 +41,9 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
         inputValue = value;
       }
     }
-
-    if (inDataViewerMode !== undefined && label !== "Variable Options Source") {
-      const availableVariableInputs = getAvailableVariableInputs(type);
-      if (availableVariableInputs) {
+    if (inDataViewerMode && label !== "Variable Options Source") {
+      const availableVariableInputs = Object.keys(variableInputValues);
+      if (availableVariableInputs.length !== 0) {
         options.push({
           label: "Variable Inputs",
           options: availableVariableInputs.map((availableVariableInput) => ({

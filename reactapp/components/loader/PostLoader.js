@@ -210,18 +210,18 @@ const PostLoader = ({ children }) => {
     }
   }
 
-  async function updateDashboard(updatedProperties) {
+  async function updateDashboard(newProperties) {
     const originalDashboard = getLayoutContext();
     const originalName = originalDashboard["name"];
     const originalLabel = originalDashboard["label"];
     const originalAccessGroups = originalDashboard["accessGroups"];
+    originalDashboard["originalName"] = originalName;
+    originalDashboard["originalLabel"] = originalLabel;
+    originalDashboard["originalAccessGroups"] = originalAccessGroups;
 
-    updatedProperties["originalName"] = originalName;
-    updatedProperties["originalLabel"] = originalLabel;
-    updatedProperties["originalAccessGroups"] = originalAccessGroups;
     const updatedLayoutContext = {
       ...originalDashboard,
-      ...updatedProperties,
+      ...newProperties,
     };
     const apiResponse = await appAPI.updateDashboard(
       updatedLayoutContext,
