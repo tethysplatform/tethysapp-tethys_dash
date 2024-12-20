@@ -32,7 +32,7 @@ it("Creates a Text Input for a Variable Input", async () => {
         <InputVariablePComponent />
       </>
     ),
-    options: { dashboards: [dashboard] },
+    options: { dashboards: { editable: dashboard } },
   });
 
   const variableInput = screen.getByLabelText("Test Variable Input");
@@ -72,7 +72,7 @@ it("Creates a Number Input for a Variable Input", async () => {
         <InputVariablePComponent />
       </>
     ),
-    options: { dashboards: [dashboard] },
+    options: { dashboards: { editable: dashboard } },
   });
 
   const variableInput = screen.getByLabelText("Test Variable Input");
@@ -112,7 +112,7 @@ it("Creates a Checkbox Input for a Variable Input", async () => {
         <InputVariablePComponent />
       </>
     ),
-    options: { dashboards: [dashboard] },
+    options: { dashboards: { editable: dashboard } },
   });
 
   const variableInput = screen.getByLabelText("Test Variable Input");
@@ -144,7 +144,7 @@ it("Creates a Checkbox Input for a Variable Input with a null value", async () =
         <InputVariablePComponent />
       </>
     ),
-    options: { dashboards: [dashboard] },
+    options: { dashboards: { editable: dashboard } },
   });
 
   const variableInput = screen.getByLabelText("Test Variable Input");
@@ -181,7 +181,7 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
       </>
     ),
     options: {
-      dashboards: [dashboard],
+      dashboards: { editable: dashboard },
       visualizationArgs: mockedDropdownVizArgs,
     },
   });
@@ -227,7 +227,7 @@ describe("When inDataViewerMode", () => {
         </>
       ),
       options: {
-        dashboards: [dashboard],
+        dashboards: { editable: dashboard },
         inDataViewerMode: true,
       },
     });
@@ -270,7 +270,7 @@ describe("When inDataViewerMode", () => {
         </>
       ),
       options: {
-        dashboards: [dashboard],
+        dashboards: { editable: dashboard },
         inDataViewerMode: true,
       },
     });
@@ -314,7 +314,7 @@ describe("When inDataViewerMode", () => {
         </>
       ),
       options: {
-        dashboards: [dashboard],
+        dashboards: { editable: dashboard },
         inDataViewerMode: true,
       },
     });
@@ -353,7 +353,7 @@ describe("When inDataViewerMode", () => {
         </>
       ),
       options: {
-        dashboards: [dashboard],
+        dashboards: { editable: dashboard },
         inDataViewerMode: true,
       },
     });
@@ -391,7 +391,7 @@ describe("When inDataViewerMode", () => {
         </>
       ),
       options: {
-        dashboards: [dashboard],
+        dashboards: { editable: dashboard },
         inDataViewerMode: true,
         visualizationArgs: mockedDropdownVizArgs,
       },

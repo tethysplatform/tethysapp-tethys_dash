@@ -138,7 +138,7 @@ it("Creates an Base Item with a variable input text box", async () => {
         <InputVariablePComponent />
       </>
     ),
-    options: { dashboards: [dashboard] },
+    options: { dashboards: { editable: dashboard } },
   });
 
   const variableInput = screen.getByLabelText("Test Variable Input");
@@ -462,4 +462,73 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
 
   const message = await screen.findByText("Failed to retrieve data");
   expect(message).toBeInTheDocument();
+});
+
+it("Base - update variable input", async () => {
+  const user = userEvent.setup();
+  const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
+  apiImageBase.args_string = JSON.stringify({
+    url: "Variable Input:Test Variable",
+  });
+
+  const mockedDashboard = {
+    id: 1,
+    name: "editable",
+    label: "test_label",
+    notes: "test_notes",
+    editable: true,
+    accessGroups: [],
+    gridItems: [mockedTextVariable, apiImageBase],
+  };
+  const dashboards = { editable: mockedDashboard };
+
+  appAPI.getPlotData = (props) => {
+    return Promise.resolve({
+      success: true,
+      data: props.args.url,
+      viz_type: "image",
+    });
+  };
+
+  renderWithLoaders({
+    children: (
+      <>
+        <BaseVisualization
+          source={mockedDashboard.gridItems[0].source}
+          argsString={mockedDashboard.gridItems[0].args_string}
+          metadataString={mockedDashboard.gridItems[0].metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+        <BaseVisualization
+          source={mockedDashboard.gridItems[1].source}
+          argsString={mockedDashboard.gridItems[1].args_string}
+          metadataString={mockedDashboard.gridItems[1].metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      </>
+    ),
+    options: { dashboards, initialDashboard: mockedDashboard.name },
+  });
+
+  const spinner = screen.getByTestId("Loading...");
+  expect(spinner).toBeInTheDocument();
+
+  const image = await screen.findByAltText(mockedApiImageBase.source);
+  expect(image.src).toBe("http://localhost/");
+
+  const variableInput = screen.getByLabelText("Test Variable Input");
+  expect(variableInput).toBeInTheDocument();
+  await user.type(
+    variableInput,
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+  );
+  const refreshButton = screen.getByRole("button");
+  expect(refreshButton).toBeInTheDocument();
+  await user.click(refreshButton);
+
+  expect(image.src).toBe(
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+  );
 });
