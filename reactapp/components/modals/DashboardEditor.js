@@ -33,11 +33,7 @@ const StyledMarginDiv = styled.div`
   margin-right: 1rem;
 `;
 const StyledHeader = styled(Offcanvas.Header)`
-  padding: 15px;
   border-bottom: 1px solid #ccc;
-`;
-const StyledTitle = styled(Offcanvas.Title)`
-  margin: auto;
 `;
 const StyledButton = styled(Button)`
   margin: 0.25rem;
@@ -183,7 +179,9 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
       className="dashboard-settings-editor"
     >
       <StyledHeader closeButton>
-        <StyledTitle>Dashboard Settings</StyledTitle>
+        <Offcanvas.Title className="ms-auto">
+          Dashboard Settings
+        </Offcanvas.Title>
       </StyledHeader>
       <Offcanvas.Body>
         {errorMessage && (

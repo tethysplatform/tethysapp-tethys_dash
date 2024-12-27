@@ -16,9 +16,7 @@ const AppTour = () => {
     }
 
     if (step.data && type === EVENTS.STEP_AFTER) {
-      if (step.data.nextStepIndex) {
-        setAppTourStep(step.data.nextStepIndex);
-      } else if (index !== appTourStep) {
+      if (index !== appTourStep) {
         setAppTourStep(appTourStep);
       } else if (action === ACTIONS.PREV) {
         const nextStepIndex = index - 1;
@@ -26,7 +24,7 @@ const AppTour = () => {
       } else if (step.data.callbackNext) {
         const nextStepIndex = index + 1;
         setAppTourStep(nextStepIndex);
-      } else if (action === ACTIONS.NEXT && step.data.endAppTourStep) {
+      } else {
         setActiveAppTour(false);
       }
     }
@@ -257,7 +255,8 @@ const AppTour = () => {
           dashboard actions, can be found in this menu.
           <br />
           <br />
-          Click on the hamburger menu to learn more about dashboard settings.
+          Click on the hamburger menu to learn more about dashboard settings or
+          continue the App Tour by clicking on "Next".
         </div>
       ),
       disableBeacon: true,
@@ -339,8 +338,11 @@ const AppTour = () => {
           <br />
           <br />
           Once a visualization type has been chosen, additional inputs for
-          arguments will appear for the given visualization. In this example,
-          the argument is asking for an publicly accessible image url.
+          arguments will appear for the given visualization.
+          <br />
+          <br />
+          Click on the dropdown and select "Custom Image". In this example, the
+          argument is asking for an publicly accessible image url.
           <br />
           <br />
           You can use <b>/static/tethysdash/images/tethys_dash.png</b> as an
@@ -428,24 +430,26 @@ const AppTour = () => {
           General dashboard settings can be altered in this menu. General
           settings include the following:
           <br />
+          <br />
           <ul>
             <li>
-              Name: The name of dashboard. This will be the name in the url of a
-              public dashboard.
+              <b>Name</b>: The name of dashboard. This will be the name in the
+              url of a public dashboard.
             </li>
             <br />
             <li>
-              Label: The label for the dashboard that will show in the Dashboard
-              selection dropdown.
+              <b>Label</b>: The label for the dashboard that will show in the
+              Dashboard selection dropdown.
             </li>
             <br />
             <li>
-              Sharing Status: Determines if the dashboard is publicly available.
+              <b>Sharing Status</b>: Determines if the dashboard is publicly
+              available.
             </li>
             <br />
             <li>
-              Notes: Write and persist any text for future reference. These
-              notes are publicly viewable if the dashboard is public.
+              <b>Notes</b>: Write and persist any text for future reference.
+              These notes are publicly viewable if the dashboard is public.
             </li>
           </ul>
         </div>

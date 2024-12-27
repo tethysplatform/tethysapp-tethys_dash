@@ -12,7 +12,6 @@ import {
 } from "components/contexts/LayoutAlertContext";
 import Form from "react-bootstrap/Form";
 import DashboardItem from "components/dashboard/DashboardItem";
-import { useAppTourContext } from "components/contexts/AppTourContext";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import "components/dashboard/DashboardLayout.css";

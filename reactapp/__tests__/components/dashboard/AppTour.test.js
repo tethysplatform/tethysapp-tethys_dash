@@ -326,7 +326,12 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /Once a visualization type has been chosen, additional inputs for arguments will appear for the given visualization. In this example, the argument is asking for an publicly accessible image url./i
+      /Once a visualization type has been chosen, additional inputs for arguments will appear for the given visualization./i
+    )
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /Click on the dropdown and select "Custom Image". In this example, the argument is asking for an publicly accessible image url./i
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -547,22 +552,22 @@ test("App Tour skip steps 3", async () => {
   });
   expect(
     await screen.findByText(
-      /Name: The name of dashboard. This will be the name in the url of a public dashboard./i
+      /The name of dashboard. This will be the name in the url of a public dashboard./i
     )
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /Label: The label for the dashboard that will show in the Dashboard selection dropdown./i
+      /The label for the dashboard that will show in the Dashboard selection dropdown./i
     )
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /Sharing Status: Determines if the dashboard is publicly available./i
+      /Determines if the dashboard is publicly available./i
     )
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /Notes: Write and persist any text for future reference. These notes are publicly viewable if the dashboard is public./i
+      /Write and persist any text for future reference. These notes are publicly viewable if the dashboard is public./i
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -708,7 +713,6 @@ test("App Tour skip steps 3", async () => {
 }, 20000);
 
 test("App Tour skip to step 3", async () => {
-  let nextButton;
   let dashboardNameInput;
   let createDashboardInput;
   const mockAddDashboard = jest.fn();
@@ -863,10 +867,15 @@ test("App Tour skip to step 3", async () => {
       "This is the main layout of the dashboard where dashboards items will be shown."
     )
   ).toBeInTheDocument();
-  nextButton = await screen.findByLabelText("Next");
-  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+
+  const closeButton = await screen.findByLabelText("Close");
   // eslint-disable-next-line
   await act(async () => {
-    await userEvent.click(nextButton);
+    await userEvent.click(closeButton);
   });
+
+  expect(
+    // eslint-disable-next-line
+    document.querySelector("#react-joyride-portal")
+  ).not.toBeInTheDocument();
 }, 10000);

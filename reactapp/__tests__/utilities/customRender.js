@@ -6,7 +6,6 @@ import {
   mockedDashboards,
   mockedVisualizationsWithDefaults,
   mockedVisualizationArgs,
-  mockedUserSetting,
 } from "__tests__/utilities/constants";
 import NotFound from "components/error/NotFound";
 import DashboardView from "views/dashboard/Dashboard";
