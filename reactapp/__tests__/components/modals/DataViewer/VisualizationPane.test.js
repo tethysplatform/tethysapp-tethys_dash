@@ -1,21 +1,14 @@
-import { act, useEffect, useRef, useState } from "react";
+import { act, useEffect, useRef, useState, useContext } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import VisualizationPane, {
   CustomTextOptions,
 } from "components/modals/DataViewer/VisualizationPane";
-import {
-  mockedDashboards,
-  mockedVisualizationsWithDefaults,
-} from "__tests__/utilities/constants";
-import SelectedDashboardContextProvider, {
-  useLayoutContext,
-} from "components/contexts/SelectedDashboardContext";
-import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
-import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
-import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
+import { mockedDashboards } from "__tests__/utilities/constants";
 import Image from "components/visualizations/Image";
 import appAPI from "services/api/app";
+import { LayoutContext } from "components/contexts/Contexts";
+import renderWithLoaders from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 
 const TestingComponent = ({
@@ -29,7 +22,7 @@ const TestingComponent = ({
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
   const [vizInputsValues, setVizInputsValues] = useState([]);
   const [variableInputValue, setVariableInputValue] = useState(null);
-  const { setLayoutContext } = useLayoutContext();
+  const { setLayoutContext } = useContext(LayoutContext);
   const settingsRef = useRef({});
   const visualizationRef = useRef();
 
@@ -66,28 +59,21 @@ test("Visualization Pane Custom Image", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  render(
-    <AvailableVisualizationsContext.Provider
-      value={{
-        availableVisualizations: mockedVisualizationsWithDefaults,
-      }}
-    >
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <DataViewerModeContextProvider>
-            <TestingComponent
-              layoutContext={mockedDashboard}
-              source={gridItem.source}
-              argsString={gridItem.args_string}
-              setGridItemMessage={mockSetGridItemMessage}
-              setViz={mockSetViz}
-              setVizMetadata={mockSetVizMetadata}
-            />
-          </DataViewerModeContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AvailableVisualizationsContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        setGridItemMessage={mockSetGridItemMessage}
+        setViz={mockSetViz}
+        setVizMetadata={mockSetVizMetadata}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+    },
+  });
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
@@ -126,28 +112,21 @@ test("Visualization Pane Text", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  render(
-    <AvailableVisualizationsContext.Provider
-      value={{
-        availableVisualizations: mockedVisualizationsWithDefaults,
-      }}
-    >
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <DataViewerModeContextProvider>
-            <TestingComponent
-              layoutContext={mockedDashboard}
-              source={gridItem.source}
-              argsString={gridItem.args_string}
-              setGridItemMessage={mockSetGridItemMessage}
-              setViz={mockSetViz}
-              setVizMetadata={mockSetVizMetadata}
-            />
-          </DataViewerModeContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AvailableVisualizationsContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        setGridItemMessage={mockSetGridItemMessage}
+        setViz={mockSetViz}
+        setVizMetadata={mockSetVizMetadata}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+    },
+  });
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
@@ -188,28 +167,21 @@ test("Visualization Pane Variable Input", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  render(
-    <AvailableVisualizationsContext.Provider
-      value={{
-        availableVisualizations: mockedVisualizationsWithDefaults,
-      }}
-    >
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <DataViewerModeContextProvider>
-            <TestingComponent
-              layoutContext={mockedDashboard}
-              source={gridItem.source}
-              argsString={gridItem.args_string}
-              setGridItemMessage={mockSetGridItemMessage}
-              setViz={mockSetViz}
-              setVizMetadata={mockSetVizMetadata}
-            />
-          </DataViewerModeContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AvailableVisualizationsContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        setGridItemMessage={mockSetGridItemMessage}
+        setViz={mockSetViz}
+        setVizMetadata={mockSetVizMetadata}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+    },
+  });
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
@@ -325,28 +297,21 @@ test("Visualization Pane Other Type", async () => {
     });
   };
 
-  render(
-    <AvailableVisualizationsContext.Provider
-      value={{
-        availableVisualizations: mockedVisualizationsWithDefaults,
-      }}
-    >
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <DataViewerModeContextProvider>
-            <TestingComponent
-              layoutContext={mockedDashboard}
-              source={gridItem.source}
-              argsString={gridItem.args_string}
-              setGridItemMessage={mockSetGridItemMessage}
-              setViz={mockSetViz}
-              setVizMetadata={mockSetVizMetadata}
-            />
-          </DataViewerModeContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AvailableVisualizationsContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        setGridItemMessage={mockSetGridItemMessage}
+        setViz={mockSetViz}
+        setVizMetadata={mockSetVizMetadata}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+    },
+  });
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
@@ -463,28 +428,22 @@ test("Visualization Pane Other Type Checkbox", async () => {
     },
   ];
 
-  render(
-    <AvailableVisualizationsContext.Provider
-      value={{
-        availableVisualizations,
-      }}
-    >
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <DataViewerModeContextProvider>
-            <TestingComponent
-              layoutContext={mockedDashboard}
-              source={gridItem.source}
-              argsString={gridItem.args_string}
-              setGridItemMessage={mockSetGridItemMessage}
-              setViz={mockSetViz}
-              setVizMetadata={mockSetVizMetadata}
-            />
-          </DataViewerModeContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AvailableVisualizationsContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        setGridItemMessage={mockSetGridItemMessage}
+        setViz={mockSetViz}
+        setVizMetadata={mockSetVizMetadata}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+      visualizations: availableVisualizations,
+    },
+  });
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
@@ -531,7 +490,8 @@ test("Visualization Pane Other Type Checkbox", async () => {
 });
 
 test("Visualization Pane Use Existing Args Variable Input", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -555,28 +515,22 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  render(
-    <AvailableVisualizationsContext.Provider
-      value={{
-        availableVisualizations: mockedVisualizationsWithDefaults,
-      }}
-    >
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <DataViewerModeContextProvider>
-            <TestingComponent
-              layoutContext={mockedDashboard}
-              source={gridItem.source}
-              argsString={gridItem.args_string}
-              setGridItemMessage={mockSetGridItemMessage}
-              setViz={mockSetViz}
-              setVizMetadata={mockSetVizMetadata}
-            />
-          </DataViewerModeContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AvailableVisualizationsContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        setGridItemMessage={mockSetGridItemMessage}
+        setViz={mockSetViz}
+        setVizMetadata={mockSetVizMetadata}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+      dashboards: updatedMockedDashboards,
+    },
+  });
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "Variable Input",
@@ -600,7 +554,8 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
 });
 
 test("Visualization Pane Use Existing Args Custom Image", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -622,28 +577,22 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  render(
-    <AvailableVisualizationsContext.Provider
-      value={{
-        availableVisualizations: mockedVisualizationsWithDefaults,
-      }}
-    >
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <DataViewerModeContextProvider>
-            <TestingComponent
-              layoutContext={mockedDashboard}
-              source={gridItem.source}
-              argsString={gridItem.args_string}
-              setGridItemMessage={mockSetGridItemMessage}
-              setViz={mockSetViz}
-              setVizMetadata={mockSetVizMetadata}
-            />
-          </DataViewerModeContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AvailableVisualizationsContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        setGridItemMessage={mockSetGridItemMessage}
+        setViz={mockSetViz}
+        setVizMetadata={mockSetVizMetadata}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+      dashboards: updatedMockedDashboards,
+    },
+  });
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "Custom Image",
@@ -661,7 +610,8 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
 });
 
 test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -696,28 +646,23 @@ test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  render(
-    <AvailableVisualizationsContext.Provider
-      value={{
-        availableVisualizations: mockedVisualizations,
-      }}
-    >
-      <VariableInputsContextProvider>
-        <SelectedDashboardContextProvider>
-          <DataViewerModeContextProvider>
-            <TestingComponent
-              layoutContext={mockedDashboard}
-              source={gridItem.source}
-              argsString={gridItem.args_string}
-              setGridItemMessage={mockSetGridItemMessage}
-              setViz={mockSetViz}
-              setVizMetadata={mockSetVizMetadata}
-            />
-          </DataViewerModeContextProvider>
-        </SelectedDashboardContextProvider>
-      </VariableInputsContextProvider>
-    </AvailableVisualizationsContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        setGridItemMessage={mockSetGridItemMessage}
+        setViz={mockSetViz}
+        setVizMetadata={mockSetVizMetadata}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+      dashboards: updatedMockedDashboards,
+      visualizations: mockedVisualizations,
+    },
+  });
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "plugin_source",

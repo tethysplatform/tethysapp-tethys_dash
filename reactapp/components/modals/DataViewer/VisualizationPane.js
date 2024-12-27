@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
 import styled from "styled-components";
@@ -6,8 +6,10 @@ import Image from "components/visualizations/Image";
 import DataInput from "components/inputs/DataInput";
 import TextEditor from "components/inputs/TextEditor";
 import { setVisualization } from "components/visualizations/utilities";
-import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
+import {
+  AppContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 import {
   getInitialInputValue,
   spaceAndCapitalize,
@@ -54,12 +56,12 @@ function VisualizationPane({
   );
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
-  const { availableVisualizations } = useAvailableVisualizationsContext();
-  const { variableInputValues } = useVariableInputValuesContext();
+  const { visualizations } = useContext(AppContext);
+  const { variableInputValues } = useContext(VariableInputsContext);
 
   useEffect(() => {
     localStorage.setItem("deselected_visualizations", deselectedVisualizations);
-    let vizTypeOptions = JSON.parse(JSON.stringify(availableVisualizations));
+    let vizTypeOptions = JSON.parse(JSON.stringify(visualizations));
     for (let vizOptionGroup of vizTypeOptions) {
       vizOptionGroup.options = vizOptionGroup.options.filter(function (item) {
         return !deselectedVisualizations.includes(item.label);
@@ -68,7 +70,7 @@ function VisualizationPane({
     setVizOptions(vizTypeOptions);
 
     if (source) {
-      for (let vizOptionGroup of vizTypeOptions) {
+      for (let vizOptionGroup of visualizations) {
         for (let vizOptionGroupOption of vizOptionGroup.options) {
           if (vizOptionGroupOption.source === source) {
             setSelectedGroupName(vizOptionGroup.label);
@@ -305,7 +307,7 @@ VisualizationPane.propTypes = {
   setVizMetadata: PropTypes.func,
   vizInputsValues: PropTypes.array,
   setVizInputsValues: PropTypes.func,
-  variableInputValue: PropTypes.oneOfType([PropTypes.object, PropTypes.string]),
+  variableInputValue: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
   setVariableInputValue: PropTypes.func,
   settingsRef: PropTypes.oneOfType([
     PropTypes.func,

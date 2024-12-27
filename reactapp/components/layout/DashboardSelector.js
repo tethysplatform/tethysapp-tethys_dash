@@ -1,23 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import DashboardSelect from "components/inputs/DashboardSelect";
 import TooltipButton from "components/buttons/TooltipButton";
 import NewDashboardModal from "components/modals/NewDashboard";
 import {
-  useLayoutContext,
-  useLayoutNameContext,
-  useLayoutEditableContext,
-} from "components/contexts/SelectedDashboardContext";
-import {
-  useAvailableDashboardsContext,
-  useDashboardDropdownContext,
-} from "components/contexts/AvailableDashboardsContext";
+  LayoutContext,
+  AvailableDashboardsContext,
+  DashboardDropdownContext,
+  EditingContext,
+} from "components/contexts/Contexts";
 import {
   BsArrowReturnLeft,
   BsFloppy,
   BsPencilSquare,
   BsPlus,
 } from "react-icons/bs";
-import { useEditingContext } from "components/contexts/EditingContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import styled from "styled-components";
 import PropTypes from "prop-types";
@@ -27,17 +23,16 @@ const StyledDiv = styled.div`
 `;
 
 function DashboardSelector({ initialDashboard }) {
-  const { setLayoutContext, getLayoutContext } = useLayoutContext();
-  const { name } = useLayoutNameContext();
-  const editableDashboard = useLayoutEditableContext();
-  const { availableDashboards } = useAvailableDashboardsContext();
+  const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
+  const { name, editable } = getLayoutContext();
+  const { availableDashboards } = useContext(AvailableDashboardsContext);
   const {
     dashboardDropdownOptions,
     selectedDashboardDropdownOption,
     setSelectedDashboardDropdownOption,
-  } = useDashboardDropdownContext();
+  } = useContext(DashboardDropdownContext);
   const [showModal, setShowModal] = useState(false);
-  const { isEditing, setIsEditing } = useEditingContext();
+  const { isEditing, setIsEditing } = useContext(EditingContext);
 
   useEffect(() => {
     if (
@@ -125,7 +120,7 @@ function DashboardSelector({ initialDashboard }) {
       />
       {selectedDashboardDropdownOption && (
         <>
-          {editableDashboard && (
+          {editable && (
             <>
               {isEditing && (
                 <>

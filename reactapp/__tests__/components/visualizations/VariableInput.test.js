@@ -1,93 +1,41 @@
-import PropTypes from "prop-types";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { VariableInputValuesContext } from "components/contexts/VariableInputsContext";
-import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import { DataViewerModeContext } from "components/contexts/DataViewerModeContext";
 import VariableInput from "components/visualizations/VariableInput";
 import {
-  mockedAvailableVizArgs,
+  mockedDropdownVizArgs,
   mockedCheckboxVariable,
   mockedDropdownVariable,
   mockedNullCheckboxVariable,
   mockedNumberVariable,
   mockedTextVariable,
+  mockedDashboards,
 } from "__tests__/utilities/constants";
-import { LayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
 import { select } from "react-select-event";
-import appAPI from "services/api/app";
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function initAndRender(props) {
-  const user = userEvent.setup();
-  const updateVariableInputValuesWithGridItems = jest.fn();
-  const setVariableInputValues = jest.fn();
-  const setInDataViewerMode = jest.fn();
-  const handleChange = jest.fn();
-  const setGridItems = jest.fn();
-
-  const VariableInputRender = (props) => {
-    return (
-      <AvailableVisualizationsContext.Provider
-        value={{ availableVizArgs: mockedAvailableVizArgs }}
-      >
-        <LayoutGridItemsContext.Provider
-          value={{ gridItems: props.gridItems, setGridItems }}
-        >
-          <DataViewerModeContext.Provider
-            value={{ inDataViewerMode: props.inDataViewer, setInDataViewerMode}}
-          >
-            <VariableInputValuesContext.Provider
-              value={{
-                variableInputValues: props.variableInputValues,
-                setVariableInputValues,
-                updateVariableInputValuesWithGridItems
-              }}
-            >
-              <VariableInput args={props.args} onChange={handleChange} />
-            </VariableInputValuesContext.Provider>
-          </DataViewerModeContext.Provider>
-        </LayoutGridItemsContext.Provider>
-      </AvailableVisualizationsContext.Provider>
-    );
-  };
-
-  VariableInputRender.propTypes = {
-    args: PropTypes.shape({
-      variable_input_type: PropTypes.oneOf(["text", "number", "checkbox", "dropdown"]), // This just defines the type of input
-      initial_value: PropTypes.string,
-      variable_name: PropTypes.string,
-      variable_options_source: PropTypes.string // This is where the name of the source comes in like in the dropdown  
-    }),
-    inDataViewer: PropTypes.bool,
-    variableInputValues: PropTypes.array,
-    gridItems: PropTypes.object,
-  };
-
-  const { rerender } = render(VariableInputRender(props));
-
-  return {
-    user,
-    VariableInputRender,
-    rerender,
-    setVariableInputValues,
-    updateVariableInputValuesWithGridItems,
-    setInDataViewerMode,
-    handleChange,
-  };
-}
+import renderWithLoaders, {
+  InputVariablePComponent,
+} from "__tests__/utilities/customRender";
 
 it("Creates a Text Input for a Variable Input", async () => {
-  const { user, setVariableInputValues, handleChange } = initAndRender({
-    args: JSON.parse(mockedTextVariable.args_string),
-    gridItems: [mockedTextVariable]
+  const user = userEvent.setup();
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  dashboard.gridItems = [mockedTextVariable];
+  const handleChange = jest.fn();
+
+  renderWithLoaders({
+    children: (
+      <>
+        <VariableInput
+          args={JSON.parse(mockedTextVariable.args_string)}
+          onChange={handleChange}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: { dashboards: { editable: dashboard } },
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input")
+  const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "Hello World");
 
@@ -95,28 +43,39 @@ it("Creates a Text Input for a Variable Input", async () => {
   expect(handleChange).toHaveBeenCalledWith("Hello World");
 
   // Only update the Text Input after clicking the input refresh button
-  expect(setVariableInputValues).not.toHaveBeenCalled();
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({})
+  );
 
   const refreshButton = screen.getByRole("button");
   expect(refreshButton).toBeInTheDocument();
   await user.click(refreshButton);
 
-  expect(setVariableInputValues).toHaveBeenCalled();
-
-  // Because we used a callback in the setVariableInputValues,
-  // We have to dig a bit into the mock to see what values were passed.
-  const updater = setVariableInputValues.mock.calls[0][0];
-  const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({"Test Variable": "Hello World"});
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "Hello World" })
+  );
 });
 
 it("Creates a Number Input for a Variable Input", async () => {
-  const { user, setVariableInputValues, handleChange } = initAndRender({
-    args: JSON.parse(mockedNumberVariable.args_string),
-    gridItems: [mockedNumberVariable]
+  const user = userEvent.setup();
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  dashboard.gridItems = [mockedNumberVariable];
+  const handleChange = jest.fn();
+
+  renderWithLoaders({
+    children: (
+      <>
+        <VariableInput
+          args={JSON.parse(mockedNumberVariable.args_string)}
+          onChange={handleChange}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: { dashboards: { editable: dashboard } },
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input")
+  const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "9");
 
@@ -124,28 +83,39 @@ it("Creates a Number Input for a Variable Input", async () => {
   expect(handleChange).toHaveBeenCalledWith("9"); // Is this expected to be a string?
 
   // Only update the Text Input after clicking the input refresh button
-  expect(setVariableInputValues).not.toHaveBeenCalled();
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({})
+  );
 
   const refreshButton = screen.getByRole("button");
   expect(refreshButton).toBeInTheDocument();
   await user.click(refreshButton);
 
-  expect(setVariableInputValues).toHaveBeenCalled();
-
-  // Because we used a callback function in the setVariableInputValues,
-  // We have to dig a bit into the mock to see what values were passed.
-  const updater = setVariableInputValues.mock.calls[0][0];
-  const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({"Test Variable": 9});
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": 9 })
+  );
 });
 
 it("Creates a Checkbox Input for a Variable Input", async () => {
-  const { user, setVariableInputValues, handleChange } = initAndRender({
-    args: JSON.parse(mockedCheckboxVariable.args_string),
-    gridItems: [mockedCheckboxVariable]
+  const user = userEvent.setup();
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  dashboard.gridItems = [mockedCheckboxVariable];
+  const handleChange = jest.fn();
+
+  renderWithLoaders({
+    children: (
+      <>
+        <VariableInput
+          args={JSON.parse(mockedCheckboxVariable.args_string)}
+          onChange={handleChange}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: { dashboards: { editable: dashboard } },
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input")
+  const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   expect(variableInput).toBeChecked();
   await user.click(variableInput);
@@ -153,87 +123,116 @@ it("Creates a Checkbox Input for a Variable Input", async () => {
   expect(variableInput).not.toBeChecked();
   expect(handleChange).toHaveBeenCalledWith(false);
 
-  // The first time the function is called, the initial_value is provided.
-  // The second time is what the actually value will be
-  expect(setVariableInputValues).toHaveBeenCalledTimes(2);
-
-  sleep(50);
-
-  // Because we used a callback function in the setVariableInputValues,
-  // We have to dig a bit into the mock to see what values were passed.
-  const updater = setVariableInputValues.mock.calls[1][0];
-  const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({"Test Variable": false});
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": false })
+  );
 });
 
 it("Creates a Checkbox Input for a Variable Input with a null value", async () => {
-  const { user, setVariableInputValues, handleChange } = initAndRender({
-    args: JSON.parse(mockedNullCheckboxVariable.args_string),
-    gridItems: [mockedNullCheckboxVariable]
+  const user = userEvent.setup();
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  dashboard.gridItems = [mockedNullCheckboxVariable];
+  const handleChange = jest.fn();
+
+  renderWithLoaders({
+    children: (
+      <>
+        <VariableInput
+          args={JSON.parse(mockedNullCheckboxVariable.args_string)}
+          onChange={handleChange}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: { dashboards: { editable: dashboard } },
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input")
+  const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   expect(variableInput).not.toBeChecked();
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": false })
+  );
+
   await user.click(variableInput);
 
   expect(variableInput).toBeChecked();
   expect(handleChange).toHaveBeenCalledWith(true);
 
-  expect(setVariableInputValues).toHaveBeenCalled();
-
-  sleep(50);
-
-  // Because we used a callback function in the setVariableInputValues,
-  // We have to dig a bit into the mock to see what values were passed.
-  const updater = setVariableInputValues.mock.calls[0][0];
-  const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({"Test Variable": true});
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": true })
+  );
 });
 
 it("Creates a Dropdown Input for a Variable Input", async () => {
-  appAPI.getVisualizations = () => {
-    return Promise.resolve({
-      success: true,
-      visualizations: mockedAvailableVizArgs,
-    });
-  };
-  const { setVariableInputValues, handleChange } = initAndRender({
-    args: JSON.parse(mockedDropdownVariable.args_string),
-    gridItems: [mockedDropdownVariable]
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  dashboard.gridItems = [mockedDropdownVariable];
+  const handleChange = jest.fn();
+
+  renderWithLoaders({
+    children: (
+      <>
+        <VariableInput
+          args={JSON.parse(mockedDropdownVariable.args_string)}
+          onChange={handleChange}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: {
+      dashboards: { editable: dashboard },
+      visualizationArgs: mockedDropdownVizArgs,
+    },
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input")
+  const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
-  await select(variableInput, "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY");
+  await select(
+    variableInput,
+    "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
+  );
 
-  expect(screen.getByText("CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY")).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
+    )
+  ).toBeInTheDocument();
   expect(handleChange).toHaveBeenCalledWith({
     label: "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
-    value: "CREC1"
+    value: "CREC1",
   });
 
-  // The first time the function is called, the initial_value is provided.
-  // The second time is what the actually value will be
-  expect(setVariableInputValues).toHaveBeenCalledTimes(2);
-
-  // Because we used a callback function in the setVariableInputValues,
-  // We have to dig a bit into the mock to see what values were passed.
-  const updater = setVariableInputValues.mock.calls[1][0]; // Grab the second call
-  const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({"Test Variable": "CREC1"});
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "CREC1" })
+  );
 });
 
 describe("When inDataViewerMode", () => {
   // The contextualized value won't be updated so the modal and the dashboard states can be kept separate.
   it("Creates a Text Input for a Variable Input", async () => {
-    const { user, setVariableInputValues, handleChange } = initAndRender({
-      args: JSON.parse(mockedTextVariable.args_string),
-      gridItems: [mockedTextVariable],
-      inDataViewer: true
+    const user = userEvent.setup();
+    const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+    dashboard.gridItems = [mockedTextVariable];
+    const handleChange = jest.fn();
+
+    renderWithLoaders({
+      children: (
+        <>
+          <VariableInput
+            args={JSON.parse(mockedTextVariable.args_string)}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        dashboards: { editable: dashboard },
+        inDataViewerMode: true,
+      },
     });
 
-    const variableInput = screen.getByLabelText("Test Variable Input")
+    const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     await user.type(variableInput, "Hello World");
 
@@ -241,23 +240,42 @@ describe("When inDataViewerMode", () => {
     expect(handleChange).toHaveBeenCalledWith("Hello World");
 
     // Only update the Text Input after clicking the input refresh button
-    expect(setVariableInputValues).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({})
+    );
 
     const refreshButton = screen.getByRole("button");
     expect(refreshButton).toBeInTheDocument();
     await user.click(refreshButton);
 
-    expect(setVariableInputValues).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({})
+    );
   });
 
   it("Creates a Number Input for a Variable Input", async () => {
-    const { user, setVariableInputValues, handleChange } = initAndRender({
-      args: JSON.parse(mockedNumberVariable.args_string),
-      gridItems: [mockedNumberVariable],
-      inDataViewer: true
+    const user = userEvent.setup();
+    const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+    dashboard.gridItems = [mockedNumberVariable];
+    const handleChange = jest.fn();
+
+    renderWithLoaders({
+      children: (
+        <>
+          <VariableInput
+            args={JSON.parse(mockedNumberVariable.args_string)}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        dashboards: { editable: dashboard },
+        inDataViewerMode: true,
+      },
     });
 
-    const variableInput = screen.getByLabelText("Test Variable Input")
+    const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     await user.type(variableInput, "9");
 
@@ -265,74 +283,144 @@ describe("When inDataViewerMode", () => {
     expect(handleChange).toHaveBeenCalledWith("9"); // Is this expected to be a string?
 
     // Only update the Text Input after clicking the input refresh button
-    expect(setVariableInputValues).not.toHaveBeenCalled();
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({})
+    );
 
     const refreshButton = screen.getByRole("button");
     expect(refreshButton).toBeInTheDocument();
     await user.click(refreshButton);
 
-    expect(setVariableInputValues).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({})
+    );
   });
 
   it("Creates a Checkbox Input for a Variable Input", async () => {
-    const { user, setVariableInputValues, handleChange } = initAndRender({
-      args: JSON.parse(mockedCheckboxVariable.args_string),
-      gridItems: [mockedCheckboxVariable],
-      inDataViewer: true
+    const user = userEvent.setup();
+    const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+    dashboard.gridItems = [mockedCheckboxVariable];
+    const handleChange = jest.fn();
+
+    renderWithLoaders({
+      children: (
+        <>
+          <VariableInput
+            args={JSON.parse(mockedCheckboxVariable.args_string)}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        dashboards: { editable: dashboard },
+        inDataViewerMode: true,
+      },
     });
 
-    const variableInput = screen.getByLabelText("Test Variable Input")
+    const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     expect(variableInput).toBeChecked();
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": true })
+    );
     await user.click(variableInput);
 
     expect(variableInput).not.toBeChecked();
     expect(handleChange).toHaveBeenCalledWith(false);
 
-    expect(setVariableInputValues).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": true })
+    );
   });
 
   it("Creates a Checkbox Input for a Variable Input with a null value", async () => {
-    const { user, setVariableInputValues, handleChange } = initAndRender({
-      args: JSON.parse(mockedNullCheckboxVariable.args_string),
-      gridItems: [mockedNullCheckboxVariable],
-      inDataViewer: true
+    const user = userEvent.setup();
+    const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+    dashboard.gridItems = [mockedNullCheckboxVariable];
+    const handleChange = jest.fn();
+
+    renderWithLoaders({
+      children: (
+        <>
+          <VariableInput
+            args={JSON.parse(mockedNullCheckboxVariable.args_string)}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        dashboards: { editable: dashboard },
+        inDataViewerMode: true,
+      },
     });
 
-    const variableInput = screen.getByLabelText("Test Variable Input")
+    const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     expect(variableInput).not.toBeChecked();
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": false })
+    );
     await user.click(variableInput);
 
     expect(variableInput).toBeChecked();
     expect(handleChange).toHaveBeenCalledWith(true);
 
-    expect(setVariableInputValues).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": false })
+    );
   });
 
   it("Creates a Dropdown Input for a Variable Input", async () => {
-    appAPI.getVisualizations = () => {
-      return Promise.resolve({
-        success: true,
-        visualizations: mockedAvailableVizArgs,
-      });
-    };
-    const { setVariableInputValues, handleChange } = initAndRender({
-      args: JSON.parse(mockedDropdownVariable.args_string),
-      gridItems: [mockedDropdownVariable],
-      inDataViewer: true
+    const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+    dashboard.gridItems = [mockedDropdownVariable];
+    const handleChange = jest.fn();
+
+    renderWithLoaders({
+      children: (
+        <>
+          <VariableInput
+            args={JSON.parse(mockedDropdownVariable.args_string)}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        dashboards: { editable: dashboard },
+        inDataViewerMode: true,
+        visualizationArgs: mockedDropdownVizArgs,
+      },
     });
 
-    const variableInput = screen.getByLabelText("Test Variable Input")
+    const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
-    await select(variableInput, "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY");
 
-    expect(screen.getByText("CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY")).toBeInTheDocument();
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": "Some Value" })
+    );
+
+    await select(
+      variableInput,
+      "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
+    );
+
+    expect(
+      screen.getByText(
+        "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
+      )
+    ).toBeInTheDocument();
     expect(handleChange).toHaveBeenCalledWith({
       label: "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
-      value: "CREC1"
+      value: "CREC1",
     });
 
-    expect(setVariableInputValues).not.toHaveBeenCalled();
-  });  
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": "Some Value" })
+    );
+  });
 });

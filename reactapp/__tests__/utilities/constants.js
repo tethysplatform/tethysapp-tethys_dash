@@ -5,7 +5,7 @@ export const mockedDashboards = {
     label: "test_label",
     notes: "test_notes",
     editable: true,
-    access_groups: [],
+    accessGroups: [],
     gridItems: [
       {
         i: "1",
@@ -27,7 +27,7 @@ export const mockedDashboards = {
     label: "test_label2",
     notes: "test_notes2",
     editable: false,
-    access_groups: ["public"],
+    accessGroups: ["public"],
     gridItems: [
       {
         i: "1",
@@ -73,6 +73,24 @@ export const mockedVisualizations = [
         args: { plugin_arg3: "text" },
       },
     ],
+  },
+];
+
+export const mockedVisualizationArgs = [
+  {
+    argOptions: "text",
+    label: "Visualization Group: plugin_label - plugin_arg",
+    value: "Visualization Group: plugin_label - plugin_arg",
+  },
+  {
+    argOptions: "text",
+    label: "Visualization Group: plugin_label2 - plugin_arg",
+    value: "Visualization Group: plugin_label2 - plugin_arg",
+  },
+  {
+    argOptions: "text",
+    label: "Visualization Group 2: plugin_label3 - plugin_arg3",
+    value: "Visualization Group 2: plugin_label3 - plugin_arg3",
   },
 ];
 
@@ -132,23 +150,7 @@ export const mockedVisualizationsWithDefaults = [
             "checkbox",
             {
               label: "Existing Visualization Inputs",
-              options: [
-                {
-                  argOptions: "text",
-                  label: "Visualization Group: plugin_label - plugin_arg",
-                  value: "Visualization Group: plugin_label - plugin_arg",
-                },
-                {
-                  argOptions: "text",
-                  label: "Visualization Group: plugin_label2 - plugin_arg",
-                  value: "Visualization Group: plugin_label2 - plugin_arg",
-                },
-                {
-                  argOptions: "text",
-                  label: "Visualization Group 2: plugin_label3 - plugin_arg3",
-                  value: "Visualization Group 2: plugin_label3 - plugin_arg3",
-                },
-              ],
+              options: mockedVisualizationArgs,
             },
           ],
         },
@@ -163,7 +165,7 @@ export const updatedDashboard = {
   label: "test_label_updated",
   notes: "test_notes",
   editable: true,
-  access_groups: [],
+  accessGroups: [],
   gridItems: [
     {
       id: 1,
@@ -187,7 +189,7 @@ export const newDashboard = {
   label: "test_label3",
   notes: "test_notes3",
   editable: true,
-  access_groups: [],
+  accessGroups: [],
   gridItems: [
     {
       id: 1,
@@ -211,7 +213,7 @@ export const copiedDashboard = {
   label: "test_label Copy",
   notes: "test_notes",
   editable: true,
-  access_groups: [],
+  accessGroups: [],
   gridItems: [
     {
       id: 1,
@@ -626,7 +628,7 @@ export const mockedDropdownVariable = {
   }),
 };
 
-export const mockedAvailableVizArgs = [
+export const mockedDropdownVizArgs = [
   {
     label:
       "Some Visualization Group Name: Some Visualization Name - Some Visualization Arg",
@@ -647,62 +649,6 @@ export const mockedAvailableVizArgs = [
           {
             label: "ORIC1 - REDWOOD CREEK - ORICK",
             value: "ORIC1",
-          },
-          {
-            label: "ARCC1 - MAD RIVER - ARCATA",
-            value: "ARCC1",
-          },
-          {
-            label: "PLBC1 - EEL RIVER - LAKE PILLSBURY",
-            value: "PLBC1",
-          },
-          {
-            label: "DOSC1 - MIDDLE FORK EEL RIVER - DOS RIOS",
-            value: "DOSC1",
-          },
-          {
-            label: "FTSC1 - EEL RIVER - FORT SEWARD",
-            value: "FTSC1",
-          },
-          {
-            label: "LEGC1 - SOUTH FORK EEL RIVER - LEGGETT",
-            value: "LEGC1",
-          },
-          {
-            label: "MRNC1 - SOUTH FORK EEL RIVER - MIRANDA",
-            value: "MRNC1",
-          },
-          {
-            label: "SCOC1 - EEL RIVER - SCOTIA",
-            value: "SCOC1",
-          },
-          {
-            label: "BRGC1 - VAN DUZEN RIVER - BRIDGEVILLE",
-            value: "BRGC1",
-          },
-          {
-            label: "FRNC1 - EEL RIVER - FERNBRIDGE",
-            value: "FRNC1",
-          },
-          {
-            label: "BLKC1 - REDWOOD CREEK - BLUE LAKE",
-            value: "BLKC1",
-          },
-          {
-            label: "MAUC1 - MAD RIVER - ABOVE RUTH RESERVOIR",
-            value: "MAUC1",
-          },
-          {
-            label: "ETTC1 - MATTOLE RIVER - ETTERSBURG",
-            value: "ETTC1",
-          },
-          {
-            label: "MTOC1 - MATTOLE RIVER - PETROLIA",
-            value: "MTOC1",
-          },
-          {
-            label: "FTBC1 - NOYO RIVER - FORT BRAGG",
-            value: "FTBC1",
           },
         ],
       },

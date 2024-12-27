@@ -8,10 +8,10 @@ import { BsX, BsGear, BsList } from "react-icons/bs";
 import { useLocation } from "react-router-dom";
 
 import TooltipButton from "components/buttons/TooltipButton";
-import { AppContext } from "components/contexts/AppContext";
+import { AppContext } from "components/contexts/Contexts";
 import DashboardSelector from "components/layout/DashboardSelector";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
-import { useLayoutNameContext } from "components/contexts/SelectedDashboardContext";
+import { LayoutContext } from "components/contexts/Contexts";
 import "components/buttons/HeaderButton.css";
 
 const CustomNavBar = styled(Navbar)`
@@ -23,7 +23,8 @@ const Header = ({ initialDashboard }) => {
   const location = useLocation();
   const [showEditCanvas, setShowEditCanvas] = useState(false);
   const showNav = () => setShowEditCanvas(true);
-  const { name } = useLayoutNameContext();
+  const { getLayoutContext } = useContext(LayoutContext);
+  const { name } = getLayoutContext();
 
   return (
     <>

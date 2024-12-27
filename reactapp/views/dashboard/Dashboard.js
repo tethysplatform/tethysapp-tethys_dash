@@ -1,26 +1,25 @@
 import DashboardLayout from "../../components/dashboard/DashboardLayout";
 import DashboardLayoutAlerts from "../../components/dashboard/DashboardLayoutAlerts";
-import { useLayoutNameContext } from "components/contexts/SelectedDashboardContext";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
-import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
 import Header from "components/layout/Header";
 import PropTypes from "prop-types";
+import { useContext } from "react";
+import { LayoutContext } from "components/contexts/Contexts";
 
 function DashboardView({ initialDashboard }) {
-  const { name } = useLayoutNameContext();
+  const { getLayoutContext } = useContext(LayoutContext);
+  const { name } = getLayoutContext();
 
   return (
     <>
-      <DataViewerModeContextProvider>
-        <Header initialDashboard={initialDashboard} />
-        {name && (
-          // {/* look at moving context here so that we can set name, griditems, etc? */}
-          <LayoutAlertContextProvider>
-            <DashboardLayoutAlerts />
-            <DashboardLayout key={name} />
-          </LayoutAlertContextProvider>
-        )}
-      </DataViewerModeContextProvider>
+      <Header initialDashboard={initialDashboard} />
+      {name && (
+        // {/* look at moving context here so that we can set name, griditems, etc? */}
+        <LayoutAlertContextProvider>
+          <DashboardLayoutAlerts />
+          <DashboardLayout key={name} />
+        </LayoutAlertContextProvider>
+      )}
     </>
   );
 }

@@ -1,14 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useContext } from "react";
 import RGL, { WidthProvider } from "react-grid-layout";
 import styled from "styled-components";
-import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
-import { useLayoutContext } from "components/contexts/SelectedDashboardContext";
-import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
+import {
+  LayoutContext,
+  AvailableDashboardsContext,
+  EditingContext,
+} from "components/contexts/Contexts";
 import {
   useLayoutSuccessAlertContext,
   useLayoutErrorAlertContext,
 } from "components/contexts/LayoutAlertContext";
-import { useEditingContext } from "components/contexts/EditingContext";
 import Form from "react-bootstrap/Form";
 import DashboardItem from "components/dashboard/DashboardItem";
 import "react-grid-layout/css/styles.css";
@@ -30,10 +31,10 @@ function DashboardLayout() {
   const { setSuccessMessage, setShowSuccessMessage } =
     useLayoutSuccessAlertContext();
   const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
-  const { updateDashboard } = useAvailableDashboardsContext();
-  const { setLayoutContext, getLayoutContext } = useLayoutContext();
-  const { gridItems } = useLayoutGridItemsContext();
-  const { isEditing, setIsEditing } = useEditingContext();
+  const { updateDashboard } = useContext(AvailableDashboardsContext);
+  const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
+  const { gridItems } = getLayoutContext();
+  const { isEditing, setIsEditing } = useContext(EditingContext);
   const [layout, setLayout] = useState([]);
   const [items, setItems] = useState([]);
   const gridItemsUpdated = useRef();

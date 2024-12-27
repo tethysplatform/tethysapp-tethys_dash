@@ -2,21 +2,17 @@ import Offcanvas from "react-bootstrap/Offcanvas";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import Button from "react-bootstrap/Button";
 import Alert from "react-bootstrap/Alert";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import {
-  useLayoutNameContext,
-  useLayoutLabelContext,
-  useLayoutNotesContext,
-  useLayoutEditableContext,
-  useLayoutAccessGroupsContext,
-} from "components/contexts/SelectedDashboardContext";
+  LayoutContext,
+  AvailableDashboardsContext,
+  EditingContext,
+} from "components/contexts/Contexts";
 import styled from "styled-components";
 import { getTethysPortalHost } from "services/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
-import { useAvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
 import PropTypes from "prop-types";
 import TextEditor from "components/inputs/TextEditor";
-import { useEditingContext } from "components/contexts/EditingContext";
 import DataInput from "components/inputs/DataInput";
 import Text from "components/visualizations/Text";
 import { confirm } from "components/dashboard/DeleteConfirmation";
@@ -65,19 +61,17 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
-  const { name } = useLayoutNameContext();
-  const { label } = useLayoutLabelContext();
-  const { deleteDashboard, updateDashboard, copyCurrentDashboard } =
-    useAvailableDashboardsContext();
-  const { notes } = useLayoutNotesContext();
-  const editable = useLayoutEditableContext();
-  const { accessGroups } = useLayoutAccessGroupsContext();
+  const { getLayoutContext } = useContext(LayoutContext);
+  const { name, label, editable, accessGroups, notes } = getLayoutContext();
+  const { deleteDashboard, updateDashboard, copyCurrentDashboard } = useContext(
+    AvailableDashboardsContext
+  );
   const [localNotes, setLocalNotes] = useState(notes);
   const [localName, setLocalName] = useState(name);
   const [localLabel, setLocalLabel] = useState(label);
   const dashboardPublicUrl =
     getTethysPortalHost() + APP_ROOT_URL + "dashboard/" + name;
-  const { setIsEditing } = useEditingContext();
+  const { setIsEditing } = useContext(EditingContext);
 
   const sharingStatusOptions = [
     { label: "Public", value: "public" },
@@ -110,7 +104,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     setSuccessMessage("");
     setErrorMessage("");
     const newProperties = {
-      access_groups: selectedSharingStatus === "public" ? ["public"] : [],
+      accessGroups: selectedSharingStatus === "public" ? ["public"] : [],
       notes: localNotes,
       name: localName,
       label: localLabel,

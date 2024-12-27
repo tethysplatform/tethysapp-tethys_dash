@@ -1,10 +1,9 @@
-import PropTypes from "prop-types";
-import { render, screen } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
+import { act } from "react";
 import userEvent from "@testing-library/user-event";
 
 import {
   mockedApiImageBase,
-  mockedAvailableVizArgs,
   mockedCardBase,
   mockedCardData,
   mockedCustomImageBase,
@@ -17,18 +16,13 @@ import {
   mockedTextBase,
   mockedTextVariable,
   mockedUnknownBase,
+  mockedDashboards,
 } from "__tests__/utilities/constants";
-import Base from "components/visualizations/Base";
+import BaseVisualization from "components/visualizations/Base";
 import appAPI from "services/api/app";
-import { EditingContext } from "components/contexts/EditingContext";
-import { VariableInputValuesContext } from "components/contexts/VariableInputsContext";
-import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import { DataViewerModeContext } from "components/contexts/DataViewerModeContext";
-import { LayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+import renderWithLoaders, {
+  InputVariablePComponent,
+} from "__tests__/utilities/customRender";
 
 const { ResizeObserver } = window;
 
@@ -46,85 +40,17 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-function initAndRender(props) {
-  const user = userEvent.setup();
-  const hideFullscreen = jest.fn();
-  const setVariableInputValues = jest.fn();
-  const setInDataViewerMode = jest.fn();
-  const setGridItems = jest.fn();
-  const updateVariableInputValuesWithGridItems = jest.fn();
-  const setIsEditing = jest.fn();
-
-  const BaseRender = (props) => {
-    return (
-      <AvailableVisualizationsContext.Provider
-        value={{ availableVizArgs: mockedAvailableVizArgs }}
-      >
-        <LayoutGridItemsContext.Provider
-          value={{ gridItems: props.gridItems, setGridItems }}
-        >
-          <DataViewerModeContext.Provider
-            value={{
-              inDataViewerMode: props.inDataViewer,
-              setInDataViewerMode,
-            }}
-          >
-            <VariableInputValuesContext.Provider
-              value={{
-                variableInputValues: props.variableInputValues,
-                setVariableInputValues,
-                updateVariableInputValuesWithGridItems,
-              }}
-            >
-              <EditingContext.Provider
-                value={{ isEditing: props.isEditing, setIsEditing }}
-              >
-                <Base
-                  source={props.source}
-                  argsString={props.argsString}
-                  metadataString={props.metadataString}
-                  showFullscreen={props.showFullscreen}
-                  hideFullscreen={hideFullscreen}
-                />
-              </EditingContext.Provider>
-            </VariableInputValuesContext.Provider>
-          </DataViewerModeContext.Provider>
-        </LayoutGridItemsContext.Provider>
-      </AvailableVisualizationsContext.Provider>
-    );
-  };
-
-  BaseRender.propTypes = {
-    source: PropTypes.string,
-    argsString: PropTypes.string,
-    metadataString: PropTypes.string,
-    showFullscreen: PropTypes.bool,
-    hideFullscreen: PropTypes.func,
-    variableInputValues: PropTypes.array,
-    isEditing: PropTypes.bool,
-    inDataViewer: PropTypes.bool,
-    gridItems: PropTypes.object,
-  };
-
-  const { rerender } = render(BaseRender(props));
-
-  return {
-    user,
-    BaseRender,
-    rerender,
-    setVariableInputValues,
-    updateVariableInputValuesWithGridItems,
-    setIsEditing,
-    hideFullscreen,
-  };
-}
-
 it("Initializes a Base Item with an empty div", () => {
-  initAndRender({
-    source: "",
-    argsString: "{}",
-    metadataString: "{}",
-    showFullscreen: false,
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={""}
+        argsString={"{}"}
+        metadataString={"{}"}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
 
   expect(screen.getByTestId("Source_Unknown")).toBeInTheDocument();
@@ -139,69 +65,80 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
     });
   };
 
-  const { rerender, BaseRender } = initAndRender({
-    source: "",
-    argsString: "{}",
-    metadataString: "{}",
-    showFullscreen: false,
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={mockedApiImageBase.source}
+        argsString={mockedApiImageBase.args_string}
+        metadataString={mockedApiImageBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
-
-  expect(screen.getByTestId("Source_Unknown")).toBeInTheDocument();
-
-  const gridItem = mockedApiImageBase;
-  rerender(
-    BaseRender({
-      source: gridItem.source,
-      argsString: gridItem.args_string,
-      metadataString: gridItem.metadata_string,
-      showFullscreen: false,
-    })
-  );
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(100);
-  const image = screen.getByAltText(gridItem.source);
+  const image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );
 });
 
 it("Creates an Base Item with a Custom Image", async () => {
-  const gridItem = mockedCustomImageBase;
-  initAndRender({
-    source: gridItem.source,
-    argsString: gridItem.args_string,
-    metadataString: gridItem.metadata_string,
-    showFullscreen: false,
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={mockedCustomImageBase.source}
+        argsString={mockedCustomImageBase.args_string}
+        metadataString={mockedCustomImageBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
 
-  const image = screen.getByAltText("custom_image");
+  const image = await screen.findByAltText("custom_image");
   expect(image.src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
 });
 
 it("Creates an Base Item with a Text Box", async () => {
-  const gridItem = mockedTextBase;
-  initAndRender({
-    source: gridItem.source,
-    argsString: gridItem.args_string,
-    metadataString: gridItem.metadata_string,
-    showFullscreen: false,
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={mockedTextBase.source}
+        argsString={mockedTextBase.args_string}
+        metadataString={mockedTextBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
 
-  const text = screen.getByText("Custom Text");
+  const text = await screen.findByText("Custom Text");
   expect(text).toBeInTheDocument();
 });
 
 it("Creates an Base Item with a variable input text box", async () => {
-  const gridItem = mockedTextVariable;
-  const { user, setVariableInputValues } = initAndRender({
-    source: gridItem.source,
-    argsString: gridItem.args_string,
-    metadataString: gridItem.metadata_string,
-    showFullscreen: false,
-    gridItems: [mockedTextVariable],
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  dashboard.gridItems = [mockedTextVariable];
+  const user = userEvent.setup();
+
+  renderWithLoaders({
+    children: (
+      <>
+        <BaseVisualization
+          source={mockedTextVariable.source}
+          argsString={mockedTextVariable.args_string}
+          metadataString={mockedTextVariable.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: { dashboards: { editable: dashboard } },
   });
 
   const variableInput = screen.getByLabelText("Test Variable Input");
@@ -209,48 +146,149 @@ it("Creates an Base Item with a variable input text box", async () => {
   await user.type(variableInput, "Hello World");
 
   expect(variableInput).toHaveValue("Hello World");
-
-  // Only update the Text Input after clicking the input refresh button
-  expect(setVariableInputValues).not.toHaveBeenCalled();
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({})
+  );
 
   const refreshButton = screen.getByRole("button");
   expect(refreshButton).toBeInTheDocument();
   await user.click(refreshButton);
 
-  expect(setVariableInputValues).toHaveBeenCalled();
-
-  // Because we used a callback in the setVariableInputValues,
-  // We have to dig a bit into the mock to see what values were passed.
-  const updater = setVariableInputValues.mock.calls[0][0];
-  const result = updater({}); // This is what the existing state would be
-  expect(result).toEqual({ "Test Variable": "Hello World" });
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "Hello World" })
+  );
 });
 
-it("Creates an Base Item with an image obtained from the api", async () => {
+it("Creates an Base Item with an image obtained from the api, 1 min refresh rate", async () => {
+  jest.useFakeTimers();
+
   appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-      viz_type: "image",
-    });
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            success: true,
+            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+            viz_type: "image",
+          }),
+        2000
+      )
+    );
   };
 
-  const gridItem = mockedApiImageBase;
-  initAndRender({
-    source: gridItem.source,
-    argsString: gridItem.args_string,
-    metadataString: gridItem.metadata_string,
-    showFullscreen: false,
+  const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
+  apiImageBase.metadata_string = JSON.stringify({
+    refreshRate: 1,
+  });
+
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={apiImageBase.source}
+        argsString={apiImageBase.args_string}
+        metadataString={apiImageBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(100);
-  const image = screen.getByAltText(gridItem.source);
+  act(() => {
+    jest.runOnlyPendingTimers();
+  });
+
+  const image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );
+
+  // for refresh rate of 1 minute, doesnt update after 50 seconds
+  act(() => {
+    jest.advanceTimersByTime(50000);
+  });
+  expect(screen.queryByTestId("Loading...")).not.toBeInTheDocument();
+
+  // for refresh rate of 1 minute, updates after 10 more seconds
+  act(() => {
+    jest.advanceTimersByTime(10000);
+  });
+  expect(await screen.findByTestId("Loading...")).toBeInTheDocument();
+
+  act(() => {
+    jest.runOnlyPendingTimers();
+  });
+
+  const anotherImage = await screen.findByAltText(mockedApiImageBase.source);
+  expect(anotherImage.src).toBe(
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+  );
+
+  jest.useRealTimers();
+});
+
+it("Creates an Base Item with an image obtained from the api, no refresh when editing", async () => {
+  jest.useFakeTimers();
+
+  appAPI.getPlotData = () => {
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            success: true,
+            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+            viz_type: "image",
+          }),
+        2000
+      )
+    );
+  };
+
+  const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
+  apiImageBase.metadata_string = JSON.stringify({
+    refreshRate: 1,
+  });
+
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={apiImageBase.source}
+        argsString={apiImageBase.args_string}
+        metadataString={apiImageBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
+    options: { inEditing: true },
+  });
+
+  const spinner = screen.getByTestId("Loading...");
+  expect(spinner).toBeInTheDocument();
+
+  act(() => {
+    jest.runOnlyPendingTimers();
+  });
+
+  const image = await screen.findByAltText(mockedApiImageBase.source);
+  expect(image.src).toBe(
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+  );
+
+  // for refresh rate of 1 minute, doesnt update after 50 seconds
+  act(() => {
+    jest.advanceTimersByTime(50000);
+  });
+  expect(screen.queryByTestId("Loading...")).not.toBeInTheDocument();
+
+  // for refresh rate of 1 minute, updates after 10 more seconds
+  act(() => {
+    jest.advanceTimersByTime(10000);
+  });
+  expect(screen.queryByTestId("Loading...")).not.toBeInTheDocument();
+
+  jest.useRealTimers();
 });
 
 it("Creates an Base Item with a plot obtained from the api", async () => {
@@ -262,19 +300,22 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
     });
   };
 
-  const gridItem = mockedPlotBase;
-  initAndRender({
-    source: gridItem.source,
-    argsString: gridItem.args_string,
-    metadataString: gridItem.metadata_string,
-    showFullscreen: false,
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={mockedPlotBase.source}
+        argsString={mockedPlotBase.args_string}
+        metadataString={mockedPlotBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(100);
-  const plot = screen.getByText("bar chart example");
+  const plot = await screen.findByText("bar chart example");
   expect(plot).toBeInTheDocument();
 });
 
@@ -287,19 +328,22 @@ it("Creates an Base Item with a table obtained from the api", async () => {
     });
   };
 
-  const gridItem = mockedTableBase;
-  initAndRender({
-    source: gridItem.source,
-    argsString: gridItem.args_string,
-    metadataString: gridItem.metadata_string,
-    showFullscreen: false,
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={mockedTableBase.source}
+        argsString={mockedTableBase.args_string}
+        metadataString={mockedTableBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(100);
-  const table = screen.getByText("User Information");
+  const table = await screen.findByText("User Information");
   expect(table).toBeInTheDocument();
 });
 
@@ -312,23 +356,25 @@ it("Creates an Base Item with a card obtained from the api", async () => {
     });
   };
 
-  const gridItem = mockedCardBase;
-  initAndRender({
-    source: gridItem.source,
-    argsString: gridItem.args_string,
-    metadataString: gridItem.metadata_string,
-    showFullscreen: false,
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={mockedCardBase.source}
+        argsString={mockedCardBase.args_string}
+        metadataString={mockedCardBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(100);
-  const card = screen.getByText("Company Statistics");
+  const card = await screen.findByText("Company Statistics");
   expect(card).toBeInTheDocument();
 });
 
-// Waiting on Gio to pass through props with the backlayer npm package https://github.com/Aquaveo/backlayer/tree/main
 it("Creates an Base Item with a map obtained from the api", async () => {
   appAPI.getPlotData = () => {
     return Promise.resolve({
@@ -338,12 +384,16 @@ it("Creates an Base Item with a map obtained from the api", async () => {
     });
   };
 
-  const gridItem = mockedMapBase;
-  initAndRender({
-    source: gridItem.source,
-    argsString: gridItem.args_string,
-    metadataString: gridItem.metadata_string,
-    showFullscreen: false,
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={mockedMapBase.source}
+        argsString={mockedMapBase.args_string}
+        metadataString={mockedMapBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
 
   const spinner = screen.getByTestId("Loading...");
@@ -361,19 +411,22 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
     });
   };
 
-  const gridItem = mockedUnknownBase;
-  initAndRender({
-    source: gridItem.source,
-    argsString: gridItem.args_string,
-    metadataString: gridItem.metadata_string,
-    showFullscreen: false,
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={mockedUnknownBase.source}
+        argsString={mockedUnknownBase.args_string}
+        metadataString={mockedUnknownBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(100);
-  const message = screen.getByText(
+  const message = await screen.findByText(
     "random_viz_type visualizations still need to be configured"
   );
   expect(message).toBeInTheDocument();
@@ -388,18 +441,99 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
     });
   };
 
-  const gridItem = mockedUnknownBase;
-  initAndRender({
-    source: gridItem.source,
-    argsString: gridItem.args_string,
-    metadataString: gridItem.metadata_string,
-    showFullscreen: false,
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={mockedUnknownBase.source}
+        argsString={mockedUnknownBase.args_string}
+        metadataString={mockedUnknownBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
-  await sleep(100);
-  const message = screen.getByText("Failed to retrieve data");
+  const message = await screen.findByText("Failed to retrieve data");
   expect(message).toBeInTheDocument();
+});
+
+it("Base - update variable input", async () => {
+  const user = userEvent.setup();
+  const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
+  apiImageBase.args_string = JSON.stringify({
+    url: "Variable Input:Test Variable",
+  });
+  const textVariable = JSON.parse(JSON.stringify(mockedTextVariable));
+  textVariable.args_string = JSON.stringify({
+    initial_value: "https://www.aquaveo.com/images/aquaveo_logo.svg",
+    variable_name: "Test Variable",
+    variable_options_source: "text", // TODO Change this to be an empty string or null
+    variable_input_type: "text",
+  });
+
+  const mockedDashboard = {
+    id: 1,
+    name: "editable",
+    label: "test_label",
+    notes: "test_notes",
+    editable: true,
+    accessGroups: [],
+    gridItems: [textVariable, apiImageBase],
+  };
+  const dashboards = { editable: mockedDashboard };
+
+  appAPI.getPlotData = (props) => {
+    return Promise.resolve({
+      success: true,
+      data: props.args.url,
+      viz_type: "image",
+    });
+  };
+
+  renderWithLoaders({
+    children: (
+      <>
+        <BaseVisualization
+          source={mockedDashboard.gridItems[0].source}
+          argsString={mockedDashboard.gridItems[0].args_string}
+          metadataString={mockedDashboard.gridItems[0].metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+        <BaseVisualization
+          source={mockedDashboard.gridItems[1].source}
+          argsString={mockedDashboard.gridItems[1].args_string}
+          metadataString={mockedDashboard.gridItems[1].metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      </>
+    ),
+    options: { dashboards, initialDashboard: mockedDashboard.name },
+  });
+
+  const spinner = screen.getByTestId("Loading...");
+  expect(spinner).toBeInTheDocument();
+
+  const image = await screen.findByAltText(mockedApiImageBase.source);
+  expect(image.src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
+
+  const variableInput = screen.getByLabelText("Test Variable Input");
+  expect(variableInput).toBeInTheDocument();
+  fireEvent.change(variableInput, {
+    target: {
+      value:
+        "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+    },
+  });
+  const refreshButton = screen.getByRole("button");
+  expect(refreshButton).toBeInTheDocument();
+  await user.click(refreshButton);
+
+  expect(image.src).toBe(
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+  );
 });

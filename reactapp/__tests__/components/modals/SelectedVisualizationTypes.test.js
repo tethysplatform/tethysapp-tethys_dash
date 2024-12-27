@@ -1,11 +1,8 @@
 import { act, useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
-import RoutesContextProvider from "components/contexts/RoutesContext";
-import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import { AppContext } from "components/contexts/AppContext";
-import { mockedVisualizationsWithDefaults } from "__tests__/utilities/constants";
+import renderWithLoaders from "__tests__/utilities/customRender";
 
 const TestingComponent = () => {
   const [showModal, setShowmodal] = useState(true);
@@ -25,19 +22,9 @@ const TestingComponent = () => {
 };
 
 test("selected visualization type modal save success and then close", async () => {
-  render(
-    <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContext.Provider
-          value={{
-            availableVisualizations: mockedVisualizationsWithDefaults,
-          }}
-        >
-          <TestingComponent />
-        </AvailableVisualizationsContext.Provider>
-      </RoutesContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+  });
 
   expect(
     await screen.findByText(
@@ -132,20 +119,11 @@ test("selected visualization type modal save success and then close", async () =
   });
 });
 
-test("selected visualization type modal escape", async () => {
-  render(
-    <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContext.Provider
-          value={{
-            availableVisualizations: mockedVisualizationsWithDefaults,
-          }}
-        >
-          <TestingComponent />
-        </AvailableVisualizationsContext.Provider>
-      </RoutesContextProvider>
-    </AppContext.Provider>
-  );
+test("selected visualization type modal then escape", async () => {
+  renderWithLoaders({
+    children: <TestingComponent />,
+  });
+
   // eslint-disable-next-line
   await act(async () => {
     await userEvent.keyboard("{Escape}");
