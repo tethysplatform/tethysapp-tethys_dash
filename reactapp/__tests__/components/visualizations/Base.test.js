@@ -1,4 +1,4 @@
-import { screen, waitFor, fireEvent } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
 
@@ -181,18 +181,16 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
     refreshRate: 1,
   });
 
-  act(() => {
-    renderWithLoaders({
-      children: (
-        <BaseVisualization
-          source={apiImageBase.source}
-          argsString={apiImageBase.args_string}
-          metadataString={apiImageBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
-        />
-      ),
-    });
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={apiImageBase.source}
+        argsString={apiImageBase.args_string}
+        metadataString={apiImageBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
   });
 
   const spinner = screen.getByTestId("Loading...");
@@ -253,19 +251,17 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
     refreshRate: 1,
   });
 
-  act(() => {
-    renderWithLoaders({
-      children: (
-        <BaseVisualization
-          source={apiImageBase.source}
-          argsString={apiImageBase.args_string}
-          metadataString={apiImageBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
-        />
-      ),
-      options: { inEditing: true },
-    });
+  renderWithLoaders({
+    children: (
+      <BaseVisualization
+        source={apiImageBase.source}
+        argsString={apiImageBase.args_string}
+        metadataString={apiImageBase.metadata_string}
+        showFullscreen={false}
+        hideFullscreen={jest.fn()}
+      />
+    ),
+    options: { inEditing: true },
   });
 
   const spinner = screen.getByTestId("Loading...");

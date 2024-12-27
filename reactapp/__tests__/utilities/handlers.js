@@ -43,13 +43,6 @@ const handlers = [
       ctx.set("Content-Type", "application/json")
     );
   }),
-  rest.get("http://api.test/apps/tethysdash/usersettings/", (req, res, ctx) => {
-    return res(
-      ctx.status(200),
-      ctx.json(mockedUserSetting),
-      ctx.set("Content-Type", "application/json")
-    );
-  }),
   rest.get("http://api.test/api/session/", (req, res, ctx) => {
     return res(
       ctx.status(200),

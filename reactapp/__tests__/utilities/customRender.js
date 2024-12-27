@@ -111,9 +111,6 @@ const renderWithLoaders = ({ children, options = {} }) => {
         visualizationArgs: options.visualizationArgs
           ? options.visualizationArgs
           : mockedVisualizationArgs,
-        userSettings: options.userSettings
-          ? options.userSettings
-          : mockedUserSetting,
       }}
     >
       <PostLoader>
