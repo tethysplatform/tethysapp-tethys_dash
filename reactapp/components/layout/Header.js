@@ -4,14 +4,16 @@ import Form from "react-bootstrap/Form";
 import Navbar from "react-bootstrap/Navbar";
 import PropTypes from "prop-types";
 import { useContext, useState } from "react";
-import { BsX, BsGear, BsList } from "react-icons/bs";
+import { BsX, BsGear, BsList, BsInfo } from "react-icons/bs";
 import { useLocation } from "react-router-dom";
 
 import TooltipButton from "components/buttons/TooltipButton";
 import { AppContext } from "components/contexts/Contexts";
 import DashboardSelector from "components/layout/DashboardSelector";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
+import AppInfoModal from "components/modals/AppInfo";
 import { LayoutContext } from "components/contexts/Contexts";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import "components/buttons/HeaderButton.css";
 
 const CustomNavBar = styled(Navbar)`
@@ -22,7 +24,20 @@ const Header = ({ initialDashboard }) => {
   const { tethysApp, user } = useContext(AppContext);
   const location = useLocation();
   const [showEditCanvas, setShowEditCanvas] = useState(false);
-  const showNav = () => setShowEditCanvas(true);
+  const dontShowInfoOnStart = localStorage.getItem("dontShowInfoOnStart");
+  const [showInfoModal, setShowInfoModal] = useState(
+    dontShowInfoOnStart !== "true"
+  );
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
+
+  const showNav = () => {
+    setShowEditCanvas(true);
+    if (activeAppTour) {
+      setTimeout(() => {
+        setAppTourStep(24);
+      }, 400);
+    }
+  };
   const { getLayoutContext } = useContext(LayoutContext);
   const { name } = getLayoutContext();
 
@@ -40,7 +55,8 @@ const Header = ({ initialDashboard }) => {
               onClick={showNav}
               tooltipPlacement="bottom"
               tooltipText="Dashboard Settings"
-              aria-label={"dashboardSettingButton"}
+              aria-label="dashboardSettingButton"
+              className="dashboardSettingButton"
             >
               <BsList size="1.5rem" />
             </TooltipButton>
@@ -50,6 +66,14 @@ const Header = ({ initialDashboard }) => {
             <DashboardSelector initialDashboard={initialDashboard} />
           )}
           <Form inline="true">
+            <TooltipButton
+              onClick={() => setShowInfoModal(true)}
+              tooltipPlacement="bottom"
+              tooltipText="App Info"
+              aria-label={"appInfoButton"}
+            >
+              <BsInfo size="1.5rem" />
+            </TooltipButton>
             {user.isStaff && (
               <TooltipButton
                 href={tethysApp.settingsUrl}
@@ -75,6 +99,12 @@ const Header = ({ initialDashboard }) => {
         <DashboardEditorCanvas
           showCanvas={showEditCanvas}
           setShowCanvas={setShowEditCanvas}
+        />
+      )}
+      {showInfoModal && (
+        <AppInfoModal
+          showModal={showInfoModal}
+          setShowModal={setShowInfoModal}
         />
       )}
     </>

@@ -20,6 +20,7 @@ import VariableInput from "components/visualizations/VariableInput";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsGear } from "react-icons/bs";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import "components/modals/wideModal.css";
 
 const StyledDiv = styled.div`
@@ -58,6 +59,13 @@ function VisualizationPane({
   const [selectedGroupName, setSelectedGroupName] = useState(null);
   const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useContext(VariableInputsContext);
+  const { activeAppTour } = useAppTourContext();
+  const otherVisualizationOptions = visualizations.find((obj) => {
+    return obj.label === "Other";
+  });
+  const customImageOption = otherVisualizationOptions.options.find((obj) => {
+    return obj.value === "Custom Image";
+  });
 
   useEffect(() => {
     localStorage.setItem("deselected_visualizations", deselectedVisualizations);
@@ -242,7 +250,11 @@ function VisualizationPane({
           tooltipPlacement="bottom"
           tooltipText="Visualization Settings"
           aria-label={"visualizationSettingButton"}
-          onClick={() => setShowVisualizationTypeSettings(true)}
+          onClick={
+            activeAppTour
+              ? () => {}
+              : () => setShowVisualizationTypeSettings(true)
+          }
         >
           <BsGear size="1.5rem" />
         </TooltipButton>
@@ -252,8 +264,9 @@ function VisualizationPane({
           label="Visualization Type"
           selectedOption={selectedVizTypeOption}
           onChange={onDataTypeChange}
-          options={vizOptions}
+          options={activeAppTour ? [customImageOption] : vizOptions}
           aria-label={"visualizationType"}
+          className={"visualizationTypeDropdown"}
         />
       </InLineInputDiv>
       {selectedVizTypeOption &&

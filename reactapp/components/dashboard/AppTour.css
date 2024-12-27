@@ -1,10 +1,6 @@
-.react-grid-item {
+.react-joyride__overlay {
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
-}
-
-.react-grid-item:hover {
-  z-index: 10;
 }

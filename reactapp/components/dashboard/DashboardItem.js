@@ -8,6 +8,7 @@ import {
   VariableInputsContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
@@ -45,6 +46,7 @@ const DashboardItem = ({
     VariableInputsContext
   );
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   async function deleteGridItem(e) {
     if (await confirm("Are you sure you want to delete the item?")) {
@@ -70,6 +72,9 @@ const DashboardItem = ({
     setShowDataViewerModal(true);
     setIsEditing(true);
     setInDataViewerMode(true);
+    if (activeAppTour) {
+      setAppTourStep(17);
+    }
   }
 
   function copyGridItem() {

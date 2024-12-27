@@ -12,7 +12,7 @@ from tethysapp.tethysdash.model import (
     GridItem,
     check_existing_user_dashboard_names,
     check_existing_user_dashboard_labels,
-    check_existing_public_dashboards
+    check_existing_public_dashboards,
 )
 
 

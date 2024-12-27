@@ -17,11 +17,11 @@ const TooltipButton = ({
 }) => {
   const styledButton = (
     <Button
+      {...props}
       href={href}
       variant={props.variant ? props.variant : "info"}
       size="sm"
-      className="me-2"
-      {...props}
+      className={`me-2 ${props.className}`}
     >
       {children}
     </Button>
@@ -52,6 +52,7 @@ TooltipButton.propTypes = {
   tooltipText: PropTypes.string,
   href: PropTypes.string,
   variant: PropTypes.string,
+  className: PropTypes.string,
 };
 
 export default TooltipButton;

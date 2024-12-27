@@ -6,6 +6,10 @@ const StyledSelect = styled(Select)`
   width: 20rem;
   margin-right: 0.5rem;
   display: inline-block;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 `;
 
 const StyledLabel = styled.label`

@@ -26,7 +26,7 @@ django.setup()
 
 setup(
     name=release_package,
-    version="0.5.0",
+    version="0.6.0",
     description="",
     long_description="",
     keywords="",

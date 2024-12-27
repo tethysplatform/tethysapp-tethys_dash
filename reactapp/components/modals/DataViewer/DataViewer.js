@@ -2,7 +2,6 @@ import { useState, useRef, useContext } from "react";
 import PropTypes from "prop-types";
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
-import Form from "react-bootstrap/Form";
 import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
@@ -11,6 +10,7 @@ import {
   LayoutContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import CustomAlert from "components/dashboard/CustomAlert";
 import VisualizationPane from "components/modals/DataViewer/VisualizationPane";
 import SettingsPane from "components/modals/DataViewer/SettingsPane";
@@ -30,6 +30,13 @@ const StyledRow = styled(Row)`
 const StyledCol = styled(Col)`
   border-right: black solid 1px;
   overflow: auto;
+`;
+
+const StyledVizCol = styled(Col)`
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 `;
 
 function DataViewerModal({
@@ -56,13 +63,14 @@ function DataViewerModal({
   );
   const [showVisualizationTypeSettings, setShowVisualizationTypeSettings] =
     useState(false);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   const gridMetadata = JSON.parse(metadataString);
   const visualizationRef = useRef({});
   const settingsRef = useRef(gridMetadata);
   const [tabKey, setTabKey] = useState("visualization");
 
-  function handleSubmit(e) {
+  function saveChanges(e) {
     e.preventDefault();
     e.stopPropagation();
     setShowAlert(false);
@@ -163,11 +171,18 @@ function DataViewerModal({
     return updatedGridItems;
   }
 
+  function closeAndSetAppTour() {
+    handleModalClose();
+    setAppTourStep(10);
+  }
+
+  function emptyFunction() {}
+
   return (
     <>
       <Modal
         show={showModal}
-        onHide={handleModalClose}
+        onHide={activeAppTour ? closeAndSetAppTour : handleModalClose}
         className="dataviewer"
         dialogClassName="semiWideModalDialog"
         style={showVisualizationTypeSettings && { zIndex: 1050 }}
@@ -177,62 +192,66 @@ function DataViewerModal({
           <Modal.Title>Select Cell Data</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <Form id="dataSelect" onSubmit={handleSubmit}>
-            <StyledContainer>
-              <StyledRow>
-                <StyledCol className={"justify-content-center h-100 col-3"}>
-                  <Tabs
-                    activeKey={tabKey}
-                    onSelect={(k) => setTabKey(k)}
-                    id="visualization-tabs"
-                    className="mb-3"
+          <StyledContainer>
+            <StyledRow>
+              <StyledCol
+                className={
+                  "justify-content-center h-100 col-3 dataviewer-inputs"
+                }
+              >
+                <Tabs
+                  activeKey={tabKey}
+                  onSelect={(k) => setTabKey(k)}
+                  id="visualization-tabs"
+                  className="mb-3"
+                >
+                  <Tab
+                    eventKey="visualization"
+                    title="Visualization"
+                    aria-label="visualizationTab"
+                    className="visualizationTab"
                   >
-                    <Tab
-                      eventKey="visualization"
-                      title="Visualization"
-                      aria-label="visualizationTab"
-                    >
-                      <VisualizationPane
-                        source={source}
-                        argsString={argsString}
-                        setGridItemMessage={setGridItemMessage}
-                        selectedVizTypeOption={selectedVizTypeOption}
-                        setSelectVizTypeOption={setSelectVizTypeOption}
-                        setViz={setViz}
-                        setVizMetadata={setVizMetadata}
-                        vizInputsValues={vizInputsValues}
-                        setVizInputsValues={setVizInputsValues}
-                        variableInputValue={variableInputValue}
-                        setVariableInputValue={setVariableInputValue}
-                        settingsRef={settingsRef}
-                        visualizationRef={visualizationRef}
-                        showVisualizationTypeSettings={
-                          showVisualizationTypeSettings
-                        }
-                        setShowVisualizationTypeSettings={
-                          setShowVisualizationTypeSettings
-                        }
-                      />
-                    </Tab>
-                    <Tab
-                      eventKey="settings"
-                      title="Settings"
-                      aria-label="settingsTab"
-                    >
-                      <SettingsPane
-                        settingsRef={settingsRef}
-                        viz={viz}
-                        visualizationRef={visualizationRef}
-                      />
-                    </Tab>
-                  </Tabs>
-                </StyledCol>
-                <Col className={"justify-content-center h-100 col-9"}>
-                  {viz}
-                </Col>
-              </StyledRow>
-            </StyledContainer>
-          </Form>
+                    <VisualizationPane
+                      source={source}
+                      argsString={argsString}
+                      setGridItemMessage={setGridItemMessage}
+                      selectedVizTypeOption={selectedVizTypeOption}
+                      setSelectVizTypeOption={setSelectVizTypeOption}
+                      setViz={setViz}
+                      setVizMetadata={setVizMetadata}
+                      vizInputsValues={vizInputsValues}
+                      setVizInputsValues={setVizInputsValues}
+                      variableInputValue={variableInputValue}
+                      setVariableInputValue={setVariableInputValue}
+                      settingsRef={settingsRef}
+                      visualizationRef={visualizationRef}
+                      showVisualizationTypeSettings={
+                        showVisualizationTypeSettings
+                      }
+                      setShowVisualizationTypeSettings={
+                        setShowVisualizationTypeSettings
+                      }
+                    />
+                  </Tab>
+                  <Tab
+                    eventKey="settings"
+                    title="Settings"
+                    aria-label="settingsTab"
+                    className="settingsTab"
+                  >
+                    <SettingsPane
+                      settingsRef={settingsRef}
+                      viz={viz}
+                      visualizationRef={visualizationRef}
+                    />
+                  </Tab>
+                </Tabs>
+              </StyledCol>
+              <StyledVizCol className={"justify-content-center h-100 col-9"}>
+                {viz}
+              </StyledVizCol>
+            </StyledRow>
+          </StyledContainer>
         </Modal.Body>
         <Modal.Footer>
           <CustomAlert
@@ -241,10 +260,20 @@ function DataViewerModal({
             setShowAlert={setShowAlert}
             alertMessage={alertMessage}
           />
-          <Button variant="secondary" onClick={handleModalClose}>
+          <Button
+            variant="secondary"
+            onClick={activeAppTour ? closeAndSetAppTour : handleModalClose}
+            aria-label="dataviewer-close-button"
+            className="dataviewer-close-button"
+          >
             Close
           </Button>
-          <Button variant="success" type="submit" form="dataSelect">
+          <Button
+            variant="success"
+            className="dataviewer-save-button"
+            aria-label="dataviewer-save-button"
+            onClick={activeAppTour ? emptyFunction : saveChanges}
+          >
             Save
           </Button>
         </Modal.Footer>
