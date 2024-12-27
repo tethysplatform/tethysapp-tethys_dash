@@ -48,17 +48,9 @@ const BaseVisualization = ({
         variableInputValues
       );
       itemData.args = updatedGridItemArgs;
-      if (
-        !valuesEqual(
-          gridItemArgsWithVariableInputs.current,
-          updatedGridItemArgs
-        ) ||
-        !valuesEqual(gridItemSource.current, source)
-      ) {
-        gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
-        gridItemSource.current = source;
-        setVisualization(setViz, itemData, visualizationRef);
-      }
+      gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
+      gridItemSource.current = source;
+      setVisualization(setViz, itemData, visualizationRef);
     }
     // eslint-disable-next-line
   }, [source, argsString]);
@@ -88,16 +80,18 @@ const BaseVisualization = ({
   }, [variableInputValues]);
 
   useEffect(() => {
-    if (refreshRate && refreshRate > 0) {
+    if (
+      refreshRate &&
+      refreshRate > 0 &&
+      !["", "Text", "Variable Input"].includes(source)
+    ) {
       const args = JSON.parse(argsString);
       const itemData = { source: source, args: args };
-      if (!["", "Custom Image", "Text", "Variable Input"].includes(source)) {
-        const updatedGridItemArgs = updateGridItemArgsWithVariableInputs(
-          argsString,
-          variableInputValues
-        );
-        itemData.args = updatedGridItemArgs;
-      }
+      const updatedGridItemArgs = updateGridItemArgsWithVariableInputs(
+        argsString,
+        variableInputValues
+      );
+      itemData.args = updatedGridItemArgs;
       const interval = setInterval(
         () => {
           if (!isEditing) {

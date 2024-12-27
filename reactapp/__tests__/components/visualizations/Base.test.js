@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
 
@@ -470,6 +470,13 @@ it("Base - update variable input", async () => {
   apiImageBase.args_string = JSON.stringify({
     url: "Variable Input:Test Variable",
   });
+  const textVariable = JSON.parse(JSON.stringify(mockedTextVariable));
+  textVariable.args_string = JSON.stringify({
+    initial_value: "https://www.aquaveo.com/images/aquaveo_logo.svg",
+    variable_name: "Test Variable",
+    variable_options_source: "text", // TODO Change this to be an empty string or null
+    variable_input_type: "text",
+  });
 
   const mockedDashboard = {
     id: 1,
@@ -478,7 +485,7 @@ it("Base - update variable input", async () => {
     notes: "test_notes",
     editable: true,
     accessGroups: [],
-    gridItems: [mockedTextVariable, apiImageBase],
+    gridItems: [textVariable, apiImageBase],
   };
   const dashboards = { editable: mockedDashboard };
 
@@ -516,14 +523,16 @@ it("Base - update variable input", async () => {
   expect(spinner).toBeInTheDocument();
 
   const image = await screen.findByAltText(mockedApiImageBase.source);
-  expect(image.src).toBe("http://localhost/");
+  expect(image.src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
 
   const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
-  await user.type(
-    variableInput,
-    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
-  );
+  fireEvent.change(variableInput, {
+    target: {
+      value:
+        "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+    },
+  });
   const refreshButton = screen.getByRole("button");
   expect(refreshButton).toBeInTheDocument();
   await user.click(refreshButton);
