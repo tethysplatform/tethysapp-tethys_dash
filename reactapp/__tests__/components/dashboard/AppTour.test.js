@@ -8,6 +8,14 @@ import { MemoryRouter } from "react-router-dom";
 import renderWithLoaders from "__tests__/utilities/customRender";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import appAPI from "services/api/app";
+import { confirm } from "components/dashboard/DeleteConfirmation";
+
+jest.mock("components/dashboard/DeleteConfirmation", () => {
+  return {
+    confirm: jest.fn(),
+  };
+});
+const mockedConfirm = jest.mocked(confirm);
 
 const { matchMedia } = window;
 
@@ -879,3 +887,185 @@ test("App Tour skip to step 3", async () => {
     document.querySelector("#react-joyride-portal")
   ).not.toBeInTheDocument();
 }, 10000);
+
+test("App Tour from header and select existing dashboard", async () => {
+  let selector;
+  let existingDashboardOption;
+  const mockAddDashboard = jest.fn();
+  appAPI.addDashboard = mockAddDashboard;
+  mockAddDashboard.mockResolvedValue({
+    success: true,
+    new_dashboard: {
+      id: 1,
+      name: "new_name",
+      label: "New Name",
+      notes: "test_notes",
+      editable: true,
+      accessGroups: [],
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
+    },
+  });
+  mockedConfirm.mockResolvedValueOnce(false);
+  mockedConfirm.mockResolvedValueOnce(true);
+
+  renderWithLoaders({
+    children: (
+      <MemoryRouter initialEntries={["/"]}>
+        <LayoutAlertContextProvider>
+          <AppTour />
+          <Header />
+          <DashboardLayout />
+        </LayoutAlertContextProvider>
+      </MemoryRouter>
+    ),
+  });
+
+  expect(
+    // eslint-disable-next-line
+    document.querySelector("#react-joyride-portal")
+  ).not.toBeInTheDocument();
+
+  ////////////////////
+  // App Info Modal //
+  ////////////////////
+  expect(await screen.findByText("Welcome to TethysDash")).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /If you would like to take a tour of the application, click on the button below to begin./i
+    )
+  ).toBeInTheDocument();
+  const closeButton = await screen.findByLabelText("Close");
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.click(closeButton);
+  });
+
+  //////////////////////
+  // Main Application //
+  //////////////////////
+  expect(
+    // eslint-disable-next-line
+    document.querySelector("#react-joyride-portal")
+  ).not.toBeInTheDocument();
+
+  ////////////////////////////////////////
+  // Select Existing Dashboard and Edit //
+  ////////////////////////////////////////
+  selector = await screen.findByRole("combobox");
+  expect(selector).toBeInTheDocument();
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.click(selector);
+  });
+  existingDashboardOption = await screen.findByText("test_label");
+  expect(existingDashboardOption).toBeInTheDocument();
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.click(existingDashboardOption);
+  });
+  const dashboardEditButton = await screen.findByLabelText("editButton");
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.click(dashboardEditButton);
+  });
+
+  /////////////////////////
+  // Open App Info Modal //
+  /////////////////////////
+  const appInfoButton = await screen.findByLabelText("appInfoButton");
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.click(appInfoButton);
+  });
+
+  ////////////////////
+  // App Info Modal //
+  ////////////////////
+  expect(await screen.findByText("Welcome to TethysDash")).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /If you would like to take a tour of the application, click on the button below to begin./i
+    )
+  ).toBeInTheDocument();
+  const startTourButton = await screen.findByText("Start App Tour");
+  expect(startTourButton).toBeInTheDocument();
+  userEvent.click(startTourButton);
+
+  /////////////////////////////////////
+  // False Confirmation when Editing //
+  /////////////////////////////////////
+  expect(await screen.findByText("Start App Tour")).toBeInTheDocument();
+  expect(
+    screen.queryByText(
+      "Begin by clicking on the dropdown to select or create a dashboard."
+    )
+  ).not.toBeInTheDocument();
+
+  //////////////////////////////////////////////
+  // Retry and True Confirmation when Editing //
+  //////////////////////////////////////////////
+  userEvent.click(startTourButton);
+  await waitFor(() => {
+    expect(screen.queryByText("Start App Tour")).not.toBeInTheDocument();
+  });
+
+  ////////////
+  // STEP 0 //
+  ////////////
+  expect(
+    await screen.findByText(
+      "Begin by clicking on the dropdown to select or create a dashboard."
+    )
+  ).toBeInTheDocument();
+  // eslint-disable-next-line
+  expect(document.querySelector("#react-joyride-portal")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  selector = await screen.findByRole("combobox");
+  expect(selector).toBeInTheDocument();
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.click(selector);
+  });
+
+  ////////////
+  // STEP 1 //
+  ////////////
+  expect(
+    await screen.findByText(
+      'Select an existing dashboard to view or create a new dashboard with the "Create a New Dashboard" option.'
+    )
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  existingDashboardOption = await screen.findByText("test_label");
+  expect(existingDashboardOption).toBeInTheDocument();
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.click(existingDashboardOption);
+  });
+
+  ////////////
+  // STEP 4 //
+  ////////////
+  expect(
+    await screen.findByText(
+      "This is the main layout of the dashboard where dashboards items will be shown."
+    )
+  ).toBeInTheDocument();
+  expect(await screen.findByLabelText("Next")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+});

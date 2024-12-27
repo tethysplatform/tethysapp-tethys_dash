@@ -92,6 +92,7 @@ function AppInfoModal({ showModal, setShowModal }) {
             type="checkbox"
             label="Don't show on startup"
             checked={checked}
+            aria-label="dontShowOnStartup"
           />
         </Modal.Footer>
       </Modal>
