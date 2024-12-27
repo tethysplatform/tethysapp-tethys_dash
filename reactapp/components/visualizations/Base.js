@@ -22,7 +22,9 @@ const BaseVisualization = ({
   hideFullscreen,
 }) => {
   const [viz, setViz] = useState(null);
-  const { variableInputValues } = useContext(VariableInputsContext);
+  const { variableInputValues, setVariableInputValues } = useContext(
+    VariableInputsContext
+  );
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
@@ -50,7 +52,12 @@ const BaseVisualization = ({
       itemData.args = updatedGridItemArgs;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
       gridItemSource.current = source;
-      setVisualization(setViz, itemData, visualizationRef);
+      setVisualization(
+        setViz,
+        itemData,
+        visualizationRef,
+        setVariableInputValues
+      );
     }
     // eslint-disable-next-line
   }, [source, argsString]);
@@ -73,7 +80,12 @@ const BaseVisualization = ({
         itemData.args = updatedGridItemArgs;
         gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
         gridItemSource.current = source;
-        setVisualization(setViz, itemData, visualizationRef);
+        setVisualization(
+          setViz,
+          itemData,
+          visualizationRef,
+          setVariableInputValues
+        );
       }
     }
     // eslint-disable-next-line
@@ -96,7 +108,12 @@ const BaseVisualization = ({
         () => {
           if (!isEditing) {
             setRefreshCount(refreshCount + 1);
-            setVisualization(setViz, itemData, visualizationRef);
+            setVisualization(
+              setViz,
+              itemData,
+              visualizationRef,
+              setVariableInputValues
+            );
           }
         },
         parseInt(refreshRate) * 1000 * 60

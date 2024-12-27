@@ -184,6 +184,8 @@ function VisualizationPane({
     }
   }
 
+  function fakeSetVariableInputValues() {}
+
   function previewVisualization() {
     const itemData = {
       source: selectedVizTypeOption["source"],
@@ -239,7 +241,12 @@ function VisualizationPane({
         variableInputValues
       );
       itemData.args = updatedGridItemArgs;
-      setVisualization(setViz, itemData, visualizationRef);
+      setVisualization(
+        setViz,
+        itemData,
+        visualizationRef,
+        fakeSetVariableInputValues
+      );
     }
   }
 

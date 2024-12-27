@@ -17,8 +17,15 @@ const StyledH2 = styled.h2`
   text-align: center;
 `;
 
-export function setVisualization(setViz, itemData, visualizationRef) {
-  setViz(<StyledSpinner data-testid="Loading..." animation="border" variant="info" />);
+export function setVisualization(
+  setViz,
+  itemData,
+  visualizationRef,
+  setVariableInputValues
+) {
+  setViz(
+    <StyledSpinner data-testid="Loading..." animation="border" variant="info" />
+  );
 
   appAPI.getPlotData(itemData).then((response) => {
     if (response.success === true) {
@@ -32,7 +39,11 @@ export function setVisualization(setViz, itemData, visualizationRef) {
         );
       } else if (response["viz_type"] === "image") {
         setViz(
-          <Image source={response.data} alt={itemData.source} visualizationRef={visualizationRef} />
+          <Image
+            source={response.data}
+            alt={itemData.source}
+            visualizationRef={visualizationRef}
+          />
         );
       } else if (response["viz_type"] === "table") {
         setViz(
@@ -69,6 +80,7 @@ export function setVisualization(setViz, itemData, visualizationRef) {
             module={response.data.module}
             props={response.data.props}
             visualizationRef={visualizationRef}
+            setVariableInputValues={setVariableInputValues}
           />
         );
       } else {

@@ -37,7 +37,11 @@ function ModuleLoader(props) {
 
   return (
     <Suspense fallback={<LoadingAnimation />}>
-      <Component {...props.props} ref={props.visualizationRef} />
+      <Component
+        {...props.props}
+        ref={props.visualizationRef}
+        setVariableInputValues={props.setVariableInputValues}
+      />
     </Suspense>
   );
 }

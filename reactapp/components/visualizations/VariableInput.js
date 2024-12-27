@@ -29,7 +29,9 @@ const VariableInput = ({ args, onChange }) => {
   const [label, setLabel] = useState(null);
   const { visualizationArgs } = useContext(AppContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
-  const { setVariableInputValues } = useContext(VariableInputsContext);
+  const { variableInputValues, setVariableInputValues } = useContext(
+    VariableInputsContext
+  );
 
   const updateVariableInputs = useCallback(
     (new_value) => {
@@ -78,6 +80,14 @@ const VariableInput = ({ args, onChange }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args]);
+
+  useEffect(() => {
+    const newValue = variableInputValues[args.variable_name];
+    if (value !== newValue) {
+      setValue(newValue);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variableInputValues]);
 
   function handleInputChange(e) {
     if (args.variable_options_source === "number") {
