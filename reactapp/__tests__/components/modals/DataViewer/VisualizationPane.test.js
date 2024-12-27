@@ -416,7 +416,7 @@ test("Visualization Pane Other Type Checkbox", async () => {
   };
   const availableVisualizations = [
     {
-      label: "Visualization Group",
+      label: "Other",
       options: [
         {
           source: "plugin_source_checkbox",
@@ -479,7 +479,7 @@ test("Visualization Pane Other Type Checkbox", async () => {
     },
   });
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
-    "Cell updated to show Visualization Group plugin_label_checkbox"
+    "Cell updated to show Other plugin_label_checkbox"
   );
   expect(mockSetViz).toHaveBeenCalled();
   expect(mockSetViz.mock.calls[1][0].props).toStrictEqual({
@@ -630,7 +630,7 @@ test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
   ];
   const mockedVisualizations = [
     {
-      label: "Visualization Group",
+      label: "Other",
       options: [
         {
           source: "plugin_source",
@@ -671,7 +671,7 @@ test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
     },
   });
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
-    "Cell updated to show Visualization Group plugin_label"
+    "Cell updated to show Other plugin_label"
   );
   expect(mockSetViz).toHaveBeenCalled();
   expect(mockSetViz.mock.calls[0][0].props).toStrictEqual({

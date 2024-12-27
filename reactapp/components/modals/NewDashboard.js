@@ -9,6 +9,7 @@ import {
   EditingContext,
 } from "components/contexts/Contexts";
 import { useState, useContext } from "react";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import PropTypes from "prop-types";
 
 function NewDashboardModal({ showModal, setShowModal }) {
@@ -16,9 +17,13 @@ function NewDashboardModal({ showModal, setShowModal }) {
   const { addDashboard } = useContext(AvailableDashboardsContext);
   const [errorMessage, setErrorMessage] = useState(null);
   const { setIsEditing } = useContext(EditingContext);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   const handleModalClose = () => {
     setShowModal(false);
+    if (activeAppTour) {
+      setAppTourStep(0);
+    }
   };
 
   function handleSubmit(event) {
@@ -33,9 +38,20 @@ function NewDashboardModal({ showModal, setShowModal }) {
     addDashboard(inputData).then((response) => {
       if (response["success"]) {
         handleModalClose();
-        setIsEditing(true);
+        if (activeAppTour) {
+          setTimeout(() => {
+            setIsEditing(false);
+            setAppTourStep(4);
+          }, 400);
+        } else {
+          setIsEditing(true);
+        }
       } else {
         setErrorMessage(response["message"]);
+
+        if (activeAppTour) {
+          setAppTourStep(3);
+        }
       }
     });
   }
@@ -48,8 +64,12 @@ function NewDashboardModal({ showModal, setShowModal }) {
     <>
       <Modal
         className="newdashboard"
+        contentClassName="newdashboard-content"
         show={showModal}
         onHide={handleModalClose}
+        centered
+        animation={!activeAppTour}
+        keyboard={!activeAppTour}
       >
         <Modal.Header closeButton>
           <Modal.Title>Create a new dashboard</Modal.Title>

@@ -16,6 +16,7 @@ import {
 } from "react-icons/bs";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import styled from "styled-components";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import PropTypes from "prop-types";
 
 const StyledDiv = styled.div`
@@ -33,6 +34,11 @@ function DashboardSelector({ initialDashboard }) {
   } = useContext(DashboardDropdownContext);
   const [showModal, setShowModal] = useState(false);
   const { isEditing, setIsEditing } = useContext(EditingContext);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
+  const [menuIsOpen, setMenuIsOpen] = useState(false);
+  const userDashboardDropdownOptions = dashboardDropdownOptions.filter(
+    (dashboardDropdownOption) => dashboardDropdownOption.label !== "Public"
+  );
 
   useEffect(() => {
     if (
@@ -53,6 +59,9 @@ function DashboardSelector({ initialDashboard }) {
   function changeDashboard(e) {
     if (e.value === "Create a New Dashboard") {
       setShowModal(true);
+      if (activeAppTour) {
+        setAppTourStep(2);
+      }
     } else {
       let selectedDashboard = availableDashboards[e.value];
       setSelectedDashboardDropdownOption({
@@ -60,8 +69,14 @@ function DashboardSelector({ initialDashboard }) {
         label: selectedDashboard["label"],
       });
       setLayoutContext(selectedDashboard);
+      if (activeAppTour) {
+        setTimeout(() => {
+          setAppTourStep(4);
+        }, 400);
+      }
     }
     setIsEditing(false);
+    setMenuIsOpen(false);
   }
 
   async function updateLayout(e) {
@@ -80,6 +95,11 @@ function DashboardSelector({ initialDashboard }) {
 
   function onEdit(e) {
     setIsEditing(true);
+    if (activeAppTour) {
+      setTimeout(() => {
+        setAppTourStep((previousStep) => previousStep + 1);
+      }, 400);
+    }
   }
 
   function onCancel(e) {
@@ -111,12 +131,31 @@ function DashboardSelector({ initialDashboard }) {
     setLayoutContext(layout);
   }
 
+  const handleMenuOpen = () => {
+    setMenuIsOpen(true);
+    setAppTourStep((previousStep) => previousStep + 1);
+  };
+
+  const handleMenuClose = (e) => {
+    if (!activeAppTour) {
+      setMenuIsOpen(false);
+    }
+  };
+
   return (
-    <StyledDiv>
+    <StyledDiv className={"dashboard-selector"}>
       <DashboardSelect
-        options={dashboardDropdownOptions}
+        options={
+          activeAppTour
+            ? userDashboardDropdownOptions
+            : dashboardDropdownOptions
+        }
         value={selectedDashboardDropdownOption}
         onChange={updateLayout}
+        menuIsOpen={menuIsOpen}
+        onMenuOpen={handleMenuOpen}
+        onMenuClose={handleMenuClose}
+        classNamePrefix="dashboard-selector-prefix"
       />
       {selectedDashboardDropdownOption && (
         <>
@@ -128,7 +167,8 @@ function DashboardSelector({ initialDashboard }) {
                     tooltipPlacement="bottom"
                     tooltipText="Cancel Changes"
                     onClick={onCancel}
-                    aria-label={"cancelButton"}
+                    aria-label="cancelButton"
+                    className="cancelChangesButton"
                   >
                     <BsArrowReturnLeft size="1.5rem" />
                   </TooltipButton>
@@ -137,7 +177,8 @@ function DashboardSelector({ initialDashboard }) {
                     tooltipText="Save Changes"
                     form="gridUpdate"
                     type="submit"
-                    aria-label={"saveButton"}
+                    aria-label="saveButton"
+                    className="saveChangesButton"
                   >
                     <BsFloppy size="1.5rem" />
                   </TooltipButton>
@@ -145,7 +186,8 @@ function DashboardSelector({ initialDashboard }) {
                     tooltipPlacement="bottom"
                     tooltipText="Add Dashboard Item"
                     onClick={onAddGridItem}
-                    aria-label={"addGridItemButton"}
+                    aria-label="addGridItemButton"
+                    className="addGridItemsButton"
                   >
                     <BsPlus size="1.5rem" />
                   </TooltipButton>
@@ -157,6 +199,7 @@ function DashboardSelector({ initialDashboard }) {
                   tooltipText="Edit Dashboard"
                   onClick={onEdit}
                   aria-label={"editButton"}
+                  className={"editDashboardButton"}
                 >
                   <BsPencilSquare size="1.5rem" />
                 </TooltipButton>

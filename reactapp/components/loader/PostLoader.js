@@ -11,6 +11,7 @@ import {
   EditingContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
+import AppTourContextProvider from "components/contexts/AppTourContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 
 const PostLoader = ({ children }) => {
@@ -84,6 +85,7 @@ const PostLoader = ({ children }) => {
     setGridItems([]);
     setEditable(false);
     updateVariableInputValuesWithGridItems([]);
+    setSelectedDashboardDropdownOption({});
   }
 
   function setLayoutContext(dashboardContext) {
@@ -258,49 +260,47 @@ const PostLoader = ({ children }) => {
     return <LoadingAnimation />;
   } else {
     return (
-      <>
-        <VariableInputsContext.Provider
-          value={{
-            variableInputValues,
-            setVariableInputValues,
-            updateVariableInputValuesWithGridItems,
-          }}
+      <VariableInputsContext.Provider
+        value={{
+          variableInputValues,
+          setVariableInputValues,
+          updateVariableInputValuesWithGridItems,
+        }}
+      >
+        <LayoutContext.Provider
+          value={{ setLayoutContext, resetLayoutContext, getLayoutContext }}
         >
-          <LayoutContext.Provider
-            value={{ setLayoutContext, resetLayoutContext, getLayoutContext }}
+          <AvailableDashboardsContext.Provider
+            value={{
+              availableDashboards,
+              setAvailableDashboards,
+              addDashboard,
+              deleteDashboard,
+              updateDashboard,
+              copyCurrentDashboard,
+            }}
           >
-            <AvailableDashboardsContext.Provider
+            <DashboardDropdownContext.Provider
               value={{
-                availableDashboards,
-                setAvailableDashboards,
-                addDashboard,
-                deleteDashboard,
-                updateDashboard,
-                copyCurrentDashboard,
+                dashboardDropdownOptions,
+                selectedDashboardDropdownOption,
+                setSelectedDashboardDropdownOption,
               }}
             >
-              <DashboardDropdownContext.Provider
-                value={{
-                  dashboardDropdownOptions,
-                  selectedDashboardDropdownOption,
-                  setSelectedDashboardDropdownOption,
-                }}
-              >
-                <EditingContext.Provider value={{ isEditing, setIsEditing }}>
-                  <DataViewerModeContext.Provider
-                    value={{
-                      inDataViewerMode,
-                      setInDataViewerMode,
-                    }}
-                  >
-                    {children}
-                  </DataViewerModeContext.Provider>
-                </EditingContext.Provider>
-              </DashboardDropdownContext.Provider>
-            </AvailableDashboardsContext.Provider>
-          </LayoutContext.Provider>
-        </VariableInputsContext.Provider>
-      </>
+              <EditingContext.Provider value={{ isEditing, setIsEditing }}>
+                <DataViewerModeContext.Provider
+                  value={{
+                    inDataViewerMode,
+                    setInDataViewerMode,
+                  }}
+                >
+                  <AppTourContextProvider>{children}</AppTourContextProvider>
+                </DataViewerModeContext.Provider>
+              </EditingContext.Provider>
+            </DashboardDropdownContext.Provider>
+          </AvailableDashboardsContext.Provider>
+        </LayoutContext.Provider>
+      </VariableInputsContext.Provider>
     );
   }
 };

@@ -2,8 +2,9 @@ import styled from "styled-components";
 import PropTypes from "prop-types";
 import Dropdown from "react-bootstrap/Dropdown";
 import { BsThreeDotsVertical } from "react-icons/bs";
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import { LayoutContext } from "components/contexts/Contexts";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import "components/buttons/itemDropdown.css";
 
 const StyledDropdownToggle = styled(Dropdown.Toggle)`
@@ -22,19 +23,36 @@ const DashboardItemDropdown = ({
 }) => {
   const { getLayoutContext } = useContext(LayoutContext);
   const { editable } = getLayoutContext();
+  const [showMenu, setShowMenu] = useState(false);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
+
+  const onToggle = ({ nextShow }) => {
+    setShowMenu(nextShow);
+    if (activeAppTour) {
+      setAppTourStep((previousStep) => previousStep + 1);
+    }
+  };
+
   return (
-    <Dropdown>
-      <StyledDropdownToggle id="dropdown-basic">
+    <Dropdown autoClose={!activeAppTour} onToggle={onToggle}>
+      <StyledDropdownToggle
+        id="dropdown-basic"
+        className="dashboard-item-dropdown-toggle"
+        aria-label="dashboard-item-dropdown-toggle"
+      >
         <BsThreeDotsVertical />
       </StyledDropdownToggle>
 
-      <Dropdown.Menu align="end">
+      <Dropdown.Menu align="end" show={showMenu}>
         {showFullscreen && (
           <Dropdown.Item onClick={showFullscreen}>Fullscreen</Dropdown.Item>
         )}
         {editable && (
           <>
-            <Dropdown.Item onClick={editGridItem}>
+            <Dropdown.Item
+              onClick={editGridItem}
+              className="dashboard-item-dropdown-edit-visualization"
+            >
               Edit Visualization
             </Dropdown.Item>
             {editSize && (
@@ -42,8 +60,18 @@ const DashboardItemDropdown = ({
                 Edit Size/Location
               </Dropdown.Item>
             )}
-            <Dropdown.Item onClick={copyGridItem}>Create Copy</Dropdown.Item>
-            <Dropdown.Item onClick={deleteGridItem}>Delete</Dropdown.Item>
+            <Dropdown.Item
+              onClick={copyGridItem}
+              className="dashboard-item-dropdown-create-copy"
+            >
+              Create Copy
+            </Dropdown.Item>
+            <Dropdown.Item
+              onClick={deleteGridItem}
+              className="dashboard-item-dropdown-delete"
+            >
+              Delete
+            </Dropdown.Item>
           </>
         )}
       </Dropdown.Menu>
