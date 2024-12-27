@@ -1,48 +1,23 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { act, useEffect } from "react";
+import { act } from "react";
 import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
-import SelectedDashboardContextProvider, {
-  useLayoutContext,
-} from "components/contexts/SelectedDashboardContext";
-import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
+import renderWithLoaders from "__tests__/utilities/customRender";
 import { mockedDashboards } from "__tests__/utilities/constants";
-import PropTypes from "prop-types";
-
-const TestingComponent = (props) => {
-  const { setLayoutContext } = useLayoutContext();
-
-  useEffect(() => {
-    setLayoutContext(props.layoutContext);
-    // eslint-disable-next-line
-  }, []);
-
-  return (
-    <DashboardItemDropdown
-      showFullscreen={props.showFullscreen}
-      deleteGridItem={props.deleteGridItem}
-      editGridItem={props.editGridItem}
-      editSize={props.editSize}
-      copyGridItem={props.copyGridItem}
-    />
-  );
-};
 
 test("DashboardItemDropdown for noneditable item and no fullscreen", () => {
-  render(
-    <VariableInputsContextProvider>
-      <SelectedDashboardContextProvider>
-        <TestingComponent
-          showFullscreen={null}
-          deleteGridItem={jest.fn()}
-          editGridItem={jest.fn()}
-          editSize={jest.fn()}
-          copyGridItem={jest.fn()}
-          layoutContext={mockedDashboards.editable}
-        />
-      </SelectedDashboardContextProvider>
-    </VariableInputsContextProvider>
-  );
+  renderWithLoaders({
+    children: (
+      <DashboardItemDropdown
+        showFullscreen={null}
+        deleteGridItem={jest.fn()}
+        editGridItem={jest.fn()}
+        editSize={jest.fn()}
+        copyGridItem={jest.fn()}
+      />
+    ),
+    options: { initialDashboard: mockedDashboards.noneditable.name },
+  });
 
   expect(screen.queryByText("Fullscreen")).not.toBeInTheDocument();
   expect(screen.queryByText("Edit Visualization")).not.toBeInTheDocument();
@@ -54,20 +29,18 @@ test("DashboardItemDropdown for noneditable item and no fullscreen", () => {
 test("DashboardItemDropdown for noneditable item but has fullscreen", async () => {
   const mockShowFullscreen = jest.fn();
 
-  render(
-    <VariableInputsContextProvider>
-      <SelectedDashboardContextProvider>
-        <TestingComponent
-          showFullscreen={mockShowFullscreen}
-          deleteGridItem={jest.fn()}
-          editGridItem={jest.fn()}
-          editSize={jest.fn()}
-          copyGridItem={jest.fn()}
-          layoutContext={mockedDashboards.noneditable}
-        />
-      </SelectedDashboardContextProvider>
-    </VariableInputsContextProvider>
-  );
+  renderWithLoaders({
+    children: (
+      <DashboardItemDropdown
+        showFullscreen={mockShowFullscreen}
+        deleteGridItem={jest.fn()}
+        editGridItem={jest.fn()}
+        editSize={jest.fn()}
+        copyGridItem={jest.fn()}
+      />
+    ),
+    options: { initialDashboard: mockedDashboards.noneditable.name },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -95,20 +68,18 @@ test("DashboardItemDropdown for editable item but already in edit mode", async (
   const mockEditGridItem = jest.fn();
   const mockCopyGridItem = jest.fn();
 
-  render(
-    <VariableInputsContextProvider>
-      <SelectedDashboardContextProvider>
-        <TestingComponent
-          showFullscreen={mockShowFullscreen}
-          deleteGridItem={mockDeleteGridItem}
-          editGridItem={mockEditGridItem}
-          editSize={null}
-          copyGridItem={mockCopyGridItem}
-          layoutContext={mockedDashboards.editable}
-        />
-      </SelectedDashboardContextProvider>
-    </VariableInputsContextProvider>
-  );
+  renderWithLoaders({
+    children: (
+      <DashboardItemDropdown
+        showFullscreen={mockShowFullscreen}
+        deleteGridItem={mockDeleteGridItem}
+        editGridItem={mockEditGridItem}
+        editSize={null}
+        copyGridItem={mockCopyGridItem}
+      />
+    ),
+    options: { initialDashboard: mockedDashboards.editable.name },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -158,20 +129,18 @@ test("DashboardItemDropdown for editable item and not in edit mode", async () =>
   const mockCopyGridItem = jest.fn();
   const mockEditSize = jest.fn();
 
-  render(
-    <VariableInputsContextProvider>
-      <SelectedDashboardContextProvider>
-        <TestingComponent
-          showFullscreen={mockShowFullscreen}
-          deleteGridItem={mockDeleteGridItem}
-          editGridItem={mockEditGridItem}
-          editSize={mockEditSize}
-          copyGridItem={mockCopyGridItem}
-          layoutContext={mockedDashboards.editable}
-        />
-      </SelectedDashboardContextProvider>
-    </VariableInputsContextProvider>
-  );
+  renderWithLoaders({
+    children: (
+      <DashboardItemDropdown
+        showFullscreen={mockShowFullscreen}
+        deleteGridItem={mockDeleteGridItem}
+        editGridItem={mockEditGridItem}
+        editSize={mockEditSize}
+        copyGridItem={mockCopyGridItem}
+      />
+    ),
+    options: { initialDashboard: mockedDashboards.editable.name },
+  });
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -220,12 +189,3 @@ test("DashboardItemDropdown for editable item and not in edit mode", async () =>
   });
   expect(mockDeleteGridItem.mock.calls).toHaveLength(1);
 });
-
-TestingComponent.propTypes = {
-  layoutContext: PropTypes.object,
-  showFullscreen: PropTypes.func,
-  deleteGridItem: PropTypes.func,
-  editGridItem: PropTypes.func,
-  editSize: PropTypes.func,
-  copyGridItem: PropTypes.func,
-};

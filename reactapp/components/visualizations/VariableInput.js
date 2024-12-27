@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useContext } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import DataInput from "components/inputs/DataInput";
-import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
-import { useVariableInputValuesContext } from "components/contexts/VariableInputsContext";
+import {
+  AppContext,
+  VariableInputsContext,
+  DataViewerModeContext,
+} from "components/contexts/Contexts";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
@@ -25,18 +27,21 @@ const VariableInput = ({ args, onChange }) => {
   const [value, setValue] = useState("");
   const [type, setType] = useState(null);
   const [label, setLabel] = useState(null);
-  const { availableVizArgs } = useAvailableVisualizationsContext();
-  const { inDataViewerMode } = useDataViewerModeContext();
-  const { setVariableInputValues } = useVariableInputValuesContext();
+  const { visualizationArgs } = useContext(AppContext);
+  const { inDataViewerMode } = useContext(DataViewerModeContext);
+  const { setVariableInputValues } = useContext(VariableInputsContext);
 
-  const updateVariableInputs = useCallback((new_value) => {
-    if (new_value || new_value === false) {
-      setVariableInputValues((prevVariableInputValues) => ({
-        ...prevVariableInputValues,
-        [args.variable_name]: new_value
-      }));
-    }
-  }, [args.variable_name, setVariableInputValues]);
+  const updateVariableInputs = useCallback(
+    (new_value) => {
+      if (new_value || new_value === false) {
+        setVariableInputValues((prevVariableInputValues) => ({
+          ...prevVariableInputValues,
+          [args.variable_name]: new_value,
+        }));
+      }
+    },
+    [args.variable_name, setVariableInputValues]
+  );
 
   useEffect(() => {
     // When any of the args are updated, the variable is changed to null
@@ -48,34 +53,30 @@ const VariableInput = ({ args, onChange }) => {
     if (nonDropDownVariableInputTypes.includes(args.variable_options_source)) {
       setType(args.variable_options_source);
     } else {
-      // If it is a dropdown, it searches for the matching dropdown options in availableVizArgs
-      var selectedArg = availableVizArgs.find((obj) => {
+      var selectedArg = visualizationArgs.find((obj) => {
         return obj.label === args.variable_options_source;
       });
       setType(selectedArg.argOptions);
     }
 
+    let initialVariableValue = args.initial_value;
     if (args.variable_options_source === "number") {
       // If the variable_options_source is a number, it parses the int value from initial_value
-      setValue(parseInt(args.initial_value));
+      initialVariableValue = parseInt(args.initial_value);
     } else if (
       args.variable_options_source === "checkbox" &&
       args.initial_value === null
     ) {
       // This sets to false because null isn't a valid value for a checkbox
       // But I've never been able to get this to fire.
-      setValue(false);
-      onChange(false);
-    } else {
-      setValue(args.initial_value);
+      initialVariableValue = false;
     }
+    setValue(initialVariableValue);
 
     if (!inDataViewerMode) {
-      // This prevents the Edit Visualization Modal's variable input selector from
-      // changing the Dashboard variable input selector.
-      updateVariableInputs(args.initial_value);
+      updateVariableInputs(initialVariableValue);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args]);
 
   function handleInputChange(e) {
@@ -88,18 +89,14 @@ const VariableInput = ({ args, onChange }) => {
 
     if (Array.isArray(type) || type === "checkbox") {
       if (!inDataViewerMode) {
-        if (typeof e.value !== "undefined") {
-          updateVariableInputs(e.value);
-        } else {
-          updateVariableInputs(e);
-        }
+        updateVariableInputs(e.value || e);
       }
     }
   }
 
   function handleInputRefresh() {
     if (!inDataViewerMode) {
-      updateVariableInputs(value.value || value);
+      updateVariableInputs(value);
     }
   }
 
@@ -138,10 +135,15 @@ const VariableInput = ({ args, onChange }) => {
 
 VariableInput.propTypes = {
   args: PropTypes.shape({
-    variable_input_type: PropTypes.oneOf(["text", "number", "checkbox", "dropdown"]), // This just defines the type of input
-    initial_value: PropTypes.string,
+    variable_input_type: PropTypes.oneOf([
+      "text",
+      "number",
+      "checkbox",
+      "dropdown",
+    ]), // This just defines the type of input
+    initial_value: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
     variable_name: PropTypes.string,
-    variable_options_source: PropTypes.string // This is where the name of the source comes in like in the dropdown
+    variable_options_source: PropTypes.string, // This is where the name of the source comes in like in the dropdown
   }),
   onChange: PropTypes.func,
 };

@@ -1,9 +1,12 @@
+import { useContext } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import Form from "react-bootstrap/Form";
 import DataSelect from "components/inputs/DataSelect";
-import { useLayoutGridItemsContext } from "components/contexts/SelectedDashboardContext";
-import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
+import {
+  VariableInputsContext,
+  DataViewerModeContext,
+} from "components/contexts/Contexts";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 
 const StyledDiv = styled.div`
@@ -20,23 +23,8 @@ const InlineFormCheck = styled(Form.Check)`
 `;
 
 const Input = ({ label, type, onChange, value, index, valueOptions }) => {
-  const { gridItems } = useLayoutGridItemsContext();
-  const { inDataViewerMode } = useDataViewerModeContext();
-
-  function getAvailableVariableInputs() {
-    const availableVariableInputs = [];
-    const variableInputs = gridItems.filter(
-      (item) => item.source === "Variable Input"
-    );
-    if (variableInputs) {
-      for (let variableInput of variableInputs) {
-        const variableInputInfo = JSON.parse(variableInput.args_string);
-        availableVariableInputs.push(variableInputInfo.variable_name);
-      }
-    }
-
-    return availableVariableInputs;
-  }
+  const { variableInputValues } = useContext(VariableInputsContext);
+  const { inDataViewerMode } = useContext(DataViewerModeContext);
 
   if (Array.isArray(type)) {
     let options = [];
@@ -53,10 +41,9 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
         inputValue = value;
       }
     }
-
-    if (inDataViewerMode !== undefined && label !== "Variable Options Source") {
-      const availableVariableInputs = getAvailableVariableInputs(type);
-      if (availableVariableInputs) {
+    if (inDataViewerMode && label !== "Variable Options Source") {
+      const availableVariableInputs = Object.keys(variableInputValues);
+      if (availableVariableInputs.length !== 0) {
         options.push({
           label: "Variable Inputs",
           options: availableVariableInputs.map((availableVariableInput) => ({

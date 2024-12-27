@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import Layout from "components/layout/Layout";
-import RoutesContextProvider from "components/contexts/RoutesContext";
+import Loader from "components/loader/Loader";
 import { MemoryRouter } from "react-router-dom";
 
 // eslint-disable-next-line
@@ -13,35 +13,50 @@ jest.mock("views/dashboard/Dashboard", () => (props) => (
 test("Layout loading", async () => {
   render(
     <MemoryRouter initialEntries={["/dashboard/some_dashboard"]}>
-      <RoutesContextProvider>
+      <Loader>
         <Layout />
-      </RoutesContextProvider>
+      </Loader>
     </MemoryRouter>
   );
 
   expect(await screen.findByText("Loading...")).toBeInTheDocument();
+  expect(await screen.findByText("Page Not Found")).toBeInTheDocument();
 });
 
 test("Layout not found", async () => {
   render(
     <MemoryRouter initialEntries={["/some_bad_url"]}>
-      <RoutesContextProvider>
+      <Loader>
         <Layout />
-      </RoutesContextProvider>
+      </Loader>
     </MemoryRouter>
   );
 
   expect(await screen.findByText("Page Not Found")).toBeInTheDocument();
 });
 
-test("Layout dashboard", async () => {
+test("Layout loading valid dashboard", async () => {
   render(
-    <MemoryRouter initialEntries={["/"]}>
-      <RoutesContextProvider>
+    <MemoryRouter initialEntries={["/dashboard/editable"]}>
+      <Loader>
         <Layout />
-      </RoutesContextProvider>
+      </Loader>
     </MemoryRouter>
   );
 
+  expect(await screen.findByText("Loading...")).toBeInTheDocument();
   expect(await screen.findByText("A Dashboard Loaded")).toBeInTheDocument();
+});
+
+test("Layout loading invalid dashboard", async () => {
+  render(
+    <MemoryRouter initialEntries={["/dashboard/nonexist"]}>
+      <Loader>
+        <Layout />
+      </Loader>
+    </MemoryRouter>
+  );
+
+  expect(await screen.findByText("Loading...")).toBeInTheDocument();
+  expect(await screen.findByText("Page Not Found")).toBeInTheDocument();
 });

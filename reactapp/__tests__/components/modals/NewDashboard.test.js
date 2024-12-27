@@ -1,13 +1,11 @@
 import { act, useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import NewDashboardModal from "components/modals/NewDashboard";
-import { AvailableDashboardsContext } from "components/contexts/AvailableDashboardsContext";
-import { EditingContext } from "components/contexts/EditingContext";
-import RoutesContextProvider from "components/contexts/RoutesContext";
-import { AppContext } from "components/contexts/AppContext";
-import SelectedDashboardContextProvider from "components/contexts/SelectedDashboardContext";
-import VariableInputsContextProvider from "components/contexts/VariableInputsContext";
+import renderWithLoaders, {
+  EditingPComponent,
+} from "__tests__/utilities/customRender";
+import appAPI from "services/api/app";
 
 const TestingComponent = () => {
   const [showModal, setShowModal] = useState(true);
@@ -15,36 +13,43 @@ const TestingComponent = () => {
   return (
     <>
       <NewDashboardModal showModal={showModal} setShowModal={setShowModal} />
+      <EditingPComponent />
     </>
   );
 };
 
 test("New Dashboard Modal add dashboard success", async () => {
   const mockAddDashboard = jest.fn();
-  const mockSetIsEditing = jest.fn();
-  mockAddDashboard.mockResolvedValue({ success: true });
+  appAPI.addDashboard = mockAddDashboard;
+  mockAddDashboard.mockResolvedValue({
+    success: true,
+    new_dashboard: {
+      id: 1,
+      name: "editable_copy",
+      label: "test_label Copy",
+      notes: "test_notes",
+      editable: true,
+      accessGroups: [],
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
+    },
+  });
 
-  render(
-    <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContext.Provider
-              value={{
-                addDashboard: mockAddDashboard,
-              }}
-            >
-              <EditingContext.Provider
-                value={{ setIsEditing: mockSetIsEditing }}
-              >
-                <TestingComponent />
-              </EditingContext.Provider>
-            </AvailableDashboardsContext.Provider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+  });
 
   expect(await screen.findByText("Create a new dashboard")).toBeInTheDocument();
   expect(await screen.findByText("Dashboard Name")).toBeInTheDocument();
@@ -62,38 +67,20 @@ test("New Dashboard Modal add dashboard success", async () => {
     await userEvent.click(createDashboardInput);
   });
   expect(screen.queryByText("Create a new dashboard")).not.toBeInTheDocument();
-  expect(mockSetIsEditing).toHaveBeenCalledWith(true);
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
 
 test("New Dashboard Modal add dashboard fail", async () => {
   const mockAddDashboard = jest.fn();
-  const mockSetIsEditing = jest.fn();
+  appAPI.addDashboard = mockAddDashboard;
   mockAddDashboard.mockResolvedValue({
     success: false,
     message: "failed to add",
   });
 
-  render(
-    <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <VariableInputsContextProvider>
-          <SelectedDashboardContextProvider>
-            <AvailableDashboardsContext.Provider
-              value={{
-                addDashboard: mockAddDashboard,
-              }}
-            >
-              <EditingContext.Provider
-                value={{ setIsEditing: mockSetIsEditing }}
-              >
-                <TestingComponent />
-              </EditingContext.Provider>
-            </AvailableDashboardsContext.Provider>
-          </SelectedDashboardContextProvider>
-        </VariableInputsContextProvider>
-      </RoutesContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: <TestingComponent />,
+  });
 
   expect(await screen.findByText("Create a new dashboard")).toBeInTheDocument();
   expect(await screen.findByText("Dashboard Name")).toBeInTheDocument();

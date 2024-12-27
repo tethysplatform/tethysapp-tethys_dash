@@ -12,7 +12,7 @@ from tethysapp.tethysdash.model import (
     GridItem,
     check_existing_user_dashboard_names,
     check_existing_user_dashboard_labels,
-    check_existing_public_dashboards,
+    check_existing_public_dashboards
 )
 
 
@@ -400,7 +400,7 @@ def test_get_dashboards_all(dashboard, mock_app_get_ps_db, grid_item):
             "label": dashboard_label,
             "notes": dashboard_notes,
             "editable": True,
-            "access_groups": [],
+            "accessGroups": [],
             "gridItems": [
                 {
                     "id": 6,
@@ -419,7 +419,7 @@ def test_get_dashboards_all(dashboard, mock_app_get_ps_db, grid_item):
 
 
 @pytest.mark.django_db
-def test_get_dashboards_specific(dashboard, db_session, mock_app_get_ps_db, grid_item):
+def test_get_dashboards_specific(dashboard, mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
     dashboard_name = dashboard.name
     dashboard_label = dashboard.label
@@ -434,7 +434,7 @@ def test_get_dashboards_specific(dashboard, db_session, mock_app_get_ps_db, grid
             "label": dashboard_label,
             "notes": dashboard_notes,
             "editable": True,
-            "access_groups": [],
+            "accessGroups": [],
             "gridItems": [],
         }
     }
@@ -491,9 +491,7 @@ def test_check_existing_user_dashboard_labels_fail(
 
 
 @pytest.mark.django_db
-def test_check_existing_public_dashboards(
-    public_dashboard, db_session, mock_app_get_ps_db
-):
+def test_check_existing_public_dashboards(db_session, mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
 
     check_existing_public_dashboards(

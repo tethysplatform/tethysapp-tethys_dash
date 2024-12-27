@@ -1,12 +1,12 @@
 import { Route, Routes } from "react-router-dom";
 import PropTypes from "prop-types";
-
+import { useContext } from "react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 import NotFound from "components/error/NotFound";
-import { useRoutesContext } from "components/contexts/RoutesContext";
+import { AppContext } from "components/contexts/Contexts";
 
 function Layout({ children }) {
-  const { routes } = useRoutesContext();
+  const { routes } = useContext(AppContext);
 
   return (
     <div className="h-100">

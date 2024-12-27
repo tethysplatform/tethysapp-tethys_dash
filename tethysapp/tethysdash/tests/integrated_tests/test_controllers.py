@@ -280,7 +280,7 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
         "label": "label",
         "notes": "notes",
         "gridItems": [],
-        "access_groups": [],
+        "accessGroups": [],
     }
 
     url = reverse("tethysdash:update_dashboard")
@@ -305,7 +305,7 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
         itemData["label"],
         itemData["notes"],
         itemData["gridItems"],
-        itemData["access_groups"],
+        itemData["accessGroups"],
     )
     mock_get_dashboards.assert_called_with("admin", name=itemData["name"])
     assert response.status_code == 200
@@ -327,7 +327,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
         "label": "label",
         "notes": "notes",
         "gridItems": [],
-        "access_groups": [],
+        "accessGroups": [],
     }
 
     url = reverse("tethysdash:update_dashboard")
@@ -351,7 +351,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
         itemData["label"],
         itemData["notes"],
         itemData["gridItems"],
-        itemData["access_groups"],
+        itemData["accessGroups"],
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
@@ -371,7 +371,7 @@ def test_update_dashboard_failed_unknown_exception(
         "label": "label",
         "notes": "notes",
         "gridItems": [],
-        "access_groups": [],
+        "accessGroups": [],
     }
 
     url = reverse("tethysdash:update_dashboard")
@@ -395,7 +395,7 @@ def test_update_dashboard_failed_unknown_exception(
         itemData["label"],
         itemData["notes"],
         itemData["gridItems"],
-        itemData["access_groups"],
+        itemData["accessGroups"],
     )
     assert response.status_code == 200
     assert response.json()["success"] is False

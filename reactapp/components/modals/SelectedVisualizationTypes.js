@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import CustomAlert from "components/dashboard/CustomAlert";
-import { useAvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
+import { AppContext } from "components/contexts/Contexts";
 
 const StyledList = styled.ul`
   list-style: none;
@@ -24,14 +24,14 @@ function SelectedVisualizationTypesModal({
   deselectedVisualizations,
   setDeselectedVisualizations,
 }) {
-  const { availableVisualizations } = useAvailableVisualizationsContext();
+  const { visualizations } = useContext(AppContext);
   const [selectedOptions, setSelectedOptions] = useState([]);
   const [successMessage, setSuccessMessage] = useState(null);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   let allOptions = [];
   const vizOptionsGroups = {};
-  for (const vizOptionGroup of availableVisualizations) {
+  for (const vizOptionGroup of visualizations) {
     const vizOptionGroupOptions = [vizOptionGroup.label];
     for (const vizOptionGroupOption of vizOptionGroup.options) {
       vizOptionGroupOptions.push(vizOptionGroupOption.label);
@@ -130,7 +130,7 @@ function SelectedVisualizationTypesModal({
             Type selector.
           </p>
           <br></br>
-          {availableVisualizations.map((group, groupIndex) => (
+          {visualizations.map((group, groupIndex) => (
             <fieldset key={groupIndex}>
               <label>
                 <StyledInput
@@ -193,6 +193,8 @@ function SelectedVisualizationTypesModal({
 SelectedVisualizationTypesModal.propTypes = {
   showModal: PropTypes.bool,
   setShowModal: PropTypes.func,
+  deselectedVisualizations: PropTypes.arrayOf([PropTypes.string]),
+  setDeselectedVisualizations: PropTypes.func,
 };
 
 export default SelectedVisualizationTypesModal;

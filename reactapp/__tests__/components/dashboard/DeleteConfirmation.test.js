@@ -1,4 +1,4 @@
-import { act, useState } from "react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import { confirm } from "components/dashboard/DeleteConfirmation";
@@ -13,7 +13,7 @@ const TestingComponent = () => {
   return (
     <>
       <button onClick={showConfirmation}></button>
-      <p>{confirmed ? "yes" : "no"}</p>
+      <p>{confirmed ? "confirmed" : "not confirmed"}</p>
     </>
   );
 };
@@ -21,43 +21,25 @@ const TestingComponent = () => {
 test("confirm ok", async () => {
   render(<TestingComponent />);
 
-  expect(await screen.findByText("yes")).toBeInTheDocument();
+  expect(await screen.findByText("confirmed")).toBeInTheDocument();
 
   const button = screen.getByRole("button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(button);
-  });
+  await userEvent.click(button);
   expect(
     await screen.findByText("Are you sure you want this?")
   ).toBeInTheDocument();
   const cancelButton = await screen.findByText("Cancel");
   expect(cancelButton).toBeInTheDocument();
   expect(await screen.findByText("OK")).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(cancelButton);
-  });
-  expect(await screen.findByText("no")).toBeInTheDocument();
+  await userEvent.click(cancelButton);
+  expect(await screen.findByText("not confirmed")).toBeInTheDocument();
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(button);
-  });
+  await userEvent.click(button);
   const OKButton = await screen.findByText("OK");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(OKButton);
-  });
-  expect(await screen.findByText("yes")).toBeInTheDocument();
+  await userEvent.click(OKButton);
+  expect(await screen.findByText("confirmed")).toBeInTheDocument();
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(button);
-  });
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.keyboard("{Escape}");
-  });
-  expect(await screen.findByText("no")).toBeInTheDocument();
+  await userEvent.click(button);
+  await userEvent.keyboard("{Escape}");
+  expect(await screen.findByText("not confirmed")).toBeInTheDocument();
 });

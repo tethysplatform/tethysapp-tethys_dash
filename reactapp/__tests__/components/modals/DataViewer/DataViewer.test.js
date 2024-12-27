@@ -1,54 +1,11 @@
-import { act, useEffect } from "react";
+import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
-import {
-  mockedDashboards,
-  mockedVisualizationsWithDefaults,
-} from "__tests__/utilities/constants";
-import SelectedDashboardContextProvider, {
-  useLayoutContext,
-} from "components/contexts/SelectedDashboardContext";
-import VariableInputsContextProvider, {
-  useVariableInputValuesContext,
-} from "components/contexts/VariableInputsContext";
-import EditingContextProvider from "components/contexts/EditingContext";
-import { AvailableVisualizationsContext } from "components/contexts/AvailableVisualizationsContext";
-import DataViewerModeContextProvider from "components/contexts/DataViewerModeContext";
-import PropTypes from "prop-types";
-import AvailableDashboardsContextProvider from "components/contexts/AvailableDashboardsContext";
-import RoutesContextProvider from "components/contexts/RoutesContext";
-import { AppContext } from "components/contexts/AppContext";
-import { useDataViewerModeContext } from "components/contexts/DataViewerModeContext";
-
-const TestingComponent = (props) => {
-  const { setLayoutContext } = useLayoutContext();
-  const { variableInputValues } = useVariableInputValuesContext();
-  const { setInDataViewerMode } = useDataViewerModeContext();
-
-  useEffect(() => {
-    setLayoutContext(props.layoutContext);
-    setInDataViewerMode(true);
-    // eslint-disable-next-line
-  }, []);
-
-  return (
-    <>
-      <DataViewerModal
-        gridItemIndex={props.gridItemIndex}
-        source={props.gridItemSource}
-        argsString={props.gridItemArgsString}
-        metadataString={props.gridItemMetadataString}
-        gridItemI={props.gridItemI}
-        showModal={props.showModal}
-        handleModalClose={props.handleModalClose}
-        setGridItemMessage={props.setGridItemMessage}
-        setShowGridItemMessage={props.setShowGridItemMessage}
-      />
-      <p data-testid="variable-values">{JSON.stringify(variableInputValues)}</p>
-    </>
-  );
-};
+import { mockedDashboards } from "__tests__/utilities/constants";
+import renderWithLoaders, {
+  InputVariablePComponent,
+} from "__tests__/utilities/customRender";
 
 test("Dashboard Viewer Modal Custom Image", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
@@ -57,40 +14,22 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   const mocksetGridItemMessage = jest.fn();
   const mocksetShowGridItemMessage = jest.fn();
 
-  render(
-    <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContext.Provider
-          value={{
-            availableVisualizations: mockedVisualizationsWithDefaults,
-          }}
-        >
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent
-                      layoutContext={mockedDashboard}
-                      gridItemIndex={0}
-                      gridItemSource={gridItem.source}
-                      gridItemArgsString={gridItem.args_string}
-                      gridItemMetadataString={gridItem.metadata_string}
-                      gridItemI={gridItem.i}
-                      showModal={true}
-                      handleModalClose={mockhandleModalClose}
-                      setGridItemMessage={mocksetGridItemMessage}
-                      setShowGridItemMessage={mocksetShowGridItemMessage}
-                    />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContext.Provider>
-      </RoutesContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <DataViewerModal
+        gridItemIndex={[0]}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        metadataString={gridItem.metadata_string}
+        gridItemI={gridItem.i}
+        showModal={true}
+        handleModalClose={mockhandleModalClose}
+        setGridItemMessage={mocksetGridItemMessage}
+        setShowGridItemMessage={mocksetShowGridItemMessage}
+      />
+    ),
+    options: { initialDashboard: mockedDashboards.editable.name },
+  });
 
   expect(await screen.findByText("Select Cell Data")).toBeInTheDocument();
   expect(await screen.findByText("Visualization")).toBeInTheDocument();
@@ -130,40 +69,22 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   const mocksetGridItemMessage = jest.fn();
   const mocksetShowGridItemMessage = jest.fn();
 
-  render(
-    <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContext.Provider
-          value={{
-            availableVisualizations: mockedVisualizationsWithDefaults,
-          }}
-        >
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent
-                      layoutContext={mockedDashboard}
-                      gridItemIndex={0}
-                      gridItemSource={gridItem.source}
-                      gridItemArgsString={gridItem.args_string}
-                      gridItemMetadataString={gridItem.metadata_string}
-                      gridItemI={gridItem.i}
-                      showModal={true}
-                      handleModalClose={mockhandleModalClose}
-                      setGridItemMessage={mocksetGridItemMessage}
-                      setShowGridItemMessage={mocksetShowGridItemMessage}
-                    />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContext.Provider>
-      </RoutesContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <DataViewerModal
+        gridItemIndex={[0]}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        metadataString={gridItem.metadata_string}
+        gridItemI={gridItem.i}
+        showModal={true}
+        handleModalClose={mockhandleModalClose}
+        setGridItemMessage={mocksetGridItemMessage}
+        setShowGridItemMessage={mocksetShowGridItemMessage}
+      />
+    ),
+    options: { initialDashboard: mockedDashboards.editable.name },
+  });
 
   expect(await screen.findByText("Select Cell Data")).toBeInTheDocument();
   expect(await screen.findByText("Visualization")).toBeInTheDocument();
@@ -213,7 +134,8 @@ test("Dashboard Viewer Modal Variable Input", async () => {
 });
 
 test("Dashboard Viewer Modal Variable Input already exists", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -249,40 +171,25 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   const mocksetGridItemMessage = jest.fn();
   const mocksetShowGridItemMessage = jest.fn();
 
-  render(
-    <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContext.Provider
-          value={{
-            availableVisualizations: mockedVisualizationsWithDefaults,
-          }}
-        >
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent
-                      layoutContext={mockedDashboard}
-                      gridItemIndex={0}
-                      gridItemSource={gridItem.source}
-                      gridItemArgsString={gridItem.args_string}
-                      gridItemMetadataString={gridItem.metadata_string}
-                      gridItemI={gridItem.i}
-                      showModal={true}
-                      handleModalClose={mockhandleModalClose}
-                      setGridItemMessage={mocksetGridItemMessage}
-                      setShowGridItemMessage={mocksetShowGridItemMessage}
-                    />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContext.Provider>
-      </RoutesContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <DataViewerModal
+        gridItemIndex={[0]}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        metadataString={gridItem.metadata_string}
+        gridItemI={gridItem.i}
+        showModal={true}
+        handleModalClose={mockhandleModalClose}
+        setGridItemMessage={mocksetGridItemMessage}
+        setShowGridItemMessage={mocksetShowGridItemMessage}
+      />
+    ),
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+      dashboards: updatedMockedDashboards,
+    },
+  });
 
   expect(await screen.findByText("Select Cell Data")).toBeInTheDocument();
   expect(await screen.findByText("Visualization")).toBeInTheDocument();
@@ -337,7 +244,8 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
 });
 
 test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -389,42 +297,31 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
   const mocksetGridItemMessage = jest.fn();
   const mocksetShowGridItemMessage = jest.fn();
 
-  render(
-    <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContext.Provider
-          value={{
-            availableVisualizations: mockedVisualizationsWithDefaults,
-          }}
-        >
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent
-                      layoutContext={mockedDashboard}
-                      gridItemIndex={1}
-                      gridItemSource={gridItem.source}
-                      gridItemArgsString={gridItem.args_string}
-                      gridItemMetadataString={gridItem.metadata_string}
-                      gridItemI={gridItem.i}
-                      showModal={true}
-                      handleModalClose={mockhandleModalClose}
-                      setGridItemMessage={mocksetGridItemMessage}
-                      setShowGridItemMessage={mocksetShowGridItemMessage}
-                    />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContext.Provider>
-      </RoutesContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <DataViewerModal
+          gridItemIndex={[1]}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          metadataString={gridItem.metadata_string}
+          gridItemI={gridItem.i}
+          showModal={true}
+          handleModalClose={mockhandleModalClose}
+          setGridItemMessage={mocksetGridItemMessage}
+          setShowGridItemMessage={mocksetShowGridItemMessage}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+      dashboards: updatedMockedDashboards,
+      inDataViewerMode: true,
+    },
+  });
 
-  expect(await screen.findByTestId("variable-values")).toHaveTextContent(
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable": "some value",
     })
@@ -434,7 +331,7 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
   fireEvent.change(variableNameInput, { target: { value: "Test Variable 2" } });
 
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
-  expect(await screen.findByTestId("variable-values")).toHaveTextContent(
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable 2": "some value",
     })
@@ -450,40 +347,28 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
   const mocksetGridItemMessage = jest.fn();
   const mocksetShowGridItemMessage = jest.fn();
 
-  render(
-    <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContext.Provider
-          value={{
-            availableVisualizations: mockedVisualizationsWithDefaults,
-          }}
-        >
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent
-                      layoutContext={mockedDashboard}
-                      gridItemIndex={0}
-                      gridItemSource={gridItem.source}
-                      gridItemArgsString={gridItem.args_string}
-                      gridItemMetadataString={gridItem.metadata_string}
-                      gridItemI={gridItem.i}
-                      showModal={true}
-                      handleModalClose={mockhandleModalClose}
-                      setGridItemMessage={mocksetGridItemMessage}
-                      setShowGridItemMessage={mocksetShowGridItemMessage}
-                    />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContext.Provider>
-      </RoutesContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <DataViewerModal
+          gridItemIndex={[1]}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          metadataString={gridItem.metadata_string}
+          gridItemI={gridItem.i}
+          showModal={true}
+          handleModalClose={mockhandleModalClose}
+          setGridItemMessage={mocksetGridItemMessage}
+          setShowGridItemMessage={mocksetShowGridItemMessage}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+      inDataViewerMode: true,
+    },
+  });
 
   expect(await screen.findByText("Select Cell Data")).toBeInTheDocument();
   expect(await screen.findByText("Visualization")).toBeInTheDocument();
@@ -506,40 +391,28 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
   const mocksetGridItemMessage = jest.fn();
   const mocksetShowGridItemMessage = jest.fn();
 
-  render(
-    <AppContext.Provider value={"csrf"}>
-      <RoutesContextProvider>
-        <AvailableVisualizationsContext.Provider
-          value={{
-            availableVisualizations: mockedVisualizationsWithDefaults,
-          }}
-        >
-          <VariableInputsContextProvider>
-            <SelectedDashboardContextProvider>
-              <AvailableDashboardsContextProvider>
-                <EditingContextProvider>
-                  <DataViewerModeContextProvider>
-                    <TestingComponent
-                      layoutContext={mockedDashboard}
-                      gridItemIndex={0}
-                      gridItemSource={gridItem.source}
-                      gridItemArgsString={gridItem.args_string}
-                      gridItemMetadataString={gridItem.metadata_string}
-                      gridItemI={gridItem.i}
-                      showModal={true}
-                      handleModalClose={mockhandleModalClose}
-                      setGridItemMessage={mocksetGridItemMessage}
-                      setShowGridItemMessage={mocksetShowGridItemMessage}
-                    />
-                  </DataViewerModeContextProvider>
-                </EditingContextProvider>
-              </AvailableDashboardsContextProvider>
-            </SelectedDashboardContextProvider>
-          </VariableInputsContextProvider>
-        </AvailableVisualizationsContext.Provider>
-      </RoutesContextProvider>
-    </AppContext.Provider>
-  );
+  renderWithLoaders({
+    children: (
+      <>
+        <DataViewerModal
+          gridItemIndex={[1]}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          metadataString={gridItem.metadata_string}
+          gridItemI={gridItem.i}
+          showModal={true}
+          handleModalClose={mockhandleModalClose}
+          setGridItemMessage={mocksetGridItemMessage}
+          setShowGridItemMessage={mocksetShowGridItemMessage}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: {
+      initialDashboard: mockedDashboards.editable.name,
+      inDataViewerMode: true,
+    },
+  });
 
   const visualizationSettingButton = await screen.findByLabelText(
     "visualizationSettingButton"
@@ -570,17 +443,3 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
   });
   expect(dataviewerModal).not.toHaveStyle({ "z-index": 1050 });
 });
-
-TestingComponent.propTypes = {
-  editing: PropTypes.bool,
-  layoutContext: PropTypes.object,
-  gridItemSource: PropTypes.string,
-  gridItemI: PropTypes.string,
-  gridItemArgsString: PropTypes.string,
-  gridItemMetadataString: PropTypes.string,
-  gridItemIndex: PropTypes.number,
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
-  setGridItemMessage: PropTypes.func,
-  setShowGridItemMessage: PropTypes.func,
-};

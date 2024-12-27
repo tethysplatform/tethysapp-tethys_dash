@@ -222,3 +222,11 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
     }
 
     return plugin_visualization
+
+
+@pytest.fixture(scope="function")
+def mock_user_setting():
+
+    return {
+        "deselected_visualizations": [],
+    }
