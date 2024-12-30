@@ -35,6 +35,7 @@ Layout.propTypes = {
   routes: PropTypes.arrayOf(PropTypes.node),
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.element),
+    PropTypes.arrayOf(PropTypes.object),
     PropTypes.element,
   ]),
 };

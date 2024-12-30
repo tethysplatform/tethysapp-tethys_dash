@@ -17,12 +17,7 @@ const StyledH2 = styled.h2`
   text-align: center;
 `;
 
-export function setVisualization(
-  setViz,
-  itemData,
-  visualizationRef,
-  setVariableInputValues
-) {
+export function setVisualization(setViz, itemData, visualizationRef) {
   setViz(
     <StyledSpinner data-testid="Loading..." animation="border" variant="info" />
   );
@@ -80,7 +75,6 @@ export function setVisualization(
             module={response.data.module}
             props={response.data.props}
             visualizationRef={visualizationRef}
-            setVariableInputValues={setVariableInputValues}
           />
         );
       } else {

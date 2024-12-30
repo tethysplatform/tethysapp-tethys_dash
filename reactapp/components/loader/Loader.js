@@ -168,6 +168,7 @@ Loader.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.element),
     PropTypes.element,
+    PropTypes.object,
   ]),
 };
 

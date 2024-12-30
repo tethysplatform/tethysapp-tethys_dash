@@ -52,12 +52,7 @@ const BaseVisualization = ({
       itemData.args = updatedGridItemArgs;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
       gridItemSource.current = source;
-      setVisualization(
-        setViz,
-        itemData,
-        visualizationRef,
-        setVariableInputValues
-      );
+      setVisualization(setViz, itemData, visualizationRef);
     }
     // eslint-disable-next-line
   }, [source, argsString]);
@@ -80,12 +75,7 @@ const BaseVisualization = ({
         itemData.args = updatedGridItemArgs;
         gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
         gridItemSource.current = source;
-        setVisualization(
-          setViz,
-          itemData,
-          visualizationRef,
-          setVariableInputValues
-        );
+        setVisualization(setViz, itemData, visualizationRef);
       }
     }
     // eslint-disable-next-line
@@ -108,12 +98,7 @@ const BaseVisualization = ({
         () => {
           if (!isEditing) {
             setRefreshCount(refreshCount + 1);
-            setVisualization(
-              setViz,
-              itemData,
-              visualizationRef,
-              setVariableInputValues
-            );
+            setVisualization(setViz, itemData, visualizationRef);
           }
         },
         parseInt(refreshRate) * 1000 * 60

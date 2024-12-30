@@ -241,12 +241,7 @@ function VisualizationPane({
         variableInputValues
       );
       itemData.args = updatedGridItemArgs;
-      setVisualization(
-        setViz,
-        itemData,
-        visualizationRef,
-        fakeSetVariableInputValues
-      );
+      setVisualization(setViz, itemData, visualizationRef);
     }
   }
 

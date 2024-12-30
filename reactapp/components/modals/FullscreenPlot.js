@@ -35,6 +35,7 @@ FullscreenPlotModal.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.node),
     PropTypes.node,
+    PropTypes.object,
   ]),
   showModal: PropTypes.bool,
   handleModalClose: PropTypes.func,

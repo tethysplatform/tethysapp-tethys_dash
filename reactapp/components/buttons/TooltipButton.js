@@ -47,6 +47,7 @@ TooltipButton.propTypes = {
     PropTypes.arrayOf(PropTypes.node),
     PropTypes.node,
     PropTypes.element,
+    PropTypes.object,
   ]),
   tooltipPlacement: PropTypes.oneOf(["top", "bottom", "left", "right"]),
   tooltipText: PropTypes.string,

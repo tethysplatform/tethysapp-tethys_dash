@@ -72,6 +72,7 @@ const LayoutAlertContextProvider = ({ children }) => {
 LayoutAlertContextProvider.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.node),
+    PropTypes.arrayOf(PropTypes.object),
     PropTypes.node,
   ]),
 };
