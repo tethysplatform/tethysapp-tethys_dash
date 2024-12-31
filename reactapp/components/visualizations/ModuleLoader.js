@@ -5,6 +5,7 @@ import React, {
   useState,
   useContext,
   useEffect,
+  useMemo,
 } from "react";
 import useDynamicScript from "hooks/useDynamicScript";
 import LoadingAnimation from "components/loader/LoadingAnimation";
@@ -48,7 +49,9 @@ const DynamicComponent = ({ scope, module, url }) => {
 };
 
 function ModuleLoader(props) {
-  const { setVariableInputValues } = useContext(VariableInputsContext);
+  const { variableInputValues, setVariableInputValues } = useContext(
+    VariableInputsContext
+  );
   const updateVariableInputValues = useCallback(
     (updatedValues) =>
       setVariableInputValues((prevStateValues) => ({
@@ -56,6 +59,10 @@ function ModuleLoader(props) {
         ...updatedValues,
       })),
     [setVariableInputValues]
+  );
+  const memoizedVariableInputValues = useMemo(
+    () => variableInputValues,
+    [variableInputValues]
   );
 
   const { failed, Component } = DynamicComponent({
@@ -75,6 +82,7 @@ function ModuleLoader(props) {
           <Component
             {...props.props}
             ref={props.visualizationRef}
+            variableInputValues={memoizedVariableInputValues}
             updateVariableInputValues={updateVariableInputValues}
           />
         </Suspense>

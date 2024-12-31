@@ -5,7 +5,11 @@ import styled from "styled-components";
 import Image from "components/visualizations/Image";
 import DataInput from "components/inputs/DataInput";
 import TextEditor from "components/inputs/TextEditor";
-import { setVisualization } from "components/visualizations/utilities";
+import MapVisualization from "components/visualizations/Map";
+import {
+  setVisualization,
+  getBaseMapLayer,
+} from "components/visualizations/utilities";
 import {
   AppContext,
   VariableInputsContext,
@@ -184,8 +188,6 @@ function VisualizationPane({
     }
   }
 
-  function fakeSetVariableInputValues() {}
-
   function previewVisualization() {
     const itemData = {
       source: selectedVizTypeOption["source"],
@@ -241,7 +243,18 @@ function VisualizationPane({
         variableInputValues
       );
       itemData.args = updatedGridItemArgs;
-      setVisualization(setViz, itemData, visualizationRef);
+      if (selectedVizTypeOption["value"] === "Map") {
+        const baseMapLayer = getBaseMapLayer(updatedGridItemArgs["base_map"]);
+        const layers = [baseMapLayer];
+        setViz(
+          <MapVisualization
+            visualizationRef={visualizationRef}
+            layers={layers}
+          />
+        );
+      } else {
+        setVisualization(setViz, itemData, visualizationRef);
+      }
     }
   }
 

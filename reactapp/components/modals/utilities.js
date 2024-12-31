@@ -4,6 +4,8 @@ export function getInitialInputValue(value) {
     inputValue = "";
   } else if (value === "checkbox") {
     inputValue = false;
+  } else if (value === "multiinput") {
+    inputValue = [];
   } else {
     inputValue = null;
   }

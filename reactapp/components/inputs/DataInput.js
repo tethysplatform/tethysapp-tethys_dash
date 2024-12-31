@@ -8,6 +8,7 @@ import {
   DataViewerModeContext,
 } from "components/contexts/Contexts";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
+import MultiInput from "components/inputs/MultiInput";
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
@@ -88,6 +89,17 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
         onChange={(e) => {
           onChange(e.target.value, index);
         }}
+      />
+    );
+  } else if (type === "multiinput") {
+    return (
+      <MultiInput
+        label={label}
+        aria-label={label + " Input"}
+        onChange={(values) => {
+          onChange(values, index);
+        }}
+        values={value}
       />
     );
   } else {

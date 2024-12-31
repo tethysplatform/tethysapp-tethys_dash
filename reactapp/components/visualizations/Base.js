@@ -4,9 +4,11 @@ import FullscreenPlotModal from "components/modals/FullscreenPlot";
 import Image from "components/visualizations/Image";
 import Text from "components/visualizations/Text";
 import VariableInput from "components/visualizations/VariableInput";
+import MapVisualization from "components/visualizations/Map";
 import {
   setVisualization,
   updateGridItemArgsWithVariableInputs,
+  getBaseMapLayer,
 } from "components/visualizations/utilities";
 import {
   EditingContext,
@@ -52,7 +54,18 @@ const BaseVisualization = ({
       itemData.args = updatedGridItemArgs;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
       gridItemSource.current = source;
-      setVisualization(setViz, itemData, visualizationRef);
+      if (source === "Map") {
+        const baseMapLayer = getBaseMapLayer(updatedGridItemArgs["base_map"]);
+        const layers = [baseMapLayer];
+        setViz(
+          <MapVisualization
+            visualizationRef={visualizationRef}
+            layers={layers}
+          />
+        );
+      } else {
+        setVisualization(setViz, itemData, visualizationRef);
+      }
     }
     // eslint-disable-next-line
   }, [source, argsString]);
@@ -75,7 +88,19 @@ const BaseVisualization = ({
         itemData.args = updatedGridItemArgs;
         gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
         gridItemSource.current = source;
-        setVisualization(setViz, itemData, visualizationRef);
+
+        if (source === "Map") {
+          const baseMapLayer = getBaseMapLayer(updatedGridItemArgs["base_map"]);
+          const layers = [baseMapLayer];
+          setViz(
+            <MapVisualization
+              visualizationRef={visualizationRef}
+              layers={layers}
+            />
+          );
+        } else {
+          setVisualization(setViz, itemData, visualizationRef);
+        }
       }
     }
     // eslint-disable-next-line
