@@ -7,7 +7,10 @@ import {
   VariableInputsContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
-import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
+import {
+  nonDropDownVariableInputTypes,
+  findSelectOptionByValue,
+} from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
 
@@ -50,6 +53,8 @@ const VariableInput = ({ args, onChange }) => {
     // The label is set to the variable_name,
     setValue(null);
     setLabel(args.variable_name);
+    let initialVariableValue = args.initial_value;
+    let variableValue = initialVariableValue;
 
     // Sets the type to the variable_options_source if not a dropdown
     if (nonDropDownVariableInputTypes.includes(args.variable_options_source)) {
@@ -59,12 +64,16 @@ const VariableInput = ({ args, onChange }) => {
         return obj.label === args.variable_options_source;
       });
       setType(selectedArg.argOptions);
+      initialVariableValue = findSelectOptionByValue(
+        selectedArg.argOptions,
+        initialVariableValue
+      );
     }
 
-    let initialVariableValue = args.initial_value;
     if (args.variable_options_source === "number") {
       // If the variable_options_source is a number, it parses the int value from initial_value
       initialVariableValue = parseInt(args.initial_value);
+      variableValue = initialVariableValue;
     } else if (
       args.variable_options_source === "checkbox" &&
       args.initial_value === null
@@ -72,18 +81,22 @@ const VariableInput = ({ args, onChange }) => {
       // This sets to false because null isn't a valid value for a checkbox
       // But I've never been able to get this to fire.
       initialVariableValue = false;
+      variableValue = initialVariableValue;
     }
     setValue(initialVariableValue);
 
     if (!inDataViewerMode) {
-      updateVariableInputs(initialVariableValue);
+      updateVariableInputs(variableValue);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [args]);
 
   useEffect(() => {
-    const newValue = variableInputValues[args.variable_name];
-    if (value !== newValue) {
+    let newValue = variableInputValues[args.variable_name];
+    if (Array.isArray(type)) {
+      newValue = findSelectOptionByValue(type, newValue);
+    }
+    if (value && value !== newValue) {
       setValue(newValue);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

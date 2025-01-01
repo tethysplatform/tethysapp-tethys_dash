@@ -6,10 +6,7 @@ import Image from "components/visualizations/Image";
 import DataInput from "components/inputs/DataInput";
 import TextEditor from "components/inputs/TextEditor";
 import MapVisualization from "components/visualizations/Map";
-import {
-  setVisualization,
-  getBaseMapLayer,
-} from "components/visualizations/utilities";
+import { setVisualization } from "components/visualizations/utilities";
 import {
   AppContext,
   VariableInputsContext,
@@ -244,11 +241,11 @@ function VisualizationPane({
       );
       itemData.args = updatedGridItemArgs;
       if (selectedVizTypeOption["value"] === "Map") {
-        const baseMapLayer = getBaseMapLayer(updatedGridItemArgs["base_map"]);
-        const layers = [baseMapLayer];
+        const layers = [];
         setViz(
           <MapVisualization
             visualizationRef={visualizationRef}
+            baseMap={updatedGridItemArgs["base_map"]}
             layers={layers}
           />
         );

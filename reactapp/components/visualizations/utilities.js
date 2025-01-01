@@ -232,3 +232,18 @@ export function getBaseMapLayer(baseMapURL) {
 
   return layer_dict;
 }
+
+export function findSelectOptionByValue(data, searchValue) {
+  for (const element of data) {
+    if (element.value === searchValue) {
+      return element; // Return the matching element
+    }
+    if (element.options && Array.isArray(element.options)) {
+      const found = findSelectOptionByValue(element.options, searchValue); // Recursively search in options
+      if (found) {
+        return found; // Return the matching element from nested options
+      }
+    }
+  }
+  return null; // Return null if no match is found
+}

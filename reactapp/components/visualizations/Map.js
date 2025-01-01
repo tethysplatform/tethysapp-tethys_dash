@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Map } from "components/backlayer";
 import PropTypes from "prop-types";
+import { getBaseMapLayer } from "components/visualizations/utilities";
 
 const MapVisualization = ({
   mapConfig,
@@ -8,7 +9,13 @@ const MapVisualization = ({
   layers,
   legend,
   visualizationRef,
+  baseMap,
 }) => {
+  if (baseMap) {
+    const baseMapLayer = getBaseMapLayer(baseMap);
+    layers.push(baseMapLayer);
+  }
+
   return (
     <Map
       mapConfig={mapConfig}

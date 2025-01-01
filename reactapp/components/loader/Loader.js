@@ -81,7 +81,10 @@ function Loader({ children }) {
                   source: "Map",
                   value: "Map",
                   label: "Map",
-                  args: { base_map: baseMapLayers },
+                  args: {
+                    base_map: baseMapLayers,
+                    additional_layers: "multiinput",
+                  },
                 },
                 {
                   source: "Custom Image",

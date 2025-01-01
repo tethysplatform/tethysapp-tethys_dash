@@ -8,7 +8,6 @@ import MapVisualization from "components/visualizations/Map";
 import {
   setVisualization,
   updateGridItemArgsWithVariableInputs,
-  getBaseMapLayer,
 } from "components/visualizations/utilities";
 import {
   EditingContext,
@@ -55,11 +54,11 @@ const BaseVisualization = ({
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
       gridItemSource.current = source;
       if (source === "Map") {
-        const baseMapLayer = getBaseMapLayer(updatedGridItemArgs["base_map"]);
-        const layers = [baseMapLayer];
+        const layers = [];
         setViz(
           <MapVisualization
             visualizationRef={visualizationRef}
+            baseMap={updatedGridItemArgs["base_map"]}
             layers={layers}
           />
         );
@@ -90,11 +89,11 @@ const BaseVisualization = ({
         gridItemSource.current = source;
 
         if (source === "Map") {
-          const baseMapLayer = getBaseMapLayer(updatedGridItemArgs["base_map"]);
-          const layers = [baseMapLayer];
+          const layers = [];
           setViz(
             <MapVisualization
               visualizationRef={visualizationRef}
+              baseMap={updatedGridItemArgs["base_map"]}
               layers={layers}
             />
           );
