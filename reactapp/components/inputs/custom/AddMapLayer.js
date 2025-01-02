@@ -3,6 +3,7 @@ import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
 import styled from "styled-components";
 import MapLayerModal from "components/modals/MapLayer";
+import DraggableList from "components/inputs/DraggableList";
 
 const StyledValue = styled.span`
   width: auto;
@@ -17,11 +18,12 @@ const StyledRow = styled(Row)`
 const StyledDiv = styled.div`
   overflow-x: auto;
   white-space: nowrap;
-  width: auto;
+  width: fit-content;
   border: 1px solid #ccc;
   margin-right: 0.5rem;
   padding-right: 0;
   background-color: #b8eeff;
+  margin: 0.25rem auto;
 `;
 const StyledButton = styled.button`
   margin-left: 0.5rem;
@@ -36,60 +38,47 @@ export const AddMapLayer = ({
   setShowingSubModal,
 }) => {
   const [showModal, setShowModal] = useState(false);
-  const [draggingItem, setDraggingItem] = useState();
-  const [newItemName, setNewItemName] = useState("");
-  const [mapLayers, setMapLayers] = useState(values);
+  const mapLayers = useRef(values);
   const existingLayerInfo = useRef();
+  let updatedMapLayers;
 
   useEffect(() => {
     setShowingSubModal(showModal);
   }, [showModal]);
 
-  const handleDragStart = (e, item) => {
-    setDraggingItem(item);
-    e.dataTransfer.setData("text/plain", "");
-  };
-
-  const handleDragEnd = () => {
-    setDraggingItem(null);
-  };
-
-  const handleDragOver = (e) => {
-    e.preventDefault();
-  };
-
-  const handleDrop = (e, targetItem) => {
-    if (!draggingItem) return;
-
-    const currentIndex = mapLayers.indexOf(draggingItem);
-    const targetIndex = mapLayers.indexOf(targetItem);
-
-    if (currentIndex !== -1 && targetIndex !== -1) {
-      mapLayers.splice(currentIndex, 1);
-      mapLayers.splice(targetIndex, 0, draggingItem);
-    }
-    setMapLayers(mapLayers);
-  };
-
   const addMapLayer = (value) => {
-    let updatedMapLayers = mapLayers;
+    updatedMapLayers = mapLayers.current;
     if (existingLayerInfo.current) {
-      updatedMapLayers = mapLayers.filter(
+      const targetIndex = mapLayers.current.indexOf(existingLayerInfo.current);
+      updatedMapLayers = mapLayers.current.filter(
         (t) => t.props.name !== existingLayerInfo.current.props.name
       );
+      updatedMapLayers.splice(targetIndex, 0, value);
+    } else {
+      updatedMapLayers = [...updatedMapLayers, value];
     }
-    setMapLayers([...updatedMapLayers, value]);
-    onChange(mapLayers);
+    mapLayers.current = updatedMapLayers;
+    onChange(updatedMapLayers);
   };
 
   const removeMapLayer = (mapLayerName) => {
-    setMapLayers(mapLayers.filter((t) => t.props.name !== mapLayerName));
-    onChange(mapLayers);
+    updatedMapLayers = mapLayers.current.filter(
+      (t) => t.props.name !== mapLayerName
+    );
+    mapLayers.current = updatedMapLayers;
+    onChange(updatedMapLayers);
+  };
+
+  const onOrderUpdate = (newOrder) => {
+    mapLayers.current = newOrder;
+    onChange(newOrder);
   };
 
   const editMapLayer = (mapLayerName) => {
-    const mapLayer = mapLayers.find((t) => t.props.name === mapLayerName);
-    existingLayerInfo.current = mapLayer;
+    const existingMapLayer = mapLayers.current.find(
+      (t) => t.props.name === mapLayerName
+    );
+    existingLayerInfo.current = existingMapLayer;
     setShowModal(true);
   };
 
@@ -102,6 +91,26 @@ export const AddMapLayer = ({
     setShowModal(false);
   }
 
+  const mapLayerTemplate = ({ value }) => {
+    return (
+      <StyledDiv>
+        {value.props.name}
+        <StyledButton
+          onClick={() => removeMapLayer(value.props.name)}
+          title={`Remove ${value.props.name}`}
+        >
+          x
+        </StyledButton>
+        <StyledButton
+          onClick={() => editMapLayer(value.props.name)}
+          title={`Edit ${value.props.name}`}
+        >
+          edit
+        </StyledButton>
+      </StyledDiv>
+    );
+  };
+
   return (
     <>
       <Container>
@@ -109,34 +118,11 @@ export const AddMapLayer = ({
           <button onClick={openModal}>Add Layer</button>
           <br />
         </Row>
-
-        {mapLayers.map((value, index) => (
-          <StyledRow
-            key={index}
-            onDragStart={(e) => handleDragStart(e, value)}
-            onDragEnd={handleDragEnd}
-            onDragOver={handleDragOver}
-            onDrop={(e) => handleDrop(e, value)}
-            className={`${value === draggingItem ? "dragging" : ""}`}
-            draggable="true"
-          >
-            <StyledDiv>
-              {value.props.name}
-              <StyledButton
-                onClick={() => removeMapLayer(value.props.name)}
-                title={`Remove ${value.props.name}`}
-              >
-                x
-              </StyledButton>
-              <StyledButton
-                onClick={() => editMapLayer(value.props.name)}
-                title={`Edit ${value.props.name}`}
-              >
-                edit
-              </StyledButton>
-            </StyledDiv>
-          </StyledRow>
-        ))}
+        <DraggableList
+          items={mapLayers.current}
+          onOrderUpdate={onOrderUpdate}
+          itemTemplate={mapLayerTemplate}
+        />
       </Container>
       {showModal && (
         <MapLayerModal

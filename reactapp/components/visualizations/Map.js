@@ -13,15 +13,18 @@ const MapVisualization = ({
 }) => {
   if (baseMap) {
     const baseMapLayer = getBaseMapLayer(baseMap);
-    layers.push(baseMapLayer);
+    layers.splice(0, 0, baseMapLayer);
   }
+  layers.forEach((layer, index) => {
+    layer.props.zIndex = index;
+  });
 
   return (
     <Map
       mapConfig={mapConfig}
       viewConfig={viewConfig}
       layers={layers}
-      legend={legend}
+      legend={legend ?? []}
       ref={visualizationRef}
       data-testid="backlayer-map"
     />

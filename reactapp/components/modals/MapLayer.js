@@ -34,14 +34,15 @@ const MapLayerModal = ({
   existingLayerInfo,
 }) => {
   const [url, setUrl] = useState(
-    existingLayerInfo.current &&
-      existingLayerInfo.current.props.source.props.url
+    existingLayerInfo.current
+      ? existingLayerInfo.current.props.source.props.url
+      : ""
   );
   const [layerType, setLayerType] = useState(
-    existingLayerInfo.current && existingLayerInfo.current.type
+    existingLayerInfo.current && existingLayerInfo.current.props.source.type
   );
   const [name, setName] = useState(
-    existingLayerInfo.current && existingLayerInfo.current.props.name
+    existingLayerInfo.current ? existingLayerInfo.current.props.name : ""
   );
   const [errorMessage, setErrorMessage] = useState(null);
 
@@ -51,7 +52,7 @@ const MapLayerModal = ({
       return;
     }
     addMapLayer({
-      type: layerType,
+      type: layerType.includes("Image") ? "ImageLayer" : "VectorLayer",
       props: {
         source: {
           type: layerType,

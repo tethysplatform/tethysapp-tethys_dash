@@ -54,26 +54,11 @@ const BaseVisualization = ({
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
       gridItemSource.current = source;
       if (source === "Map") {
-        const layers = [
-          {
-            type: "ImageArcGISRest",
-            props: {
-              source: {
-                type: "ImageArcGISRest",
-                props: {
-                  url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
-                },
-              },
-              name: "Geoglows Streamflow",
-              zIndex: 2,
-            },
-          },
-        ];
         setViz(
           <MapVisualization
             visualizationRef={visualizationRef}
             baseMap={updatedGridItemArgs["base_map"]}
-            layers={layers}
+            layers={updatedGridItemArgs["additional_layers"]}
           />
         );
       } else {
@@ -103,26 +88,11 @@ const BaseVisualization = ({
         gridItemSource.current = source;
 
         if (source === "Map") {
-          const layers = [
-            {
-              type: "ImageLayer",
-              props: {
-                source: {
-                  type: "ImageArcGISRest",
-                  props: {
-                    url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
-                  },
-                },
-                name: "Geoglows Streamflow",
-                zIndex: 2,
-              },
-            },
-          ];
           setViz(
             <MapVisualization
               visualizationRef={visualizationRef}
               baseMap={updatedGridItemArgs["base_map"]}
-              layers={layers}
+              layers={updatedGridItemArgs["additional_layers"]}
             />
           );
         } else {
