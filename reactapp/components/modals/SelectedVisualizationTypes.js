@@ -20,7 +20,7 @@ const StyledModalBody = styled(Modal.Body)`
 
 function SelectedVisualizationTypesModal({
   showModal,
-  setShowModal,
+  handleModalClose,
   deselectedVisualizations,
   setDeselectedVisualizations,
 }) {
@@ -118,7 +118,7 @@ function SelectedVisualizationTypesModal({
       <Modal
         className="visualization-type-settings"
         show={showModal}
-        onHide={() => setShowModal(false)}
+        onHide={handleModalClose}
         aria-label={"Selected Visualization Type Modal"}
       >
         <Modal.Header closeButton>
@@ -170,7 +170,7 @@ function SelectedVisualizationTypesModal({
           )}
           <Button
             variant="secondary"
-            onClick={() => setShowModal(false)}
+            onClick={handleModalClose}
             aria-label={"Close Modal Button"}
           >
             Close
@@ -192,7 +192,7 @@ function SelectedVisualizationTypesModal({
 
 SelectedVisualizationTypesModal.propTypes = {
   showModal: PropTypes.bool,
-  setShowModal: PropTypes.func,
+  handleModalClose: PropTypes.func,
   deselectedVisualizations: PropTypes.arrayOf([PropTypes.string]),
   setDeselectedVisualizations: PropTypes.func,
 };

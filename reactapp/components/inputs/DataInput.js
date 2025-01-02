@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import Form from "react-bootstrap/Form";
@@ -9,6 +9,7 @@ import {
 } from "components/contexts/Contexts";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import MultiInput from "components/inputs/MultiInput";
+import * as customInputs from "components/inputs/Custom";
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
@@ -23,7 +24,16 @@ const InlineFormCheck = styled(Form.Check)`
   display: inline;
 `;
 
-const Input = ({ label, type, onChange, value, index, valueOptions }) => {
+const Input = ({
+  label,
+  type,
+  onChange,
+  value,
+  index,
+  valueOptions,
+  includeVariableInputs,
+  setShowingSubModal,
+}) => {
   const { variableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
@@ -42,7 +52,11 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
         inputValue = value;
       }
     }
-    if (inDataViewerMode && label !== "Variable Options Source") {
+    if (
+      inDataViewerMode &&
+      includeVariableInputs !== false &&
+      label !== "Variable Options Source"
+    ) {
       const availableVariableInputs = Object.keys(variableInputValues);
       if (availableVariableInputs.length !== 0) {
         options.push({
@@ -102,6 +116,20 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
         values={value}
       />
     );
+  } else if (typeof type === "string" && type.includes("custom-")) {
+    const customInput = type.replace("custom-", "");
+    const CustomComponent = customInputs[customInput];
+    return (
+      <CustomComponent
+        label={label}
+        aria-label={label + " Input"}
+        onChange={(values) => {
+          onChange(values, index);
+        }}
+        values={value}
+        setShowingSubModal={setShowingSubModal}
+      />
+    );
   } else {
     return (
       <>
@@ -124,7 +152,13 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
   }
 };
 
-const DataInput = ({ objValue, onChange, index }) => {
+const DataInput = ({
+  objValue,
+  onChange,
+  index,
+  includeVariableInputs,
+  setShowingSubModal,
+}) => {
   const { label, type, value, valueOptions } = objValue;
 
   return (
@@ -138,6 +172,8 @@ const DataInput = ({ objValue, onChange, index }) => {
             value={value}
             valueOptions={valueOptions}
             index={index}
+            includeVariableInputs={includeVariableInputs}
+            setShowingSubModal={setShowingSubModal}
           />
         </StyledDiv>
       )}

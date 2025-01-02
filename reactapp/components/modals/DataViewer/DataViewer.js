@@ -61,8 +61,7 @@ function DataViewerModal({
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );
-  const [showVisualizationTypeSettings, setShowVisualizationTypeSettings] =
-    useState(false);
+  const [showingSubModal, setShowingSubModal] = useState(false);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   const gridMetadata = JSON.parse(metadataString);
@@ -185,7 +184,7 @@ function DataViewerModal({
         onHide={activeAppTour ? closeAndSetAppTour : handleModalClose}
         className="dataviewer"
         dialogClassName="semiWideModalDialog"
-        style={showVisualizationTypeSettings && { zIndex: 1050 }}
+        style={showingSubModal && { zIndex: 1050 }}
         aria-label={"DataViewer Modal"}
       >
         <Modal.Header closeButton>
@@ -225,12 +224,7 @@ function DataViewerModal({
                       setVariableInputValue={setVariableInputValue}
                       settingsRef={settingsRef}
                       visualizationRef={visualizationRef}
-                      showVisualizationTypeSettings={
-                        showVisualizationTypeSettings
-                      }
-                      setShowVisualizationTypeSettings={
-                        setShowVisualizationTypeSettings
-                      }
+                      setShowingSubModal={setShowingSubModal}
                     />
                   </Tab>
                   <Tab

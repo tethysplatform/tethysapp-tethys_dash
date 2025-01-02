@@ -36,6 +36,32 @@ const InLineButtonDiv = styled.div`
   display: inline-block;
 `;
 
+const VisualizationArguments = ({
+  selectedVizTypeOption,
+  vizInputsValues,
+  handleInputChange,
+  setShowingSubModal,
+}) => {
+  if (!selectedVizTypeOption || selectedVizTypeOption["value"] === "Text") {
+    return null;
+  }
+
+  const VizArgs = [];
+  vizInputsValues.forEach((obj, index) => {
+    VizArgs.push(
+      <DataInput
+        key={index}
+        objValue={obj}
+        onChange={handleInputChange}
+        index={index}
+        setShowingSubModal={setShowingSubModal}
+      />
+    );
+  });
+
+  return VizArgs;
+};
+
 function VisualizationPane({
   source,
   argsString,
@@ -50,14 +76,18 @@ function VisualizationPane({
   setVariableInputValue,
   settingsRef,
   visualizationRef,
-  showVisualizationTypeSettings,
-  setShowVisualizationTypeSettings,
+  setShowingSubModal,
 }) {
   const [deselectedVisualizations, setDeselectedVisualizations] = useState(
     localStorage.getItem("deselected_visualizations") || []
   );
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
+  const [
+    showVisualizationTypeSettingsModal,
+    setShowVisualizationTypeSettingsModal,
+  ] = useState(false);
+  const [showMapLayerModal, setShowMapLayerModal] = useState(false);
   const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useContext(VariableInputsContext);
   const { activeAppTour } = useAppTourContext();
@@ -241,7 +271,21 @@ function VisualizationPane({
       );
       itemData.args = updatedGridItemArgs;
       if (selectedVizTypeOption["value"] === "Map") {
-        const layers = [];
+        const layers = [
+          {
+            type: "ImageLayer",
+            props: {
+              source: {
+                type: "ImageArcGISRest",
+                props: {
+                  url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+                },
+              },
+              name: "Geoglows Streamflow",
+              zIndex: 2,
+            },
+          },
+        ];
         setViz(
           <MapVisualization
             visualizationRef={visualizationRef}
@@ -265,7 +309,10 @@ function VisualizationPane({
           onClick={
             activeAppTour
               ? () => {}
-              : () => setShowVisualizationTypeSettings(true)
+              : () => {
+                  setShowVisualizationTypeSettingsModal(true);
+                  setShowingSubModal(true);
+                }
           }
         >
           <BsGear size="1.5rem" />
@@ -281,20 +328,19 @@ function VisualizationPane({
           className={"visualizationTypeDropdown"}
         />
       </InLineInputDiv>
-      {selectedVizTypeOption &&
-        selectedVizTypeOption["value"] !== "Text" &&
-        vizInputsValues.map((obj, index) => (
-          <DataInput
-            key={index}
-            objValue={obj}
-            onChange={handleInputChange}
-            index={index}
-          />
-        ))}
-      {showVisualizationTypeSettings && (
+      <VisualizationArguments
+        selectedVizTypeOption={selectedVizTypeOption}
+        vizInputsValues={vizInputsValues}
+        handleInputChange={handleInputChange}
+        setShowingSubModal={setShowingSubModal}
+      />
+      {showVisualizationTypeSettingsModal && (
         <SelectedVisualizationTypesModal
-          showModal={showVisualizationTypeSettings}
-          setShowModal={setShowVisualizationTypeSettings}
+          showModal={showVisualizationTypeSettingsModal}
+          handleModalClose={() => {
+            setShowVisualizationTypeSettingsModal(false);
+            setShowingSubModal(false);
+          }}
           deselectedVisualizations={deselectedVisualizations}
           setDeselectedVisualizations={setDeselectedVisualizations}
         />
@@ -342,8 +388,7 @@ VisualizationPane.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
-  showVisualizationTypeSettings: PropTypes.bool,
-  setShowVisualizationTypeSettings: PropTypes.func,
+  setShowingSubModal: PropTypes.func,
 };
 
 export default VisualizationPane;

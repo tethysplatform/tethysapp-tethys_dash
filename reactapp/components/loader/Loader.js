@@ -83,7 +83,7 @@ function Loader({ children }) {
                   label: "Map",
                   args: {
                     base_map: baseMapLayers,
-                    additional_layers: "multiinput",
+                    additional_layers: "custom-AddMapLayer",
                   },
                 },
                 {
