@@ -12,15 +12,11 @@ const layerTypes = [
 ];
 
 const ConfigurationPane = ({ layerInfo }) => {
-  const [url, setUrl] = useState(
-    layerInfo.current ? layerInfo.current.url : ""
-  );
+  const [url, setUrl] = useState(layerInfo.current.url ?? "");
   const [layerType, setLayerType] = useState(
-    layerInfo.current && layerInfo.current.layerType
+    layerInfo.current.layerType ?? null
   );
-  const [name, setName] = useState(
-    layerInfo.current ? layerInfo.current.name : ""
-  );
+  const [name, setName] = useState(layerInfo.current.name ?? "");
 
   return (
     <>

@@ -166,7 +166,7 @@ function DashboardLayout() {
         onLayoutChange={(newLayout) => updateLayout(newLayout)}
         isDraggable={false}
         isResizable={false}
-        draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer"
+        draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.react-tiny-popover-container"
         onResize={handleResize}
       >
         {items}

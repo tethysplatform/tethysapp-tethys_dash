@@ -85,9 +85,9 @@ export const AddMapLayer = ({ onChange, values, setShowingSubModal }) => {
     setShowModal(false);
   }
 
-  const mapLayerTemplate = ({ value }) => {
+  const mapLayerTemplate = ({ value, draggingProps }) => {
     return (
-      <StyledDiv>
+      <StyledDiv {...draggingProps}>
         {value.props.name}
         <StyledButton
           onClick={() => removeMapLayer(value.props.name)}

@@ -41,19 +41,18 @@ const DraggableList = ({ items, onOrderUpdate, itemTemplate }) => {
 
   return (
     <>
-      {itemsList.map((value, index) => (
-        <StyledDiv
-          key={index}
-          onDragStart={(e) => handleDragStart(e, value)}
-          onDragEnd={handleDragEnd}
-          onDragOver={handleDragOver}
-          onDrop={(e) => handleDrop(e, value)}
-          className={`${value === draggingItem ? "dragging" : ""}`}
-          draggable="true"
-        >
-          {itemTemplate({ value, index })}
-        </StyledDiv>
-      ))}
+      {itemsList.map((value, index) => {
+        const draggingProps = {
+          key: index,
+          onDragStart: (e) => handleDragStart(e, value),
+          onDragEnd: handleDragEnd,
+          onDragOver: handleDragOver,
+          onDrop: (e) => handleDrop(e, value),
+          draggable: "true",
+        };
+
+        return itemTemplate({ value, index, draggingProps });
+      })}
     </>
   );
 };

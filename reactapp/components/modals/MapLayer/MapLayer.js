@@ -8,6 +8,7 @@ import Alert from "react-bootstrap/Alert";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import ConfigurationPane from "components/modals/MapLayer/ConfigurationPane";
+import LegendPane from "components/modals/MapLayer/LegendPane";
 import "components/modals/wideModal.css";
 
 const StyledModal = styled(Modal)`
@@ -21,14 +22,6 @@ const StyledModalHeader = styled(Modal.Header)`
 const StyledModalBody = styled(Modal.Body)`
   height: 95%;
 `;
-
-const layerTypes = [
-  "ImageLayer",
-  "VectorLayer",
-  "ImageTile",
-  "ImageArcGISRest",
-  "GeoJSON",
-];
 
 const MapLayerModal = ({
   showModal,
@@ -100,7 +93,9 @@ const MapLayerModal = ({
               title="Legend"
               aria-label="layer-legend-tab"
               className="layer-legend-tab"
-            ></Tab>
+            >
+              <LegendPane layerInfo={layerInfo} />
+            </Tab>
             <Tab
               eventKey="attributes"
               title="Attributes"
