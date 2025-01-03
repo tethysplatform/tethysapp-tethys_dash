@@ -5,6 +5,9 @@ import Button from "react-bootstrap/Button";
 import DataInput from "components/inputs/DataInput";
 import { useState } from "react";
 import Alert from "react-bootstrap/Alert";
+import Tab from "react-bootstrap/Tab";
+import Tabs from "react-bootstrap/Tabs";
+import ConfigurationPane from "components/modals/MapLayer/ConfigurationPane";
 import "components/modals/wideModal.css";
 
 const StyledModal = styled(Modal)`
@@ -31,36 +34,32 @@ const MapLayerModal = ({
   showModal,
   handleModalClose,
   addMapLayer,
-  existingLayerInfo,
+  layerInfo,
 }) => {
-  const [url, setUrl] = useState(
-    existingLayerInfo.current
-      ? existingLayerInfo.current.props.source.props.url
-      : ""
-  );
-  const [layerType, setLayerType] = useState(
-    existingLayerInfo.current && existingLayerInfo.current.props.source.type
-  );
-  const [name, setName] = useState(
-    existingLayerInfo.current ? existingLayerInfo.current.props.name : ""
-  );
+  const [tabKey, setTabKey] = useState("configuration");
   const [errorMessage, setErrorMessage] = useState(null);
 
   function saveLayer() {
-    if (!url || !layerType || !name) {
+    if (
+      !layerInfo.current.url ||
+      !layerInfo.current.layerType ||
+      !layerInfo.current.name
+    ) {
       setErrorMessage("All arguments must be filled out to save the layer");
       return;
     }
     addMapLayer({
-      type: layerType.includes("Image") ? "ImageLayer" : "VectorLayer",
+      type: layerInfo.current.layerType.includes("Image")
+        ? "ImageLayer"
+        : "VectorLayer",
       props: {
         source: {
-          type: layerType,
+          type: layerInfo.current.layerType,
           props: {
-            url: url,
+            url: layerInfo.current.url,
           },
         },
-        name: name,
+        name: layerInfo.current.name,
       },
     });
     handleModalClose();
@@ -82,29 +81,33 @@ const MapLayerModal = ({
               {errorMessage}
             </Alert>
           )}
-          <DataInput
-            objValue={{
-              label: "Layer Type",
-              type: layerTypes,
-              value: layerType,
-            }}
-            onChange={(e) => {
-              setLayerType(e.value);
-            }}
-            includeVariableInputs={false}
-          />
-          <DataInput
-            objValue={{ label: "URL", type: "text", value: url }}
-            onChange={(e) => {
-              setUrl(e);
-            }}
-          />
-          <DataInput
-            objValue={{ label: "Name", type: "text", value: name }}
-            onChange={(e) => {
-              setName(e);
-            }}
-          />
+          <Tabs
+            activeKey={tabKey}
+            onSelect={(k) => setTabKey(k)}
+            id="map-layer-tabs"
+            className="mb-3"
+          >
+            <Tab
+              eventKey="configuration"
+              title="Configuration"
+              aria-label="layer-configuration-tab"
+              className="layer-configuration-tab"
+            >
+              <ConfigurationPane layerInfo={layerInfo} />
+            </Tab>
+            <Tab
+              eventKey="legend"
+              title="Legend"
+              aria-label="layer-legend-tab"
+              className="layer-legend-tab"
+            ></Tab>
+            <Tab
+              eventKey="attributes"
+              title="Attributes"
+              aria-label="layer-attributes-tab"
+              className="layer-attributes-tab"
+            ></Tab>
+          </Tabs>
         </StyledModalBody>
         <Modal.Footer>
           <Button

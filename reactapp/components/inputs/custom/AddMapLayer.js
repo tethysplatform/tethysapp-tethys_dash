@@ -2,19 +2,9 @@ import React, { useState, useRef, useEffect } from "react";
 import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
 import styled from "styled-components";
-import MapLayerModal from "components/modals/MapLayer";
+import MapLayerModal from "components/modals/MapLayer/MapLayer";
 import DraggableList from "components/inputs/DraggableList";
 
-const StyledValue = styled.span`
-  width: auto;
-  border: 1px solid #ccc;
-  margin-right: 0.5rem;
-  padding-right: 0;
-  background-color: #b8eeff;
-`;
-const StyledRow = styled(Row)`
-  padding-top: 0.5rem;
-`;
 const StyledDiv = styled.div`
   overflow-x: auto;
   white-space: nowrap;
@@ -31,27 +21,25 @@ const StyledButton = styled.button`
   background-color: white;
 `;
 
-export const AddMapLayer = ({
-  label,
-  onChange,
-  values,
-  setShowingSubModal,
-}) => {
+export const AddMapLayer = ({ onChange, values, setShowingSubModal }) => {
   const [showModal, setShowModal] = useState(false);
-  const mapLayers = useRef(values);
-  const existingLayerInfo = useRef();
-  let updatedMapLayers;
+  const mapLayers = useRef(values ?? []);
+  const layerInfo = useRef({});
+  let existingLayerName = useRef();
 
   useEffect(() => {
     setShowingSubModal(showModal);
   }, [showModal]);
 
   const addMapLayer = (value) => {
-    updatedMapLayers = mapLayers.current;
-    if (existingLayerInfo.current) {
-      const targetIndex = mapLayers.current.indexOf(existingLayerInfo.current);
+    let updatedMapLayers = mapLayers.current;
+    if (layerInfo.current) {
+      const existingMapLayer = mapLayers.current.find(
+        (t) => t.props.name === existingLayerName.current
+      );
+      const targetIndex = mapLayers.current.indexOf(existingMapLayer);
       updatedMapLayers = mapLayers.current.filter(
-        (t) => t.props.name !== existingLayerInfo.current.props.name
+        (t) => t.props.name !== existingLayerName.current
       );
       updatedMapLayers.splice(targetIndex, 0, value);
     } else {
@@ -62,7 +50,7 @@ export const AddMapLayer = ({
   };
 
   const removeMapLayer = (mapLayerName) => {
-    updatedMapLayers = mapLayers.current.filter(
+    const updatedMapLayers = mapLayers.current.filter(
       (t) => t.props.name !== mapLayerName
     );
     mapLayers.current = updatedMapLayers;
@@ -78,7 +66,12 @@ export const AddMapLayer = ({
     const existingMapLayer = mapLayers.current.find(
       (t) => t.props.name === mapLayerName
     );
-    existingLayerInfo.current = existingMapLayer;
+    layerInfo.current = {
+      layerType: existingMapLayer.props.source.type,
+      url: existingMapLayer.props.source.props.url,
+      name: existingMapLayer.props.name,
+    };
+    existingLayerName.current = existingMapLayer.props.name;
     setShowModal(true);
   };
 
@@ -87,7 +80,8 @@ export const AddMapLayer = ({
   }
 
   function handleModalClose() {
-    existingLayerInfo.current = null;
+    layerInfo.current = {};
+    existingLayerName = null;
     setShowModal(false);
   }
 
@@ -129,7 +123,7 @@ export const AddMapLayer = ({
           showModal={showModal}
           handleModalClose={handleModalClose}
           addMapLayer={addMapLayer}
-          existingLayerInfo={existingLayerInfo}
+          layerInfo={layerInfo}
         />
       )}
     </>
