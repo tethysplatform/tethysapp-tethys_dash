@@ -4,41 +4,25 @@ import Button from "react-bootstrap/Button";
 import { useState, useRef } from "react";
 import Table from "react-bootstrap/Table";
 import DraggableList from "components/inputs/DraggableList";
-import { Popover } from "react-tiny-popover";
+import styled from "styled-components";
+import Overlay from "react-bootstrap/Overlay";
+import Popover from "react-bootstrap/Popover";
 import ColorPicker from "components/inputs/ColorPicker";
 import "components/modals/wideModal.css";
 
-const legendTemplate = ({ value, index, draggingProps }) => {
-  const [isPopoverOpen, setIsPopoverOpen] = useState();
-  const { label, color } = value;
-  return (
-    <tr {...draggingProps}>
-      <td>{label}</td>
-      <td>
-        <Popover
-          isOpen={isPopoverOpen}
-          positions={["top", "bottom", "left", "right"]} // preferred positions by priority
-          content={<ColorPicker color={color} />}
-          containerStyle={{ "z-index": 1060 }}
-        >
-          <div
-            style={{ color }}
-            onClick={() => setIsPopoverOpen(!isPopoverOpen)}
-          >
-            &#9632;
-          </div>
-        </Popover>
-      </td>
-      <td>&#9632;</td>
-    </tr>
-  );
-};
+const StyledDiv = styled.div`
+  margin-top: 0.5rem;
+`;
 
-const LegendPane = ({ layerInfo }) => {
+const RightButton = styled(Button)`
+  float: right;
+`;
+
+const LegendPane = ({ layerInfo, containerRef }) => {
   const [legendMode, setLegendMode] = useState(
     layerInfo.current.legend ? "on" : "off"
   );
-  const legend = useRef(
+  const [legend, setLegend] = useState(
     layerInfo.current.legend ?? [
       { label: "Normal", color: "#4BACCC" },
       { label: "Exceeds 2yr", color: "#F7D23E" },
@@ -47,7 +31,6 @@ const LegendPane = ({ layerInfo }) => {
       { label: "Exceeds 50yr", color: "#BC25F7" },
     ]
   );
-  const [anchorEl, setAnchorEl] = useState();
 
   const valueOptions = [
     { label: "Don't show legend for layer", value: "off" },
@@ -57,21 +40,69 @@ const LegendPane = ({ layerInfo }) => {
   const loadLegend = () => {};
 
   const onOrderUpdate = (newLegend) => {
-    legend.current = newLegend;
     layerInfo.current.legend = newLegend;
+    setLegend(newLegend);
   };
 
-  const onColorChange = (newColor) => {
-    console.log(newColor);
-    // const existingMapLayer = legend.current.find(
-    //   (t) => t.props.name === existingLayerName.current
-    // );
-    // legend.current = newLegend;
-    // layerInfo.current.legend = newLegend;
-  };
+  const legendTemplate = ({ value, index, draggingProps }) => {
+    const [show, setShow] = useState(false);
+    const target = useRef(null);
+    const { label, color } = value;
+    const newColor = useRef(null);
 
-  const openColorPicker = (target, color, index) => {
-    setAnchorEl(target);
+    const onChangeComplete = (changedColor) => {
+      newColor.current = changedColor.hex;
+    };
+
+    const saveColor = () => {
+      if (newColor.current) {
+        legend[index].color = newColor.current;
+        setLegend(legend);
+        setShow(!show);
+      }
+    };
+
+    return (
+      <tr {...draggingProps}>
+        <td>{label}</td>
+        <td>
+          <div style={{ color }} ref={target} onClick={() => setShow(!show)}>
+            &#9632;
+          </div>
+          <Overlay
+            target={target.current}
+            container={containerRef?.current}
+            show={show}
+            placement="right"
+          >
+            <Popover className="color-picker-popover">
+              <Popover.Body>
+                <ColorPicker
+                  color={color}
+                  onChangeComplete={onChangeComplete}
+                />
+                <StyledDiv>
+                  <Button
+                    onClick={() => setShow(!show)}
+                    aria-label={"Cancel Color Button"}
+                  >
+                    Cancel
+                  </Button>
+                  <RightButton
+                    variant="success"
+                    onClick={saveColor}
+                    aria-label={"Save Color Button"}
+                  >
+                    Save
+                  </RightButton>
+                </StyledDiv>
+              </Popover.Body>
+            </Popover>
+          </Overlay>
+        </td>
+        <td>&#9632;</td>
+      </tr>
+    );
   };
 
   return (
@@ -106,7 +137,7 @@ const LegendPane = ({ layerInfo }) => {
             </thead>
             <tbody>
               <DraggableList
-                items={legend.current}
+                items={legend}
                 onOrderUpdate={onOrderUpdate}
                 itemTemplate={legendTemplate}
               />

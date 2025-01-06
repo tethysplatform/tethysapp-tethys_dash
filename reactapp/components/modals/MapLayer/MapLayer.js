@@ -3,7 +3,7 @@ import Modal from "react-bootstrap/Modal";
 import styled from "styled-components";
 import Button from "react-bootstrap/Button";
 import DataInput from "components/inputs/DataInput";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import Alert from "react-bootstrap/Alert";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
@@ -31,6 +31,7 @@ const MapLayerModal = ({
 }) => {
   const [tabKey, setTabKey] = useState("configuration");
   const [errorMessage, setErrorMessage] = useState(null);
+  const containerRef = useRef(null);
 
   function saveLayer() {
     if (
@@ -94,7 +95,9 @@ const MapLayerModal = ({
               aria-label="layer-legend-tab"
               className="layer-legend-tab"
             >
-              <LegendPane layerInfo={layerInfo} />
+              <div ref={containerRef}>
+                <LegendPane layerInfo={layerInfo} containerRef={containerRef} />
+              </div>
             </Tab>
             <Tab
               eventKey="attributes"
