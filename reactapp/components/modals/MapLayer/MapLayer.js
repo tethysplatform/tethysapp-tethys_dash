@@ -43,18 +43,21 @@ const MapLayerModal = ({
       return;
     }
     addMapLayer({
-      type: layerInfo.current.layerType.includes("Image")
-        ? "ImageLayer"
-        : "VectorLayer",
-      props: {
-        source: {
-          type: layerInfo.current.layerType,
-          props: {
-            url: layerInfo.current.url,
+      configuration: {
+        type: layerInfo.current.layerType.includes("Image")
+          ? "ImageLayer"
+          : "VectorLayer",
+        props: {
+          source: {
+            type: layerInfo.current.layerType,
+            props: {
+              url: layerInfo.current.url,
+            },
           },
+          name: layerInfo.current.name,
         },
-        name: layerInfo.current.name,
       },
+      legend: layerInfo.current.legend ?? null,
     });
     handleModalClose();
   }

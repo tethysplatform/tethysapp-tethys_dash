@@ -1,108 +1,219 @@
 import PropTypes from "prop-types";
 import DataInput from "components/inputs/DataInput";
 import Button from "react-bootstrap/Button";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Table from "react-bootstrap/Table";
 import DraggableList from "components/inputs/DraggableList";
 import styled from "styled-components";
 import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";
 import ColorPicker from "components/inputs/ColorPicker";
+import CustomPicker from "components/inputs/CustomPicker";
+import { BsTrash } from "react-icons/bs";
+import {
+  BsFillTriangleFill,
+  BsFillSquareFill,
+  BsFillCircleFill,
+} from "react-icons/bs";
+import { RiRectangleFill } from "react-icons/ri";
+import { IoAnalyticsOutline } from "react-icons/io5";
+import {
+  legendSymbols,
+  getLegendSymbol,
+} from "components/backlayer/control/Legend";
 import "components/modals/wideModal.css";
 
-const StyledDiv = styled.div`
-  margin-top: 0.5rem;
+const ColoredUpTriangle = styled(BsFillTriangleFill)`
+  color: ${(props) => props.color};
 `;
 
-const RightButton = styled(Button)`
-  float: right;
+const ColoredRightTriangle = styled(BsFillTriangleFill)`
+  transform: rotate(90deg);
+  color: ${(props) => props.color};
 `;
+
+const ColoredDownTriangle = styled(BsFillTriangleFill)`
+  transform: rotate(180deg);
+  color: ${(props) => props.color};
+`;
+
+const ColoredLeftTriangle = styled(BsFillTriangleFill)`
+  transform: rotate(270deg);
+  color: ${(props) => props.color};
+`;
+
+const ColoredSquare = styled(BsFillSquareFill)`
+  color: ${(props) => props.color};
+`;
+
+const ColoredCircle = styled(BsFillCircleFill)`
+  color: ${(props) => props.color};
+`;
+
+const ColoredRectangle = styled(RiRectangleFill)`
+  color: ${(props) => props.color};
+`;
+
+const ColoredLine = styled(IoAnalyticsOutline)`
+  color: ${(props) => props.color};
+`;
+
+const StyledLabel = styled.label`
+  width: 100%;
+`;
+
+const RedIcon = styled(BsTrash)`
+  color: red;
+`;
+
+const LegendTemplate = ({
+  value,
+  index,
+  draggingProps,
+  containerRef,
+  legendItems,
+  setLegendItems,
+}) => {
+  const { label, color, symbol } = value;
+  const [symbolColor, setSymbolColor] = useState(color);
+  const [showColorPopover, setShowColorPopover] = useState(false);
+  const [localLabel, setLocalLabel] = useState(label);
+  const colorTarget = useRef(null);
+  const [symbolValue, setSymbolValue] = useState(symbol);
+  const [symbolComponent, setSymbolComponent] = useState();
+
+  useEffect(() => {
+    setLocalLabel(label);
+    setSymbolColor(color);
+    setSymbolValue(symbol);
+  }, [label, color, symbol]);
+
+  useEffect(() => {
+    legendItems[index].symbol = symbolValue;
+    legendItems[index].color = symbolColor;
+    setSymbolComponent(getLegendSymbol(symbolValue, symbolColor));
+    setLegendItems(legendItems);
+  }, [symbolValue, symbolColor]);
+
+  const onColorChange = (changedColor) => {
+    setSymbolColor(changedColor.hex);
+  };
+
+  const onLabelChange = (e) => {
+    legendItems[index].label = e.target.value;
+    setLocalLabel(e.target.value);
+    setLegendItems(legendItems);
+  };
+
+  const deleteRow = () => {
+    const newLegend = legendItems.filter(
+      (_, arrayIndex) => arrayIndex !== index
+    );
+    setLegendItems(newLegend);
+    setShowColorPopover(false);
+  };
+
+  return (
+    <tr {...draggingProps}>
+      <td>
+        <input value={localLabel} onChange={onLabelChange}></input>
+      </td>
+      <td>
+        <div
+          ref={colorTarget}
+          onClick={() => setShowColorPopover(!showColorPopover)}
+        >
+          {symbolComponent}
+        </div>
+        <Overlay
+          target={colorTarget.current}
+          container={containerRef?.current}
+          show={showColorPopover}
+          placement="right"
+          rootClose={true}
+          onHide={() => setShowColorPopover(false)}
+        >
+          <Popover className="color-picker-popover">
+            <Popover.Body>
+              <StyledLabel>
+                <b>Symbol</b>:{" "}
+                <CustomPicker
+                  maxColCount={3}
+                  pickerOptions={legendSymbols}
+                  setPickervalue={setSymbolValue}
+                />
+              </StyledLabel>
+              <StyledLabel>
+                <b>Color</b>:{" "}
+                <ColorPicker color={color} onChangeComplete={onColorChange} />
+              </StyledLabel>
+            </Popover.Body>
+          </Popover>
+        </Overlay>
+      </td>
+      <td></td>
+      <td>
+        <div onClick={deleteRow}>
+          <RedIcon size={"1rem"} />
+        </div>
+      </td>
+    </tr>
+  );
+};
 
 const LegendPane = ({ layerInfo, containerRef }) => {
   const [legendMode, setLegendMode] = useState(
     layerInfo.current.legend ? "on" : "off"
   );
-  const [legend, setLegend] = useState(
-    layerInfo.current.legend ?? [
-      { label: "Normal", color: "#4BACCC" },
-      { label: "Exceeds 2yr", color: "#F7D23E" },
-      { label: "Exceeds 10yr", color: "#FF813D" },
-      { label: "Exceeds 25yr", color: "#FA4343" },
-      { label: "Exceeds 50yr", color: "#BC25F7" },
-    ]
+  const [legendItems, setLegendItems] = useState(
+    layerInfo.current.legend?.items ?? []
   );
+  const [legendTitle, setLegendTitle] = useState(
+    layerInfo.current.legend?.title ?? ""
+  );
+  const previousLegendInfo = useRef(layerInfo.current.legend ?? {});
+
+  useEffect(() => {
+    if (legendMode === "off") return;
+
+    layerInfo.current.legend.title = legendTitle;
+    layerInfo.current.legend.items = legendItems;
+  }, [legendItems, legendTitle]);
 
   const valueOptions = [
     { label: "Don't show legend for layer", value: "off" },
     { label: "Show legend for layer", value: "on" },
   ];
 
-  const loadLegend = () => {};
-
-  const onOrderUpdate = (newLegend) => {
-    layerInfo.current.legend = newLegend;
-    setLegend(newLegend);
+  const addLegendItem = () => {
+    setLegendItems((previousLegendItems) => [
+      ...previousLegendItems,
+      { label: "", color: "#ff0000", symbol: "square" },
+    ]);
   };
 
-  const legendTemplate = ({ value, index, draggingProps }) => {
-    const [show, setShow] = useState(false);
-    const target = useRef(null);
-    const { label, color } = value;
-    const newColor = useRef(null);
+  const onOrderUpdate = (newLegendItems) => {
+    setLegendItems(newLegendItems);
+  };
 
-    const onChangeComplete = (changedColor) => {
-      newColor.current = changedColor.hex;
-    };
+  const changeLegendMode = (e) => {
+    if (e === "off") {
+      previousLegendInfo.current = layerInfo.current.legend;
+      layerInfo.current.legend = null;
+    } else {
+      layerInfo.current.legend = previousLegendInfo.current;
+    }
+    setLegendMode(e);
+  };
 
-    const saveColor = () => {
-      if (newColor.current) {
-        legend[index].color = newColor.current;
-        setLegend(legend);
-        setShow(!show);
-      }
-    };
+  const onTitleChange = (e) => {
+    setLegendTitle(e.target.value);
+  };
 
-    return (
-      <tr {...draggingProps}>
-        <td>{label}</td>
-        <td>
-          <div style={{ color }} ref={target} onClick={() => setShow(!show)}>
-            &#9632;
-          </div>
-          <Overlay
-            target={target.current}
-            container={containerRef?.current}
-            show={show}
-            placement="right"
-          >
-            <Popover className="color-picker-popover">
-              <Popover.Body>
-                <ColorPicker
-                  color={color}
-                  onChangeComplete={onChangeComplete}
-                />
-                <StyledDiv>
-                  <Button
-                    onClick={() => setShow(!show)}
-                    aria-label={"Cancel Color Button"}
-                  >
-                    Cancel
-                  </Button>
-                  <RightButton
-                    variant="success"
-                    onClick={saveColor}
-                    aria-label={"Save Color Button"}
-                  >
-                    Save
-                  </RightButton>
-                </StyledDiv>
-              </Popover.Body>
-            </Popover>
-          </Overlay>
-        </td>
-        <td>&#9632;</td>
-      </tr>
-    );
+  const templateArgs = {
+    containerRef,
+    legendItems,
+    setLegendItems,
   };
 
   return (
@@ -114,20 +225,19 @@ const LegendPane = ({ layerInfo, containerRef }) => {
           value: legendMode,
           valueOptions,
         }}
-        onChange={(e) => {
-          setLegendMode(e);
-        }}
+        onChange={changeLegendMode}
       />
       {legendMode === "on" && (
         <div>
+          <input value={legendTitle} onChange={onTitleChange}></input>
           <Button
             variant="secondary"
-            onClick={loadLegend()}
-            aria-label={"Load Legend Button"}
+            onClick={addLegendItem}
+            aria-label={"Add Legend Item Button"}
           >
-            Load Legend
+            Add Legend Item
           </Button>
-          <Table striped bordered hover>
+          <Table striped bordered hover size="sm">
             <thead>
               <tr>
                 <th>Label</th>
@@ -137,9 +247,10 @@ const LegendPane = ({ layerInfo, containerRef }) => {
             </thead>
             <tbody>
               <DraggableList
-                items={legend}
+                items={legendItems}
                 onOrderUpdate={onOrderUpdate}
-                itemTemplate={legendTemplate}
+                ItemTemplate={LegendTemplate}
+                templateArgs={templateArgs}
               />
             </tbody>
           </Table>

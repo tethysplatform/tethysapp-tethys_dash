@@ -196,6 +196,7 @@ Input.propTypes = {
     PropTypes.string,
     PropTypes.bool,
     PropTypes.object,
+    PropTypes.array,
   ]),
   valueOptions: PropTypes.array,
   index: PropTypes.number,

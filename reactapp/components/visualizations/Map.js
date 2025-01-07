@@ -7,15 +7,25 @@ const MapVisualization = ({
   mapConfig,
   viewConfig,
   layers,
-  legend,
   visualizationRef,
   baseMap,
 }) => {
+  const mapLegend = [];
+  const mapLayers = [];
+
+  for (const layer of layers) {
+    if (layer.legend) {
+      mapLegend.push(layer.legend);
+    }
+    mapLayers.push(layer.configuration);
+  }
+
   if (baseMap) {
     const baseMapLayer = getBaseMapLayer(baseMap);
-    layers.splice(0, 0, baseMapLayer);
+    mapLayers.splice(0, 0, baseMapLayer);
   }
-  layers.forEach((layer, index) => {
+
+  mapLayers.forEach((layer, index) => {
     layer.props.zIndex = index;
   });
 
@@ -23,8 +33,8 @@ const MapVisualization = ({
     <Map
       mapConfig={mapConfig}
       viewConfig={viewConfig}
-      layers={layers}
-      legend={legend ?? []}
+      layers={mapLayers}
+      legend={mapLegend}
       ref={visualizationRef}
       data-testid="backlayer-map"
     />

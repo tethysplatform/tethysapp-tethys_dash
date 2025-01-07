@@ -5,7 +5,12 @@ const StyledDiv = styled.div`
   overflow-x: auto;
 `;
 
-const DraggableList = ({ items, onOrderUpdate, itemTemplate }) => {
+const DraggableList = ({
+  items,
+  onOrderUpdate,
+  ItemTemplate,
+  templateArgs,
+}) => {
   const [draggingItem, setDraggingItem] = useState();
   const [itemsList, setItemsList] = useState(items);
 
@@ -51,7 +56,14 @@ const DraggableList = ({ items, onOrderUpdate, itemTemplate }) => {
           draggable: "true",
         };
 
-        return itemTemplate({ value, index, draggingProps });
+        return (
+          <ItemTemplate
+            value={value}
+            index={index}
+            draggingProps={draggingProps}
+            {...templateArgs}
+          />
+        );
       })}
     </>
   );
