@@ -14,6 +14,7 @@ import {
   legendSymbols,
   getLegendSymbol,
 } from "components/backlayer/control/Legend";
+import { RxDragHandleHorizontal } from "react-icons/rx";
 import "components/modals/wideModal.css";
 
 const StyledLabel = styled.label`
@@ -35,12 +36,17 @@ const StyledInput = styled.input`
 
 const InLineInputDiv = styled.div`
   display: inline-block;
-  width: calc(80% - 3.5em);
+  width: calc(
+    ${(props) => (props?.widthBuffer ? props.widthBuffer : "100%")} - 1.5em
+  );
   vertical-align: middle;
 `;
 
 const InLineButtonDiv = styled.div`
   display: inline-block;
+`;
+const AlignedDragHandle = styled(RxDragHandleHorizontal)`
+  margin: auto;
 `;
 
 const LegendTemplate = ({
@@ -93,7 +99,15 @@ const LegendTemplate = ({
   return (
     <tr {...draggingProps}>
       <td>
-        <StyledInput value={localLabel} onChange={onLabelChange}></StyledInput>
+        <InLineButtonDiv>
+          <AlignedDragHandle size={"1rem"} />
+        </InLineButtonDiv>
+        <InLineInputDiv>
+          <StyledInput
+            value={localLabel}
+            onChange={onLabelChange}
+          ></StyledInput>
+        </InLineInputDiv>
       </td>
       <td className="text-center">
         <div
@@ -206,7 +220,7 @@ const LegendPane = ({ layerInfo, containerRef }) => {
       {legendMode === "on" && (
         <>
           <StyledDiv>
-            <InLineInputDiv>
+            <InLineInputDiv widthBuffer={"70%"}>
               <label>
                 <b>Title</b>:{" "}
                 <input value={legendTitle} onChange={onTitleChange}></input>

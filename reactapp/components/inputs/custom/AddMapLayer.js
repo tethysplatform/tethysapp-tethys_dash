@@ -6,21 +6,25 @@ import MapLayerModal from "components/modals/MapLayer/MapLayer";
 import DraggableList from "components/inputs/DraggableList";
 import Button from "react-bootstrap/Button";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
+import { RxDragHandleHorizontal } from "react-icons/rx";
+import Container from "react-bootstrap/Container";
+import Row from "react-bootstrap/Row";
+import Col from "react-bootstrap/Col";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;
   font-size: small;
 `;
-const InLineButtonDiv = styled.div`
+
+const InLineDiv = styled.div`
   display: inline-block;
+  float: ${(props) => props?.float && props.float};
 `;
-const InLineButtonRightDiv = styled.div`
-  display: inline-block;
-  float: right;
-`;
+
 const OverflowTD = styled.td`
   overflow-x: auto;
 `;
+
 const RedTrashIcon = styled(BsTrash)`
   color: red;
 `;
@@ -29,6 +33,9 @@ const BlueEditIcon = styled(BsPencilSquare)`
 `;
 const MarginButton = styled(Button)`
   margin-bottom: 1rem;
+`;
+const AlignedDragHandle = styled(RxDragHandleHorizontal)`
+  margin: auto;
 `;
 /**
  * A component template that will be used to create and handle map layers for the
@@ -107,26 +114,27 @@ const MapLayerTemplate = ({
 
   return (
     <tr {...draggingProps}>
+      <td>
+        <AlignedDragHandle size={"1rem"} />
+      </td>
       <OverflowTD className="text-center">
         {mapLayer.configuration.props.name}
       </OverflowTD>
       <OverflowTD className="text-center">
-        {mapLayer.configuration.props.source.props.url}
-      </OverflowTD>
-      <OverflowTD className="text-center">
-        {mapLayer.configuration.legend ? "On" : "Off"}
+        {mapLayer.legend ? "On" : "Off"}
       </OverflowTD>
       <td>
-        <InLineButtonDiv
+        <InLineDiv
           onClick={() => removeMapLayer(mapLayer.configuration.props.name)}
         >
           <RedTrashIcon size={"1rem"} />
-        </InLineButtonDiv>
-        <InLineButtonRightDiv
+        </InLineDiv>
+        <InLineDiv
+          float={"right"}
           onClick={() => editMapLayer(mapLayer.configuration.props.name)}
         >
           <BlueEditIcon size={"1rem"} />
-        </InLineButtonRightDiv>
+        </InLineDiv>
       </td>
     </tr>
   );
@@ -247,11 +255,9 @@ export const AddMapLayer = ({ onChange, values, setShowingSubModal }) => {
       <FixedTable striped bordered hover size="sm">
         <thead>
           <tr>
-            <th className="text-center" style={{ width: "25%" }}>
+            <th className="text-center" style={{ width: "0%" }}></th>
+            <th className="text-center" style={{ width: "60%" }}>
               Layer Name
-            </th>
-            <th className="text-center" style={{ width: "40%" }}>
-              Layer URL
             </th>
             <th className="text-center" style={{ width: "20%" }}>
               Legend

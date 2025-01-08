@@ -1,9 +1,4 @@
 import React, { useEffect, useState } from "react";
-import styled from "styled-components";
-
-const StyledDiv = styled.div`
-  overflow-x: auto;
-`;
 
 const DraggableList = ({
   items,
