@@ -84,6 +84,7 @@ function Loader({ children }) {
                   args: {
                     base_map: baseMapLayers,
                     additional_layers: "custom-AddMapLayer",
+                    show_layer_controls: "checkbox",
                   },
                 },
                 {

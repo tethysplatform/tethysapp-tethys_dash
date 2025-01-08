@@ -9,6 +9,7 @@ const MapVisualization = ({
   layers,
   visualizationRef,
   baseMap,
+  layerControl,
 }) => {
   const mapLegend = [];
   const mapLayers = [];
@@ -35,6 +36,7 @@ const MapVisualization = ({
       viewConfig={viewConfig}
       layers={mapLayers}
       legend={mapLegend}
+      layerControl={layerControl}
       ref={visualizationRef}
       data-testid="backlayer-map"
     />

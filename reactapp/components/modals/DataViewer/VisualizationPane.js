@@ -269,16 +269,17 @@ function VisualizationPane({
         JSON.stringify(itemData.args),
         variableInputValues
       );
-      itemData.args = updatedGridItemArgs;
       if (selectedVizTypeOption["value"] === "Map") {
         setViz(
           <MapVisualization
             visualizationRef={visualizationRef}
             baseMap={updatedGridItemArgs["base_map"]}
             layers={updatedGridItemArgs["additional_layers"]}
+            layerControl={updatedGridItemArgs["show_layer_controls"]}
           />
         );
       } else {
+        itemData.args = updatedGridItemArgs;
         setVisualization(setViz, itemData, visualizationRef);
       }
     }
