@@ -59,6 +59,7 @@ const BaseVisualization = ({
             visualizationRef={visualizationRef}
             baseMap={updatedGridItemArgs["base_map"]}
             layers={updatedGridItemArgs["additional_layers"]}
+            layerControl={updatedGridItemArgs["show_layer_controls"]}
           />
         );
       } else {
@@ -93,6 +94,7 @@ const BaseVisualization = ({
               visualizationRef={visualizationRef}
               baseMap={updatedGridItemArgs["base_map"]}
               layers={updatedGridItemArgs["additional_layers"]}
+              layerControl={updatedGridItemArgs["show_layer_controls"]}
             />
           );
         } else {

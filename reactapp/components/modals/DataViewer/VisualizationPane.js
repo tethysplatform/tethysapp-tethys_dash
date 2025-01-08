@@ -121,18 +121,23 @@ function VisualizationPane({
             }
 
             for (let arg in vizOptionGroupOption.args) {
-              if (vizOptionGroupOption.args[arg] === "checkbox") {
-                vizOptionGroupOption.args[arg] = [
+              let vizArgType = vizOptionGroupOption.args[arg];
+              let existingArg = existingArgs[arg];
+              if (vizArgType === "checkbox") {
+                vizArgType = [
                   { label: "True", value: true },
                   { label: "False", value: false },
                 ];
+                existingArg = existingArg
+                  ? { label: "True", value: true }
+                  : { label: "False", value: false };
               }
 
               const userInputsValue = {
                 label: spaceAndCapitalize(arg),
                 name: arg,
-                type: vizOptionGroupOption.args[arg],
-                value: existingArgs[arg],
+                type: vizArgType,
+                value: existingArg,
               };
               userInputsValues.push(userInputsValue);
             }

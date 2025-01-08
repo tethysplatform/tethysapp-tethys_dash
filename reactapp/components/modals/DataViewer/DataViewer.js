@@ -112,7 +112,10 @@ function DataViewerModal({
 
         let vizArgs = {};
         for (const vizArg of vizInputsValues) {
-          vizArgs[vizArg.name] = vizArg.value.value || vizArg.value;
+          vizArgs[vizArg.name] =
+            vizArg.value?.value === false
+              ? false
+              : vizArg.value.value || vizArg.value;
         }
         updatedGridItems[gridItemIndex].args_string = JSON.stringify(vizArgs);
 
