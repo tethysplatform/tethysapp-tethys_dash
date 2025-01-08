@@ -25,7 +25,7 @@ import { useAppTourContext } from "components/contexts/AppTourContext";
 import "components/modals/wideModal.css";
 
 const StyledDiv = styled.div`
-  height: 90%;
+  padding-bottom: 1rem;
 `;
 
 const InLineInputDiv = styled.div`

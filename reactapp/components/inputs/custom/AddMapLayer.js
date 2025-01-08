@@ -1,27 +1,35 @@
 import { useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
-import Container from "react-bootstrap/Container";
-import Row from "react-bootstrap/Row";
+import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import MapLayerModal from "components/modals/MapLayer/MapLayer";
 import DraggableList from "components/inputs/DraggableList";
+import Button from "react-bootstrap/Button";
+import { BsPencilSquare, BsTrash } from "react-icons/bs";
 
-const StyledDiv = styled.div`
+const FixedTable = styled(Table)`
+  table-layout: fixed;
+  font-size: small;
+`;
+const InLineButtonDiv = styled.div`
+  display: inline-block;
+`;
+const InLineButtonRightDiv = styled.div`
+  display: inline-block;
+  float: right;
+`;
+const OverflowTD = styled.td`
   overflow-x: auto;
-  white-space: nowrap;
-  width: fit-content;
-  border: 1px solid #ccc;
-  margin-right: 0.5rem;
-  padding-right: 0;
-  background-color: #b8eeff;
-  margin: 0.25rem auto;
 `;
-const StyledButton = styled.button`
-  margin-left: 0.5rem;
-  border: none;
-  background-color: white;
+const RedTrashIcon = styled(BsTrash)`
+  color: red;
 `;
-
+const BlueEditIcon = styled(BsPencilSquare)`
+  color: blue;
+`;
+const MarginButton = styled(Button)`
+  margin-bottom: 1rem;
+`;
 /**
  * A component template that will be used to create and handle map layers for the
  * draggable list.
@@ -42,6 +50,7 @@ const StyledButton = styled.button`
  *   },
  *   legend: <array>,
  * }
+ * @param {number} index - The index of the mapLayer within the MapLayers array
  * @param {object} draggingProps - The properties from the DraggableList input to allow dragging functionality
  * @param {React Ref} mapLayers - A react ref that tracks all the available map layers
  * @param {function} onChange - A drilled property from dataviewer. This onchange
@@ -55,6 +64,7 @@ const StyledButton = styled.button`
  */
 const MapLayerTemplate = ({
   value: mapLayer,
+  index,
   draggingProps,
   mapLayers,
   onChange,
@@ -96,21 +106,29 @@ const MapLayerTemplate = ({
   };
 
   return (
-    <StyledDiv {...draggingProps}>
-      {mapLayer.configuration.props.name}
-      <StyledButton
-        onClick={() => removeMapLayer(mapLayer.configuration.props.name)}
-        title={`Remove ${mapLayer.configuration.props.name}`}
-      >
-        x
-      </StyledButton>
-      <StyledButton
-        onClick={() => editMapLayer(mapLayer.configuration.props.name)}
-        title={`Edit ${mapLayer.configuration.props.name}`}
-      >
-        edit
-      </StyledButton>
-    </StyledDiv>
+    <tr {...draggingProps}>
+      <OverflowTD className="text-center">
+        {mapLayer.configuration.props.name}
+      </OverflowTD>
+      <OverflowTD className="text-center">
+        {mapLayer.configuration.props.source.props.url}
+      </OverflowTD>
+      <OverflowTD className="text-center">
+        {mapLayer.configuration.legend ? "On" : "Off"}
+      </OverflowTD>
+      <td>
+        <InLineButtonDiv
+          onClick={() => removeMapLayer(mapLayer.configuration.props.name)}
+        >
+          <RedTrashIcon size={"1rem"} />
+        </InLineButtonDiv>
+        <InLineButtonRightDiv
+          onClick={() => editMapLayer(mapLayer.configuration.props.name)}
+        >
+          <BlueEditIcon size={"1rem"} />
+        </InLineButtonRightDiv>
+      </td>
+    </tr>
   );
 };
 
@@ -195,7 +213,7 @@ export const AddMapLayer = ({ onChange, values, setShowingSubModal }) => {
     mapLayers.current = reorderedMapLayers;
 
     // Update visualization args for dataviewer
-    onChange(updatedMapLayers);
+    onChange(reorderedMapLayers);
   };
 
   function openMapLayerModal() {
@@ -219,18 +237,37 @@ export const AddMapLayer = ({ onChange, values, setShowingSubModal }) => {
 
   return (
     <>
-      <Container>
-        <Row className="mb-1">
-          <button onClick={openMapLayerModal}>Add Layer</button>
-          <br />
-        </Row>
-        <DraggableList
-          items={mapLayers.current}
-          onOrderUpdate={onOrderUpdate}
-          ItemTemplate={MapLayerTemplate}
-          templateArgs={templateArgs}
-        />
-      </Container>
+      <MarginButton
+        variant="info"
+        onClick={openMapLayerModal}
+        aria-label={"Add Layer Button"}
+      >
+        Add Layer
+      </MarginButton>
+      <FixedTable striped bordered hover size="sm">
+        <thead>
+          <tr>
+            <th className="text-center" style={{ width: "25%" }}>
+              Layer Name
+            </th>
+            <th className="text-center" style={{ width: "40%" }}>
+              Layer URL
+            </th>
+            <th className="text-center" style={{ width: "20%" }}>
+              Legend
+            </th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <DraggableList
+            items={mapLayers.current}
+            onOrderUpdate={onOrderUpdate}
+            ItemTemplate={MapLayerTemplate}
+            templateArgs={templateArgs}
+          />
+        </tbody>
+      </FixedTable>
       {showMapLayerModal && (
         <MapLayerModal
           showModal={showMapLayerModal}

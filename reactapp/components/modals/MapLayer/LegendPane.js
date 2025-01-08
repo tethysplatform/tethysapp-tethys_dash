@@ -11,59 +11,36 @@ import ColorPicker from "components/inputs/ColorPicker";
 import CustomPicker from "components/inputs/CustomPicker";
 import { BsTrash } from "react-icons/bs";
 import {
-  BsFillTriangleFill,
-  BsFillSquareFill,
-  BsFillCircleFill,
-} from "react-icons/bs";
-import { RiRectangleFill } from "react-icons/ri";
-import { IoAnalyticsOutline } from "react-icons/io5";
-import {
   legendSymbols,
   getLegendSymbol,
 } from "components/backlayer/control/Legend";
 import "components/modals/wideModal.css";
 
-const ColoredUpTriangle = styled(BsFillTriangleFill)`
-  color: ${(props) => props.color};
-`;
-
-const ColoredRightTriangle = styled(BsFillTriangleFill)`
-  transform: rotate(90deg);
-  color: ${(props) => props.color};
-`;
-
-const ColoredDownTriangle = styled(BsFillTriangleFill)`
-  transform: rotate(180deg);
-  color: ${(props) => props.color};
-`;
-
-const ColoredLeftTriangle = styled(BsFillTriangleFill)`
-  transform: rotate(270deg);
-  color: ${(props) => props.color};
-`;
-
-const ColoredSquare = styled(BsFillSquareFill)`
-  color: ${(props) => props.color};
-`;
-
-const ColoredCircle = styled(BsFillCircleFill)`
-  color: ${(props) => props.color};
-`;
-
-const ColoredRectangle = styled(RiRectangleFill)`
-  color: ${(props) => props.color};
-`;
-
-const ColoredLine = styled(IoAnalyticsOutline)`
-  color: ${(props) => props.color};
-`;
-
 const StyledLabel = styled.label`
+  width: 100%;
+  padding: 0.5rem;
+`;
+
+const RedTrashIcon = styled(BsTrash)`
+  color: red;
+`;
+
+const StyledDiv = styled.div`
+  padding-bottom: 1rem;
+`;
+
+const StyledInput = styled.input`
   width: 100%;
 `;
 
-const RedIcon = styled(BsTrash)`
-  color: red;
+const InLineInputDiv = styled.div`
+  display: inline-block;
+  width: calc(80% - 3.5em);
+  vertical-align: middle;
+`;
+
+const InLineButtonDiv = styled.div`
+  display: inline-block;
 `;
 
 const LegendTemplate = ({
@@ -116,9 +93,9 @@ const LegendTemplate = ({
   return (
     <tr {...draggingProps}>
       <td>
-        <input value={localLabel} onChange={onLabelChange}></input>
+        <StyledInput value={localLabel} onChange={onLabelChange}></StyledInput>
       </td>
-      <td>
+      <td className="text-center">
         <div
           ref={colorTarget}
           onClick={() => setShowColorPopover(!showColorPopover)}
@@ -151,10 +128,9 @@ const LegendTemplate = ({
           </Popover>
         </Overlay>
       </td>
-      <td></td>
-      <td>
+      <td className="text-center">
         <div onClick={deleteRow}>
-          <RedIcon size={"1rem"} />
+          <RedTrashIcon size={"1rem"} />
         </div>
       </td>
     </tr>
@@ -228,33 +204,44 @@ const LegendPane = ({ layerInfo, containerRef }) => {
         onChange={changeLegendMode}
       />
       {legendMode === "on" && (
-        <div>
-          <input value={legendTitle} onChange={onTitleChange}></input>
-          <Button
-            variant="secondary"
-            onClick={addLegendItem}
-            aria-label={"Add Legend Item Button"}
-          >
-            Add Legend Item
-          </Button>
-          <Table striped bordered hover size="sm">
-            <thead>
-              <tr>
-                <th>Label</th>
-                <th>Color</th>
-                <th>Symbol</th>
-              </tr>
-            </thead>
-            <tbody>
-              <DraggableList
-                items={legendItems}
-                onOrderUpdate={onOrderUpdate}
-                ItemTemplate={LegendTemplate}
-                templateArgs={templateArgs}
-              />
-            </tbody>
-          </Table>
-        </div>
+        <>
+          <StyledDiv>
+            <InLineInputDiv>
+              <label>
+                <b>Title</b>:{" "}
+                <input value={legendTitle} onChange={onTitleChange}></input>
+              </label>
+            </InLineInputDiv>
+            <InLineButtonDiv>
+              <Button
+                variant="info"
+                onClick={addLegendItem}
+                aria-label={"Add Legend Item Button"}
+              >
+                Add Legend Item
+              </Button>
+            </InLineButtonDiv>
+          </StyledDiv>
+          <div>
+            <Table striped bordered hover size="sm">
+              <thead>
+                <tr>
+                  <th className="text-center">Label</th>
+                  <th className="text-center">Symbol</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <DraggableList
+                  items={legendItems}
+                  onOrderUpdate={onOrderUpdate}
+                  ItemTemplate={LegendTemplate}
+                  templateArgs={templateArgs}
+                />
+              </tbody>
+            </Table>
+          </div>
+        </>
       )}
     </>
   );
