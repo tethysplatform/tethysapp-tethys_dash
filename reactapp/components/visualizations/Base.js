@@ -23,9 +23,7 @@ const BaseVisualization = ({
   hideFullscreen,
 }) => {
   const [viz, setViz] = useState(null);
-  const { variableInputValues, setVariableInputValues } = useContext(
-    VariableInputsContext
-  );
+  const { variableInputValues } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
@@ -35,6 +33,7 @@ const BaseVisualization = ({
   const visualizationRef = useRef();
 
   useEffect(() => {
+    const args = JSON.parse(argsString);
     if (source === "") {
       setViz(<div data-testid="Source_Unknown"></div>);
     } else if (source === "Custom Image") {

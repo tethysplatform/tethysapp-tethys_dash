@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import Form from "react-bootstrap/Form";
@@ -33,6 +33,7 @@ const Input = ({
   valueOptions,
   includeVariableInputs,
   setShowingSubModal,
+  gridItemIndex,
 }) => {
   const { variableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
@@ -128,6 +129,7 @@ const Input = ({
         }}
         values={value}
         setShowingSubModal={setShowingSubModal}
+        gridItemIndex={gridItemIndex}
       />
     );
   } else {
@@ -158,6 +160,7 @@ const DataInput = ({
   index,
   includeVariableInputs,
   setShowingSubModal,
+  gridItemIndex,
 }) => {
   const { label, type, value, valueOptions } = objValue;
 
@@ -174,6 +177,7 @@ const DataInput = ({
             index={index}
             includeVariableInputs={includeVariableInputs}
             setShowingSubModal={setShowingSubModal}
+            gridItemIndex={gridItemIndex}
           />
         </StyledDiv>
       )}

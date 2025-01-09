@@ -1,4 +1,3 @@
-import { useState } from "react";
 import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
 import Col from "react-bootstrap/Col";
@@ -11,12 +10,12 @@ const CustomPicker = ({ maxColCount, pickerOptions, setPickervalue }) => {
   return (
     <Container>
       {Array.from(Array(quotient)).map((row, rowIndex) => (
-        <Row>
+        <Row key={rowIndex}>
           {Array.from(Array(maxColCount)).map((col, colIndex) => {
             const pickerKey = pickerKeys[rowIndex * maxColCount + colIndex];
             const PickerComponent = pickerOptions[pickerKey];
             return (
-              <Col onClick={() => setPickervalue(pickerKey)}>
+              <Col key={colIndex} onClick={() => setPickervalue(pickerKey)}>
                 {PickerComponent}
               </Col>
             );
@@ -28,7 +27,7 @@ const CustomPicker = ({ maxColCount, pickerOptions, setPickervalue }) => {
           const pickerKey = pickerKeys[quotient * maxColCount + colIndex];
           const PickerComponent = pickerOptions[pickerKey];
           return (
-            <Col onClick={() => setPickervalue(pickerKey)}>
+            <Col key={colIndex} onClick={() => setPickervalue(pickerKey)}>
               {PickerComponent}
             </Col>
           );

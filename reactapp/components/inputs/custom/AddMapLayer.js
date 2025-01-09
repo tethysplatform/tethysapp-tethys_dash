@@ -7,9 +7,6 @@ import DraggableList from "components/inputs/DraggableList";
 import Button from "react-bootstrap/Button";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
 import { RxDragHandleHorizontal } from "react-icons/rx";
-import Container from "react-bootstrap/Container";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;
@@ -71,11 +68,10 @@ const AlignedDragHandle = styled(RxDragHandleHorizontal)`
  */
 const MapLayerTemplate = ({
   value: mapLayer,
-  index,
   draggingProps,
   mapLayers,
   onChange,
-  layerInfo,
+  setLayerInfo,
   existingLayerOriginalName,
   setShowMapLayerModal,
 }) => {
@@ -99,12 +95,13 @@ const MapLayerTemplate = ({
     );
 
     // Set the layerInfo and existingLayerOriginalName to the specified mapLayer
-    layerInfo.current = {
+    setLayerInfo({
       layerType: existingMapLayer.configuration.props.source.type,
       url: existingMapLayer.configuration.props.source.props.url,
       name: existingMapLayer.configuration.props.name,
       legend: existingMapLayer.legend,
-    };
+      attributeVariables: existingMapLayer.attributeVariables,
+    });
     existingLayerOriginalName.current =
       existingMapLayer.configuration.props.name;
 
@@ -150,10 +147,16 @@ const MapLayerTemplate = ({
  *
  * @returns {JSX.Element} - A rendered div with an add layer button and a draggable list of configured layers
  */
-export const AddMapLayer = ({ onChange, values, setShowingSubModal }) => {
+export const AddMapLayer = ({
+  onChange,
+  values,
+  setShowingSubModal,
+  gridItemIndex,
+}) => {
   const [showMapLayerModal, setShowMapLayerModal] = useState(false);
+  const [layerInfo, setLayerInfo] = useState({});
   const mapLayers = useRef(values ?? []);
-  const layerInfo = useRef({});
+  //   const layerInfo = useRef({});
   let existingLayerOriginalName = useRef();
 
   useEffect(() => {
@@ -230,8 +233,8 @@ export const AddMapLayer = ({ onChange, values, setShowingSubModal }) => {
 
   function handleMapLayerModalClose() {
     // Reset layerInfo and existingLayerOriginalName since a map layer is no longer being edited
-    layerInfo.current = {};
     existingLayerOriginalName.current = null;
+    setLayerInfo({});
     setShowMapLayerModal(false);
   }
 
@@ -239,6 +242,7 @@ export const AddMapLayer = ({ onChange, values, setShowingSubModal }) => {
     mapLayers,
     onChange,
     layerInfo,
+    setLayerInfo,
     existingLayerOriginalName,
     setShowMapLayerModal,
   };
@@ -280,6 +284,10 @@ export const AddMapLayer = ({ onChange, values, setShowingSubModal }) => {
           handleModalClose={handleMapLayerModalClose}
           addMapLayer={addMapLayer}
           layerInfo={layerInfo}
+          setLayerInfo={setLayerInfo}
+          mapLayers={mapLayers}
+          existingLayerOriginalName={existingLayerOriginalName}
+          gridItemIndex={gridItemIndex}
         />
       )}
     </>

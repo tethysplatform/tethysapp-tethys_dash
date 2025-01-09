@@ -41,6 +41,7 @@ const VisualizationArguments = ({
   vizInputsValues,
   handleInputChange,
   setShowingSubModal,
+  gridItemIndex,
 }) => {
   if (!selectedVizTypeOption || selectedVizTypeOption["value"] === "Text") {
     return null;
@@ -55,6 +56,7 @@ const VisualizationArguments = ({
         onChange={handleInputChange}
         index={index}
         setShowingSubModal={setShowingSubModal}
+        gridItemIndex={gridItemIndex}
       />
     );
   });
@@ -63,6 +65,7 @@ const VisualizationArguments = ({
 };
 
 function VisualizationPane({
+  gridItemIndex,
   source,
   argsString,
   setGridItemMessage,
@@ -87,7 +90,6 @@ function VisualizationPane({
     showVisualizationTypeSettingsModal,
     setShowVisualizationTypeSettingsModal,
   ] = useState(false);
-  const [showMapLayerModal, setShowMapLayerModal] = useState(false);
   const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useContext(VariableInputsContext);
   const { activeAppTour } = useAppTourContext();
@@ -324,6 +326,7 @@ function VisualizationPane({
         vizInputsValues={vizInputsValues}
         handleInputChange={handleInputChange}
         setShowingSubModal={setShowingSubModal}
+        gridItemIndex={gridItemIndex}
       />
       {showVisualizationTypeSettingsModal && (
         <SelectedVisualizationTypesModal

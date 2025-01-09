@@ -214,6 +214,7 @@ function DataViewerModal({
                     className="visualizationTab"
                   >
                     <VisualizationPane
+                      gridItemIndex={gridItemIndex}
                       source={source}
                       argsString={argsString}
                       setGridItemMessage={setGridItemMessage}

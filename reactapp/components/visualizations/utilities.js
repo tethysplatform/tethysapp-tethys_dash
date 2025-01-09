@@ -248,3 +248,22 @@ export function findSelectOptionByValue(data, searchValue) {
   }
   return null; // Return null if no match is found
 }
+
+export function getMapAttributeVariables(mapLayers) {
+  let mapAttributeVariables = [];
+  // loop through all map layers
+  for (let mapLayer of mapLayers) {
+    // loop through all map layers/sublayers
+    for (const mapLayerName in mapLayer.attributeVariables) {
+      // get all the variable inputs setup from the layer/sublayer attributes
+      const layerAttributeVariables = Object.values(
+        mapLayer.attributeVariables[mapLayerName]
+      );
+      mapAttributeVariables = [
+        ...mapAttributeVariables,
+        ...layerAttributeVariables,
+      ];
+    }
+  }
+  return mapAttributeVariables;
+}

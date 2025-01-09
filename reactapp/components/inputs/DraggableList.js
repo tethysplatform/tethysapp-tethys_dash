@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
 const DraggableList = ({
   items,
@@ -53,6 +53,7 @@ const DraggableList = ({
 
         return (
           <ItemTemplate
+            key={index}
             value={value}
             index={index}
             draggingProps={draggingProps}

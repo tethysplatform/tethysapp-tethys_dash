@@ -11,12 +11,10 @@ const layerTypes = [
   "GeoJSON",
 ];
 
-const ConfigurationPane = ({ layerInfo }) => {
-  const [url, setUrl] = useState(layerInfo.current.url ?? "");
-  const [layerType, setLayerType] = useState(
-    layerInfo.current.layerType ?? null
-  );
-  const [name, setName] = useState(layerInfo.current.name ?? "");
+const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
+  const [url, setUrl] = useState(layerInfo.url ?? "");
+  const [layerType, setLayerType] = useState(layerInfo.layerType ?? null);
+  const [name, setName] = useState(layerInfo.name ?? "");
 
   return (
     <>
@@ -27,23 +25,32 @@ const ConfigurationPane = ({ layerInfo }) => {
           value: layerType,
         }}
         onChange={(e) => {
-          layerInfo.current.layerType = e.value;
           setLayerType(e.value);
+          setLayerInfo((previousLayerInfo) => ({
+            ...previousLayerInfo,
+            ...{ layerType: e.value },
+          }));
         }}
         includeVariableInputs={false}
       />
       <DataInput
         objValue={{ label: "URL", type: "text", value: url }}
         onChange={(e) => {
-          layerInfo.current.url = e;
           setUrl(e);
+          setLayerInfo((previousLayerInfo) => ({
+            ...previousLayerInfo,
+            ...{ url: e },
+          }));
         }}
       />
       <DataInput
         objValue={{ label: "Name", type: "text", value: name }}
         onChange={(e) => {
-          layerInfo.current.name = e;
           setName(e);
+          setLayerInfo((previousLayerInfo) => ({
+            ...previousLayerInfo,
+            ...{ name: e },
+          }));
         }}
       />
     </>

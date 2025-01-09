@@ -11,6 +11,7 @@ import {
   EditingContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
+import { getMapAttributeVariables } from "components/visualizations/utilities";
 import AppTourContextProvider from "components/contexts/AppTourContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 
@@ -71,6 +72,16 @@ const PostLoader = ({ children }) => {
             variableInputValues[args.variable_name];
         } else {
           updatedVariableInputValues[args.variable_name] = args.initial_value;
+        }
+      } else if (gridItem.source === "Map") {
+        // get an array of attribute variables from all map layers
+        const mapAttributeVariables = getMapAttributeVariables(
+          args.additional_layers
+        );
+
+        // add all layer variable inputs to the context variable inputs
+        for (let mapAttributeVariable of mapAttributeVariables) {
+          updatedVariableInputValues[mapAttributeVariable] = null;
         }
       }
     }

@@ -2,13 +2,18 @@ import PropTypes from "prop-types";
 import Modal from "react-bootstrap/Modal";
 import styled from "styled-components";
 import Button from "react-bootstrap/Button";
-import DataInput from "components/inputs/DataInput";
-import { useState, useRef } from "react";
+import { useState, useRef, useContext } from "react";
 import Alert from "react-bootstrap/Alert";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import ConfigurationPane from "components/modals/MapLayer/ConfigurationPane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
+import AttributePane from "components/modals/MapLayer/AttributePane";
+import {
+  LayoutContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
+import { getMapAttributeVariables } from "components/visualizations/utilities";
 import "components/modals/wideModal.css";
 
 const StyledModal = styled(Modal)`
@@ -28,36 +33,171 @@ const MapLayerModal = ({
   handleModalClose,
   addMapLayer,
   layerInfo,
+  setLayerInfo,
+  mapLayers,
+  existingLayerOriginalName,
+  gridItemIndex,
 }) => {
+  const { variableInputValues } = useContext(VariableInputsContext);
   const [tabKey, setTabKey] = useState("configuration");
   const [errorMessage, setErrorMessage] = useState(null);
   const containerRef = useRef(null);
+  const { getLayoutContext } = useContext(LayoutContext);
+  const { gridItems } = getLayoutContext();
 
   function saveLayer() {
-    if (
-      !layerInfo.current.url ||
-      !layerInfo.current.layerType ||
-      !layerInfo.current.name
-    ) {
+    setErrorMessage(null);
+    if (!layerInfo.url || !layerInfo.layerType || !layerInfo.name) {
       setErrorMessage("All arguments must be filled out to save the layer");
       return;
     }
+
+    // Check to see if the pending attribute variables are valid
+    if (layerInfo.attributeVariables) {
+      // flatten attribute variables into a list
+      const pendingVariableInputs = Object.values(
+        layerInfo.attributeVariables
+      ).flatMap((value) => Object.values(value));
+
+      // get other variable inputs in the map
+      let otherMapLayers;
+      if (existingLayerOriginalName.current) {
+        // Get all the map layers except the one being edited
+        otherMapLayers = mapLayers.current.filter(
+          (t) =>
+            t.configuration.props.name !== existingLayerOriginalName.current
+        );
+      } else {
+        otherMapLayers = mapLayers.current;
+      }
+      const otherMapAttributeVariables =
+        getMapAttributeVariables(otherMapLayers);
+
+      // check to see if pending variable input names already exist in the other map layers
+      const alreadyExistingVariableInputsInMap = pendingVariableInputs.filter(
+        (pendingVariableInput) =>
+          otherMapAttributeVariables.includes(pendingVariableInput)
+      );
+      if (alreadyExistingVariableInputsInMap.length > 0) {
+        setErrorMessage(
+          <>
+            <p>The following variable inputs are already in use in the map:</p>
+            <ul>
+              {alreadyExistingVariableInputsInMap.map(
+                (alreadyExistingVariableInput, index) => (
+                  <li key={index}>{alreadyExistingVariableInput}</li>
+                )
+              )}
+            </ul>
+            <p>
+              Check the other map layers and change the Variable Input names in
+              the Attributes tab before trying again.
+            </p>
+          </>
+        );
+        return;
+      }
+
+      // check to see if pending variable input names already exist in the dashboard
+      let alreadyExistingVariableInputsInDashboard =
+        pendingVariableInputs.filter(
+          (pendingVariableInput) => pendingVariableInput in variableInputValues
+        );
+
+      // if editing a current griditem that is a map, remove the griditem variable inputs from the dashboard variable inputs
+      const currentGridItem = gridItems[gridItemIndex];
+      if (currentGridItem.source === "Map") {
+        const currentGridItemArgs = JSON.parse(currentGridItem.args_string);
+        // get an array of attribute variables from all map layers
+        const currentGridItemMapAttributeVariables = getMapAttributeVariables(
+          currentGridItemArgs.additional_layers
+        );
+        alreadyExistingVariableInputsInDashboard =
+          alreadyExistingVariableInputsInDashboard.filter(
+            (variableInput) =>
+              !currentGridItemMapAttributeVariables.includes(variableInput)
+          );
+      }
+
+      // if editing a current layer, remove the layer variable inputs from the dashboard variable inputs
+      if (existingLayerOriginalName.current) {
+        const OriginalMapLayer = mapLayers.current.filter(
+          (t) =>
+            t.configuration.props.name === existingLayerOriginalName.current
+        );
+        const OriginalMapLayerAttributeVariables =
+          getMapAttributeVariables(OriginalMapLayer);
+        alreadyExistingVariableInputsInDashboard =
+          alreadyExistingVariableInputsInDashboard.filter(
+            (variableInput) =>
+              !OriginalMapLayerAttributeVariables.includes(variableInput)
+          );
+      }
+      if (alreadyExistingVariableInputsInDashboard.length) {
+        setErrorMessage(
+          <>
+            <p>
+              The following variable inputs are already in use in the dashboard:
+            </p>
+            <ul>
+              {alreadyExistingVariableInputsInDashboard.map(
+                (alreadyExistingVariableInput, index) => (
+                  <li key={index}>{alreadyExistingVariableInput}</li>
+                )
+              )}
+            </ul>
+            <p>
+              Change the Variable Input names in the Attributes tab before
+              trying again.
+            </p>
+          </>
+        );
+        return;
+      }
+
+      // check for duplicate pending variable input names
+      const duplicatePendingVariableInputs = pendingVariableInputs.filter(
+        (pendingVariableInput, index) =>
+          pendingVariableInputs.indexOf(pendingVariableInput) !== index
+      );
+      if (duplicatePendingVariableInputs.length) {
+        setErrorMessage(
+          <>
+            <p>The following variable inputs are duplicated:</p>
+            <ul>
+              {duplicatePendingVariableInputs.map(
+                (duplicatePendingVariableInput, index) => (
+                  <li key={index}>{duplicatePendingVariableInput}</li>
+                )
+              )}
+            </ul>
+            <p>
+              Change the Variable Input Names in the Attributes tab before
+              trying again.
+            </p>
+          </>
+        );
+        return;
+      }
+    }
+
     addMapLayer({
       configuration: {
-        type: layerInfo.current.layerType.includes("Image")
+        type: layerInfo.layerType.includes("Image")
           ? "ImageLayer"
           : "VectorLayer",
         props: {
           source: {
-            type: layerInfo.current.layerType,
+            type: layerInfo.layerType,
             props: {
-              url: layerInfo.current.url,
+              url: layerInfo.url,
             },
           },
-          name: layerInfo.current.name,
+          name: layerInfo.name,
         },
       },
-      legend: layerInfo.current.legend ?? null,
+      legend: layerInfo.legend ?? [],
+      attributeVariables: layerInfo.attributeVariables ?? {},
     });
     handleModalClose();
   }
@@ -90,7 +230,10 @@ const MapLayerModal = ({
               aria-label="layer-configuration-tab"
               className="layer-configuration-tab"
             >
-              <ConfigurationPane layerInfo={layerInfo} />
+              <ConfigurationPane
+                layerInfo={layerInfo}
+                setLayerInfo={setLayerInfo}
+              />
             </Tab>
             <Tab
               eventKey="legend"
@@ -99,7 +242,11 @@ const MapLayerModal = ({
               className="layer-legend-tab"
             >
               <div ref={containerRef}>
-                <LegendPane layerInfo={layerInfo} containerRef={containerRef} />
+                <LegendPane
+                  layerInfo={layerInfo}
+                  setLayerInfo={setLayerInfo}
+                  containerRef={containerRef}
+                />
               </div>
             </Tab>
             <Tab
@@ -107,7 +254,14 @@ const MapLayerModal = ({
               title="Attributes"
               aria-label="layer-attributes-tab"
               className="layer-attributes-tab"
-            ></Tab>
+            >
+              <AttributePane
+                layerInfo={layerInfo}
+                setLayerInfo={setLayerInfo}
+                containerRef={containerRef}
+                tabKey={tabKey}
+              />
+            </Tab>
           </Tabs>
         </StyledModalBody>
         <Modal.Footer>
