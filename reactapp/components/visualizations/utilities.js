@@ -59,7 +59,6 @@ export function setVisualization(setViz, itemData, visualizationRef) {
           />
         );
       } else if (response["viz_type"] === "map") {
-        console.log("here");
         setViz(
           <MapVisualization
             viewConfig={response.data.viewConfig}

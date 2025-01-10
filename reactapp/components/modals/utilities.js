@@ -28,14 +28,16 @@ export function spaceAndCapitalize(string) {
 const objectsEqual = (o1, o2) =>
   typeof o1 === "object" && Object.keys(o1).length > 0
     ? Object.keys(o1).length === Object.keys(o2).length &&
-      Object.keys(o1).every((p) => objectsEqual(o1[p], o2[p]))
+      Object.keys(o1).every((p) => valuesEqual(o1[p], o2[p]))
     : o1 === o2;
 
 const arraysEqual = (a1, a2) =>
-  a1.length === a2.length && a1.every((o, idx) => objectsEqual(o, a2[idx]));
+  a1.length === a2.length && a1.every((o, idx) => valuesEqual(o, a2[idx]));
 
 export const valuesEqual = (a1, a2) => {
-  if (Array.isArray(a1) && Array.isArray(a2)) {
+  if (a1 === null || a2 === null) {
+    return a1 === a2;
+  } else if (Array.isArray(a1) && Array.isArray(a2)) {
     return arraysEqual(a1, a2);
   } else if (typeof a1 === "object" && typeof a2 === "object") {
     return objectsEqual(a1, a2);

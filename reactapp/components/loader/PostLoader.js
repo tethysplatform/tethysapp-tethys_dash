@@ -73,16 +73,6 @@ const PostLoader = ({ children }) => {
         } else {
           updatedVariableInputValues[args.variable_name] = args.initial_value;
         }
-      } else if (gridItem.source === "Map") {
-        // get an array of attribute variables from all map layers
-        const mapAttributeVariables = getMapAttributeVariables(
-          args.additional_layers
-        );
-
-        // add all layer variable inputs to the context variable inputs
-        for (let mapAttributeVariable of mapAttributeVariables) {
-          updatedVariableInputValues[mapAttributeVariable] = null;
-        }
       }
     }
     setVariableInputValues(updatedVariableInputValues);

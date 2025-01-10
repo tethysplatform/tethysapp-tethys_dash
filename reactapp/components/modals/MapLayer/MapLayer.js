@@ -98,63 +98,6 @@ const MapLayerModal = ({
         return;
       }
 
-      // check to see if pending variable input names already exist in the dashboard
-      let alreadyExistingVariableInputsInDashboard =
-        pendingVariableInputs.filter(
-          (pendingVariableInput) => pendingVariableInput in variableInputValues
-        );
-
-      // if editing a current griditem that is a map, remove the griditem variable inputs from the dashboard variable inputs
-      const currentGridItem = gridItems[gridItemIndex];
-      if (currentGridItem.source === "Map") {
-        const currentGridItemArgs = JSON.parse(currentGridItem.args_string);
-        // get an array of attribute variables from all map layers
-        const currentGridItemMapAttributeVariables = getMapAttributeVariables(
-          currentGridItemArgs.additional_layers
-        );
-        alreadyExistingVariableInputsInDashboard =
-          alreadyExistingVariableInputsInDashboard.filter(
-            (variableInput) =>
-              !currentGridItemMapAttributeVariables.includes(variableInput)
-          );
-      }
-
-      // if editing a current layer, remove the layer variable inputs from the dashboard variable inputs
-      if (existingLayerOriginalName.current) {
-        const OriginalMapLayer = mapLayers.current.filter(
-          (t) =>
-            t.configuration.props.name === existingLayerOriginalName.current
-        );
-        const OriginalMapLayerAttributeVariables =
-          getMapAttributeVariables(OriginalMapLayer);
-        alreadyExistingVariableInputsInDashboard =
-          alreadyExistingVariableInputsInDashboard.filter(
-            (variableInput) =>
-              !OriginalMapLayerAttributeVariables.includes(variableInput)
-          );
-      }
-      if (alreadyExistingVariableInputsInDashboard.length) {
-        setErrorMessage(
-          <>
-            <p>
-              The following variable inputs are already in use in the dashboard:
-            </p>
-            <ul>
-              {alreadyExistingVariableInputsInDashboard.map(
-                (alreadyExistingVariableInput, index) => (
-                  <li key={index}>{alreadyExistingVariableInput}</li>
-                )
-              )}
-            </ul>
-            <p>
-              Change the Variable Input names in the Attributes tab before
-              trying again.
-            </p>
-          </>
-        );
-        return;
-      }
-
       // check for duplicate pending variable input names
       const duplicatePendingVariableInputs = pendingVariableInputs.filter(
         (pendingVariableInput, index) =>
@@ -196,7 +139,7 @@ const MapLayerModal = ({
           name: layerInfo.name,
         },
       },
-      legend: layerInfo.legend ?? [],
+      legend: layerInfo.legend ?? {},
       attributeVariables: layerInfo.attributeVariables ?? {},
     });
     handleModalClose();

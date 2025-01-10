@@ -1,5 +1,13 @@
-import { memo } from "react";
+import {
+  memo,
+  useRef,
+  useCallback,
+  useEffect,
+  useState,
+  useContext,
+} from "react";
 import { Map } from "components/backlayer";
+import { queryLayerFeatures } from "components/backlayer/layer/Layer";
 import PropTypes from "prop-types";
 import { getBaseMapLayer } from "components/visualizations/utilities";
 import Feature from "ol/Feature";
@@ -9,6 +17,67 @@ import VectorSource from "ol/source/Vector";
 import { LineString } from "ol/geom";
 import { Stroke, Style } from "ol/style";
 import Icon from "ol/style/Icon";
+import {
+  EditingContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
+import { getMapAttributeVariables } from "components/visualizations/utilities";
+
+function createMarkerLayer(coordinate) {
+  const markPath = `
+      M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9
+      c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z
+    `;
+  const svgIcon = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40">
+        <path d="${markPath}" fill="#007bff" stroke="white" stroke-width="1"/>
+      </svg>
+    `;
+  const svgURI = "data:image/svg+xml;base64," + btoa(svgIcon);
+  const marker = new Feature({
+    type: "marker",
+    geometry: new Point(coordinate),
+  });
+  marker.setStyle(
+    new Style({
+      image: new Icon({
+        src: svgURI,
+        anchor: [0.5, 1], // Align the bottom-center of the icon to the point
+      }),
+    })
+  );
+  const markerLayer = new VectorLayer({
+    source: new VectorSource({
+      features: [marker],
+    }),
+    name: "Marker",
+  });
+
+  return markerLayer;
+}
+
+function createHighlightLayer(geometries) {
+  const features = geometries.map((path) => {
+    return new Feature({
+      geometry: new LineString(path),
+      name: "Polyline",
+    });
+  });
+  const highlightLayer = new VectorLayer({
+    source: new VectorSource({
+      features: features,
+    }),
+    style: new Style({
+      stroke: new Stroke({
+        color: "#00008b",
+        width: 3,
+      }),
+    }),
+    name: "Highlighter",
+  });
+
+  return highlightLayer;
+}
 
 const MapVisualization = ({
   mapConfig,
@@ -18,118 +87,119 @@ const MapVisualization = ({
   baseMap,
   layerControl,
 }) => {
-  const mapLegend = [];
-  const mapLayers = [];
+  const [mapLegend, setMapLegend] = useState();
+  const [mapLayers, setMapLayers] = useState();
+  const markerLayer = useRef();
+  const highlightLayer = useRef();
+  const { setVariableInputValues } = useContext(VariableInputsContext);
 
-  for (const layer of layers) {
-    if (layer.legend) {
-      mapLegend.push(layer.legend);
+  useEffect(() => {
+    const newMapLegend = [];
+    const newMapLayers = [];
+    for (const layer of layers) {
+      if (Object.keys(layer.legend).length > 0) {
+        newMapLegend.push(layer.legend);
+      }
+      newMapLayers.push(layer.configuration);
     }
-    mapLayers.push(layer.configuration);
-  }
 
-  if (baseMap) {
-    const baseMapLayer = getBaseMapLayer(baseMap);
-    mapLayers.splice(0, 0, baseMapLayer);
-  }
+    if (baseMap) {
+      const baseMapLayer = getBaseMapLayer(baseMap);
+      newMapLayers.splice(0, 0, baseMapLayer);
+    }
 
-  mapLayers.forEach((layer, index) => {
-    layer.props.zIndex = index;
-  });
+    newMapLayers.forEach((layer, index) => {
+      layer.props.zIndex = index;
+    });
+    setMapLegend(newMapLegend);
+    setMapLayers(newMapLayers);
+  }, [layers]);
 
-  function onMapClick(map, evt) {
-    let markerLayer, streamLayer, riverId;
-    const markPath = `
-        M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9
-        c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z
-      `;
-    const svgIcon = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40">
-          <path d="${markPath}" fill="#007bff" stroke="white" stroke-width="1"/>
-        </svg>
-      `;
-    const svgURI = "data:image/svg+xml;base64," + btoa(svgIcon);
+  const onMapClick = (map, evt) => {
+    // describe feature type (WFS)
+    // get capabilities (WMS)
+    // Arcgis rest
+    // vector tile
+    // custom basemap
+
+    // get coordinates and add pointer marker where the click occurred
     const coordinate = evt.coordinate;
-    const url =
-      "https://livefeeds3.arcgis.com/arcgis/rest/services/GEOGLOWS/GlobalWaterModel_Medium/MapServer/identify";
-    if (markerLayer) {
-      map.removeLayer(markerLayer);
+    const newMarkerLayer = createMarkerLayer(coordinate);
+    if (markerLayer.current) {
+      map.removeLayer(markerLayer.current);
     }
-    const marker = new Feature({
-      type: "marker",
-      geometry: new Point(coordinate),
-    });
-    marker.setStyle(
-      new Style({
-        image: new Icon({
-          src: svgURI,
-          anchor: [0.5, 1], // Align the bottom-center of the icon to the point
-        }),
-      })
-    );
-    markerLayer = new VectorLayer({
-      source: new VectorSource({
-        features: [marker],
-      }),
-      zIndex: 4,
-      name: "Stream Marker",
-    });
-    map.addLayer(markerLayer);
+    markerLayer.current = newMarkerLayer;
+    map.addLayer(newMarkerLayer);
 
-    // Build the identify request parameters
-    const params = new URLSearchParams({
-      f: "json",
-      tolerance: 50, // Pixel tolerance
-      returnGeometry: true,
-      geometryType: "esriGeometryPoint",
-      sr: 3857,
-      geometry: coordinate.join(","),
-      mapExtent: map.getView().calculateExtent().join(","),
-      imageDisplay: "800,600,96",
-    });
+    // reduce the layer attributes variables values into a simplified object of layer names and then values
+    const mapAttributeVariables = layers.reduce((combined, current) => {
+      if (
+        current.attributeVariables &&
+        typeof current.attributeVariables === "object"
+      ) {
+        // Merge the example object into the combined object
+        Object.assign(combined, current.attributeVariables);
+      }
+      return combined;
+    }, {});
 
-    fetch(`${url}?${params.toString()}`)
-      .then((response) => response.json())
-      .then((data) => {
-        if (data.results && data.results.length > 0) {
-          if (streamLayer) {
-            map.removeLayer(streamLayer);
-          }
-          riverId = data.results[0].attributes["TDX Hydro Link Number"];
-          console.log(riverId);
-          const features = data.results[0].geometry.paths.map((path) => {
-            return new Feature({
-              geometry: new LineString(path),
-              name: "Polyline",
-            });
-          });
-          streamLayer = new VectorLayer({
-            source: new VectorSource({
-              features: features,
-            }),
-            style: new Style({
-              stroke: new Stroke({
-                color: "#00008b",
-                width: 3,
-              }),
-            }),
-            zIndex: 3,
-            name: "Stream Segment",
-          });
-          map.addLayer(streamLayer);
+    // query the layer features
+    // NEED TO MAKE THIS WORK WITH MULTIPLE LAYERS IN PARALLEL
+    queryLayerFeatures(layers[0], map, coordinate).then((layerFeatures) => {
+      if (highlightLayer.current) {
+        map.removeLayer(highlightLayer.current);
+      }
 
-          updateVariableInputValues({ "River ID": riverId });
-        } else {
-          map.removeLayer(markerLayer);
-          alert(
-            "River not found. Try to zoom in and be precise when clicking the map."
+      // if valid features were selected then continue
+      if (layerFeatures && layerFeatures.length > 0) {
+        const newHighlightLayer = createHighlightLayer(
+          layerFeatures[0].geometry.paths
+        );
+        highlightLayer.current = newHighlightLayer;
+        map.addLayer(newHighlightLayer);
+
+        // loop through the attribute variables in the map and compare them to the returned features to update any potential variable inputs
+        let updatedVariableInputs = {};
+        for (const layerName in mapAttributeVariables) {
+          // only look at selected features within the same layer
+          const validLayers = layerFeatures.filter(
+            (layerFeature) => layerFeature.layerName === layerName
           );
+          for (const validLayer of validLayers) {
+            const mappedLayerVariableInputs = {};
+            // check each layer attribute variable to see if the features have valid values
+            for (const layerAlias in mapAttributeVariables[layerName]) {
+              const variableInputName =
+                mapAttributeVariables[layerName][layerAlias];
+              const featureValue = validLayer.attributes[layerAlias];
+              // if the selected feature value is not undefined or "Null" then add it
+              if (featureValue && featureValue !== "Null") {
+                mappedLayerVariableInputs[variableInputName] = featureValue;
+              }
+            }
+            // Once a selected feature has a valid value for variable input, go to the next variable input
+            if (Object.keys(mappedLayerVariableInputs).length > 0) {
+              updatedVariableInputs = {
+                ...updatedVariableInputs,
+                ...mappedLayerVariableInputs,
+              };
+              continue;
+            }
+          }
         }
-      })
-      .catch((error) => {
-        console.error("Identify request failed:", error);
-      });
-  }
+        if (Object.keys(updatedVariableInputs).length > 0) {
+          setVariableInputValues((previousVariableInputValues) => ({
+            ...previousVariableInputValues,
+            ...updatedVariableInputs,
+          }));
+        } else {
+          console.log("No features with variable inputs were selected");
+        }
+      } else {
+        alert("No attributes found");
+      }
+    });
+  };
 
   return (
     <Map

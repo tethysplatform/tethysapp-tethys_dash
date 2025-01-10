@@ -61,11 +61,11 @@ const AttributePane = ({ layerInfo, setLayerInfo, containerRef, tabKey }) => {
     }
   }, [tabKey]);
 
-  function updateAttributeVariables(name, layerName, variableInputName) {
+  function updateAttributeVariables(alias, layerName, variableInputName) {
     const updatedAttributeVariable = JSON.parse(
       JSON.stringify(attributeVariables)
     );
-    updatedAttributeVariable[layerName][name] = variableInputName;
+    updatedAttributeVariable[layerName][alias] = variableInputName;
     setAttributesVariables(updatedAttributeVariable);
 
     const validAttributeValues = getNonEmptyValues(updatedAttributeVariable);
@@ -95,10 +95,10 @@ const AttributePane = ({ layerInfo, setLayerInfo, containerRef, tabKey }) => {
     const newObj = {};
     for (const key in layerAttributes) {
       newObj[key] = {};
-      for (const { name } of layerAttributes[key]) {
+      for (const { alias } of layerAttributes[key]) {
         const existingValue =
-          attributeVariables[key] && attributeVariables[key][name];
-        newObj[key][name] = existingValue ?? "";
+          attributeVariables[key] && attributeVariables[key][alias];
+        newObj[key][alias] = existingValue ?? "";
       }
     }
     setAttributesVariables(newObj);
@@ -136,10 +136,10 @@ const AttributePane = ({ layerInfo, setLayerInfo, containerRef, tabKey }) => {
                     <OverflowTD>{alias}</OverflowTD>
                     <td>
                       <StyledInput
-                        value={attributeVariables[layerName][name]}
+                        value={attributeVariables[layerName][alias]}
                         onChange={(e) => {
                           updateAttributeVariables(
-                            name,
+                            alias,
                             layerName,
                             e.target.value
                           );
