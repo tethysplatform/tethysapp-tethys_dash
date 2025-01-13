@@ -25,11 +25,15 @@ export function spaceAndCapitalize(string) {
   return capitalized_words.join(" ");
 }
 
-const objectsEqual = (o1, o2) =>
-  typeof o1 === "object" && Object.keys(o1).length > 0
-    ? Object.keys(o1).length === Object.keys(o2).length &&
-      Object.keys(o1).every((p) => valuesEqual(o1[p], o2[p]))
-    : o1 === o2;
+const objectsEqual = (o1, o2) => {
+  if (Object.keys(o1).length === 0 && Object.keys(o2).length === 0) {
+    return true;
+  } else if (Object.keys(o1).length === Object.keys(o2).length) {
+    return Object.keys(o1).every((p) => valuesEqual(o1[p], o2[p]));
+  } else {
+    return o1 === o2;
+  }
+};
 
 const arraysEqual = (a1, a2) =>
   a1.length === a2.length && a1.every((o, idx) => valuesEqual(o, a2[idx]));

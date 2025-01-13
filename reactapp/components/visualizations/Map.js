@@ -22,6 +22,7 @@ import {
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import { getMapAttributeVariables } from "components/visualizations/utilities";
+import { valuesEqual } from "components/modals/utilities";
 
 function createMarkerLayer(coordinate) {
   const markPath = `
@@ -57,12 +58,22 @@ function createMarkerLayer(coordinate) {
 }
 
 function createHighlightLayer(geometries) {
-  const features = geometries.map((path) => {
-    return new Feature({
-      geometry: new LineString(path),
-      name: "Polyline",
+  let features;
+  if ("paths" in geometries) {
+    features = geometries.paths.map((path) => {
+      return new Feature({
+        geometry: new LineString(path),
+        name: "Polyline",
+      });
     });
-  });
+  } else {
+    features = [
+      new Feature({
+        type: "marker",
+        geometry: new Point((geometries.x, geometries.y)),
+      }),
+    ];
+  }
   const highlightLayer = new VectorLayer({
     source: new VectorSource({
       features: features,
@@ -91,28 +102,33 @@ const MapVisualization = ({
   const [mapLayers, setMapLayers] = useState();
   const markerLayer = useRef();
   const highlightLayer = useRef();
+  const currentLayers = useRef([]);
   const { setVariableInputValues } = useContext(VariableInputsContext);
 
   useEffect(() => {
-    const newMapLegend = [];
-    const newMapLayers = [];
-    for (const layer of layers) {
-      if (Object.keys(layer.legend).length > 0) {
-        newMapLegend.push(layer.legend);
+    if (!valuesEqual(layers, currentLayers.current)) {
+      currentLayers.current = JSON.parse(JSON.stringify(layers));
+
+      const newMapLegend = [];
+      const newMapLayers = [];
+      for (const layer of layers) {
+        if (Object.keys(layer.legend).length > 0) {
+          newMapLegend.push(layer.legend);
+        }
+        newMapLayers.push(layer.configuration);
       }
-      newMapLayers.push(layer.configuration);
-    }
 
-    if (baseMap) {
-      const baseMapLayer = getBaseMapLayer(baseMap);
-      newMapLayers.splice(0, 0, baseMapLayer);
-    }
+      if (baseMap) {
+        const baseMapLayer = getBaseMapLayer(baseMap);
+        newMapLayers.splice(0, 0, baseMapLayer);
+      }
 
-    newMapLayers.forEach((layer, index) => {
-      layer.props.zIndex = index;
-    });
-    setMapLegend(newMapLegend);
-    setMapLayers(newMapLayers);
+      newMapLayers.forEach((layer, index) => {
+        layer.props.zIndex = index;
+      });
+      setMapLegend(newMapLegend);
+      setMapLayers(newMapLayers);
+    }
   }, [layers]);
 
   const onMapClick = (map, evt) => {
@@ -153,7 +169,7 @@ const MapVisualization = ({
       // if valid features were selected then continue
       if (layerFeatures && layerFeatures.length > 0) {
         const newHighlightLayer = createHighlightLayer(
-          layerFeatures[0].geometry.paths
+          layerFeatures[0].geometry
         );
         highlightLayer.current = newHighlightLayer;
         map.addLayer(newHighlightLayer);
