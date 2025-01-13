@@ -18,7 +18,7 @@ import { LineString } from "ol/geom";
 import { Stroke, Style } from "ol/style";
 import Icon from "ol/style/Icon";
 import {
-  EditingContext,
+  DataViewerModeContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import { getMapAttributeVariables } from "components/visualizations/utilities";
@@ -104,6 +104,7 @@ const MapVisualization = ({
   const highlightLayer = useRef();
   const currentLayers = useRef([]);
   const { setVariableInputValues } = useContext(VariableInputsContext);
+  const { inDataViewerMode } = useContext(DataViewerModeContext);
 
   useEffect(() => {
     if (!valuesEqual(layers, currentLayers.current)) {
@@ -203,6 +204,7 @@ const MapVisualization = ({
             }
           }
         }
+        // if the map click found any variable inputs to update, then do it
         if (Object.keys(updatedVariableInputs).length > 0) {
           setVariableInputValues((previousVariableInputValues) => ({
             ...previousVariableInputValues,
@@ -224,7 +226,7 @@ const MapVisualization = ({
       layers={mapLayers}
       legend={mapLegend}
       layerControl={layerControl}
-      onMapClick={onMapClick}
+      onMapClick={inDataViewerMode ? () => {} : onMapClick}
       ref={visualizationRef}
       data-testid="backlayer-map"
     />
