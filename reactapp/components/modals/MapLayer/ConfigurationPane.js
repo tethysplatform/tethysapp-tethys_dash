@@ -4,20 +4,58 @@ import { useState } from "react";
 import "components/modals/wideModal.css";
 
 const layerTypes = [
-  "ImageLayer",
-  "VectorLayer",
-  "ImageTile",
   "ImageArcGISRest",
+  "ImageWMS",
+  "ImageTile",
   "GeoJSON",
+  "Raster",
 ];
+
+function objectToArray(obj) {
+  return Object.entries(obj).map(([Parameter, Value]) => ({
+    Parameter,
+    Value,
+  }));
+}
+
+function arrayToObject(arr) {
+  return arr.reduce((acc, obj) => {
+    acc[obj.Parameter] = obj.Value;
+    return acc;
+  }, {});
+}
 
 const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
   const [url, setUrl] = useState(layerInfo.url ?? "");
   const [layerType, setLayerType] = useState(layerInfo.layerType ?? null);
   const [name, setName] = useState(layerInfo.name ?? "");
+  const [params, setParams] = useState(
+    layerInfo.params && Object.keys(layerInfo.params).length > 0
+      ? objectToArray(layerInfo.params)
+      : [{ Parameter: "", Value: "" }]
+  );
+
+  function handleParameterChange(e) {
+    setParams(e);
+    const paramObject = arrayToObject(e);
+    setLayerInfo((previousLayerInfo) => ({
+      ...previousLayerInfo,
+      ...{ params: paramObject },
+    }));
+  }
 
   return (
     <>
+      <DataInput
+        objValue={{ label: "Name", type: "text", value: name }}
+        onChange={(e) => {
+          setName(e);
+          setLayerInfo((previousLayerInfo) => ({
+            ...previousLayerInfo,
+            ...{ name: e },
+          }));
+        }}
+      />
       <DataInput
         objValue={{
           label: "Layer Type",
@@ -44,14 +82,8 @@ const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
         }}
       />
       <DataInput
-        objValue={{ label: "Name", type: "text", value: name }}
-        onChange={(e) => {
-          setName(e);
-          setLayerInfo((previousLayerInfo) => ({
-            ...previousLayerInfo,
-            ...{ name: e },
-          }));
-        }}
+        objValue={{ label: "Parameters", type: "inputtable", value: params }}
+        onChange={handleParameterChange}
       />
     </>
   );

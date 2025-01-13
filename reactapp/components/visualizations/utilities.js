@@ -104,13 +104,14 @@ export function updateGridItemArgsWithVariableInputs(
   const gridItemsArgs = JSON.parse(argsString);
   for (let gridItemsArg in gridItemsArgs) {
     const value = gridItemsArgs[gridItemsArg];
-    if (typeof value !== "string") {
-      continue;
-    }
-    if (value.includes("Variable Input:")) {
-      const neededVariable = value.replace("Variable Input:", "");
-      gridItemsArgs[gridItemsArg] = variableInputs[neededVariable];
-    }
+    const stringifiedValue = JSON.stringify(value);
+    const updatedValuesWithVariableInputs = JSON.parse(
+      stringifiedValue.replace(
+        /\$\{([^}]+)\}/g,
+        (_, key) => variableInputs[key] || ""
+      )
+    );
+    gridItemsArgs[gridItemsArg] = updatedValuesWithVariableInputs;
   }
 
   return gridItemsArgs;
@@ -212,6 +213,8 @@ export const baseMapLayers = [
 ];
 
 export function getBaseMapLayer(baseMapURL) {
+  if (!baseMapURL.includes("/")) return null;
+
   const baseMapURLSplit = baseMapURL.split("/");
   const baseMapName = spaceAndCapitalize(
     baseMapURLSplit[baseMapURLSplit.length - 2]

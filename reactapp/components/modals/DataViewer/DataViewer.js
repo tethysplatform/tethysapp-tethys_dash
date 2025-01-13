@@ -157,8 +157,8 @@ function DataViewerModal({
               continue;
             }
 
-            if (value === "Variable Input:" + existingVariableName) {
-              const newValue = "Variable Input:" + vizArgs.variable_name;
+            if (value === "${" + existingVariableName + "}") {
+              const newValue = "${" + vizArgs.variable_name + "}";
               args[arg] = newValue;
             }
           }

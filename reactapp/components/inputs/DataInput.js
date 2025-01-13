@@ -9,6 +9,7 @@ import {
 } from "components/contexts/Contexts";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import MultiInput from "components/inputs/MultiInput";
+import InputTable from "components/inputs/InputTable";
 import * as customInputs from "components/inputs/Custom";
 
 const StyledDiv = styled.div`
@@ -64,7 +65,7 @@ const Input = ({
           label: "Variable Inputs",
           options: availableVariableInputs.map((availableVariableInput) => ({
             label: availableVariableInput,
-            value: "Variable Input:" + availableVariableInput,
+            value: "${" + availableVariableInput + "}",
           })),
         });
       }
@@ -109,6 +110,17 @@ const Input = ({
   } else if (type === "multiinput") {
     return (
       <MultiInput
+        label={label}
+        aria-label={label + " Input"}
+        onChange={(values) => {
+          onChange(values, index);
+        }}
+        values={value}
+      />
+    );
+  } else if (type === "inputtable") {
+    return (
+      <InputTable
         label={label}
         aria-label={label + " Input"}
         onChange={(values) => {

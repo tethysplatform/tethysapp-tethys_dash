@@ -103,13 +103,16 @@ const MapVisualization = ({
   const markerLayer = useRef();
   const highlightLayer = useRef();
   const currentLayers = useRef([]);
+  const currentBaseMap = useRef();
   const { setVariableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
   useEffect(() => {
-    if (!valuesEqual(layers, currentLayers.current)) {
+    if (
+      !valuesEqual(layers, currentLayers.current) ||
+      !valuesEqual(baseMap, currentBaseMap.current)
+    ) {
       currentLayers.current = JSON.parse(JSON.stringify(layers));
-
       const newMapLegend = [];
       const newMapLayers = [];
       for (const layer of layers) {
@@ -121,16 +124,20 @@ const MapVisualization = ({
 
       if (baseMap) {
         const baseMapLayer = getBaseMapLayer(baseMap);
-        newMapLayers.splice(0, 0, baseMapLayer);
+        if (baseMapLayer) {
+          newMapLayers.splice(0, 0, baseMapLayer);
+        }
       }
 
       newMapLayers.forEach((layer, index) => {
         layer.props.zIndex = index;
       });
+
+      currentBaseMap.current = baseMap;
       setMapLegend(newMapLegend);
       setMapLayers(newMapLayers);
     }
-  }, [layers]);
+  }, [layers, baseMap]);
 
   const onMapClick = (map, evt) => {
     // describe feature type (WFS)

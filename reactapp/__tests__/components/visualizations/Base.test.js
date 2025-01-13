@@ -464,7 +464,7 @@ it("Base - update variable input", async () => {
   const user = userEvent.setup();
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
   apiImageBase.args_string = JSON.stringify({
-    url: "Variable Input:Test Variable",
+    url: "${Test Variable}",
   });
   const textVariable = JSON.parse(JSON.stringify(mockedTextVariable));
   textVariable.args_string = JSON.stringify({

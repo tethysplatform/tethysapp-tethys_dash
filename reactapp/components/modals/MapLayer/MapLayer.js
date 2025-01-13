@@ -134,6 +134,7 @@ const MapLayerModal = ({
             type: layerInfo.layerType,
             props: {
               url: layerInfo.url,
+              params: layerInfo.params,
             },
           },
           name: layerInfo.name,
