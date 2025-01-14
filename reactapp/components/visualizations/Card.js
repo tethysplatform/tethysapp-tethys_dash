@@ -1,6 +1,7 @@
 import React, { Suspense } from "react";
 import styled from "styled-components";
 import PropTypes from "prop-types";
+import useConditionalChecks from "hooks/useConditionalChecks";
 
 // Styled components
 const CardContainer = styled.div`
@@ -63,6 +64,12 @@ const StatValue = styled.p`
   font-weight: bold;
 `;
 
+const StyledErrorDiv = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`;
+
 const StatItemGroup = ({ item, index }) => {
   const iconName = item?.icon ? item.icon : "BiStats";
   const Icon = React.lazy(async () => {
@@ -86,23 +93,35 @@ const StatItemGroup = ({ item, index }) => {
 };
 
 // Component to display the StatsCard
-const Card = ({ title, description, data, visualizationRef }) => {
+const Card = ({ title, description, data, visualizationRef, customErrors }) => {
+  const { passed, resultMessages } = useConditionalChecks(customErrors);
+
   return (
-    <CardContainer ref={visualizationRef}>
-      <Header>
-        <h3>{title}</h3>
-        <p>{description}</p>
-      </Header>
-      {data.length === 0 ? (
-        <StatItemGroup />
-      ) : (
-        <StatsContainer>
-          {data.map((item, index) => (
-            <StatItemGroup key={index} item={item} index={index} />
-          ))}
-        </StatsContainer>
-      )}
-    </CardContainer>
+    passed ? (
+      <CardContainer ref={visualizationRef}>
+        <Header>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </Header>
+        {data.length === 0 ? (
+          <StatItemGroup />
+        ) : (
+          <StatsContainer>
+            {data.map((item, index) => (
+              <StatItemGroup key={index} item={item} index={index} />
+            ))}
+          </StatsContainer>
+        )}
+      </CardContainer>
+    ) : (
+      // These will only show if the useConditionalChecks hook finds any failures
+      // It will then map through all of the possible errors that occured.
+      resultMessages.map((message, messageIndex) => (
+        <StyledErrorDiv key={messageIndex}>
+          <h2>{message}</h2>
+        </StyledErrorDiv>
+      ))
+    )
   );
 };
 
@@ -114,6 +133,14 @@ Card.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
+  customErrors: PropTypes.arrayOf(
+    PropTypes.shape({
+      variableName: PropTypes.string,
+      operator: PropTypes.string,
+      comparison: PropTypes.string,
+      resultMessage: PropTypes.string,
+    })
+  ),
 };
 
 StatItemGroup.propTypes = {

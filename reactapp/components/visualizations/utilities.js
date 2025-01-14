@@ -17,7 +17,7 @@ const StyledH2 = styled.h2`
   text-align: center;
 `;
 
-export function setVisualization(setViz, itemData, visualizationRef) {
+export function setVisualization(setViz, itemData, visualizationRef, customErrors) {
   setViz(<StyledSpinner data-testid="Loading..." animation="border" variant="info" />);
 
   appAPI.getPlotData(itemData).then((response) => {
@@ -28,11 +28,20 @@ export function setVisualization(setViz, itemData, visualizationRef) {
           layout: response.data.layout,
         };
         setViz(
-          <BasePlot plotData={plotData} visualizationRef={visualizationRef} />
+          <BasePlot
+            plotData={plotData}
+            visualizationRef={visualizationRef}
+            customErrors={customErrors}
+          />
         );
       } else if (response["viz_type"] === "image") {
         setViz(
-          <Image source={response.data} alt={itemData.source} visualizationRef={visualizationRef} />
+          <Image
+            source={response.data}
+            alt={itemData.source}
+            visualizationRef={visualizationRef}
+            customErrors={customErrors}
+          />
         );
       } else if (response["viz_type"] === "table") {
         setViz(
@@ -40,6 +49,7 @@ export function setVisualization(setViz, itemData, visualizationRef) {
             data={response.data.data}
             title={response.data.title}
             visualizationRef={visualizationRef}
+            customErrors={customErrors}
           />
         );
       } else if (response["viz_type"] === "card") {
@@ -49,6 +59,7 @@ export function setVisualization(setViz, itemData, visualizationRef) {
             title={response.data.title}
             description={response.data.description}
             visualizationRef={visualizationRef}
+            customErrors={customErrors}
           />
         );
       } else if (response["viz_type"] === "map") {
@@ -59,6 +70,7 @@ export function setVisualization(setViz, itemData, visualizationRef) {
             mapConfig={response.data.mapConfig}
             legend={response.data.legend}
             visualizationRef={visualizationRef}
+            customErrors={customErrors}
           />
         );
       } else if (response["viz_type"] === "custom") {
@@ -69,6 +81,7 @@ export function setVisualization(setViz, itemData, visualizationRef) {
             module={response.data.module}
             props={response.data.props}
             visualizationRef={visualizationRef}
+            customErrors={customErrors}
           />
         );
       } else {
@@ -103,6 +116,11 @@ export function updateGridItemArgsWithVariableInputs(
     if (value.includes("Variable Input:")) {
       const neededVariable = value.replace("Variable Input:", "");
       gridItemsArgs[gridItemsArg] = variableInputs[neededVariable];
+    }
+    // Add in all the checks right here.
+
+    if (value.includes("custom")) {
+      console.log("Right here Mr. President");
     }
   }
 

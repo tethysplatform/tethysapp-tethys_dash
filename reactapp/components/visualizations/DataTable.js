@@ -2,6 +2,7 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import { memo } from "react";
 import Table from "react-bootstrap/Table";
+import useConditionalChecks from "hooks/useConditionalChecks";
 
 const StyledDiv = styled.div`
   height: 100%;
@@ -9,7 +10,15 @@ const StyledDiv = styled.div`
   text-align: center;
 `;
 
-const DataTable = ({ data, title, visualizationRef }) => {
+const StyledErrorDiv = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`;
+
+const DataTable = ({ data, title, visualizationRef, customErrors }) => {
+  const { passed, resultMessages } = useConditionalChecks(customErrors);
+
   if (data.length === 0) {
     return (
       <StyledDiv>
@@ -46,13 +55,23 @@ const DataTable = ({ data, title, visualizationRef }) => {
   };
 
   return (
-    <StyledDiv>
-      <h2>{title}</h2>
-      <Table striped bordered hover ref={visualizationRef}>
-        <TableHead />
-        <TableBody />
-      </Table>
-    </StyledDiv>
+    passed ? (
+      <StyledDiv>
+        <h2>{title}</h2>
+        <Table striped bordered hover ref={visualizationRef}>
+          <TableHead />
+          <TableBody />
+        </Table>
+      </StyledDiv>
+    ) : (
+      // These will only show if the useConditionalChecks hook finds any failures
+      // It will then map through all of the possible errors that occured.
+      resultMessages.map((message, messageIndex) => (
+        <StyledErrorDiv key={messageIndex}>
+          <h2>{message}</h2>
+        </StyledErrorDiv>
+      ))
+    )
   );
 };
 
@@ -73,6 +92,14 @@ DataTable.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
+  customErrors: PropTypes.arrayOf(
+    PropTypes.shape({
+      variableName: PropTypes.string,
+      operator: PropTypes.string,
+      comparison: PropTypes.string,
+      resultMessage: PropTypes.string,
+    })
+  ),
 };
 
 export default memo(DataTable);

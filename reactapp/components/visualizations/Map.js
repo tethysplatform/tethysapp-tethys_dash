@@ -1,4 +1,5 @@
 import { memo } from "react";
+import styled from "styled-components";
 import {
   Map,
   View,
@@ -9,6 +10,13 @@ import {
   LayersControl,
 } from "backlayer";
 import PropTypes from "prop-types";
+import useConditionalChecks from "hooks/useConditionalChecks";
+
+const StyledErrorDiv = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`;
 
 const MapVisualization = ({
   mapConfig,
@@ -16,7 +24,10 @@ const MapVisualization = ({
   layers,
   legend,
   visualizationRef,
+  customErrors,
 }) => {
+  const { passed, resultMessages } = useConditionalChecks(customErrors);
+
   const defaultMapConfig = {
     className: "ol-map",
     style: { width: "100%", height: "100%", position: "relative" },
@@ -49,18 +60,28 @@ const MapVisualization = ({
   const customBaseLayers = layers ? layers : defaultBaseLayers;
 
   return (
-    <Map {...customMapConfig} ref={visualizationRef} data-testid="backlayer-map">
-      <View {...customViewConfig} />
-      <Layers>
-        {customBaseLayers.map((config, index) => (
-          <Layer key={index} config={config} />
-        ))}
-      </Layers>
-      <Controls>
-        <LayersControl />
-        {legend && <LegendControl items={legend} />}
-      </Controls>
-    </Map>
+    passed ? (
+      <Map {...customMapConfig} ref={visualizationRef} data-testid="backlayer-map">
+        <View {...customViewConfig} />
+        <Layers>
+          {customBaseLayers.map((config, index) => (
+            <Layer key={index} config={config} />
+          ))}
+        </Layers>
+        <Controls>
+          <LayersControl />
+          {legend && <LegendControl items={legend} />}
+        </Controls>
+      </Map>
+    ) : (
+      // These will only show if the useConditionalChecks hook finds any failures
+      // It will then map through all of the possible errors that occured.
+      resultMessages.map((message, messageIndex) => (
+        <StyledErrorDiv key={messageIndex}>
+          <h2>{message}</h2>
+        </StyledErrorDiv>
+      ))
+    )
   );
 };
 
@@ -73,6 +94,14 @@ MapVisualization.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
+  customErrors: PropTypes.arrayOf(
+    PropTypes.shape({
+      variableName: PropTypes.string,
+      operator: PropTypes.string,
+      comparison: PropTypes.string,
+      resultMessage: PropTypes.string,
+    })
+  ),
 };
 
 export default memo(MapVisualization);

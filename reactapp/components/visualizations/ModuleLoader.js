@@ -1,7 +1,15 @@
 import React, { Suspense } from "react";
+import styled from "styled-components";
 import useDynamicScript from "hooks/useDynamicScript";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 import PropTypes from "prop-types";
+import useConditionalChecks from "hooks/useConditionalChecks";
+
+const StyledErrorDiv = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`;
 
 function loadComponent(scope, module) {
   return async () => {
@@ -17,6 +25,8 @@ function loadComponent(scope, module) {
 }
 
 function ModuleLoader(props) {
+  const { passed, resultMessages } = useConditionalChecks(props.customErrors);
+
   const { ready, failed } = useDynamicScript({
     url: props.module && props.url,
   });
@@ -36,9 +46,19 @@ function ModuleLoader(props) {
   const Component = React.lazy(loadComponent(props.scope, props.module));
 
   return (
-    <Suspense fallback={<LoadingAnimation />}>
-      <Component {...props.props} ref={props.visualizationRef} />
-    </Suspense>
+    passed ? (
+      <Suspense fallback={<LoadingAnimation />}>
+        <Component {...props.props} ref={props.visualizationRef} />
+      </Suspense>
+    ) : (
+      // These will only show if the useConditionalChecks hook finds any failures
+      // It will then map through all of the possible errors that occured.
+      resultMessages.map((message, messageIndex) => (
+        <StyledErrorDiv key={messageIndex}>
+          <h2>{message}</h2>
+        </StyledErrorDiv>
+      ))
+    )
   );
 }
 
@@ -51,6 +71,14 @@ ModuleLoader.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
+  customErrors: PropTypes.arrayOf(
+    PropTypes.shape({
+      variableName: PropTypes.string,
+      operator: PropTypes.string,
+      comparison: PropTypes.string,
+      resultMessage: PropTypes.string,
+    })
+  ),
 };
 
 export default ModuleLoader;
