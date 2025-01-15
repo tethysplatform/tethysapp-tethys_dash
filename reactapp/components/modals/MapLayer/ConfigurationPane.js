@@ -1,6 +1,7 @@
 import PropTypes from "prop-types";
 import DataInput from "components/inputs/DataInput";
 import { useState } from "react";
+import { objectToArray, arrayToObject } from "components/modals/utilities";
 import "components/modals/wideModal.css";
 
 const layerTypes = [
@@ -10,20 +11,6 @@ const layerTypes = [
   "GeoJSON",
   "Raster",
 ];
-
-function objectToArray(obj) {
-  return Object.entries(obj).map(([Parameter, Value]) => ({
-    Parameter,
-    Value,
-  }));
-}
-
-function arrayToObject(arr) {
-  return arr.reduce((acc, obj) => {
-    acc[obj.Parameter] = obj.Value;
-    return acc;
-  }, {});
-}
 
 const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
   const [url, setUrl] = useState(layerInfo.url ?? "");

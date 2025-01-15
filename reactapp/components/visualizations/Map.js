@@ -11,10 +11,9 @@ import { queryLayerFeatures } from "components/backlayer/layer/Layer";
 import PropTypes from "prop-types";
 import { getBaseMapLayer } from "components/visualizations/utilities";
 import Feature from "ol/Feature";
-import Point from "ol/geom/Point";
 import VectorLayer from "ol/layer/Vector";
 import VectorSource from "ol/source/Vector";
-import { LineString } from "ol/geom";
+import { LineString, MultiPolygon, Point } from "ol/geom";
 import { Stroke, Style } from "ol/style";
 import Icon from "ol/style/Icon";
 import {
@@ -66,6 +65,13 @@ function createHighlightLayer(geometries) {
         name: "Polyline",
       });
     });
+  } else if (geometries?.type === "MultiPolygon") {
+    features = [
+      new Feature({
+        geometry: new MultiPolygon(geometries.coordinates),
+        name: "MultiPolygon",
+      }),
+    ];
   } else {
     features = [
       new Feature({
@@ -148,12 +154,13 @@ const MapVisualization = ({
 
     // get coordinates and add pointer marker where the click occurred
     const coordinate = evt.coordinate;
-    const newMarkerLayer = createMarkerLayer(coordinate);
-    if (markerLayer.current) {
-      map.removeLayer(markerLayer.current);
-    }
-    markerLayer.current = newMarkerLayer;
-    map.addLayer(newMarkerLayer);
+    const pixel = evt.pixel;
+    // const newMarkerLayer = createMarkerLayer(coordinate);
+    // if (markerLayer.current) {
+    //   map.removeLayer(markerLayer.current);
+    // }
+    // markerLayer.current = newMarkerLayer;
+    // map.addLayer(newMarkerLayer);
 
     // reduce the layer attributes variables values into a simplified object of layer names and then values
     const mapAttributeVariables = layers.reduce((combined, current) => {
@@ -169,61 +176,67 @@ const MapVisualization = ({
 
     // query the layer features
     // NEED TO MAKE THIS WORK WITH MULTIPLE LAYERS IN PARALLEL
-    queryLayerFeatures(layers[0], map, coordinate).then((layerFeatures) => {
-      if (highlightLayer.current) {
-        map.removeLayer(highlightLayer.current);
-      }
+    queryLayerFeatures(layers[0], map, coordinate, pixel).then(
+      (layerFeatures) => {
+        if (highlightLayer.current) {
+          map.removeLayer(highlightLayer.current);
+        }
 
-      // if valid features were selected then continue
-      if (layerFeatures && layerFeatures.length > 0) {
-        const newHighlightLayer = createHighlightLayer(
-          layerFeatures[0].geometry
-        );
-        highlightLayer.current = newHighlightLayer;
-        map.addLayer(newHighlightLayer);
-
-        // loop through the attribute variables in the map and compare them to the returned features to update any potential variable inputs
-        let updatedVariableInputs = {};
-        for (const layerName in mapAttributeVariables) {
-          // only look at selected features within the same layer
-          const validLayers = layerFeatures.filter(
-            (layerFeature) => layerFeature.layerName === layerName
+        // [{attributes: {key: value}, geometry: {x: "", y: ""}, layerName: ""}]
+        // if valid features were selected then continue
+        if (layerFeatures && layerFeatures.length > 0) {
+          const newHighlightLayer = createHighlightLayer(
+            layerFeatures[0].geometry
           );
-          for (const validLayer of validLayers) {
-            const mappedLayerVariableInputs = {};
-            // check each layer attribute variable to see if the features have valid values
-            for (const layerAlias in mapAttributeVariables[layerName]) {
-              const variableInputName =
-                mapAttributeVariables[layerName][layerAlias];
-              const featureValue = validLayer.attributes[layerAlias];
-              // if the selected feature value is not undefined or "Null" then add it
-              if (featureValue && featureValue !== "Null") {
-                mappedLayerVariableInputs[variableInputName] = featureValue;
+          if (markerLayer.current) {
+            map.removeLayer(markerLayer.current);
+          }
+          highlightLayer.current = newHighlightLayer;
+          map.addLayer(newHighlightLayer);
+
+          // loop through the attribute variables in the map and compare them to the returned features to update any potential variable inputs
+          let updatedVariableInputs = {};
+          for (const layerName in mapAttributeVariables) {
+            // only look at selected features within the same layer
+            const validLayers = layerFeatures.filter(
+              (layerFeature) => layerFeature.layerName === layerName
+            );
+            for (const validLayer of validLayers) {
+              const mappedLayerVariableInputs = {};
+              // check each layer attribute variable to see if the features have valid values
+              for (const layerAlias in mapAttributeVariables[layerName]) {
+                const variableInputName =
+                  mapAttributeVariables[layerName][layerAlias];
+                const featureValue = validLayer.attributes[layerAlias];
+                // if the selected feature value is not undefined or "Null" then add it
+                if (featureValue && featureValue !== "Null") {
+                  mappedLayerVariableInputs[variableInputName] = featureValue;
+                }
+              }
+              // Once a selected feature has a valid value for variable input, go to the next variable input
+              if (Object.keys(mappedLayerVariableInputs).length > 0) {
+                updatedVariableInputs = {
+                  ...updatedVariableInputs,
+                  ...mappedLayerVariableInputs,
+                };
+                continue;
               }
             }
-            // Once a selected feature has a valid value for variable input, go to the next variable input
-            if (Object.keys(mappedLayerVariableInputs).length > 0) {
-              updatedVariableInputs = {
-                ...updatedVariableInputs,
-                ...mappedLayerVariableInputs,
-              };
-              continue;
-            }
           }
-        }
-        // if the map click found any variable inputs to update, then do it
-        if (Object.keys(updatedVariableInputs).length > 0) {
-          setVariableInputValues((previousVariableInputValues) => ({
-            ...previousVariableInputValues,
-            ...updatedVariableInputs,
-          }));
+          // if the map click found any variable inputs to update, then do it
+          if (Object.keys(updatedVariableInputs).length > 0) {
+            setVariableInputValues((previousVariableInputValues) => ({
+              ...previousVariableInputValues,
+              ...updatedVariableInputs,
+            }));
+          } else {
+            console.log("No features with variable inputs were selected");
+          }
         } else {
-          console.log("No features with variable inputs were selected");
+          alert("No attributes found");
         }
-      } else {
-        alert("No attributes found");
       }
-    });
+    );
   };
 
   return (

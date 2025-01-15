@@ -1,10 +1,16 @@
 import PropTypes from "prop-types";
 import { useState, useRef, useEffect } from "react";
 import Table from "react-bootstrap/Table";
+import DataInput from "components/inputs/DataInput";
 import styled from "styled-components";
 import Alert from "react-bootstrap/Alert";
 import { getLayerAttributes } from "components/backlayer/layer/Layer";
 import Spinner from "react-bootstrap/Spinner";
+import {
+  valuesEqual,
+  objectToArray,
+  arrayToObject,
+} from "components/modals/utilities";
 import "components/modals/wideModal.css";
 
 const StyledSpinner = styled(Spinner)`
@@ -45,30 +51,66 @@ function getNonEmptyValues(obj) {
   return newObj;
 }
 
-const AttributePane = ({ layerInfo, setLayerInfo, containerRef, tabKey }) => {
+const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
   const [warningMessage, setWarningMessage] = useState(null);
   const [attributes, setAttributes] = useState({});
-  const previousUrl = useRef("");
+  const previouslayerInfo = useRef({});
   const [attributeVariables, setAttributesVariables] = useState(
     layerInfo.attributeVariables ?? {}
   );
+  const [automatedAttributes, setAutomatedAttributes] = useState(null);
 
   useEffect(() => {
-    if (tabKey === "attributes" && previousUrl.current !== layerInfo.url) {
-      previousUrl.current = layerInfo.url;
+    const layerAttributeValues = {
+      url: layerInfo.url,
+      params: layerInfo.params,
+    };
+    if (
+      tabKey === "attributes" &&
+      !valuesEqual(previouslayerInfo.current, layerAttributeValues)
+    ) {
+      previouslayerInfo.current = layerAttributeValues;
       setAttributes({});
-      queryLayerAttributes();
+      queryLayerAttributes().then((layerAttributes) => {
+        if (layerAttributes === undefined) {
+          setAutomatedAttributes(false);
+          const lowercaseLayerParams = Object.keys(layerInfo.params).reduce(
+            (acc, key) => {
+              acc[key.toLowerCase()] = layerInfo.params[key];
+              return acc;
+            },
+            {}
+          );
+          const potentialLayers = lowercaseLayerParams?.layers ?? "";
+          const transformedLayers = potentialLayers
+            .split(",")
+            .map((layer) => layer.replace(/^[^:]*:/, ""));
+
+          setAttributes(
+            transformedLayers.reduce((acc, layer) => {
+              acc[layer] = [{ Name: "", Alias: "", "Variable Input Name": "" }];
+              return acc;
+            }, {})
+          );
+        } else {
+          setAutomatedAttributes(true);
+        }
+      });
     }
   }, [tabKey]);
 
   function updateAttributeVariables(alias, layerName, variableInputName) {
-    const updatedAttributeVariable = JSON.parse(
+    const updatedAttributeVariables = JSON.parse(
       JSON.stringify(attributeVariables)
     );
-    updatedAttributeVariable[layerName][alias] = variableInputName;
-    setAttributesVariables(updatedAttributeVariable);
+    updatedAttributeVariables[layerName][alias] = variableInputName;
+    setAttributesVariables(updatedAttributeVariables);
 
-    const validAttributeValues = getNonEmptyValues(updatedAttributeVariable);
+    updateLayerInfo(updatedAttributeVariables);
+  }
+
+  function updateLayerInfo(updatedAttributeVariables) {
+    const validAttributeValues = getNonEmptyValues(updatedAttributeVariables);
     setLayerInfo((previousLayerInfo) => ({
       ...previousLayerInfo,
       ...{ attributeVariables: validAttributeValues },
@@ -83,35 +125,83 @@ const AttributePane = ({ layerInfo, setLayerInfo, containerRef, tabKey }) => {
       );
       return;
     }
-    const layerAttributes = await getLayerAttributes(
-      layerInfo.url,
-      layerInfo.layerType
-    );
+    let layerAttributes;
+    try {
+      layerAttributes = await getLayerAttributes(layerInfo);
+    } catch (error) {
+      setWarningMessage(
+        <>
+          {error.message}
+          <br />
+          <br />
+          Please provide the desired fields and aliases manually below or
+          attempt to fix the issues and retry.
+        </>
+      );
+      return;
+    }
     setAttributes(layerAttributes);
     refreshAttributeVariables(layerAttributes);
+
+    return layerAttributes;
   }
 
   function refreshAttributeVariables(layerAttributes) {
     const newObj = {};
-    for (const key in layerAttributes) {
-      newObj[key] = {};
-      for (const { alias } of layerAttributes[key]) {
+    for (const layerName in layerAttributes) {
+      newObj[layerName] = {};
+      for (const layerAttribute of layerAttributes[layerName]) {
+        const alias = layerAttribute.alias ?? layerAttribute.Alias;
         const existingValue =
-          attributeVariables[key] && attributeVariables[key][alias];
-        newObj[key][alias] = existingValue ?? "";
+          attributeVariables[layerName] && attributeVariables[layerName][alias];
+        newObj[layerName][alias] = existingValue ?? "";
       }
     }
     setAttributesVariables(newObj);
   }
 
+  function handleAttributeChange(fields, layerName) {
+    const newAttributes = JSON.parse(JSON.stringify(attributes));
+    newAttributes[layerName] = fields;
+    setAttributes(newAttributes);
+
+    // only update variables when all inputs are filled out
+    if (
+      fields.every((obj) => Object.values(obj).every((value) => value !== ""))
+    ) {
+      const updatedAttributeVariables = JSON.parse(
+        JSON.stringify(attributeVariables)
+      );
+      if (!(layerName in updatedAttributeVariables)) {
+        updatedAttributeVariables[layerName] = {};
+      }
+      for (const field of fields) {
+        updatedAttributeVariables[layerName][field["Alias"]] =
+          field["Variable Input Name"];
+      }
+      setAttributesVariables(updatedAttributeVariables);
+
+      updateLayerInfo(updatedAttributeVariables);
+    }
+  }
+
   return (
     <>
       {warningMessage && (
-        <Alert key="warning" variant="warning">
-          {warningMessage}
-        </Alert>
+        <>
+          <Alert key="warning" variant="warning" dismissible>
+            {warningMessage}
+          </Alert>
+          {}
+        </>
       )}
-      {attributes ? (
+      {automatedAttributes === null ? (
+        <StyledSpinner
+          data-testid="Loading..."
+          animation="border"
+          variant="info"
+        />
+      ) : automatedAttributes ? (
         Object.keys(attributes).map((layerName) => (
           <>
             <p>
@@ -153,11 +243,16 @@ const AttributePane = ({ layerInfo, setLayerInfo, containerRef, tabKey }) => {
           </>
         ))
       ) : (
-        <StyledSpinner
-          data-testid="Loading..."
-          animation="border"
-          variant="info"
-        />
+        Object.keys(attributes).map((layerName) => (
+          <DataInput
+            objValue={{
+              label: layerName,
+              type: "inputtable",
+              value: attributes[layerName],
+            }}
+            onChange={(e) => handleAttributeChange(e, layerName)}
+          />
+        ))
       )}
     </>
   );

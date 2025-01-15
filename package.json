@@ -41,6 +41,7 @@
     "react-tiny-popover": "",
     "sass": "^1.49.0",
     "sass-loader": "^12.3.0",
+    "simple-xml-to-json": "^1.2.3",
     "style-loader": "^3.3.1",
     "styled-components": "^5.3.5",
     "webpack": "^5.64.4",

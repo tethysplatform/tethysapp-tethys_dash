@@ -136,6 +136,7 @@ const MapLayerModal = ({
               url: layerInfo.url,
               params: layerInfo.params,
             },
+            serverType: layerInfo.url.includes("geoserver") && "geoserver",
           },
           name: layerInfo.name,
         },

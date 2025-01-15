@@ -49,3 +49,17 @@ export const valuesEqual = (a1, a2) => {
     return a1 === a2;
   }
 };
+
+export function objectToArray(obj) {
+  return Object.entries(obj).map(([Parameter, Value]) => ({
+    Parameter,
+    Value,
+  }));
+}
+
+export function arrayToObject(arr) {
+  return arr.reduce((acc, obj) => {
+    acc[obj.Parameter] = obj.Value;
+    return acc;
+  }, {});
+}
