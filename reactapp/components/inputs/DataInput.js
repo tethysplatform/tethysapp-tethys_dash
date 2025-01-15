@@ -33,8 +33,7 @@ const Input = ({
   index,
   valueOptions,
   includeVariableInputs,
-  setShowingSubModal,
-  gridItemIndex,
+  inputProps,
 }) => {
   const { variableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
@@ -78,6 +77,7 @@ const Input = ({
         selectedOption={inputValue}
         onChange={(e) => onChange(e, index)}
         options={options}
+        {...inputProps}
       />
     );
   } else if (type === "checkbox") {
@@ -92,6 +92,7 @@ const Input = ({
           id={label.replace(" ", "_")}
           checked={value}
           onChange={(e) => onChange(e.target.checked, index)}
+          {...inputProps}
         />
       </div>
     );
@@ -105,6 +106,7 @@ const Input = ({
         onChange={(e) => {
           onChange(e.target.value, index);
         }}
+        {...inputProps}
       />
     );
   } else if (type === "multiinput") {
@@ -116,6 +118,7 @@ const Input = ({
           onChange(values, index);
         }}
         values={value}
+        {...inputProps}
       />
     );
   } else if (type === "inputtable") {
@@ -127,6 +130,7 @@ const Input = ({
           onChange(values, index);
         }}
         values={value}
+        {...inputProps}
       />
     );
   } else if (typeof type === "string" && type.includes("custom-")) {
@@ -140,8 +144,7 @@ const Input = ({
           onChange(values, index);
         }}
         values={value}
-        setShowingSubModal={setShowingSubModal}
-        gridItemIndex={gridItemIndex}
+        {...inputProps}
       />
     );
   } else {
@@ -160,6 +163,7 @@ const Input = ({
             }
           }}
           value={value}
+          {...inputProps}
         />
       </>
     );
@@ -171,8 +175,7 @@ const DataInput = ({
   onChange,
   index,
   includeVariableInputs,
-  setShowingSubModal,
-  gridItemIndex,
+  inputProps,
 }) => {
   const { label, type, value, valueOptions } = objValue;
 
@@ -188,8 +191,7 @@ const DataInput = ({
             valueOptions={valueOptions}
             index={index}
             includeVariableInputs={includeVariableInputs}
-            setShowingSubModal={setShowingSubModal}
-            gridItemIndex={gridItemIndex}
+            inputProps={inputProps}
           />
         </StyledDiv>
       )}

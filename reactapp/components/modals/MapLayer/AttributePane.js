@@ -85,13 +85,30 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
           const transformedLayers = potentialLayers
             .split(",")
             .map((layer) => layer.replace(/^[^:]*:/, ""));
+          const layerAttributes = {};
+          for (const layerName of transformedLayers) {
+            const attributeVariables = [];
+            if (
+              layerName in layerInfo.attributeVariables &&
+              Object.keys(layerInfo.attributeVariables[layerName]).length > 0
+            ) {
+              for (const fieldName in layerInfo.attributeVariables[layerName]) {
+                attributeVariables.push({
+                  "Field Name": fieldName,
+                  "Variable Input Name":
+                    layerInfo.attributeVariables[layerName][fieldName],
+                });
+              }
+            } else {
+              attributeVariables.push({
+                "Field Name": "",
+                "Variable Input Name": "",
+              });
+            }
+            layerAttributes[layerName] = attributeVariables;
+          }
 
-          setAttributes(
-            transformedLayers.reduce((acc, layer) => {
-              acc[layer] = [{ Name: "", Alias: "", "Variable Input Name": "" }];
-              return acc;
-            }, {})
-          );
+          setAttributes(layerAttributes);
         } else {
           setAutomatedAttributes(true);
         }
@@ -134,8 +151,8 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
           {error.message}
           <br />
           <br />
-          Please provide the desired fields and aliases manually below or
-          attempt to fix the issues and retry.
+          Please provide the desired fields manually below or attempt to fix the
+          issues and retry.
         </>
       );
       return;
@@ -176,11 +193,10 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
         updatedAttributeVariables[layerName] = {};
       }
       for (const field of fields) {
-        updatedAttributeVariables[layerName][field["Alias"]] =
+        updatedAttributeVariables[layerName][field["Field Name"]] =
           field["Variable Input Name"];
       }
       setAttributesVariables(updatedAttributeVariables);
-
       updateLayerInfo(updatedAttributeVariables);
     }
   }

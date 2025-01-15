@@ -55,8 +55,7 @@ const VisualizationArguments = ({
         objValue={obj}
         onChange={handleInputChange}
         index={index}
-        setShowingSubModal={setShowingSubModal}
-        gridItemIndex={gridItemIndex}
+        inputProps={{ gridItemIndex, setShowingSubModal }}
       />
     );
   });
