@@ -13,8 +13,8 @@ import { getBaseMapLayer } from "components/visualizations/utilities";
 import Feature from "ol/Feature";
 import VectorLayer from "ol/layer/Vector";
 import VectorSource from "ol/source/Vector";
-import { LineString, MultiPolygon, Point } from "ol/geom";
-import { Stroke, Style } from "ol/style";
+import { LineString, MultiPolygon, Polygon, Point } from "ol/geom";
+import { Stroke, Style, Circle } from "ol/style";
 import Icon from "ol/style/Icon";
 import {
   DataViewerModeContext,
@@ -22,6 +22,7 @@ import {
 } from "components/contexts/Contexts";
 import { getMapAttributeVariables } from "components/visualizations/utilities";
 import { valuesEqual } from "components/modals/utilities";
+import appAPI from "services/api/app";
 
 function createMarkerLayer(coordinate) {
   const markPath = `
@@ -58,13 +59,21 @@ function createMarkerLayer(coordinate) {
 
 function createHighlightLayer(geometries) {
   let features;
-  if ("paths" in geometries) {
-    features = geometries.paths.map((path) => {
+  if ("paths" in geometries || geometries?.type === "MultiLineString") {
+    const paths = geometries.paths || geometries.coordinates;
+    features = paths.map((path) => {
       return new Feature({
         geometry: new LineString(path),
         name: "Polyline",
       });
     });
+  } else if (geometries?.type === "LineString") {
+    features = [
+      new Feature({
+        geometry: new LineString(geometries.coordinates),
+        name: "LineString",
+      }),
+    ];
   } else if (geometries?.type === "MultiPolygon") {
     features = [
       new Feature({
@@ -72,22 +81,40 @@ function createHighlightLayer(geometries) {
         name: "MultiPolygon",
       }),
     ];
-  } else {
+  } else if (geometries?.type === "Polygon") {
     features = [
       new Feature({
-        type: "marker",
-        geometry: new Point((geometries.x, geometries.y)),
+        geometry: new Polygon(geometries.coordinates),
+        name: "Polygon",
+      }),
+    ];
+  } else {
+    let geometry;
+    if ("x" in geometries) {
+      geometry = new Point((geometries.x, geometries.y));
+    } else {
+      geometry = new Point(geometries.coordinates);
+    }
+    features = [
+      new Feature({
+        name: "Point",
+        geometry: geometry,
       }),
     ];
   }
+  const stroke = new Stroke({
+    color: "#00008b",
+    width: 3,
+  });
   const highlightLayer = new VectorLayer({
     source: new VectorSource({
       features: features,
     }),
     style: new Style({
-      stroke: new Stroke({
-        color: "#00008b",
-        width: 3,
+      stroke: stroke,
+      image: new Circle({
+        stroke: stroke,
+        radius: 5,
       }),
     }),
     name: "Highlighter",
@@ -114,35 +141,46 @@ const MapVisualization = ({
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
   useEffect(() => {
-    if (
-      !valuesEqual(layers, currentLayers.current) ||
-      !valuesEqual(baseMap, currentBaseMap.current)
-    ) {
-      currentLayers.current = JSON.parse(JSON.stringify(layers));
-      const newMapLegend = [];
-      const newMapLayers = [];
-      for (const layer of layers) {
-        if (Object.keys(layer.legend).length > 0) {
-          newMapLegend.push(layer.legend);
+    (async () => {
+      if (
+        !valuesEqual(layers, currentLayers.current) ||
+        !valuesEqual(baseMap, currentBaseMap.current)
+      ) {
+        currentLayers.current = JSON.parse(JSON.stringify(layers));
+        const newMapLegend = [];
+        const newMapLayers = [];
+        for (const layer of layers) {
+          if (layer.configuration.props.source.type === "GeoJSON") {
+            const apiResponse = await appAPI.downloadGeoJSON({
+              filename: layer.configuration.props.source.filename,
+            });
+            if (apiResponse.success) {
+              layer.configuration.props.source.features = apiResponse.data;
+            }
+          }
+
+          if (Object.keys(layer.legend).length > 0) {
+            newMapLegend.push(layer.legend);
+          }
+          newMapLayers.push(layer.configuration);
         }
-        newMapLayers.push(layer.configuration);
-      }
 
-      if (baseMap) {
-        const baseMapLayer = getBaseMapLayer(baseMap);
-        if (baseMapLayer) {
-          newMapLayers.splice(0, 0, baseMapLayer);
+        if (baseMap) {
+          const baseMapLayer = getBaseMapLayer(baseMap);
+          if (baseMapLayer) {
+            newMapLayers.splice(0, 0, baseMapLayer);
+          }
         }
+
+        newMapLayers.forEach((layer, index) => {
+          layer.props.zIndex = index;
+        });
+
+        currentBaseMap.current = baseMap;
+        setMapLegend(newMapLegend);
+        setMapLayers(newMapLayers);
       }
-
-      newMapLayers.forEach((layer, index) => {
-        layer.props.zIndex = index;
-      });
-
-      currentBaseMap.current = baseMap;
-      setMapLegend(newMapLegend);
-      setMapLayers(newMapLayers);
-    }
+    })();
   }, [layers, baseMap]);
 
   const onMapClick = (map, evt) => {
@@ -176,8 +214,8 @@ const MapVisualization = ({
 
     // query the layer features
     // NEED TO MAKE THIS WORK WITH MULTIPLE LAYERS IN PARALLEL
-    queryLayerFeatures(layers[0], map, coordinate, pixel).then(
-      (layerFeatures) => {
+    queryLayerFeatures(layers[0], map, coordinate, pixel)
+      .then((layerFeatures) => {
         if (highlightLayer.current) {
           map.removeLayer(highlightLayer.current);
         }
@@ -235,8 +273,10 @@ const MapVisualization = ({
         } else {
           alert("No attributes found");
         }
-      }
-    );
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+      });
   };
 
   return (

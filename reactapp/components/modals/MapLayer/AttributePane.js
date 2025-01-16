@@ -59,60 +59,116 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
     layerInfo.attributeVariables ?? {}
   );
   const [automatedAttributes, setAutomatedAttributes] = useState(null);
+  const [disabledFields, setDisabledFields] = useState([]);
 
   useEffect(() => {
-    const layerAttributeValues = {
-      url: layerInfo.url,
-      params: layerInfo.params,
-    };
-    if (
-      tabKey === "attributes" &&
-      !valuesEqual(previouslayerInfo.current, layerAttributeValues)
-    ) {
-      previouslayerInfo.current = layerAttributeValues;
-      setAttributes({});
-      queryLayerAttributes().then((layerAttributes) => {
-        if (layerAttributes === undefined) {
-          setAutomatedAttributes(false);
-          const lowercaseLayerParams = Object.keys(layerInfo.params).reduce(
-            (acc, key) => {
-              acc[key.toLowerCase()] = layerInfo.params[key];
-              return acc;
-            },
-            {}
-          );
-          const potentialLayers = lowercaseLayerParams?.layers ?? "";
-          const transformedLayers = potentialLayers
-            .split(",")
-            .map((layer) => layer.replace(/^[^:]*:/, ""));
-          const layerAttributes = {};
-          for (const layerName of transformedLayers) {
-            const attributeVariables = [];
-            if (
-              layerName in layerInfo.attributeVariables &&
-              Object.keys(layerInfo.attributeVariables[layerName]).length > 0
-            ) {
-              for (const fieldName in layerInfo.attributeVariables[layerName]) {
-                attributeVariables.push({
-                  "Field Name": fieldName,
-                  "Variable Input Name":
-                    layerInfo.attributeVariables[layerName][fieldName],
-                });
-              }
-            } else {
-              attributeVariables.push({
-                "Field Name": "",
-                "Variable Input Name": "",
-              });
-            }
-            layerAttributes[layerName] = attributeVariables;
-          }
+    if (tabKey === "attributes") {
+      const layerAttributeValues = {
+        url: layerInfo.url,
+        params: layerInfo.params,
+        geojson: layerInfo?.geojson ?? {},
+      };
+      if (
+        tabKey === "attributes" &&
+        !valuesEqual(previouslayerInfo.current, layerAttributeValues)
+      ) {
+        setAutomatedAttributes(null);
+        setWarningMessage(null);
+        setDisabledFields([]);
 
+        previouslayerInfo.current = layerAttributeValues;
+        setAttributes({});
+        let layerAttributes = {};
+        let attributeVariables = [];
+
+        if (layerInfo.layerType === "GeoJSON") {
+          let layerGeoJSON;
+          try {
+            layerGeoJSON = JSON.parse(layerInfo.geojson);
+          } catch (err) {
+            setAutomatedAttributes(false);
+            setWarningMessage(
+              <>
+                Invalid json is being used. Please alter the json and try again.
+                <br />
+                <br />
+                {err.message}
+              </>
+            );
+            return;
+          }
+          const layerFeatures = layerGeoJSON?.features ?? [];
+          const propertyKeys = layerFeatures
+            .map((feature) =>
+              feature.properties ? Object.keys(feature.properties) : []
+            )
+            .flat();
+          const uniquePropertyKeys = [...new Set(propertyKeys)];
+
+          if (uniquePropertyKeys.length === 0) {
+            setAutomatedAttributes(false);
+            setWarningMessage("No properties were found in the GeoJSON.");
+            return;
+          }
+          for (const uniquePropertyKey of uniquePropertyKeys) {
+            attributeVariables.push({
+              "Field Name": uniquePropertyKey,
+              "Variable Input Name": "",
+            });
+          }
+          layerAttributes[layerInfo.name] = attributeVariables;
+          setDisabledFields(["Field Name"]);
           setAttributes(layerAttributes);
+          setAutomatedAttributes(false);
         } else {
-          setAutomatedAttributes(true);
+          queryLayerAttributes().then((layerAttributes) => {
+            if (
+              layerAttributes === undefined &&
+              Object.keys(layerInfo.params).length > 0
+            ) {
+              setAutomatedAttributes(false);
+              const lowercaseLayerParams = Object.keys(layerInfo.params).reduce(
+                (acc, key) => {
+                  acc[key.toLowerCase()] = layerInfo.params[key];
+                  return acc;
+                },
+                {}
+              );
+              const potentialLayers = lowercaseLayerParams?.layers ?? "";
+              const transformedLayers = potentialLayers
+                .split(",")
+                .map((layer) => layer.replace(/^[^:]*:/, ""));
+              for (const layerName of transformedLayers) {
+                if (
+                  layerName in layerInfo.attributeVariables &&
+                  Object.keys(layerInfo.attributeVariables[layerName]).length >
+                    0
+                ) {
+                  for (const fieldName in layerInfo.attributeVariables[
+                    layerName
+                  ]) {
+                    attributeVariables.push({
+                      "Field Name": fieldName,
+                      "Variable Input Name":
+                        layerInfo.attributeVariables[layerName][fieldName],
+                    });
+                  }
+                } else {
+                  attributeVariables.push({
+                    "Field Name": "",
+                    "Variable Input Name": "",
+                  });
+                }
+                layerAttributes[layerName] = attributeVariables;
+              }
+
+              setAttributes(layerAttributes);
+            } else {
+              setAutomatedAttributes(true);
+            }
+          });
         }
-      });
+      }
     }
   }, [tabKey]);
 
@@ -144,7 +200,7 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
     }
     let layerAttributes;
     try {
-      layerAttributes = await getLayerAttributes(layerInfo);
+      layerAttributes = layerInfo.geojson;
     } catch (error) {
       setWarningMessage(
         <>
@@ -204,12 +260,9 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
   return (
     <>
       {warningMessage && (
-        <>
-          <Alert key="warning" variant="warning" dismissible>
-            {warningMessage}
-          </Alert>
-          {}
-        </>
+        <Alert key="warning" variant="warning" dismissible>
+          {warningMessage}
+        </Alert>
       )}
       {automatedAttributes === null ? (
         <StyledSpinner
@@ -267,6 +320,7 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
               value: attributes[layerName],
             }}
             onChange={(e) => handleAttributeChange(e, layerName)}
+            inputProps={{ disabledFields }}
           />
         ))
       )}

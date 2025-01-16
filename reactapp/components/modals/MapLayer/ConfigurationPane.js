@@ -1,7 +1,11 @@
 import PropTypes from "prop-types";
 import DataInput from "components/inputs/DataInput";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { objectToArray, arrayToObject } from "components/modals/utilities";
+import FileUpload from "components/inputs/FileUpload";
+import styled from "styled-components";
+import { v4 as uuidv4 } from "uuid";
+import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
 const layerTypes = [
@@ -12,6 +16,11 @@ const layerTypes = [
   "Raster",
 ];
 
+const StyledTextInput = styled.textarea`
+  width: 100%;
+  height: 30vh;
+`;
+
 const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
   const [url, setUrl] = useState(layerInfo.url ?? "");
   const [layerType, setLayerType] = useState(layerInfo.layerType ?? null);
@@ -21,6 +30,22 @@ const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
       ? objectToArray(layerInfo.params)
       : [{ Parameter: "", Value: "" }]
   );
+  const [geoJSON, setGeoJSON] = useState("{}");
+
+  useEffect(() => {
+    (async () => {
+      if (layerType === "GeoJSON") {
+        if (layerInfo.url.split(".").pop() === "json" && geoJSON === "{}") {
+          const apiResponse = await appAPI.downloadGeoJSON({
+            filename: layerInfo.url,
+          });
+          setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
+        }
+      }
+    })();
+    layerInfo.url = `${uuidv4()}.json`;
+    layerInfo.geojson = geoJSON;
+  }, [geoJSON]);
 
   function handleParameterChange(e) {
     setParams(e);
@@ -29,6 +54,22 @@ const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
       ...previousLayerInfo,
       ...{ params: paramObject },
     }));
+  }
+
+  function handleLayerTypeChange(e) {
+    setLayerType(e.value);
+    setLayerInfo((previousLayerInfo) => ({
+      ...previousLayerInfo,
+      ...{ layerType: e.value },
+    }));
+  }
+
+  function handleGeoJSONUpload({ fileContent }) {
+    setGeoJSON(fileContent);
+  }
+
+  function handleGeoJSONChange(e) {
+    setGeoJSON(e.target.value);
   }
 
   return (
@@ -49,29 +90,40 @@ const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
           type: layerTypes,
           value: layerType,
         }}
-        onChange={(e) => {
-          setLayerType(e.value);
-          setLayerInfo((previousLayerInfo) => ({
-            ...previousLayerInfo,
-            ...{ layerType: e.value },
-          }));
-        }}
+        onChange={handleLayerTypeChange}
         includeVariableInputs={false}
       />
-      <DataInput
-        objValue={{ label: "URL", type: "text", value: url }}
-        onChange={(e) => {
-          setUrl(e);
-          setLayerInfo((previousLayerInfo) => ({
-            ...previousLayerInfo,
-            ...{ url: e },
-          }));
-        }}
-      />
-      <DataInput
-        objValue={{ label: "Parameters", type: "inputtable", value: params }}
-        onChange={handleParameterChange}
-      />
+      {layerType === "GeoJSON" ? (
+        <>
+          <FileUpload
+            label="Upload GeoJSON file"
+            onFileUpload={handleGeoJSONUpload}
+            extensionsAllowed={["json", "geojson"]}
+          />
+          <StyledTextInput value={geoJSON} onChange={handleGeoJSONChange} />
+        </>
+      ) : (
+        <>
+          <DataInput
+            objValue={{ label: "URL", type: "text", value: url }}
+            onChange={(e) => {
+              setUrl(e);
+              setLayerInfo((previousLayerInfo) => ({
+                ...previousLayerInfo,
+                ...{ url: e },
+              }));
+            }}
+          />
+          <DataInput
+            objValue={{
+              label: "Parameters",
+              type: "inputtable",
+              value: params,
+            }}
+            onChange={handleParameterChange}
+          />
+        </>
+      )}
     </>
   );
 };

@@ -27,6 +27,16 @@ const appAPI = {
       headers: { "x-csrftoken": csrf },
     });
   },
+  uploadGeoJSON: (data, csrf) => {
+    return apiClient.post(`${APP_ROOT_URL}geojson/upload/`, data, {
+      headers: { "x-csrftoken": csrf },
+    });
+  },
+  downloadGeoJSON: (data) => {
+    return apiClient.get(`${APP_ROOT_URL}geojson/download/`, {
+      params: data,
+    });
+  },
 };
 
 export default appAPI;

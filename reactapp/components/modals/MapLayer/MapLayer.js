@@ -9,11 +9,9 @@ import Tabs from "react-bootstrap/Tabs";
 import ConfigurationPane from "components/modals/MapLayer/ConfigurationPane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
 import AttributePane from "components/modals/MapLayer/AttributePane";
-import {
-  LayoutContext,
-  VariableInputsContext,
-} from "components/contexts/Contexts";
+import { AppContext } from "components/contexts/Contexts";
 import { getMapAttributeVariables } from "components/visualizations/utilities";
+import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
 const StyledModal = styled(Modal)`
@@ -36,16 +34,13 @@ const MapLayerModal = ({
   setLayerInfo,
   mapLayers,
   existingLayerOriginalName,
-  gridItemIndex,
 }) => {
-  const { variableInputValues } = useContext(VariableInputsContext);
   const [tabKey, setTabKey] = useState("configuration");
   const [errorMessage, setErrorMessage] = useState(null);
   const containerRef = useRef(null);
-  const { getLayoutContext } = useContext(LayoutContext);
-  const { gridItems } = getLayoutContext();
+  const { csrf } = useContext(AppContext);
 
-  function saveLayer() {
+  async function saveLayer() {
     setErrorMessage(null);
     if (!layerInfo.url || !layerInfo.layerType || !layerInfo.name) {
       setErrorMessage("All arguments must be filled out to save the layer");
@@ -124,7 +119,7 @@ const MapLayerModal = ({
       }
     }
 
-    addMapLayer({
+    const mapConfiguration = {
       configuration: {
         type: layerInfo.layerType.includes("Image")
           ? "ImageLayer"
@@ -143,7 +138,41 @@ const MapLayerModal = ({
       },
       legend: layerInfo.legend ?? {},
       attributeVariables: layerInfo.attributeVariables ?? {},
-    });
+    };
+
+    if (layerInfo.layerType === "GeoJSON") {
+      try {
+        JSON.parse(layerInfo.geojson);
+      } catch (err) {
+        setErrorMessage(
+          <>
+            Invalid json is being used. Please alter the json and try again.
+            <br />
+            <br />
+            {err.message}
+          </>
+        );
+        return;
+      }
+
+      if (!("crs" in JSON.parse(layerInfo.geojson))) {
+        setErrorMessage("GeoJSON must include a crs property");
+        return;
+      }
+
+      const geoJSONInfo = { data: layerInfo.geojson, filename: layerInfo.url };
+      const apiResponse = await appAPI.uploadGeoJSON(geoJSONInfo, csrf);
+      if (!apiResponse.success) {
+        setErrorMessage(
+          "Failed to upload the json data. Check logs for more information."
+        );
+        return;
+      }
+      mapConfiguration.configuration.props.source.props = {};
+      mapConfiguration.configuration.props.source.filename = layerInfo.url;
+    }
+
+    addMapLayer(mapConfiguration);
     handleModalClose();
   }
 

@@ -98,7 +98,9 @@ const MapLayerTemplate = ({
     setLayerInfo({
       layerType: existingMapLayer.configuration.props.source.type,
       params: existingMapLayer.configuration.props.source.props.params,
-      url: existingMapLayer.configuration.props.source.props.url,
+      url:
+        existingMapLayer.configuration.props.source.props.url ||
+        existingMapLayer.configuration.props.source.filename,
       name: existingMapLayer.configuration.props.name,
       legend: existingMapLayer.legend,
       attributeVariables: existingMapLayer.attributeVariables,

@@ -9,7 +9,7 @@ const FullLabel = styled.label`
   width: 100%;
 `;
 
-function InputTable({ label, onChange, values }) {
+function InputTable({ label, onChange, values, disabledFields }) {
   const [userInputs, setUserInputs] = useState(values || []);
   const inputRefs = useRef([]);
   const fields = values.length > 0 ? Object.keys(values[0]) : [];
@@ -104,6 +104,9 @@ function InputTable({ label, onChange, values }) {
                     }
                     onChange={(e) => handleChange(e, rowIndex, field)}
                     onKeyDown={(e) => handleKeyDown(e, rowIndex, fieldIndex)}
+                    disabled={
+                      disabledFields ? disabledFields.includes(field) : false
+                    }
                   />
                 </td>
               ))}
