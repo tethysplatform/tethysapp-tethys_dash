@@ -140,9 +140,10 @@ const MapLayerModal = ({
       attributeVariables: layerInfo.attributeVariables ?? {},
     };
 
+    let geoJSON;
     if (layerInfo.layerType === "GeoJSON") {
       try {
-        JSON.parse(layerInfo.geojson);
+        geoJSON = JSON.parse(layerInfo.geojson);
       } catch (err) {
         setErrorMessage(
           <>
@@ -155,8 +156,10 @@ const MapLayerModal = ({
         return;
       }
 
-      if (!("crs" in JSON.parse(layerInfo.geojson))) {
-        setErrorMessage("GeoJSON must include a crs property");
+      if (!geoJSON?.crs?.properties?.name) {
+        setErrorMessage(
+          'GeoJSON must include a crs key with the structure {"properties": {"name": "EPSG:<CODE>"}}'
+        );
         return;
       }
 
