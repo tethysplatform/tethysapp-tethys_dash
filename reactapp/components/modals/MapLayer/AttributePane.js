@@ -78,13 +78,11 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
 
         previouslayerInfo.current = layerAttributeValues;
         setAttributes({});
-        let layerAttributes = {};
         let attributeVariables = [];
 
         if (layerInfo.layerType === "GeoJSON") {
-          let layerGeoJSON;
           try {
-            layerGeoJSON = JSON.parse(layerInfo.geojson);
+            JSON.parse(layerInfo.geojson);
           } catch (err) {
             setAutomatedAttributes(false);
             setWarningMessage(
@@ -97,77 +95,64 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
             );
             return;
           }
-          const layerFeatures = layerGeoJSON?.features ?? [];
-          const propertyKeys = layerFeatures
-            .map((feature) =>
-              feature.properties ? Object.keys(feature.properties) : []
-            )
-            .flat();
-          const uniquePropertyKeys = [...new Set(propertyKeys)];
+        }
 
-          if (uniquePropertyKeys.length === 0) {
+        queryLayerAttributes().then((layerAttributes) => {
+          if (
+            layerAttributes === undefined &&
+            Object.keys(layerInfo.params).length > 0
+          ) {
             setAutomatedAttributes(false);
-            setWarningMessage("No properties were found in the GeoJSON.");
-            return;
-          }
-          for (const uniquePropertyKey of uniquePropertyKeys) {
-            attributeVariables.push({
-              "Field Name": uniquePropertyKey,
-              "Variable Input Name": "",
-            });
-          }
-          layerAttributes[layerInfo.name] = attributeVariables;
-          setDisabledFields(["Field Name"]);
-          setAttributes(layerAttributes);
-          setAutomatedAttributes(false);
-        } else {
-          queryLayerAttributes().then((layerAttributes) => {
-            if (
-              layerAttributes === undefined &&
-              Object.keys(layerInfo.params).length > 0
-            ) {
-              setAutomatedAttributes(false);
-              const lowercaseLayerParams = Object.keys(layerInfo.params).reduce(
-                (acc, key) => {
-                  acc[key.toLowerCase()] = layerInfo.params[key];
-                  return acc;
-                },
-                {}
-              );
-              const potentialLayers = lowercaseLayerParams?.layers ?? "";
-              const transformedLayers = potentialLayers
-                .split(",")
-                .map((layer) => layer.replace(/^[^:]*:/, ""));
-              for (const layerName of transformedLayers) {
-                if (
-                  layerName in layerInfo.attributeVariables &&
-                  Object.keys(layerInfo.attributeVariables[layerName]).length >
-                    0
-                ) {
-                  for (const fieldName in layerInfo.attributeVariables[
-                    layerName
-                  ]) {
-                    attributeVariables.push({
-                      "Field Name": fieldName,
-                      "Variable Input Name":
-                        layerInfo.attributeVariables[layerName][fieldName],
-                    });
-                  }
-                } else {
+            const lowercaseLayerParams = Object.keys(layerInfo.params).reduce(
+              (acc, key) => {
+                acc[key.toLowerCase()] = layerInfo.params[key];
+                return acc;
+              },
+              {}
+            );
+            const potentialLayers = lowercaseLayerParams?.layers ?? "";
+            const transformedLayers = potentialLayers
+              .split(",")
+              .map((layer) => layer.replace(/^[^:]*:/, ""));
+            for (const layerName of transformedLayers) {
+              if (
+                layerName in layerInfo.attributeVariables &&
+                Object.keys(layerInfo.attributeVariables[layerName]).length > 0
+              ) {
+                for (const fieldName in layerInfo.attributeVariables[
+                  layerName
+                ]) {
                   attributeVariables.push({
-                    "Field Name": "",
-                    "Variable Input Name": "",
+                    "Field Name": fieldName,
+                    "Variable Input Name":
+                      layerInfo.attributeVariables[layerName][fieldName],
                   });
                 }
-                layerAttributes[layerName] = attributeVariables;
+              } else {
+                attributeVariables.push({
+                  "Field Name": "",
+                  "Variable Input Name": "",
+                });
               }
-
-              setAttributes(layerAttributes);
-            } else {
-              setAutomatedAttributes(true);
+              layerAttributes[layerName] = attributeVariables;
             }
-          });
-        }
+          } else {
+            setAutomatedAttributes(true);
+          }
+
+          const validLayerAttributes = Object.fromEntries(
+            Object.entries(layerAttributes).filter(
+              ([_, value]) => !(Array.isArray(value) && value.length === 0)
+            )
+          );
+
+          if (Object.keys(validLayerAttributes).length > 0) {
+            setAttributes(layerAttributes);
+          } else {
+            setWarningMessage("No field attributes were found.");
+            return;
+          }
+        });
       }
     }
   }, [tabKey]);
@@ -200,7 +185,7 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
     }
     let layerAttributes;
     try {
-      layerAttributes = layerInfo.geojson;
+      layerAttributes = await getLayerAttributes(layerInfo);
     } catch (error) {
       setWarningMessage(
         <>
