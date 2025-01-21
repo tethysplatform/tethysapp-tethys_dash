@@ -11,6 +11,8 @@ import LegendPane from "components/modals/MapLayer/LegendPane";
 import AttributePane from "components/modals/MapLayer/AttributePane";
 import { AppContext } from "components/contexts/Contexts";
 import { getMapAttributeVariables } from "components/visualizations/utilities";
+import { layerTypeProperties } from "components/map/utilities";
+import { removeEmptyStringsFromObject } from "components/modals/utilities";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
@@ -25,6 +27,25 @@ const StyledModalHeader = styled(Modal.Header)`
 const StyledModalBody = styled(Modal.Body)`
   height: 95%;
 `;
+
+const findMissingKeys = (templateObj, dataObj, parentKey = "") => {
+  let invalidKeys = [];
+
+  for (const [key, value] of Object.entries(templateObj)) {
+    const fullKey = parentKey ? `${parentKey}.${key}` : key; // Build full key path
+
+    if (!(key in dataObj)) {
+      invalidKeys.push(fullKey); // Add missing key to the list
+    } else if (typeof value === "object" && value !== null) {
+      // Recursively check nested objects
+      invalidKeys = invalidKeys.concat(
+        findMissingKeys(value, dataObj[key], fullKey)
+      );
+    }
+  }
+
+  return invalidKeys;
+};
 
 const MapLayerModal = ({
   showModal,
@@ -42,8 +63,24 @@ const MapLayerModal = ({
 
   async function saveLayer() {
     setErrorMessage(null);
-    if (!layerInfo.url || !layerInfo.layerType || !layerInfo.name) {
-      setErrorMessage("All arguments must be filled out to save the layer");
+    if (!layerInfo.layerType || !layerInfo.name) {
+      setErrorMessage(
+        "Layer type and name must be provided in the configuration pane."
+      );
+      return;
+    }
+
+    const validSourceProps = removeEmptyStringsFromObject(
+      layerInfo.sourceProps
+    );
+    const missingRequiredProps = findMissingKeys(
+      layerTypeProperties[layerInfo.layerType].required,
+      validSourceProps
+    );
+    if (missingRequiredProps.length > 0) {
+      setErrorMessage(
+        `Missing required ${missingRequiredProps} arguments. Please check the configuration and try again.`
+      );
       return;
     }
 
@@ -121,17 +158,15 @@ const MapLayerModal = ({
 
     const mapConfiguration = {
       configuration: {
-        type: layerInfo.layerType.includes("Image")
-          ? "ImageLayer"
-          : "VectorLayer",
+        type: layerInfo.layerType.includes("Tile")
+          ? "TileLayer"
+          : layerInfo.layerType.includes("Image")
+            ? "ImageLayer"
+            : "VectorLayer",
         props: {
           source: {
             type: layerInfo.layerType,
-            props: {
-              url: layerInfo.url,
-              params: layerInfo.params,
-            },
-            serverType: layerInfo.url.includes("geoserver") && "geoserver",
+            props: validSourceProps,
           },
           name: layerInfo.name,
         },
@@ -185,16 +220,12 @@ const MapLayerModal = ({
         show={showModal}
         onHide={handleModalClose}
         className="map-layer"
+        dialogClassName="fiftyWideModalDialog"
       >
         <StyledModalHeader closeButton>
           <Modal.Title>Add Map Layer</Modal.Title>
         </StyledModalHeader>
         <StyledModalBody>
-          {errorMessage && (
-            <Alert key="danger" variant="danger">
-              {errorMessage}
-            </Alert>
-          )}
           <Tabs
             activeKey={tabKey}
             onSelect={(k) => setTabKey(k)}
@@ -242,6 +273,16 @@ const MapLayerModal = ({
           </Tabs>
         </StyledModalBody>
         <Modal.Footer>
+          {errorMessage && (
+            <Alert
+              key="danger"
+              variant="danger"
+              dismissible
+              onClose={() => setErrorMessage("")}
+            >
+              {errorMessage}
+            </Alert>
+          )}
           <Button
             variant="secondary"
             onClick={handleModalClose}

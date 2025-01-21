@@ -8,9 +8,9 @@ import { getLayerAttributes } from "components/backlayer/layer/Layer";
 import Spinner from "react-bootstrap/Spinner";
 import {
   valuesEqual,
-  objectToArray,
-  arrayToObject,
+  removeEmptyStringsFromObject,
 } from "components/modals/utilities";
+import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";
 
 const StyledSpinner = styled(Spinner)`
@@ -54,7 +54,7 @@ function getNonEmptyValues(obj) {
 const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
   const [warningMessage, setWarningMessage] = useState(null);
   const [attributes, setAttributes] = useState({});
-  const previouslayerInfo = useRef({});
+  const previousSourceProps = useRef({});
   const [attributeVariables, setAttributesVariables] = useState(
     layerInfo.attributeVariables ?? {}
   );
@@ -63,20 +63,18 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
 
   useEffect(() => {
     if (tabKey === "attributes") {
-      const layerAttributeValues = {
-        url: layerInfo.url,
-        params: layerInfo.params,
-        geojson: layerInfo?.geojson ?? {},
-      };
+      const validSourceProps = removeEmptyStringsFromObject(
+        layerInfo.sourceProps
+      );
       if (
         tabKey === "attributes" &&
-        !valuesEqual(previouslayerInfo.current, layerAttributeValues)
+        !valuesEqual(previousSourceProps.current, validSourceProps)
       ) {
         setAutomatedAttributes(null);
         setWarningMessage(null);
         setDisabledFields([]);
 
-        previouslayerInfo.current = layerAttributeValues;
+        previousSourceProps.current = validSourceProps;
         setAttributes({});
         let attributeVariables = [];
 
@@ -97,15 +95,17 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
           }
         }
 
-        queryLayerAttributes().then((layerAttributes) => {
+        queryLayerAttributes().then((queriedLayerAttributes) => {
+          const layerParams = layerInfo.sourceProps?.params ?? [];
+          let layerAttributes = {};
           if (
-            layerAttributes === undefined &&
-            Object.keys(layerInfo.params).length > 0
+            queriedLayerAttributes === undefined &&
+            Object.keys(layerParams).length > 0
           ) {
             setAutomatedAttributes(false);
-            const lowercaseLayerParams = Object.keys(layerInfo.params).reduce(
+            const lowercaseLayerParams = Object.keys(layerParams).reduce(
               (acc, key) => {
-                acc[key.toLowerCase()] = layerInfo.params[key];
+                acc[key.toLowerCase()] = layerParams[key];
                 return acc;
               },
               {}
@@ -137,6 +137,7 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
               layerAttributes[layerName] = attributeVariables;
             }
           } else {
+            layerAttributes = queriedLayerAttributes;
             setAutomatedAttributes(true);
           }
 
@@ -169,17 +170,17 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
 
   function updateLayerInfo(updatedAttributeVariables) {
     const validAttributeValues = getNonEmptyValues(updatedAttributeVariables);
-    setLayerInfo((previousLayerInfo) => ({
-      ...previousLayerInfo,
+    setLayerInfo((previousSourceProps) => ({
+      ...previousSourceProps,
       ...{ attributeVariables: validAttributeValues },
     }));
   }
 
   async function queryLayerAttributes() {
     setWarningMessage(null);
-    if (!layerInfo.url || !layerInfo.layerType) {
+    if (!layerInfo.layerType) {
       setWarningMessage(
-        "A Layer Type and URL must be set in the Configuration to get attributes"
+        "A Layer Type must be set in the Configuration to get attributes"
       );
       return;
     }
@@ -298,15 +299,20 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
         ))
       ) : (
         Object.keys(attributes).map((layerName) => (
-          <DataInput
-            objValue={{
-              label: layerName,
-              type: "inputtable",
-              value: attributes[layerName],
-            }}
+          <InputTable
+            label={layerName}
             onChange={(e) => handleAttributeChange(e, layerName)}
-            inputProps={{ disabledFields }}
+            values={attributes[layerName]}
           />
+          // <DataInput
+          //   objValue={{
+          //     label: layerName,
+          //     type: "inputtable",
+          //     value: attributes[layerName],
+          //   }}
+          //   onChange={(e) => handleAttributeChange(e, layerName)}
+          //   inputProps={{ disabledFields }}
+          // />
         ))
       )}
     </>

@@ -1,10 +1,11 @@
 import PropTypes from "prop-types";
 import DataInput from "components/inputs/DataInput";
 import { useState, useEffect } from "react";
-import { objectToArray, arrayToObject } from "components/modals/utilities";
 import FileUpload from "components/inputs/FileUpload";
 import styled from "styled-components";
 import { v4 as uuidv4 } from "uuid";
+import { layerTypeProperties } from "components/map/utilities";
+import InputTable from "components/inputs/InputTable";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
@@ -13,7 +14,7 @@ const layerTypes = [
   "ImageWMS",
   "ImageTile",
   "GeoJSON",
-  "Raster",
+  "VectorTile",
 ];
 
 const StyledTextInput = styled.textarea`
@@ -21,15 +22,79 @@ const StyledTextInput = styled.textarea`
   height: 30vh;
 `;
 
-const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
-  const [url, setUrl] = useState(layerInfo.url ?? "");
-  const [layerType, setLayerType] = useState(layerInfo.layerType ?? null);
-  const [name, setName] = useState(layerInfo.name ?? "");
-  const [params, setParams] = useState(
-    layerInfo.params && Object.keys(layerInfo.params).length > 0
-      ? objectToArray(layerInfo.params)
-      : [{ Parameter: "", Value: "" }]
+const StyledP = styled.p`
+  margin-bottom: 1rem;
+  text-align: center;
+`;
+
+const StyledDiv = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const setEmptyValues = (obj) => {
+  return Object.fromEntries(
+    Object.entries(obj).map(([key, value]) => [
+      key,
+      typeof value === "object" && value !== null
+        ? setEmptyValues(value) // Recursive call for nested objects
+        : "",
+    ])
   );
+};
+
+const generatePropertiesArrayWithValues = (properties, mapping) => {
+  const result = [];
+
+  const processKeys = (obj, required, parentKey = "", mappingObj = {}) => {
+    for (const [key, value] of Object.entries(obj)) {
+      const property = parentKey ? `${parentKey} - ${key}` : key;
+
+      if (typeof value === "object" && value !== null) {
+        // Recursively process nested objects
+        processKeys(value, required, property, mappingObj[key] || {});
+      } else {
+        // Add to the result array with mapped value or empty string
+        result.push({
+          required,
+          property,
+          value: mappingObj[key] || "",
+          placeholder: value,
+        });
+      }
+    }
+  };
+
+  // Process required and optional parts with mapping
+  processKeys(properties.required, true, "", mapping);
+  processKeys(properties.optional, false, "", mapping);
+
+  return result;
+};
+
+const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
+  const [layerType, setLayerType] = useState(layerInfo.layerType ?? null);
+  const [layerTypeArgs, setLayerTypeArgs] = useState(
+    layerInfo.layerType
+      ? layerTypeProperties[layerInfo.layerType]
+      : {
+          required: {},
+          optional: {},
+        }
+  );
+  const [layerTypeArgResults, setLayerTypeResults] = useState(
+    layerInfo.layerType
+      ? loadExistingArgs(layerInfo.layerType, layerInfo.sourceProps)
+      : {}
+  );
+  const [layerPropertiesArray, setLayerPropertiesArray] = useState(
+    layerInfo.layerType
+      ? generatePropertiesArrayWithValues(
+          layerTypeProperties[layerInfo.layerType],
+          layerInfo.sourceProps
+        )
+      : []
+  );
+  const [name, setName] = useState(layerInfo.name ?? "");
   const [geoJSON, setGeoJSON] = useState("{}");
 
   useEffect(() => {
@@ -47,20 +112,56 @@ const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
     layerInfo.geojson = geoJSON;
   }, [geoJSON]);
 
-  function handleParameterChange(e) {
-    setParams(e);
-    const paramObject = arrayToObject(e);
+  function loadExistingArgs(sourceType, sourceProps) {
+    const newLayerTypeResults = setEmptyValues({
+      ...layerTypeProperties[sourceType].required,
+      ...layerTypeProperties[sourceType].optional,
+      params: {
+        ...layerTypeProperties[sourceType].required.params,
+        ...layerTypeProperties[sourceType].optional.params,
+      },
+    });
+    return { ...newLayerTypeResults, ...sourceProps };
+  }
+
+  function handlePropertyChange(updatedUserInputs) {
+    const updatedLayerTypeArgResults = { ...layerTypeArgResults };
+    updatedUserInputs.forEach(({ property, value }) => {
+      const keys = property.split(" - "); // Split property for nested keys
+      let current = updatedLayerTypeArgResults;
+
+      // Traverse to the right level in the target object
+      keys.forEach((key, index) => {
+        if (index === keys.length - 1) {
+          // Update the final key with the value
+          current[key] = value;
+        } else {
+          // Move deeper into the nested object
+          current = current[key];
+        }
+      });
+    });
+    setLayerTypeResults(updatedLayerTypeArgResults);
     setLayerInfo((previousLayerInfo) => ({
       ...previousLayerInfo,
-      ...{ params: paramObject },
+      ...{ sourceProps: updatedLayerTypeArgResults },
     }));
   }
 
   function handleLayerTypeChange(e) {
     setLayerType(e.value);
+    const newLayerTypeArgs = layerTypeProperties[e.value];
+    setLayerTypeArgs(newLayerTypeArgs);
+    const newLayerTypeResults = loadExistingArgs(e.value, layerTypeArgResults);
+    setLayerTypeResults(newLayerTypeResults);
+    const newLayerPropertiesArray = generatePropertiesArrayWithValues(
+      newLayerTypeArgs,
+      layerTypeArgResults
+    );
+    setLayerPropertiesArray(newLayerPropertiesArray);
     setLayerInfo((previousLayerInfo) => ({
       ...previousLayerInfo,
-      ...{ layerType: e.value },
+      ...{ layerType: e.value, sourceProps: newLayerTypeResults },
     }));
   }
 
@@ -93,35 +194,33 @@ const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
         onChange={handleLayerTypeChange}
         includeVariableInputs={false}
       />
-      {layerType === "GeoJSON" ? (
+      {layerType && (
         <>
-          <FileUpload
-            label="Upload GeoJSON file"
-            onFileUpload={handleGeoJSONUpload}
-            extensionsAllowed={["json", "geojson"]}
-          />
-          <StyledTextInput value={geoJSON} onChange={handleGeoJSONChange} />
-        </>
-      ) : (
-        <>
-          <DataInput
-            objValue={{ label: "URL", type: "text", value: url }}
-            onChange={(e) => {
-              setUrl(e);
-              setLayerInfo((previousLayerInfo) => ({
-                ...previousLayerInfo,
-                ...{ url: e },
-              }));
-            }}
-          />
-          <DataInput
-            objValue={{
-              label: "Parameters",
-              type: "inputtable",
-              value: params,
-            }}
-            onChange={handleParameterChange}
-          />
+          {layerType === "GeoJSON" ? (
+            <>
+              <FileUpload
+                label="Upload GeoJSON file"
+                onFileUpload={handleGeoJSONUpload}
+                extensionsAllowed={["json", "geojson"]}
+              />
+              <StyledTextInput value={geoJSON} onChange={handleGeoJSONChange} />
+            </>
+          ) : (
+            <InputTable
+              label="Layer Properties"
+              onChange={handlePropertyChange}
+              values={layerPropertiesArray}
+              disabledFields={["required", "property"]}
+              hiddenFields={["placeholder"]}
+              staticRows={true}
+              placeholders={layerPropertiesArray.map((item) => [
+                null,
+                null,
+                item.placeholder,
+                null,
+              ])}
+            />
+          )}
         </>
       )}
     </>

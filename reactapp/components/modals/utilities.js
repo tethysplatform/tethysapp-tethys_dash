@@ -63,3 +63,24 @@ export function arrayToObject(arr) {
     return acc;
   }, {});
 }
+
+export const removeEmptyStringsFromObject = (obj) => {
+  return Object.fromEntries(
+    Object.entries(obj)
+      .filter(([_, value]) => value !== "") // Filter out empty string values
+      .map(([key, value]) => [
+        key,
+        typeof value === "object" && value !== null
+          ? removeEmptyStringsFromObject(value) // Recursively process nested objects
+          : value,
+      ])
+      .filter(
+        ([_, value]) =>
+          !(
+            typeof value === "object" &&
+            value !== null &&
+            Object.keys(value).length === 0
+          ) // Remove empty objects
+      )
+  );
+};
