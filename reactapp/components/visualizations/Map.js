@@ -151,11 +151,20 @@ const MapVisualization = ({
         const newMapLayers = [];
         for (const layer of layers) {
           if (layer.configuration.props.source.type === "GeoJSON") {
-            const apiResponse = await appAPI.downloadGeoJSON({
+            const geoJSONResponse = await appAPI.downloadJSON({
               filename: layer.configuration.props.source.filename,
             });
-            if (apiResponse.success) {
-              layer.configuration.props.source.features = apiResponse.data;
+            if (geoJSONResponse.success) {
+              layer.configuration.props.source.features = geoJSONResponse.data;
+            }
+          }
+
+          if (layer.style) {
+            const styleJSONResponse = await appAPI.downloadJSON({
+              filename: layer.style,
+            });
+            if (styleJSONResponse.success) {
+              layer.configuration.style = styleJSONResponse.data;
             }
           }
 

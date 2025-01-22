@@ -370,7 +370,7 @@ def check_existing_public_dashboards(session, dashboard_name, dashboard_label):
             f"A dashboard with the label {dashboard_label} is already public. Change the label before attempting again."  # noqa: E501
         )
 
-def clean_up_geojsons(user):
+def clean_up_jsons(user):
     print("Checking to see if there are any unused geojson files to remove")
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -381,6 +381,9 @@ def clean_up_geojsons(user):
         if maps_grid_items_layers:
             geojson_files = [maps_grid_items_layer["configuration"]["props"]["source"]["filename"] for maps_grid_items_layer in maps_grid_items_layers if maps_grid_items_layer["configuration"]["props"]["source"]["type"] == "GeoJSON"]
             in_use_geojsons.append(geojson_files)
+            
+            stylejson_files = [maps_grid_items_layer["style"] for maps_grid_items_layer in maps_grid_items_layers if "style" in maps_grid_items_layer]
+            in_use_geojsons.append(stylejson_files)
     
     in_use_geojsons = flatten(in_use_geojsons)
     

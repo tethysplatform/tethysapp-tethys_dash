@@ -9,10 +9,12 @@ import Tabs from "react-bootstrap/Tabs";
 import ConfigurationPane from "components/modals/MapLayer/ConfigurationPane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
 import AttributePane from "components/modals/MapLayer/AttributePane";
+import StylePane from "components/modals/MapLayer/StylePane";
 import { AppContext } from "components/contexts/Contexts";
 import { getMapAttributeVariables } from "components/visualizations/utilities";
 import { layerTypeProperties } from "components/map/utilities";
 import { removeEmptyStringsFromObject } from "components/modals/utilities";
+import { v4 as uuidv4 } from "uuid";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
@@ -156,13 +158,22 @@ const MapLayerModal = ({
       }
     }
 
+    if (
+      layerInfo.layerType === "VectorTile" &&
+      typeof validSourceProps.urls === "string"
+    ) {
+      validSourceProps.urls = validSourceProps.urls.split(",");
+    }
     const mapConfiguration = {
       configuration: {
-        type: layerInfo.layerType.includes("Tile")
-          ? "TileLayer"
-          : layerInfo.layerType.includes("Image")
-            ? "ImageLayer"
-            : "VectorLayer",
+        type:
+          layerInfo.layerType === "VectorTile"
+            ? "VectorTileLayer"
+            : layerInfo.layerType.includes("Tile")
+              ? "TileLayer"
+              : layerInfo.layerType.includes("Image")
+                ? "ImageLayer"
+                : "VectorLayer",
         props: {
           source: {
             type: layerInfo.layerType,
@@ -182,7 +193,7 @@ const MapLayerModal = ({
       } catch (err) {
         setErrorMessage(
           <>
-            Invalid json is being used. Please alter the json and try again.
+            Invalid GeoJSON is being used. Please alter the json and try again.
             <br />
             <br />
             {err.message}
@@ -198,8 +209,12 @@ const MapLayerModal = ({
         return;
       }
 
-      const geoJSONInfo = { data: layerInfo.geojson, filename: layerInfo.url };
-      const apiResponse = await appAPI.uploadGeoJSON(geoJSONInfo, csrf);
+      const geoJSONFilename = `${uuidv4()}.json`;
+      const geoJSONInfo = {
+        data: layerInfo.geojson,
+        filename: geoJSONFilename,
+      };
+      const apiResponse = await appAPI.uploadJSON(geoJSONInfo, csrf);
       if (!apiResponse.success) {
         setErrorMessage(
           "Failed to upload the json data. Check logs for more information."
@@ -207,7 +222,38 @@ const MapLayerModal = ({
         return;
       }
       mapConfiguration.configuration.props.source.props = {};
-      mapConfiguration.configuration.props.source.filename = layerInfo.url;
+      mapConfiguration.configuration.props.source.filename = geoJSONFilename;
+    }
+
+    if (layerInfo.style && layerInfo.style !== "{}") {
+      try {
+        JSON.parse(layerInfo.style);
+      } catch (err) {
+        setErrorMessage(
+          <>
+            Invalid style json is being used. Please alter the json and try
+            again.
+            <br />
+            <br />
+            {err.message}
+          </>
+        );
+        return;
+      }
+
+      const styleJSONFilename = `${uuidv4()}.json`;
+      const styleJSONInfo = {
+        data: layerInfo.style,
+        filename: styleJSONFilename,
+      };
+      const apiResponse = await appAPI.uploadJSON(styleJSONInfo, csrf);
+      if (!apiResponse.success) {
+        setErrorMessage(
+          "Failed to upload the json data. Check logs for more information."
+        );
+        return;
+      }
+      mapConfiguration.style = styleJSONFilename;
     }
 
     addMapLayer(mapConfiguration);
@@ -242,6 +288,14 @@ const MapLayerModal = ({
                 layerInfo={layerInfo}
                 setLayerInfo={setLayerInfo}
               />
+            </Tab>
+            <Tab
+              eventKey="style"
+              title="Style"
+              aria-label="layer-style-tab"
+              className="layer-style-tab"
+            >
+              <StylePane layerInfo={layerInfo} setLayerInfo={setLayerInfo} />
             </Tab>
             <Tab
               eventKey="legend"

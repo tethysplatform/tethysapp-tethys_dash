@@ -11,7 +11,7 @@ from .model import (
     add_new_dashboard,
     delete_named_dashboard,
     update_named_dashboard,
-    clean_up_geojsons
+    clean_up_jsons
 )
 from .visualizations import get_available_visualizations, get_visualization
 
@@ -51,7 +51,7 @@ def dashboards(request):
     """API controller for the dashboards page."""
     user = str(request.user)
     dashboards = get_dashboards(user)
-    clean_up_geojsons(user)
+    clean_up_jsons(user)
 
     return JsonResponse(dashboards)
 
@@ -165,7 +165,7 @@ def update_dashboard(request):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/geojson/upload", login_required=True)
+@controller(url="tethysdash/json/upload", login_required=True)
 def upload_geojson(request):
     """API controller for the dashboards page."""
     geojson_data = json.loads(request.body)
@@ -202,7 +202,7 @@ def upload_geojson(request):
 
 
 @api_view(["GET"])
-@controller(url="tethysdash/geojson/download", login_required=True)
+@controller(url="tethysdash/json/download", login_required=True)
 def download_geojson(request):
     """API controller for the dashboards page."""
     filename = request.GET["filename"]

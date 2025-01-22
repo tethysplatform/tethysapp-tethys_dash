@@ -43,7 +43,7 @@ export const layerTypeProperties = {
   },
   VectorTile: {
     required: {
-      urls: "An array of URL templates. Must include {x}, {y} or {-y}, and {z} placeholders",
+      urls: "An comma separated list of URL templates. Must include {x}, {y} or {-y}, and {z} placeholders. A {?-?} template pattern, for example subdomain{a-f}.domain.com, may be used instead of defining each one separately in the urls option.",
     },
     optional: {
       attributions: "Attributions",

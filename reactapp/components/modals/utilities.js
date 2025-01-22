@@ -65,9 +65,21 @@ export function arrayToObject(arr) {
 }
 
 export const removeEmptyStringsFromObject = (obj) => {
+  if (Array.isArray(obj)) {
+    return obj
+      .map((item) =>
+        typeof item === "object" && item !== null
+          ? removeEmptyStringsFromObject(item) // Recursively process array elements
+          : item
+      )
+      .filter((item) => item !== ""); // Remove empty strings from arrays
+  }
+
+  if (typeof obj !== "object" || obj === null) return obj; // Return non-objects as is
+
   return Object.fromEntries(
     Object.entries(obj)
-      .filter(([_, value]) => value !== "") // Filter out empty string values
+      .filter(([_, value]) => value !== "") // Remove empty strings
       .map(([key, value]) => [
         key,
         typeof value === "object" && value !== null

@@ -100,6 +100,8 @@ const MapLayerTemplate = ({
       sourceProps: existingMapLayer.configuration.props.source.props,
       name: existingMapLayer.configuration.props.name,
       legend: existingMapLayer.legend,
+      geojson: existingMapLayer.configuration.props.source.filename,
+      style: existingMapLayer.style,
       attributeVariables: existingMapLayer.attributeVariables,
     });
     existingLayerOriginalName.current =

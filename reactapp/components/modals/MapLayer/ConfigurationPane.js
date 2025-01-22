@@ -3,7 +3,6 @@ import DataInput from "components/inputs/DataInput";
 import { useState, useEffect } from "react";
 import FileUpload from "components/inputs/FileUpload";
 import styled from "styled-components";
-import { v4 as uuidv4 } from "uuid";
 import { layerTypeProperties } from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
 import appAPI from "services/api/app";
@@ -57,7 +56,11 @@ const generatePropertiesArrayWithValues = (properties, mapping) => {
         result.push({
           required,
           property,
-          value: mappingObj[key] || "",
+          value: mappingObj[key]
+            ? Array.isArray(mappingObj[key])
+              ? mappingObj[key].join(",")
+              : mappingObj[key]
+            : "",
           placeholder: value,
         });
       }
@@ -71,16 +74,29 @@ const generatePropertiesArrayWithValues = (properties, mapping) => {
   return result;
 };
 
+function mergeRequiredAndOptionalProperties(properties) {
+  const result = {};
+
+  for (const [outerKey, outerValue] of Object.entries(properties)) {
+    for (const [innerKey, innerValue] of Object.entries(outerValue)) {
+      if (typeof innerValue === "object" && !Array.isArray(innerValue)) {
+        // Merge objects if the key already exists in the result
+        result[innerKey] = {
+          ...(result[innerKey] || {}),
+          ...innerValue,
+        };
+      } else {
+        // Directly assign values for non-object keys
+        result[innerKey] = innerValue;
+      }
+    }
+  }
+
+  return result;
+}
+
 const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
   const [layerType, setLayerType] = useState(layerInfo.layerType ?? null);
-  const [layerTypeArgs, setLayerTypeArgs] = useState(
-    layerInfo.layerType
-      ? layerTypeProperties[layerInfo.layerType]
-      : {
-          required: {},
-          optional: {},
-        }
-  );
   const [layerTypeArgResults, setLayerTypeResults] = useState(
     layerInfo.layerType
       ? loadExistingArgs(layerInfo.layerType, layerInfo.sourceProps)
@@ -99,29 +115,28 @@ const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
 
   useEffect(() => {
     (async () => {
-      if (layerType === "GeoJSON") {
-        if (layerInfo.url.split(".").pop() === "json" && geoJSON === "{}") {
-          const apiResponse = await appAPI.downloadGeoJSON({
-            filename: layerInfo.url,
-          });
-          setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
-        }
+      if (layerType === "GeoJSON" && geoJSON === "{}" && layerInfo.geojson) {
+        const apiResponse = await appAPI.downloadJSON({
+          filename: layerInfo.geojson,
+        });
+        setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
       }
     })();
-    layerInfo.url = `${uuidv4()}.json`;
     layerInfo.geojson = geoJSON;
   }, [geoJSON]);
 
   function loadExistingArgs(sourceType, sourceProps) {
-    const newLayerTypeResults = setEmptyValues({
-      ...layerTypeProperties[sourceType].required,
-      ...layerTypeProperties[sourceType].optional,
-      params: {
-        ...layerTypeProperties[sourceType].required.params,
-        ...layerTypeProperties[sourceType].optional.params,
-      },
+    const newLayerTypeResults = setEmptyValues(
+      mergeRequiredAndOptionalProperties(layerTypeProperties[sourceType])
+    );
+    Object.keys(newLayerTypeResults).forEach((key) => {
+      if (sourceProps.hasOwnProperty(key)) {
+        newLayerTypeResults[key] = Array.isArray(sourceProps[key])
+          ? sourceProps[key].join(",")
+          : sourceProps[key];
+      }
     });
-    return { ...newLayerTypeResults, ...sourceProps };
+    return newLayerTypeResults;
   }
 
   function handlePropertyChange(updatedUserInputs) {
@@ -151,7 +166,6 @@ const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
   function handleLayerTypeChange(e) {
     setLayerType(e.value);
     const newLayerTypeArgs = layerTypeProperties[e.value];
-    setLayerTypeArgs(newLayerTypeArgs);
     const newLayerTypeResults = loadExistingArgs(e.value, layerTypeArgResults);
     setLayerTypeResults(newLayerTypeResults);
     const newLayerPropertiesArray = generatePropertiesArrayWithValues(
