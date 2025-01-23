@@ -299,6 +299,7 @@ const MapLayerModal = ({
               <ConfigurationPane
                 configuration={configuration}
                 setConfiguration={setConfiguration}
+                setAttributeVariables={setAttributeVariables}
               />
             </Tab>
             <Tab

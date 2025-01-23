@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import styled from "styled-components";
 import FileUpload from "components/inputs/FileUpload";
 import appAPI from "services/api/app";
@@ -14,22 +14,21 @@ const StylePane = ({ style, setStyle }) => {
 
   useEffect(() => {
     (async () => {
-      if (styleJSON === "{}" && style) {
+      if (style && typeof style === "string") {
         const apiResponse = await appAPI.downloadJSON({
           filename: style,
         });
-        setStyleJSON(JSON.stringify(apiResponse.data, null, 4));
+        setStyle(JSON.stringify(apiResponse.data, null, 4));
       }
     })();
-    setStyle(styleJSON);
-  }, [styleJSON]);
+  }, []);
 
   function handleStyleJSONUpload({ fileContent }) {
-    setStyleJSON(fileContent);
+    setStyle(fileContent);
   }
 
   function handleStyleJSONChange(e) {
-    setStyleJSON(e.target.value);
+    setStyle(e.target.value);
   }
 
   return (
@@ -39,7 +38,7 @@ const StylePane = ({ style, setStyle }) => {
         onFileUpload={handleStyleJSONUpload}
         extensionsAllowed={["json"]}
       />
-      <StyledTextInput value={styleJSON} onChange={handleStyleJSONChange} />
+      <StyledTextInput value={style} onChange={handleStyleJSONChange} />
     </>
   );
 };

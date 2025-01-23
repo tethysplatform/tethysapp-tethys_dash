@@ -30,7 +30,7 @@ export const layerTypeProperties = {
   },
   ImageTile: {
     required: {
-      url: "WMS service URL",
+      url: "Image Tile URL",
     },
     optional: {
       attributions: "Attributions",

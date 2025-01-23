@@ -95,7 +95,11 @@ function mergeRequiredAndOptionalProperties(properties) {
   return result;
 }
 
-const ConfigurationPane = ({ configuration, setConfiguration }) => {
+const ConfigurationPane = ({
+  configuration,
+  setConfiguration,
+  setAttributeVariables,
+}) => {
   const [layerType, setLayerType] = useState(configuration.layerType ?? null);
   const [layerTypeArgResults, setLayerTypeResults] = useState(
     configuration.layerType
@@ -184,6 +188,7 @@ const ConfigurationPane = ({ configuration, setConfiguration }) => {
         sourceProps: newLayerTypeResults,
       },
     }));
+    setAttributeVariables({});
   }
 
   function handleGeoJSONUpload({ fileContent }) {
