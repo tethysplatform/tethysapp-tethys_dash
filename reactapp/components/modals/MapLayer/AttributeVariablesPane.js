@@ -40,18 +40,17 @@ const AttributeVariablesPane = ({
 }) => {
   const [warningMessage, setWarningMessage] = useState(null);
   const attributeVariableValues = useRef(attributeVariables);
-  const previousSourceProps = useRef({});
+  const previousConfiguration = useRef({});
   const [automatedAttributes, setAutomatedAttributes] = useState(null);
 
   useEffect(() => {
     if (tabKey === "attributeVariables") {
-      const validSourceProps = removeEmptyStringsFromObject(
-        configuration.sourceProps
-      );
-      if (!valuesEqual(previousSourceProps.current, validSourceProps)) {
+      if (!valuesEqual(previousConfiguration.current, configuration)) {
         setAutomatedAttributes(null);
         setWarningMessage(null);
-        previousSourceProps.current = validSourceProps;
+        previousConfiguration.current = JSON.parse(
+          JSON.stringify(configuration)
+        );
 
         if (configuration.layerType === "GeoJSON") {
           try {
