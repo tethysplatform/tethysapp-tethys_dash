@@ -8,7 +8,7 @@ import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import ConfigurationPane from "components/modals/MapLayer/ConfigurationPane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
-import AttributeVariablesPane from "components/modals/MapLayer/AttributeVariablesPane";
+import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import StylePane from "components/modals/MapLayer/StylePane";
 import { AppContext } from "components/contexts/Contexts";
 import { getMapAttributeVariables } from "components/visualizations/utilities";
@@ -16,6 +16,7 @@ import { layerTypeProperties } from "components/map/utilities";
 import {
   removeEmptyStringsFromObject,
   extractVariableInputNames,
+  extractOmittedPopupAttributes,
 } from "components/modals/utilities";
 import { v4 as uuidv4 } from "uuid";
 import appAPI from "services/api/app";
@@ -196,6 +197,8 @@ const MapLayerModal = ({
       },
       legend: legend ?? {},
       attributeVariables: extractVariableInputNames(attributeVariables) ?? {},
+      omittedPopupAttributes:
+        extractOmittedPopupAttributes(attributeVariables) ?? {},
     };
 
     let geoJSON;
@@ -325,12 +328,12 @@ const MapLayerModal = ({
               </div>
             </Tab>
             <Tab
-              eventKey="attributeVariables"
-              title="Attributes Variables"
+              eventKey="attributes"
+              title="Attributes/Popup"
               aria-label="layer-attributes-tab"
               className="layer-attributes-tab"
             >
-              <AttributeVariablesPane
+              <AttributesPane
                 attributeVariables={attributeVariables}
                 setAttributeVariables={setAttributeVariables}
                 configuration={configuration}

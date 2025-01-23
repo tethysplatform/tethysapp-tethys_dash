@@ -20,9 +20,56 @@ import {
   DataViewerModeContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
+import Table from "react-bootstrap/Table";
+import styled from "styled-components";
 import { getMapAttributeVariables } from "components/visualizations/utilities";
 import { valuesEqual } from "components/modals/utilities";
 import appAPI from "services/api/app";
+
+const FixedTable = styled(Table)`
+  table-layout: fixed;
+  font-size: small;
+`;
+const OverflowTD = styled.td`
+  overflow-x: auto;
+`;
+
+const PopupDiv = styled.div`
+  max-height: 40vh;
+  max-width: 20vw;
+  width: 20vw;
+  overflow-y: auto;
+`;
+
+const PopupContent = ({ layerAttributes }) => {
+  return Object.keys(layerAttributes).map((layerName) => (
+    <PopupDiv>
+      <p>
+        <b>{layerName}</b>:{" "}
+      </p>
+      <FixedTable striped bordered hover size="sm">
+        <thead>
+          <tr>
+            <th className="text-center" style={{ width: "33%" }}>
+              Field
+            </th>
+            <th className="text-center" style={{ width: "33%" }}>
+              Value
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {Object.keys(layerAttributes[layerName]).map((field) => (
+            <tr key={field}>
+              <OverflowTD>{field}</OverflowTD>
+              <OverflowTD>{layerAttributes[layerName][field]}</OverflowTD>
+            </tr>
+          ))}
+        </tbody>
+      </FixedTable>
+    </PopupDiv>
+  ));
+};
 
 function createMarkerLayer(coordinate) {
   const markPath = `
@@ -192,16 +239,11 @@ const MapVisualization = ({
     })();
   }, [layers, baseMap]);
 
-  const onMapClick = (map, evt) => {
-    // describe feature type (WFS)
-    // get capabilities (WMS)
-    // Arcgis rest
-    // vector tile
-    // custom basemap
-
+  const onMapClick = (map, evt, setPopupContent) => {
     // get coordinates and add pointer marker where the click occurred
     const coordinate = evt.coordinate;
     const pixel = evt.pixel;
+    let popupContent = "";
     // const newMarkerLayer = createMarkerLayer(coordinate);
     // if (markerLayer.current) {
     //   map.removeLayer(markerLayer.current);
@@ -217,6 +259,18 @@ const MapVisualization = ({
       ) {
         // Merge the example object into the combined object
         Object.assign(combined, current.attributeVariables);
+      }
+      return combined;
+    }, {});
+
+    // reduce the layer moitted popup attribute values into a simplified object of layer names and then values
+    const mapOmittedPopupAttributes = layers.reduce((combined, current) => {
+      if (
+        current.omittedPopupAttributes &&
+        typeof current.omittedPopupAttributes === "object"
+      ) {
+        // Merge the example object into the combined object
+        Object.assign(combined, current.omittedPopupAttributes);
       }
       return combined;
     }, {});
@@ -241,20 +295,23 @@ const MapVisualization = ({
           highlightLayer.current = newHighlightLayer;
           map.addLayer(newHighlightLayer);
 
-          // loop through the attribute variables in the map and compare them to the returned features to update any potential variable inputs
           let updatedVariableInputs = {};
-          for (const layerName in mapAttributeVariables) {
-            // only look at selected features within the same layer
-            const validLayers = layerFeatures.filter(
-              (layerFeature) => layerFeature.layerName === layerName
+          let layerAttributes = {};
+          for (const layerFeature of layerFeatures) {
+            const layerName = layerFeature.layerName;
+            layerAttributes[layerName] = Object.fromEntries(
+              Object.entries(layerFeature.attributes).filter(
+                ([key]) => !mapOmittedPopupAttributes[layerName].includes(key)
+              )
             );
-            for (const validLayer of validLayers) {
+
+            if (layerName in mapAttributeVariables) {
               const mappedLayerVariableInputs = {};
               // check each layer attribute variable to see if the features have valid values
               for (const layerAlias in mapAttributeVariables[layerName]) {
                 const variableInputName =
                   mapAttributeVariables[layerName][layerAlias];
-                const featureValue = validLayer.attributes[layerAlias];
+                const featureValue = layerFeature.attributes[layerAlias];
                 // if the selected feature value is not undefined or "Null" then add it
                 if (featureValue && featureValue !== "Null") {
                   mappedLayerVariableInputs[variableInputName] = featureValue;
@@ -270,6 +327,9 @@ const MapVisualization = ({
               }
             }
           }
+
+          setPopupContent(<PopupContent layerAttributes={layerAttributes} />);
+
           // if the map click found any variable inputs to update, then do it
           if (Object.keys(updatedVariableInputs).length > 0) {
             setVariableInputValues((previousVariableInputValues) => ({
@@ -280,7 +340,7 @@ const MapVisualization = ({
             console.log("No features with variable inputs were selected");
           }
         } else {
-          alert("No attributes found");
+          console.log("No attributes found");
         }
       })
       .catch((error) => {

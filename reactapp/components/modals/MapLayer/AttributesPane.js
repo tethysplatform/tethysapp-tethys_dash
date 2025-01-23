@@ -10,6 +10,7 @@ import {
   valuesEqual,
   removeEmptyStringsFromObject,
   extractVariableInputNames,
+  extractOmittedPopupAttributes,
 } from "components/modals/utilities";
 import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";
@@ -32,7 +33,12 @@ const StyledInput = styled.input`
   width: 100%;
 `;
 
-const AttributeVariablesPane = ({
+const CenteredTD = styled.td`
+  text-align: center;
+  vertical-align: middle;
+`;
+
+const AttributesPane = ({
   attributeVariables,
   setAttributeVariables,
   configuration,
@@ -44,7 +50,7 @@ const AttributeVariablesPane = ({
   const [automatedAttributes, setAutomatedAttributes] = useState(null);
 
   useEffect(() => {
-    if (tabKey === "attributeVariables") {
+    if (tabKey === "attributes") {
       if (!valuesEqual(previousConfiguration.current, configuration)) {
         setAutomatedAttributes(null);
         setWarningMessage(null);
@@ -135,12 +141,16 @@ const AttributeVariablesPane = ({
     }
   }, [tabKey]);
 
-  function updateAttributeVariables(index, layerName, variableInputName) {
+  function updateAttributeVariables(
+    index,
+    layerName,
+    value,
+    variableInputName
+  ) {
     const updatedAttributeVariables = JSON.parse(
       JSON.stringify(attributeVariables)
     );
-    updatedAttributeVariables[layerName][index]["Variable Input Name"] =
-      variableInputName;
+    updatedAttributeVariables[layerName][index][value] = variableInputName;
     setAttributeVariables(updatedAttributeVariables);
   }
 
@@ -173,20 +183,24 @@ const AttributeVariablesPane = ({
   }
 
   function appendExistingAttributeVariables(layerAttributes) {
-    const newObj = {};
-    for (const layerName in layerAttributes) {
-      newObj[layerName] = [];
-      for (const layerAttribute of layerAttributes[layerName]) {
-        const alias = layerAttribute.alias ?? layerAttribute.Alias;
-        const existingValue =
-          attributeVariableValues.current[layerName] &&
-          attributeVariableValues.current[layerName][alias];
-        layerAttribute["Variable Input Name"] = existingValue ?? "";
-        newObj[layerName].push(layerAttribute);
+    if (attributeVariableValues.current) {
+      const newObj = {};
+      for (const layerName in layerAttributes) {
+        newObj[layerName] = [];
+        for (const layerAttribute of layerAttributes[layerName]) {
+          const alias = layerAttribute.alias ?? layerAttribute.Alias;
+          const existingValue =
+            attributeVariableValues.current[layerName] &&
+            attributeVariableValues.current[layerName][alias];
+          layerAttribute["variableInput"] = existingValue ?? "";
+          newObj[layerName].push(layerAttribute);
+        }
       }
-    }
 
-    return newObj;
+      return newObj;
+    } else {
+      return layerAttributes;
+    }
   }
 
   function handleAttributeChange(fields, layerName) {
@@ -241,6 +255,9 @@ const AttributeVariablesPane = ({
                   <th className="text-center" style={{ width: "33%" }}>
                     Alias
                   </th>
+                  <th className="text-center" style={{ width: "10%" }}>
+                    Show in popup
+                  </th>
                   <th className="text-center">Variable Input Name</th>
                 </tr>
               </thead>
@@ -249,17 +266,32 @@ const AttributeVariablesPane = ({
                   <tr key={index}>
                     <OverflowTD>{name}</OverflowTD>
                     <OverflowTD>{alias}</OverflowTD>
-                    <td>
-                      <StyledInput
-                        value={
-                          attributeVariables[layerName][index][
-                            "Variable Input Name"
-                          ]
+                    <CenteredTD>
+                      <input
+                        type="checkbox"
+                        checked={
+                          attributeVariables[layerName][index]["popup"] ?? true
                         }
                         onChange={(e) => {
                           updateAttributeVariables(
                             index,
                             layerName,
+                            "popup",
+                            e.target.checked
+                          );
+                        }}
+                      />
+                    </CenteredTD>
+                    <td>
+                      <StyledInput
+                        value={
+                          attributeVariables[layerName][index]["variableInput"]
+                        }
+                        onChange={(e) => {
+                          updateAttributeVariables(
+                            index,
+                            layerName,
+                            "variableInput",
                             e.target.value
                           );
                         }}
@@ -284,7 +316,7 @@ const AttributeVariablesPane = ({
   );
 };
 
-AttributeVariablesPane.propTypes = {
+AttributesPane.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.node),
     PropTypes.node,
@@ -294,4 +326,4 @@ AttributeVariablesPane.propTypes = {
   handleModalClose: PropTypes.func,
 };
 
-export default AttributeVariablesPane;
+export default AttributesPane;

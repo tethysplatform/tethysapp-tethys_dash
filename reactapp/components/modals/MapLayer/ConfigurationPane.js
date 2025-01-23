@@ -100,21 +100,21 @@ const ConfigurationPane = ({
   setConfiguration,
   setAttributeVariables,
 }) => {
-  const [layerType, setLayerType] = useState(configuration.layerType ?? null);
+  const [layerType, setLayerType] = useState(configuration?.layerType ?? null);
   const [layerTypeArgResults, setLayerTypeResults] = useState(
-    configuration.layerType
+    configuration?.layerType
       ? loadExistingArgs(configuration.layerType, configuration.sourceProps)
       : {}
   );
   const [layerPropertiesArray, setLayerPropertiesArray] = useState(
-    configuration.layerType
+    configuration?.layerType
       ? generatePropertiesArrayWithValues(
           layerTypeProperties[configuration.layerType],
           configuration.sourceProps
         )
       : []
   );
-  const [name, setName] = useState(configuration.name ?? "");
+  const [name, setName] = useState(configuration?.name ?? "");
   const [geoJSON, setGeoJSON] = useState("{}");
 
   useEffect(() => {
@@ -122,15 +122,18 @@ const ConfigurationPane = ({
       if (
         layerType === "GeoJSON" &&
         geoJSON === "{}" &&
-        configuration.geojson
+        configuration?.geojson
       ) {
         const apiResponse = await appAPI.downloadJSON({
           filename: configuration.geojson,
         });
         setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
+        setConfiguration((previousConfiguration) => ({
+          ...previousConfiguration,
+          ...{ geojson: apiResponse.data },
+        }));
       }
     })();
-    configuration.geojson = geoJSON;
   }, [geoJSON]);
 
   function loadExistingArgs(sourceType, sourceProps) {

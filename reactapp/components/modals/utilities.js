@@ -103,11 +103,31 @@ export const extractVariableInputNames = (attributes) => {
   Object.keys(attributes).forEach((category) => {
     if (Array.isArray(attributes[category])) {
       const mappings = attributes[category].reduce((acc, item) => {
-        if (item["Variable Input Name"]) {
-          acc[item.alias] = item["Variable Input Name"];
+        if (item["variableInput"]) {
+          acc[item.alias] = item["variableInput"];
         }
         return acc;
       }, {});
+
+      if (Object.keys(mappings).length > 0) {
+        result[category] = mappings;
+      }
+    } else {
+      result[category] = attributes[category];
+    }
+  });
+
+  return result;
+};
+
+export const extractOmittedPopupAttributes = (attributes) => {
+  const result = {};
+
+  Object.keys(attributes).forEach((category) => {
+    if (Array.isArray(attributes[category])) {
+      const mappings = attributes[category]
+        .filter((item) => item.popup === false) // Keep items where popup is explicitly false
+        .map((item) => item.alias); // Extract the alias property
 
       if (Object.keys(mappings).length > 0) {
         result[category] = mappings;
