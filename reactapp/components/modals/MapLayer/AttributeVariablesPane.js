@@ -9,6 +9,7 @@ import Spinner from "react-bootstrap/Spinner";
 import {
   valuesEqual,
   removeEmptyStringsFromObject,
+  extractVariableInputNames,
 } from "components/modals/utilities";
 import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";
@@ -31,56 +32,30 @@ const StyledInput = styled.input`
   width: 100%;
 `;
 
-function getNonEmptyValues(obj) {
-  const newObj = {};
-  for (const key in obj) {
-    newObj[key] = {};
-    for (const nestedKey in obj[key]) {
-      const variableInputName = obj[key][nestedKey];
-      if (variableInputName) {
-        newObj[key][nestedKey] = variableInputName;
-      }
-    }
-  }
-
-  for (const key in newObj) {
-    if (!Object.keys(newObj[key]).length) {
-      delete newObj[key];
-    }
-  }
-  return newObj;
-}
-
-const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
+const AttributeVariablesPane = ({
+  attributeVariables,
+  setAttributeVariables,
+  configuration,
+  tabKey,
+}) => {
   const [warningMessage, setWarningMessage] = useState(null);
-  const [attributes, setAttributes] = useState({});
+  const attributeVariableValues = useRef(attributeVariables);
   const previousSourceProps = useRef({});
-  const [attributeVariables, setAttributesVariables] = useState(
-    layerInfo.attributeVariables ?? {}
-  );
   const [automatedAttributes, setAutomatedAttributes] = useState(null);
-  const [disabledFields, setDisabledFields] = useState([]);
 
   useEffect(() => {
-    if (tabKey === "attributes") {
+    if (tabKey === "attributeVariables") {
       const validSourceProps = removeEmptyStringsFromObject(
-        layerInfo.sourceProps
+        configuration.sourceProps
       );
-      if (
-        tabKey === "attributes" &&
-        !valuesEqual(previousSourceProps.current, validSourceProps)
-      ) {
+      if (!valuesEqual(previousSourceProps.current, validSourceProps)) {
         setAutomatedAttributes(null);
         setWarningMessage(null);
-        setDisabledFields([]);
-
         previousSourceProps.current = validSourceProps;
-        setAttributes({});
-        let attributeVariables = [];
 
-        if (layerInfo.layerType === "GeoJSON") {
+        if (configuration.layerType === "GeoJSON") {
           try {
-            JSON.parse(layerInfo.geojson);
+            JSON.parse(configuration.geojson);
           } catch (err) {
             setAutomatedAttributes(false);
             setWarningMessage(
@@ -96,7 +71,7 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
         }
 
         queryLayerAttributes().then((queriedLayerAttributes) => {
-          const layerParams = layerInfo.sourceProps?.params ?? [];
+          const layerParams = configuration.sourceProps?.params ?? [];
           let layerAttributes = {};
           if (
             queriedLayerAttributes === undefined &&
@@ -115,26 +90,25 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
               .split(",")
               .map((layer) => layer.replace(/^[^:]*:/, ""));
             for (const layerName of transformedLayers) {
+              let newAttributeVariables = [];
               if (
-                layerName in layerInfo.attributeVariables &&
-                Object.keys(layerInfo.attributeVariables[layerName]).length > 0
+                layerName in attributeVariables &&
+                Object.keys(attributeVariables[layerName]).length > 0
               ) {
-                for (const fieldName in layerInfo.attributeVariables[
-                  layerName
-                ]) {
-                  attributeVariables.push({
+                for (const fieldName in attributeVariables[layerName]) {
+                  newAttributeVariables.push({
                     "Field Name": fieldName,
                     "Variable Input Name":
-                      layerInfo.attributeVariables[layerName][fieldName],
+                      attributeVariables[layerName][fieldName],
                   });
                 }
               } else {
-                attributeVariables.push({
+                newAttributeVariables.push({
                   "Field Name": "",
                   "Variable Input Name": "",
                 });
               }
-              layerAttributes[layerName] = attributeVariables;
+              layerAttributes[layerName] = newAttributeVariables;
             }
           } else {
             layerAttributes = queriedLayerAttributes;
@@ -148,9 +122,13 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
           );
 
           if (Object.keys(validLayerAttributes).length > 0) {
-            setAttributes(layerAttributes);
+            setAttributeVariables(layerAttributes);
+            attributeVariableValues.current =
+              extractVariableInputNames(layerAttributes);
           } else {
             setWarningMessage("No field attributes were found.");
+            setAttributeVariables({});
+            attributeVariableValues.current = {};
             return;
           }
         });
@@ -158,27 +136,18 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
     }
   }, [tabKey]);
 
-  function updateAttributeVariables(alias, layerName, variableInputName) {
+  function updateAttributeVariables(index, layerName, variableInputName) {
     const updatedAttributeVariables = JSON.parse(
       JSON.stringify(attributeVariables)
     );
-    updatedAttributeVariables[layerName][alias] = variableInputName;
-    setAttributesVariables(updatedAttributeVariables);
-
-    updateLayerInfo(updatedAttributeVariables);
-  }
-
-  function updateLayerInfo(updatedAttributeVariables) {
-    const validAttributeValues = getNonEmptyValues(updatedAttributeVariables);
-    setLayerInfo((previousSourceProps) => ({
-      ...previousSourceProps,
-      ...{ attributeVariables: validAttributeValues },
-    }));
+    updatedAttributeVariables[layerName][index]["Variable Input Name"] =
+      variableInputName;
+    setAttributeVariables(updatedAttributeVariables);
   }
 
   async function queryLayerAttributes() {
     setWarningMessage(null);
-    if (!layerInfo.layerType) {
+    if (!configuration.layerType) {
       setWarningMessage(
         "A Layer Type must be set in the Configuration to get attributes"
       );
@@ -186,7 +155,7 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
     }
     let layerAttributes;
     try {
-      layerAttributes = await getLayerAttributes(layerInfo);
+      layerAttributes = await getLayerAttributes(configuration);
     } catch (error) {
       setWarningMessage(
         <>
@@ -199,30 +168,31 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
       );
       return;
     }
-    setAttributes(layerAttributes);
-    refreshAttributeVariables(layerAttributes);
+    layerAttributes = appendExistingAttributeVariables(layerAttributes);
 
     return layerAttributes;
   }
 
-  function refreshAttributeVariables(layerAttributes) {
+  function appendExistingAttributeVariables(layerAttributes) {
     const newObj = {};
     for (const layerName in layerAttributes) {
-      newObj[layerName] = {};
+      newObj[layerName] = [];
       for (const layerAttribute of layerAttributes[layerName]) {
         const alias = layerAttribute.alias ?? layerAttribute.Alias;
         const existingValue =
-          attributeVariables[layerName] && attributeVariables[layerName][alias];
-        newObj[layerName][alias] = existingValue ?? "";
+          attributeVariableValues.current[layerName] &&
+          attributeVariableValues.current[layerName][alias];
+        layerAttribute["Variable Input Name"] = existingValue ?? "";
+        newObj[layerName].push(layerAttribute);
       }
     }
-    setAttributesVariables(newObj);
+
+    return newObj;
   }
 
   function handleAttributeChange(fields, layerName) {
-    const newAttributes = JSON.parse(JSON.stringify(attributes));
+    const newAttributes = JSON.parse(JSON.stringify(attributeVariables));
     newAttributes[layerName] = fields;
-    setAttributes(newAttributes);
 
     // only update variables when all inputs are filled out
     if (
@@ -232,14 +202,15 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
         JSON.stringify(attributeVariables)
       );
       if (!(layerName in updatedAttributeVariables)) {
-        updatedAttributeVariables[layerName] = {};
+        updatedAttributeVariables[layerName] = [];
       }
       for (const field of fields) {
-        updatedAttributeVariables[layerName][field["Field Name"]] =
-          field["Variable Input Name"];
+        updatedAttributeVariables[layerName].push({
+          "Field Name": field["Field Name"],
+          "Variable Input Name": field["Variable Input Name"],
+        });
       }
-      setAttributesVariables(updatedAttributeVariables);
-      updateLayerInfo(updatedAttributeVariables);
+      setAttributeVariables(updatedAttributeVariables);
     }
   }
 
@@ -257,7 +228,7 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
           variant="info"
         />
       ) : automatedAttributes ? (
-        Object.keys(attributes).map((layerName) => (
+        Object.keys(attributeVariables).map((layerName) => (
           <>
             <p>
               <b>{layerName}</b>:{" "}
@@ -275,16 +246,20 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
                 </tr>
               </thead>
               <tbody>
-                {attributes[layerName].map(({ name, alias }, index) => (
+                {attributeVariables[layerName].map(({ name, alias }, index) => (
                   <tr key={index}>
                     <OverflowTD>{name}</OverflowTD>
                     <OverflowTD>{alias}</OverflowTD>
                     <td>
                       <StyledInput
-                        value={attributeVariables[layerName][alias]}
+                        value={
+                          attributeVariables[layerName][index][
+                            "Variable Input Name"
+                          ]
+                        }
                         onChange={(e) => {
                           updateAttributeVariables(
-                            alias,
+                            index,
                             layerName,
                             e.target.value
                           );
@@ -298,28 +273,19 @@ const AttributePane = ({ layerInfo, setLayerInfo, tabKey }) => {
           </>
         ))
       ) : (
-        Object.keys(attributes).map((layerName) => (
+        Object.keys(attributeVariables).map((layerName) => (
           <InputTable
             label={layerName}
             onChange={(e) => handleAttributeChange(e, layerName)}
-            values={attributes[layerName]}
+            values={attributeVariables[layerName]}
           />
-          // <DataInput
-          //   objValue={{
-          //     label: layerName,
-          //     type: "inputtable",
-          //     value: attributes[layerName],
-          //   }}
-          //   onChange={(e) => handleAttributeChange(e, layerName)}
-          //   inputProps={{ disabledFields }}
-          // />
         ))
       )}
     </>
   );
 };
 
-AttributePane.propTypes = {
+AttributeVariablesPane.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.node),
     PropTypes.node,
@@ -329,4 +295,4 @@ AttributePane.propTypes = {
   handleModalClose: PropTypes.func,
 };
 
-export default AttributePane;
+export default AttributeVariablesPane;

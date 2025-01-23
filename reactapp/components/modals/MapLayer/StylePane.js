@@ -9,19 +9,19 @@ const StyledTextInput = styled.textarea`
   height: 30vh;
 `;
 
-const StylePane = ({ layerInfo, setLayerInfo, containerRef }) => {
+const StylePane = ({ style, setStyle }) => {
   const [styleJSON, setStyleJSON] = useState("{}");
 
   useEffect(() => {
     (async () => {
-      if (styleJSON === "{}" && layerInfo.style) {
+      if (styleJSON === "{}" && style) {
         const apiResponse = await appAPI.downloadJSON({
-          filename: layerInfo.style,
+          filename: style,
         });
         setStyleJSON(JSON.stringify(apiResponse.data, null, 4));
       }
     })();
-    layerInfo.style = styleJSON;
+    setStyle(styleJSON);
   }, [styleJSON]);
 
   function handleStyleJSONUpload({ fileContent }) {

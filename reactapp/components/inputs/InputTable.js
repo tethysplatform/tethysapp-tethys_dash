@@ -23,7 +23,7 @@ function InputTable({
   const placeholderRefs = useRef(placeholders);
 
   const getEmptyRow = () => {
-    return Object.keys(userInputs[0]).current.reduce((acc, field) => {
+    return Object.keys(userInputs[0]).reduce((acc, field) => {
       acc[field] = ""; // Initialize empty row with empty strings
       return acc;
     }, {});

@@ -8,12 +8,15 @@ import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import ConfigurationPane from "components/modals/MapLayer/ConfigurationPane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
-import AttributePane from "components/modals/MapLayer/AttributePane";
+import AttributeVariablesPane from "components/modals/MapLayer/AttributeVariablesPane";
 import StylePane from "components/modals/MapLayer/StylePane";
 import { AppContext } from "components/contexts/Contexts";
 import { getMapAttributeVariables } from "components/visualizations/utilities";
 import { layerTypeProperties } from "components/map/utilities";
-import { removeEmptyStringsFromObject } from "components/modals/utilities";
+import {
+  removeEmptyStringsFromObject,
+  extractVariableInputNames,
+} from "components/modals/utilities";
 import { v4 as uuidv4 } from "uuid";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
@@ -54,18 +57,23 @@ const MapLayerModal = ({
   handleModalClose,
   addMapLayer,
   layerInfo,
-  setLayerInfo,
   mapLayers,
   existingLayerOriginalName,
 }) => {
   const [tabKey, setTabKey] = useState("configuration");
   const [errorMessage, setErrorMessage] = useState(null);
+  const [configuration, setConfiguration] = useState(layerInfo.configuration);
+  const [style, setStyle] = useState(layerInfo.style);
+  const [legend, setLegend] = useState(layerInfo.legend);
+  const [attributeVariables, setAttributeVariables] = useState(
+    layerInfo.attributeVariables
+  );
   const containerRef = useRef(null);
   const { csrf } = useContext(AppContext);
 
   async function saveLayer() {
     setErrorMessage(null);
-    if (!layerInfo.layerType || !layerInfo.name) {
+    if (!configuration.layerType || !configuration.name) {
       setErrorMessage(
         "Layer type and name must be provided in the configuration pane."
       );
@@ -73,10 +81,10 @@ const MapLayerModal = ({
     }
 
     const validSourceProps = removeEmptyStringsFromObject(
-      layerInfo.sourceProps
+      configuration.sourceProps
     );
     const missingRequiredProps = findMissingKeys(
-      layerTypeProperties[layerInfo.layerType].required,
+      layerTypeProperties[configuration.layerType].required,
       validSourceProps
     );
     if (missingRequiredProps.length > 0) {
@@ -87,10 +95,13 @@ const MapLayerModal = ({
     }
 
     // Check to see if the pending attribute variables are valid
-    if (layerInfo.attributeVariables) {
+    if (attributeVariables) {
+      const minAttributeVariables =
+        extractVariableInputNames(attributeVariables);
+
       // flatten attribute variables into a list
       const pendingVariableInputs = Object.values(
-        layerInfo.attributeVariables
+        minAttributeVariables
       ).flatMap((value) => Object.values(value));
 
       // get other variable inputs in the map
@@ -159,37 +170,38 @@ const MapLayerModal = ({
     }
 
     if (
-      layerInfo.layerType === "VectorTile" &&
+      configuration.layerType === "VectorTile" &&
       typeof validSourceProps.urls === "string"
     ) {
       validSourceProps.urls = validSourceProps.urls.split(",");
     }
+
     const mapConfiguration = {
       configuration: {
         type:
-          layerInfo.layerType === "VectorTile"
+          configuration.layerType === "VectorTile"
             ? "VectorTileLayer"
-            : layerInfo.layerType.includes("Tile")
+            : configuration.layerType.includes("Tile")
               ? "TileLayer"
-              : layerInfo.layerType.includes("Image")
+              : configuration.layerType.includes("Image")
                 ? "ImageLayer"
                 : "VectorLayer",
         props: {
           source: {
-            type: layerInfo.layerType,
+            type: configuration.layerType,
             props: validSourceProps,
           },
-          name: layerInfo.name,
+          name: configuration.name,
         },
       },
-      legend: layerInfo.legend ?? {},
-      attributeVariables: layerInfo.attributeVariables ?? {},
+      legend: legend ?? {},
+      attributeVariables: extractVariableInputNames(attributeVariables) ?? {},
     };
 
     let geoJSON;
-    if (layerInfo.layerType === "GeoJSON") {
+    if (configuration.layerType === "GeoJSON") {
       try {
-        geoJSON = JSON.parse(layerInfo.geojson);
+        geoJSON = JSON.parse(configuration.geojson);
       } catch (err) {
         setErrorMessage(
           <>
@@ -211,7 +223,7 @@ const MapLayerModal = ({
 
       const geoJSONFilename = `${uuidv4()}.json`;
       const geoJSONInfo = {
-        data: layerInfo.geojson,
+        data: configuration.geojson,
         filename: geoJSONFilename,
       };
       const apiResponse = await appAPI.uploadJSON(geoJSONInfo, csrf);
@@ -225,9 +237,9 @@ const MapLayerModal = ({
       mapConfiguration.configuration.props.source.filename = geoJSONFilename;
     }
 
-    if (layerInfo.style && layerInfo.style !== "{}") {
+    if (style && style !== "{}") {
       try {
-        JSON.parse(layerInfo.style);
+        JSON.parse(style);
       } catch (err) {
         setErrorMessage(
           <>
@@ -243,7 +255,7 @@ const MapLayerModal = ({
 
       const styleJSONFilename = `${uuidv4()}.json`;
       const styleJSONInfo = {
-        data: layerInfo.style,
+        data: style,
         filename: styleJSONFilename,
       };
       const apiResponse = await appAPI.uploadJSON(styleJSONInfo, csrf);
@@ -285,8 +297,8 @@ const MapLayerModal = ({
               className="layer-configuration-tab"
             >
               <ConfigurationPane
-                layerInfo={layerInfo}
-                setLayerInfo={setLayerInfo}
+                configuration={configuration}
+                setConfiguration={setConfiguration}
               />
             </Tab>
             <Tab
@@ -295,7 +307,7 @@ const MapLayerModal = ({
               aria-label="layer-style-tab"
               className="layer-style-tab"
             >
-              <StylePane layerInfo={layerInfo} setLayerInfo={setLayerInfo} />
+              <StylePane style={style} setStyle={setStyle} />
             </Tab>
             <Tab
               eventKey="legend"
@@ -305,22 +317,22 @@ const MapLayerModal = ({
             >
               <div ref={containerRef}>
                 <LegendPane
-                  layerInfo={layerInfo}
-                  setLayerInfo={setLayerInfo}
+                  legend={legend}
+                  setLegend={setLegend}
                   containerRef={containerRef}
                 />
               </div>
             </Tab>
             <Tab
-              eventKey="attributes"
-              title="Attributes"
+              eventKey="attributeVariables"
+              title="Attributes Variables"
               aria-label="layer-attributes-tab"
               className="layer-attributes-tab"
             >
-              <AttributePane
-                layerInfo={layerInfo}
-                setLayerInfo={setLayerInfo}
-                containerRef={containerRef}
+              <AttributeVariablesPane
+                attributeVariables={attributeVariables}
+                setAttributeVariables={setAttributeVariables}
+                configuration={configuration}
                 tabKey={tabKey}
               />
             </Tab>

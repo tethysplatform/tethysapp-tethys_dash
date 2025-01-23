@@ -95,34 +95,38 @@ function mergeRequiredAndOptionalProperties(properties) {
   return result;
 }
 
-const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
-  const [layerType, setLayerType] = useState(layerInfo.layerType ?? null);
+const ConfigurationPane = ({ configuration, setConfiguration }) => {
+  const [layerType, setLayerType] = useState(configuration.layerType ?? null);
   const [layerTypeArgResults, setLayerTypeResults] = useState(
-    layerInfo.layerType
-      ? loadExistingArgs(layerInfo.layerType, layerInfo.sourceProps)
+    configuration.layerType
+      ? loadExistingArgs(configuration.layerType, configuration.sourceProps)
       : {}
   );
   const [layerPropertiesArray, setLayerPropertiesArray] = useState(
-    layerInfo.layerType
+    configuration.layerType
       ? generatePropertiesArrayWithValues(
-          layerTypeProperties[layerInfo.layerType],
-          layerInfo.sourceProps
+          layerTypeProperties[configuration.layerType],
+          configuration.sourceProps
         )
       : []
   );
-  const [name, setName] = useState(layerInfo.name ?? "");
+  const [name, setName] = useState(configuration.name ?? "");
   const [geoJSON, setGeoJSON] = useState("{}");
 
   useEffect(() => {
     (async () => {
-      if (layerType === "GeoJSON" && geoJSON === "{}" && layerInfo.geojson) {
+      if (
+        layerType === "GeoJSON" &&
+        geoJSON === "{}" &&
+        configuration.geojson
+      ) {
         const apiResponse = await appAPI.downloadJSON({
-          filename: layerInfo.geojson,
+          filename: configuration.geojson,
         });
         setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
       }
     })();
-    layerInfo.geojson = geoJSON;
+    configuration.geojson = geoJSON;
   }, [geoJSON]);
 
   function loadExistingArgs(sourceType, sourceProps) {
@@ -157,8 +161,8 @@ const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
       });
     });
     setLayerTypeResults(updatedLayerTypeArgResults);
-    setLayerInfo((previousLayerInfo) => ({
-      ...previousLayerInfo,
+    setConfiguration((previousConfiguration) => ({
+      ...previousConfiguration,
       ...{ sourceProps: updatedLayerTypeArgResults },
     }));
   }
@@ -173,9 +177,12 @@ const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
       layerTypeArgResults
     );
     setLayerPropertiesArray(newLayerPropertiesArray);
-    setLayerInfo((previousLayerInfo) => ({
-      ...previousLayerInfo,
-      ...{ layerType: e.value, sourceProps: newLayerTypeResults },
+    setConfiguration((previousConfiguration) => ({
+      ...previousConfiguration,
+      ...{
+        layerType: e.value,
+        sourceProps: newLayerTypeResults,
+      },
     }));
   }
 
@@ -193,9 +200,11 @@ const ConfigurationPane = ({ layerInfo, setLayerInfo }) => {
         objValue={{ label: "Name", type: "text", value: name }}
         onChange={(e) => {
           setName(e);
-          setLayerInfo((previousLayerInfo) => ({
-            ...previousLayerInfo,
-            ...{ name: e },
+          setConfiguration((previousConfiguration) => ({
+            ...previousConfiguration,
+            ...{
+              name: e,
+            },
           }));
         }}
       />

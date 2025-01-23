@@ -96,3 +96,22 @@ export const removeEmptyStringsFromObject = (obj) => {
       )
   );
 };
+
+export const extractVariableInputNames = (attributes) => {
+  const result = {};
+
+  Object.keys(attributes).forEach((category) => {
+    const mappings = attributes[category].reduce((acc, item) => {
+      if (item["Variable Input Name"]) {
+        acc[item.alias] = item["Variable Input Name"];
+      }
+      return acc;
+    }, {});
+
+    if (Object.keys(mappings).length > 0) {
+      result[category] = mappings;
+    }
+  });
+
+  return result;
+};

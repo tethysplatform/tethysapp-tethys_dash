@@ -96,11 +96,13 @@ const MapLayerTemplate = ({
 
     // Set the layerInfo and existingLayerOriginalName to the specified mapLayer
     setLayerInfo({
-      layerType: existingMapLayer.configuration.props.source.type,
-      sourceProps: existingMapLayer.configuration.props.source.props,
-      name: existingMapLayer.configuration.props.name,
+      configuration: {
+        layerType: existingMapLayer.configuration.props.source.type,
+        sourceProps: existingMapLayer.configuration.props.source.props,
+        name: existingMapLayer.configuration.props.name,
+        geojson: existingMapLayer.configuration.props.source.filename,
+      },
       legend: existingMapLayer.legend,
-      geojson: existingMapLayer.configuration.props.source.filename,
       style: existingMapLayer.style,
       attributeVariables: existingMapLayer.attributeVariables,
     });

@@ -151,20 +151,17 @@ const LegendTemplate = ({
   );
 };
 
-const LegendPane = ({ layerInfo, setLayerInfo, containerRef }) => {
-  const [legendMode, setLegendMode] = useState(layerInfo.legend ? "on" : "off");
-  const [legendItems, setLegendItems] = useState(layerInfo.legend?.items ?? []);
-  const [legendTitle, setLegendTitle] = useState(layerInfo.legend?.title ?? "");
-  const previousLegendInfo = useRef(layerInfo.legend ?? {});
+const LegendPane = ({ legend, setLegend, containerRef }) => {
+  const [legendMode, setLegendMode] = useState(legend ? "on" : "off");
+  const [legendItems, setLegendItems] = useState(legend?.items ?? []);
+  const [legendTitle, setLegendTitle] = useState(legend?.title ?? "");
+  const previousLegendInfo = useRef(legend ?? {});
 
   useEffect(() => {
     if (legendMode === "off") return;
 
     const newLegend = { title: legendTitle, items: legendItems };
-    setLayerInfo((previousLayerInfo) => ({
-      ...previousLayerInfo,
-      ...{ legend: newLegend },
-    }));
+    setLegend(newLegend);
   }, [legendItems, legendTitle]);
 
   const valueOptions = [
@@ -184,19 +181,15 @@ const LegendPane = ({ layerInfo, setLayerInfo, containerRef }) => {
   };
 
   const changeLegendMode = (e) => {
+    let newLegend;
     if (e === "off") {
-      previousLegendInfo.current = layerInfo.legend;
-      setLayerInfo((previousLayerInfo) => ({
-        ...previousLayerInfo,
-        ...{ legend: {} },
-      }));
+      previousLegendInfo.current = legend;
+      newLegend = {};
     } else {
-      setLayerInfo((previousLayerInfo) => ({
-        ...previousLayerInfo,
-        ...{ legend: previousLegendInfo.current },
-      }));
+      newLegend = previousLegendInfo.current;
     }
     setLegendMode(e);
+    setLegend(newLegend);
   };
 
   const onTitleChange = (e) => {
