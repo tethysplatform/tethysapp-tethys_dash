@@ -1,5 +1,11 @@
 import { convertXML } from "simple-xml-to-json";
 import { transform } from "ol/proj";
+import Feature from "ol/Feature";
+import VectorLayer from "ol/layer/Vector";
+import VectorSource from "ol/source/Vector";
+import { LineString, MultiPolygon, Polygon, Point } from "ol/geom";
+import { Stroke, Style, Circle } from "ol/style";
+import Icon from "ol/style/Icon";
 
 export const layerTypeProperties = {
   ImageArcGISRest: {
@@ -66,6 +72,105 @@ export const layerOptions = {
   maxZoom:
     "The maximum view zoom level (inclusive) at which this layer will be visible.",
 };
+
+export function createMarkerLayer(coordinate) {
+  const markPath = `
+      M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9
+      c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z
+    `;
+  const svgIcon = `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40">
+        <path d="${markPath}" fill="#007bff" stroke="white" stroke-width="1"/>
+      </svg>
+    `;
+  const svgURI = "data:image/svg+xml;base64," + btoa(svgIcon);
+  const marker = new Feature({
+    type: "marker",
+    geometry: new Point(coordinate),
+  });
+  marker.setStyle(
+    new Style({
+      image: new Icon({
+        src: svgURI,
+        anchor: [0.5, 1], // Align the bottom-center of the icon to the point
+      }),
+    })
+  );
+  const markerLayer = new VectorLayer({
+    source: new VectorSource({
+      features: [marker],
+    }),
+    name: "Marker",
+  });
+
+  return markerLayer;
+}
+
+export function createHighlightLayer(geometries) {
+  let features;
+  if ("paths" in geometries || geometries?.type === "MultiLineString") {
+    const paths = geometries.paths || geometries.coordinates;
+    features = paths.map((path) => {
+      return new Feature({
+        geometry: new LineString(path),
+        name: "Polyline",
+      });
+    });
+  } else if (geometries?.type === "LineString") {
+    features = [
+      new Feature({
+        geometry: new LineString(geometries.coordinates),
+        name: "LineString",
+      }),
+    ];
+  } else if (geometries?.type === "MultiPolygon") {
+    features = [
+      new Feature({
+        geometry: new MultiPolygon(geometries.coordinates),
+        name: "MultiPolygon",
+      }),
+    ];
+  } else if (geometries?.type === "Polygon") {
+    features = [
+      new Feature({
+        geometry: new Polygon(geometries.coordinates),
+        name: "Polygon",
+      }),
+    ];
+  } else {
+    let geometry;
+    if ("x" in geometries) {
+      geometry = new Point((geometries.x, geometries.y));
+    } else {
+      geometry = new Point(geometries.coordinates);
+    }
+    features = [
+      new Feature({
+        name: "Point",
+        geometry: geometry,
+      }),
+    ];
+  }
+  const stroke = new Stroke({
+    color: "#00008b",
+    width: 3,
+  });
+  const highlightLayer = new VectorLayer({
+    source: new VectorSource({
+      features: features,
+    }),
+    style: new Style({
+      stroke: stroke,
+      image: new Circle({
+        stroke: stroke,
+        radius: 5,
+      }),
+    }),
+    name: "Highlighter",
+  });
+
+  return highlightLayer;
+}
 
 function transformCoordinates(coords, sourceProj, destProj) {
   return coords.map((polygon) => {
@@ -284,9 +389,6 @@ async function getESRILayerAttributes(url) {
     let specificLayerInfoJson = await specificLayerInfoResponse.json();
     let specificLayerFieds = [];
     for (const field of specificLayerInfoJson.fields) {
-      if (["objectid", "shape", "geom", "oid"].includes(field.name)) {
-        continue;
-      }
       specificLayerFieds.push({ name: field.name, alias: field.alias });
     }
     layerAttributes[layerName] = specificLayerFieds;

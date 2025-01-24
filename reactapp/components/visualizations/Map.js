@@ -7,15 +7,13 @@ import {
   useContext,
 } from "react";
 import { Map } from "components/map/Map";
-import { queryLayerFeatures } from "components/map/utilities";
+import {
+  queryLayerFeatures,
+  createHighlightLayer,
+  createMarkerLayer,
+} from "components/map/utilities";
 import PropTypes from "prop-types";
 import { getBaseMapLayer } from "components/visualizations/utilities";
-import Feature from "ol/Feature";
-import VectorLayer from "ol/layer/Vector";
-import VectorSource from "ol/source/Vector";
-import { LineString, MultiPolygon, Polygon, Point } from "ol/geom";
-import { Stroke, Style, Circle } from "ol/style";
-import Icon from "ol/style/Icon";
 import {
   DataViewerModeContext,
   VariableInputsContext,
@@ -25,6 +23,11 @@ import styled from "styled-components";
 import { getMapAttributeVariables } from "components/visualizations/utilities";
 import { valuesEqual } from "components/modals/utilities";
 import appAPI from "services/api/app";
+import { Swiper, SwiperSlide } from "swiper/react";
+import "swiper/css";
+import "swiper/css/pagination";
+import "swiper/css/navigation";
+import { Pagination, Navigation } from "swiper/modules";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;
@@ -36,139 +39,122 @@ const OverflowTD = styled.td`
 
 const PopupDiv = styled.div`
   max-height: 40vh;
-  max-width: 20vw;
-  width: 20vw;
   overflow-y: auto;
+  margin-bottom: 30px;
+`;
+
+const CenteredP = styled.p`
+  text-align: center;
+  margin: auto;
+`;
+
+const SwiperControls = styled.div`
+  display: flex;
+  justify-content: center; /* Center the controls */
+  align-items: center; /* Vertically align the controls */
+  position: absolute;
+  bottom: 10px; /* Adjust as needed */
+  width: 100%; /* Full width for proper alignment */
+  z-index: 10;
+  height: 2rem;
+`;
+
+const SwiperArrows = styled.div`
+  font-size: 24px;
+  color: #333;
+  cursor: pointer;
+  margin: 0 10px; /* Space between the arrows and pagination */
+  padding: 5px;
+  border-radius: 50%;
+`;
+
+const SwiperPagination = styled.div`
+  font-size: 16px;
+  color: #333;
+  margin: 0 10px; /* Space between pagination and arrows */
+  text-align: center;
+`;
+
+const MarginSwiperSlide = styled(SwiperSlide)`
+  margin-bottom: 1rem;
 `;
 
 const PopupContent = ({ layerAttributes }) => {
-  return Object.keys(layerAttributes).map((layerName) => (
-    <PopupDiv>
-      <p>
-        <b>{layerName}</b>:{" "}
-      </p>
-      <FixedTable striped bordered hover size="sm">
-        <thead>
-          <tr>
-            <th className="text-center" style={{ width: "33%" }}>
-              Field
-            </th>
-            <th className="text-center" style={{ width: "33%" }}>
-              Value
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.keys(layerAttributes[layerName]).map((field) => (
-            <tr key={field}>
-              <OverflowTD>{field}</OverflowTD>
-              <OverflowTD>{layerAttributes[layerName][field]}</OverflowTD>
-            </tr>
-          ))}
-        </tbody>
-      </FixedTable>
-    </PopupDiv>
-  ));
-};
-
-function createMarkerLayer(coordinate) {
-  const markPath = `
-      M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9
-      c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z
-    `;
-  const svgIcon = `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40">
-        <path d="${markPath}" fill="#007bff" stroke="white" stroke-width="1"/>
-      </svg>
-    `;
-  const svgURI = "data:image/svg+xml;base64," + btoa(svgIcon);
-  const marker = new Feature({
-    type: "marker",
-    geometry: new Point(coordinate),
-  });
-  marker.setStyle(
-    new Style({
-      image: new Icon({
-        src: svgURI,
-        anchor: [0.5, 1], // Align the bottom-center of the icon to the point
-      }),
-    })
+  const nonEmptyLayerAttributes = layerAttributes.filter(
+    (arr) => arr && arr.length > 0
   );
-  const markerLayer = new VectorLayer({
-    source: new VectorSource({
-      features: [marker],
-    }),
-    name: "Marker",
-  });
-
-  return markerLayer;
-}
-
-function createHighlightLayer(geometries) {
-  let features;
-  if ("paths" in geometries || geometries?.type === "MultiLineString") {
-    const paths = geometries.paths || geometries.coordinates;
-    features = paths.map((path) => {
-      return new Feature({
-        geometry: new LineString(path),
-        name: "Polyline",
-      });
-    });
-  } else if (geometries?.type === "LineString") {
-    features = [
-      new Feature({
-        geometry: new LineString(geometries.coordinates),
-        name: "LineString",
-      }),
-    ];
-  } else if (geometries?.type === "MultiPolygon") {
-    features = [
-      new Feature({
-        geometry: new MultiPolygon(geometries.coordinates),
-        name: "MultiPolygon",
-      }),
-    ];
-  } else if (geometries?.type === "Polygon") {
-    features = [
-      new Feature({
-        geometry: new Polygon(geometries.coordinates),
-        name: "Polygon",
-      }),
-    ];
+  if (nonEmptyLayerAttributes.length === 0) {
+    return <CenteredP>No Attributes Found</CenteredP>;
   } else {
-    let geometry;
-    if ("x" in geometries) {
-      geometry = new Point((geometries.x, geometries.y));
-    } else {
-      geometry = new Point(geometries.coordinates);
-    }
-    features = [
-      new Feature({
-        name: "Point",
-        geometry: geometry,
-      }),
-    ];
+    return (
+      <>
+        <Swiper
+          modules={[Pagination, Navigation]}
+          navigation={{
+            nextEl: ".custom-next",
+            prevEl: ".custom-prev",
+          }}
+          pagination={{
+            el: ".custom-pagination",
+            type: "fraction",
+          }}
+          className="mySwiper"
+        >
+          {nonEmptyLayerAttributes.map((selectedFeatures) => (
+            <>
+              {selectedFeatures.map((selectedFeature) => (
+                <MarginSwiperSlide>
+                  <PopupDiv>
+                    <div>
+                      <p>
+                        <b>{selectedFeature.layerName}</b>:
+                      </p>
+                      <FixedTable striped bordered hover size="sm">
+                        <thead>
+                          <tr>
+                            <th
+                              className="text-center"
+                              style={{ width: "33%" }}
+                            >
+                              Field
+                            </th>
+                            <th
+                              className="text-center"
+                              style={{ width: "33%" }}
+                            >
+                              Value
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.keys(selectedFeature.attributes).map(
+                            (field) => (
+                              <tr key={field}>
+                                <OverflowTD>{field}</OverflowTD>
+                                <OverflowTD>
+                                  {selectedFeature.attributes[field]}
+                                </OverflowTD>
+                              </tr>
+                            )
+                          )}
+                        </tbody>
+                      </FixedTable>
+                    </div>
+                  </PopupDiv>
+                </MarginSwiperSlide>
+              ))}
+            </>
+          ))}
+          <SwiperControls>
+            <SwiperArrows className="custom-prev">❮</SwiperArrows>
+            <SwiperPagination className="custom-pagination"></SwiperPagination>
+            <SwiperArrows className="custom-next">❯</SwiperArrows>
+          </SwiperControls>
+        </Swiper>
+      </>
+    );
   }
-  const stroke = new Stroke({
-    color: "#00008b",
-    width: 3,
-  });
-  const highlightLayer = new VectorLayer({
-    source: new VectorSource({
-      features: features,
-    }),
-    style: new Style({
-      stroke: stroke,
-      image: new Circle({
-        stroke: stroke,
-        radius: 5,
-      }),
-    }),
-    name: "Highlighter",
-  });
-
-  return highlightLayer;
-}
+};
 
 const MapVisualization = ({
   mapConfig,
@@ -239,11 +225,10 @@ const MapVisualization = ({
     })();
   }, [layers, baseMap]);
 
-  const onMapClick = (map, evt, setPopupContent) => {
+  const onMapClick = async (map, evt, setPopupContent) => {
     // get coordinates and add pointer marker where the click occurred
     const coordinate = evt.coordinate;
     const pixel = evt.pixel;
-    let popupContent = "";
     // const newMarkerLayer = createMarkerLayer(coordinate);
     // if (markerLayer.current) {
     //   map.removeLayer(markerLayer.current);
@@ -275,77 +260,81 @@ const MapVisualization = ({
       return combined;
     }, {});
 
-    // query the layer features
-    // NEED TO MAKE THIS WORK WITH MULTIPLE LAYERS IN PARALLEL
-    queryLayerFeatures(layers[0], map, coordinate, pixel)
-      .then((layerFeatures) => {
-        if (highlightLayer.current) {
-          map.removeLayer(highlightLayer.current);
-        }
-
-        // [{attributes: {key: value}, geometry: {x: "", y: ""}, layerName: ""}]
-        // if valid features were selected then continue
-        if (layerFeatures && layerFeatures.length > 0) {
-          const newHighlightLayer = createHighlightLayer(
-            layerFeatures[0].geometry
-          );
-          if (markerLayer.current) {
-            map.removeLayer(markerLayer.current);
+    // query the layers
+    const queryCalls = layers.map((layer) =>
+      queryLayerFeatures(layer, map, coordinate, pixel)
+        .then((layerFeatures) => {
+          if (highlightLayer.current) {
+            map.removeLayer(highlightLayer.current);
           }
-          highlightLayer.current = newHighlightLayer;
-          map.addLayer(newHighlightLayer);
 
-          let updatedVariableInputs = {};
-          let layerAttributes = {};
-          for (const layerFeature of layerFeatures) {
-            const layerName = layerFeature.layerName;
-            layerAttributes[layerName] = Object.fromEntries(
-              Object.entries(layerFeature.attributes).filter(
-                ([key]) => !mapOmittedPopupAttributes[layerName].includes(key)
-              )
+          // [{attributes: {key: value}, geometry: {x: "", y: ""}, layerName: ""}]
+          // if valid features were selected then continue
+          if (layerFeatures && layerFeatures.length > 0) {
+            const newHighlightLayer = createHighlightLayer(
+              layerFeatures[0].geometry
             );
+            if (markerLayer.current) {
+              map.removeLayer(markerLayer.current);
+            }
+            highlightLayer.current = newHighlightLayer;
+            map.addLayer(newHighlightLayer);
 
-            if (layerName in mapAttributeVariables) {
-              const mappedLayerVariableInputs = {};
-              // check each layer attribute variable to see if the features have valid values
-              for (const layerAlias in mapAttributeVariables[layerName]) {
-                const variableInputName =
-                  mapAttributeVariables[layerName][layerAlias];
-                const featureValue = layerFeature.attributes[layerAlias];
-                // if the selected feature value is not undefined or "Null" then add it
-                if (featureValue && featureValue !== "Null") {
-                  mappedLayerVariableInputs[variableInputName] = featureValue;
+            let updatedVariableInputs = {};
+            for (const layerFeature of layerFeatures) {
+              const layerName = layerFeature.layerName;
+              layerFeature.attributes = Object.fromEntries(
+                Object.entries(layerFeature.attributes).filter(
+                  ([key]) =>
+                    !(layerName in mapOmittedPopupAttributes) ||
+                    !mapOmittedPopupAttributes[layerName].includes(key)
+                )
+              );
+
+              if (layerName in mapAttributeVariables) {
+                const mappedLayerVariableInputs = {};
+                // check each layer attribute variable to see if the features have valid values
+                for (const layerAlias in mapAttributeVariables[layerName]) {
+                  const variableInputName =
+                    mapAttributeVariables[layerName][layerAlias];
+                  const featureValue = layerFeature.attributes[layerAlias];
+                  // if the selected feature value is not undefined or "Null" then add it
+                  if (featureValue && featureValue !== "Null") {
+                    mappedLayerVariableInputs[variableInputName] = featureValue;
+                  }
+                }
+                // Once a selected feature has a valid value for variable input, go to the next variable input
+                if (Object.keys(mappedLayerVariableInputs).length > 0) {
+                  updatedVariableInputs = {
+                    ...updatedVariableInputs,
+                    ...mappedLayerVariableInputs,
+                  };
+                  continue;
                 }
               }
-              // Once a selected feature has a valid value for variable input, go to the next variable input
-              if (Object.keys(mappedLayerVariableInputs).length > 0) {
-                updatedVariableInputs = {
-                  ...updatedVariableInputs,
-                  ...mappedLayerVariableInputs,
-                };
-                continue;
-              }
+            }
+
+            // if the map click found any variable inputs to update, then do it
+            if (Object.keys(updatedVariableInputs).length > 0) {
+              setVariableInputValues((previousVariableInputValues) => ({
+                ...previousVariableInputValues,
+                ...updatedVariableInputs,
+              }));
             }
           }
 
-          setPopupContent(<PopupContent layerAttributes={layerAttributes} />);
+          return layerFeatures;
+        })
+        .catch((error) => {
+          console.error("Error:", error);
+        })
+    );
+    const queryLayerFeaturesResults = await Promise.all(queryCalls);
+    console.log(queryLayerFeaturesResults);
 
-          // if the map click found any variable inputs to update, then do it
-          if (Object.keys(updatedVariableInputs).length > 0) {
-            setVariableInputValues((previousVariableInputValues) => ({
-              ...previousVariableInputValues,
-              ...updatedVariableInputs,
-            }));
-          } else {
-            console.log("No features with variable inputs were selected");
-          }
-        } else {
-          console.log("No attributes found");
-        }
-      })
-      .catch((error) => {
-        console.error("Error:", error);
-      });
+    setPopupContent(
+      <PopupContent layerAttributes={queryLayerFeaturesResults} />
+    );
   };
 
   return (

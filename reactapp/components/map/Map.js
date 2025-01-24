@@ -9,6 +9,7 @@ import LegendControl from "components/map/Legend";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
 import { applyStyle } from "ol-mapbox-style";
+import { MdClose } from "react-icons/md";
 
 const StyledAlert = styled(Alert)`
   position: absolute;
@@ -24,7 +25,8 @@ const OverLayContentWrapper = styled.div`
   padding: 15px;
   border-radius: 10px;
   border: 1px solid #ccc;
-  min-width: 200px;
+  max-width: 30vw;
+  width: 30vw;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
   transform: translate(-50%, -100%);
 
@@ -52,6 +54,18 @@ const OverLayContentWrapper = styled.div`
     left: 50%;
     margin-left: -11px;
   }
+`;
+
+const StyledCloser = styled.a`
+  text-decoration: none;
+  position: absolute;
+  top: 2px;
+  right: 8px;
+  color: red;
+`;
+
+const StyledContent = styled.div`
+  padding-top: 1rem;
 `;
 
 const Map = ({
@@ -196,8 +210,21 @@ const Map = ({
           className="map-popup"
           ref={popupRef}
         >
-          {popupContent &&
-            ReactDOM.createPortal(popupContent, popupRef.current)}
+          <StyledCloser
+            href="#"
+            id="popup-closer"
+            class="ol-popup-closer"
+            onClick={() => {
+              popupCurrent.current.setPosition(undefined);
+              setPopupContent(null);
+            }}
+          >
+            <MdClose size="1.5rem" />
+          </StyledCloser>
+          <StyledContent id="popup-content">
+            {popupContent &&
+              ReactDOM.createPortal(popupContent, popupRef.current)}
+          </StyledContent>
         </OverLayContentWrapper>
       </MapContext.Provider>
     </>

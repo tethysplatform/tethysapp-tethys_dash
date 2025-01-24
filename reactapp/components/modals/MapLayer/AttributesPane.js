@@ -38,11 +38,15 @@ const CenteredTD = styled.td`
 const AttributesPane = ({
   attributeVariables,
   setAttributeVariables,
+  omittedPopupAttributes,
+  setOmittedPopupAttributes,
   configuration,
   tabKey,
 }) => {
   const [warningMessage, setWarningMessage] = useState(null);
+  const [attributes, setAttributes] = useState({});
   const attributeVariableValues = useRef(attributeVariables);
+  const omittedPopupAttributesValues = useRef(omittedPopupAttributes);
   const previousConfiguration = useRef({});
   const [automatedAttributes, setAutomatedAttributes] = useState(null);
 
@@ -94,14 +98,13 @@ const AttributesPane = ({
             for (const layerName of transformedLayers) {
               let newAttributeVariables = [];
               if (
-                layerName in attributeVariables &&
-                Object.keys(attributeVariables[layerName]).length > 0
+                layerName in attributes &&
+                Object.keys(attributes[layerName]).length > 0
               ) {
-                for (const fieldName in attributeVariables[layerName]) {
+                for (const fieldName in attributes[layerName]) {
                   newAttributeVariables.push({
                     "Field Name": fieldName,
-                    "Variable Input Name":
-                      attributeVariables[layerName][fieldName],
+                    "Variable Input Name": attributes[layerName][fieldName],
                   });
                 }
               } else {
@@ -124,12 +127,12 @@ const AttributesPane = ({
           );
 
           if (Object.keys(validLayerAttributes).length > 0) {
-            setAttributeVariables(layerAttributes);
+            setAttributes(layerAttributes);
             attributeVariableValues.current =
               extractVariableInputNames(layerAttributes);
           } else {
             setWarningMessage("No field attributes were found.");
-            setAttributeVariables({});
+            setAttributes({});
             attributeVariableValues.current = {};
             return;
           }
@@ -138,17 +141,37 @@ const AttributesPane = ({
     }
   }, [tabKey]);
 
-  function updateAttributeVariables(
-    index,
-    layerName,
-    value,
-    variableInputName
-  ) {
-    const updatedAttributeVariables = JSON.parse(
-      JSON.stringify(attributeVariables)
-    );
-    updatedAttributeVariables[layerName][index][value] = variableInputName;
-    setAttributeVariables(updatedAttributeVariables);
+  function updateAttributes(index, layerName, field, value) {
+    const updatedAttributes = JSON.parse(JSON.stringify(attributes));
+    updatedAttributes[layerName][index][field] = value;
+    setAttributes(updatedAttributes);
+
+    if (field === "variableInput") {
+      if (!(layerName in attributeVariableValues.current)) {
+        attributeVariableValues.current[layerName] = {};
+      }
+      attributeVariableValues.current[layerName][
+        updatedAttributes[layerName][index]["alias"]
+      ] = value;
+      setAttributeVariables(attributeVariableValues.current);
+    }
+
+    if (field === "popup") {
+      if (!(layerName in omittedPopupAttributesValues.current)) {
+        omittedPopupAttributesValues.current[layerName] = [];
+      }
+      if (value) {
+        omittedPopupAttributesValues.current[layerName] =
+          omittedPopupAttributesValues.current[layerName].filter(
+            (alias) => alias !== updatedAttributes[layerName][index]["alias"]
+          );
+      } else {
+        omittedPopupAttributesValues.current[layerName].push(
+          updatedAttributes[layerName][index]["alias"]
+        );
+      }
+      setOmittedPopupAttributes(omittedPopupAttributesValues.current);
+    }
   }
 
   async function queryLayerAttributes() {
@@ -175,6 +198,7 @@ const AttributesPane = ({
       return;
     }
     layerAttributes = appendExistingAttributeVariables(layerAttributes);
+    layerAttributes = appendExistingOmittedPopupAttributes(layerAttributes);
 
     return layerAttributes;
   }
@@ -200,27 +224,54 @@ const AttributesPane = ({
     }
   }
 
+  function appendExistingOmittedPopupAttributes(layerAttributes) {
+    if (omittedPopupAttributesValues.current) {
+      const newObj = {};
+      for (const layerName in layerAttributes) {
+        newObj[layerName] = [];
+        for (const layerAttribute of layerAttributes[layerName]) {
+          const alias = layerAttribute.alias ?? layerAttribute.Alias;
+          const existingValue =
+            !omittedPopupAttributesValues.current[layerName] ||
+            !omittedPopupAttributesValues.current[layerName].includes(alias);
+          layerAttribute["popup"] = existingValue;
+          newObj[layerName].push(layerAttribute);
+        }
+      }
+
+      return newObj;
+    } else {
+      return layerAttributes;
+    }
+  }
+
   function handleAttributeChange(fields, layerName) {
-    const newAttributes = JSON.parse(JSON.stringify(attributeVariables));
+    const newAttributes = JSON.parse(JSON.stringify(attributes));
     newAttributes[layerName] = fields;
+    setAttributes(newAttributes);
 
     // only update variables when all inputs are filled out
     if (
       fields.every((obj) => Object.values(obj).every((value) => value !== ""))
     ) {
-      const updatedAttributeVariables = JSON.parse(
-        JSON.stringify(attributeVariables)
-      );
-      if (!(layerName in updatedAttributeVariables)) {
-        updatedAttributeVariables[layerName] = [];
+      if (!(layerName in attributeVariableValues.current)) {
+        attributeVariableValues.current[layerName] = {};
       }
+
+      if (!(layerName in omittedPopupAttributesValues.current)) {
+        omittedPopupAttributesValues.current[layerName] = [];
+      }
+
       for (const field of fields) {
-        updatedAttributeVariables[layerName].push({
-          "Field Name": field["Field Name"],
-          "Variable Input Name": field["Variable Input Name"],
-        });
+        attributeVariableValues.current[layerName][field["Field Name"]] =
+          field["Variable Input Name"];
+        setAttributeVariables(attributeVariableValues.current);
+
+        omittedPopupAttributesValues.current[layerName].push(
+          field["Field Name"]
+        );
+        setOmittedPopupAttributes(omittedPopupAttributesValues.current);
       }
-      setAttributeVariables(updatedAttributeVariables);
     }
   }
 
@@ -238,7 +289,7 @@ const AttributesPane = ({
           variant="info"
         />
       ) : automatedAttributes ? (
-        Object.keys(attributeVariables).map((layerName) => (
+        Object.keys(attributes).map((layerName) => (
           <>
             <p>
               <b>{layerName}</b>:{" "}
@@ -259,18 +310,16 @@ const AttributesPane = ({
                 </tr>
               </thead>
               <tbody>
-                {attributeVariables[layerName].map(({ name, alias }, index) => (
+                {attributes[layerName].map(({ name, alias }, index) => (
                   <tr key={index}>
                     <OverflowTD>{name}</OverflowTD>
                     <OverflowTD>{alias}</OverflowTD>
                     <CenteredTD>
                       <input
                         type="checkbox"
-                        checked={
-                          attributeVariables[layerName][index]["popup"] ?? true
-                        }
+                        checked={attributes[layerName][index]["popup"] ?? true}
                         onChange={(e) => {
-                          updateAttributeVariables(
+                          updateAttributes(
                             index,
                             layerName,
                             "popup",
@@ -281,11 +330,9 @@ const AttributesPane = ({
                     </CenteredTD>
                     <td>
                       <StyledInput
-                        value={
-                          attributeVariables[layerName][index]["variableInput"]
-                        }
+                        value={attributes[layerName][index]["variableInput"]}
                         onChange={(e) => {
-                          updateAttributeVariables(
+                          updateAttributes(
                             index,
                             layerName,
                             "variableInput",
@@ -301,11 +348,11 @@ const AttributesPane = ({
           </>
         ))
       ) : (
-        Object.keys(attributeVariables).map((layerName) => (
+        Object.keys(attributes).map((layerName) => (
           <InputTable
             label={layerName}
             onChange={(e) => handleAttributeChange(e, layerName)}
-            values={attributeVariables[layerName]}
+            values={attributes[layerName]}
           />
         ))
       )}

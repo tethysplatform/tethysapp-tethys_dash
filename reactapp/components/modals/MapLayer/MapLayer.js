@@ -69,6 +69,9 @@ const MapLayerModal = ({
   const [attributeVariables, setAttributeVariables] = useState(
     layerInfo.attributeVariables
   );
+  const [omittedPopupAttributes, setOmittedPopupAttributes] = useState(
+    layerInfo.omittedPopupAttributes
+  );
   const containerRef = useRef(null);
   const { csrf } = useContext(AppContext);
 
@@ -196,9 +199,8 @@ const MapLayerModal = ({
         },
       },
       legend: legend ?? {},
-      attributeVariables: extractVariableInputNames(attributeVariables) ?? {},
-      omittedPopupAttributes:
-        extractOmittedPopupAttributes(attributeVariables) ?? {},
+      attributeVariables: attributeVariables ?? {},
+      omittedPopupAttributes: omittedPopupAttributes ?? {},
     };
 
     let geoJSON;
@@ -336,6 +338,8 @@ const MapLayerModal = ({
               <AttributesPane
                 attributeVariables={attributeVariables}
                 setAttributeVariables={setAttributeVariables}
+                omittedPopupAttributes={omittedPopupAttributes}
+                setOmittedPopupAttributes={setOmittedPopupAttributes}
                 configuration={configuration}
                 tabKey={tabKey}
               />
