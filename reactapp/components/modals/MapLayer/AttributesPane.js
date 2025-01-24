@@ -1,16 +1,13 @@
 import PropTypes from "prop-types";
 import { useState, useRef, useEffect } from "react";
 import Table from "react-bootstrap/Table";
-import DataInput from "components/inputs/DataInput";
 import styled from "styled-components";
 import Alert from "react-bootstrap/Alert";
-import { getLayerAttributes } from "components/backlayer/layer/Layer";
+import { getLayerAttributes } from "components/map/utilities";
 import Spinner from "react-bootstrap/Spinner";
 import {
   valuesEqual,
-  removeEmptyStringsFromObject,
   extractVariableInputNames,
-  extractOmittedPopupAttributes,
 } from "components/modals/utilities";
 import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";

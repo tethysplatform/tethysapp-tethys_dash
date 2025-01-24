@@ -6,8 +6,8 @@ import {
   useState,
   useContext,
 } from "react";
-import { Map } from "components/backlayer";
-import { queryLayerFeatures } from "components/backlayer/layer/Layer";
+import { Map } from "components/map/Map";
+import { queryLayerFeatures } from "components/map/utilities";
 import PropTypes from "prop-types";
 import { getBaseMapLayer } from "components/visualizations/utilities";
 import Feature from "ol/Feature";

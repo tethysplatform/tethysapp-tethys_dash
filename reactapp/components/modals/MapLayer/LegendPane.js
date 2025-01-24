@@ -10,10 +10,7 @@ import Popover from "react-bootstrap/Popover";
 import ColorPicker from "components/inputs/ColorPicker";
 import CustomPicker from "components/inputs/CustomPicker";
 import { BsTrash } from "react-icons/bs";
-import {
-  legendSymbols,
-  getLegendSymbol,
-} from "components/backlayer/control/Legend";
+import { legendSymbols, getLegendSymbol } from "components/map/Legend";
 import { RxDragHandleHorizontal } from "react-icons/rx";
 import "components/modals/wideModal.css";
 
