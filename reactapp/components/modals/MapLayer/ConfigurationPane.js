@@ -99,6 +99,7 @@ const ConfigurationPane = ({
   configuration,
   setConfiguration,
   setAttributeVariables,
+  setOmittedPopupAttributes,
 }) => {
   const [layerType, setLayerType] = useState(configuration?.layerType ?? null);
   const [layerTypeArgResults, setLayerTypeResults] = useState(
@@ -192,6 +193,7 @@ const ConfigurationPane = ({
       },
     }));
     setAttributeVariables({});
+    setOmittedPopupAttributes({});
   }
 
   function handleGeoJSONUpload({ fileContent }) {

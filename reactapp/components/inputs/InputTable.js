@@ -5,8 +5,14 @@ import styled from "styled-components";
 const FullInput = styled.input`
   width: 100%;
 `;
+
 const FullLabel = styled.label`
   width: 100%;
+`;
+
+const CenteredTD = styled.td`
+  text-align: center;
+  vertical-align: middle;
 `;
 
 function InputTable({
@@ -93,9 +99,9 @@ function InputTable({
     }
   };
 
-  const handleChange = (e, rowIndex, field) => {
+  const handleChange = (newValue, rowIndex, field) => {
     const newUserInputs = [...userInputs];
-    newUserInputs[rowIndex][field] = e.target.value;
+    newUserInputs[rowIndex][field] = newValue;
     setUserInputs(newUserInputs);
     onChange(newUserInputs);
   };
@@ -130,34 +136,50 @@ function InputTable({
                 ) {
                   if (disabledFields && disabledFields.includes(field)) {
                     return (
-                      <td key={fieldIndex}>
+                      <CenteredTD key={fieldIndex}>
                         {typeof row[field] === "string"
                           ? row[field]
                           : JSON.stringify(row[field])}
-                      </td>
+                      </CenteredTD>
                     );
                   } else {
-                    return (
-                      <td key={fieldIndex}>
-                        <FullInput
-                          type="text"
-                          value={row[field]}
-                          ref={(el) =>
-                            (inputRefs.current[
-                              rowIndex * Object.keys(row).length + fieldIndex
-                            ] = el)
-                          }
-                          onChange={(e) => handleChange(e, rowIndex, field)}
-                          onKeyDown={(e) =>
-                            handleKeyDown(e, rowIndex, fieldIndex)
-                          }
-                          placeholder={
-                            placeholderRefs.current &&
-                            placeholderRefs.current[rowIndex][fieldIndex]
-                          }
-                        />
-                      </td>
-                    );
+                    if (typeof row[field] === "boolean") {
+                      return (
+                        <CenteredTD key={fieldIndex}>
+                          <input
+                            type="checkbox"
+                            checked={row[field]}
+                            onChange={(e) =>
+                              handleChange(e.target.checked, rowIndex, field)
+                            }
+                          />
+                        </CenteredTD>
+                      );
+                    } else {
+                      return (
+                        <td key={fieldIndex}>
+                          <FullInput
+                            type="text"
+                            value={row[field]}
+                            ref={(el) =>
+                              (inputRefs.current[
+                                rowIndex * Object.keys(row).length + fieldIndex
+                              ] = el)
+                            }
+                            onChange={(e) =>
+                              handleChange(e.target.value, rowIndex, field)
+                            }
+                            onKeyDown={(e) =>
+                              handleKeyDown(e, rowIndex, fieldIndex)
+                            }
+                            placeholder={
+                              placeholderRefs.current &&
+                              placeholderRefs.current[rowIndex][fieldIndex]
+                            }
+                          />
+                        </td>
+                      );
+                    }
                   }
                 }
               })}

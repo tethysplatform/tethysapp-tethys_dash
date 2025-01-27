@@ -305,6 +305,7 @@ const MapLayerModal = ({
                 configuration={configuration}
                 setConfiguration={setConfiguration}
                 setAttributeVariables={setAttributeVariables}
+                setOmittedPopupAttributes={setOmittedPopupAttributes}
               />
             </Tab>
             <Tab
