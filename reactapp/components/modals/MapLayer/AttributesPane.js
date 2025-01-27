@@ -149,7 +149,7 @@ const AttributesPane = ({
               layerAttributes[layerName] = newAttributes;
             }
           } else {
-            layerAttributes = queriedLayerAttributes;
+            layerAttributes = queriedLayerAttributes ?? {};
             setAutomatedAttributes(true);
           }
 
