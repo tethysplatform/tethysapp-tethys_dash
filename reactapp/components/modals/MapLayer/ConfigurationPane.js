@@ -131,7 +131,7 @@ const ConfigurationPane = ({
         setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
         setConfiguration((previousConfiguration) => ({
           ...previousConfiguration,
-          ...{ geojson: apiResponse.data },
+          ...{ geojson: JSON.stringify(apiResponse.data) },
         }));
       }
     })();
@@ -198,10 +198,18 @@ const ConfigurationPane = ({
 
   function handleGeoJSONUpload({ fileContent }) {
     setGeoJSON(fileContent);
+    setConfiguration((previousConfiguration) => ({
+      ...previousConfiguration,
+      ...{ geojson: fileContent },
+    }));
   }
 
   function handleGeoJSONChange(e) {
     setGeoJSON(e.target.value);
+    setConfiguration((previousConfiguration) => ({
+      ...previousConfiguration,
+      ...{ geojson: e.target.value },
+    }));
   }
 
   return (

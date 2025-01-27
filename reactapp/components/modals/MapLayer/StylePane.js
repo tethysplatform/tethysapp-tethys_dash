@@ -10,8 +10,7 @@ const StyledTextInput = styled.textarea`
 `;
 
 const StylePane = ({ style, setStyle }) => {
-  const [styleJSON, setStyleJSON] = useState("{}");
-
+  // layer name and source must be the same key must be the same
   useEffect(() => {
     (async () => {
       if (style && typeof style === "string") {
