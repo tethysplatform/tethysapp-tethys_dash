@@ -39,6 +39,11 @@ const CenteredTD = styled.td`
   vertical-align: middle;
 `;
 
+const InLineDiv = styled.div`
+  display: inline-block;
+  float: ${(props) => props?.float && props.float};
+`;
+
 const AttributesPane = ({
   attributeVariables,
   setAttributeVariables,
@@ -55,6 +60,7 @@ const AttributesPane = ({
   const omittedPopupAttributesValues = useRef(omittedPopupAttributes);
   const previousConfiguration = useRef({});
   const [automatedAttributes, setAutomatedAttributes] = useState(null);
+  const [layerPopupSwitch, setLayerPopupSwitch] = useState({});
 
   useEffect(() => {
     attributeVariableValues.current = attributeVariables;
@@ -194,9 +200,17 @@ const AttributesPane = ({
             setAttributes(layerAttributes);
             attributeVariableValues.current =
               extractVariableInputNames(layerAttributes);
+
+            setLayerPopupSwitch(
+              Object.keys(layerAttributes).reduce((acc, key) => {
+                acc[key] = false; // Set each value to an empty string
+                return acc;
+              }, {})
+            );
           } else {
             setWarningMessage("No field attributes were found.");
             setAttributes({});
+            setLayerPopupSwitch({});
             attributeVariableValues.current = {};
             return;
           }
@@ -235,6 +249,19 @@ const AttributesPane = ({
         );
       }
       setOmittedPopupAttributes(omittedPopupAttributesValues.current);
+
+      const updatedLayerPopupSwitch = JSON.parse(
+        JSON.stringify(layerPopupSwitch)
+      );
+      if (
+        omittedPopupAttributesValues.current[layerName].length ===
+        updatedAttributes[layerName].length
+      ) {
+        updatedLayerPopupSwitch[layerName] = false;
+      } else {
+        updatedLayerPopupSwitch[layerName] = true;
+      }
+      setLayerPopupSwitch(updatedLayerPopupSwitch);
     }
   }
 
@@ -334,6 +361,37 @@ const AttributesPane = ({
     }
   }
 
+  function handleLayerPopup(layerName, checkedValue) {
+    const updatedLayerPopupSwitch = JSON.parse(
+      JSON.stringify(layerPopupSwitch)
+    );
+    updatedLayerPopupSwitch[layerName] = checkedValue;
+    setLayerPopupSwitch(updatedLayerPopupSwitch);
+
+    if (!(layerName in omittedPopupAttributesValues.current)) {
+      omittedPopupAttributesValues.current[layerName] = [];
+    }
+    const updatedAttributes = JSON.parse(JSON.stringify(attributes));
+    let updatedLayerAttributes;
+    if (checkedValue) {
+      updatedLayerAttributes = updatedAttributes[layerName].map((item) => ({
+        ...item,
+        popup: true,
+      }));
+      delete omittedPopupAttributesValues.current[layerName];
+    } else {
+      updatedLayerAttributes = updatedAttributes[layerName].map((item) => ({
+        ...item,
+        popup: false,
+      }));
+      omittedPopupAttributesValues.current[layerName] =
+        updatedLayerAttributes.map((item) => item.alias);
+    }
+    updatedAttributes[layerName] = updatedLayerAttributes;
+    setAttributes(updatedAttributes);
+    setOmittedPopupAttributes(omittedPopupAttributesValues.current);
+  }
+
   return (
     <>
       {errorMessage ? (
@@ -357,19 +415,27 @@ const AttributesPane = ({
             Object.keys(attributes).map((layerName) => (
               <>
                 <p>
-                  <b>{layerName}</b>:{" "}
+                  <b>{layerName}</b>:
                 </p>
                 <FixedTable striped bordered hover size="sm">
                   <thead>
                     <tr>
-                      <th className="text-center" style={{ width: "33%" }}>
+                      <th className="text-center" style={{ width: "25%" }}>
                         Name
                       </th>
-                      <th className="text-center" style={{ width: "33%" }}>
+                      <th className="text-center" style={{ width: "25%" }}>
                         Alias
                       </th>
-                      <th className="text-center" style={{ width: "10%" }}>
+                      <th className="text-center" style={{ width: "20%" }}>
                         Show in popup
+                        <br />
+                        <input
+                          type="checkbox"
+                          checked={layerPopupSwitch[layerName]}
+                          onChange={(e) =>
+                            handleLayerPopup(layerName, e.target.checked)
+                          }
+                        />
                       </th>
                       <th className="text-center">Variable Input Name</th>
                     </tr>

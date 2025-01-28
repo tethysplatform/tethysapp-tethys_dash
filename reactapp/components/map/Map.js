@@ -177,9 +177,8 @@ const Map = ({
     if (onMapClickCurrent.current) {
       map.un("singleclick", onMapClickCurrent.current);
     }
-    onMapClickCurrent.current = function (evt) {
-      onMapClick(map, evt, setPopupContent);
-      popup.setPosition(evt.coordinate);
+    onMapClickCurrent.current = async function (evt) {
+      onMapClick(map, evt, setPopupContent, popupCurrent.current);
     };
     map.on("singleclick", onMapClickCurrent.current);
 

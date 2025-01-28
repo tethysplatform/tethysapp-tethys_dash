@@ -79,81 +79,62 @@ const MarginSwiperSlide = styled(SwiperSlide)`
   margin-bottom: 1rem;
 `;
 
-const PopupContent = ({ layerAttributes }) => {
-  const nonEmptyLayerAttributes = layerAttributes.filter(
-    (arr) => arr && arr.length > 0
+const Popup = ({ layerAttributes }) => {
+  return (
+    <>
+      <Swiper
+        modules={[Pagination, Navigation]}
+        navigation={{
+          nextEl: ".custom-next",
+          prevEl: ".custom-prev",
+        }}
+        pagination={{
+          el: ".custom-pagination",
+          type: "fraction",
+        }}
+        className="mySwiper"
+      >
+        {layerAttributes.map((selectedFeature) => (
+          <MarginSwiperSlide>
+            <PopupDiv>
+              <div>
+                <p>
+                  <b>{selectedFeature.layerName}</b>:
+                </p>
+                <FixedTable striped bordered hover size="sm">
+                  <thead>
+                    <tr>
+                      <th className="text-center" style={{ width: "33%" }}>
+                        Field
+                      </th>
+                      <th className="text-center" style={{ width: "33%" }}>
+                        Value
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.keys(selectedFeature.attributes).map((field) => (
+                      <tr key={field}>
+                        <OverflowTD>{field}</OverflowTD>
+                        <OverflowTD>
+                          {selectedFeature.attributes[field]}
+                        </OverflowTD>
+                      </tr>
+                    ))}
+                  </tbody>
+                </FixedTable>
+              </div>
+            </PopupDiv>
+          </MarginSwiperSlide>
+        ))}
+        <SwiperControls>
+          <SwiperArrows className="custom-prev">❮</SwiperArrows>
+          <SwiperPagination className="custom-pagination"></SwiperPagination>
+          <SwiperArrows className="custom-next">❯</SwiperArrows>
+        </SwiperControls>
+      </Swiper>
+    </>
   );
-  if (nonEmptyLayerAttributes.length === 0) {
-    return <CenteredP>No Attributes Found</CenteredP>;
-  } else {
-    return (
-      <>
-        <Swiper
-          modules={[Pagination, Navigation]}
-          navigation={{
-            nextEl: ".custom-next",
-            prevEl: ".custom-prev",
-          }}
-          pagination={{
-            el: ".custom-pagination",
-            type: "fraction",
-          }}
-          className="mySwiper"
-        >
-          {nonEmptyLayerAttributes.map((selectedFeatures) => (
-            <>
-              {selectedFeatures.map((selectedFeature) => (
-                <MarginSwiperSlide>
-                  <PopupDiv>
-                    <div>
-                      <p>
-                        <b>{selectedFeature.layerName}</b>:
-                      </p>
-                      <FixedTable striped bordered hover size="sm">
-                        <thead>
-                          <tr>
-                            <th
-                              className="text-center"
-                              style={{ width: "33%" }}
-                            >
-                              Field
-                            </th>
-                            <th
-                              className="text-center"
-                              style={{ width: "33%" }}
-                            >
-                              Value
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {Object.keys(selectedFeature.attributes).map(
-                            (field) => (
-                              <tr key={field}>
-                                <OverflowTD>{field}</OverflowTD>
-                                <OverflowTD>
-                                  {selectedFeature.attributes[field]}
-                                </OverflowTD>
-                              </tr>
-                            )
-                          )}
-                        </tbody>
-                      </FixedTable>
-                    </div>
-                  </PopupDiv>
-                </MarginSwiperSlide>
-              ))}
-            </>
-          ))}
-          <SwiperControls>
-            <SwiperArrows className="custom-prev">❮</SwiperArrows>
-            <SwiperPagination className="custom-pagination"></SwiperPagination>
-            <SwiperArrows className="custom-next">❯</SwiperArrows>
-          </SwiperControls>
-        </Swiper>
-      </>
-    );
-  }
 };
 
 const MapVisualization = ({
@@ -225,7 +206,7 @@ const MapVisualization = ({
     })();
   }, [layers, baseMap]);
 
-  const onMapClick = async (map, evt, setPopupContent) => {
+  const onMapClick = async (map, evt, setPopupContent, popup) => {
     // get coordinates and add pointer marker where the click occurred
     const coordinate = evt.coordinate;
     const pixel = evt.pixel;
@@ -248,7 +229,7 @@ const MapVisualization = ({
       return combined;
     }, {});
 
-    // reduce the layer moitted popup attribute values into a simplified object of layer names and then values
+    // reduce the layer omitted popup attribute values into a simplified object of layer names and then values
     const mapOmittedPopupAttributes = layers.reduce((combined, current) => {
       if (
         current.omittedPopupAttributes &&
@@ -283,13 +264,6 @@ const MapVisualization = ({
             let updatedVariableInputs = {};
             for (const layerFeature of layerFeatures) {
               const layerName = layerFeature.layerName;
-              layerFeature.attributes = Object.fromEntries(
-                Object.entries(layerFeature.attributes).filter(
-                  ([key]) =>
-                    !(layerName in mapOmittedPopupAttributes) ||
-                    !mapOmittedPopupAttributes[layerName].includes(key)
-                )
-              );
 
               if (layerName in mapAttributeVariables) {
                 const mappedLayerVariableInputs = {};
@@ -309,9 +283,18 @@ const MapVisualization = ({
                     ...updatedVariableInputs,
                     ...mappedLayerVariableInputs,
                   };
-                  continue;
                 }
               }
+
+              const newLayerAttributes = Object.fromEntries(
+                Object.entries(layerFeature.attributes).filter(
+                  ([key]) =>
+                    !(layerName in mapOmittedPopupAttributes) ||
+                    !mapOmittedPopupAttributes[layerName].includes(key)
+                )
+              );
+
+              layerFeature.attributes = newLayerAttributes;
             }
 
             // if the map click found any variable inputs to update, then do it
@@ -330,11 +313,25 @@ const MapVisualization = ({
         })
     );
     const queryLayerFeaturesResults = await Promise.all(queryCalls);
-    console.log(queryLayerFeaturesResults);
 
-    setPopupContent(
-      <PopupContent layerAttributes={queryLayerFeaturesResults} />
+    const nonEmptyLayers = queryLayerFeaturesResults.filter(
+      (arr) => arr && arr.length > 0
     );
+    const nonEmptyLayerAttributes = nonEmptyLayers
+      .flat()
+      .filter((item) => Object.keys(item.attributes).length > 0);
+
+    let PopupContent;
+    let popupCoordinate;
+    if (nonEmptyLayers.length === 0 || nonEmptyLayerAttributes.length === 0) {
+      PopupContent = null;
+      popupCoordinate = undefined;
+    } else {
+      PopupContent = <Popup layerAttributes={nonEmptyLayerAttributes} />;
+      popupCoordinate = coordinate;
+    }
+    setPopupContent(PopupContent);
+    popup.setPosition(popupCoordinate);
   };
 
   return (
