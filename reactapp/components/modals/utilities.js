@@ -97,6 +97,25 @@ export const removeEmptyStringsFromObject = (obj) => {
   );
 };
 
+export const findMissingKeys = (templateObj, dataObj, parentKey = "") => {
+  let invalidKeys = [];
+
+  for (const [key, value] of Object.entries(templateObj)) {
+    const fullKey = parentKey ? `${parentKey}.${key}` : key; // Build full key path
+
+    if (!(key in dataObj)) {
+      invalidKeys.push(fullKey); // Add missing key to the list
+    } else if (typeof value === "object" && value !== null) {
+      // Recursively check nested objects
+      invalidKeys = invalidKeys.concat(
+        findMissingKeys(value, dataObj[key], fullKey)
+      );
+    }
+  }
+
+  return invalidKeys;
+};
+
 export const extractVariableInputNames = (attributes) => {
   const result = {};
 

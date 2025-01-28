@@ -8,7 +8,11 @@ import Spinner from "react-bootstrap/Spinner";
 import {
   valuesEqual,
   extractVariableInputNames,
+  findMissingKeys,
+  removeEmptyStringsFromObject,
 } from "components/modals/utilities";
+
+import { sourcePropertiesOptions } from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";
 
@@ -40,10 +44,12 @@ const AttributesPane = ({
   setAttributeVariables,
   omittedPopupAttributes,
   setOmittedPopupAttributes,
-  configuration,
+  sourceProps,
+  layerProps,
   tabKey,
 }) => {
   const [warningMessage, setWarningMessage] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
   const [attributes, setAttributes] = useState({});
   const attributeVariableValues = useRef(attributeVariables);
   const omittedPopupAttributesValues = useRef(omittedPopupAttributes);
@@ -54,19 +60,44 @@ const AttributesPane = ({
     attributeVariableValues.current = attributeVariables;
     omittedPopupAttributesValues.current = omittedPopupAttributes;
     if (tabKey === "attributes") {
-      if (!valuesEqual(previousConfiguration.current, configuration)) {
-        setAutomatedAttributes(null);
-        setWarningMessage(null);
-        previousConfiguration.current = JSON.parse(
-          JSON.stringify(configuration)
-        );
+      setWarningMessage(null);
+      setErrorMessage(null);
 
-        if (configuration.layerType === "GeoJSON") {
+      if (!layerProps.name) {
+        setErrorMessage(
+          "The layer name must be configured to retrieve attributes"
+        );
+        return;
+      }
+
+      if (!sourceProps.type) {
+        setErrorMessage(
+          "The source type must be configured to retrieve attributes"
+        );
+        return;
+      }
+
+      const validSourceProps = removeEmptyStringsFromObject(sourceProps.props);
+      const missingRequiredProps = findMissingKeys(
+        sourcePropertiesOptions[sourceProps.type].required,
+        validSourceProps
+      );
+      if (missingRequiredProps.length > 0) {
+        setErrorMessage(
+          `Missing required ${missingRequiredProps} arguments. Please check the source and try again before getting attributes`
+        );
+        return;
+      }
+      if (!valuesEqual(previousConfiguration.current, sourceProps)) {
+        setAutomatedAttributes(null);
+        previousConfiguration.current = JSON.parse(JSON.stringify(sourceProps));
+
+        if (sourceProps.type === "GeoJSON") {
           try {
-            JSON.parse(configuration.geojson);
+            JSON.parse(sourceProps.geojson);
           } catch (err) {
             setAutomatedAttributes(false);
-            setWarningMessage(
+            setErrorMessage(
               <>
                 Invalid json is being used. Please alter the json and try again.
                 <br />
@@ -79,7 +110,7 @@ const AttributesPane = ({
         }
 
         queryLayerAttributes().then((queriedLayerAttributes) => {
-          const layerParams = configuration.sourceProps?.params ?? [];
+          const layerParams = sourceProps.props?.params ?? [];
           let layerAttributes = {};
           if (
             queriedLayerAttributes === undefined &&
@@ -208,16 +239,9 @@ const AttributesPane = ({
   }
 
   async function queryLayerAttributes() {
-    setWarningMessage(null);
-    if (!configuration.layerType) {
-      setWarningMessage(
-        "A Layer Type must be set in the Configuration to get attributes"
-      );
-      return;
-    }
     let layerAttributes;
     try {
-      layerAttributes = await getLayerAttributes(configuration);
+      layerAttributes = await getLayerAttributes(sourceProps, layerProps);
     } catch (error) {
       setWarningMessage(
         <>
@@ -312,84 +336,96 @@ const AttributesPane = ({
 
   return (
     <>
-      {warningMessage && (
-        <Alert key="warning" variant="warning" dismissible>
-          {warningMessage}
+      {errorMessage ? (
+        <Alert key="danger" variant="danger" dismissible>
+          {errorMessage}
         </Alert>
-      )}
-      {automatedAttributes === null ? (
-        <StyledSpinner
-          data-testid="Loading..."
-          animation="border"
-          variant="info"
-        />
-      ) : automatedAttributes ? (
-        Object.keys(attributes).map((layerName) => (
-          <>
-            <p>
-              <b>{layerName}</b>:{" "}
-            </p>
-            <FixedTable striped bordered hover size="sm">
-              <thead>
-                <tr>
-                  <th className="text-center" style={{ width: "33%" }}>
-                    Name
-                  </th>
-                  <th className="text-center" style={{ width: "33%" }}>
-                    Alias
-                  </th>
-                  <th className="text-center" style={{ width: "10%" }}>
-                    Show in popup
-                  </th>
-                  <th className="text-center">Variable Input Name</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attributes[layerName].map(({ name, alias }, index) => (
-                  <tr key={index}>
-                    <OverflowTD>{name}</OverflowTD>
-                    <OverflowTD>{alias}</OverflowTD>
-                    <CenteredTD>
-                      <input
-                        type="checkbox"
-                        checked={attributes[layerName][index]["popup"] ?? true}
-                        onChange={(e) => {
-                          updateAttributes(
-                            index,
-                            layerName,
-                            "popup",
-                            e.target.checked
-                          );
-                        }}
-                      />
-                    </CenteredTD>
-                    <td>
-                      <StyledInput
-                        value={attributes[layerName][index]["variableInput"]}
-                        onChange={(e) => {
-                          updateAttributes(
-                            index,
-                            layerName,
-                            "variableInput",
-                            e.target.value
-                          );
-                        }}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </FixedTable>
-          </>
-        ))
       ) : (
-        Object.keys(attributes).map((layerName) => (
-          <InputTable
-            label={layerName}
-            onChange={(e) => handleAttributeChange(e, layerName)}
-            values={attributes[layerName]}
-          />
-        ))
+        <>
+          {warningMessage && (
+            <Alert key="warning" variant="warning" dismissible>
+              {warningMessage}
+            </Alert>
+          )}
+          {automatedAttributes === null ? (
+            <StyledSpinner
+              data-testid="Loading..."
+              animation="border"
+              variant="info"
+            />
+          ) : automatedAttributes ? (
+            Object.keys(attributes).map((layerName) => (
+              <>
+                <p>
+                  <b>{layerName}</b>:{" "}
+                </p>
+                <FixedTable striped bordered hover size="sm">
+                  <thead>
+                    <tr>
+                      <th className="text-center" style={{ width: "33%" }}>
+                        Name
+                      </th>
+                      <th className="text-center" style={{ width: "33%" }}>
+                        Alias
+                      </th>
+                      <th className="text-center" style={{ width: "10%" }}>
+                        Show in popup
+                      </th>
+                      <th className="text-center">Variable Input Name</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attributes[layerName].map(({ name, alias }, index) => (
+                      <tr key={index}>
+                        <OverflowTD>{name}</OverflowTD>
+                        <OverflowTD>{alias}</OverflowTD>
+                        <CenteredTD>
+                          <input
+                            type="checkbox"
+                            checked={
+                              attributes[layerName][index]["popup"] ?? true
+                            }
+                            onChange={(e) => {
+                              updateAttributes(
+                                index,
+                                layerName,
+                                "popup",
+                                e.target.checked
+                              );
+                            }}
+                          />
+                        </CenteredTD>
+                        <td>
+                          <StyledInput
+                            value={
+                              attributes[layerName][index]["variableInput"]
+                            }
+                            onChange={(e) => {
+                              updateAttributes(
+                                index,
+                                layerName,
+                                "variableInput",
+                                e.target.value
+                              );
+                            }}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </FixedTable>
+              </>
+            ))
+          ) : (
+            Object.keys(attributes).map((layerName) => (
+              <InputTable
+                label={layerName}
+                onChange={(e) => handleAttributeChange(e, layerName)}
+                values={attributes[layerName]}
+              />
+            ))
+          )}
+        </>
       )}
     </>
   );

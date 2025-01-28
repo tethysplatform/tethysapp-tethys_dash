@@ -81,7 +81,15 @@ const resolveProps = async (props) => {
       }
     } else {
       // It's a primitive value; assign as is
-      resolvedProps[key] = value;
+      try {
+        resolvedProps[key] = parseInt(value);
+      } catch (err1) {
+        try {
+          resolvedProps[key] = parseFloat(value);
+        } catch (err2) {
+          resolvedProps[key] = value;
+        }
+      }
     }
   }
 

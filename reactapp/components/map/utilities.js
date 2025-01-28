@@ -7,7 +7,7 @@ import { LineString, MultiPolygon, Polygon, Point } from "ol/geom";
 import { Stroke, Style, Circle } from "ol/style";
 import Icon from "ol/style/Icon";
 
-export const layerTypeProperties = {
+export const sourcePropertiesOptions = {
   ImageArcGISRest: {
     required: {
       url: "ArcGIS Rest service URL",
@@ -61,7 +61,7 @@ export const layerTypeProperties = {
   },
 };
 
-export const layerOptions = {
+export const layerPropertiesOptions = {
   opacity: "Opacity (0, 1)",
   minResolution:
     "The minimum resolution (inclusive) at which this layer will be visible.",
@@ -349,84 +349,84 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
   return features;
 }
 
-export async function getLayerAttributes(layerInfo) {
+export async function getLayerAttributes(sourceProps, layerProps) {
   let attributes;
-  const layerSourceProps = layerInfo.sourceProps;
-  const layerType = layerInfo.layerType;
-  const layerParams = layerSourceProps?.params ?? {};
-  const layerUrl = layerSourceProps?.url ?? "";
-  const layerGeoJSON = layerInfo?.geojson ?? {};
-  const layerName = layerInfo.name;
-  if (layerUrl.includes("MapServer")) {
-    attributes = await getESRILayerAttributes(layerUrl);
-  } else if (layerType === "ImageWMS") {
-    attributes = await getImageWMSLayerAttributes(layerUrl, layerParams);
-  } else if (layerType === "GeoJSON") {
-    attributes = await getGeoJSONLayerAttributes(layerGeoJSON, layerName);
+  const sourceProperties = sourceProps.props;
+  const sourceType = sourceProps.type;
+  const sourceParams = sourceProperties?.params ?? {};
+  const sourceUrl = sourceProperties?.url ?? "";
+  const sourceGeoJSON = sourceProps?.geojson ?? {};
+  const layerName = layerProps.name;
+  if (sourceUrl.includes("MapServer")) {
+    attributes = await getESRILayerAttributes(sourceUrl);
+  } else if (sourceType === "ImageWMS") {
+    attributes = await getImageWMSLayerAttributes(sourceUrl, sourceParams);
+  } else if (sourceType === "GeoJSON") {
+    attributes = await getGeoJSONLayerAttributes(sourceGeoJSON, layerName);
   } else {
-    throw Error(`${layerUrl} is not currently configured to be queried`);
+    throw Error(`${sourceUrl} is not currently configured to be queried`);
   }
 
   return attributes;
 }
 
-async function getESRILayerAttributes(url) {
-  const layerInfoParams = new URLSearchParams({
+async function getESRILayerAttributes(sourceUrl) {
+  const sourceURLParams = new URLSearchParams({
     f: "json",
   });
 
-  const layerInfoUrl = `${url}?${layerInfoParams.toString()}`;
-  const layerInfoResponse = await fetch(layerInfoUrl);
-  const layerInfoJson = await layerInfoResponse.json();
+  const sourceInfoUrl = `${sourceUrl}?${sourceURLParams.toString()}`;
+  const sourceInfoResponse = await fetch(sourceInfoUrl);
+  const sourceInfoJSON = await sourceInfoResponse.json();
 
-  const layerAttributes = {};
-  const layers = layerInfoJson.layers.map((layer) => layer.name);
+  const sourceAttributes = {};
+  const layers = sourceInfoJSON.layers.map((layer) => layer.name);
 
   for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
     let layerName = layers[layerIndex];
-    let specificLayerInfoUrl = `${url}/${layerIndex}?${layerInfoParams.toString()}`;
+    let specificLayerInfoUrl = `${sourceUrl}/${layerIndex}?${sourceURLParams.toString()}`;
     let specificLayerInfoResponse = await fetch(specificLayerInfoUrl);
     let specificLayerInfoJson = await specificLayerInfoResponse.json();
     let specificLayerFieds = [];
     for (const field of specificLayerInfoJson.fields) {
       specificLayerFieds.push({ name: field.name, alias: field.alias });
     }
-    layerAttributes[layerName] = specificLayerFieds;
+    sourceAttributes[layerName] = specificLayerFieds;
   }
 
-  return layerAttributes;
+  return sourceAttributes;
 }
 
-async function getImageWMSLayerAttributes(layerUrl, layerParams) {
-  const lowercaseLayerParams = Object.keys(layerParams).reduce((acc, key) => {
-    acc[key.toLowerCase()] = layerParams[key];
+async function getImageWMSLayerAttributes(sourceUrl, sourceParams) {
+  const lowercaseLayerParams = Object.keys(sourceParams).reduce((acc, key) => {
+    acc[key.toLowerCase()] = sourceParams[key];
     return acc;
   }, {});
 
-  const layerInfoParams = new URLSearchParams({
+  const sourceURLParams = new URLSearchParams({
     service: "WFS",
     request: "describeFeatureType",
     typename: lowercaseLayerParams.layers ?? "",
   });
-  const layerInfoUrl = `${layerUrl}?${layerInfoParams.toString()}`;
-  let layerInfoResponse;
+  const sourceInfoUrl = `${sourceUrl}?${sourceURLParams.toString()}`;
+  let sourceInfoResponse;
   try {
-    layerInfoResponse = await fetch(layerInfoUrl);
+    sourceInfoResponse = await fetch(sourceInfoUrl);
   } catch (e) {
     throw new Error(
       "Failed to fetch attribute data. Check to make sure layers exist."
     );
   }
-  const layerInfoText = await layerInfoResponse.text();
-  if (layerInfoText.includes("ows:ExceptionReport")) {
+  const sourceInfoText = await sourceInfoResponse.text();
+  if (sourceInfoText.includes("ows:ExceptionReport")) {
     throw new Error(
       "Failed to fetch attribute data. Check to make sure WFS extension is enabled on layers or that layer names are correct."
     );
   }
-  const layerInfoJSON = convertXML(layerInfoText);
-  const layerAttributes = {};
+  const sourceInfoJSON = convertXML(sourceInfoText);
+  const sourceAttributes = {};
 
-  const allLayersInfo = layerInfoJSON["xsd:schema"].children.filter((obj) =>
+  const allLayersInfo = sourceInfoJSON["xsd:schema"].children.filter((obj) =>
     obj.hasOwnProperty("xsd:complexType")
   );
   for (const { "xsd:complexType": layerInfo } of allLayersInfo) {
@@ -439,19 +439,21 @@ async function getImageWMSLayerAttributes(layerUrl, layerParams) {
       name: obj["xsd:element"]?.name,
       alias: obj["xsd:element"]?.name,
     }));
-    layerAttributes[layerName] = attributes;
+    sourceAttributes[layerName] = attributes;
   }
 
-  return layerAttributes;
+  return sourceAttributes;
 }
 
-async function getGeoJSONLayerAttributes(layerGeoJSON, layerName) {
-  const layerAttributes = {};
+async function getGeoJSONLayerAttributes(sourceGeoJSON, layerName) {
+  const sourceAttributes = {};
   const attributes = [];
   const geoJSON =
-    typeof layerGeoJSON === "object" ? layerGeoJSON : JSON.parse(layerGeoJSON);
-  const layerFeatures = geoJSON?.features ?? [];
-  const propertyKeys = layerFeatures
+    typeof sourceGeoJSON === "object"
+      ? sourceGeoJSON
+      : JSON.parse(sourceGeoJSON);
+  const sourceFeatures = geoJSON?.features ?? [];
+  const propertyKeys = sourceFeatures
     .map((feature) =>
       feature.properties ? Object.keys(feature.properties) : []
     )
@@ -463,7 +465,7 @@ async function getGeoJSONLayerAttributes(layerGeoJSON, layerName) {
       alias: uniquePropertyKey,
     });
   }
-  layerAttributes[layerName] = attributes;
+  sourceAttributes[layerName] = attributes;
 
-  return layerAttributes;
+  return sourceAttributes;
 }

@@ -6,17 +6,18 @@ import { useState, useRef, useContext } from "react";
 import Alert from "react-bootstrap/Alert";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
-import ConfigurationPane from "components/modals/MapLayer/ConfigurationPane";
+import LayerPane from "components/modals/MapLayer/LayerPane";
+import SourcePane from "components/modals/MapLayer/SourcePane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import StylePane from "components/modals/MapLayer/StylePane";
 import { AppContext } from "components/contexts/Contexts";
 import { getMapAttributeVariables } from "components/visualizations/utilities";
-import { layerTypeProperties } from "components/map/utilities";
+import { sourcePropertiesOptions } from "components/map/utilities";
 import {
   removeEmptyStringsFromObject,
   extractVariableInputNames,
-  extractOmittedPopupAttributes,
+  findMissingKeys,
 } from "components/modals/utilities";
 import { v4 as uuidv4 } from "uuid";
 import appAPI from "services/api/app";
@@ -31,27 +32,10 @@ const StyledModalHeader = styled(Modal.Header)`
 `;
 
 const StyledModalBody = styled(Modal.Body)`
-  height: 95%;
+  max-height: 70vh;
+  height: 70vh;
+  overflow-y: auto;
 `;
-
-const findMissingKeys = (templateObj, dataObj, parentKey = "") => {
-  let invalidKeys = [];
-
-  for (const [key, value] of Object.entries(templateObj)) {
-    const fullKey = parentKey ? `${parentKey}.${key}` : key; // Build full key path
-
-    if (!(key in dataObj)) {
-      invalidKeys.push(fullKey); // Add missing key to the list
-    } else if (typeof value === "object" && value !== null) {
-      // Recursively check nested objects
-      invalidKeys = invalidKeys.concat(
-        findMissingKeys(value, dataObj[key], fullKey)
-      );
-    }
-  }
-
-  return invalidKeys;
-};
 
 const MapLayerModal = ({
   showModal,
@@ -61,9 +45,10 @@ const MapLayerModal = ({
   mapLayers,
   existingLayerOriginalName,
 }) => {
-  const [tabKey, setTabKey] = useState("configuration");
+  const [tabKey, setTabKey] = useState("layer");
   const [errorMessage, setErrorMessage] = useState(null);
-  const [configuration, setConfiguration] = useState(layerInfo.configuration);
+  const [sourceProps, setSourceProps] = useState(layerInfo.sourceProps ?? {});
+  const [layerProps, setLayerProps] = useState(layerInfo.layerProps ?? {});
   const [style, setStyle] = useState(layerInfo.style);
   const [legend, setLegend] = useState(layerInfo.legend);
   const [attributeVariables, setAttributeVariables] = useState(
@@ -77,18 +62,17 @@ const MapLayerModal = ({
 
   async function saveLayer() {
     setErrorMessage(null);
-    if (!configuration.layerType || !configuration.name) {
+    if (!sourceProps.type || !layerProps.name) {
       setErrorMessage(
         "Layer type and name must be provided in the configuration pane."
       );
       return;
     }
 
-    const validSourceProps = removeEmptyStringsFromObject(
-      configuration.sourceProps
-    );
+    const validSourceProps = removeEmptyStringsFromObject(sourceProps.props);
+    const validLayerProps = removeEmptyStringsFromObject(layerProps);
     const missingRequiredProps = findMissingKeys(
-      layerTypeProperties[configuration.layerType].required,
+      sourcePropertiesOptions[sourceProps.type].required,
       validSourceProps
     );
     if (missingRequiredProps.length > 0) {
@@ -174,7 +158,7 @@ const MapLayerModal = ({
     }
 
     if (
-      configuration.layerType === "VectorTile" &&
+      sourceProps.type === "VectorTile" &&
       typeof validSourceProps.urls === "string"
     ) {
       validSourceProps.urls = validSourceProps.urls.split(",");
@@ -183,19 +167,19 @@ const MapLayerModal = ({
     const mapConfiguration = {
       configuration: {
         type:
-          configuration.layerType === "VectorTile"
+          sourceProps.type === "VectorTile"
             ? "VectorTileLayer"
-            : configuration.layerType.includes("Tile")
+            : sourceProps.type.includes("Tile")
               ? "TileLayer"
-              : configuration.layerType.includes("Image")
+              : sourceProps.type.includes("Image")
                 ? "ImageLayer"
                 : "VectorLayer",
         props: {
+          ...validLayerProps,
           source: {
-            type: configuration.layerType,
+            type: sourceProps.type,
             props: validSourceProps,
           },
-          name: configuration.name,
         },
       },
       legend: legend ?? {},
@@ -204,9 +188,9 @@ const MapLayerModal = ({
     };
 
     let geoJSON;
-    if (configuration.layerType === "GeoJSON") {
+    if (sourceProps.type === "GeoJSON") {
       try {
-        geoJSON = JSON.parse(configuration.geojson);
+        geoJSON = JSON.parse(sourceProps.geojson);
       } catch (err) {
         setErrorMessage(
           <>
@@ -228,7 +212,7 @@ const MapLayerModal = ({
 
       const geoJSONFilename = `${uuidv4()}.json`;
       const geoJSONInfo = {
-        data: configuration.geojson,
+        data: sourceProps.geojson,
         filename: geoJSONFilename,
       };
       const apiResponse = await appAPI.uploadJSON(geoJSONInfo, csrf);
@@ -296,14 +280,25 @@ const MapLayerModal = ({
             className="mb-3"
           >
             <Tab
-              eventKey="configuration"
-              title="Configuration"
-              aria-label="layer-configuration-tab"
-              className="layer-configuration-tab"
+              eventKey="layer"
+              title="Layer"
+              aria-label="layer-tab"
+              className="layer-tab"
             >
-              <ConfigurationPane
-                configuration={configuration}
-                setConfiguration={setConfiguration}
+              <LayerPane
+                layerProps={layerProps}
+                setLayerProps={setLayerProps}
+              />
+            </Tab>
+            <Tab
+              eventKey="source"
+              title="Source"
+              aria-label="layer-source-tab"
+              className="layer-source-tab"
+            >
+              <SourcePane
+                sourceProps={sourceProps}
+                setSourceProps={setSourceProps}
                 setAttributeVariables={setAttributeVariables}
                 setOmittedPopupAttributes={setOmittedPopupAttributes}
               />
@@ -341,7 +336,8 @@ const MapLayerModal = ({
                 setAttributeVariables={setAttributeVariables}
                 omittedPopupAttributes={omittedPopupAttributes}
                 setOmittedPopupAttributes={setOmittedPopupAttributes}
-                configuration={configuration}
+                sourceProps={sourceProps}
+                layerProps={layerProps}
                 tabKey={tabKey}
               />
             </Tab>

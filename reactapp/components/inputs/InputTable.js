@@ -109,84 +109,87 @@ function InputTable({
   return (
     <FullLabel>
       <b>{label}</b>:{" "}
-      <Table striped bordered hover size="sm">
-        <thead>
-          <tr>
-            {Object.keys(userInputs[0]).map((colHeader, index) => {
-              if (
-                !hiddenFields ||
-                (hiddenFields && !hiddenFields.includes(colHeader))
-              ) {
-                return (
-                  <th key={index} className="text-center">
-                    {colHeader}
-                  </th>
-                );
-              }
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {userInputs.map((row, rowIndex) => (
-            <tr key={rowIndex}>
-              {Object.keys(row).map((field, fieldIndex) => {
+      {userInputs.length > 0 && (
+        <Table striped bordered hover size="sm">
+          <thead>
+            <tr>
+              {Object.keys(userInputs[0]).map((colHeader, index) => {
                 if (
                   !hiddenFields ||
-                  (hiddenFields && !hiddenFields.includes(field))
+                  (hiddenFields && !hiddenFields.includes(colHeader))
                 ) {
-                  if (disabledFields && disabledFields.includes(field)) {
-                    return (
-                      <CenteredTD key={fieldIndex}>
-                        {typeof row[field] === "string"
-                          ? row[field]
-                          : JSON.stringify(row[field])}
-                      </CenteredTD>
-                    );
-                  } else {
-                    if (typeof row[field] === "boolean") {
-                      return (
-                        <CenteredTD key={fieldIndex}>
-                          <input
-                            type="checkbox"
-                            checked={row[field]}
-                            onChange={(e) =>
-                              handleChange(e.target.checked, rowIndex, field)
-                            }
-                          />
-                        </CenteredTD>
-                      );
-                    } else {
-                      return (
-                        <td key={fieldIndex}>
-                          <FullInput
-                            type="text"
-                            value={row[field]}
-                            ref={(el) =>
-                              (inputRefs.current[
-                                rowIndex * Object.keys(row).length + fieldIndex
-                              ] = el)
-                            }
-                            onChange={(e) =>
-                              handleChange(e.target.value, rowIndex, field)
-                            }
-                            onKeyDown={(e) =>
-                              handleKeyDown(e, rowIndex, fieldIndex)
-                            }
-                            placeholder={
-                              placeholderRefs.current &&
-                              placeholderRefs.current[rowIndex][fieldIndex]
-                            }
-                          />
-                        </td>
-                      );
-                    }
-                  }
+                  return (
+                    <th key={index} className="text-center">
+                      {colHeader}
+                    </th>
+                  );
                 }
               })}
             </tr>
-          ))}
-        </tbody>
-      </Table>
+          </thead>
+          <tbody>
+            {userInputs.map((row, rowIndex) => (
+              <tr key={rowIndex}>
+                {Object.keys(row).map((field, fieldIndex) => {
+                  if (
+                    !hiddenFields ||
+                    (hiddenFields && !hiddenFields.includes(field))
+                  ) {
+                    if (disabledFields && disabledFields.includes(field)) {
+                      return (
+                        <CenteredTD key={fieldIndex}>
+                          {typeof row[field] === "string"
+                            ? row[field]
+                            : JSON.stringify(row[field])}
+                        </CenteredTD>
+                      );
+                    } else {
+                      if (typeof row[field] === "boolean") {
+                        return (
+                          <CenteredTD key={fieldIndex}>
+                            <input
+                              type="checkbox"
+                              checked={row[field]}
+                              onChange={(e) =>
+                                handleChange(e.target.checked, rowIndex, field)
+                              }
+                            />
+                          </CenteredTD>
+                        );
+                      } else {
+                        return (
+                          <td key={fieldIndex}>
+                            <FullInput
+                              type="text"
+                              value={row[field]}
+                              ref={(el) =>
+                                (inputRefs.current[
+                                  rowIndex * Object.keys(row).length +
+                                    fieldIndex
+                                ] = el)
+                              }
+                              onChange={(e) =>
+                                handleChange(e.target.value, rowIndex, field)
+                              }
+                              onKeyDown={(e) =>
+                                handleKeyDown(e, rowIndex, fieldIndex)
+                              }
+                              placeholder={
+                                placeholderRefs.current &&
+                                placeholderRefs.current[rowIndex][fieldIndex]
+                              }
+                            />
+                          </td>
+                        );
+                      }
+                    }
+                  }
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
     </FullLabel>
   );
 }
