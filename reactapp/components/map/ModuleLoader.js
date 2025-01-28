@@ -81,20 +81,39 @@ const resolveProps = async (props) => {
       }
     } else {
       // It's a primitive value; assign as is
-      try {
-        resolvedProps[key] = parseInt(value);
-      } catch (err1) {
-        try {
-          resolvedProps[key] = parseFloat(value);
-        } catch (err2) {
-          resolvedProps[key] = value;
-        }
-      }
+      resolvedProps[key] = convertType(value);
     }
   }
 
   return resolvedProps;
 };
+
+function convertType(input) {
+  let value = input;
+
+  // If value is a string that starts with ".", prepend "0"
+  if (typeof value === "string" && value.startsWith(".")) {
+    value = "0" + value;
+  }
+
+  // Try converting to an integer
+  const intVal = parseInt(value, 10);
+  if (!isNaN(intVal) && intVal.toString() === value.toString()) {
+    return intVal; // Return as an integer if it converts cleanly
+  }
+
+  // Try converting to a float
+  const floatVal = parseFloat(value);
+  if (
+    !isNaN(floatVal) &&
+    floatVal.toString() === parseFloat(value).toString()
+  ) {
+    return floatVal; // Return as a float if it converts cleanly
+  }
+
+  // If neither works, return the original value
+  return input;
+}
 
 // Helper function to map type strings to module paths
 const getModuleImporter = (type) => {
