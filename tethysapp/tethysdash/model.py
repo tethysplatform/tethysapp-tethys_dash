@@ -379,7 +379,7 @@ def clean_up_jsons(user):
     for user_dashboard in user_dashboards:
         maps_grid_items_layers = flatten([json.loads(grid_item.args_string)["additional_layers"] for grid_item in user_dashboard.grid_items if grid_item.source == "Map"])
         if maps_grid_items_layers:
-            geojson_files = [maps_grid_items_layer["configuration"]["props"]["source"]["filename"] for maps_grid_items_layer in maps_grid_items_layers if maps_grid_items_layer["configuration"]["props"]["source"]["type"] == "GeoJSON"]
+            geojson_files = [maps_grid_items_layer["configuration"]["props"]["source"]["geojson"] for maps_grid_items_layer in maps_grid_items_layers if maps_grid_items_layer["configuration"]["props"]["source"]["type"] == "GeoJSON"]
             in_use_geojsons.append(geojson_files)
             
             stylejson_files = [maps_grid_items_layer["style"] for maps_grid_items_layer in maps_grid_items_layers if "style" in maps_grid_items_layer]
