@@ -77,6 +77,7 @@ const Map = ({
   onMapClick,
 }) => {
   const [map, setMap] = useState();
+  const [mapLayers, setMapLayers] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
   const mapRef = useRef();
   const popupRef = useRef(null);
@@ -135,13 +136,15 @@ const Map = ({
       },
     ];
     const customBaseLayers = layers ? layers : defaultBaseLayers;
-    const mapLayers = [...map.getLayers().getArray()];
-    mapLayers.forEach((mapLayer) => map.removeLayer(mapLayer));
+    const mapDerivedLayers = [...map.getLayers().getArray()];
+    mapDerivedLayers.forEach((mapLayer) => map.removeLayer(mapLayer));
 
+    const newMapLayers = [];
     customBaseLayers.forEach((layerConfig) => {
       moduleLoader(layerConfig)
         .then((layerInstance) => {
           map.addLayer(layerInstance);
+          newMapLayers.push(layerInstance);
           if (layerConfig.style) {
             applyStyle(
               layerInstance,
@@ -159,6 +162,7 @@ const Map = ({
           );
         });
     });
+    setMapLayers(newMapLayers);
 
     const popup = new Overlay({
       element: popupRef.current,
@@ -200,7 +204,7 @@ const Map = ({
             </StyledAlert>
           )}
           <div>
-            {layerControl && <LayersControl items={layerControl} />}
+            {layerControl && <LayersControl layers={mapLayers} />}
             {legend && <LegendControl items={legend} />}
           </div>
         </div>

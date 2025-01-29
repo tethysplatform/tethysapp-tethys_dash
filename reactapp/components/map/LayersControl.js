@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useContext } from "react";
-import { MapContext } from "components/contexts/Contexts";
+import { useState } from "react";
+import PropTypes from "prop-types";
 import styled from "styled-components";
 import { FaLayerGroup, FaTimes } from "react-icons/fa"; // Import icons
 
@@ -41,23 +41,8 @@ const CloseButton = styled.button`
   right: 5px;
 `;
 
-const LayersControl = ({ items }) => {
-  const { map } = useContext(MapContext);
-  const [layers, setLayers] = useState([]);
+const LayersControl = ({ layers }) => {
   const [isexpanded, setisexpanded] = useState(false);
-
-  useEffect(() => {
-    if (map) {
-      // Get layers from the map and set them in local state
-      const mapLayers = map.getLayers().getArray();
-      setLayers(mapLayers);
-    }
-  }, [map, items]); // This effect runs whenever `map` changes
-
-  // If `map` is not available yet, you can show a loading state or nothing
-  if (!map) {
-    return null; // Or a loading spinner
-  }
 
   return (
     <ControlWrapper>
@@ -65,7 +50,10 @@ const LayersControl = ({ items }) => {
         {isexpanded ? (
           // Expanded layer control without title and list
           <>
-            <CloseButton onClick={() => setisexpanded(false)}>
+            <CloseButton
+              aria-label="Close Layers Control"
+              onClick={() => setisexpanded(false)}
+            >
               <FaTimes />
             </CloseButton>
             <div style={{ marginTop: "20px", width: "100%" }}>
@@ -87,10 +75,9 @@ const LayersControl = ({ items }) => {
                         checked={visible}
                         onChange={() => {
                           layer.setVisible(!visible);
-                          // Update the local state to force re-render
-                          setLayers([...layers]);
                         }}
                         style={{ marginRight: "8px" }}
+                        aria-label={layerName + " Set Visible"}
                       />
                       <span>{layerName}</span>
                     </label>
@@ -101,13 +88,20 @@ const LayersControl = ({ items }) => {
           </>
         ) : (
           // Collapsed control - show the layers icon button
-          <ControlButton onClick={() => setisexpanded(true)}>
+          <ControlButton
+            aria-label="Show Layers Control"
+            onClick={() => setisexpanded(true)}
+          >
             <FaLayerGroup />
           </ControlButton>
         )}
       </LayerControlContainer>
     </ControlWrapper>
   );
+};
+
+LayersControl.propTypes = {
+  layers: PropTypes.array,
 };
 
 export default LayersControl;
