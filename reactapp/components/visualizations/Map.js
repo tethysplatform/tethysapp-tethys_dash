@@ -170,7 +170,7 @@ const MapVisualization = ({
         for (const layer of layers) {
           if (layer.configuration.props.source.type === "GeoJSON") {
             const geoJSONResponse = await appAPI.downloadJSON({
-              filename: layer.configuration.props.source.filename,
+              filename: layer.configuration.props.source.geojson,
             });
             if (geoJSONResponse.success) {
               layer.configuration.props.source.features = geoJSONResponse.data;

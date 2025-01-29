@@ -223,7 +223,7 @@ const MapLayerModal = ({
         return;
       }
       mapConfiguration.configuration.props.source.props = {};
-      mapConfiguration.configuration.props.source.filename = geoJSONFilename;
+      mapConfiguration.configuration.props.source.geojson = geoJSONFilename;
     }
 
     if (style && style !== "{}") {

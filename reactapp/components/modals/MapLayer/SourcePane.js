@@ -89,14 +89,14 @@ const SourcePane = ({
       if (
         sourceType === "GeoJSON" &&
         geoJSON === "{}" &&
-        configuration?.geojson
+        sourceProps?.geojson
       ) {
         const apiResponse = await appAPI.downloadJSON({
-          filename: configuration.geojson,
+          filename: sourceProps.geojson,
         });
         setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
-        setConfiguration((previousConfiguration) => ({
-          ...previousConfiguration,
+        setSourceProps((previousSourceProps) => ({
+          ...previousSourceProps,
           ...{ geojson: JSON.stringify(apiResponse.data) },
         }));
       }
@@ -138,16 +138,16 @@ const SourcePane = ({
 
   function handleGeoJSONUpload({ fileContent }) {
     setGeoJSON(fileContent);
-    setConfiguration((previousConfiguration) => ({
-      ...previousConfiguration,
+    setSourceProps((previousSourceProps) => ({
+      ...previousSourceProps,
       ...{ geojson: fileContent },
     }));
   }
 
   function handleGeoJSONChange(e) {
     setGeoJSON(e.target.value);
-    setConfiguration((previousConfiguration) => ({
-      ...previousConfiguration,
+    setSourceProps((previousSourceProps) => ({
+      ...previousSourceProps,
       ...{ geojson: e.target.value },
     }));
   }
