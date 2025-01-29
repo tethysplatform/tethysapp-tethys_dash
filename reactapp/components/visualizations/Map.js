@@ -79,10 +79,14 @@ const MarginSwiperSlide = styled(SwiperSlide)`
   margin-bottom: 1rem;
 `;
 
+const StyledSwiper = styled(Swiper)`
+  width: 20vw;
+`;
+
 const Popup = ({ layerAttributes }) => {
   return (
     <>
-      <Swiper
+      <StyledSwiper
         modules={[Pagination, Navigation]}
         navigation={{
           nextEl: ".custom-next",
@@ -132,7 +136,7 @@ const Popup = ({ layerAttributes }) => {
           <SwiperPagination className="custom-pagination"></SwiperPagination>
           <SwiperArrows className="custom-next">❯</SwiperArrows>
         </SwiperControls>
-      </Swiper>
+      </StyledSwiper>
     </>
   );
 };
@@ -319,7 +323,10 @@ const MapVisualization = ({
 
     let PopupContent;
     let popupCoordinate;
-    if (nonEmptyLayers.length === 0 || nonEmptyLayerAttributes.length === 0) {
+    if (nonEmptyLayers.length === 0) {
+      PopupContent = <CenteredP>No Attributes Found</CenteredP>;
+      popupCoordinate = coordinate;
+    } else if (nonEmptyLayerAttributes.length === 0) {
       PopupContent = null;
       popupCoordinate = undefined;
     } else {

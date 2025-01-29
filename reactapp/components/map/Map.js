@@ -26,7 +26,6 @@ const OverLayContentWrapper = styled.div`
   border-radius: 10px;
   border: 1px solid #ccc;
   max-width: 30vw;
-  width: 30vw;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
   transform: translate(-50%, -100%);
 
