@@ -101,7 +101,7 @@ export function createMarkerLayer(coordinate) {
     source: new VectorSource({
       features: [marker],
     }),
-    name: "Marker",
+    name: "ClickMarkerLayer",
   });
 
   return markerLayer;
@@ -168,7 +168,7 @@ export function createHighlightLayer(geometries) {
       }),
     }),
     zIndex: 100,
-    name: "Highlighter",
+    name: "ClickHighlighterLayer",
   });
 
   return highlightLayer;
@@ -304,6 +304,13 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
   const resolution = map.getView().getResolution();
   const features = [];
   map.forEachFeatureAtPixel(pixel, function (feature, layer) {
+    if (
+      layer.get("name") === "ClickHighlighterLayer" ||
+      layer.get("name") === "ClickMarkerLayer"
+    ) {
+      return;
+    }
+
     if (feature) {
       let clickedGeometry = null;
       const { geometry, ...properties } = feature.getProperties();

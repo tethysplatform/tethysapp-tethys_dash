@@ -152,7 +152,7 @@ const MapVisualization = ({
   const [mapLegend, setMapLegend] = useState();
   const [mapLayers, setMapLayers] = useState();
   const markerLayer = useRef();
-  const highlightLayer = useRef();
+  const highlightLayer = useRef([]);
   const currentLayers = useRef([]);
   const currentBaseMap = useRef();
   const { setVariableInputValues } = useContext(VariableInputsContext);
@@ -215,6 +215,15 @@ const MapVisualization = ({
     const coordinate = evt.coordinate;
     const pixel = evt.pixel;
     const newMarkerLayer = createMarkerLayer(coordinate);
+    if (markerLayer.current) {
+      map.removeLayer(markerLayer.current);
+    }
+    if (highlightLayer.current.length > 0) {
+      highlightLayer.current.forEach((highlight) => {
+        map.removeLayer(highlight);
+      });
+    }
+    markerLayer.current = newMarkerLayer;
     map.addLayer(newMarkerLayer);
 
     // reduce the layer attributes variables values into a simplified object of layer names and then values
@@ -245,24 +254,17 @@ const MapVisualization = ({
     const queryCalls = layers.map((layer) =>
       queryLayerFeatures(layer, map, coordinate, pixel)
         .then((layerFeatures) => {
-          if (highlightLayer.current) {
-            map.removeLayer(highlightLayer.current);
-          }
-
           // [{attributes: {key: value}, geometry: {x: "", y: ""}, layerName: ""}]
           // if valid features were selected then continue
           if (layerFeatures && layerFeatures.length > 0) {
-            const newHighlightLayer = createHighlightLayer(
-              layerFeatures[0].geometry
-            );
-            if (markerLayer.current) {
-              map.removeLayer(markerLayer.current);
-            }
-            highlightLayer.current = newHighlightLayer;
-            map.addLayer(newHighlightLayer);
-
             let updatedVariableInputs = {};
             for (const layerFeature of layerFeatures) {
+              const newHighlightLayer = createHighlightLayer(
+                layerFeature.geometry
+              );
+              highlightLayer.current.push(newHighlightLayer);
+              map.addLayer(newHighlightLayer);
+
               const layerName = layerFeature.layerName;
 
               if (layerName in mapAttributeVariables) {
@@ -335,7 +337,6 @@ const MapVisualization = ({
     }
     setPopupContent(PopupContent);
     popup.setPosition(popupCoordinate);
-    map.removeLayer(newMarkerLayer);
   };
 
   return (

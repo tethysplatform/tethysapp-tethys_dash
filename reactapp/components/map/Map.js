@@ -76,7 +76,6 @@ const Map = ({
   onMapClick,
 }) => {
   const [map, setMap] = useState();
-  const [mapLayers, setMapLayers] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
   const mapRef = useRef();
   const popupRef = useRef(null);
@@ -118,32 +117,14 @@ const Map = ({
   useEffect(() => {
     if (!map) return;
 
-    const defaultBaseLayers = [
-      {
-        type: "WebGLTile",
-        props: {
-          source: {
-            type: "ImageTile",
-            props: {
-              url: "https://server.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}",
-              attributions:
-                'Tiles © <a href="https://server.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer">ArcGIS</a>',
-            },
-          },
-          name: "World Street Map",
-        },
-      },
-    ];
-    const customBaseLayers = layers ? layers : defaultBaseLayers;
+    const customLayers = layers ?? [];
     const mapDerivedLayers = [...map.getLayers().getArray()];
     mapDerivedLayers.forEach((mapLayer) => map.removeLayer(mapLayer));
 
-    const newMapLayers = [];
-    customBaseLayers.forEach((layerConfig) => {
+    customLayers.forEach((layerConfig) => {
       moduleLoader(layerConfig)
         .then((layerInstance) => {
           map.addLayer(layerInstance);
-          newMapLayers.push(layerInstance);
           if (layerConfig.style) {
             applyStyle(
               layerInstance,
@@ -161,7 +142,6 @@ const Map = ({
           );
         });
     });
-    setMapLayers(newMapLayers);
 
     const popup = new Overlay({
       element: popupRef.current,
@@ -203,7 +183,7 @@ const Map = ({
             </StyledAlert>
           )}
           <div>
-            {layerControl && <LayersControl layers={mapLayers} />}
+            {layerControl && <LayersControl />}
             {legend && <LegendControl items={legend} />}
           </div>
         </div>
