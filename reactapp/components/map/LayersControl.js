@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState, useContext, useRef } from "react";
+import { MapContext } from "components/contexts/Contexts";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import { FaLayerGroup, FaTimes } from "react-icons/fa"; // Import icons
@@ -41,8 +42,38 @@ const CloseButton = styled.button`
   right: 5px;
 `;
 
-const LayersControl = ({ layers }) => {
+const LayersControl = () => {
+  const { map } = useContext(MapContext);
+  const [layers, setLayers] = useState([]);
   const [isexpanded, setisexpanded] = useState(false);
+  const [layerVisibility, setLayerVisibility] = useState({});
+
+  useEffect(() => {
+    if (map) {
+      // Get layers from the map and set them in local state
+      const mapLayers = map.getLayers().getArray();
+      setLayers(mapLayers);
+
+      setLayerVisibility(formatVisibility(mapLayers));
+    }
+  }, [isexpanded, map]);
+
+  function formatVisibility(mapLayers) {
+    return mapLayers.reduce((obj, layer) => {
+      const layerName = layer.get("name") ?? `Layer ${index + 1}`;
+      const layerVisible = layer.getVisible() ?? true;
+
+      obj[layerName] = layerVisible;
+      return obj;
+    }, {});
+  }
+
+  function updateVisibility(layer, layerName, checked) {
+    layer.setVisible(checked);
+    const updatedLayerVisibility = JSON.parse(JSON.stringify(layerVisibility));
+    updatedLayerVisibility[layerName] = checked;
+    setLayerVisibility(updatedLayerVisibility);
+  }
 
   return (
     <ControlWrapper>
@@ -59,7 +90,6 @@ const LayersControl = ({ layers }) => {
             <div style={{ marginTop: "20px", width: "100%" }}>
               {layers.map((layer, index) => {
                 const layerName = layer.get("name") ?? `Layer ${index + 1}`;
-                const visible = layer.getVisible() ?? true;
                 return (
                   <div
                     key={index}
@@ -72,10 +102,10 @@ const LayersControl = ({ layers }) => {
                     <label style={{ display: "flex", alignItems: "center" }}>
                       <input
                         type="checkbox"
-                        checked={visible}
-                        onChange={() => {
-                          layer.setVisible(!visible);
-                        }}
+                        checked={layerVisibility[layerName]}
+                        onChange={(e) =>
+                          updateVisibility(layer, layerName, e.target.checked)
+                        }
                         style={{ marginRight: "8px" }}
                         aria-label={layerName + " Set Visible"}
                       />
