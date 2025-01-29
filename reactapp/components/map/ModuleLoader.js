@@ -104,10 +104,7 @@ function convertType(input) {
 
   // Try converting to a float
   const floatVal = parseFloat(value);
-  if (
-    !isNaN(floatVal) &&
-    floatVal.toString() === parseFloat(value).toString()
-  ) {
+  if (!isNaN(floatVal) && floatVal.toString() === value.toString()) {
     return floatVal; // Return as a float if it converts cleanly
   }
 
