@@ -210,12 +210,8 @@ const MapVisualization = ({
     // get coordinates and add pointer marker where the click occurred
     const coordinate = evt.coordinate;
     const pixel = evt.pixel;
-    // const newMarkerLayer = createMarkerLayer(coordinate);
-    // if (markerLayer.current) {
-    //   map.removeLayer(markerLayer.current);
-    // }
-    // markerLayer.current = newMarkerLayer;
-    // map.addLayer(newMarkerLayer);
+    const newMarkerLayer = createMarkerLayer(coordinate);
+    map.addLayer(newMarkerLayer);
 
     // reduce the layer attributes variables values into a simplified object of layer names and then values
     const mapAttributeVariables = layers.reduce((combined, current) => {
@@ -332,6 +328,7 @@ const MapVisualization = ({
     }
     setPopupContent(PopupContent);
     popup.setPosition(popupCoordinate);
+    map.removeLayer(newMarkerLayer);
   };
 
   return (
