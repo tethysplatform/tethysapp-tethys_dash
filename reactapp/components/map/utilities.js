@@ -167,6 +167,7 @@ export function createHighlightLayer(geometries) {
         radius: 5,
       }),
     }),
+    zIndex: 100,
     name: "Highlighter",
   });
 

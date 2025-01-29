@@ -386,8 +386,10 @@ def clean_up_jsons(user):
             in_use_geojsons.append(stylejson_files)
     
     in_use_geojsons = flatten(in_use_geojsons)
-    
-    geojson_user_files = os.listdir(os.path.join(geojson_folder, user))
+    path = os.path.join(geojson_folder, user)
+    if not os.path.exists(path):
+        os.makedirs(path)
+    geojson_user_files = os.listdir(path)
     for geojson_user_file in geojson_user_files:
         if geojson_user_file not in in_use_geojsons:
             print(f"Removing the {geojson_user_file} file")
