@@ -17,7 +17,7 @@ export const sourcePropertiesOptions = {
       params: {
         LAYERS: "[show|hide|include|exclude]:layerId1,layerId2",
         TIME: "<startTime>, <endTime> or <timeInstant>",
-        lAYERDEfS: "Allows you to filter the features of individual layers",
+        LAYERDEFS: "Allows you to filter the features of individual layers",
       },
       projection: "EPSG:<Code>",
     },
