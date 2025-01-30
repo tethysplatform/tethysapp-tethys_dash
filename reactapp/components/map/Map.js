@@ -179,7 +179,7 @@ const Map = ({
 
   return (
     <>
-      <MapContext.Provider value={{ map: mapRef.current }}>
+      <MapContext.Provider value={{ map }}>
         <div ref={mapDivRef} {...customMapConfig}>
           {errorMessage && (
             <StyledAlert
