@@ -50,3 +50,7 @@
   margin-left: auto;
   margin-right: auto;
 }
+
+.mapLayerContent {
+  height: 85vh;
+}

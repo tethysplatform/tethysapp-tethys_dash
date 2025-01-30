@@ -46,6 +46,11 @@ const AlignedDragHandle = styled(RxDragHandleHorizontal)`
   margin: auto;
 `;
 
+const StyledPopoverBody = styled(Popover.Body)`
+  max-height: 70vh;
+  overflow-y: auto;
+`;
+
 const LegendTemplate = ({
   value,
   index,
@@ -115,14 +120,13 @@ const LegendTemplate = ({
         </div>
         <Overlay
           target={colorTarget.current}
-          container={containerRef?.current}
           show={showColorPopover}
           placement="right"
           rootClose={true}
           onHide={() => setShowColorPopover(false)}
         >
           <Popover className="color-picker-popover">
-            <Popover.Body>
+            <StyledPopoverBody>
               <StyledLabel>
                 <b>Symbol</b>:{" "}
                 <CustomPicker
@@ -135,7 +139,7 @@ const LegendTemplate = ({
                 <b>Color</b>:{" "}
                 <ColorPicker color={color} onChangeComplete={onColorChange} />
               </StyledLabel>
-            </Popover.Body>
+            </StyledPopoverBody>
           </Popover>
         </Overlay>
       </td>

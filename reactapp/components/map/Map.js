@@ -79,6 +79,7 @@ const Map = ({
 }) => {
   const [map, setMap] = useState();
   const [errorMessage, setErrorMessage] = useState("");
+  const [layerControlUpdate, setLayerControlUpdate] = useState();
   const viewRef = useRef();
   const mapDivRef = useRef();
   const popupRef = useRef(null);
@@ -173,7 +174,7 @@ const Map = ({
       onMapClick(mapRef.current, evt, setPopupContent, popupCurrent.current);
     };
     mapRef.current.on("singleclick", onMapClickCurrent.current);
-
+    setLayerControlUpdate(!layerControlUpdate);
     mapRef.current.renderSync();
   }, [layers]);
 
@@ -192,7 +193,7 @@ const Map = ({
             </StyledAlert>
           )}
           <div>
-            {layerControl && <LayersControl />}
+            {layerControl && <LayersControl updater={layerControlUpdate} />}
             {legend && <LegendControl items={legend} />}
           </div>
         </div>

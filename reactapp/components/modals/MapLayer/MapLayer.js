@@ -25,12 +25,8 @@ import { v4 as uuidv4 } from "uuid";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
-const StyledModal = styled(Modal)`
-  height: 95vh;
-`;
-
 const StyledModalHeader = styled(Modal.Header)`
-  height: 5%;
+  height: 7%;
 `;
 
 const StyledModalBody = styled(Modal.Body)`
@@ -265,11 +261,12 @@ const MapLayerModal = ({
 
   return (
     <>
-      <StyledModal
+      <Modal
         show={showModal}
         onHide={handleModalClose}
         className="map-layer"
         dialogClassName="fiftyWideModalDialog"
+        contentClassName="mapLayerContent"
       >
         <StyledModalHeader closeButton>
           <Modal.Title>Add Map Layer</Modal.Title>
@@ -371,7 +368,7 @@ const MapLayerModal = ({
             Create
           </Button>
         </Modal.Footer>
-      </StyledModal>
+      </Modal>
     </>
   );
 };
