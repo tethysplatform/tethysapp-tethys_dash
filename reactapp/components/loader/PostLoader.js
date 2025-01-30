@@ -11,7 +11,6 @@ import {
   EditingContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
-import { getMapAttributeVariables } from "components/visualizations/utilities";
 import AppTourContextProvider from "components/contexts/AppTourContext";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 

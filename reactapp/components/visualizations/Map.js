@@ -347,7 +347,7 @@ const MapVisualization = ({
       legend={mapLegend}
       layerControl={layerControl}
       onMapClick={inDataViewerMode ? () => {} : onMapClick}
-      ref={visualizationRef}
+      visualizationRef={visualizationRef}
       data-testid="backlayer-map"
     />
   );

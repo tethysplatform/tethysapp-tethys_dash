@@ -224,8 +224,10 @@ function VisualizationPane({
   function previewVisualization() {
     const itemData = {
       source: selectedVizTypeOption["source"],
-      args: {},
+      args: JSON.parse(argsString), // initialize with initial values for some vizualization like Map where additional args are used that dont have options
     };
+
+    // Loop through each visualization input and overwrite initial values
     vizInputsValues.forEach((arg) => {
       if (typeof arg.value.value !== "undefined") {
         itemData["args"][arg.name] = arg.value.value;
@@ -282,6 +284,7 @@ function VisualizationPane({
             baseMap={updatedGridItemArgs["base_map"]}
             layers={updatedGridItemArgs["additional_layers"]}
             layerControl={updatedGridItemArgs["show_layer_controls"]}
+            viewConfig={updatedGridItemArgs["initial_view"]}
           />
         );
       } else {

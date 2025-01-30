@@ -12,8 +12,10 @@ import LegendPane from "components/modals/MapLayer/LegendPane";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import StylePane from "components/modals/MapLayer/StylePane";
 import { AppContext } from "components/contexts/Contexts";
-import { getMapAttributeVariables } from "components/visualizations/utilities";
-import { sourcePropertiesOptions } from "components/map/utilities";
+import {
+  sourcePropertiesOptions,
+  getMapAttributeVariables,
+} from "components/map/utilities";
 import {
   removeEmptyStringsFromObject,
   extractVariableInputNames,

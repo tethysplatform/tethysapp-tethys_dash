@@ -74,10 +74,12 @@ const Map = ({
   legend,
   layerControl,
   onMapClick,
+  visualizationRef: mapRef,
 }) => {
   const [map, setMap] = useState();
   const [errorMessage, setErrorMessage] = useState("");
-  const mapRef = useRef();
+  const viewRef = useRef();
+  const mapDivRef = useRef();
   const popupRef = useRef(null);
   const onMapClickCurrent = useRef();
   const popupCurrent = useRef();
@@ -94,20 +96,18 @@ const Map = ({
     zoom: 4.5,
     center: [-10686671.116154263, 4721671.572580108],
   };
-  const customViewConfig = { ...defaultViewConfig, ...viewConfig };
 
   useEffect(() => {
     const initialMap = new OlMap({
-      target: mapRef.current,
-      view: new View({
-        ...customViewConfig,
-      }),
+      target: mapDivRef.current,
+      view: new View(defaultViewConfig),
       layers: [],
       controls: [],
       overlays: [],
     });
 
     setMap(initialMap);
+    mapRef.current = initialMap;
 
     return () => {
       initialMap.setTarget(undefined);
@@ -115,16 +115,25 @@ const Map = ({
   }, []);
 
   useEffect(() => {
-    if (!map) return;
+    if (!viewRef.current) {
+      const customViewConfig = { ...defaultViewConfig, ...viewConfig };
+      const mapView = new View(customViewConfig);
+      mapRef.current.setView(mapView);
+      viewRef.current = mapView;
+    }
+  }, [viewConfig]);
 
+  useEffect(() => {
     const customLayers = layers ?? [];
-    const mapDerivedLayers = [...map.getLayers().getArray()];
-    mapDerivedLayers.forEach((mapLayer) => map.removeLayer(mapLayer));
+    const mapDerivedLayers = [...mapRef.current.getLayers().getArray()];
+    mapDerivedLayers.forEach((mapLayer) =>
+      mapRef.current.removeLayer(mapLayer)
+    );
 
     customLayers.forEach((layerConfig) => {
       moduleLoader(layerConfig)
         .then((layerInstance) => {
-          map.addLayer(layerInstance);
+          mapRef.current.addLayer(layerInstance);
           if (layerConfig.style) {
             applyStyle(
               layerInstance,
@@ -152,26 +161,26 @@ const Map = ({
       autoPanMargin: 20,
     });
     if (popupCurrent.current) {
-      map.removeOverlay(popupCurrent.current);
+      mapRef.current.removeOverlay(popupCurrent.current);
     }
     popupCurrent.current = popup;
-    map.addOverlay(popup);
+    mapRef.current.addOverlay(popup);
 
     if (onMapClickCurrent.current) {
-      map.un("singleclick", onMapClickCurrent.current);
+      mapRef.current.un("singleclick", onMapClickCurrent.current);
     }
     onMapClickCurrent.current = async function (evt) {
-      onMapClick(map, evt, setPopupContent, popupCurrent.current);
+      onMapClick(mapRef.current, evt, setPopupContent, popupCurrent.current);
     };
-    map.on("singleclick", onMapClickCurrent.current);
+    mapRef.current.on("singleclick", onMapClickCurrent.current);
 
-    map.renderSync();
-  }, [map, layers]);
+    mapRef.current.renderSync();
+  }, [layers]);
 
   return (
     <>
-      <MapContext.Provider value={{ map }}>
-        <div ref={mapRef} {...customMapConfig}>
+      <MapContext.Provider value={{ map: mapRef.current }}>
+        <div ref={mapDivRef} {...customMapConfig}>
           {errorMessage && (
             <StyledAlert
               key="failure"

@@ -59,7 +59,7 @@ const BaseVisualization = ({
     if (
       refreshRate &&
       refreshRate > 0 &&
-      !["", "Text", "Variable Input"].includes(source)
+      !["", "Text", "Variable Input", "Map"].includes(source)
     ) {
       const args = JSON.parse(argsString);
       const itemData = { source: source, args: args };
@@ -107,6 +107,7 @@ const BaseVisualization = ({
             baseMap={updatedGridItemArgs["base_map"]}
             layers={updatedGridItemArgs["additional_layers"]}
             layerControl={updatedGridItemArgs["show_layer_controls"]}
+            viewConfig={updatedGridItemArgs["initial_view"]}
           />
         );
       } else {

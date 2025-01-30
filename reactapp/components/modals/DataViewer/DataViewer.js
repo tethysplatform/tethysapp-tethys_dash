@@ -117,6 +117,16 @@ function DataViewerModal({
               ? false
               : vizArg.value.value || vizArg.value;
         }
+
+        if (
+          selectedVizTypeOption.source === "Map" &&
+          visualizationRef.current
+        ) {
+          vizArgs["initial_view"] = {
+            center: visualizationRef.current.getView().getCenter(),
+            zoom: visualizationRef.current.getView().getZoom(),
+          };
+        }
         updatedGridItems[gridItemIndex].args_string = JSON.stringify(vizArgs);
 
         updatedGridItems[gridItemIndex].metadata_string = JSON.stringify(
