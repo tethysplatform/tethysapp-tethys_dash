@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import ReactDOM from "react-dom";
+import { valuesEqual } from "components/modals/utilities";
 import { MapContext } from "components/contexts/Contexts";
 import { Map as OlMap, View } from "ol";
 import Overlay from "ol/Overlay";
@@ -115,11 +116,10 @@ const Map = ({
   }, []);
 
   useEffect(() => {
-    if (!viewRef.current) {
-      const customViewConfig = { ...defaultViewConfig, ...viewConfig };
-      const mapView = new View(customViewConfig);
-      mapRef.current.setView(mapView);
-      viewRef.current = mapView;
+    const customViewConfig = { ...defaultViewConfig, ...viewConfig };
+    if (!viewRef.current || !valuesEqual(viewRef.current, customViewConfig)) {
+      mapRef.current.setView(new View(customViewConfig));
+      viewRef.current = customViewConfig;
     }
   }, [viewConfig]);
 

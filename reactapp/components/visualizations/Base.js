@@ -49,7 +49,7 @@ const BaseVisualization = ({
   }, [source, argsString]);
 
   useEffect(() => {
-    if (!["", "Custom Image", "Text", "Variable Input"].includes(source)) {
+    if (!["", "Custom Image", "Variable Input"].includes(source)) {
       setVariableDependentVisualizations();
     }
     // eslint-disable-next-line
@@ -110,6 +110,8 @@ const BaseVisualization = ({
             viewConfig={updatedGridItemArgs["initial_view"]}
           />
         );
+      } else if (source === "Text") {
+        setViz(<Text textValue={updatedGridItemArgs["text"]} />);
       } else {
         setVisualization(setViz, itemData, visualizationRef);
       }
