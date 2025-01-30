@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import { MapContext } from "components/contexts/Contexts";
 import userEvent from "@testing-library/user-event";
 import LayersControl from "components/map/LayersControl";
 
@@ -12,22 +13,34 @@ test("LayersControl update layers", async () => {
     setVisible: setVisibleMock,
   };
 
+  const mockGetArray = jest.fn();
+  mockGetArray.mockReturnValue([mockedImageArcGISLayer]);
+  const mockGetLayers = {
+    getArray: mockGetArray,
+  };
+  const mockMap = {
+    getLayers: jest.fn(() => mockGetLayers),
+  };
+
+  const updater = true;
   const { rerender } = render(
-    <LayersControl layers={[mockedImageArcGISLayer]} />
+    <MapContext.Provider value={{ map: mockMap }}>
+      <LayersControl updater={updater} />
+    </MapContext.Provider>
   );
   expect(screen.queryByText("ImageArcGISLayer")).not.toBeInTheDocument();
-  expect(getVisibleMock).toHaveBeenCalledTimes(0);
+  expect(getVisibleMock).toHaveBeenCalledTimes(1);
 
   const showLayersButton = await screen.findByLabelText("Show Layers Control");
   fireEvent.click(showLayersButton);
 
   expect(await screen.findByText("ImageArcGISLayer")).toBeInTheDocument();
-  expect(getVisibleMock).toHaveBeenCalledTimes(1);
 
-  const setVisibleButton = await screen.findByLabelText(
+  const setVisibleCheckbox = await screen.findByLabelText(
     "ImageArcGISLayer Set Visible"
   );
-  fireEvent.click(setVisibleButton);
+  fireEvent.click(setVisibleCheckbox);
+  expect(setVisibleCheckbox.checked).toEqual(false);
   expect(setVisibleMock).toHaveBeenCalledTimes(1);
 
   const mockedLayerProps = {};
@@ -36,8 +49,12 @@ test("LayersControl update layers", async () => {
     getVisible: jest.fn(),
     setVisible: jest.fn(),
   };
-
-  rerender(<LayersControl layers={[mockedLayer]} />);
+  mockGetArray.mockReturnValue([mockedLayer]);
+  rerender(
+    <MapContext.Provider value={{ map: mockMap }}>
+      <LayersControl updater={!updater} />
+    </MapContext.Provider>
+  );
   expect(screen.queryByText("ImageArcGISLayer")).not.toBeInTheDocument();
   expect(await screen.findByText("Layer 1")).toBeInTheDocument();
 

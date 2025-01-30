@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext, useRef } from "react";
+import { useEffect, useState, useContext } from "react";
 import { MapContext } from "components/contexts/Contexts";
 import PropTypes from "prop-types";
 import styled from "styled-components";
@@ -42,7 +42,7 @@ const CloseButton = styled.button`
   right: 5px;
 `;
 
-const LayersControl = () => {
+const LayersControl = ({ updater }) => {
   const { map } = useContext(MapContext);
   const [layers, setLayers] = useState([]);
   const [isexpanded, setisexpanded] = useState(false);
@@ -56,10 +56,10 @@ const LayersControl = () => {
 
       setLayerVisibility(formatVisibility(mapLayers));
     }
-  }, [isexpanded, map]);
+  }, [isexpanded, updater, map]);
 
   function formatVisibility(mapLayers) {
-    return mapLayers.reduce((obj, layer) => {
+    return mapLayers.reduce((obj, layer, index) => {
       const layerName = layer.get("name") ?? `Layer ${index + 1}`;
       const layerVisible = layer.getVisible() ?? true;
 
@@ -131,7 +131,7 @@ const LayersControl = () => {
 };
 
 LayersControl.propTypes = {
-  layers: PropTypes.array,
+  updater: PropTypes.bool, // a boolean that switches when layers are updated
 };
 
 export default LayersControl;
