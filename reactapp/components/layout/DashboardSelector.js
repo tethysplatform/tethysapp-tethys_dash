@@ -7,6 +7,7 @@ import {
   AvailableDashboardsContext,
   DashboardDropdownContext,
   EditingContext,
+  DisabledEditingMovementContext,
 } from "components/contexts/Contexts";
 import {
   BsArrowReturnLeft,
@@ -23,6 +24,10 @@ const StyledDiv = styled.div`
   margin: auto;
 `;
 
+const StyledB = styled.b`
+  color: white;
+`;
+
 function DashboardSelector({ initialDashboard }) {
   const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
   const { name, editable } = getLayoutContext();
@@ -34,6 +39,9 @@ function DashboardSelector({ initialDashboard }) {
   } = useContext(DashboardDropdownContext);
   const [showModal, setShowModal] = useState(false);
   const { isEditing, setIsEditing } = useContext(EditingContext);
+  const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
+    DisabledEditingMovementContext
+  );
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const [menuIsOpen, setMenuIsOpen] = useState(false);
   const userDashboardDropdownOptions = dashboardDropdownOptions.filter(
@@ -161,7 +169,7 @@ function DashboardSelector({ initialDashboard }) {
         <>
           {editable && (
             <>
-              {isEditing && (
+              {isEditing ? (
                 <>
                   <TooltipButton
                     tooltipPlacement="bottom"
@@ -191,9 +199,18 @@ function DashboardSelector({ initialDashboard }) {
                   >
                     <BsPlus size="1.5rem" />
                   </TooltipButton>
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={disabledEditingMovement}
+                      onChange={(e) =>
+                        setDisabledEditingMovement(e.target.checked)
+                      }
+                    ></input>{" "}
+                    <StyledB>Disable Movement During Editing</StyledB>
+                  </label>
                 </>
-              )}
-              {!isEditing && (
+              ) : (
                 <TooltipButton
                   tooltipPlacement="bottom"
                   tooltipText="Edit Dashboard"
