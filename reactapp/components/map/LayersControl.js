@@ -6,8 +6,8 @@ import { FaLayerGroup, FaTimes } from "react-icons/fa"; // Import icons
 
 const ControlWrapper = styled.div`
   position: absolute;
-  bottom: 10px;
-  right: 10px;
+  bottom: 1rem;
+  right: 1rem;
 `;
 
 const LayerControlContainer = styled.div`
@@ -16,7 +16,8 @@ const LayerControlContainer = styled.div`
   z-index: 1000;
   border: 1px solid #ccc;
   border-radius: 4px;
-  width: ${(props) => (props.$isexpanded ? "200px" : "40px")};
+  min-width: ${(props) => (props.$isexpanded ? "13vw" : "40px")};
+  max-width: "20vw";
   height: ${(props) => (props.$isexpanded ? "auto" : "40px")};
   display: flex;
   flex-direction: column;
@@ -44,9 +45,9 @@ const CloseButton = styled.button`
 
 const LayersControl = ({ updater }) => {
   const { map } = useContext(MapContext);
-  const [layers, setLayers] = useState([]);
-  const [isexpanded, setisexpanded] = useState(false);
-  const [layerVisibility, setLayerVisibility] = useState({});
+  const [layers, setLayers] = useState([]); // [<openlayer layers>], controls what is shown in the layer controls
+  const [isexpanded, setisexpanded] = useState(false); // bool, controls layer conrol menu expansion
+  const [layerVisibility, setLayerVisibility] = useState({}); // {layerName: layerVisibility, ...}, controls checkbox checked value based on layer visibility
 
   useEffect(() => {
     if (map) {
@@ -54,11 +55,13 @@ const LayersControl = ({ updater }) => {
       const mapLayers = map.getLayers().getArray();
       setLayers(mapLayers);
 
+      // Update state tracking the checkbox
       setLayerVisibility(formatVisibility(mapLayers));
     }
   }, [isexpanded, updater, map]);
 
   function formatVisibility(mapLayers) {
+    // loop through mapLayers array and create an object of layername keys and visibility values
     return mapLayers.reduce((obj, layer, index) => {
       const layerName = layer.get("name") ?? `Layer ${index + 1}`;
       const layerVisible = layer.getVisible() ?? true;
@@ -69,7 +72,10 @@ const LayersControl = ({ updater }) => {
   }
 
   function updateVisibility(layer, layerName, checked) {
+    // update openlayers layer visibility
     layer.setVisible(checked);
+
+    // update layerVisibility state for checkbox
     const updatedLayerVisibility = JSON.parse(JSON.stringify(layerVisibility));
     updatedLayerVisibility[layerName] = checked;
     setLayerVisibility(updatedLayerVisibility);
@@ -79,15 +85,18 @@ const LayersControl = ({ updater }) => {
     <ControlWrapper>
       <LayerControlContainer $isexpanded={isexpanded}>
         {isexpanded ? (
-          // Expanded layer control without title and list
           <>
+            <b>Map Layers</b>
             <CloseButton
               aria-label="Close Layers Control"
               onClick={() => setisexpanded(false)}
             >
               <FaTimes />
             </CloseButton>
-            <div style={{ marginTop: "20px", width: "100%" }}>
+            <div
+              aria-label="Map Layers"
+              style={{ marginTop: "20px", width: "100%" }}
+            >
               {layers.map((layer, index) => {
                 const layerName = layer.get("name") ?? `Layer ${index + 1}`;
                 return (

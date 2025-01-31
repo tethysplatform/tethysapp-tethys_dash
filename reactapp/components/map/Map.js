@@ -6,11 +6,11 @@ import { Map as OlMap, View } from "ol";
 import Overlay from "ol/Overlay";
 import moduleLoader from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
-import LegendControl from "components/map/Legend";
+import LegendControl from "components/map/LegendControl";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
 import { applyStyle } from "ol-mapbox-style";
-import { MdClose } from "react-icons/md";
+import { FaTimes } from "react-icons/fa";
 
 const StyledAlert = styled(Alert)`
   position: absolute;
@@ -61,7 +61,7 @@ const StyledCloser = styled.a`
   position: absolute;
   top: 2px;
   right: 8px;
-  color: red;
+  color: black;
 `;
 
 const StyledContent = styled.div`
@@ -194,7 +194,7 @@ const Map = ({
           )}
           <div>
             {layerControl && <LayersControl updater={layerControlUpdate} />}
-            {legend && <LegendControl items={legend} />}
+            {legend && <LegendControl legendItems={legend} />}
           </div>
         </div>
         <OverLayContentWrapper
@@ -211,7 +211,7 @@ const Map = ({
               setPopupContent(null);
             }}
           >
-            <MdClose size="1.5rem" />
+            <FaTimes />
           </StyledCloser>
           <StyledContent id="popup-content">
             {popupContent &&

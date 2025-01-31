@@ -186,7 +186,7 @@ const MapVisualization = ({
             }
           }
 
-          if (Object.keys(layer.legend).length > 0) {
+          if (layer.legend) {
             newMapLegend.push(layer.legend);
           }
           newMapLayers.push(layer.configuration);

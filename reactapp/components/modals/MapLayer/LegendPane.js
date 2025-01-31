@@ -10,7 +10,7 @@ import Popover from "react-bootstrap/Popover";
 import ColorPicker from "components/inputs/ColorPicker";
 import CustomPicker from "components/inputs/CustomPicker";
 import { BsTrash } from "react-icons/bs";
-import { legendSymbols, getLegendSymbol } from "components/map/Legend";
+import { legendSymbols, getLegendSymbol } from "components/map/LegendControl";
 import { RxDragHandleHorizontal } from "react-icons/rx";
 import "components/modals/wideModal.css";
 
@@ -119,9 +119,10 @@ const LegendTemplate = ({
           {symbolComponent}
         </div>
         <Overlay
+          container={containerRef}
           target={colorTarget.current}
           show={showColorPopover}
-          placement="right"
+          placement="left"
           rootClose={true}
           onHide={() => setShowColorPopover(false)}
         >
@@ -137,7 +138,11 @@ const LegendTemplate = ({
               </StyledLabel>
               <StyledLabel>
                 <b>Color</b>:{" "}
-                <ColorPicker color={color} onChangeComplete={onColorChange} />
+                <ColorPicker
+                  hideInput={["rgb", "hsv"]}
+                  color={color}
+                  onChangeComplete={onColorChange}
+                />
               </StyledLabel>
             </StyledPopoverBody>
           </Popover>

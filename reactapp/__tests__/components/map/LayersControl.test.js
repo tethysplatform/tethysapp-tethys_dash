@@ -1,9 +1,25 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MapContext } from "components/contexts/Contexts";
-import userEvent from "@testing-library/user-event";
 import LayersControl from "components/map/LayersControl";
 
 test("LayersControl update layers", async () => {
+  let mockMap;
+  let updater;
+
+  // map object is not defined yet
+  mockMap = undefined;
+  updater = null;
+  const { rerender } = render(
+    <MapContext.Provider value={{ map: mockMap }}>
+      <LayersControl updater={updater} />
+    </MapContext.Provider>
+  );
+  const showLayersButton = await screen.findByLabelText("Show Layers Control");
+  fireEvent.click(showLayersButton);
+
+  const mapLayersDiv = await screen.findByLabelText("Map Layers");
+  expect(mapLayersDiv.children.length).toBe(0);
+
   const mockedImageArcGISLayerProps = { name: "ImageArcGISLayer" };
   const getVisibleMock = jest.fn();
   const setVisibleMock = jest.fn();
@@ -18,22 +34,18 @@ test("LayersControl update layers", async () => {
   const mockGetLayers = {
     getArray: mockGetArray,
   };
-  const mockMap = {
+  mockMap = {
     getLayers: jest.fn(() => mockGetLayers),
   };
 
-  const updater = true;
-  const { rerender } = render(
+  updater = true;
+  rerender(
     <MapContext.Provider value={{ map: mockMap }}>
       <LayersControl updater={updater} />
     </MapContext.Provider>
   );
-  expect(screen.queryByText("ImageArcGISLayer")).not.toBeInTheDocument();
+  expect(mapLayersDiv.children.length).toBe(1);
   expect(getVisibleMock).toHaveBeenCalledTimes(1);
-
-  const showLayersButton = await screen.findByLabelText("Show Layers Control");
-  fireEvent.click(showLayersButton);
-
   expect(await screen.findByText("ImageArcGISLayer")).toBeInTheDocument();
 
   const setVisibleCheckbox = await screen.findByLabelText(

@@ -35,6 +35,13 @@ const StyledModalBody = styled(Modal.Body)`
   overflow-y: auto;
 `;
 
+const StyledAlert = styled(Alert)`
+  left: 0;
+  position: absolute;
+  margin-left: 1rem;
+  max-width: 75%;
+`;
+
 const MapLayerModal = ({
   showModal,
   handleModalClose,
@@ -180,10 +187,33 @@ const MapLayerModal = ({
           },
         },
       },
-      legend: legend ?? {},
       attributeVariables: attributeVariables ?? {},
       omittedPopupAttributes: omittedPopupAttributes ?? {},
     };
+
+    if (Object.keys(legend).length > 0) {
+      if (legend.title === "") {
+        setErrorMessage(
+          "Provide a legend title if showing a legend for this layer"
+        );
+        return;
+      }
+
+      //check if any key in the object is empty
+      const hasEmptyValues = (obj) => {
+        return Object.values(obj).some(
+          (value) => value === "" || value === null || value === undefined
+        );
+      };
+
+      if (legend.items.some(hasEmptyValues)) {
+        setErrorMessage(
+          "All Legend Items must have a label, color, and symbol"
+        );
+        return;
+      }
+      mapConfiguration.legend = legend;
+    }
 
     let geoJSON;
     if (sourceProps.type === "GeoJSON") {
@@ -344,14 +374,14 @@ const MapLayerModal = ({
         </StyledModalBody>
         <Modal.Footer>
           {errorMessage && (
-            <Alert
+            <StyledAlert
               key="danger"
               variant="danger"
               dismissible
               onClose={() => setErrorMessage("")}
             >
               {errorMessage}
-            </Alert>
+            </StyledAlert>
           )}
           <Button
             variant="secondary"

@@ -655,6 +655,53 @@ export const mockedDropdownVizArgs = [
     ],
   },
 ];
+
 export const mockedUserSetting = {
   deselected_visualizations: [],
+};
+
+export const legendItems = {
+  title: "Some Title",
+  items: [
+    {
+      label: "square",
+      color: "#4935d0",
+      symbol: "square",
+    },
+    {
+      label: "circle",
+      color: "#4935d0",
+      symbol: "circle",
+    },
+    {
+      label: "upTriangle",
+      color: "#4935d0",
+      symbol: "upTriangle",
+    },
+    {
+      label: "rightTriangle",
+      color: "#4935d0",
+      symbol: "rightTriangle",
+    },
+    {
+      label: "downTriangle",
+      color: "#4935d0",
+      symbol: "downTriangle",
+    },
+    {
+      label: "leftTriangle",
+      color: "#4935d0",
+      symbol: "leftTriangle",
+    },
+    {
+      label: "rectangle",
+      color: "#4935d0",
+      symbol: "rectangle",
+    },
+    {
+      label: "line",
+      color: "#4935d0",
+      symbol: "line",
+    },
+  ],
 };
