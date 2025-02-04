@@ -412,8 +412,8 @@ const AttributesPane = ({
               variant="info"
             />
           ) : automatedAttributes ? (
-            Object.keys(attributes).map((layerName) => (
-              <>
+            Object.keys(attributes).map((layerName, index) => (
+              <div key={index}>
                 <p>
                   <b>{layerName}</b>:
                 </p>
@@ -480,7 +480,7 @@ const AttributesPane = ({
                     ))}
                   </tbody>
                 </FixedTable>
-              </>
+              </div>
             ))
           ) : (
             Object.keys(attributes).map((layerName) => (

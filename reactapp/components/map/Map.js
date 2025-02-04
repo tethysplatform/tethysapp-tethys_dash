@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import ReactDOM from "react-dom";
 import { valuesEqual } from "components/modals/utilities";
 import { MapContext } from "components/contexts/Contexts";
-import { Map as OlMap, View } from "ol";
+import { Map, View } from "ol";
 import Overlay from "ol/Overlay";
 import moduleLoader from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
@@ -11,6 +11,7 @@ import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
 import { applyStyle } from "ol-mapbox-style";
 import { FaTimes } from "react-icons/fa";
+import PropTypes from "prop-types";
 
 const StyledAlert = styled(Alert)`
   position: absolute;
@@ -68,7 +69,7 @@ const StyledContent = styled.div`
   padding-top: 1rem;
 `;
 
-const Map = ({
+const MapComponent = ({
   mapConfig,
   viewConfig,
   layers,
@@ -100,7 +101,8 @@ const Map = ({
   };
 
   useEffect(() => {
-    const initialMap = new OlMap({
+    // Set up an initial map and set it to state/ref
+    const initialMap = new Map({
       target: mapDivRef.current,
       view: new View(defaultViewConfig),
       layers: [],
@@ -114,74 +116,102 @@ const Map = ({
     return () => {
       initialMap.setTarget(undefined);
     };
+    // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
+    // Update the map view if new viewConfig
     const customViewConfig = { ...defaultViewConfig, ...viewConfig };
     if (!viewRef.current || !valuesEqual(viewRef.current, customViewConfig)) {
       mapRef.current.setView(new View(customViewConfig));
       viewRef.current = customViewConfig;
     }
+    // eslint-disable-next-line
   }, [viewConfig]);
 
   useEffect(() => {
-    const customLayers = layers ?? [];
-    const mapDerivedLayers = [...mapRef.current.getLayers().getArray()];
-    mapDerivedLayers.forEach((mapLayer) =>
-      mapRef.current.removeLayer(mapLayer)
-    );
+    setErrorMessage(null);
+    const updateLayers = async () => {
+      // Remove current map layers so new ones can be added
+      const mapDerivedLayers = [...mapRef.current.getLayers().getArray()];
+      mapDerivedLayers.forEach((mapLayer) =>
+        mapRef.current.removeLayer(mapLayer)
+      );
 
-    customLayers.forEach((layerConfig) => {
-      moduleLoader(layerConfig)
-        .then((layerInstance) => {
-          mapRef.current.addLayer(layerInstance);
-          if (layerConfig.style) {
-            applyStyle(
-              layerInstance,
-              layerConfig.style,
-              layerConfig.props.name
-            ).catch((err) => {
-              console.log(err);
-            });
+      // setup constants for handling new layers
+      const customLayers = layers ?? [];
+      let failedLayers = [];
+
+      // for each layer, load the layer instance, add it to the map, and style if needed
+      await Promise.all(
+        customLayers.map(async (layerConfig) => {
+          try {
+            const layerInstance = await moduleLoader(layerConfig);
+            mapRef.current.addLayer(layerInstance);
+            if (layerConfig.style) {
+              applyStyle(
+                layerInstance,
+                layerConfig.style,
+                layerConfig.props.name
+              ).catch((err) => {
+                console.log(err);
+              });
+            }
+          } catch (err) {
+            console.log(err);
+            failedLayers.push(layerConfig.props.name);
           }
         })
-        .catch((err) => {
-          console.log(err);
-          setErrorMessage(
-            `Failed to load the '${layerConfig.props.name}' layer`
-          );
-        });
-    });
+      );
 
-    const popup = new Overlay({
-      element: popupRef.current,
-      autoPan: true,
-      autoPanAnimation: {
-        duration: 250,
-      },
-      autoPanMargin: 20,
-    });
-    if (popupCurrent.current) {
-      mapRef.current.removeOverlay(popupCurrent.current);
-    }
-    popupCurrent.current = popup;
-    mapRef.current.addOverlay(popup);
+      // If any layers failed to load, add an error message will all the failed layers
+      if (failedLayers.length > 0) {
+        setErrorMessage(
+          `Failed to load the "${failedLayers.join(", ")}" layer(s)`
+        );
+      }
 
-    if (onMapClickCurrent.current) {
-      mapRef.current.un("singleclick", onMapClickCurrent.current);
-    }
-    onMapClickCurrent.current = async function (evt) {
-      onMapClick(mapRef.current, evt, setPopupContent, popupCurrent.current);
+      // setup popup with new layers. This is done so that the variable
+      // and states in the passed popup are updated and not stale
+      const popup = new Overlay({
+        element: popupRef.current,
+        autoPan: true,
+        autoPanAnimation: {
+          duration: 250,
+        },
+        autoPanMargin: 20,
+      });
+      if (popupCurrent.current) {
+        mapRef.current.removeOverlay(popupCurrent.current);
+      }
+      popupCurrent.current = popup;
+      mapRef.current.addOverlay(popup);
+
+      // setup click event with new layers. This is done so that the variable
+      // and states in the passed function are updated and not stale
+      if (onMapClickCurrent.current) {
+        mapRef.current.un("singleclick", onMapClickCurrent.current);
+      }
+      onMapClickCurrent.current = async function (evt) {
+        onMapClick(mapRef.current, evt, setPopupContent, popupCurrent.current);
+      };
+      mapRef.current.on("singleclick", onMapClickCurrent.current);
+
+      // update the layerControlUpdate so that the layer controls are triggered to rerender with the new layers
+      setLayerControlUpdate(!layerControlUpdate);
+
+      // sync map with changes
+      mapRef.current.renderSync();
     };
-    mapRef.current.on("singleclick", onMapClickCurrent.current);
-    setLayerControlUpdate(!layerControlUpdate);
-    mapRef.current.renderSync();
+
+    updateLayers();
+    // eslint-disable-next-line
   }, [layers]);
 
   return (
     <>
       <MapContext.Provider value={{ map }}>
-        <div ref={mapDivRef} {...customMapConfig}>
+        <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
           {errorMessage && (
             <StyledAlert
               key="failure"
@@ -198,6 +228,7 @@ const Map = ({
           </div>
         </div>
         <OverLayContentWrapper
+          aria-label="Map Popup"
           id="map-popup"
           className="map-popup"
           ref={popupRef}
@@ -205,7 +236,7 @@ const Map = ({
           <StyledCloser
             href="#"
             id="popup-closer"
-            class="ol-popup-closer"
+            className="ol-popup-closer"
             onClick={() => {
               popupCurrent.current.setPosition(undefined);
               setPopupContent(null);
@@ -213,7 +244,7 @@ const Map = ({
           >
             <FaTimes />
           </StyledCloser>
-          <StyledContent id="popup-content">
+          <StyledContent aria-label="Map Popup Content" id="popup-content">
             {popupContent &&
               ReactDOM.createPortal(popupContent, popupRef.current)}
           </StyledContent>
@@ -223,4 +254,40 @@ const Map = ({
   );
 };
 
-export { Map };
+MapComponent.propTypes = {
+  mapConfig: PropTypes.object, // div element properties for the map
+  viewConfig: PropTypes.object, // keys can be found at https://openlayers.org/en/latest/apidoc/module-ol_View-View.html
+  layers: PropTypes.arrayOf(
+    PropTypes.shape({
+      configuration: PropTypes.shape({
+        type: PropTypes.string.isRequired, // openlayers layer type
+        props: PropTypes.shape({
+          name: PropTypes.string.isRequired, // name of the layer
+          source: PropTypes.shape({
+            type: PropTypes.string.isRequired, // openlayers source type
+            props: PropTypes.shape({
+              url: PropTypes.string.isRequired, // openlayers source url
+            }),
+          }),
+        }),
+      }),
+    })
+  ),
+  legend: PropTypes.arrayOf(
+    PropTypes.shape({
+      title: PropTypes.string, // Title for layer legend
+      items: PropTypes.arrayOf(
+        PropTypes.shape({
+          label: PropTypes.string, // Label for legend item
+          color: PropTypes.string, // Color for legend item
+          symbol: PropTypes.string, // Symbol for legend item
+        })
+      ),
+    })
+  ),
+  layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
+  onMapClick: PropTypes.func, // function for when user click on the map
+  visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
+};
+
+export default MapComponent;

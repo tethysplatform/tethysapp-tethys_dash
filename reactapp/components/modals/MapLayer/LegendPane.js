@@ -97,9 +97,10 @@ const LegendTemplate = ({
     setLegendItems(newLegend);
     setShowColorPopover(false);
   };
+  const { key, ...otherDraggingProps } = draggingProps;
 
   return (
-    <tr {...draggingProps}>
+    <tr key={key} {...otherDraggingProps}>
       <td>
         <InLineButtonDiv>
           <AlignedDragHandle size={"1rem"} />

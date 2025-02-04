@@ -6,7 +6,7 @@ import {
   useState,
   useContext,
 } from "react";
-import { Map } from "components/map/Map";
+import MapComponent from "components/map/Map";
 import {
   queryLayerFeatures,
   createHighlightLayer,
@@ -98,8 +98,8 @@ const Popup = ({ layerAttributes }) => {
         }}
         className="mySwiper"
       >
-        {layerAttributes.map((selectedFeature) => (
-          <MarginSwiperSlide>
+        {layerAttributes.map((selectedFeature, index) => (
+          <MarginSwiperSlide key={index}>
             <PopupDiv>
               <div>
                 <p>
@@ -340,7 +340,7 @@ const MapVisualization = ({
   };
 
   return (
-    <Map
+    <MapComponent
       mapConfig={mapConfig}
       viewConfig={viewConfig}
       layers={mapLayers}
@@ -358,10 +358,7 @@ MapVisualization.propTypes = {
   viewConfig: PropTypes.object,
   layers: PropTypes.array,
   legend: PropTypes.array,
-  visualizationRef: PropTypes.oneOfType([
-    PropTypes.func,
-    PropTypes.shape({ current: PropTypes.any }),
-  ]),
+  visualizationRef: PropTypes.shape({ current: PropTypes.any }),
 };
 
 export default memo(MapVisualization);

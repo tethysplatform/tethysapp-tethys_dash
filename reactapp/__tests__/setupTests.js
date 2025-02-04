@@ -3,10 +3,12 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import "@testing-library/jest-dom";
+import { cleanup } from "@testing-library/react";
 import { server } from "./utilities/server.js";
 
 // Mock `window.location` with Jest spies and extend expect
 import "jest-location-mock";
+import "jest-canvas-mock";
 
 // Make .env files accessible to tests (path relative to project root)
 require("dotenv").config({ path: "./reactapp/__tests__/test.env" });
@@ -32,6 +34,7 @@ beforeAll(() => {
 // this will remove that handler for the rest of them
 // (which is important for test isolation):
 afterEach(() => {
+  cleanup();
   server.resetHandlers();
   process.env = originalEnv;
   jest.clearAllMocks();

@@ -705,3 +705,38 @@ export const legendItems = {
     },
   ],
 };
+
+export const mapConfig = {
+  className: "test-map",
+  style: { width: "100%", height: "100%", position: "relative" },
+};
+
+export const viewConfig = {
+  center: [-10739800.855969304, 4724173.713444437],
+  zoom: 4.715261169570117,
+};
+
+export const layerConfig = {
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name: "Some Layer",
+      source: {
+        type: "ImageArcGISRest",
+        props: {
+          url: "Some Url",
+        },
+      },
+    },
+  },
+};
+
+export const layerAttributeVariables = {
+  "Some Layer": {
+    "attribute 1": "variable 1",
+  },
+};
+
+export const layerOmittedPopupAttributes = {
+  "Some Layer": ["attribute 2"],
+};

@@ -162,12 +162,12 @@ const LegendControl = ({ legendItems }) => {
 LegendControl.propTypes = {
   legendItems: PropTypes.arrayOf(
     PropTypes.shape({
-      title: PropTypes.string, // Title for layer legend
+      title: PropTypes.string.isRequired, // Title for layer legend
       items: PropTypes.arrayOf(
         PropTypes.shape({
-          label: PropTypes.string, // Label for legend item
-          color: PropTypes.string, // Color for legend item
-          symbol: PropTypes.string, // Symbol for legend item
+          label: PropTypes.string.isRequired, // Label for legend item
+          color: PropTypes.string.isRequired, // Color for legend item
+          symbol: PropTypes.string.isRequired, // Symbol for legend item
         })
       ),
     })

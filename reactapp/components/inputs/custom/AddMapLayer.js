@@ -113,9 +113,10 @@ const MapLayerTemplate = ({
     // Open the Map Layer Modal now that the layerInfo has been updated and will show that information
     setShowMapLayerModal(true);
   };
+  const { key, ...otherDraggingProps } = draggingProps;
 
   return (
-    <tr {...draggingProps}>
+    <tr key={key} {...otherDraggingProps}>
       <td>
         <AlignedDragHandle size={"1rem"} />
       </td>
@@ -318,22 +319,28 @@ MapLayerTemplate.propTypes = {
   mapLayers: PropTypes.shape({
     current: PropTypes.arrayOf(
       PropTypes.shape({
-        type: PropTypes.string.isRequired,
-        props: PropTypes.shape({
-          source: PropTypes.shape({
-            type: PropTypes.string.isRequired,
-            props: PropTypes.shape({
-              url: PropTypes.string.isRequired,
+        configuration: PropTypes.shape({
+          type: PropTypes.string.isRequired,
+          props: PropTypes.shape({
+            name: PropTypes.string.isRequired,
+            source: PropTypes.shape({
+              type: PropTypes.string.isRequired,
+              props: PropTypes.shape({
+                url: PropTypes.string.isRequired,
+              }),
             }),
           }),
-          type: PropTypes.string.isRequired,
+        }).isRequired,
+        legend: PropTypes.shape({
+          title: PropTypes.string,
+          items: PropTypes.arrayOf(
+            PropTypes.shape({
+              color: PropTypes.string.isRequired,
+              label: PropTypes.string.isRequired,
+              symbol: PropTypes.string.isRequired,
+            })
+          ),
         }),
-        legend: PropTypes.arrayOf(
-          PropTypes.shape({
-            color: PropTypes.string.isRequired,
-            label: PropTypes.string.isRequired,
-          })
-        ),
       })
     ),
   }).isRequired,
@@ -352,7 +359,7 @@ MapLayerTemplate.propTypes = {
     }),
   }),
   existingLayerOriginalName: PropTypes.shape({
-    current: PropTypes.string.isRequired,
+    current: PropTypes.string,
   }),
   setShowMapLayerModal: PropTypes.func.isRequired,
 };

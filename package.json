@@ -9,8 +9,9 @@
     "lint": "npx eslint reactapp",
     "pretty": "prettier --write \"./**/*.{js,jsx,mjs,cjs,ts,tsx,json}\"",
     "test": "jest --silent --coverage",
+    "cleartestCache": "jest --clearCache",
     "test:watch": "npm run test -- --watch",
-    "jest-preview": "jest-preview"
+    "jest-preview": "jest-preview yarn test"
   },
   "author": "",
   "license": "ISC",
@@ -22,6 +23,7 @@
     "dotenv": "^16.0.1",
     "file-loader": "^6.2.0",
     "html-react-parser": "^5.1.18",
+    "ol": "10.4.0",
     "ol-mapbox-style": "^12.4.0",
     "plotly.js-cartesian-dist-min": "^2.35.2",
     "prismjs": "^1.28.0",
@@ -71,6 +73,7 @@
     "eslint-plugin-react-hooks": "^4.5.0",
     "identity-obj-proxy": "^3.0.0",
     "jest": "^28.1.0",
+    "jest-canvas-mock": "^2.5.2",
     "jest-css-modules": "^2.1.0",
     "jest-environment-jsdom": "^28.1.0",
     "jest-fixed-jsdom": "",
@@ -149,7 +152,7 @@
       "^(?!.*\\.(js|jsx|mjs|cjs|ts|tsx|css|json)$)": "<rootDir>/reactapp/__tests__/transforms/fileTransform.js"
     },
     "transformIgnorePatterns": [
-      "[/\\\\]node_modules[/\\\\](?!(ol|ol-mapbox-style|plotly.js|react-plotly.js)[/\\\\]).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
+      "[/\\\\]node_modules[/\\\\](?!(ol|ol-mapbox-style|plotly.js|react-plotly.js|color-(space|parse|rgba|name)|rbush|quickselect|quick-lru|pbf|earcut)[/\\\\]).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
       "^.+\\.module\\.(css|sass|scss)$"
     ],
     "moduleFileExtensions": [
