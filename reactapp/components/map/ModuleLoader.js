@@ -8,10 +8,6 @@ const moduleCache = {};
 const moduleLoader = async (config) => {
   const { type, props } = config;
 
-  if (!type) {
-    return props;
-  }
-
   try {
     if (moduleCache[type]) {
       if (type === "GeoJSON") {
@@ -131,6 +127,7 @@ const getModuleImporter = (type) => {
     Style: "ol/style/Style.js",
     Stroke: "ol/style/Stroke.js",
     Fill: "ol/style/Fill.js",
+    InvalidForTesting: "DontUseThis",
     // Add other mappings as needed
   };
 

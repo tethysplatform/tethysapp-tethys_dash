@@ -1,7 +1,6 @@
-import { useRef, useState, useEffect, act } from "react";
+import { useRef, useState, useEffect } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import MapComponent from "components/map/Map";
-import { debug } from "jest-preview";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
