@@ -740,3 +740,68 @@ export const layerAttributeVariables = {
 export const layerOmittedPopupAttributes = {
   "Some Layer": ["attribute 2"],
 };
+
+export const layerConfigGeoJSON = {
+  configuration: {
+    type: "VectorLayer",
+    props: {
+      name: "GeoJSON Layer",
+      source: {
+        type: "GeoJSON",
+        props: {},
+        features: {
+          type: "FeatureCollection",
+          crs: {
+            type: "name",
+            properties: {
+              name: "EPSG:3857",
+            },
+          },
+          features: [
+            {
+              type: "Feature",
+              geometry: {
+                type: "Point",
+                coordinates: [0, 0],
+              },
+            },
+          ],
+        },
+      },
+      zIndex: 1,
+    },
+  },
+};
+
+export const layerConfigImageArcGISRest = {
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name: "esri",
+      source: {
+        type: "ImageArcGISRest",
+        props: {
+          url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+        },
+      },
+      zIndex: 1,
+    },
+  },
+};
+
+export const layerConfigImageWMS = {
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name: "Image WMS",
+      source: {
+        type: "ImageWMS",
+        props: {
+          url: "https://ahocevar.com/geoserver/wms",
+          params: { LAYERS: "topp:states" },
+        },
+      },
+      zIndex: 1,
+    },
+  },
+};

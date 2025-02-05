@@ -174,42 +174,47 @@ export function createHighlightLayer(geometries) {
   return highlightLayer;
 }
 
-function transformCoordinates(coords, sourceProj, destProj) {
-  return coords.map((polygon) => {
-    return polygon.map((ring) => {
-      return ring.map((coord) => {
-        return transform(coord, sourceProj, destProj);
-      });
-    });
-  });
+export function transformCoordinates(coords, sourceProj, destProj) {
+  if (Array.isArray(coords[0])) {
+    return coords.map((coord) =>
+      transformCoordinates(coord, sourceProj, destProj)
+    );
+  } else if (
+    coords.length === 2 &&
+    typeof coords[0] === "number" &&
+    typeof coords[1] === "number"
+  ) {
+    return transform(coords, sourceProj, destProj);
+  } else {
+    throw new Error("Invalid coordinate structure");
+  }
 }
 
 export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   let features;
-  const layerUrl = layerInfo.configuration.props.source.props?.url ?? "";
-  const layerParams = layerInfo.configuration.props.source.props.params;
-  const layerType = layerInfo.configuration.props.source.type;
-  if (layerUrl.includes("MapServer")) {
-    features = await getESRILayerFeatures(layerUrl, map, coordinate);
-  } else if (layerType === "ImageWMS") {
+  const sourceUrl = layerInfo.configuration.props.source.props?.url ?? "";
+  const sourceParams = layerInfo.configuration.props.source.props.params;
+  const sourceType = layerInfo.configuration.props.source.type;
+  if (sourceType === "ImageArcGISRest") {
+    features = await getESRILayerFeatures(sourceUrl, map, coordinate);
+  } else if (sourceType === "ImageWMS") {
     features = await getImageWMSLayerFeatures(
-      layerUrl,
-      layerParams,
+      sourceUrl,
+      sourceParams,
       map,
-      coordinate,
       pixel
     );
-  } else if (layerType === "GeoJSON") {
+  } else if (sourceType === "GeoJSON") {
     features = await getGeoJSONLayerFeatures(map, pixel, coordinate);
   } else {
-    throw Error(`${layerType} is not currently configured to be queried`);
+    throw Error(`${sourceType} is not currently configured to be queried`);
   }
 
   return features;
 }
 
-async function getESRILayerFeatures(layerUrl, map, coordinate) {
-  const featureQueryUrl = layerUrl + "/identify";
+async function getESRILayerFeatures(sourceUrl, map, coordinate) {
+  const featureQueryUrl = sourceUrl + "/identify";
   // Build the identify request parameters
   const params = new URLSearchParams({
     f: "json",
@@ -229,23 +234,15 @@ async function getESRILayerFeatures(layerUrl, map, coordinate) {
     const featureQuery = await fetch(`${featureQueryUrl}?${params.toString()}`);
     const featureQueryJson = await featureQuery.json();
     return featureQueryJson.results;
-  } catch {
-    (error) => {
-      console.error("Identify request failed:", error);
-      return null;
-    };
+  } catch (error) {
+    console.error("Identify request failed:", error);
+    return null;
   }
 }
 
-async function getImageWMSLayerFeatures(
-  layerUrl,
-  layerParams,
-  map,
-  coordinate,
-  pixel
-) {
-  const lowercaseLayerParams = Object.keys(layerParams).reduce((acc, key) => {
-    acc[key.toLowerCase()] = layerParams[key];
+async function getImageWMSLayerFeatures(sourceUrl, sourceParams, map, pixel) {
+  const lowercaseSourceParams = Object.keys(sourceParams).reduce((acc, key) => {
+    acc[key.toLowerCase()] = sourceParams[key];
     return acc;
   }, {});
   const [mapWidth, mapHeight] = map.getSize();
@@ -253,8 +250,8 @@ async function getImageWMSLayerFeatures(
   // Build the identify request parameters
   const params = new URLSearchParams({
     INFO_FORMAT: "application/json",
-    LAYERS: lowercaseLayerParams.layers ?? "",
-    QUERY_LAYERS: lowercaseLayerParams.layers ?? "",
+    LAYERS: lowercaseSourceParams.layers ?? "",
+    QUERY_LAYERS: lowercaseSourceParams.layers ?? "",
     X: pixel[0],
     Y: pixel[1],
     SRS: mapSRS,
@@ -265,7 +262,7 @@ async function getImageWMSLayerFeatures(
     VERSION: "1.1.1",
   });
   try {
-    const featureQuery = await fetch(`${layerUrl}?${params.toString()}`);
+    const featureQuery = await fetch(`${sourceUrl}?${params.toString()}`);
     const featureQueryJson = await featureQuery.json();
     const features = [];
     const featuresSRSRaw =
@@ -292,16 +289,13 @@ async function getImageWMSLayerFeatures(
       });
     }
     return features;
-  } catch {
-    (error) => {
-      console.error("Identify request failed:", error);
-      return null;
-    };
+  } catch (error) {
+    console.error("Identify request failed:", error);
+    return null;
   }
 }
 
 async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
-  const resolution = map.getView().getResolution();
   const features = [];
   map.forEachFeatureAtPixel(pixel, function (feature, layer) {
     if (
@@ -312,9 +306,10 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
     }
 
     if (feature) {
-      let clickedGeometry = null;
+      let clickedGeometries = [];
       const { geometry, ...properties } = feature.getProperties();
       if (geometry.getType() === "GeometryCollection") {
+        const resolution = map.getView().getResolution();
         geometry.getGeometries().forEach((geom) => {
           const type = geom.getType();
 
@@ -331,25 +326,27 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
               ) / resolution; // to get pixel distance
             const threshold = 10; // pixel threshold
             if (distance < threshold) {
-              clickedGeometry = geom;
+              clickedGeometries.push(geom);
             }
           } else {
             if (geom.intersectsCoordinate(coordinate)) {
-              clickedGeometry = geom;
+              clickedGeometries.push(geom);
             }
           }
         });
       } else {
-        clickedGeometry = geometry;
+        clickedGeometries.push(geometry);
       }
-      if (clickedGeometry) {
-        features.push({
-          layerName: layer.getProperties().name,
-          attributes: properties,
-          geometry: {
-            type: clickedGeometry.getType(),
-            coordinates: clickedGeometry.getCoordinates(),
-          }, // {x:"", y:"", spatialreference: {}}, {type: "MultiPolygon", coordinates: [[],[],[],[]]}
+      if (clickedGeometries.length > 0) {
+        clickedGeometries.forEach((clickedGeometry) => {
+          features.push({
+            layerName: layer.getProperties().name,
+            attributes: properties,
+            geometry: {
+              type: clickedGeometry.getType(),
+              coordinates: clickedGeometry.getCoordinates(),
+            }, // {x:"", y:"", spatialreference: {}}, {type: "MultiPolygon", coordinates: [[],[],[],[]]}
+          });
         });
       }
     }
