@@ -175,7 +175,9 @@ export function createHighlightLayer(geometries) {
 }
 
 export function transformCoordinates(coords, sourceProj, destProj) {
+  // check to see if the coords values are an array (nested coords) or a number
   if (Array.isArray(coords[0])) {
+    // run function again to transform nested values
     return coords.map((coord) =>
       transformCoordinates(coord, sourceProj, destProj)
     );
@@ -184,6 +186,7 @@ export function transformCoordinates(coords, sourceProj, destProj) {
     typeof coords[0] === "number" &&
     typeof coords[1] === "number"
   ) {
+    // if the coords values are numbers, then transform to the new projection
     return transform(coords, sourceProj, destProj);
   } else {
     throw new Error("Invalid coordinate structure");
@@ -191,10 +194,13 @@ export function transformCoordinates(coords, sourceProj, destProj) {
 }
 
 export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
+  // setup constants
   let features;
   const sourceUrl = layerInfo.configuration.props.source.props?.url ?? "";
   const sourceParams = layerInfo.configuration.props.source.props.params;
   const sourceType = layerInfo.configuration.props.source.type;
+
+  // make the appropriate request based on the source type
   if (sourceType === "ImageArcGISRest") {
     features = await getESRILayerFeatures(sourceUrl, map, coordinate);
   } else if (sourceType === "ImageWMS") {
@@ -214,8 +220,8 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
 }
 
 async function getESRILayerFeatures(sourceUrl, map, coordinate) {
+  // setup fetch request with params
   const featureQueryUrl = sourceUrl + "/identify";
-  // Build the identify request parameters
   const params = new URLSearchParams({
     f: "json",
     tolerance: 10, // Pixel tolerance
@@ -230,74 +236,91 @@ async function getESRILayerFeatures(sourceUrl, map, coordinate) {
       .join(", "),
   });
 
+  let featureQueryJson;
   try {
     const featureQuery = await fetch(`${featureQueryUrl}?${params.toString()}`);
-    const featureQueryJson = await featureQuery.json();
-    return featureQueryJson.results;
+    featureQueryJson = await featureQuery.json();
   } catch (error) {
     console.error("Identify request failed:", error);
     return null;
   }
+
+  return featureQueryJson.results;
 }
 
 async function getImageWMSLayerFeatures(sourceUrl, sourceParams, map, pixel) {
+  // make all source params lowercase just to make sure there are no issues grabbing keys with capitalization
   const lowercaseSourceParams = Object.keys(sourceParams).reduce((acc, key) => {
     acc[key.toLowerCase()] = sourceParams[key];
     return acc;
   }, {});
+
+  // get map information for the request
   const [mapWidth, mapHeight] = map.getSize();
   const mapSRS = map.getView().getProjection().getCode();
-  // Build the identify request parameters
-  const params = new URLSearchParams({
-    INFO_FORMAT: "application/json",
-    LAYERS: lowercaseSourceParams.layers,
-    QUERY_LAYERS: lowercaseSourceParams.layers,
-    X: pixel[0],
-    Y: pixel[1],
-    SRS: mapSRS,
-    BBOX: map.getView().calculateExtent().join(","),
-    HEIGHT: mapHeight,
-    WIDTH: mapWidth,
-    REQUEST: "GetFeatureInfo",
-    VERSION: "1.1.1",
-  });
-  try {
-    const featureQuery = await fetch(`${sourceUrl}?${params.toString()}`);
-    const featureQueryJson = await featureQuery.json();
-    const features = [];
-    const featuresSRSRaw =
-      featureQueryJson.crs.properties.name.match(/crs:(.*)/)[1];
-    const featuresSRSFormatted = featuresSRSRaw.replace("::", ":");
 
-    for (const feature of featureQueryJson.features) {
-      let transformedCoords = feature.geometry.coordinates;
-      if (mapSRS !== featuresSRSFormatted) {
-        transformedCoords = transformCoordinates(
-          transformedCoords,
-          featuresSRSFormatted,
-          mapSRS
-        );
-      }
-      const updatedGeometry = {
-        ...feature.geometry,
-        ...{ coordinates: transformedCoords },
-      };
-      features.push({
-        layerName: feature.id.split(".")[0],
-        attributes: feature.properties,
-        geometry: updatedGeometry,
-      });
-    }
-    return features;
+  let featureQueryJson;
+  try {
+    // setup fetch request with params
+    const params = new URLSearchParams({
+      INFO_FORMAT: "application/json",
+      LAYERS: lowercaseSourceParams.layers,
+      QUERY_LAYERS: lowercaseSourceParams.layers,
+      X: pixel[0],
+      Y: pixel[1],
+      SRS: mapSRS,
+      BBOX: map.getView().calculateExtent().join(","),
+      HEIGHT: mapHeight,
+      WIDTH: mapWidth,
+      REQUEST: "GetFeatureInfo",
+      VERSION: "1.1.1",
+    });
+    const featureQuery = await fetch(`${sourceUrl}?${params.toString()}`);
+    featureQueryJson = await featureQuery.json();
   } catch (error) {
     console.error("Identify request failed:", error);
     return null;
   }
+
+  // setup constants for feature handling
+  const features = [];
+  const featuresSRSRaw =
+    featureQueryJson.crs.properties.name.match(/crs:(.*)/)[1];
+  const featuresSRSFormatted = featuresSRSRaw.replace("::", ":");
+
+  // loop through all the clicked features
+  for (const feature of featureQueryJson.features) {
+    // transform coordinates to map spatial reference if needed
+    let transformedCoords = feature.geometry.coordinates;
+    if (mapSRS !== featuresSRSFormatted) {
+      transformedCoords = transformCoordinates(
+        transformedCoords,
+        featuresSRSFormatted,
+        mapSRS
+      );
+    }
+    const updatedGeometry = {
+      ...feature.geometry,
+      ...{ coordinates: transformedCoords },
+    };
+
+    // add clicked features to features array
+    features.push({
+      layerName: feature.id.split(".")[0],
+      attributes: feature.properties,
+      geometry: updatedGeometry,
+    });
+  }
+
+  return features;
 }
 
 async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
   const features = [];
+
+  // loop through the feature layers that are found at the clicked pixel
   map.forEachFeatureAtPixel(pixel, function (feature, layer) {
+    // dont get any features that are highlights or markers
     if (
       layer.get("name") === "ClickHighlighterLayer" ||
       layer.get("name") === "ClickMarkerLayer"
@@ -308,27 +331,38 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
     if (feature) {
       let clickedGeometries = [];
       const { geometry, ...properties } = feature.getProperties();
+
+      // if a feature is a collection of geometries, then check each individual item in the collection and check if it was clicked
       if (geometry.getType() === "GeometryCollection") {
         const resolution = map.getView().getResolution();
+
+        // loop through each individual geometry in the collection
         geometry.getGeometries().forEach((geom) => {
           const type = geom.getType();
 
+          // if the geometry is a point or string (not a polygon) then see how close the click was to the feature
           if (
             type === "Point" ||
             type === "LineString" ||
             type === "MultiLineString"
           ) {
+            // get the closest feature point to the clicked coordinate
             const closestPoint = geom.getClosestPoint(coordinate);
+
+            // calculate the distance from the closest point to the clicked coordinate and convert from coordinate unit to pixel
             const distance =
               Math.sqrt(
                 Math.pow(closestPoint[0] - coordinate[0], 2) +
                   Math.pow(closestPoint[1] - coordinate[1], 2)
-              ) / resolution; // to get pixel distance
+              ) / resolution;
+
+            // if the closest point distance is less than the threshold, count it as being clicked
             const threshold = 10; // pixel threshold
             if (distance < threshold) {
               clickedGeometries.push(geom);
             }
           } else {
+            // check to see if the geometry intersects with the coordinate
             if (geom.intersectsCoordinate(coordinate)) {
               clickedGeometries.push(geom);
             }
@@ -337,6 +371,8 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
       } else {
         clickedGeometries.push(geometry);
       }
+
+      // for each geometry that was clicked or within a threshold of clicking, add it feature and attributes
       if (clickedGeometries.length > 0) {
         clickedGeometries.forEach((clickedGeometry) => {
           features.push({
@@ -345,7 +381,7 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
             geometry: {
               type: clickedGeometry.getType(),
               coordinates: clickedGeometry.getCoordinates(),
-            }, // {x:"", y:"", spatialreference: {}}, {type: "MultiPolygon", coordinates: [[],[],[],[]]}
+            },
           });
         });
       }
@@ -356,12 +392,15 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
 }
 
 export async function getLayerAttributes(sourceProps, layerName) {
+  // setup constants
   let attributes;
   const sourceProperties = sourceProps.props;
   const sourceType = sourceProps.type;
   const sourceParams = sourceProperties?.params ?? {};
   const sourceUrl = sourceProperties?.url ?? "";
   const sourceGeoJSON = sourceProps?.geojson ?? {};
+
+  // make the appropriate request based on the source type
   if (sourceType === "ImageArcGISRest") {
     attributes = await getESRILayerAttributes(sourceUrl);
   } else if (sourceType === "ImageWMS") {
@@ -376,22 +415,30 @@ export async function getLayerAttributes(sourceProps, layerName) {
 }
 
 async function getESRILayerAttributes(sourceUrl) {
+  // setup fetch request with params
   const sourceURLParams = new URLSearchParams({
     f: "json",
   });
-
   const sourceInfoUrl = `${sourceUrl}?${sourceURLParams.toString()}`;
+
+  // Fetch data and parse json
   const sourceInfoResponse = await fetch(sourceInfoUrl);
   const sourceInfoJSON = await sourceInfoResponse.json();
 
+  // setup constants, get an array of layer names
   const sourceAttributes = {};
   const layers = sourceInfoJSON.layers.map((layer) => layer.name);
 
+  // for each layer, make a new request to get layer specific attributes
   for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
     let layerName = layers[layerIndex];
+
+    // Fetch data and parse json
     let specificLayerInfoUrl = `${sourceUrl}/${layerIndex}?${sourceURLParams.toString()}`;
     let specificLayerInfoResponse = await fetch(specificLayerInfoUrl);
     let specificLayerInfoJson = await specificLayerInfoResponse.json();
+
+    // loop through layer fields and append to sourceAttributes object
     let specificLayerFieds = [];
     for (const field of specificLayerInfoJson.fields) {
       specificLayerFieds.push({ name: field.name, alias: field.alias });
@@ -403,17 +450,21 @@ async function getESRILayerAttributes(sourceUrl) {
 }
 
 async function getImageWMSLayerAttributes(sourceUrl, sourceParams) {
+  // make all source params lowercase just to make sure there are no issues grabbing keys with capitalization
   const lowercaseLayerParams = Object.keys(sourceParams).reduce((acc, key) => {
     acc[key.toLowerCase()] = sourceParams[key];
     return acc;
   }, {});
 
+  // setup fetch request with params
   const sourceURLParams = new URLSearchParams({
     service: "WFS",
     request: "describeFeatureType",
     typename: lowercaseLayerParams.layers,
   });
   const sourceInfoUrl = `${sourceUrl}?${sourceURLParams.toString()}`;
+
+  // try to get WFS info
   let sourceInfoResponse;
   try {
     sourceInfoResponse = await fetch(sourceInfoUrl);
@@ -422,15 +473,20 @@ async function getImageWMSLayerAttributes(sourceUrl, sourceParams) {
       "Failed to fetch attribute data. Check to make sure layers exist."
     );
   }
+
+  // convert response to text and check for errors
   const sourceInfoText = await sourceInfoResponse.text();
   if (sourceInfoText.includes("ExceptionReport")) {
     throw new Error(
       "Failed to fetch attribute data. Check to make sure WFS extension is enabled on layers or that layer names are correct."
     );
   }
+
+  // convert xml to json for easier navigation
   const sourceInfoJSON = convertXML(sourceInfoText);
   const sourceAttributes = {};
 
+  // loop through data and parse fields
   const allLayersInfo = sourceInfoJSON["xsd:schema"].children.filter((obj) =>
     obj.hasOwnProperty("xsd:complexType")
   );
@@ -451,18 +507,25 @@ async function getImageWMSLayerAttributes(sourceUrl, sourceParams) {
 }
 
 async function getGeoJSONLayerAttributes(sourceGeoJSON, layerName) {
+  // setup constants
   const sourceAttributes = {};
   const attributes = [];
+
+  // get the geojson features
   const geoJSON =
     typeof sourceGeoJSON === "object"
       ? sourceGeoJSON
       : JSON.parse(sourceGeoJSON);
   const sourceFeatures = geoJSON?.features ?? [];
+
+  // for each feature, get an array of all the available properties/fields and then flatten into a single array
   const propertyKeys = sourceFeatures
     .map((feature) =>
       feature.properties ? Object.keys(feature.properties) : []
     )
     .flat();
+
+  // remove any duplicate fields and then add to the sourceAttributes object
   const uniquePropertyKeys = [...new Set(propertyKeys)];
   for (const uniquePropertyKey of uniquePropertyKeys) {
     attributes.push({
