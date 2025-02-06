@@ -119,9 +119,9 @@ export const findMissingKeys = (templateObj, dataObj, parentKey = "") => {
 export const extractVariableInputNames = (attributes) => {
   const result = {};
 
-  Object.keys(attributes).forEach((category) => {
-    if (Array.isArray(attributes[category])) {
-      const mappings = attributes[category].reduce((acc, item) => {
+  Object.keys(attributes).forEach((layerName) => {
+    if (Array.isArray(attributes[layerName])) {
+      const mappings = attributes[layerName].reduce((acc, item) => {
         if (item["variableInput"]) {
           acc[item.alias] = item["variableInput"];
         }
@@ -129,10 +129,14 @@ export const extractVariableInputNames = (attributes) => {
       }, {});
 
       if (Object.keys(mappings).length > 0) {
-        result[category] = mappings;
+        result[layerName] = mappings;
       }
     } else {
-      result[category] = attributes[category];
+      result[layerName] = Object.fromEntries(
+        Object.entries(attributes[layerName]).filter(
+          ([_, value]) => value !== ""
+        )
+      );
     }
   });
 

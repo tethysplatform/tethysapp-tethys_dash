@@ -148,7 +148,7 @@ const getModuleImporter = (type) => {
 
 const loadGeoJSON = (config) => {
   const vectorSource = new VectorSource({
-    features: new GeoJSON().readFeatures(config.features),
+    features: new GeoJSON().readFeatures(config.geojson),
   });
   return vectorSource;
 };

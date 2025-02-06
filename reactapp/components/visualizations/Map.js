@@ -20,7 +20,6 @@ import {
 } from "components/contexts/Contexts";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
-import { getMapAttributeVariables } from "components/visualizations/utilities";
 import { valuesEqual } from "components/modals/utilities";
 import appAPI from "services/api/app";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -173,7 +172,7 @@ const MapVisualization = ({
               filename: layer.configuration.props.source.geojson,
             });
             if (geoJSONResponse.success) {
-              layer.configuration.props.source.features = geoJSONResponse.data;
+              layer.configuration.props.source.geojson = geoJSONResponse.data;
             }
           }
 

@@ -1,3 +1,5 @@
+import { RxOpacity } from "react-icons/rx";
+
 export const mockedDashboards = {
   editable: {
     id: 1,
@@ -746,10 +748,11 @@ export const layerConfigGeoJSON = {
     type: "VectorLayer",
     props: {
       name: "GeoJSON Layer",
+      opacity: ".5",
       source: {
         type: "GeoJSON",
         props: {},
-        features: {
+        geojson: {
           type: "FeatureCollection",
           crs: {
             type: "name",
@@ -764,6 +767,7 @@ export const layerConfigGeoJSON = {
                 type: "Point",
                 coordinates: [0, 0],
               },
+              properties: { "Some Field": "Some Value" },
             },
           ],
         },
@@ -802,6 +806,42 @@ export const layerConfigImageWMS = {
         },
       },
       zIndex: 1,
+    },
+  },
+};
+
+export const layerConfigVectorTile = {
+  configuration: {
+    type: "VectorTileLayer",
+    props: {
+      source: {
+        type: "VectorTile",
+        props: {
+          urls: [
+            "https://ahocevar.com/geoserver/gwc/service/tms/1.0.0/ne:ne_10m_admin_0_countries@EPSG%3A900913@pbf/{z}/{x}/{-y}.pbf",
+          ],
+          someProp: [{ randomProp: "someValue" }],
+          someOtherProp: { randomProp: "someValue" },
+        },
+      },
+      name: "Vector Tile Layer",
+      zIndex: 0,
+    },
+  },
+};
+
+export const layerConfigWebGLTile = {
+  configuration: {
+    type: "WebGLTile",
+    props: {
+      source: {
+        type: "ImageTile",
+        props: {
+          url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        },
+      },
+      name: "World Light Gray Base",
+      zIndex: 0,
     },
   },
 };

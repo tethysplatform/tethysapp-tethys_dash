@@ -268,7 +268,7 @@ const AttributesPane = ({
   async function queryLayerAttributes() {
     let layerAttributes;
     try {
-      layerAttributes = await getLayerAttributes(sourceProps, layerProps);
+      layerAttributes = await getLayerAttributes(sourceProps, layerProps.name);
     } catch (error) {
       setWarningMessage(
         <>

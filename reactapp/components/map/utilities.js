@@ -355,22 +355,21 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
   return features;
 }
 
-export async function getLayerAttributes(sourceProps, layerProps) {
+export async function getLayerAttributes(sourceProps, layerName) {
   let attributes;
   const sourceProperties = sourceProps.props;
   const sourceType = sourceProps.type;
   const sourceParams = sourceProperties?.params ?? {};
   const sourceUrl = sourceProperties?.url ?? "";
   const sourceGeoJSON = sourceProps?.geojson ?? {};
-  const layerName = layerProps.name;
-  if (sourceUrl.includes("MapServer")) {
+  if (sourceType === "ImageArcGISRest") {
     attributes = await getESRILayerAttributes(sourceUrl);
   } else if (sourceType === "ImageWMS") {
     attributes = await getImageWMSLayerAttributes(sourceUrl, sourceParams);
   } else if (sourceType === "GeoJSON") {
     attributes = await getGeoJSONLayerAttributes(sourceGeoJSON, layerName);
   } else {
-    throw Error(`${sourceUrl} is not currently configured to be queried`);
+    throw Error(`${sourceType} is not currently configured to be queried`);
   }
 
   return attributes;
@@ -424,7 +423,7 @@ async function getImageWMSLayerAttributes(sourceUrl, sourceParams) {
     );
   }
   const sourceInfoText = await sourceInfoResponse.text();
-  if (sourceInfoText.includes("ows:ExceptionReport")) {
+  if (sourceInfoText.includes("ExceptionReport")) {
     throw new Error(
       "Failed to fetch attribute data. Check to make sure WFS extension is enabled on layers or that layer names are correct."
     );

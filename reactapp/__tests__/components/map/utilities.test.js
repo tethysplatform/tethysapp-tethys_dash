@@ -3,6 +3,8 @@ import {
   createHighlightLayer,
   transformCoordinates,
   queryLayerFeatures,
+  getLayerAttributes,
+  getMapAttributeVariables,
 } from "components/map/utilities";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
 import VectorLayer from "ol/layer/Vector.js";
@@ -10,6 +12,7 @@ import {
   layerConfigGeoJSON,
   layerConfigImageArcGISRest,
   layerConfigImageWMS,
+  layerAttributeVariables,
 } from "__tests__/utilities/constants";
 
 test("createMarkerLayer", async () => {
@@ -874,4 +877,142 @@ test("queryLayerFeatures SourceType Not Configured", async () => {
   await expect(
     queryLayerFeatures(layerConfig, mockMap, coordinate, pixel)
   ).rejects.toThrow("sdfsdfsdf is not currently configured to be queried");
+});
+
+test("getLayerAttributes ESRI", async () => {
+  const mockServiceResults = {
+    layers: [
+      {
+        id: 0,
+        name: "Max Status - Forecast Trend",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+    ],
+  };
+
+  const mockLayerResults = {
+    fields: [
+      {
+        name: "nws_name",
+        type: "esriFieldTypeString",
+        alias: "Name",
+        length: 60000,
+        domain: null,
+      },
+      {
+        name: "producer",
+        type: "esriFieldTypeString",
+        alias: "RFC",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    })
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults);
+
+  const sourceProps = layerConfigImageArcGISRest.configuration.props.source;
+  const layerName = layerConfigImageArcGISRest.configuration.props.name;
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "Max Status - Forecast Trend": [
+      { name: "nws_name", alias: "Name" },
+      { name: "producer", alias: "RFC" },
+    ],
+  });
+});
+
+test("getLayerAttributes ImageWMS", async () => {
+  const mockInfoResults =
+    '<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:topp="http://www.openplans.org/topp" xmlns:wfs="http://www.opengis.net/wfs/2.0" elementFormDefault="qualified" targetNamespace="http://www.openplans.org/topp"><xsd:import namespace="http://www.opengis.net/gml/3.2" schemaLocation="https://ahocevar.com/geoserver/schemas/gml/3.2.1/gml.xsd"/><xsd:complexType name="statesType"><xsd:complexContent><xsd:extension base="gml:AbstractFeatureType"><xsd:sequence><xsd:element maxOccurs="1" minOccurs="0" name="the_geom" nillable="true" type="gml:MultiSurfacePropertyType"/><xsd:element maxOccurs="1" minOccurs="0" name="STATE_NAME" nillable="true" type="xsd:string"/></xsd:sequence></xsd:extension></xsd:complexContent></xsd:complexType><xsd:element name="states" substitutionGroup="gml:AbstractFeature" type="topp:statesType"/></xsd:schema>';
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      text: mockFetch,
+    })
+  );
+  mockFetch.mockResolvedValueOnce(mockInfoResults);
+
+  const sourceProps = layerConfigImageWMS.configuration.props.source;
+  const layerName = layerConfigImageWMS.configuration.props.name;
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    states: [
+      { name: "the_geom", alias: "the_geom" },
+      { name: "STATE_NAME", alias: "STATE_NAME" },
+    ],
+  });
+});
+
+test("getLayerAttributes ImageWMS Bad Fetch", async () => {
+  global.fetch = jest.fn(() => Promise.reject(new Error("Network error")));
+
+  const sourceProps = layerConfigImageWMS.configuration.props.source;
+  const layerName = layerConfigImageWMS.configuration.props.name;
+
+  await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
+    "Failed to fetch attribute data. Check to make sure layers exist."
+  );
+});
+
+test("getLayerAttributes ImageWMS XML Error", async () => {
+  const mockInfoResults =
+    '<?xml version="1.0" encoding="UTF-8" standalone="no"?><!DOCTYPE ServiceExceptionReport SYSTEM "https://ahocevar.com/geoserver/schemas/wms/1.1.1/WMS_exception_1_1_1.dtd"> <ServiceExceptionReport version="1.1.1" >   <ServiceException code="LayerNotDefined" locator="MapLayerInfoKvpParser">topp:tasmania_cities: no such layer on this server</ServiceException></ServiceExceptionReport>';
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      text: mockFetch,
+    })
+  );
+  mockFetch.mockResolvedValueOnce(mockInfoResults);
+
+  const sourceProps = layerConfigImageWMS.configuration.props.source;
+  const layerName = layerConfigImageWMS.configuration.props.name;
+
+  await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
+    "Failed to fetch attribute data. Check to make sure WFS extension is enabled on layers or that layer names are correct."
+  );
+});
+
+test("getLayerAttributes GEOJSON", async () => {
+  const sourceProps = layerConfigGeoJSON.configuration.props.source;
+  const layerName = layerConfigGeoJSON.configuration.props.name;
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "GeoJSON Layer": [{ name: "Some Field", alias: "Some Field" }],
+  });
+});
+
+test("getLayerAttributes Error", async () => {
+  const sourceProps = { type: "bad type", props: {} };
+  const layerName = "test";
+  await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
+    "bad type is not currently configured to be queried"
+  );
+});
+
+test("getMapAttributeVariables", async () => {
+  const mapLayers = [{ attributeVariables: layerAttributeVariables }];
+  const mapAttributeVariables = getMapAttributeVariables(mapLayers);
+
+  expect(mapAttributeVariables).toStrictEqual(["variable 1"]);
 });

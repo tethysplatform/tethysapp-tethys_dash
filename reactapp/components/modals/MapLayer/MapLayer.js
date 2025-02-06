@@ -191,7 +191,7 @@ const MapLayerModal = ({
       omittedPopupAttributes: omittedPopupAttributes ?? {},
     };
 
-    if (Object.keys(legend).length > 0) {
+    if (legend && Object.keys(legend).length > 0) {
       if (legend.title === "") {
         setErrorMessage(
           "Provide a legend title if showing a legend for this layer"
