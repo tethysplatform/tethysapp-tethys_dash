@@ -250,8 +250,8 @@ async function getImageWMSLayerFeatures(sourceUrl, sourceParams, map, pixel) {
   // Build the identify request parameters
   const params = new URLSearchParams({
     INFO_FORMAT: "application/json",
-    LAYERS: lowercaseSourceParams.layers ?? "",
-    QUERY_LAYERS: lowercaseSourceParams.layers ?? "",
+    LAYERS: lowercaseSourceParams.layers,
+    QUERY_LAYERS: lowercaseSourceParams.layers,
     X: pixel[0],
     Y: pixel[1],
     SRS: mapSRS,
@@ -411,7 +411,7 @@ async function getImageWMSLayerAttributes(sourceUrl, sourceParams) {
   const sourceURLParams = new URLSearchParams({
     service: "WFS",
     request: "describeFeatureType",
-    typename: lowercaseLayerParams.layers ?? "",
+    typename: lowercaseLayerParams.layers,
   });
   const sourceInfoUrl = `${sourceUrl}?${sourceURLParams.toString()}`;
   let sourceInfoResponse;

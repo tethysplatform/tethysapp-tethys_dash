@@ -52,6 +52,34 @@ test("createHighlightLayer MultiLineString", async () => {
   expect(highlightLayerFeature.getGeometry() instanceof LineString).toBe(true);
 });
 
+test("createHighlightLayer MultiLineString 2", async () => {
+  const geometries = {
+    type: "MultiLineString",
+    coordinates: [
+      [
+        [0, 0],
+        [0, 1],
+      ],
+      [
+        [1, 0],
+        [1, 1],
+      ],
+    ],
+  };
+  const highlightLayer = createHighlightLayer(geometries);
+
+  expect(highlightLayer instanceof VectorLayer).toBe(true);
+  expect(highlightLayer.getZIndex()).toBe(100);
+
+  const highlightLayerStyleStroke = highlightLayer.getStyle().getStroke();
+  expect(highlightLayerStyleStroke.getColor()).toBe("#00008b");
+  expect(highlightLayerStyleStroke.getWidth()).toBe(3);
+  expect(highlightLayer.getSource().getFeatures().length).toBe(2);
+  const highlightLayerFeature = highlightLayer.getSource().getFeatures()[0];
+
+  expect(highlightLayerFeature.getGeometry() instanceof LineString).toBe(true);
+});
+
 test("createHighlightLayer LineString", async () => {
   const geometries = {
     type: "LineString",
@@ -323,6 +351,34 @@ test("queryLayerFeatures Valid GeoJSON Found", async () => {
   ]);
 });
 
+test("queryLayerFeatures Valid GeoJSON No Features Found", async () => {
+  const mockMap = {
+    getView: jest.fn(() => ({ getResolution: jest.fn() })),
+    forEachFeatureAtPixel: jest.fn((pixel, callback) => {
+      // Simulate features found at the given pixel
+      const mockFeature = null;
+      const mockLayer = {
+        get: jest.fn(() => "GeoJSON Layer"),
+        getProperties: () => ({
+          name: "GeoJSON Layer",
+        }),
+      };
+      callback(mockFeature, mockLayer); // Call the callback with the mock feature
+    }),
+  };
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const features = await queryLayerFeatures(
+    layerConfigGeoJSON,
+    mockMap,
+    coordinate,
+    pixel
+  );
+
+  expect(features).toStrictEqual([]);
+});
+
 test("queryLayerFeatures Valid GeoJSON GeometryCollection Found", async () => {
   const mockMap = {
     getView: jest.fn(() => ({ getResolution: jest.fn(() => 100) })),
@@ -415,6 +471,51 @@ test("queryLayerFeatures Valid GeoJSON GeometryCollection Found", async () => {
       },
     },
   ]);
+});
+
+test("queryLayerFeatures Valid GeoJSON GeometryCollection Found No Points Close Enough", async () => {
+  const mockMap = {
+    getView: jest.fn(() => ({ getResolution: jest.fn(() => 100) })),
+    forEachFeatureAtPixel: jest.fn((pixel, callback) => {
+      // Simulate features found at the given pixel
+      const mockFeature = {
+        getId: () => "feature-123",
+        getProperties: () => ({
+          geometry: {
+            getType: jest.fn(() => "GeometryCollection"),
+            getGeometries: jest.fn(() => [
+              {
+                getType: jest.fn(() => "LineString"),
+                getCoordinates: jest.fn(() => [
+                  [5, 6],
+                  [7, 8],
+                ]),
+                getClosestPoint: jest.fn(() => [100000000, 0]),
+              },
+            ]),
+          },
+        }),
+      }; // Mocked feature object
+      const mockLayer = {
+        get: jest.fn(() => "GeoJSON Layer"),
+        getProperties: () => ({
+          name: "GeoJSON Layer",
+        }),
+      };
+      callback(mockFeature, mockLayer); // Call the callback with the mock feature
+    }),
+  };
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const features = await queryLayerFeatures(
+    layerConfigGeoJSON,
+    mockMap,
+    coordinate,
+    pixel
+  );
+
+  expect(features).toStrictEqual([]);
 });
 
 test("queryLayerFeatures ImageArcGISRest", async () => {
@@ -1000,6 +1101,52 @@ test("getLayerAttributes GEOJSON", async () => {
   expect(attributes).toStrictEqual({
     "GeoJSON Layer": [{ name: "Some Field", alias: "Some Field" }],
   });
+});
+
+test("getLayerAttributes GEOJSON 2", async () => {
+  const updatedlayerConfigGeoJSON = JSON.parse(
+    JSON.stringify(layerConfigGeoJSON)
+  );
+  const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
+  sourceProps.geojson = JSON.stringify(sourceProps.geojson);
+  const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "GeoJSON Layer": [{ name: "Some Field", alias: "Some Field" }],
+  });
+});
+
+test("getLayerAttributes GEOJSON no features", async () => {
+  const updatedlayerConfigGeoJSON = JSON.parse(
+    JSON.stringify(layerConfigGeoJSON)
+  );
+  const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
+  delete sourceProps.geojson.features;
+  const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({ "GeoJSON Layer": [] });
+});
+
+test("getLayerAttributes GEOJSON no feature properties", async () => {
+  const updatedlayerConfigGeoJSON = JSON.parse(
+    JSON.stringify(layerConfigGeoJSON)
+  );
+  const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
+  sourceProps.geojson.features = [
+    {
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [0, 0],
+      },
+    },
+  ];
+  const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({ "GeoJSON Layer": [] });
 });
 
 test("getLayerAttributes Error", async () => {
