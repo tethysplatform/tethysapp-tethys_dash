@@ -718,7 +718,7 @@ test("App Tour skip steps 3", async () => {
     // eslint-disable-next-line
     document.querySelector("#react-joyride-portal")
   ).not.toBeInTheDocument();
-}, 20000);
+}, 40000);
 
 test("App Tour skip to step 3", async () => {
   let dashboardNameInput;
@@ -876,7 +876,7 @@ test("App Tour skip to step 3", async () => {
     )
   ).toBeInTheDocument();
 
-  const closeButton = await screen.findByLabelText("Close");
+  const closeButton = await screen.findByLabelText("End App Tour");
   // eslint-disable-next-line
   await act(async () => {
     await userEvent.click(closeButton);

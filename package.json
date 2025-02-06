@@ -47,6 +47,7 @@
     "style-loader": "^3.3.1",
     "styled-components": "^5.3.5",
     "swiper": "^11.2.1",
+    "uuid": "^8.3.2",
     "webpack": "^5.64.4",
     "webpack-dev-server": "^4.6.0"
   },
@@ -71,7 +72,6 @@
     "eslint-plugin-jest": "^26.2.2",
     "eslint-plugin-react": "^7.30.0",
     "eslint-plugin-react-hooks": "^4.5.0",
-    "identity-obj-proxy": "^3.0.0",
     "jest": "^28.1.0",
     "jest-canvas-mock": "^2.5.2",
     "jest-css-modules": "^2.1.0",
@@ -152,7 +152,7 @@
       "^(?!.*\\.(js|jsx|mjs|cjs|ts|tsx|css|json)$)": "<rootDir>/reactapp/__tests__/transforms/fileTransform.js"
     },
     "transformIgnorePatterns": [
-      "[/\\\\]node_modules[/\\\\](?!(ol|ol-mapbox-style|plotly.js|react-plotly.js|color-(space|parse|rgba|name)|rbush|quickselect|quick-lru|pbf|earcut)[/\\\\]).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
+      "[/\\\\]node_modules[/\\\\](?!(swiper|ol|ol-mapbox-style|plotly.js|react-plotly.js|color-(space|parse|rgba|name)|rbush|quickselect|quick-lru|pbf|earcut)[/\\\\]).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
       "^.+\\.module\\.(css|sass|scss)$"
     ],
     "moduleFileExtensions": [

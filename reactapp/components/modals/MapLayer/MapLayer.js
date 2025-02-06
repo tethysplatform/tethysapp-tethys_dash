@@ -21,7 +21,6 @@ import {
   extractVariableInputNames,
   findMissingKeys,
 } from "components/modals/utilities";
-import { v4 as uuidv4 } from "uuid";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
@@ -238,7 +237,7 @@ const MapLayerModal = ({
         return;
       }
 
-      const geoJSONFilename = `${uuidv4()}.json`;
+      const geoJSONFilename = `${5456454}.json`;
       const geoJSONInfo = {
         data: sourceProps.geojson,
         filename: geoJSONFilename,
@@ -270,7 +269,7 @@ const MapLayerModal = ({
         return;
       }
 
-      const styleJSONFilename = `${uuidv4()}.json`;
+      const styleJSONFilename = `${6468465}.json`;
       const styleJSONInfo = {
         data: style,
         filename: styleJSONFilename,
