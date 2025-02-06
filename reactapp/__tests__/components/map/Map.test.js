@@ -54,6 +54,17 @@ const TestingComponent = ({ expectedLayerCount, mapProps }) => {
     };
   }, [mapProps]);
 
+  useEffect(() => {
+    if (mapProps?.onMapClick && mapReady) {
+      var evt = {};
+      evt.type = "singleclick";
+      evt.coordinate = [];
+      evt.coordinate[0] = 6633511;
+      evt.coordinate[1] = 4079902;
+      visualizationRef.current.dispatchEvent(evt);
+    }
+  }, [mapReady]);
+
   return (
     <div>
       <MapComponent visualizationRef={visualizationRef} {...mapProps} />
@@ -86,10 +97,24 @@ test("Default Map", async () => {
   const mapPopupContent = await screen.findByLabelText("Map Popup Content");
   expect(mapPopupContent).toBeInTheDocument();
   expect(mapPopupContent.children.length).toBe(0);
+
+  expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Show Layers Control")
+  ).not.toBeInTheDocument();
+});
+
+test("Default Map with layer control and legend", async () => {
+  render(<TestingComponent mapProps={{ layerControl: true, legend: [] }} />);
+
+  expect(await screen.findByLabelText("Map Legend")).toBeInTheDocument();
+  expect(
+    await screen.findByLabelText("Show Layers Control")
+  ).toBeInTheDocument();
 });
 
 test("Custom Map Config and View Config", async () => {
-  render(
+  const { rerender } = render(
     <TestingComponent
       mapProps={{
         mapConfig: { style: { width: "50%" } },
@@ -102,6 +127,21 @@ test("Custom Map Config and View Config", async () => {
   expect(mapDiv).toBeInTheDocument();
   expect(mapDiv).toHaveStyle("width: 50%");
 
+  expect(await screen.findByTestId("map-view")).toHaveTextContent(
+    JSON.stringify({
+      zoom: 7,
+      center: [-10686671.116154263, 4721671.572580108],
+    })
+  );
+
+  rerender(
+    <TestingComponent
+      mapProps={{
+        mapConfig: { style: { width: "50%" } },
+        viewConfig: { zoom: 7 },
+      }}
+    />
+  );
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({
       zoom: 7,
@@ -210,10 +250,13 @@ test("Bad Map Layers", async () => {
     },
   ];
 
+  const mockMapClick = jest.fn((map, evt, setPopupContent, popup) => {
+    setPopupContent("The map was clicked");
+  });
   rerender(
     <TestingComponent
       expectedLayerCount={1}
-      mapProps={{ layers: updatedLayers }}
+      mapProps={{ layers: updatedLayers, onMapClick: mockMapClick }}
     />
   );
   await waitFor(
@@ -231,6 +274,14 @@ test("Bad Map Layers", async () => {
   expect(await screen.findByTestId("map-layers")).toHaveTextContent(
     "World Light Gray Base"
   );
+  await waitFor(() => {
+    expect(mockMapClick).toHaveBeenCalled();
+  });
+  expect(await screen.findByText("The map was clicked")).toBeInTheDocument();
+
+  const popupCloser = await screen.findByLabelText("Popup Closer");
+  fireEvent.click(popupCloser);
+  expect(screen.queryByText("The map was clicked")).not.toBeInTheDocument();
 
   updatedLayers = [
     {

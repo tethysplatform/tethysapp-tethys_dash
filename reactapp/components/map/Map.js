@@ -237,6 +237,7 @@ const MapComponent = ({
             href="#"
             id="popup-closer"
             className="ol-popup-closer"
+            aria-label="Popup Closer"
             onClick={() => {
               popupCurrent.current.setPosition(undefined);
               setPopupContent(null);
