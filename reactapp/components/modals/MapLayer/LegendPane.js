@@ -134,7 +134,7 @@ const LegendTemplate = ({
                 <CustomPicker
                   maxColCount={3}
                   pickerOptions={legendSymbols}
-                  setPickervalue={setSymbolValue}
+                  onSelect={setSymbolValue}
                 />
               </StyledLabel>
               <StyledLabel>
