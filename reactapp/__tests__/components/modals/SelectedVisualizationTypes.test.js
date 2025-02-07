@@ -8,16 +8,20 @@ const TestingComponent = () => {
   const [showModal, setShowmodal] = useState(true);
   const [deselectedVisualizations, setDeselectedVisualizations] = useState([]);
 
+  function handleModalClose() {
+    setShowmodal(false);
+  }
+
   return (
-    <>
+    <div>
       <SelectedVisualizationTypesModal
         showModal={showModal}
-        setShowModal={setShowmodal}
+        handleModalClose={handleModalClose}
         deselectedVisualizations={deselectedVisualizations}
         setDeselectedVisualizations={setDeselectedVisualizations}
       />
       <p>{JSON.stringify(deselectedVisualizations)}</p>
-    </>
+    </div>
   );
 };
 
@@ -124,10 +128,7 @@ test("selected visualization type modal then escape", async () => {
     children: <TestingComponent />,
   });
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.keyboard("{Escape}");
-  });
+  fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
   await waitFor(async () => {
     expect(
       screen.queryByText(

@@ -90,11 +90,7 @@ const BaseVisualization = ({
       variableInputValues
     );
     if (
-      !valuesEqual(
-        gridItemArgsWithVariableInputs.current,
-        updatedGridItemArgs
-      ) &&
-      Object.keys(updatedGridItemArgs).length !== 0
+      !valuesEqual(gridItemArgsWithVariableInputs.current, updatedGridItemArgs)
     ) {
       itemData.args = updatedGridItemArgs;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;

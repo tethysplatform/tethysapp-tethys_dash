@@ -8,7 +8,6 @@ import { server } from "./utilities/server.js";
 
 // Mock `window.location` with Jest spies and extend expect
 import "jest-location-mock";
-import "jest-canvas-mock";
 
 // Make .env files accessible to tests (path relative to project root)
 require("dotenv").config({ path: "./reactapp/__tests__/test.env" });

@@ -16,6 +16,7 @@ import {
   sourcePropertiesOptions,
   getMapAttributeVariables,
 } from "components/map/utilities";
+import { v4 as uuidv4 } from "uuid";
 import {
   removeEmptyStringsFromObject,
   extractVariableInputNames,
@@ -237,7 +238,7 @@ const MapLayerModal = ({
         return;
       }
 
-      const geoJSONFilename = `${5456454}.json`;
+      const geoJSONFilename = `${uuidv4()}.json`;
       const geoJSONInfo = {
         data: sourceProps.geojson,
         filename: geoJSONFilename,
@@ -269,7 +270,7 @@ const MapLayerModal = ({
         return;
       }
 
-      const styleJSONFilename = `${6468465}.json`;
+      const styleJSONFilename = `${uuidv4()}.json`;
       const styleJSONInfo = {
         data: style,
         filename: styleJSONFilename,

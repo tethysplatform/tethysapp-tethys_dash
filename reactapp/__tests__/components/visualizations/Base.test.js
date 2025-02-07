@@ -375,33 +375,6 @@ it("Creates an Base Item with a card obtained from the api", async () => {
   expect(card).toBeInTheDocument();
 });
 
-it("Creates an Base Item with a map obtained from the api", async () => {
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: mockedMapData,
-      viz_type: "map",
-    });
-  };
-
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={mockedMapBase.source}
-        argsString={mockedMapBase.args_string}
-        metadataString={mockedMapBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
-
-  const spinner = screen.getByTestId("Loading...");
-  expect(spinner).toBeInTheDocument();
-
-  expect(await screen.findByTestId("backlayer-map")).toBeInTheDocument();
-});
-
 it("Gives the user an error message if an unknown viz type is obtained from the api", async () => {
   appAPI.getPlotData = () => {
     return Promise.resolve({

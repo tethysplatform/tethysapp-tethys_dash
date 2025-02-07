@@ -81,7 +81,7 @@ const LegendTemplate = ({
   }, [symbolValue, symbolColor]);
 
   const onColorChange = (changedColor) => {
-    setSymbolColor(changedColor.hex);
+    setSymbolColor(changedColor);
   };
 
   const onLabelChange = (e) => {
@@ -142,7 +142,7 @@ const LegendTemplate = ({
                 <ColorPicker
                   hideInput={["rgb", "hsv"]}
                   color={color}
-                  onChangeComplete={onColorChange}
+                  onChange={onColorChange}
                 />
               </StyledLabel>
             </StyledPopoverBody>

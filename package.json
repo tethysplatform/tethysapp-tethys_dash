@@ -152,7 +152,7 @@
       "^(?!.*\\.(js|jsx|mjs|cjs|ts|tsx|css|json)$)": "<rootDir>/reactapp/__tests__/transforms/fileTransform.js"
     },
     "transformIgnorePatterns": [
-      "[/\\\\]node_modules[/\\\\](?!(swiper|ol|ol-mapbox-style|plotly.js|react-plotly.js|color-(space|parse|rgba|name)|rbush|quickselect|quick-lru|pbf|earcut)[/\\\\]).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
+      "[/\\\\]node_modules[/\\\\](?!(swiper|ol|ol-mapbox-style|plotly.js|react-plotly.js|color-(space|parse|rgba|name)|rbush|quickselect|quick-lru|pbf|earcut|react-color-palette|uuid)[/\\\\]).+\\.(js|jsx|mjs|cjs|ts|tsx)$",
       "^.+\\.module\\.(css|sass|scss)$"
     ],
     "moduleFileExtensions": [
