@@ -1,3 +1,4 @@
+import PropTypes from "prop-types";
 import { useState } from "react";
 import Form from "react-bootstrap/Form";
 import Alert from "react-bootstrap/Alert";
@@ -13,7 +14,8 @@ const FileUpload = ({ label, onFileUpload, extensionsAllowed }) => {
   // On file select (from the pop up)
   const onFileChange = (event) => {
     const uploadedFile = event.target.files[0];
-    const extension = uploadedFile.name.split(".").pop();
+    const uploadedFileName = uploadedFile.name;
+    const extension = uploadedFileName.split(".").pop();
 
     if (
       extensionsAllowed === undefined ||
@@ -24,7 +26,7 @@ const FileUpload = ({ label, onFileUpload, extensionsAllowed }) => {
       reader.onload = (e) => {
         const fileContent = e.target.result;
         // Do something with the file content
-        onFileUpload({ uploadedFile, fileContent });
+        onFileUpload({ uploadedFileName, fileContent });
       };
 
       reader.readAsText(uploadedFile);
@@ -46,10 +48,20 @@ const FileUpload = ({ label, onFileUpload, extensionsAllowed }) => {
         <Form.Label>
           <b>{label}</b>
         </Form.Label>
-        <Form.Control type="file" onChange={onFileChange} />
+        <Form.Control
+          data-testid="file-input"
+          type="file"
+          onChange={onFileChange}
+        />
       </Form.Group>
     </StyledDiv>
   );
+};
+
+FileUpload.propTypes = {
+  label: PropTypes.string.isRequired, // label for the file upload button
+  onFileUpload: PropTypes.func.isRequired, // callback function for when the data is uploaded and read
+  extensionsAllowed: PropTypes.array, // array of allowed extensions. If empty, then all extensions are allowed
 };
 
 export default FileUpload;
