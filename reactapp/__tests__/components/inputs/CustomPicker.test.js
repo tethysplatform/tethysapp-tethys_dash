@@ -1,7 +1,5 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { act } from "react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import CustomPicker from "components/inputs/CustomPicker";
-import userEvent from "@testing-library/user-event";
 
 it("CustomPicker", async () => {
   const pickerOptions = {

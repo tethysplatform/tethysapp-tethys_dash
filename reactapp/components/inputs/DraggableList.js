@@ -1,3 +1,4 @@
+import PropTypes from "prop-types";
 import { useEffect, useState } from "react";
 
 const DraggableList = ({
@@ -13,30 +14,32 @@ const DraggableList = ({
     setItemsList(items);
   }, [items]);
 
-  const handleDragStart = (e, item) => {
-    setDraggingItem(item);
-    e.dataTransfer.setData("text/plain", "");
-  };
-
-  const handleDragEnd = () => {
-    setDraggingItem(null);
+  const handleDragStart = (e, index) => {
+    setDraggingItem(index);
+    e.dataTransfer["text/plain"] = "";
   };
 
   const handleDragOver = (e) => {
     e.preventDefault();
   };
 
-  const handleDrop = (e, targetItem) => {
-    if (!draggingItem) return;
+  const handleDrop = (e, index) => {
+    e.preventDefault();
 
-    const currentIndex = itemsList.indexOf(draggingItem);
-    const targetIndex = itemsList.indexOf(targetItem);
+    // if dropping onto itself, dont do anything
+    if (draggingItem === null || draggingItem === index) return;
 
-    if (currentIndex !== -1 && targetIndex !== -1) {
-      itemsList.splice(currentIndex, 1);
-      itemsList.splice(targetIndex, 0, draggingItem);
+    // update the order of the items based on the item index
+    const updatedItems = [...items];
+    const movedItem = updatedItems.splice(draggingItem, 1)[0];
+    updatedItems.splice(index, 0, movedItem);
+
+    // update states accordingly
+    if (onOrderUpdate) {
+      onOrderUpdate(updatedItems);
     }
-    onOrderUpdate(itemsList);
+    setItemsList(updatedItems);
+    setDraggingItem(null);
   };
 
   return (
@@ -44,25 +47,38 @@ const DraggableList = ({
       {itemsList.map((value, index) => {
         const draggingProps = {
           key: index,
-          onDragStart: (e) => handleDragStart(e, value),
-          onDragEnd: handleDragEnd,
+          onDragStart: (e) => handleDragStart(e, index),
           onDragOver: handleDragOver,
-          onDrop: (e) => handleDrop(e, value),
+          onDrop: (e) => handleDrop(e, index),
           draggable: "true",
         };
-
-        return (
-          <ItemTemplate
-            key={index}
-            value={value}
-            index={index}
-            draggingProps={draggingProps}
-            {...templateArgs}
-          />
-        );
+        if (ItemTemplate) {
+          return (
+            <ItemTemplate
+              key={index}
+              value={value}
+              index={index}
+              draggingProps={draggingProps}
+              {...templateArgs}
+            />
+          );
+        } else {
+          return (
+            <div key={index} {...draggingProps}>
+              {value}
+            </div>
+          );
+        }
       })}
     </>
   );
+};
+
+DraggableList.propTypes = {
+  items: PropTypes.array.isRequired, // array of data, configurations, values, components, etc
+  onOrderUpdate: PropTypes.func, // callback funtion for when items update the order
+  ItemTemplate: PropTypes.element, // react component template for list items if more customization is needed
+  templateArgs: PropTypes.object, // additional args to pass to the item template
 };
 
 export default DraggableList;
