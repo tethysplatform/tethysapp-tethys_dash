@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import PropTypes from "prop-types";
+import { useState, useEffect } from "react";
 import Container from "react-bootstrap/Container";
 import Row from "react-bootstrap/Row";
 import styled from "styled-components";
@@ -25,17 +26,23 @@ const StyledButton = styled.button`
 
 const MultiInput = ({ label, onChange, values }) => {
   const id = label.toLowerCase().replace(" ", "");
+  const [submittedValues, setSubmittedValues] = useState(values);
   const [userInput, setUserInput] = useState("");
-  const inputValues = useRef(values);
+
+  useEffect(() => {
+    setSubmittedValues(values);
+  }, [values]);
 
   const addValue = (value) => {
-    inputValues.current = [...inputValues.current, value];
-    onChange(inputValues.current);
+    const updatedSubmittedValues = [...submittedValues, value];
+    setSubmittedValues(updatedSubmittedValues);
+    onChange(updatedSubmittedValues);
   };
 
   const removeValue = (value) => {
-    inputValues.current = inputValues.current.filter((t) => t !== value);
-    onChange(inputValues.current);
+    const updatedSubmittedValues = submittedValues.filter((t) => t !== value);
+    setSubmittedValues(updatedSubmittedValues);
+    onChange(updatedSubmittedValues);
   };
 
   const handleInputChange = (e) => {
@@ -73,7 +80,7 @@ const MultiInput = ({ label, onChange, values }) => {
       </Row>
 
       <StyledRow>
-        {values.map((value, index) => (
+        {submittedValues.map((value, index) => (
           <StyledDiv key={index}>
             <StyledValue>
               {value}
@@ -89,6 +96,12 @@ const MultiInput = ({ label, onChange, values }) => {
       </StyledRow>
     </Container>
   );
+};
+
+MultiInput.propTypes = {
+  label: PropTypes.string.isRequired, // label for the table
+  onChange: PropTypes.func.isRequired, // callback function for values are added
+  values: PropTypes.arrayOf([PropTypes.string]).isRequired, // array of values from the submitted input
 };
 
 export default MultiInput;
