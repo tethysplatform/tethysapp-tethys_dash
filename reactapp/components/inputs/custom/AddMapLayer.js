@@ -5,6 +5,7 @@ import styled from "styled-components";
 import MapLayerModal from "components/modals/MapLayer/MapLayer";
 import DraggableList from "components/inputs/DraggableList";
 import Button from "react-bootstrap/Button";
+import { valuesEqual } from "components/modals/utilities";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
 import { RxDragHandleHorizontal } from "react-icons/rx";
 
@@ -34,42 +35,12 @@ const MarginButton = styled(Button)`
 const AlignedDragHandle = styled(RxDragHandleHorizontal)`
   margin: auto;
 `;
-/**
- * A component template that will be used to create and handle map layers for the
- * draggable list.
- *
- * @param {object} mapLayer - The map layer object that contains layer metadata.
- * structured as:
- * {
- *   type: <string>,
- *     props: {
- *       source: {
- *         type: <string>,
- *         props: {
- *           url: <string>,
- *         },
- *       },
- *       name: <string>,
- *     },
- *   },
- *   legend: <array>,
- * }
- * @param {number} index - The index of the mapLayer within the MapLayers array
- * @param {object} draggingProps - The properties from the DraggableList input to allow dragging functionality
- * @param {React Ref} mapLayers - A react ref that tracks all the available map layers
- * @param {function} onChange - A drilled property from dataviewer. This onchange
- *   function will handle what is being passed to the dataviewer for the overall configured map visualization
- * @param {React Ref} layerInfo - A react ref that tracks a map layer that is being edited.
- * @param {React Ref} existingLayerOriginalName - A react ref that tracks the original name of map layer that is being edited.
- * @param {function} setShowMapLayerModal - A function that controls the visibility of the Map Layer Modal
- *
- *
- * @returns {JSX.Element} - A rendered div with map layer name, delete button, and edit button
- */
+
 const MapLayerTemplate = ({
-  value: mapLayer,
+  value,
   draggingProps,
   mapLayers,
+  setMapLayers,
   onChange,
   setLayerInfo,
   existingLayerOriginalName,
@@ -77,12 +48,12 @@ const MapLayerTemplate = ({
 }) => {
   const removeMapLayer = (mapLayerName) => {
     // Get all map layers except the given mapLayerName
-    const updatedMapLayers = mapLayers.current.filter(
+    const updatedMapLayers = mapLayers.filter(
       (t) => t.configuration.props.name !== mapLayerName
     );
 
     // Update tracked mapLayers for custom input
-    mapLayers.current = updatedMapLayers;
+    setMapLayers(updatedMapLayers);
 
     // Update visualization args for dataviewer
     onChange(updatedMapLayers);
@@ -90,7 +61,7 @@ const MapLayerTemplate = ({
 
   const editMapLayer = (mapLayerName) => {
     // Get the map layer with the given mapLayerName
-    const existingMapLayer = mapLayers.current.find(
+    const existingMapLayer = mapLayers.find(
       (t) => t.configuration.props.name === mapLayerName
     );
 
@@ -120,21 +91,26 @@ const MapLayerTemplate = ({
       <td>
         <AlignedDragHandle size={"1rem"} />
       </td>
-      <OverflowTD className="text-center">
-        {mapLayer.configuration.props.name}
+      <OverflowTD
+        className="text-center"
+        data-testid={`${value.configuration.props.name} layerItem`}
+      >
+        {value.configuration.props.name}
       </OverflowTD>
       <OverflowTD className="text-center">
-        {mapLayer.legend ? "On" : "Off"}
+        {value.legend ? "On" : "Off"}
       </OverflowTD>
       <td>
         <InLineDiv
-          onClick={() => removeMapLayer(mapLayer.configuration.props.name)}
+          data-testid="removeMapLayer"
+          onClick={() => removeMapLayer(value.configuration.props.name)}
         >
           <RedTrashIcon size={"1rem"} />
         </InLineDiv>
         <InLineDiv
+          data-testid="editMapLayer"
           float={"right"}
-          onClick={() => editMapLayer(mapLayer.configuration.props.name)}
+          onClick={() => editMapLayer(value.configuration.props.name)}
         >
           <BlueEditIcon size={"1rem"} />
         </InLineDiv>
@@ -143,16 +119,6 @@ const MapLayerTemplate = ({
   );
 };
 
-/**
- * A custom input component to handle creating and editing map layers
- *
- * @param {function} onChange - A function will handle what is being passed to the dataviewer for the overall configured map visualization
- * @param {React Ref} values - The existing values passed from the dataviewer and configured map visualization.
- * @param {function} setShowingSubModal - A function that indicates to parent modals that a submodal is showing and therefore a change in zindex is needed for the submodal focusing
- *
- *
- * @returns {JSX.Element} - A rendered div with an add layer button and a draggable list of configured layers
- */
 export const AddMapLayer = ({
   onChange,
   values,
@@ -161,49 +127,34 @@ export const AddMapLayer = ({
 }) => {
   const [showMapLayerModal, setShowMapLayerModal] = useState(false);
   const [layerInfo, setLayerInfo] = useState({});
-  const mapLayers = useRef(values ?? []);
-  //   const layerInfo = useRef({});
+  const [mapLayers, setMapLayers] = useState(values);
   let existingLayerOriginalName = useRef();
+
+  useEffect(() => {
+    if (!valuesEqual(mapLayers, values)) {
+      setMapLayers(values);
+    }
+  }, [values]);
 
   useEffect(() => {
     setShowingSubModal(showMapLayerModal);
   }, [showMapLayerModal]);
 
-  /**
-   * Add or Update a map layer when the user saves a configuration from the MapLayer modal.
-   *
-   * @param {object} newMapLayer - The text displayed on the button.
-   * structured as:
-   * {
-   *   type: <string>,
-   *     props: {
-   *       source: {
-   *         type: <string>,
-   *         props: {
-   *           url: <string>,
-   *         },
-   *       },
-   *       name: <string>,
-   *     },
-   *   },
-   *   legend: <array>,
-   * }
-   */
   const addMapLayer = (newMapLayer) => {
-    let updatedMapLayers = mapLayers.current;
+    let updatedMapLayers = JSON.parse(JSON.stringify(mapLayers));
 
     // Check to see if existingLayerOriginalName is set and therefore see if a layer is being updated instead of being created
     if (existingLayerOriginalName.current) {
       // Get the map layer with the original name before it was edited
-      const originalMapLayer = mapLayers.current.find(
+      const originalMapLayer = updatedMapLayers.find(
         (t) => t.configuration.props.name === existingLayerOriginalName.current
       );
 
       // Find the index of the original map layer in the mapLayer array
-      const originalMapLayerIndex = mapLayers.current.indexOf(originalMapLayer);
+      const originalMapLayerIndex = updatedMapLayers.indexOf(originalMapLayer);
 
       // Get all the map layers except for the original map layer that was edited
-      updatedMapLayers = mapLayers.current.filter(
+      updatedMapLayers = updatedMapLayers.filter(
         (t) => t.configuration.props.name !== existingLayerOriginalName.current
       );
 
@@ -214,20 +165,15 @@ export const AddMapLayer = ({
     }
 
     // Update tracked mapLayers for custom input
-    mapLayers.current = updatedMapLayers;
+    setMapLayers(updatedMapLayers);
 
     // Update visualization args for dataviewer
     onChange(updatedMapLayers);
   };
 
-  /**
-   * Callback function for when a user rearranges the order of the map layers
-   *
-   * @param {array} reorderedMapLayers - An array of map layers in a new order
-   */
   const onOrderUpdate = (reorderedMapLayers) => {
     // Update tracked mapLayers for custom input
-    mapLayers.current = reorderedMapLayers;
+    setMapLayers(reorderedMapLayers);
 
     // Update visualization args for dataviewer
     onChange(reorderedMapLayers);
@@ -246,6 +192,7 @@ export const AddMapLayer = ({
 
   const templateArgs = {
     mapLayers,
+    setMapLayers,
     onChange,
     layerInfo,
     setLayerInfo,
@@ -277,7 +224,7 @@ export const AddMapLayer = ({
         </thead>
         <tbody>
           <DraggableList
-            items={mapLayers.current}
+            items={mapLayers}
             onOrderUpdate={onOrderUpdate}
             ItemTemplate={MapLayerTemplate}
             templateArgs={templateArgs}
@@ -301,21 +248,40 @@ export const AddMapLayer = ({
 };
 
 MapLayerTemplate.propTypes = {
-  value: PropTypes.oneOfType([
-    PropTypes.number,
-    PropTypes.string,
-    PropTypes.bool,
-    PropTypes.object,
-    PropTypes.array,
-  ]).isRequired,
+  // The map layer object that contains layer metadata
+  value: PropTypes.shape({
+    configuration: PropTypes.shape({
+      type: PropTypes.string.isRequired,
+      props: PropTypes.shape({
+        name: PropTypes.string.isRequired,
+        source: PropTypes.shape({
+          type: PropTypes.string.isRequired,
+          props: PropTypes.shape({
+            url: PropTypes.string.isRequired,
+          }),
+        }),
+      }),
+    }).isRequired,
+    legend: PropTypes.shape({
+      title: PropTypes.string,
+      items: PropTypes.arrayOf(
+        PropTypes.shape({
+          color: PropTypes.string.isRequired,
+          label: PropTypes.string.isRequired,
+          symbol: PropTypes.string.isRequired,
+        })
+      ),
+    }),
+  }).isRequired,
+  // The properties from the DraggableList input to allow dragging functionality
   draggingProps: PropTypes.shape({
     key: PropTypes.number.isRequired,
     onDragStart: PropTypes.func.isRequired,
-    onDragEnd: PropTypes.func.isRequired,
     onDragOver: PropTypes.func.isRequired,
     onDrop: PropTypes.func.isRequired,
     draggable: PropTypes.string.isRequired,
   }).isRequired,
+  // ref that tracks all the available map layers
   mapLayers: PropTypes.shape({
     current: PropTypes.arrayOf(
       PropTypes.shape({
@@ -344,7 +310,8 @@ MapLayerTemplate.propTypes = {
       })
     ),
   }).isRequired,
-  onChange: PropTypes.func,
+  onChange: PropTypes.func, // callback function will handle what is being passed to the dataviewer for the overall configured map visualization
+  // ref that tracks a map layer that is being edited.
   layerInfo: PropTypes.shape({
     current: PropTypes.shape({
       layerType: PropTypes.string.isRequired,
@@ -358,14 +325,42 @@ MapLayerTemplate.propTypes = {
       ),
     }),
   }),
+  // ref that tracks the original name of map layer that is being edited
   existingLayerOriginalName: PropTypes.shape({
     current: PropTypes.string,
   }),
-  setShowMapLayerModal: PropTypes.func.isRequired,
+  setShowMapLayerModal: PropTypes.func.isRequired, // function that controls the visibility of the Map Layer Modal
 };
 
 AddMapLayer.propTypes = {
-  onChange: PropTypes.func,
-  values: PropTypes.array,
-  setShowingSubModal: PropTypes.func,
+  onChange: PropTypes.func, // callback function will handle what is being passed to the dataviewer for the overall configured map visualization
+  // values passed from the dataviewer and configured map visualization
+  values: PropTypes.arrayOf(
+    PropTypes.shape({
+      configuration: PropTypes.shape({
+        type: PropTypes.string.isRequired,
+        props: PropTypes.shape({
+          name: PropTypes.string.isRequired,
+          source: PropTypes.shape({
+            type: PropTypes.string.isRequired,
+            props: PropTypes.shape({
+              url: PropTypes.string.isRequired,
+            }),
+          }),
+        }),
+      }).isRequired,
+      legend: PropTypes.shape({
+        title: PropTypes.string,
+        items: PropTypes.arrayOf(
+          PropTypes.shape({
+            color: PropTypes.string.isRequired,
+            label: PropTypes.string.isRequired,
+            symbol: PropTypes.string.isRequired,
+          })
+        ),
+      }),
+    })
+  ),
+  setShowingSubModal: PropTypes.func, // indicates to parent modals that a submodal is showing and therefore a change in zindex is needed for the submodal focusing
+  gridItemIndex: PropTypes.number, // index of the griditem currently being updated
 };

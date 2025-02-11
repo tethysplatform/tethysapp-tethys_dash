@@ -101,12 +101,12 @@ const MapLayerModal = ({
       let otherMapLayers;
       if (existingLayerOriginalName.current) {
         // Get all the map layers except the one being edited
-        otherMapLayers = mapLayers.current.filter(
+        otherMapLayers = mapLayers.filter(
           (t) =>
             t.configuration.props.name !== existingLayerOriginalName.current
         );
       } else {
-        otherMapLayers = mapLayers.current;
+        otherMapLayers = mapLayers;
       }
       const otherMapAttributeVariables =
         getMapAttributeVariables(otherMapLayers);
@@ -386,14 +386,14 @@ const MapLayerModal = ({
           <Button
             variant="secondary"
             onClick={handleModalClose}
-            aria-label={"Close Modal Button"}
+            aria-label={"Close Layer Modal Button"}
           >
             Close
           </Button>
           <Button
             variant="success"
             onClick={saveLayer}
-            aria-label={"Create Dashboard Button"}
+            aria-label={"Create Layer Button"}
           >
             Create
           </Button>

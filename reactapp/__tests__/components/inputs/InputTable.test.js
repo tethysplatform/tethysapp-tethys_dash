@@ -17,7 +17,7 @@ it("InputTable", async () => {
 
   // field 2 should be a textbox
   expect(screen.getByText("field 2")).toBeInTheDocument();
-  const field2Input = screen.getByLabelText("field 2 Input");
+  const field2Input = screen.getByLabelText("field 2 Input 0");
   expect(field2Input).toBeInTheDocument();
 
   // make sure a new row is not created on tab
@@ -42,11 +42,11 @@ it("InputTable allow row creation", async () => {
 
   // check that 2 textboxes were rendered
   expect(screen.getByText("field 1")).toBeInTheDocument();
-  const field1Input = screen.getByLabelText("field 1 Input");
+  const field1Input = screen.getByLabelText("field 1 Input 0");
   expect(field1Input).toBeInTheDocument();
 
   expect(screen.getByText("field 2")).toBeInTheDocument();
-  const field2Input = screen.getByLabelText("field 2 Input");
+  const field2Input = screen.getByLabelText("field 2 Input 0");
   expect(field2Input).toBeInTheDocument();
 
   // tab should only add new row if the last column is tabbed on
@@ -136,7 +136,7 @@ it("InputTable Disabled Fields", async () => {
   expect(screen.getByText('["value 3"]')).toBeInTheDocument();
 
   expect(screen.getByText("field 2")).toBeInTheDocument();
-  const field2Input = screen.getByLabelText("field 2 Input");
+  const field2Input = screen.getByLabelText("field 2 Input 0");
   expect(field2Input).toBeInTheDocument();
 
   expect(screen.queryAllByRole("textbox").length).toBe(1);
@@ -157,12 +157,12 @@ it("InputTable Placeholders", async () => {
   render(<InputTable label={label} onChange={onChange} values={values} />);
 
   expect(screen.getByText("field 1")).toBeInTheDocument();
-  const field1Input = screen.getByLabelText("field 1 Input");
+  const field1Input = screen.getByLabelText("field 1 Input 0");
   expect(field1Input).toBeInTheDocument();
   expect(field1Input.placeholder).toBe("here is a field 1 placeholder");
 
   expect(screen.getByText("field 2")).toBeInTheDocument();
-  const field2Input = screen.getByLabelText("field 2 Input");
+  const field2Input = screen.getByLabelText("field 2 Input 0");
   expect(field2Input).toBeInTheDocument();
   expect(field2Input.placeholder).toBe("");
 });

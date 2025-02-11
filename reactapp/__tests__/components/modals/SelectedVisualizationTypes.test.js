@@ -1,8 +1,8 @@
 import { act, useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { render, fireEvent, screen, waitFor } from "@testing-library/react";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
-import renderWithLoaders from "__tests__/utilities/customRender";
+import createLoadedComponent from "__tests__/utilities/customRender";
 
 const TestingComponent = () => {
   const [showModal, setShowmodal] = useState(true);
@@ -26,9 +26,11 @@ const TestingComponent = () => {
 };
 
 test("selected visualization type modal save success and then close", async () => {
-  renderWithLoaders({
-    children: <TestingComponent />,
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+    })
+  );
 
   expect(
     await screen.findByText(
@@ -124,9 +126,11 @@ test("selected visualization type modal save success and then close", async () =
 });
 
 test("selected visualization type modal then escape", async () => {
-  renderWithLoaders({
-    children: <TestingComponent />,
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+    })
+  );
 
   fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
   await waitFor(async () => {

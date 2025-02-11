@@ -781,7 +781,7 @@ export const layerConfigImageArcGISRest = {
   configuration: {
     type: "ImageLayer",
     props: {
-      name: "esri",
+      name: "ImageArcGISRest Layer",
       source: {
         type: "ImageArcGISRest",
         props: {

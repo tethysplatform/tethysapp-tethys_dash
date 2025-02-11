@@ -1,10 +1,16 @@
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { screen, within, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  within,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import DashboardItem from "components/dashboard/DashboardItem";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import renderWithLoaders, {
+import createLoadedComponent, {
   ContextLayoutPComponent,
   EditingPComponent,
   DataViewerPComponent,
@@ -37,22 +43,24 @@ test("Dashboard Item delete grid item", async () => {
   const gridItem = mockedDashboard.gridItems[0];
   mockedConfirm.mockResolvedValue(true);
 
-  renderWithLoaders({
-    children: (
-      <>
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={0}
-        />
-        <ContextLayoutPComponent />
-        <EditingPComponent />
-      </>
-    ),
-    options: { initialDashboard: mockedDashboards.editable.name },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <ContextLayoutPComponent />
+          <EditingPComponent />
+        </>
+      ),
+      options: { initialDashboard: mockedDashboards.editable.name },
+    })
+  );
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -84,22 +92,24 @@ test("Dashboard Item delete grid item cancel", async () => {
   const gridItem = mockedDashboard.gridItems[0];
   mockedConfirm.mockResolvedValue(false);
 
-  renderWithLoaders({
-    children: (
-      <>
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={0}
-        />
-        <ContextLayoutPComponent />
-        <EditingPComponent />
-      </>
-    ),
-    options: { initialDashboard: mockedDashboards.editable.name },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <ContextLayoutPComponent />
+          <EditingPComponent />
+        </>
+      ),
+      options: { initialDashboard: mockedDashboards.editable.name },
+    })
+  );
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -143,18 +153,20 @@ test("Dashboard Item fullscreen but no source", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
   const gridItem = mockedDashboard.gridItems[0];
 
-  renderWithLoaders({
-    children: (
-      <DashboardItem
-        gridItemSource={gridItem.source}
-        gridItemI={gridItem.i}
-        gridItemArgsString={gridItem.args_string}
-        gridItemMetadataString={gridItem.metadata_string}
-        gridItemIndex={0}
-      />
-    ),
-    options: { initialDashboard: mockedDashboards.editable.name },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={0}
+        />
+      ),
+      options: { initialDashboard: mockedDashboards.editable.name },
+    })
+  );
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -174,21 +186,23 @@ test("Dashboard Item fullscreen", async () => {
     image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
   });
 
-  renderWithLoaders({
-    children: (
-      <DashboardItem
-        gridItemSource={gridItem.source}
-        gridItemI={gridItem.i}
-        gridItemArgsString={gridItem.args_string}
-        gridItemMetadataString={gridItem.metadata_string}
-        gridItemIndex={0}
-      />
-    ),
-    options: {
-      dashboards: updatedMockedDashboards,
-      initialDashboard: updatedMockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={0}
+        />
+      ),
+      options: {
+        dashboards: updatedMockedDashboards,
+        initialDashboard: updatedMockedDashboards.editable.name,
+      },
+    })
+  );
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -221,25 +235,27 @@ test("Dashboard Item edit item", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
   const gridItem = mockedDashboard.gridItems[0];
 
-  renderWithLoaders({
-    children: (
-      <>
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={0}
-        />
-        <ContextLayoutPComponent />
-        <EditingPComponent />
-        <DataViewerPComponent />
-      </>
-    ),
-    options: {
-      initialDashboard: mockedDashboard.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <ContextLayoutPComponent />
+          <EditingPComponent />
+          <DataViewerPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboard.name,
+      },
+    })
+  );
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -315,25 +331,27 @@ test("Dashboard Item copy item", async () => {
 
   const gridItem = mockedDashboard.gridItems[2];
 
-  renderWithLoaders({
-    children: (
-      <>
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={2}
-        />
-        <ContextLayoutPComponent />
-        <EditingPComponent />
-      </>
-    ),
-    options: {
-      dashboards: updatedMockedDashboards,
-      initialDashboard: updatedMockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={2}
+          />
+          <ContextLayoutPComponent />
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        dashboards: updatedMockedDashboards,
+        initialDashboard: updatedMockedDashboards.editable.name,
+      },
+    })
+  );
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -432,26 +450,28 @@ test("Dashboard Item copy item variable input", async () => {
   ];
   const gridItem = mockedDashboard.gridItems[0];
 
-  renderWithLoaders({
-    children: (
-      <>
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={2}
-        />
-        <ContextLayoutPComponent />
-        <EditingPComponent />
-        <InputVariablePComponent />
-      </>
-    ),
-    options: {
-      dashboards: updatedMockedDashboards,
-      initialDashboard: updatedMockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={2}
+          />
+          <ContextLayoutPComponent />
+          <EditingPComponent />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        dashboards: updatedMockedDashboards,
+        initialDashboard: updatedMockedDashboards.editable.name,
+      },
+    })
+  );
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -556,26 +576,28 @@ test("Dashboard Item copy item variable input already exists", async () => {
   ];
   const gridItem = mockedDashboard.gridItems[0];
 
-  renderWithLoaders({
-    children: (
-      <>
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={0}
-        />
-        <ContextLayoutPComponent />
-        <EditingPComponent />
-        <InputVariablePComponent />
-      </>
-    ),
-    options: {
-      dashboards: updatedMockedDashboards,
-      initialDashboard: updatedMockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <ContextLayoutPComponent />
+          <EditingPComponent />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        dashboards: updatedMockedDashboards,
+        initialDashboard: updatedMockedDashboards.editable.name,
+      },
+    })
+  );
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line
@@ -667,24 +689,26 @@ test("Dashboard Item edit size", async () => {
     image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
   });
 
-  renderWithLoaders({
-    children: (
-      <>
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={0}
-        />
-        <EditingPComponent />
-      </>
-    ),
-    options: {
-      dashboards: updatedMockedDashboards,
-      initialDashboard: updatedMockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        dashboards: updatedMockedDashboards,
+        initialDashboard: updatedMockedDashboards.editable.name,
+      },
+    })
+  );
 
   const dropdownToggle = screen.getByRole("button");
   // eslint-disable-next-line

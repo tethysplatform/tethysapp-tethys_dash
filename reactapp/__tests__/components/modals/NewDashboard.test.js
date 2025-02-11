@@ -1,8 +1,8 @@
 import { act, useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import NewDashboardModal from "components/modals/NewDashboard";
-import renderWithLoaders, {
+import createLoadedComponent, {
   EditingPComponent,
 } from "__tests__/utilities/customRender";
 import appAPI from "services/api/app";
@@ -47,9 +47,11 @@ test("New Dashboard Modal add dashboard success", async () => {
     },
   });
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+    })
+  );
 
   expect(await screen.findByText("Create a new dashboard")).toBeInTheDocument();
   expect(await screen.findByText("Dashboard Name")).toBeInTheDocument();
@@ -78,9 +80,11 @@ test("New Dashboard Modal add dashboard fail", async () => {
     message: "failed to add",
   });
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+    })
+  );
 
   expect(await screen.findByText("Create a new dashboard")).toBeInTheDocument();
   expect(await screen.findByText("Dashboard Name")).toBeInTheDocument();

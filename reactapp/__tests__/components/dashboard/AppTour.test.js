@@ -1,11 +1,11 @@
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import Header from "components/layout/Header";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import AppTour from "components/dashboard/AppTour";
 import { MemoryRouter } from "react-router-dom";
-import renderWithLoaders from "__tests__/utilities/customRender";
+import createLoadedComponent from "__tests__/utilities/customRender";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import appAPI from "services/api/app";
 import { confirm } from "components/dashboard/DeleteConfirmation";
@@ -72,17 +72,19 @@ test("App Tour skip steps 3", async () => {
     },
   });
 
-  renderWithLoaders({
-    children: (
-      <MemoryRouter initialEntries={["/"]}>
-        <LayoutAlertContextProvider>
-          <AppTour />
-          <Header />
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-      </MemoryRouter>
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <AppTour />
+            <Header />
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    })
+  );
 
   expect(
     // eslint-disable-next-line
@@ -755,17 +757,19 @@ test("App Tour skip to step 3", async () => {
       },
     });
 
-  renderWithLoaders({
-    children: (
-      <MemoryRouter initialEntries={["/"]}>
-        <LayoutAlertContextProvider>
-          <AppTour />
-          <Header />
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-      </MemoryRouter>
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <AppTour />
+            <Header />
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    })
+  );
 
   expect(
     // eslint-disable-next-line
@@ -921,17 +925,19 @@ test("App Tour from header and select existing dashboard", async () => {
   mockedConfirm.mockResolvedValueOnce(false);
   mockedConfirm.mockResolvedValueOnce(true);
 
-  renderWithLoaders({
-    children: (
-      <MemoryRouter initialEntries={["/"]}>
-        <LayoutAlertContextProvider>
-          <AppTour />
-          <Header />
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-      </MemoryRouter>
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <AppTour />
+            <Header />
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    })
+  );
 
   expect(
     // eslint-disable-next-line

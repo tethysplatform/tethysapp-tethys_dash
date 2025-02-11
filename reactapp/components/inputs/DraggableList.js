@@ -77,7 +77,7 @@ const DraggableList = ({
 DraggableList.propTypes = {
   items: PropTypes.array.isRequired, // array of data, configurations, values, components, etc
   onOrderUpdate: PropTypes.func, // callback funtion for when items update the order
-  ItemTemplate: PropTypes.element, // react component template for list items if more customization is needed
+  ItemTemplate: PropTypes.func, // react component template for list items if more customization is needed
   templateArgs: PropTypes.object, // additional args to pass to the item template
 };
 

@@ -1,9 +1,9 @@
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import Header from "components/layout/Header";
 import { MemoryRouter } from "react-router-dom";
-import renderWithLoaders from "__tests__/utilities/customRender";
+import createLoadedComponent from "__tests__/utilities/customRender";
 
 window.matchMedia =
   window.matchMedia ||
@@ -16,13 +16,15 @@ window.matchMedia =
   };
 
 test("Header, staff user", async () => {
-  renderWithLoaders({
-    children: (
-      <MemoryRouter initialEntries={["/"]}>
-        <Header />
-      </MemoryRouter>
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <Header />
+        </MemoryRouter>
+      ),
+    })
+  );
 
   expect(
     screen.queryByLabelText("dashboardSettingButton")
@@ -54,14 +56,16 @@ test("Header, staff user", async () => {
 });
 
 test("Header, non staff user", async () => {
-  renderWithLoaders({
-    children: (
-      <MemoryRouter initialEntries={["/"]}>
-        <Header />
-      </MemoryRouter>
-    ),
-    options: { user: { isAuthenticated: true, isStaff: false } },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <Header />
+        </MemoryRouter>
+      ),
+      options: { user: { isAuthenticated: true, isStaff: false } },
+    })
+  );
 
   expect(
     screen.queryByLabelText("dashboardSettingButton")

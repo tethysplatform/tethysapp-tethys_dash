@@ -8,7 +8,7 @@ import { mockedDashboards } from "__tests__/utilities/constants";
 import Image from "components/visualizations/Image";
 import appAPI from "services/api/app";
 import { LayoutContext } from "components/contexts/Contexts";
-import renderWithLoaders from "__tests__/utilities/customRender";
+import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 
 const TestingComponent = ({
@@ -59,21 +59,23 @@ test("Visualization Pane Custom Image", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
@@ -112,21 +114,23 @@ test("Visualization Pane Text", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
@@ -167,21 +171,23 @@ test("Visualization Pane Variable Input", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
@@ -297,21 +303,23 @@ test("Visualization Pane Other Type", async () => {
     });
   };
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
@@ -428,22 +436,24 @@ test("Visualization Pane Other Type Checkbox", async () => {
     },
   ];
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-      visualizations: availableVisualizations,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        visualizations: availableVisualizations,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
@@ -515,22 +525,24 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-      dashboards: updatedMockedDashboards,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "Variable Input",
@@ -577,22 +589,24 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-      dashboards: updatedMockedDashboards,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "Custom Image",
@@ -646,23 +660,25 @@ test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-      dashboards: updatedMockedDashboards,
-      visualizations: mockedVisualizations,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+        visualizations: mockedVisualizations,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "plugin_source",

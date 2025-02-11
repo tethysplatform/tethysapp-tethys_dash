@@ -1,10 +1,10 @@
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import DashboardSelector from "components/layout/DashboardSelector";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import renderWithLoaders, {
+import createLoadedComponent, {
   ContextLayoutPComponent,
 } from "__tests__/utilities/customRender";
 
@@ -16,7 +16,7 @@ jest.mock("components/dashboard/DeleteConfirmation", () => {
 const mockedConfirm = jest.mocked(confirm);
 
 test("Dashboard Selector without initial", async () => {
-  renderWithLoaders({ children: <DashboardSelector /> });
+  render(createLoadedComponent({ children: <DashboardSelector /> }));
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   expect(await screen.findByRole("combobox")).toBeInTheDocument();
@@ -26,9 +26,11 @@ test("Dashboard Selector without initial", async () => {
 test("Dashboard Selector with initial", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
 
-  renderWithLoaders({
-    children: <DashboardSelector initialDashboard={mockedDashboard.name} />,
-  });
+  render(
+    createLoadedComponent({
+      children: <DashboardSelector initialDashboard={mockedDashboard.name} />,
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   expect(await screen.findByRole("combobox")).toBeInTheDocument();
@@ -37,9 +39,11 @@ test("Dashboard Selector with initial", async () => {
 });
 
 test("Dashboard Selector changing between public and user options", async () => {
-  renderWithLoaders({
-    children: <DashboardSelector />,
-  });
+  render(
+    createLoadedComponent({
+      children: <DashboardSelector />,
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
@@ -106,9 +110,11 @@ test("Dashboard Selector changing between public and user options", async () => 
 });
 
 test("Dashboard Selector create new dashboard", async () => {
-  renderWithLoaders({
-    children: <DashboardSelector />,
-  });
+  render(
+    createLoadedComponent({
+      children: <DashboardSelector />,
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
@@ -132,9 +138,11 @@ test("Dashboard Selector create new dashboard", async () => {
 test("Dashboard Selector changing when editing, true confirm", async () => {
   mockedConfirm.mockResolvedValue(true);
 
-  renderWithLoaders({
-    children: <DashboardSelector />,
-  });
+  render(
+    createLoadedComponent({
+      children: <DashboardSelector />,
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
@@ -173,9 +181,11 @@ test("Dashboard Selector changing when editing, true confirm", async () => {
 test("Dashboard Selector changing when editing, false confirm", async () => {
   mockedConfirm.mockResolvedValue(false);
 
-  renderWithLoaders({
-    children: <DashboardSelector />,
-  });
+  render(
+    createLoadedComponent({
+      children: <DashboardSelector />,
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
@@ -261,15 +271,17 @@ test("Dashboard Selector add and then cancel button", async () => {
     ],
   };
 
-  renderWithLoaders({
-    children: (
-      <>
-        <DashboardSelector />
-        <ContextLayoutPComponent />
-      </>
-    ),
-    options: { dashboards: copiedMockedDashboards },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardSelector />
+          <ContextLayoutPComponent />
+        </>
+      ),
+      options: { dashboards: copiedMockedDashboards },
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");

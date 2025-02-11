@@ -1,9 +1,9 @@
-import { screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import selectEvent from "react-select-event";
 import DataInput from "components/inputs/DataInput";
 import { act } from "react";
-import renderWithLoaders from "__tests__/utilities/customRender";
+import createLoadedComponent from "__tests__/utilities/customRender";
 import {
   mockedTextVariable,
   mockedDashboards,
@@ -18,15 +18,17 @@ describe("DataInput Component", () => {
       { label: "Option 2", value: "option2" },
     ];
 
-    renderWithLoaders({
-      children: (
-        <DataInput
-          objValue={{ label: "Test Dropdown", type: options, value: "" }}
-          onChange={mockOnChange}
-          index={0}
-        />
-      ),
-    });
+    render(
+      createLoadedComponent({
+        children: (
+          <DataInput
+            objValue={{ label: "Test Dropdown", type: options, value: "" }}
+            onChange={mockOnChange}
+            index={0}
+          />
+        ),
+      })
+    );
 
     const dropdown = screen.getByLabelText("Test Dropdown Input");
 
@@ -49,18 +51,20 @@ describe("DataInput Component", () => {
       { label: "Option 2", value: "option2" },
     ];
 
-    renderWithLoaders({
-      children: (
-        <DataInput
-          objValue={{ label: "Test Dropdown", type: options, value: "" }}
-          onChange={mockOnChange}
-          index={0}
-        />
-      ),
-      options: {
-        inDataViewerMode: true,
-      },
-    });
+    render(
+      createLoadedComponent({
+        children: (
+          <DataInput
+            objValue={{ label: "Test Dropdown", type: options, value: "" }}
+            onChange={mockOnChange}
+            index={0}
+          />
+        ),
+        options: {
+          inDataViewerMode: true,
+        },
+      })
+    );
 
     const dropdown = screen.getByLabelText("Test Dropdown Input");
 
@@ -82,20 +86,22 @@ describe("DataInput Component", () => {
     const dashboards = JSON.parse(JSON.stringify(mockedDashboards));
     dashboards.editable.gridItems = [mockedTextVariable];
 
-    renderWithLoaders({
-      children: (
-        <DataInput
-          objValue={{ label: "Test Dropdown", type: options, value: "" }}
-          onChange={mockOnChange}
-          index={0}
-        />
-      ),
-      options: {
-        dashboards: dashboards,
-        inDataViewerMode: true,
-        initialDashboard: dashboards.editable.name,
-      },
-    });
+    render(
+      createLoadedComponent({
+        children: (
+          <DataInput
+            objValue={{ label: "Test Dropdown", type: options, value: "" }}
+            onChange={mockOnChange}
+            index={0}
+          />
+        ),
+        options: {
+          dashboards: dashboards,
+          inDataViewerMode: true,
+          initialDashboard: dashboards.editable.name,
+        },
+      })
+    );
 
     const dropdown = screen.getByLabelText("Test Dropdown Input");
 
@@ -110,15 +116,17 @@ describe("DataInput Component", () => {
   });
 
   test("renders checkbox and handles change", () => {
-    renderWithLoaders({
-      children: (
-        <DataInput
-          objValue={{ label: "Test Checkbox", type: "checkbox", value: true }}
-          onChange={mockOnChange}
-          index={0}
-        />
-      ),
-    });
+    render(
+      createLoadedComponent({
+        children: (
+          <DataInput
+            objValue={{ label: "Test Checkbox", type: "checkbox", value: true }}
+            onChange={mockOnChange}
+            index={0}
+          />
+        ),
+      })
+    );
 
     const checkbox = screen.getByLabelText("Test Checkbox Input");
 
@@ -138,20 +146,22 @@ describe("DataInput Component", () => {
       { label: "Option 1", value: "option1" },
       { label: "Option 2", value: "option2" },
     ];
-    renderWithLoaders({
-      children: (
-        <DataInput
-          objValue={{
-            label: "Test Radio",
-            type: "radio",
-            value: "option1",
-            valueOptions,
-          }}
-          onChange={mockOnChange}
-          index={0}
-        />
-      ),
-    });
+    render(
+      createLoadedComponent({
+        children: (
+          <DataInput
+            objValue={{
+              label: "Test Radio",
+              type: "radio",
+              value: "option1",
+              valueOptions,
+            }}
+            onChange={mockOnChange}
+            index={0}
+          />
+        ),
+      })
+    );
 
     const option1 = screen.getByLabelText("Option 1");
     const option2 = screen.getByLabelText("Option 2");
@@ -171,17 +181,19 @@ describe("DataInput Component", () => {
     const user = userEvent.setup();
     const mockHandleSubmit = jest.fn();
 
-    renderWithLoaders({
-      children: (
-        <form onSubmit={mockHandleSubmit}>
-          <DataInput
-            objValue={{ label: "Test Text", type: "text", value: "initial" }}
-            onChange={mockOnChange}
-            index={0}
-          />
-        </form>
-      ),
-    });
+    render(
+      createLoadedComponent({
+        children: (
+          <form onSubmit={mockHandleSubmit}>
+            <DataInput
+              objValue={{ label: "Test Text", type: "text", value: "initial" }}
+              onChange={mockOnChange}
+              index={0}
+            />
+          </form>
+        ),
+      })
+    );
 
     const textInput = screen.getByLabelText("Test Text Input");
 

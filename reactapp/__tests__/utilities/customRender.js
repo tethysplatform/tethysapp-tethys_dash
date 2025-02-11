@@ -52,7 +52,7 @@ const TestingComponent = ({ children, options = {} }) => {
   return <>{children}</>;
 };
 
-const renderWithLoaders = ({ children, options = {} }) => {
+const createLoadedComponent = ({ children, options = {} }) => {
   const tethysApp = {
     title: "TethysDash",
     description: "",
@@ -96,7 +96,7 @@ const renderWithLoaders = ({ children, options = {} }) => {
     );
   }
 
-  return render(
+  return (
     <AppContext.Provider
       value={{
         tethysApp: options.tethysApp ? options.tethysApp : tethysApp,
@@ -151,14 +151,6 @@ export const InputVariablePComponent = () => {
   );
 };
 
-renderWithLoaders.propTypes = {
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.element),
-    PropTypes.element,
-  ]),
-  options: PropTypes.object,
-};
-
 TestingComponent.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.element),
@@ -167,4 +159,4 @@ TestingComponent.propTypes = {
   options: PropTypes.object,
 };
 
-export default renderWithLoaders;
+export default createLoadedComponent;

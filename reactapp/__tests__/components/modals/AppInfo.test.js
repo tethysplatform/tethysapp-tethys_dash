@@ -1,7 +1,7 @@
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { screen } from "@testing-library/react";
-import renderWithLoaders from "__tests__/utilities/customRender";
+import { render, screen } from "@testing-library/react";
+import createLoadedComponent from "__tests__/utilities/customRender";
 import AppInfoModal from "components/modals/AppInfo";
 
 test("app info modal and close", async () => {
@@ -31,9 +31,13 @@ test("app info modal and close", async () => {
 
   Object.defineProperty(window, "localStorage", { value: localStorageMock });
 
-  renderWithLoaders({
-    children: <AppInfoModal showModal={true} setShowModal={mockSetShowModal} />,
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <AppInfoModal showModal={true} setShowModal={mockSetShowModal} />
+      ),
+    })
+  );
 
   expect(await screen.findByText("Welcome to TethysDash")).toBeInTheDocument();
   expect(

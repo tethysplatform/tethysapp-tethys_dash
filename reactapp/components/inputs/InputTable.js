@@ -140,6 +140,7 @@ const InputTable = ({
                             onKeyDown={(e) =>
                               handleKeyDown(e, rowIndex, fieldIndex)
                             }
+                            aria-label={`${field} Input ${rowIndex}`}
                           />
                         </CenteredTD>
                       );
@@ -147,7 +148,7 @@ const InputTable = ({
                       return (
                         <td key={fieldIndex}>
                           <FullInput
-                            aria-label={`${field} Input`}
+                            aria-label={`${field} Input ${rowIndex}`}
                             type="text"
                             value={row[field]?.value ?? row[field]}
                             ref={(el) =>
@@ -180,9 +181,19 @@ const InputTable = ({
 InputTable.propTypes = {
   label: PropTypes.string.isRequired, // label for the table
   onChange: PropTypes.func.isRequired, // callback function for when table values change
-  values: PropTypes.arrayOf([PropTypes.objectOf([PropTypes.string])])
-    .isRequired, // array of objects (rows) that contain colum keys and values
-  disabledFields: PropTypes.arrayOf([PropTypes.string]), // array of fields to not have an input
+  values: PropTypes.arrayOf(
+    PropTypes.objectOf(
+      PropTypes.oneOfType([
+        PropTypes.string,
+        PropTypes.bool,
+        PropTypes.shape({
+          value: PropTypes.string.isRequired,
+          placeholder: PropTypes.string.isRequired,
+        }),
+      ])
+    )
+  ).isRequired, // array of objects (rows) that contain colum keys and values
+  disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
   allowRowCreation: PropTypes.bool, // determines if the table rows can be added
   placeholders: PropTypes.objectOf([PropTypes.string]), // object with key as field and value as placeholder
 };
