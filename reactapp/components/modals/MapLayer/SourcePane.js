@@ -3,10 +3,7 @@ import DataInput from "components/inputs/DataInput";
 import { useState, useEffect } from "react";
 import FileUpload from "components/inputs/FileUpload";
 import styled from "styled-components";
-import {
-  sourcePropertiesOptions,
-  layerPropertiesOptions,
-} from "components/map/utilities";
+import { sourcePropertiesOptions } from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
@@ -16,38 +13,42 @@ const StyledTextInput = styled.textarea`
   height: 30vh;
 `;
 
-const generatePropertiesArrayWithValues = (properties, mapping) => {
-  const result = [];
+const generatePropertiesArrayWithValues = (sourceProperties, mapping) => {
+  const properties = [];
   let existingValues = mapping ?? {};
 
   const processKeys = (obj, required, parentKey = "", mappingObj = {}) => {
     for (const [key, value] of Object.entries(obj)) {
       const property = parentKey ? `${parentKey} - ${key}` : key;
+      const valueInMap = mappingObj[key];
+      const existingValue = valueInMap?.value ?? valueInMap;
 
       if (typeof value === "object" && value !== null) {
         // Recursively process nested objects
-        processKeys(value, required, property, mappingObj[key] || {});
+        processKeys(value, required, property, existingValue || {});
       } else {
         // Add to the result array with mapped value or empty string
-        result.push({
+        properties.push({
           required,
           property,
-          value: mappingObj[key]
-            ? Array.isArray(mappingObj[key])
-              ? mappingObj[key].join(",")
-              : mappingObj[key]
-            : "",
-          placeholder: value,
+          value: {
+            value: existingValue
+              ? Array.isArray(existingValue)
+                ? existingValue.join(",")
+                : existingValue
+              : "",
+            placeholder: value,
+          },
         });
       }
     }
   };
 
   // Process required and optional parts with mapping
-  processKeys(properties.required, true, "", existingValues);
-  processKeys(properties.optional, false, "", existingValues);
+  processKeys(sourceProperties.required, true, "", existingValues);
+  processKeys(sourceProperties.optional, false, "", existingValues);
 
-  return result;
+  return properties;
 };
 
 function parsePropertiesArray(properties) {
@@ -55,12 +56,13 @@ function parsePropertiesArray(properties) {
     const { property, value } = item;
     const parts = property.split(" - "); // Split by delimiter
 
+    // source properties can be {value: ..., placeholder:...} or just a straight value
     if (parts.length > 1) {
       const [parentKey, childKey] = parts.map((part) => part.trim());
       acc[parentKey] = acc[parentKey] || {};
-      acc[parentKey][childKey] = value;
+      acc[parentKey][childKey] = value?.value ?? value;
     } else {
-      acc[property] = value;
+      acc[property] = value?.value ?? value;
     }
 
     return acc;
@@ -180,14 +182,7 @@ const SourcePane = ({
               onChange={handlePropertyChange}
               values={sourceProperties}
               disabledFields={["required", "property"]}
-              hiddenFields={["placeholder"]}
-              staticRows={true}
-              placeholders={sourceProperties.map((item) => [
-                null,
-                null,
-                item.placeholder,
-                null,
-              ])}
+              allowRowCreation={true}
             />
           )}
         </>

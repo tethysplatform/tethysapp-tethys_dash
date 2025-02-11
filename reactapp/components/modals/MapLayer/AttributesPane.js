@@ -488,6 +488,7 @@ const AttributesPane = ({
                 label={layerName}
                 onChange={(e) => handleAttributeChange(e, layerName)}
                 values={attributes[layerName]}
+                allowRowCreation={true}
               />
             ))
           )}

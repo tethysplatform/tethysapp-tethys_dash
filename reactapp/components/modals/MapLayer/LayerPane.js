@@ -18,8 +18,10 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
     return Object.keys(layerPropertiesOptions).map((key) => ({
       required: false,
       property: key,
-      value: existingProps[key] ?? "",
-      placeholder: layerPropertiesOptions[key],
+      value: {
+        value: existingProps[key] ?? "",
+        placeholder: layerPropertiesOptions[key],
+      },
     }));
   }
 
@@ -51,14 +53,7 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
         onChange={handlePropertyChange}
         values={layerProperties}
         disabledFields={["required", "property"]}
-        hiddenFields={["placeholder"]}
-        staticRows={true}
-        placeholders={layerProperties.map((item) => [
-          null,
-          null,
-          item.placeholder,
-          null,
-        ])}
+        allowRowCreation={true}
       />
     </>
   );
