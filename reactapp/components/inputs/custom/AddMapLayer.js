@@ -120,6 +120,7 @@ const MapLayerTemplate = ({
 };
 
 export const AddMapLayer = ({
+  label,
   onChange,
   values,
   setShowingSubModal,
@@ -202,6 +203,7 @@ export const AddMapLayer = ({
 
   return (
     <>
+      <b>{label && label}</b>
       <MarginButton
         variant="info"
         onClick={openMapLayerModal}
@@ -333,6 +335,7 @@ MapLayerTemplate.propTypes = {
 };
 
 AddMapLayer.propTypes = {
+  label: PropTypes.string, // label for the custom input
   onChange: PropTypes.func, // callback function will handle what is being passed to the dataviewer for the overall configured map visualization
   // values passed from the dataviewer and configured map visualization
   values: PropTypes.arrayOf(

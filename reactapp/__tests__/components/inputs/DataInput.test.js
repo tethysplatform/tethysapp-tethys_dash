@@ -7,6 +7,7 @@ import createLoadedComponent from "__tests__/utilities/customRender";
 import {
   mockedTextVariable,
   mockedDashboards,
+  layerConfigImageArcGISRest,
 } from "__tests__/utilities/constants";
 
 describe("DataInput Component", () => {
@@ -213,4 +214,136 @@ describe("DataInput Component", () => {
     await userEvent.keyboard("{Enter}");
     expect(mockHandleSubmit).toHaveBeenCalledTimes(0);
   });
+});
+
+test("renders multiinput", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataInput
+          objValue={{
+            label: "Test Multi Input",
+            type: "multiinput",
+            value: [],
+          }}
+          onChange={mockOnChange}
+          index={0}
+        />
+      ),
+    })
+  );
+
+  expect(screen.getByText("Test Multi Input")).toBeInTheDocument();
+
+  const textbox = screen.getByRole("textbox");
+  await userEvent.type(textbox, "Some Input Value{enter}");
+
+  expect(mockOnChange).toHaveBeenCalledWith(["Some Input Value"], 0);
+});
+
+test("renders inputtable", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataInput
+          objValue={{
+            label: "Test Input Table",
+            type: "inputtable",
+            value: [{ "field 1": true, "field 2": "" }],
+          }}
+          onChange={mockOnChange}
+          index={0}
+        />
+      ),
+    })
+  );
+
+  expect(screen.getByText("Test Input Table")).toBeInTheDocument();
+
+  const checkbox = screen.getByRole("checkbox");
+  expect(checkbox).toBeInTheDocument();
+  fireEvent.click(checkbox);
+  expect(checkbox).not.toBeChecked();
+
+  expect(mockOnChange).toHaveBeenCalledWith(
+    [{ "field 1": false, "field 2": "" }],
+    0
+  );
+
+  const textbox = screen.getByRole("textbox");
+  await userEvent.type(textbox, "Some Input Value");
+
+  expect(mockOnChange).toHaveBeenCalledWith(
+    [{ "field 1": false, "field 2": "Some Input Value" }],
+    0
+  );
+});
+
+test("renders custom-AddMapLayer", async () => {
+  const mockOnChange = jest.fn();
+  const setShowingSubModal = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataInput
+          objValue={{
+            label: "Test Add Map Layer",
+            type: "custom-AddMapLayer",
+            value: [layerConfigImageArcGISRest],
+          }}
+          onChange={mockOnChange}
+          index={0}
+          inputProps={{ setShowingSubModal }}
+        />
+      ),
+    })
+  );
+
+  expect(screen.getByText("Test Add Map Layer")).toBeInTheDocument();
+
+  expect(screen.getByText("Add Layer")).toBeInTheDocument();
+  expect(screen.getByText("Layer Name")).toBeInTheDocument();
+  expect(screen.getByText("Legend")).toBeInTheDocument();
+
+  expect(screen.getAllByRole("row").length).toBe(2);
+  expect(screen.getByText("ImageArcGISRest Layer")).toBeInTheDocument();
+  expect(screen.getByText("Off")).toBeInTheDocument();
+
+  const editMapLayerButton = screen.getByTestId("editMapLayer");
+  fireEvent.click(editMapLayerButton);
+
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  const nameInput = await screen.findByLabelText("Name Input");
+  fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
+
+  const createLayerButton = await screen.findByLabelText("Create Layer Button");
+  fireEvent.click(createLayerButton);
+
+  expect(mockOnChange).toHaveBeenCalledWith(
+    [
+      {
+        attributeVariables: {},
+        configuration: {
+          props: {
+            name: "New Layer Name",
+            source: {
+              props: {
+                url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+              },
+              type: "ImageArcGISRest",
+            },
+            zIndex: 1,
+          },
+          type: "ImageLayer",
+        },
+        omittedPopupAttributes: {},
+      },
+    ],
+    0
+  );
 });
