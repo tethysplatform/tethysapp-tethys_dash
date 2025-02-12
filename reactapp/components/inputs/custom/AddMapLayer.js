@@ -31,6 +31,7 @@ const BlueEditIcon = styled(BsPencilSquare)`
 `;
 const MarginButton = styled(Button)`
   margin-bottom: 1rem;
+  float: right;
 `;
 const AlignedDragHandle = styled(RxDragHandleHorizontal)`
   margin: auto;

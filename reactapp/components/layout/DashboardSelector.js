@@ -11,10 +11,11 @@ import {
 } from "components/contexts/Contexts";
 import {
   BsArrowReturnLeft,
-  BsFloppy,
+  BsFloppyFill,
   BsPencilSquare,
-  BsPlus,
 } from "react-icons/bs";
+import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
+import { FaPlus } from "react-icons/fa6";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import styled from "styled-components";
 import { useAppTourContext } from "components/contexts/AppTourContext";
@@ -27,6 +28,28 @@ const StyledDiv = styled.div`
 const StyledB = styled.b`
   color: white;
 `;
+
+function LockedIcon({ locked }) {
+  return (
+    <div
+      style={{ position: "relative", display: "flex" }}
+      className="items-center justify-center"
+    >
+      {locked ? <FaLock size="1.5rem" /> : <FaUnlock size="1.5rem" />}
+      <FaExpandArrowsAlt
+        size=".75rem"
+        color="black"
+        style={{
+          position: "absolute",
+          right: 0,
+          left: 0,
+          bottom: 0,
+          width: "100%",
+        }}
+      />
+    </div>
+  );
+}
 
 function DashboardSelector({ initialDashboard }) {
   const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
@@ -188,7 +211,7 @@ function DashboardSelector({ initialDashboard }) {
                     aria-label="saveButton"
                     className="saveChangesButton"
                   >
-                    <BsFloppy size="1.5rem" />
+                    <BsFloppyFill size="1.5rem" />
                   </TooltipButton>
                   <TooltipButton
                     tooltipPlacement="bottom"
@@ -197,18 +220,23 @@ function DashboardSelector({ initialDashboard }) {
                     aria-label="addGridItemButton"
                     className="addGridItemsButton"
                   >
-                    <BsPlus size="1.5rem" />
+                    <FaPlus size="1.5rem" />
                   </TooltipButton>
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={disabledEditingMovement}
-                      onChange={(e) =>
-                        setDisabledEditingMovement(e.target.checked)
-                      }
-                    ></input>{" "}
-                    <StyledB>Disable Movement During Editing</StyledB>
-                  </label>
+                  <TooltipButton
+                    tooltipPlacement="bottom"
+                    tooltipText={
+                      disabledEditingMovement
+                        ? "Unlock Movement"
+                        : "Lock Movement"
+                    }
+                    onClick={() =>
+                      setDisabledEditingMovement(!disabledEditingMovement)
+                    }
+                    aria-label="Restrict Movement Button"
+                    className="lockUnlocKMovementButton"
+                  >
+                    <LockedIcon locked={disabledEditingMovement} />
+                  </TooltipButton>
                 </>
               ) : (
                 <TooltipButton

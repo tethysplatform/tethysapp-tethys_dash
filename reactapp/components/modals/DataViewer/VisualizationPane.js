@@ -19,7 +19,7 @@ import {
 import { updateGridItemArgsWithVariableInputs } from "components/visualizations/utilities";
 import VariableInput from "components/visualizations/VariableInput";
 import TooltipButton from "components/buttons/TooltipButton";
-import { BsGear } from "react-icons/bs";
+import { CiFilter } from "react-icons/ci";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import "components/modals/wideModal.css";
@@ -310,7 +310,7 @@ function VisualizationPane({
                 }
           }
         >
-          <BsGear size="1.5rem" />
+          <CiFilter size="1.5rem" />
         </TooltipButton>
       </InLineButtonDiv>
       <InLineInputDiv>
