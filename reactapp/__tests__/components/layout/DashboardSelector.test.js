@@ -6,6 +6,7 @@ import { mockedDashboards } from "__tests__/utilities/constants";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import createLoadedComponent, {
   ContextLayoutPComponent,
+  DisabledMovementPComponent,
 } from "__tests__/utilities/customRender";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
@@ -277,6 +278,7 @@ test("Dashboard Selector add and then cancel button", async () => {
         <>
           <DashboardSelector />
           <ContextLayoutPComponent />
+          <DisabledMovementPComponent />
         </>
       ),
       options: { dashboards: copiedMockedDashboards },
@@ -301,6 +303,20 @@ test("Dashboard Selector add and then cancel button", async () => {
   await act(async () => {
     await userEvent.click(editButton);
   });
+
+  expect(await screen.findByTestId("disabledMovement")).toHaveTextContent(
+    "allowed movement"
+  );
+  const disableMovementButton = screen.getByLabelText(
+    "Disable Movement Button"
+  );
+  // eslint-disable-next-line
+  await act(async () => {
+    await userEvent.click(disableMovementButton);
+  });
+  expect(await screen.findByTestId("disabledMovement")).toHaveTextContent(
+    "disabled movement"
+  );
 
   const addGridItemButton = screen.getByLabelText("addGridItemButton");
   // eslint-disable-next-line

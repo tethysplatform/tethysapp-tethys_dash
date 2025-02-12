@@ -232,7 +232,7 @@ function DashboardSelector({ initialDashboard }) {
                     onClick={() =>
                       setDisabledEditingMovement(!disabledEditingMovement)
                     }
-                    aria-label="Restrict Movement Button"
+                    aria-label="Disable Movement Button"
                     className="lockUnlocKMovementButton"
                   >
                     <LockedIcon locked={disabledEditingMovement} />

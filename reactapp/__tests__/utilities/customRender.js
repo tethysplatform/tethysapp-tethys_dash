@@ -18,6 +18,7 @@ import {
   EditingContext,
   DataViewerModeContext,
   VariableInputsContext,
+  DisabledEditingMovementContext,
 } from "components/contexts/Contexts";
 
 const TestingComponent = ({ children, options = {} }) => {
@@ -131,6 +132,18 @@ export const EditingPComponent = () => {
   const { isEditing } = useContext(EditingContext);
 
   return <p data-testid="editing">{isEditing ? "editing" : "not editing"}</p>;
+};
+
+export const DisabledMovementPComponent = () => {
+  const { disabledEditingMovement } = useContext(
+    DisabledEditingMovementContext
+  );
+
+  return (
+    <p data-testid="disabledMovement">
+      {disabledEditingMovement ? "disabled movement" : "allowed movement"}
+    </p>
+  );
 };
 
 export const DataViewerPComponent = () => {
