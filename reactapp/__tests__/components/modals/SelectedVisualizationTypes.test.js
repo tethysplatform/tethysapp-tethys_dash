@@ -38,7 +38,7 @@ test("selected visualization type modal save success and then close", async () =
     )
   ).toBeInTheDocument();
   const allCheckboxes = await screen.findAllByRole("checkbox");
-  expect(allCheckboxes.length).toBe(9);
+  expect(allCheckboxes.length).toBe(10);
   allCheckboxes.forEach((checkbox) => {
     expect(checkbox).toBeChecked();
   });

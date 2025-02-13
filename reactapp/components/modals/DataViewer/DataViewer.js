@@ -115,7 +115,7 @@ function DataViewerModal({
           vizArgs[vizArg.name] =
             vizArg.value?.value === false
               ? false
-              : vizArg.value.value || vizArg.value;
+              : vizArg.value.value || vizArg.value; // can be a basic value or an object (like when a checkbox is a dropdown in the dataviewer)
         }
 
         if (

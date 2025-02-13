@@ -1,5 +1,3 @@
-import { RxOpacity } from "react-icons/rx";
-
 export const mockedDashboards = {
   editable: {
     id: 1,
@@ -133,6 +131,27 @@ export const mockedVisualizationsWithDefaults = [
         value: "Custom Image",
         label: "Custom Image",
         args: { image_source: "text" },
+      },
+      {
+        source: "Map",
+        value: "Map",
+        label: "Map",
+        args: {
+          base_map: [
+            {
+              label: "ArcGIS Map Service Base Maps",
+              options: [
+                {
+                  label: "World Light Gray Base",
+                  value:
+                    "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+                },
+              ],
+            },
+          ],
+          additional_layers: "custom-AddMapLayer",
+          show_layer_controls: "checkbox",
+        },
       },
       {
         source: "Text",
