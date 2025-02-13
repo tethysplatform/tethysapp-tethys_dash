@@ -50,113 +50,83 @@ export const valuesEqual = (a1, a2) => {
   }
 };
 
-export function objectToArray(obj) {
-  return Object.entries(obj).map(([Parameter, Value]) => ({
-    Parameter,
-    Value,
-  }));
-}
-
-export function arrayToObject(arr) {
-  return arr.reduce((acc, obj) => {
-    acc[obj.Parameter] = obj.Value;
-    return acc;
-  }, {});
-}
-
-export const removeEmptyStringsFromObject = (obj) => {
-  if (Array.isArray(obj)) {
-    return obj
-      .map((item) =>
-        typeof item === "object" && item !== null
-          ? removeEmptyStringsFromObject(item) // Recursively process array elements
-          : item
-      )
-      .filter((item) => item !== ""); // Remove empty strings from arrays
+// removes null or empty strings from arrays and objects
+export const removeEmptyValues = (values) => {
+  if (Array.isArray(values)) {
+    return values
+      .map((item) => {
+        // if item in array is an object, then recursively run function to get nonempty nested values
+        if (item && typeof item === "object") {
+          const updatedObject = removeEmptyValues(item);
+          // only return nonempty objects
+          if (Object.keys(updatedObject).length > 0) {
+            return updatedObject;
+          }
+        } else {
+          return typeof item === "string" ? item.trim() : item;
+        }
+      })
+      .filter((item) => item); // filter out empty, null, or undefined items
   }
 
-  if (typeof obj !== "object" || obj === null) return obj; // Return non-objects as is
-
   return Object.fromEntries(
-    Object.entries(obj)
-      .filter(([_, value]) => value !== "") // Remove empty strings
+    Object.entries(values)
+      .filter(([_, value]) => value) // Remove empty and null/undefined strings
       .map(([key, value]) => [
         key,
-        typeof value === "object" && value !== null
-          ? removeEmptyStringsFromObject(value) // Recursively process nested objects
-          : value,
+        value && typeof value === "object"
+          ? removeEmptyValues(value) // Recursively process nested objects
+          : typeof value === "string"
+            ? value.trim()
+            : value,
       ])
       .filter(
         ([_, value]) =>
-          !(
-            typeof value === "object" &&
-            value !== null &&
-            Object.keys(value).length === 0
-          ) // Remove empty objects
+          value &&
+          !(typeof value === "object" && Object.keys(value).length === 0) // Remove empty objects
       )
   );
 };
 
-export const findMissingKeys = (templateObj, dataObj, parentKey = "") => {
-  let invalidKeys = [];
+// Checks to see if required keys from an object are present in an another object
+export const checkRequiredKeys = (
+  requiredKeysObj,
+  checkingObj,
+  parentKey = ""
+) => {
+  let missingKeys = [];
 
-  for (const [key, value] of Object.entries(templateObj)) {
+  for (const [key, value] of Object.entries(requiredKeysObj)) {
     const fullKey = parentKey ? `${parentKey}.${key}` : key; // Build full key path
 
-    if (!(key in dataObj)) {
-      invalidKeys.push(fullKey); // Add missing key to the list
-    } else if (typeof value === "object" && value !== null) {
+    if (!(key in checkingObj)) {
+      missingKeys.push(fullKey); // Add missing key to the list
+    } else if (value && typeof value === "object") {
       // Recursively check nested objects
-      invalidKeys = invalidKeys.concat(
-        findMissingKeys(value, dataObj[key], fullKey)
+      missingKeys = missingKeys.concat(
+        checkRequiredKeys(value, checkingObj[key], fullKey)
       );
     }
   }
 
-  return invalidKeys;
+  return missingKeys;
 };
 
+//  extract variableInputs from map layer attributes
 export const extractVariableInputNames = (attributes) => {
   const result = {};
 
+  // check each layer for attributes
   Object.keys(attributes).forEach((layerName) => {
-    if (Array.isArray(attributes[layerName])) {
-      const mappings = attributes[layerName].reduce((acc, item) => {
-        if (item["variableInput"]) {
-          acc[item.alias] = item["variableInput"];
-        }
-        return acc;
-      }, {});
-
-      if (Object.keys(mappings).length > 0) {
-        result[layerName] = mappings;
+    const mappings = attributes[layerName].reduce((acc, item) => {
+      if (item["variableInput"]) {
+        acc[item.alias] = item["variableInput"];
       }
-    } else {
-      result[layerName] = Object.fromEntries(
-        Object.entries(attributes[layerName]).filter(
-          ([_, value]) => value !== ""
-        )
-      );
-    }
-  });
+      return acc;
+    }, {});
 
-  return result;
-};
-
-export const extractOmittedPopupAttributes = (attributes) => {
-  const result = {};
-
-  Object.keys(attributes).forEach((category) => {
-    if (Array.isArray(attributes[category])) {
-      const mappings = attributes[category]
-        .filter((item) => item.popup === false) // Keep items where popup is explicitly false
-        .map((item) => item.alias); // Extract the alias property
-
-      if (Object.keys(mappings).length > 0) {
-        result[category] = mappings;
-      }
-    } else {
-      result[category] = attributes[category];
+    if (Object.keys(mappings).length > 0) {
+      result[layerName] = mappings;
     }
   });
 

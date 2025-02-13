@@ -8,8 +8,8 @@ import Spinner from "react-bootstrap/Spinner";
 import {
   valuesEqual,
   extractVariableInputNames,
-  findMissingKeys,
-  removeEmptyStringsFromObject,
+  checkRequiredKeys,
+  removeEmptyValues,
 } from "components/modals/utilities";
 
 import { sourcePropertiesOptions } from "components/map/utilities";
@@ -83,8 +83,8 @@ const AttributesPane = ({
         return;
       }
 
-      const validSourceProps = removeEmptyStringsFromObject(sourceProps.props);
-      const missingRequiredProps = findMissingKeys(
+      const validSourceProps = removeEmptyValues(sourceProps.props);
+      const missingRequiredProps = checkRequiredKeys(
         sourcePropertiesOptions[sourceProps.type].required,
         validSourceProps
       );

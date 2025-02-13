@@ -18,9 +18,8 @@ import {
 } from "components/map/utilities";
 import { v4 as uuidv4 } from "uuid";
 import {
-  removeEmptyStringsFromObject,
-  extractVariableInputNames,
-  findMissingKeys,
+  removeEmptyValues,
+  checkRequiredKeys,
 } from "components/modals/utilities";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
@@ -74,9 +73,9 @@ const MapLayerModal = ({
       return;
     }
 
-    const validSourceProps = removeEmptyStringsFromObject(sourceProps.props);
-    const validLayerProps = removeEmptyStringsFromObject(layerProps);
-    const missingRequiredProps = findMissingKeys(
+    const validSourceProps = removeEmptyValues(sourceProps.props);
+    const validLayerProps = removeEmptyValues(layerProps);
+    const missingRequiredProps = checkRequiredKeys(
       sourcePropertiesOptions[sourceProps.type].required,
       validSourceProps
     );
@@ -89,8 +88,7 @@ const MapLayerModal = ({
 
     // Check to see if the pending attribute variables are valid
     if (attributeVariables) {
-      const minAttributeVariables =
-        extractVariableInputNames(attributeVariables);
+      const minAttributeVariables = removeEmptyValues(attributeVariables);
 
       // flatten attribute variables into a list
       const pendingVariableInputs = Object.values(
