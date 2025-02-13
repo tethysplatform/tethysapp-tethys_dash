@@ -48,6 +48,7 @@ const TestingComponent = ({
         settingsRef={settingsRef}
         visualizationRef={visualizationRef}
       />
+      <p data-testid="viz-input-values">{JSON.stringify(vizInputsValues)}</p>
     </>
   );
 };
@@ -623,7 +624,7 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
   );
 });
 
-test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
+test("Visualization Pane Use Existing Args Viz with True checkbox", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.editable;
   mockedDashboard.gridItems = [
@@ -695,6 +696,106 @@ test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
     "data-testid": "Loading...",
     variant: "info",
   });
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify([
+      {
+        label: "Plugin Arg",
+        name: "plugin_arg",
+        type: [
+          { label: "True", value: true },
+          { label: "False", value: false },
+        ],
+        value: { label: "True", value: true },
+      },
+    ])
+  );
+});
+
+test("Visualization Pane Use Existing Args Viz with False checkbox", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
+  mockedDashboard.gridItems = [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "plugin_source",
+      args_string: JSON.stringify({
+        plugin_arg: false,
+      }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ];
+  const mockedVisualizations = [
+    {
+      label: "Other",
+      options: [
+        {
+          source: "plugin_source",
+          value: "plugin_value",
+          label: "plugin_label",
+          args: { plugin_arg: "checkbox" },
+        },
+      ],
+    },
+  ];
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetViz = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+        visualizations: mockedVisualizations,
+      },
+    })
+  );
+
+  expect(mockSetVizMetadata).toHaveBeenCalledWith({
+    source: "plugin_source",
+    args: {
+      plugin_arg: false,
+    },
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show Other plugin_label"
+  );
+  expect(mockSetViz).toHaveBeenCalled();
+  expect(mockSetViz.mock.calls[0][0].props).toStrictEqual({
+    animation: "border",
+    "data-testid": "Loading...",
+    variant: "info",
+  });
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify([
+      {
+        label: "Plugin Arg",
+        name: "plugin_arg",
+        type: [
+          { label: "True", value: true },
+          { label: "False", value: false },
+        ],
+        value: { label: "False", value: false },
+      },
+    ])
+  );
 });
 
 test("CustomTextOptions", async () => {
