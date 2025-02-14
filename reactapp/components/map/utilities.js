@@ -230,6 +230,7 @@ async function getESRILayerFeatures(sourceUrl, map, coordinate) {
     sr: map.getView().getProjection().getCode(),
     geometry: coordinate.join(","),
     mapExtent: map.getView().calculateExtent().join(","),
+    returnFieldName: true,
     imageDisplay: map
       .getSize()
       .concat(map.getView().getResolution())

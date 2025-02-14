@@ -526,9 +526,9 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
       displayFieldName: "Name",
       value: "Philadelphia",
       attributes: {
-        Name: "Philadelphia",
-        RFC: "LMRFC",
-        WFO: "JAN",
+        nws_name: "Philadelphia",
+        producer: "LMRFC",
+        issuer: "JAN",
         "NWS LID": "PLAM6",
         "USGS Site Code": "02481880",
         "USGS Name": "PEARL RIVER AT BURNSIDE, MS",
@@ -634,6 +634,7 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
     sr: "EPSG:4326",
     geometry: "0,0",
     mapExtent: "1,2,3,4",
+    returnFieldName: true,
     imageDisplay: "100, 200, 500",
   });
   const featureQueryUrl =
@@ -702,6 +703,7 @@ test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
     sr: "EPSG:4326",
     geometry: "0,0",
     mapExtent: "1,2,3,4",
+    returnFieldName: true,
     imageDisplay: "100, 200, 500",
   });
   const featureQueryUrl =

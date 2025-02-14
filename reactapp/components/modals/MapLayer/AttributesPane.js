@@ -3,7 +3,10 @@ import { useState, useRef, useEffect } from "react";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import Alert from "react-bootstrap/Alert";
-import { getLayerAttributes } from "components/map/utilities";
+import {
+  getLayerAttributes,
+  sourcePropertiesOptions,
+} from "components/map/utilities";
 import Spinner from "react-bootstrap/Spinner";
 import {
   valuesEqual,
@@ -11,8 +14,6 @@ import {
   checkRequiredKeys,
   removeEmptyValues,
 } from "components/modals/utilities";
-
-import { sourcePropertiesOptions } from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";
 
@@ -39,11 +40,6 @@ const CenteredTD = styled.td`
   vertical-align: middle;
 `;
 
-const InLineDiv = styled.div`
-  display: inline-block;
-  float: ${(props) => props?.float && props.float};
-`;
-
 const AttributesPane = ({
   attributeVariables,
   setAttributeVariables,
@@ -58,13 +54,11 @@ const AttributesPane = ({
   const [attributes, setAttributes] = useState({});
   const attributeVariableValues = useRef(attributeVariables);
   const omittedPopupAttributesValues = useRef(omittedPopupAttributes);
-  const previousConfiguration = useRef({});
-  const [automatedAttributes, setAutomatedAttributes] = useState(null);
+  const previousSourceProps = useRef({});
+  const [customAttributes, setCustomAttributes] = useState(null);
   const [layerPopupSwitch, setLayerPopupSwitch] = useState({});
 
   useEffect(() => {
-    attributeVariableValues.current = attributeVariables;
-    omittedPopupAttributesValues.current = omittedPopupAttributes;
     if (tabKey === "attributes") {
       setWarningMessage(null);
       setErrorMessage(null);
@@ -83,6 +77,7 @@ const AttributesPane = ({
         return;
       }
 
+      // make sure all the required source properties are being supplied
       const validSourceProps = removeEmptyValues(sourceProps.props);
       const missingRequiredProps = checkRequiredKeys(
         sourcePropertiesOptions[sourceProps.type].required,
@@ -94,35 +89,53 @@ const AttributesPane = ({
         );
         return;
       }
-      if (!valuesEqual(previousConfiguration.current, sourceProps)) {
-        setAutomatedAttributes(null);
-        previousConfiguration.current = JSON.parse(JSON.stringify(sourceProps));
 
-        if (sourceProps.type === "GeoJSON") {
-          try {
-            JSON.parse(sourceProps.geojson);
-          } catch (err) {
-            setAutomatedAttributes(false);
-            setErrorMessage(
-              <>
+      // make sure a valid json is supplied if the source is GeoJSON
+      if (sourceProps.type === "GeoJSON") {
+        try {
+          JSON.parse(sourceProps.geojson);
+        } catch (err) {
+          setCustomAttributes(false);
+          setErrorMessage(
+            <>
+              <p>
                 Invalid json is being used. Please alter the json and try again.
-                <br />
-                <br />
-                {err.message}
-              </>
-            );
-            return;
-          }
+              </p>
+              <br />
+              <br />
+              <p>{err.message}</p>
+            </>
+          );
+          return;
         }
+      }
 
+      // only run if source props have changed
+      if (!valuesEqual(previousSourceProps.current, sourceProps)) {
+        setCustomAttributes(null);
+        previousSourceProps.current = JSON.parse(JSON.stringify(sourceProps));
+
+        // query attributes from the source props url
         queryLayerAttributes().then((queriedLayerAttributes) => {
-          const layerParams = sourceProps.props?.params ?? [];
           let layerAttributes = {};
-          if (
-            queriedLayerAttributes === undefined &&
-            Object.keys(layerParams).length > 0
-          ) {
-            setAutomatedAttributes(false);
+
+          // if attributes were returned from the query, use them and move on
+          if (queriedLayerAttributes) {
+            setCustomAttributes(true);
+
+            // remove an layers where no attributes were found
+            layerAttributes = Object.fromEntries(
+              Object.entries(queriedLayerAttributes).filter(
+                ([_, value]) => !(Array.isArray(value) && value.length === 0)
+              )
+            );
+
+            // if the query failed, allow the user to create their own fields for configuration
+          } else {
+            setCustomAttributes(false);
+
+            // lowercase layerParams to make sure a key isnt missed from capitalization
+            const layerParams = sourceProps.props?.params ?? [];
             const lowercaseLayerParams = Object.keys(layerParams).reduce(
               (acc, key) => {
                 acc[key.toLowerCase()] = layerParams[key];
@@ -130,25 +143,28 @@ const AttributesPane = ({
               },
               {}
             );
-            const potentialLayers = lowercaseLayerParams?.layers ?? "";
-            const transformedLayers = potentialLayers
+
+            // Check params for potential layers, otherwise just use the layer name
+            const potentialLayers =
+              lowercaseLayerParams?.layers ?? layerProps.name;
+
+            // split layers based on a comma delimited list. For WMS, extract the layer name from the namespace (topp:states for example)
+            const layers = potentialLayers
               .split(",")
               .map((layer) => layer.replace(/^[^:]*:/, ""));
-            for (const layerName of transformedLayers) {
+
+            // loop through each potential layer and setup custom attributes
+            for (const layerName of layers) {
               let newAttributes = [];
-              let existingLayerattributeVariableFields = [];
-              let existingOmittedPopupAttributesFields = [];
 
-              if (layerName in attributeVariableValues.current) {
-                existingLayerattributeVariableFields = Object.keys(
-                  attributeVariableValues.current[layerName]
-                );
-              }
+              // check to see if there are any current attributes or ommitted popups setup for the layer
+              const existingLayerattributeVariableFields = Object.keys(
+                attributeVariableValues.current[layerName] || {}
+              );
+              const existingOmittedPopupAttributesFields =
+                omittedPopupAttributesValues.current[layerName] || [];
 
-              if (layerName in omittedPopupAttributesValues.current) {
-                existingOmittedPopupAttributesFields =
-                  omittedPopupAttributesValues.current[layerName];
-              }
+              // get a unique array of attributes already configured for either popups or attributes
               const existingAttributes = [
                 ...new Set([
                   ...existingLayerattributeVariableFields,
@@ -156,238 +172,211 @@ const AttributesPane = ({
                 ]),
               ];
 
+              // if preexisting attributes, then create a new attribute for each one. otherwise just create a single new attribute
               if (existingAttributes.length > 0) {
                 for (const existingAttribute of existingAttributes) {
                   newAttributes.push({
-                    "Field Name": existingAttribute,
-                    "Show in popup": omittedPopupAttributesValues.current[
-                      layerName
-                    ]
-                      ? !omittedPopupAttributesValues.current[
-                          layerName
-                        ].includes(existingAttribute)
-                      : true,
-                    "Variable Input Name": attributeVariableValues.current[
-                      layerName
-                    ]
-                      ? (attributeVariableValues.current[layerName][
-                          existingAttribute
-                        ] ?? "")
-                      : "",
+                    name: existingAttribute,
                   });
                 }
               } else {
                 newAttributes.push({
-                  "Field Name": "",
-                  "Show in popup": true,
-                  "Variable Input Name": "",
+                  name: "",
                 });
               }
+
+              // add the set of attributes for the layerName
               layerAttributes[layerName] = newAttributes;
             }
-          } else {
-            layerAttributes = queriedLayerAttributes ?? {};
-            setAutomatedAttributes(true);
           }
 
-          const validLayerAttributes = Object.fromEntries(
-            Object.entries(layerAttributes).filter(
-              ([_, value]) => !(Array.isArray(value) && value.length === 0)
-            )
-          );
+          // add a popup and variableInput field, using preexisting values if possible
+          layerAttributes = appendExistingVariablesAndPopups(layerAttributes);
 
-          if (Object.keys(validLayerAttributes).length > 0) {
-            setAttributes(layerAttributes);
-            attributeVariableValues.current =
-              extractVariableInputNames(layerAttributes);
-
-            setLayerPopupSwitch(
-              Object.keys(layerAttributes).reduce((acc, key) => {
-                acc[key] = false; // Set each value to an empty string
-                return acc;
-              }, {})
+          // check to see what the header popup switch should be. If all field popups are false, then the header switch should be false
+          let popupSwitchValues;
+          if (Object.keys(layerAttributes).length > 0) {
+            popupSwitchValues = Object.fromEntries(
+              Object.entries(layerAttributes).map(([key, value]) => [
+                key,
+                !value.every((item) => item.popup === false), // false if all popups are false, true otherwise
+              ])
             );
           } else {
             setWarningMessage("No field attributes were found.");
-            setAttributes({});
-            setLayerPopupSwitch({});
-            attributeVariableValues.current = {};
-            return;
+            layerAttributes = {};
+            popupSwitchValues = {};
           }
+
+          // set states and refs after processing all done
+          setAttributes(layerAttributes);
+          setLayerPopupSwitch(popupSwitchValues);
+          attributeVariableValues.current =
+            extractVariableInputs(layerAttributes);
+          omittedPopupAttributesValues.current =
+            extractFalsePopups(layerAttributes);
         });
       }
     }
   }, [tabKey]);
 
-  function updateAttributes(index, layerName, field, value) {
-    const updatedAttributes = JSON.parse(JSON.stringify(attributes));
-    updatedAttributes[layerName][index][field] = value;
-    setAttributes(updatedAttributes);
-
-    if (field === "variableInput") {
-      if (!(layerName in attributeVariableValues.current)) {
-        attributeVariableValues.current[layerName] = {};
-      }
-      attributeVariableValues.current[layerName][
-        updatedAttributes[layerName][index]["alias"]
-      ] = value;
-      setAttributeVariables(attributeVariableValues.current);
-    }
-
-    if (field === "popup") {
-      if (!(layerName in omittedPopupAttributesValues.current)) {
-        omittedPopupAttributesValues.current[layerName] = [];
-      }
-      if (value) {
-        omittedPopupAttributesValues.current[layerName] =
-          omittedPopupAttributesValues.current[layerName].filter(
-            (alias) => alias !== updatedAttributes[layerName][index]["alias"]
-          );
-      } else {
-        omittedPopupAttributesValues.current[layerName].push(
-          updatedAttributes[layerName][index]["alias"]
-        );
-      }
-      setOmittedPopupAttributes(omittedPopupAttributesValues.current);
-
-      const updatedLayerPopupSwitch = JSON.parse(
-        JSON.stringify(layerPopupSwitch)
-      );
-      if (
-        omittedPopupAttributesValues.current[layerName].length ===
-        updatedAttributes[layerName].length
-      ) {
-        updatedLayerPopupSwitch[layerName] = false;
-      } else {
-        updatedLayerPopupSwitch[layerName] = true;
-      }
-      setLayerPopupSwitch(updatedLayerPopupSwitch);
-    }
-  }
-
   async function queryLayerAttributes() {
-    let layerAttributes;
+    // query source endpoints for attributes
     try {
-      layerAttributes = await getLayerAttributes(sourceProps, layerProps.name);
+      return await getLayerAttributes(sourceProps, layerProps.name);
     } catch (error) {
       setWarningMessage(
         <>
-          {error.message}
+          <p>{error.message}</p>
           <br />
-          <br />
-          Please provide the desired fields manually below or attempt to fix the
-          issues and retry.
+          <p>
+            Please provide the desired fields manually below or attempt to fix
+            the issues and retry.
+          </p>
         </>
       );
       return;
     }
-    layerAttributes = appendExistingAttributeVariables(layerAttributes);
-    layerAttributes = appendExistingOmittedPopupAttributes(layerAttributes);
-
-    return layerAttributes;
   }
 
-  function appendExistingAttributeVariables(layerAttributes) {
-    if (attributeVariableValues.current) {
-      const newObj = {};
-      for (const layerName in layerAttributes) {
-        newObj[layerName] = [];
-        for (const layerAttribute of layerAttributes[layerName]) {
-          const alias = layerAttribute.alias ?? layerAttribute.Alias;
-          const existingValue =
-            attributeVariableValues.current[layerName] &&
-            attributeVariableValues.current[layerName][alias];
-          layerAttribute["variableInput"] = existingValue ?? "";
-          newObj[layerName].push(layerAttribute);
-        }
-      }
+  function appendExistingVariablesAndPopups(layerAttributes) {
+    const newObj = {};
 
-      return newObj;
+    // loop through layers
+    for (const layerName in layerAttributes) {
+      newObj[layerName] = [];
+
+      // loop through layer attributes and append a popup and variableInput field, using existing configuration if possible
+      for (const layerAttribute of layerAttributes[layerName]) {
+        const name = layerAttribute.name;
+
+        // check to see if the attribute is already being omitted in the popup
+        const existingPopup =
+          !omittedPopupAttributesValues.current[layerName] ||
+          !omittedPopupAttributesValues.current[layerName].includes(name);
+        layerAttribute["popup"] = existingPopup;
+
+        // check to see if the attribute is already configured for a variable
+        const existingvariableInput =
+          attributeVariableValues.current[layerName] &&
+          attributeVariableValues.current[layerName][name];
+        layerAttribute["variableInput"] = existingvariableInput ?? "";
+
+        newObj[layerName].push(layerAttribute);
+      }
+    }
+
+    return newObj;
+  }
+
+  function extractVariableInputs(layerData) {
+    const result = {};
+
+    // check each layer and its attributes to extract any configured variable inputs
+    Object.entries(layerData).forEach(([layerName, layerAttributes]) => {
+      const extractedAttributeVariables = layerAttributes.reduce(
+        (acc, { name, variableInput }) => {
+          // only add if the name and variable input are configured
+          if (name && variableInput) {
+            acc[name] = variableInput;
+          }
+          return acc;
+        },
+        {}
+      );
+
+      // only add to the result if there are actually attribute variables for the layer
+      if (Object.keys(extractedAttributeVariables).length > 0) {
+        result[layerName] = extractedAttributeVariables;
+      }
+    });
+
+    return result;
+  }
+
+  function extractFalsePopups(layerData) {
+    const result = {};
+
+    Object.keys(layerData).forEach((LayerName) => {
+      const falsePopupNames = layerData[LayerName].filter(
+        ({ popup }) => popup === false
+      ) // Get items where popup is false
+        .map(({ name }) => name) // Extract name values
+        .filter(Boolean); // Remove falsy values
+
+      // only add to result if there are actually any false popups
+      if (falsePopupNames.length > 0) {
+        result[LayerName] = falsePopupNames;
+      }
+    });
+
+    return result;
+  }
+
+  function updateAttributes({
+    index,
+    layerName,
+    field,
+    fieldChange,
+    fullChange,
+  }) {
+    // make a deep copy of the attributes to actually cause a rerender on state change
+    const updatedAttributes = JSON.parse(JSON.stringify(attributes));
+
+    // if fullChange is provided, then that will contain all the data so just update the layerName value
+    if (fullChange) {
+      updatedAttributes[layerName] = fullChange;
     } else {
-      return layerAttributes;
+      // if fieldChange is provided, then just change the specified index field
+      updatedAttributes[layerName][index][field] = fieldChange;
     }
-  }
+    setAttributes(updatedAttributes);
 
-  function appendExistingOmittedPopupAttributes(layerAttributes) {
-    if (omittedPopupAttributesValues.current) {
-      const newObj = {};
-      for (const layerName in layerAttributes) {
-        newObj[layerName] = [];
-        for (const layerAttribute of layerAttributes[layerName]) {
-          const alias = layerAttribute.alias ?? layerAttribute.Alias;
-          const existingValue =
-            !omittedPopupAttributesValues.current[layerName] ||
-            !omittedPopupAttributesValues.current[layerName].includes(alias);
-          layerAttribute["popup"] = existingValue;
-          newObj[layerName].push(layerAttribute);
-        }
-      }
+    // extract attribute variables and set state and ref
+    attributeVariableValues.current = extractVariableInputs(updatedAttributes);
+    setAttributeVariables(attributeVariableValues.current);
 
-      return newObj;
-    } else {
-      return layerAttributes;
-    }
-  }
+    // extract omitted popups and set state and ref
+    omittedPopupAttributesValues.current =
+      extractFalsePopups(updatedAttributes);
+    setOmittedPopupAttributes(omittedPopupAttributesValues.current);
 
-  function handleAttributeChange(fields, layerName) {
-    const newAttributes = JSON.parse(JSON.stringify(attributes));
-    newAttributes[layerName] = fields;
-    setAttributes(newAttributes);
+    // if a popup is being altered, check to see if the header checkbox needs to be updated
+    if (field === "popup") {
+      // make a deep copy of the layerPopupSwitch to actually cause a rerender on state change
+      const updatedLayerPopupSwitch = JSON.parse(
+        JSON.stringify(layerPopupSwitch)
+      );
 
-    if (!(layerName in attributeVariableValues.current)) {
-      attributeVariableValues.current[layerName] = {};
-    }
+      // if any field popup is true, then the header checkbox is true
+      updatedLayerPopupSwitch[layerName] = updatedAttributes[layerName].some(
+        ({ popup }) => popup
+      );
 
-    if (!(layerName in omittedPopupAttributesValues.current)) {
-      omittedPopupAttributesValues.current[layerName] = [];
-    }
-
-    for (const field of fields) {
-      attributeVariableValues.current[layerName][field["Field Name"]] =
-        field["Variable Input Name"];
-      setAttributeVariables(attributeVariableValues.current);
-
-      if (field["popup"]) {
-        omittedPopupAttributesValues.current[layerName] =
-          omittedPopupAttributesValues.current[layerName].filter(
-            (alias) => alias !== field["Field Name"]
-          );
-      } else {
-        omittedPopupAttributesValues.current[layerName].push(
-          field["Field Name"]
-        );
-      }
-      setOmittedPopupAttributes(omittedPopupAttributesValues.current);
+      setLayerPopupSwitch(updatedLayerPopupSwitch);
     }
   }
 
   function handleLayerPopup(layerName, checkedValue) {
+    // update the header checkbox
     const updatedLayerPopupSwitch = JSON.parse(
       JSON.stringify(layerPopupSwitch)
     );
     updatedLayerPopupSwitch[layerName] = checkedValue;
     setLayerPopupSwitch(updatedLayerPopupSwitch);
 
-    if (!(layerName in omittedPopupAttributesValues.current)) {
-      omittedPopupAttributesValues.current[layerName] = [];
-    }
-    const updatedAttributes = JSON.parse(JSON.stringify(attributes));
-    let updatedLayerAttributes;
-    if (checkedValue) {
-      updatedLayerAttributes = updatedAttributes[layerName].map((item) => ({
-        ...item,
-        popup: true,
-      }));
-      delete omittedPopupAttributesValues.current[layerName];
-    } else {
-      updatedLayerAttributes = updatedAttributes[layerName].map((item) => ({
-        ...item,
-        popup: false,
-      }));
-      omittedPopupAttributesValues.current[layerName] =
-        updatedLayerAttributes.map((item) => item.alias);
-    }
-    updatedAttributes[layerName] = updatedLayerAttributes;
+    // update the attributes layername and make all ppup values be the same as the header checkbox
+    const updatedAttributes = {
+      ...attributes,
+      [layerName]: attributes[layerName].map((layerAttributes) => ({
+        ...layerAttributes,
+        popup: checkedValue,
+      })),
+    };
+
+    // update states and refs
+    omittedPopupAttributesValues.current =
+      extractFalsePopups(updatedAttributes);
     setAttributes(updatedAttributes);
     setOmittedPopupAttributes(omittedPopupAttributesValues.current);
   }
@@ -405,13 +394,13 @@ const AttributesPane = ({
               {warningMessage}
             </Alert>
           )}
-          {automatedAttributes === null ? (
+          {customAttributes === null ? (
             <StyledSpinner
               data-testid="Loading..."
               animation="border"
               variant="info"
             />
-          ) : automatedAttributes ? (
+          ) : customAttributes ? (
             Object.keys(attributes).map((layerName, index) => (
               <div key={index}>
                 <p>
@@ -448,16 +437,14 @@ const AttributesPane = ({
                         <CenteredTD>
                           <input
                             type="checkbox"
-                            checked={
-                              attributes[layerName][index]["popup"] ?? true
-                            }
+                            checked={attributes[layerName][index]["popup"]}
                             onChange={(e) => {
-                              updateAttributes(
+                              updateAttributes({
                                 index,
                                 layerName,
-                                "popup",
-                                e.target.checked
-                              );
+                                field: "popup",
+                                fieldChange: e.target.checked,
+                              });
                             }}
                           />
                         </CenteredTD>
@@ -467,12 +454,12 @@ const AttributesPane = ({
                               attributes[layerName][index]["variableInput"]
                             }
                             onChange={(e) => {
-                              updateAttributes(
+                              updateAttributes({
                                 index,
                                 layerName,
-                                "variableInput",
-                                e.target.value
-                              );
+                                field: "variableInput",
+                                fieldChange: e.target.value,
+                              });
                             }}
                           />
                         </td>
@@ -483,12 +470,14 @@ const AttributesPane = ({
               </div>
             ))
           ) : (
-            Object.keys(attributes).map((layerName) => (
+            Object.keys(attributes).map((layerName, index) => (
               <InputTable
+                key={index}
                 label={layerName}
-                onChange={(e) => handleAttributeChange(e, layerName)}
+                onChange={(e) => updateAttributes({ fullChange: e, layerName })}
                 values={attributes[layerName]}
                 allowRowCreation={true}
+                headers={["Name", "Show in popup", "Variable Input Name"]}
               />
             ))
           )}
@@ -499,13 +488,21 @@ const AttributesPane = ({
 };
 
 AttributesPane.propTypes = {
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.node),
-    PropTypes.node,
-    PropTypes.object,
-  ]),
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
+  attributeVariables: PropTypes.objectOf(PropTypes.objectOf(PropTypes.string))
+    .isRequired, // react state that tracks what attributes are configured for variables
+  setAttributeVariables: PropTypes.func.isRequired, // state setter for attributeVariables
+  omittedPopupAttributes: PropTypes.objectOf(
+    PropTypes.arrayOf(PropTypes.string)
+  ).isRequired, // react state that tracks what attributes are not shown in popups
+  setOmittedPopupAttributes: PropTypes.func.isRequired, // state setter for omittedPopupAttributes
+  sourceProps: PropTypes.shape({
+    type: PropTypes.string.isRequired,
+    props: PropTypes.objectOf(PropTypes.string, PropTypes.object).isRequired,
+  }), // configuration and properties for openlayers layer source
+  layerProps: PropTypes.shape({
+    name: PropTypes.string.isRequired,
+  }), // configuration and properties for openlayers layer
+  tabKey: PropTypes.string.isRequired, // react state that tracks what tab is shown
 };
 
 export default AttributesPane;

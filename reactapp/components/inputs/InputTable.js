@@ -22,8 +22,10 @@ const InputTable = ({
   values,
   disabledFields,
   allowRowCreation,
+  headers,
 }) => {
-  const [userInputs, setUserInputs] = useState(values);
+  const [userInputs, setUserInputs] = useState([]);
+  const [tableHeaders, setTableHeaders] = useState([]);
   const inputRefs = useRef([]);
 
   // get a new row with empty values that will be appended to table
@@ -35,7 +37,14 @@ const InputTable = ({
   };
 
   useEffect(() => {
+    setTableHeaders(headers);
+  }, [headers]);
+
+  useEffect(() => {
     setUserInputs(values);
+    if (!headers) {
+      setTableHeaders(Object.keys(values[0]));
+    }
   }, [values]);
 
   // check to see if all the field in a row are either a boolean or have empty strings as values
@@ -102,7 +111,7 @@ const InputTable = ({
           {/* Create the headers from the keys of the user inputs object */}
           <thead>
             <tr>
-              {Object.keys(userInputs[0]).map((colHeader, index) => {
+              {tableHeaders.map((colHeader, index) => {
                 return (
                   <th key={index} className="text-center">
                     {colHeader}
