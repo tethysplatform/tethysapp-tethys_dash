@@ -68,9 +68,9 @@ test("Dashboard Editor Canvas editable dashboard change sharing status", async (
   );
 
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
-  expect(await screen.findByText("Name:")).toBeInTheDocument();
+  expect(await screen.findByText("Name")).toBeInTheDocument();
   expect(await screen.findByLabelText("Name Input")).toBeInTheDocument();
-  expect(await screen.findByText("Label:")).toBeInTheDocument();
+  expect(await screen.findByText("Label")).toBeInTheDocument();
   expect(await screen.findByLabelText("Label Input")).toBeInTheDocument();
   expect(await screen.findByText("Sharing Status:")).toBeInTheDocument();
   expect(await screen.findByText("Notes:")).toBeInTheDocument();
@@ -230,12 +230,12 @@ test("Dashboard Editor Canvas edit and save", async () => {
 
   const labelInput = await screen.findByLabelText("Label Input");
   fireEvent.change(labelInput, { target: { value: "New Label" } });
-  expect(await screen.findByText("Label:")).toBeInTheDocument();
+  expect(await screen.findByText("Label")).toBeInTheDocument();
   expect(await screen.findByLabelText("Label Input")).toBeInTheDocument();
 
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "new_name" } });
-  expect(await screen.findByText("Name:")).toBeInTheDocument();
+  expect(await screen.findByText("Name")).toBeInTheDocument();
   expect(await screen.findByLabelText("Name Input")).toBeInTheDocument();
 
   const textArea = await screen.findByLabelText("textEditor");
@@ -307,7 +307,7 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
 
   const labelInput = await screen.findByLabelText("Label Input");
   fireEvent.change(labelInput, { target: { value: "New Label" } });
-  expect(await screen.findByText("Label:")).toBeInTheDocument();
+  expect(await screen.findByText("Label")).toBeInTheDocument();
   expect(await screen.findByLabelText("Label Input")).toBeInTheDocument();
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
@@ -367,7 +367,7 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
 
   const labelInput = await screen.findByLabelText("Label Input");
   fireEvent.change(labelInput, { target: { value: "New Label" } });
-  expect(await screen.findByText("Label:")).toBeInTheDocument();
+  expect(await screen.findByText("Label")).toBeInTheDocument();
   expect(labelInput).toBeInTheDocument();
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");

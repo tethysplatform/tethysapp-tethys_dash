@@ -1,11 +1,5 @@
-import { useState, useEffect, act } from "react";
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-  findAllByAltText,
-} from "@testing-library/react";
+import { useState, act } from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { getLayerAttributes } from "components/map/utilities";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 

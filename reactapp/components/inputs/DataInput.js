@@ -10,6 +10,7 @@ import {
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import MultiInput from "components/inputs/MultiInput";
 import InputTable from "components/inputs/InputTable";
+import NormalInput from "components/inputs/NormalInput";
 import * as customInputs from "components/inputs/Custom";
 
 const StyledDiv = styled.div`
@@ -149,23 +150,12 @@ const Input = ({
     );
   } else {
     return (
-      <>
-        <Form.Label>
-          <b>{label}:</b>
-        </Form.Label>
-        <Form.Control
-          aria-label={label + " Input"}
-          type={type}
-          onChange={(e) => onChange(e.target.value, index)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault(); // prevents submitting form on enter
-            }
-          }}
-          value={value}
-          {...inputProps}
-        />
-      </>
+      <NormalInput
+        label={label}
+        onChange={(e) => onChange(e.target.value, index)}
+        value={value}
+        type={type}
+      />
     );
   }
 };

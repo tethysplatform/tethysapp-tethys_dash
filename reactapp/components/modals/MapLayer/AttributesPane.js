@@ -52,8 +52,8 @@ const AttributesPane = ({
   const [warningMessage, setWarningMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [attributes, setAttributes] = useState({});
-  const attributeVariableValues = useRef(attributeVariables);
-  const omittedPopupAttributesValues = useRef(omittedPopupAttributes);
+  const attributeVariableValues = useRef(attributeVariables ?? {});
+  const omittedPopupAttributesValues = useRef(omittedPopupAttributes ?? {});
   const previousSourceProps = useRef({});
   const [customAttributes, setCustomAttributes] = useState(null);
   const [layerPopupSwitch, setLayerPopupSwitch] = useState({});
@@ -135,7 +135,8 @@ const AttributesPane = ({
             setCustomAttributes(false);
 
             // lowercase layerParams to make sure a key isnt missed from capitalization
-            const layerParams = sourceProps.props?.params ?? [];
+            const validSourceProps = removeEmptyValues(sourceProps.props);
+            const layerParams = validSourceProps?.params ?? [];
             const lowercaseLayerParams = Object.keys(layerParams).reduce(
               (acc, key) => {
                 acc[key.toLowerCase()] = layerParams[key];
@@ -474,7 +475,14 @@ const AttributesPane = ({
               <InputTable
                 key={index}
                 label={layerName}
-                onChange={(e) => updateAttributes({ fullChange: e, layerName })}
+                onChange={({ newValue, field }) =>
+                  updateAttributes({
+                    index,
+                    layerName,
+                    field,
+                    fieldChange: newValue,
+                  })
+                }
                 values={attributes[layerName]}
                 allowRowCreation={true}
                 headers={["Name", "Show in popup", "Variable Input Name"]}

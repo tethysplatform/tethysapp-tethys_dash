@@ -15,6 +15,7 @@ const StyledTextInput = styled.textarea`
 
 const generatePropertiesArrayWithValues = (sourceProperties, mapping) => {
   const properties = [];
+  const placeholders = [];
   let existingValues = mapping ?? {};
 
   const processKeys = (obj, required, parentKey = "", mappingObj = {}) => {
@@ -31,15 +32,13 @@ const generatePropertiesArrayWithValues = (sourceProperties, mapping) => {
         properties.push({
           required,
           property,
-          value: {
-            value: existingValue
-              ? Array.isArray(existingValue)
-                ? existingValue.join(",")
-                : existingValue
-              : "",
-            placeholder: value,
-          },
+          value: existingValue
+            ? Array.isArray(existingValue)
+              ? existingValue.join(",")
+              : existingValue
+            : "",
         });
+        placeholders.push({ value: value });
       }
     }
   };
@@ -48,7 +47,7 @@ const generatePropertiesArrayWithValues = (sourceProperties, mapping) => {
   processKeys(sourceProperties.required, true, "", existingValues);
   processKeys(sourceProperties.optional, false, "", existingValues);
 
-  return properties;
+  return { properties, placeholders };
 };
 
 function parsePropertiesArray(properties) {
@@ -75,16 +74,22 @@ const SourcePane = ({
   setAttributeVariables,
   setOmittedPopupAttributes,
 }) => {
-  const [sourceProperties, setSourceProperties] = useState(
-    sourceProps?.type
-      ? generatePropertiesArrayWithValues(
-          sourcePropertiesOptions[sourceProps.type],
-          sourceProps.props
-        )
-      : []
-  );
-  const [sourceType, setSourceType] = useState(sourceProps?.type ?? null);
+  const [sourceProperties, setSourceProperties] = useState([]);
+  const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]);
+  const [sourceType, setSourceType] = useState(null);
   const [geoJSON, setGeoJSON] = useState("{}");
+
+  useEffect(() => {
+    if (sourceProps.type) {
+      const { properties, placeholders } = generatePropertiesArrayWithValues(
+        sourcePropertiesOptions[sourceProps.type],
+        sourceProps.props
+      );
+      setSourceProperties(properties);
+      SetPropertyPlaceholders(placeholders);
+      setSourceType(sourceProps.type);
+    }
+  }, [sourceProps]);
 
   useEffect(() => {
     (async () => {
@@ -105,10 +110,14 @@ const SourcePane = ({
     })();
   }, [geoJSON]);
 
-  function handlePropertyChange(newSourceProperties) {
-    setSourceProperties(newSourceProperties);
+  function handlePropertyChange({ newValue, rowIndex, field }) {
+    const updatedSourceProperties = JSON.parse(
+      JSON.stringify(sourceProperties)
+    );
+    updatedSourceProperties[rowIndex][field] = newValue;
+    setSourceProperties(updatedSourceProperties);
 
-    const parsedSourceProps = parsePropertiesArray(newSourceProperties);
+    const parsedSourceProps = parsePropertiesArray(updatedSourceProperties);
     setSourceProps((previousSourceProps) => ({
       ...previousSourceProps,
       ...{
@@ -120,13 +129,14 @@ const SourcePane = ({
   function handleLayerTypeChange(e) {
     setSourceType(e.value);
 
-    const newSourceProperties = generatePropertiesArrayWithValues(
+    const { properties, placeholders } = generatePropertiesArrayWithValues(
       sourcePropertiesOptions[e.value],
       sourceProps.props
     );
-    setSourceProperties(newSourceProperties);
+    setSourceProperties(properties);
+    SetPropertyPlaceholders(placeholders);
 
-    const parsedSourceProps = parsePropertiesArray(newSourceProperties);
+    const parsedSourceProps = parsePropertiesArray(properties);
     setSourceProps((previousSourceProps) => ({
       ...previousSourceProps,
       ...{
@@ -183,6 +193,7 @@ const SourcePane = ({
               values={sourceProperties}
               disabledFields={["required", "property"]}
               allowRowCreation={true}
+              placeholders={propertyPlaceholders}
             />
           )}
         </>

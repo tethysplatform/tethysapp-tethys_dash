@@ -154,7 +154,19 @@ it("InputTable Placeholders", async () => {
       "field 2": "value 2",
     },
   ];
-  render(<InputTable label={label} onChange={onChange} values={values} />);
+  const placeholders = [
+    {
+      "field 1": "here is a field 1 placeholder",
+    },
+  ];
+  render(
+    <InputTable
+      label={label}
+      onChange={onChange}
+      values={values}
+      placeholders={placeholders}
+    />
+  );
 
   expect(screen.getByText("field 1")).toBeInTheDocument();
   const field1Input = screen.getByLabelText("field 1 Input 0");

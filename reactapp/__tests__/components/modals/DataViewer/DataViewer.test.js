@@ -76,7 +76,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   });
   const customImageOption = await screen.findByText("Custom Image");
   fireEvent.click(customImageOption);
-  expect(await screen.findByText("Image Source:")).toBeInTheDocument();
+  expect(await screen.findByText("Image Source")).toBeInTheDocument();
   const imageSourceInput = screen.getByLabelText("Image Source Input");
 
   fireEvent.click(dataviewerSaveButton);
@@ -136,7 +136,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   });
   const customImageOption = await screen.findByText("Variable Input");
   fireEvent.click(customImageOption);
-  expect(await screen.findByText("Variable Name:")).toBeInTheDocument();
+  expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
     await screen.findByText("Variable Options Source:")
   ).toBeInTheDocument();
@@ -246,7 +246,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   });
   const customImageOption = await screen.findByText("Variable Input");
   fireEvent.click(customImageOption);
-  expect(await screen.findByText("Variable Name:")).toBeInTheDocument();
+  expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
     await screen.findByText("Variable Options Source:")
   ).toBeInTheDocument();

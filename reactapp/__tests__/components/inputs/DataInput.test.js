@@ -270,15 +270,15 @@ test("renders inputtable", async () => {
   expect(checkbox).not.toBeChecked();
 
   expect(mockOnChange).toHaveBeenCalledWith(
-    [{ "field 1": false, "field 2": "" }],
+    { field: "field 1", newValue: false, rowIndex: 0 },
     0
   );
 
   const textbox = screen.getByRole("textbox");
-  await userEvent.type(textbox, "Some Input Value");
+  fireEvent.change(textbox, { target: { value: "Some Input Value" } });
 
   expect(mockOnChange).toHaveBeenCalledWith(
-    [{ "field 1": false, "field 2": "Some Input Value" }],
+    { field: "field 2", newValue: "Some Input Value", rowIndex: 0 },
     0
   );
 });

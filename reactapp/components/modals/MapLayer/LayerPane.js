@@ -1,59 +1,68 @@
 import PropTypes from "prop-types";
-import DataInput from "components/inputs/DataInput";
+import NormalInput from "components/inputs/NormalInput";
 import { layerPropertiesOptions } from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
 import { useState } from "react";
+import styled from "styled-components";
+
+const PaddedDiv = styled.div`
+  padding-bottom: 1rem;
+`;
 
 const LayerPane = ({ layerProps, setLayerProps }) => {
-  const [layerProperties, setLayerProperties] = useState(
-    loadExistingArgs(
-      Object.fromEntries(
-        Object.entries(layerProps).filter(([key]) => key !== "name")
-      )
+  const layerProperties = loadExistingArgs(
+    Object.fromEntries(
+      Object.entries(layerProps).filter(([key]) => key !== "name")
     )
   );
+  const propertyPlaceholders = Object.keys(layerPropertiesOptions).map(
+    (key) => ({
+      value: layerPropertiesOptions[key],
+    })
+  );
+
   const [name, setName] = useState(layerProps?.name ?? "");
 
   function loadExistingArgs(existingProps) {
     return Object.keys(layerPropertiesOptions).map((key) => ({
       required: false,
       property: key,
-      value: {
-        value: existingProps[key] ?? "",
-        placeholder: layerPropertiesOptions[key],
-      },
+      value: existingProps[key] ?? "",
     }));
   }
 
-  function handlePropertyChange(updatedUserInputs) {
+  function handlePropertyChange({ newValue, rowIndex }) {
     const updatedLayerProps = JSON.parse(JSON.stringify(layerProps));
-    updatedUserInputs.forEach(({ property, value }) => {
-      updatedLayerProps[property] = value;
-    });
+    const property = layerProperties[rowIndex]["property"];
+    updatedLayerProps[property] = newValue;
     setLayerProps(updatedLayerProps);
-    setLayerProperties(updatedUserInputs);
   }
 
   return (
     <>
-      <DataInput
-        objValue={{ label: "Name", type: "text", value: name }}
-        onChange={(e) => {
-          setName(e);
-          setLayerProps((previousLayerProps) => ({
-            ...previousLayerProps,
-            ...{
-              name: e,
-            },
-          }));
-        }}
-      />
+      <PaddedDiv>
+        <NormalInput
+          label={"Name"}
+          onChange={(e) => {
+            setName(e.target.value);
+            setLayerProps((previousLayerProps) => ({
+              ...previousLayerProps,
+              ...{
+                name: e.target.value,
+              },
+            }));
+          }}
+          value={name}
+          type={"text"}
+        />
+      </PaddedDiv>
       <InputTable
         label="Layer Properties"
         onChange={handlePropertyChange}
         values={layerProperties}
         disabledFields={["required", "property"]}
         allowRowCreation={true}
+        placeholders={propertyPlaceholders}
       />
     </>
   );

@@ -88,7 +88,7 @@ test("Visualization Pane Custom Image", async () => {
   });
   const customImageOption = await screen.findByText("Custom Image");
   fireEvent.click(customImageOption);
-  expect(await screen.findByText("Image Source:")).toBeInTheDocument();
+  expect(await screen.findByText("Image Source")).toBeInTheDocument();
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith(null);
   expect(mockSetViz).toHaveBeenCalledWith(null);
@@ -201,7 +201,7 @@ test("Visualization Pane Variable Input", async () => {
 
   const customImageOption = await screen.findByText("Variable Input");
   fireEvent.click(customImageOption);
-  expect(await screen.findByText("Variable Name:")).toBeInTheDocument();
+  expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
     await screen.findByText("Variable Options Source:")
   ).toBeInTheDocument();
@@ -333,7 +333,7 @@ test("Visualization Pane Other Type", async () => {
 
   const pluginLabelOption = await screen.findByText("plugin_label");
   fireEvent.click(pluginLabelOption);
-  expect(await screen.findByText("Plugin Arg:")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg")).toBeInTheDocument();
 
   const pluginArg1Input = screen.getByLabelText("Plugin Arg Input");
   fireEvent.change(pluginArg1Input, { target: { value: "some value" } });
@@ -364,7 +364,7 @@ test("Visualization Pane Other Type", async () => {
 
   const pluginLabel2Option = await screen.findByText("plugin_label2");
   fireEvent.click(pluginLabel2Option);
-  expect(await screen.findByText("Plugin Arg:")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg")).toBeInTheDocument();
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "plugin_source2",
@@ -389,7 +389,7 @@ test("Visualization Pane Other Type", async () => {
 
   const pluginLabel3Option = await screen.findByText("plugin_label3");
   fireEvent.click(pluginLabel3Option);
-  expect(await screen.findByText("Plugin Arg3:")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg3")).toBeInTheDocument();
 
   const pluginArg3Input = screen.getByLabelText("Plugin Arg3 Input");
   fireEvent.change(pluginArg3Input, { target: { value: "some new value" } });

@@ -23,15 +23,17 @@ const InputTable = ({
   disabledFields,
   allowRowCreation,
   headers,
+  placeholders,
 }) => {
-  const [userInputs, setUserInputs] = useState([]);
+  const [tableRows, setTableRows] = useState([]);
   const [tableHeaders, setTableHeaders] = useState([]);
+  const [inputPlaceholders, setInputPlaceholders] = useState([]);
   const inputRefs = useRef([]);
 
   // get a new row with empty values that will be appended to table
   const getEmptyRow = () => {
-    return Object.keys(userInputs[0]).reduce((acc, field) => {
-      acc[field] = typeof userInputs[0][field] === "boolean" ? true : ""; // Initialize empty row with empty strings
+    return Object.keys(tableRows[0]).reduce((acc, field) => {
+      acc[field] = typeof tableRows[0][field] === "boolean" ? true : ""; // Initialize empty row with empty strings
       return acc;
     }, {});
   };
@@ -41,7 +43,11 @@ const InputTable = ({
   }, [headers]);
 
   useEffect(() => {
-    setUserInputs(values);
+    setInputPlaceholders(placeholders);
+  }, [placeholders]);
+
+  useEffect(() => {
+    setTableRows(values);
     if (!headers) {
       setTableHeaders(Object.keys(values[0]));
     }
@@ -49,7 +55,7 @@ const InputTable = ({
 
   // check to see if all the field in a row are either a boolean or have empty strings as values
   const isRowEmpty = (row) =>
-    Object.keys(userInputs[0]).every(
+    Object.keys(tableRows[0]).every(
       (field) => typeof row[field] === "boolean" || row[field] === ""
     );
 
@@ -58,21 +64,21 @@ const InputTable = ({
     if (
       e.key === "Tab" &&
       allowRowCreation &&
-      rowIndex === userInputs.length - 1 && // Only trigger on the last row
-      fieldIndex === Object.keys(userInputs[0]).length - 1 // Only trigger on the last field in the row
+      rowIndex === tableRows.length - 1 && // Only trigger on the last row
+      fieldIndex === Object.keys(tableRows[0]).length - 1 // Only trigger on the last field in the row
     ) {
       e.preventDefault(); // Prevent default tab behavior
 
       // Add a new row
-      const newUserInputs = [...userInputs, getEmptyRow()];
-      setUserInputs(newUserInputs);
-      onChange(newUserInputs);
+      const newTableRows = [...tableRows, getEmptyRow()];
+      setTableRows(newTableRows);
+      onChange(newTableRows);
 
       // Focus the first input of the new row
       setTimeout(() => {
         const newRowStartIndex =
-          newUserInputs.length * Object.keys(userInputs[0]).length -
-          Object.keys(userInputs[0]).length;
+          newTableRows.length * Object.keys(tableRows[0]).length -
+          Object.keys(tableRows[0]).length;
         const firstFieldRef = inputRefs.current[newRowStartIndex];
         firstFieldRef.focus();
       }, 0); // Delay to ensure DOM updates
@@ -80,33 +86,34 @@ const InputTable = ({
       // deletes row if allowRowCreation is true and backspace is pressed on a row that has all empty values
       e.key === "Backspace" &&
       allowRowCreation &&
-      userInputs.length > 1 &&
-      isRowEmpty(userInputs[rowIndex])
+      tableRows.length > 1 &&
+      isRowEmpty(tableRows[rowIndex])
     ) {
       e.preventDefault(); // Prevent default backspace behavior
-      const newUserInputs = userInputs.filter((_, index) => index !== rowIndex);
-      setUserInputs(newUserInputs);
-      onChange(newUserInputs);
+      const newTableRows = tableRows.filter((_, index) => index !== rowIndex);
+      setTableRows(newTableRows);
+      onChange(newTableRows);
 
       // Focus the previous row's first input
       const prevRowIndex = rowIndex - 1;
-      const prevInputIndex = prevRowIndex * Object.keys(userInputs[0]).length;
+      const prevInputIndex = prevRowIndex * Object.keys(tableRows[0]).length;
       const prevInput = inputRefs.current[prevInputIndex];
       prevInput.focus();
     }
   };
 
   const handleChange = (newValue, rowIndex, field) => {
-    const newUserInputs = [...userInputs];
-    newUserInputs[rowIndex][field] = newValue;
-    setUserInputs(newUserInputs);
-    onChange(newUserInputs);
+    const newTableRows = [...tableRows];
+    newTableRows[rowIndex][field] = newValue;
+    setTableRows(newTableRows);
+
+    onChange({ newValue, rowIndex, field });
   };
 
   return (
     <FullLabel>
       <b>{label}</b>:{" "}
-      {userInputs.length > 0 && (
+      {tableRows.length > 0 && (
         <Table striped bordered hover size="sm">
           {/* Create the headers from the keys of the user inputs object */}
           <thead>
@@ -122,7 +129,7 @@ const InputTable = ({
           </thead>
           <tbody>
             {/* loop through inputs to create the rows and fields */}
-            {userInputs.map((row, rowIndex) => (
+            {tableRows.map((row, rowIndex) => (
               <tr key={rowIndex}>
                 {Object.keys(row).map((field, fieldIndex) => {
                   {
@@ -159,7 +166,7 @@ const InputTable = ({
                           <FullInput
                             aria-label={`${field} Input ${rowIndex}`}
                             type="text"
-                            value={row[field]?.value ?? row[field]}
+                            value={row[field]}
                             ref={(el) =>
                               (inputRefs.current[
                                 rowIndex * Object.keys(row).length + fieldIndex
@@ -171,7 +178,10 @@ const InputTable = ({
                             onKeyDown={(e) =>
                               handleKeyDown(e, rowIndex, fieldIndex)
                             }
-                            placeholder={row[field]?.placeholder}
+                            placeholder={
+                              inputPlaceholders &&
+                              inputPlaceholders[rowIndex][field]
+                            }
                           />
                         </td>
                       );
