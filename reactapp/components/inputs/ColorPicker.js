@@ -28,7 +28,7 @@ const ColorPicker = ({ color, onChange, hideInput }) => {
 ColorPicker.propTypes = {
   color: PropTypes.string.isRequired, // color in hex, rgb, or hsv
   onChange: PropTypes.func.isRequired, // callback function with new color in hex
-  hideInput: PropTypes.arrayOf([PropTypes.string]), // array of inputs (hex, rgb, hsv) to hide
+  hideInput: PropTypes.arrayOf(PropTypes.string), // array of inputs (hex, rgb, hsv) to hide
 };
 
 export default ColorPicker;

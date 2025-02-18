@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import DataInput from "components/inputs/DataInput";
+import DataRadioSelect from "components/inputs/DataRadioSelect";
 import Button from "react-bootstrap/Button";
 import { useState, useRef, useEffect } from "react";
 import Table from "react-bootstrap/Table";
@@ -25,6 +25,10 @@ const RedTrashIcon = styled(BsTrash)`
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
 `;
 
 const StyledInput = styled.input`
@@ -33,9 +37,7 @@ const StyledInput = styled.input`
 
 const InLineInputDiv = styled.div`
   display: inline-block;
-  width: calc(
-    ${(props) => (props?.widthBuffer ? props.widthBuffer : "100%")} - 1.5em
-  );
+  width: calc(100% - 1.5em);
   vertical-align: middle;
 `;
 
@@ -49,6 +51,10 @@ const AlignedDragHandle = styled(RxDragHandleHorizontal)`
 const StyledPopoverBody = styled(Popover.Body)`
   max-height: 70vh;
   overflow-y: auto;
+`;
+
+const HoverDiv = styled.div`
+  cursor: pointer;
 `;
 
 const LegendTemplate = ({
@@ -74,10 +80,11 @@ const LegendTemplate = ({
   }, [label, color, symbol]);
 
   useEffect(() => {
-    legendItems[index].symbol = symbolValue;
-    legendItems[index].color = symbolColor;
+    const updatedLegendItems = JSON.parse(JSON.stringify(legendItems));
+    updatedLegendItems[index].symbol = symbolValue;
+    updatedLegendItems[index].color = symbolColor;
     setSymbolComponent(getLegendSymbol(symbolValue, symbolColor));
-    setLegendItems(legendItems);
+    setLegendItems(updatedLegendItems);
   }, [symbolValue, symbolColor]);
 
   const onColorChange = (changedColor) => {
@@ -85,9 +92,10 @@ const LegendTemplate = ({
   };
 
   const onLabelChange = (e) => {
-    legendItems[index].label = e.target.value;
+    const updatedLegendItems = JSON.parse(JSON.stringify(legendItems));
+    updatedLegendItems[index].label = e.target.value;
     setLocalLabel(e.target.value);
-    setLegendItems(legendItems);
+    setLegendItems(updatedLegendItems);
   };
 
   const deleteRow = () => {
@@ -150,9 +158,13 @@ const LegendTemplate = ({
         </Overlay>
       </td>
       <td className="text-center">
-        <div onClick={deleteRow}>
+        <HoverDiv
+          onClick={deleteRow}
+          onMouseOver={(e) => (e.target.style.cursor = "pointer")}
+          onMouseOut={(e) => (e.target.style.cursor = "default")}
+        >
           <RedTrashIcon size={"1rem"} />
-        </div>
+        </HoverDiv>
       </td>
     </tr>
   );
@@ -211,33 +223,29 @@ const LegendPane = ({ legend, setLegend, containerRef }) => {
 
   return (
     <>
-      <DataInput
-        objValue={{
-          label: "Legend Control",
-          type: "radio",
-          value: legendMode,
-          valueOptions,
+      <DataRadioSelect
+        label={"Legend Control"}
+        aria-label={"Legend Control Input"}
+        selectedRadio={legendMode}
+        radioOptions={valueOptions}
+        onChange={(e) => {
+          changeLegendMode(e.target.value);
         }}
-        onChange={changeLegendMode}
       />
       {legendMode === "on" && (
         <>
           <StyledDiv>
-            <InLineInputDiv widthBuffer={"70%"}>
-              <label>
-                <b>Title</b>:{" "}
-                <input value={legendTitle} onChange={onTitleChange}></input>
-              </label>
-            </InLineInputDiv>
-            <InLineButtonDiv>
-              <Button
-                variant="info"
-                onClick={addLegendItem}
-                aria-label={"Add Legend Item Button"}
-              >
-                Add Legend Item
-              </Button>
-            </InLineButtonDiv>
+            <label>
+              <b>Title</b>:{" "}
+              <input value={legendTitle} onChange={onTitleChange}></input>
+            </label>
+            <Button
+              variant="info"
+              onClick={addLegendItem}
+              aria-label={"Add Legend Item Button"}
+            >
+              Add Legend Item
+            </Button>
           </StyledDiv>
           <div>
             <Table striped bordered hover size="sm">
@@ -264,14 +272,49 @@ const LegendPane = ({ legend, setLegend, containerRef }) => {
   );
 };
 
+LegendTemplate.propTypes = {
+  value: PropTypes.shape({
+    label: PropTypes.string.isRequired,
+    color: PropTypes.string.isRequired,
+    symbol: PropTypes.string.isRequired,
+  }), // data for the row
+  index: PropTypes.number, // index of the row (legenditem)
+  // The properties from the DraggableList input to allow dragging functionality
+  draggingProps: PropTypes.shape({
+    key: PropTypes.number.isRequired,
+    onDragStart: PropTypes.func.isRequired,
+    onDragOver: PropTypes.func.isRequired,
+    onDrop: PropTypes.func.isRequired,
+    draggable: PropTypes.string.isRequired,
+  }).isRequired,
+  containerRef: PropTypes.shape({
+    current: PropTypes.oneOfType([PropTypes.object, PropTypes.element]),
+  }), // ref pointing to the container of the content so that color picker renders inside the same div
+  legendItems: PropTypes.arrayOf(
+    PropTypes.shape({
+      color: PropTypes.string,
+      label: PropTypes.string,
+      symbol: PropTypes.string,
+    })
+  ), // state that controls the legend items in the table
+  setLegendItems: PropTypes.func,
+};
+
 LegendPane.propTypes = {
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.node),
-    PropTypes.node,
-    PropTypes.object,
-  ]),
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
+  legend: PropTypes.shape({
+    title: PropTypes.string,
+    items: PropTypes.arrayOf(
+      PropTypes.shape({
+        color: PropTypes.string,
+        label: PropTypes.string,
+        symbol: PropTypes.string,
+      })
+    ),
+  }),
+  setLegend: PropTypes.func,
+  containerRef: PropTypes.shape({
+    current: PropTypes.oneOfType([PropTypes.object, PropTypes.element]),
+  }), // ref pointing to the container of the content so that color picker renders inside the same div
 };
 
 export default LegendPane;

@@ -72,7 +72,7 @@ test("Dashboard Editor Canvas editable dashboard change sharing status", async (
   expect(await screen.findByLabelText("Name Input")).toBeInTheDocument();
   expect(await screen.findByText("Label")).toBeInTheDocument();
   expect(await screen.findByLabelText("Label Input")).toBeInTheDocument();
-  expect(await screen.findByText("Sharing Status:")).toBeInTheDocument();
+  expect(await screen.findByText("Sharing Status")).toBeInTheDocument();
   expect(await screen.findByText("Notes:")).toBeInTheDocument();
   expect(await screen.findByLabelText("textEditor")).toBeInTheDocument();
   expect(await screen.findByText("Close")).toBeInTheDocument();

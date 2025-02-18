@@ -14,11 +14,6 @@ const FixedTable = styled(Table)`
   font-size: small;
 `;
 
-const InLineDiv = styled.div`
-  display: inline-block;
-  float: ${(props) => props?.float && props.float};
-`;
-
 const OverflowTD = styled.td`
   overflow-x: auto;
 `;
@@ -29,12 +24,21 @@ const RedTrashIcon = styled(BsTrash)`
 const BlueEditIcon = styled(BsPencilSquare)`
   color: blue;
 `;
-const MarginButton = styled(Button)`
-  margin-bottom: 1rem;
-  float: right;
-`;
 const AlignedDragHandle = styled(RxDragHandleHorizontal)`
   margin: auto;
+`;
+
+const SpacedDiv = styled.div`
+  padding-bottom: 1rem;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: ${(props) => (props?.bottomPadding ? "1rem" : 0)};
+`;
+
+const HoverDiv = styled.div`
+  cursor: pointer;
 `;
 
 const MapLayerTemplate = ({
@@ -102,19 +106,24 @@ const MapLayerTemplate = ({
         {value.legend ? "On" : "Off"}
       </OverflowTD>
       <td>
-        <InLineDiv
-          data-testid="removeMapLayer"
-          onClick={() => removeMapLayer(value.configuration.props.name)}
-        >
-          <RedTrashIcon size={"1rem"} />
-        </InLineDiv>
-        <InLineDiv
-          data-testid="editMapLayer"
-          float={"right"}
-          onClick={() => editMapLayer(value.configuration.props.name)}
-        >
-          <BlueEditIcon size={"1rem"} />
-        </InLineDiv>
+        <SpacedDiv>
+          <HoverDiv
+            data-testid="removeMapLayer"
+            onClick={() => removeMapLayer(value.configuration.props.name)}
+            onMouseOver={(e) => (e.target.style.cursor = "pointer")}
+            onMouseOut={(e) => (e.target.style.cursor = "default")}
+          >
+            <RedTrashIcon size={"1rem"} />
+          </HoverDiv>
+          <HoverDiv
+            data-testid="editMapLayer"
+            onClick={() => editMapLayer(value.configuration.props.name)}
+            onMouseOver={(e) => (e.target.style.cursor = "pointer")}
+            onMouseOut={(e) => (e.target.style.cursor = "default")}
+          >
+            <BlueEditIcon size={"1rem"} />
+          </HoverDiv>
+        </SpacedDiv>
       </td>
     </tr>
   );
@@ -204,14 +213,16 @@ export const AddMapLayer = ({
 
   return (
     <>
-      <b>{label && label}</b>
-      <MarginButton
-        variant="info"
-        onClick={openMapLayerModal}
-        aria-label={"Add Layer Button"}
-      >
-        Add Layer
-      </MarginButton>
+      <SpacedDiv bottomPadding={true}>
+        <b>{label && label}</b>
+        <Button
+          variant="info"
+          onClick={openMapLayerModal}
+          aria-label={"Add Layer Button"}
+        >
+          Add Layer
+        </Button>
+      </SpacedDiv>
       <FixedTable striped bordered hover size="sm">
         <thead>
           <tr>

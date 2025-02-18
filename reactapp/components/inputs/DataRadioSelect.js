@@ -27,7 +27,7 @@ const DataRadioSelect = ({ label, selectedRadio, radioOptions, onChange }) => {
 
   return (
     <StyledDiv>
-      <b>{label}:</b>
+      <b>{label}</b>:
       <br />
       {RadioButtons}
     </StyledDiv>

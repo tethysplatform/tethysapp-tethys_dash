@@ -10,11 +10,13 @@ const PaddedDiv = styled.div`
 `;
 
 const LayerPane = ({ layerProps, setLayerProps }) => {
+  // load existing layerProperties
   const layerProperties = loadExistingArgs(
     Object.fromEntries(
       Object.entries(layerProps).filter(([key]) => key !== "name")
     )
   );
+  // setup placeholders for the input table
   const propertyPlaceholders = Object.keys(layerPropertiesOptions).map(
     (key) => ({
       value: layerPropertiesOptions[key],
@@ -24,6 +26,7 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
   const [name, setName] = useState(layerProps?.name ?? "");
 
   function loadExistingArgs(existingProps) {
+    // create an array for the input table of the various properties
     return Object.keys(layerPropertiesOptions).map((key) => ({
       required: false,
       property: key,
@@ -32,6 +35,7 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
   }
 
   function handlePropertyChange({ newValue, rowIndex }) {
+    // update property based on the table row
     const updatedLayerProps = JSON.parse(JSON.stringify(layerProps));
     const property = layerProperties[rowIndex]["property"];
     updatedLayerProps[property] = newValue;
@@ -69,13 +73,15 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
 };
 
 LayerPane.propTypes = {
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.node),
-    PropTypes.node,
-    PropTypes.object,
-  ]),
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
+  layerProps: PropTypes.shape({
+    name: PropTypes.string.isRequired, // name of the layer
+    opacity: PropTypes.string,
+    minResolution: PropTypes.string,
+    maxResolution: PropTypes.string,
+    minZoom: PropTypes.string,
+    maxZoom: PropTypes.string,
+  }),
+  setLayerProps: PropTypes.func,
 };
 
 export default LayerPane;
