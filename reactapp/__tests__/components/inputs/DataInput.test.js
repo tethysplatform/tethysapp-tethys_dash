@@ -327,7 +327,6 @@ test("renders custom-AddMapLayer", async () => {
   expect(mockOnChange).toHaveBeenCalledWith(
     [
       {
-        attributeVariables: {},
         configuration: {
           props: {
             name: "New Layer Name",
@@ -341,7 +340,6 @@ test("renders custom-AddMapLayer", async () => {
           },
           type: "ImageLayer",
         },
-        omittedPopupAttributes: {},
       },
     ],
     0

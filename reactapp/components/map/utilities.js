@@ -1,3 +1,4 @@
+import PropTypes from "prop-types";
 import { convertXML } from "simple-xml-to-json";
 import { transform } from "ol/proj";
 import Feature from "ol/Feature";
@@ -557,3 +558,58 @@ export function getMapAttributeVariables(mapLayers) {
   }
   return mapAttributeVariables;
 }
+
+// layer attribute variable for the layer, structure is {layerName: {"field1": "Variable Name 1"}}
+export const attributeVariablesPropType = PropTypes.objectOf(
+  PropTypes.objectOf(PropTypes.string)
+);
+
+// layer attributes to be omitted in the popups, structure is {layerName: ["field1", "field2"]}
+export const omittedPopupAttributesPropType = PropTypes.objectOf(
+  PropTypes.arrayOf(PropTypes.string)
+);
+
+export const sourcePropType = PropTypes.shape({
+  props: PropTypes.object, // an object of source properties like url, params, etc. see components/map/utilities.js (sourcePropertiesOptions) for examples
+  type: PropTypes.string, // layer source type
+});
+
+export const configurationPropType = PropTypes.shape({
+  // other layer properties are available like opacity, zoom, etc. see components/map/utilities.js (layerPropertiesOptions) for examples
+  props: PropTypes.shape({
+    name: PropTypes.string,
+    source: sourcePropType,
+  }),
+  type: PropTypes.string, // layer type
+});
+
+export const legendItemPropType = PropTypes.shape({
+  color: PropTypes.string, // legend item color
+  label: PropTypes.string, // legend item label
+  symbol: PropTypes.string, // legend item symbol
+});
+
+export const legendPropType = PropTypes.shape({
+  title: PropTypes.string, // title for the layer in the map legend
+  // an array of legend items to show in the map legend
+  items: PropTypes.arrayOf(legendItemPropType),
+});
+
+export const layerPropType = PropTypes.shape({
+  configuration: configurationPropType,
+  attributeVariables: attributeVariablesPropType,
+  omittedPopupAttributes: omittedPopupAttributesPropType,
+  style: PropTypes.string,
+  legend: legendPropType,
+});
+
+export const layerInfoPropType = PropTypes.shape({
+  sourceProps: sourcePropType,
+  layerProps: PropTypes.shape({
+    name: PropTypes.string,
+  }), // an object of layer properties like opacity, zoom, etc. see components/map/utilities.js (layerPropertiesOptions) for examples
+  legend: legendPropType,
+  style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
+  attributeVariables: attributeVariablesPropType,
+  omittedPopupAttributes: omittedPopupAttributesPropType,
+});

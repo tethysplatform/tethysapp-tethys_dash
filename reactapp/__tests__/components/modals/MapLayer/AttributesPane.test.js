@@ -11,12 +11,6 @@ jest.mock("components/map/utilities", () => {
   };
 });
 const mockedGetLayerAttributes = jest.mocked(getLayerAttributes);
-mockedGetLayerAttributes.mockResolvedValue({
-  states: [
-    { name: "the_geom", alias: "the_geom" },
-    { name: "STATE_NAME", alias: "STATE_NAME" },
-  ],
-});
 
 const TestingComponent = ({
   initialAttributeVariables,

@@ -12,6 +12,7 @@ import CustomPicker from "components/inputs/CustomPicker";
 import { BsTrash } from "react-icons/bs";
 import { legendSymbols, getLegendSymbol } from "components/map/LegendControl";
 import { RxDragHandleHorizontal } from "react-icons/rx";
+import { legendPropType, legendItemPropType } from "components/map/utilities";
 import "components/modals/wideModal.css";
 
 const StyledLabel = styled.label`
@@ -273,11 +274,7 @@ const LegendPane = ({ legend, setLegend, containerRef }) => {
 };
 
 LegendTemplate.propTypes = {
-  value: PropTypes.shape({
-    label: PropTypes.string.isRequired,
-    color: PropTypes.string.isRequired,
-    symbol: PropTypes.string.isRequired,
-  }), // data for the row
+  value: legendItemPropType,
   index: PropTypes.number, // index of the row (legenditem)
   // The properties from the DraggableList input to allow dragging functionality
   draggingProps: PropTypes.shape({
@@ -290,27 +287,12 @@ LegendTemplate.propTypes = {
   containerRef: PropTypes.shape({
     current: PropTypes.oneOfType([PropTypes.object, PropTypes.element]),
   }), // ref pointing to the container of the content so that color picker renders inside the same div
-  legendItems: PropTypes.arrayOf(
-    PropTypes.shape({
-      color: PropTypes.string,
-      label: PropTypes.string,
-      symbol: PropTypes.string,
-    })
-  ), // state that controls the legend items in the table
+  legendItems: PropTypes.arrayOf(legendItemPropType), // state that controls the legend items in the table
   setLegendItems: PropTypes.func,
 };
 
 LegendPane.propTypes = {
-  legend: PropTypes.shape({
-    title: PropTypes.string,
-    items: PropTypes.arrayOf(
-      PropTypes.shape({
-        color: PropTypes.string,
-        label: PropTypes.string,
-        symbol: PropTypes.string,
-      })
-    ),
-  }),
+  legend: legendPropType,
   setLegend: PropTypes.func,
   containerRef: PropTypes.shape({
     current: PropTypes.oneOfType([PropTypes.object, PropTypes.element]),

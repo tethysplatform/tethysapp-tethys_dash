@@ -64,7 +64,6 @@ it("AddMapLayer update existing", async () => {
 
   expect(onChange).toHaveBeenCalledWith([
     {
-      attributeVariables: {},
       configuration: {
         props: {
           name: "New Layer Name",
@@ -88,7 +87,6 @@ it("AddMapLayer update existing", async () => {
         ],
         title: "Legend Title",
       },
-      omittedPopupAttributes: {},
     },
   ]);
 });
@@ -146,7 +144,6 @@ it("AddMapLayer add new", async () => {
 
   expect(onChange).toHaveBeenCalledWith([
     {
-      attributeVariables: {},
       configuration: {
         props: {
           name: "New Layer Name",
@@ -159,7 +156,6 @@ it("AddMapLayer add new", async () => {
         },
         type: "ImageLayer",
       },
-      omittedPopupAttributes: {},
     },
   ]);
 });

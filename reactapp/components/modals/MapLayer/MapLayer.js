@@ -15,6 +15,11 @@ import { AppContext } from "components/contexts/Contexts";
 import {
   sourcePropertiesOptions,
   getMapAttributeVariables,
+  layerPropType,
+  omittedPopupAttributesPropType,
+  attributeVariablesPropType,
+  legendPropType,
+  sourcePropType,
 } from "components/map/utilities";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -86,10 +91,9 @@ const MapLayerModal = ({
       return;
     }
 
+    const minAttributeVariables = removeEmptyValues(attributeVariables);
     // Check to see if the pending attribute variables are valid
-    if (attributeVariables) {
-      const minAttributeVariables = removeEmptyValues(attributeVariables);
-
+    if (Object.keys(minAttributeVariables).length > 0) {
       // flatten attribute variables into a list
       const pendingVariableInputs = Object.values(
         minAttributeVariables
@@ -160,10 +164,7 @@ const MapLayerModal = ({
       }
     }
 
-    if (
-      sourceProps.type === "VectorTile" &&
-      typeof validSourceProps.urls === "string"
-    ) {
+    if (sourceProps.type === "VectorTile") {
       validSourceProps.urls = validSourceProps.urls.split(",");
     }
 
@@ -185,9 +186,15 @@ const MapLayerModal = ({
           },
         },
       },
-      attributeVariables: attributeVariables ?? {},
-      omittedPopupAttributes: omittedPopupAttributes ?? {},
     };
+
+    if (Object.keys(minAttributeVariables).length > 0) {
+      mapConfiguration.attributeVariables = minAttributeVariables;
+    }
+
+    if (Object.keys(omittedPopupAttributes).length > 0) {
+      mapConfiguration.omittedPopupAttributes = omittedPopupAttributes;
+    }
 
     if (legend && Object.keys(legend).length > 0) {
       if (legend.title === "") {
@@ -220,7 +227,10 @@ const MapLayerModal = ({
       } catch (err) {
         setErrorMessage(
           <>
-            Invalid GeoJSON is being used. Please alter the json and try again.
+            <p>
+              Invalid GeoJSON is being used. Please alter the json and try
+              again.
+            </p>
             <br />
             <br />
             {err.message}
@@ -258,8 +268,10 @@ const MapLayerModal = ({
       } catch (err) {
         setErrorMessage(
           <>
-            Invalid style json is being used. Please alter the json and try
-            again.
+            <p>
+              Invalid style json is being used. Please alter the json and try
+              again.
+            </p>
             <br />
             <br />
             {err.message}
@@ -402,13 +414,24 @@ const MapLayerModal = ({
 };
 
 MapLayerModal.propTypes = {
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.node),
-    PropTypes.node,
-    PropTypes.object,
-  ]),
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
+  showModal: PropTypes.bool, // state for showing map layer modal
+  handleModalClose: PropTypes.func, // callback function for when map layer modal closes
+  addMapLayer: PropTypes.func, // callback function for adding map layer to the addMapLayer Input
+  // contain information about the layer for each tab in the modal
+  layerInfo: PropTypes.shape({
+    sourceProps: sourcePropType,
+    layerProps: PropTypes.shape({
+      name: PropTypes.string,
+    }), // an object of layer properties like opacity, zoom, etc. see components/map/utilities.js (layerPropertiesOptions) for examples
+    legend: legendPropType,
+    style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
+    attributeVariables: attributeVariablesPropType,
+    omittedPopupAttributes: omittedPopupAttributesPropType,
+  }),
+  mapLayers: PropTypes.arrayOf(layerPropType),
+  existingLayerOriginalName: PropTypes.shape({
+    current: PropTypes.any,
+  }),
 };
 
 export default MapLayerModal;

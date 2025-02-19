@@ -74,7 +74,7 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
 
 LayerPane.propTypes = {
   layerProps: PropTypes.shape({
-    name: PropTypes.string.isRequired, // name of the layer
+    name: PropTypes.string, // name of the layer
     opacity: PropTypes.string,
     minResolution: PropTypes.string,
     maxResolution: PropTypes.string,

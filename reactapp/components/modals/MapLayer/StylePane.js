@@ -37,7 +37,11 @@ const StylePane = ({ style, setStyle }) => {
         onFileUpload={handleStyleJSONUpload}
         extensionsAllowed={["json"]}
       />
-      <StyledTextInput value={style} onChange={handleStyleJSONChange} />
+      <StyledTextInput
+        value={style}
+        onChange={handleStyleJSONChange}
+        aria-label={"style-text-area"}
+      />
     </>
   );
 };

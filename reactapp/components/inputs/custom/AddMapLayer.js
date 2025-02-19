@@ -8,6 +8,7 @@ import Button from "react-bootstrap/Button";
 import { valuesEqual } from "components/modals/utilities";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
 import { RxDragHandleHorizontal } from "react-icons/rx";
+import { layerPropType, layerInfoPropType } from "components/map/utilities";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;
@@ -263,30 +264,7 @@ export const AddMapLayer = ({
 
 MapLayerTemplate.propTypes = {
   // The map layer object that contains layer metadata
-  value: PropTypes.shape({
-    configuration: PropTypes.shape({
-      type: PropTypes.string.isRequired,
-      props: PropTypes.shape({
-        name: PropTypes.string.isRequired,
-        source: PropTypes.shape({
-          type: PropTypes.string.isRequired,
-          props: PropTypes.shape({
-            url: PropTypes.string.isRequired,
-          }),
-        }),
-      }),
-    }).isRequired,
-    legend: PropTypes.shape({
-      title: PropTypes.string,
-      items: PropTypes.arrayOf(
-        PropTypes.shape({
-          color: PropTypes.string.isRequired,
-          label: PropTypes.string.isRequired,
-          symbol: PropTypes.string.isRequired,
-        })
-      ),
-    }),
-  }).isRequired,
+  value: layerPropType.isRequired,
   // The properties from the DraggableList input to allow dragging functionality
   draggingProps: PropTypes.shape({
     key: PropTypes.number.isRequired,
@@ -296,49 +274,10 @@ MapLayerTemplate.propTypes = {
     draggable: PropTypes.string.isRequired,
   }).isRequired,
   // ref that tracks all the available map layers
-  mapLayers: PropTypes.shape({
-    current: PropTypes.arrayOf(
-      PropTypes.shape({
-        configuration: PropTypes.shape({
-          type: PropTypes.string.isRequired,
-          props: PropTypes.shape({
-            name: PropTypes.string.isRequired,
-            source: PropTypes.shape({
-              type: PropTypes.string.isRequired,
-              props: PropTypes.shape({
-                url: PropTypes.string.isRequired,
-              }),
-            }),
-          }),
-        }).isRequired,
-        legend: PropTypes.shape({
-          title: PropTypes.string,
-          items: PropTypes.arrayOf(
-            PropTypes.shape({
-              color: PropTypes.string.isRequired,
-              label: PropTypes.string.isRequired,
-              symbol: PropTypes.string.isRequired,
-            })
-          ),
-        }),
-      })
-    ),
-  }).isRequired,
+  mapLayers: PropTypes.arrayOf(layerPropType).isRequired,
   onChange: PropTypes.func, // callback function will handle what is being passed to the dataviewer for the overall configured map visualization
   // ref that tracks a map layer that is being edited.
-  layerInfo: PropTypes.shape({
-    current: PropTypes.shape({
-      layerType: PropTypes.string.isRequired,
-      url: PropTypes.string.isRequired,
-      name: PropTypes.string.isRequired,
-      legend: PropTypes.arrayOf(
-        PropTypes.shape({
-          color: PropTypes.string.isRequired,
-          label: PropTypes.string.isRequired,
-        })
-      ),
-    }),
-  }),
+  layerInfo: layerInfoPropType,
   // ref that tracks the original name of map layer that is being edited
   existingLayerOriginalName: PropTypes.shape({
     current: PropTypes.string,
@@ -350,32 +289,7 @@ AddMapLayer.propTypes = {
   label: PropTypes.string, // label for the custom input
   onChange: PropTypes.func, // callback function will handle what is being passed to the dataviewer for the overall configured map visualization
   // values passed from the dataviewer and configured map visualization
-  values: PropTypes.arrayOf(
-    PropTypes.shape({
-      configuration: PropTypes.shape({
-        type: PropTypes.string.isRequired,
-        props: PropTypes.shape({
-          name: PropTypes.string.isRequired,
-          source: PropTypes.shape({
-            type: PropTypes.string.isRequired,
-            props: PropTypes.shape({
-              url: PropTypes.string.isRequired,
-            }),
-          }),
-        }),
-      }).isRequired,
-      legend: PropTypes.shape({
-        title: PropTypes.string,
-        items: PropTypes.arrayOf(
-          PropTypes.shape({
-            color: PropTypes.string.isRequired,
-            label: PropTypes.string.isRequired,
-            symbol: PropTypes.string.isRequired,
-          })
-        ),
-      }),
-    })
-  ),
+  values: PropTypes.arrayOf(layerPropType),
   setShowingSubModal: PropTypes.func, // indicates to parent modals that a submodal is showing and therefore a change in zindex is needed for the submodal focusing
   gridItemIndex: PropTypes.number, // index of the griditem currently being updated
 };

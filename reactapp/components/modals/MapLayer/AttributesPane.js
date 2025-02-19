@@ -10,9 +10,11 @@ import {
 import Spinner from "react-bootstrap/Spinner";
 import {
   valuesEqual,
-  extractVariableInputNames,
   checkRequiredKeys,
   removeEmptyValues,
+  attributeVariablesPropType,
+  omittedPopupAttributesPropType,
+  sourcePropType,
 } from "components/modals/utilities";
 import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";
@@ -483,19 +485,13 @@ const AttributesPane = ({
 };
 
 AttributesPane.propTypes = {
-  attributeVariables: PropTypes.objectOf(PropTypes.objectOf(PropTypes.string))
-    .isRequired, // react state that tracks what attributes are configured for variables
+  attributeVariables: attributeVariablesPropType, // react state that tracks what attributes are configured for variables
   setAttributeVariables: PropTypes.func.isRequired, // state setter for attributeVariables
-  omittedPopupAttributes: PropTypes.objectOf(
-    PropTypes.arrayOf(PropTypes.string)
-  ).isRequired, // react state that tracks what attributes are not shown in popups
+  omittedPopupAttributes: omittedPopupAttributesPropType, // react state that tracks what attributes are not shown in popups
   setOmittedPopupAttributes: PropTypes.func.isRequired, // state setter for omittedPopupAttributes
-  sourceProps: PropTypes.shape({
-    type: PropTypes.string.isRequired,
-    props: PropTypes.objectOf(PropTypes.string, PropTypes.object).isRequired,
-  }), // configuration and properties for openlayers layer source
+  sourceProps: sourcePropType, // configuration and properties for openlayers layer source
   layerProps: PropTypes.shape({
-    name: PropTypes.string.isRequired,
+    name: PropTypes.string,
   }), // configuration and properties for openlayers layer
   tabKey: PropTypes.string.isRequired, // react state that tracks what tab is shown
 };

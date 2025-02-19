@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import DataInput from "components/inputs/DataInput";
+import DataSelect from "components/inputs/DataSelect";
 import { useState, useEffect } from "react";
 import FileUpload from "components/inputs/FileUpload";
 import styled from "styled-components";
@@ -76,7 +76,7 @@ const SourcePane = ({
 }) => {
   const [sourceProperties, setSourceProperties] = useState([]);
   const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]);
-  const [sourceType, setSourceType] = useState(null);
+  const [sourceType, setSourceType] = useState({});
   const [geoJSON, setGeoJSON] = useState("{}");
 
   useEffect(() => {
@@ -87,14 +87,14 @@ const SourcePane = ({
       );
       setSourceProperties(properties);
       SetPropertyPlaceholders(placeholders);
-      setSourceType(sourceProps.type);
+      setSourceType({ value: sourceProps.type, label: sourceProps.type });
     }
   }, [sourceProps]);
 
   useEffect(() => {
     (async () => {
       if (
-        sourceType === "GeoJSON" &&
+        sourceType.value === "GeoJSON" &&
         geoJSON === "{}" &&
         sourceProps?.geojson
       ) {
@@ -127,7 +127,7 @@ const SourcePane = ({
   }
 
   function handleLayerTypeChange(e) {
-    setSourceType(e.value);
+    setSourceType(e);
 
     const { properties, placeholders } = generatePropertiesArrayWithValues(
       sourcePropertiesOptions[e.value],
@@ -166,25 +166,31 @@ const SourcePane = ({
 
   return (
     <>
-      <DataInput
-        objValue={{
-          label: "Source Type",
-          type: Object.keys(sourcePropertiesOptions),
-          value: sourceType,
-        }}
+      <DataSelect
+        label={"Source Type"}
+        aria-label={"Source Type Input"}
+        selectedOption={sourceType}
         onChange={handleLayerTypeChange}
-        includeVariableInputs={false}
+        options={Object.keys(sourcePropertiesOptions).map((option) => ({
+          value: option,
+          label: option,
+        }))}
       />
-      {sourceType && (
+
+      {sourceType.value && (
         <>
-          {sourceType === "GeoJSON" ? (
+          {sourceType.value === "GeoJSON" ? (
             <>
               <FileUpload
                 label="Upload GeoJSON file"
                 onFileUpload={handleGeoJSONUpload}
                 extensionsAllowed={["json", "geojson"]}
               />
-              <StyledTextInput value={geoJSON} onChange={handleGeoJSONChange} />
+              <StyledTextInput
+                aria-label={"geojson-source-text-area"}
+                value={geoJSON}
+                onChange={handleGeoJSONChange}
+              />
             </>
           ) : (
             <InputTable
