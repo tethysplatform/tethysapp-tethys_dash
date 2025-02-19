@@ -11,7 +11,7 @@ const DataSelect = ({ label, selectedOption, onChange, options, ...props }) => {
   return (
     <StyledDiv>
       <label htmlFor={id}>
-        <b>{label}:</b>
+        <b>{label}</b>:
       </label>
       <Select
         options={options}

@@ -6,15 +6,15 @@ import Alert from "react-bootstrap/Alert";
 import {
   getLayerAttributes,
   sourcePropertiesOptions,
+  attributeVariablesPropType,
+  omittedPopupAttributesPropType,
+  sourcePropType,
 } from "components/map/utilities";
 import Spinner from "react-bootstrap/Spinner";
 import {
   valuesEqual,
   checkRequiredKeys,
   removeEmptyValues,
-  attributeVariablesPropType,
-  omittedPopupAttributesPropType,
-  sourcePropType,
 } from "components/modals/utilities";
 import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";

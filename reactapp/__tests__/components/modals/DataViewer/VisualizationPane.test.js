@@ -203,7 +203,7 @@ test("Visualization Pane Variable Input", async () => {
   fireEvent.click(customImageOption);
   expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
-    await screen.findByText("Variable Options Source:")
+    await screen.findByText("Variable Options Source")
   ).toBeInTheDocument();
 
   const variableNameInput = screen.getByLabelText("Variable Name Input");
@@ -467,7 +467,7 @@ test("Visualization Pane Other Type Checkbox", async () => {
 
   const pluginLabelOption = await screen.findByText("plugin_label_checkbox");
   fireEvent.click(pluginLabelOption);
-  expect(await screen.findByText("Plugin Arg:")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg")).toBeInTheDocument();
 
   const pluginArgSelect = screen.getByLabelText("Plugin Arg Input");
   // eslint-disable-next-line

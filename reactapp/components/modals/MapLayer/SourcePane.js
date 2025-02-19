@@ -6,6 +6,10 @@ import styled from "styled-components";
 import { sourcePropertiesOptions } from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
 import appAPI from "services/api/app";
+import {
+  removeEmptyValues,
+  checkRequiredKeys,
+} from "components/modals/utilities";
 import "components/modals/wideModal.css";
 
 const StyledTextInput = styled.textarea`
@@ -80,21 +84,9 @@ const SourcePane = ({
   const [geoJSON, setGeoJSON] = useState("{}");
 
   useEffect(() => {
-    if (sourceProps.type) {
-      const { properties, placeholders } = generatePropertiesArrayWithValues(
-        sourcePropertiesOptions[sourceProps.type],
-        sourceProps.props
-      );
-      setSourceProperties(properties);
-      SetPropertyPlaceholders(placeholders);
-      setSourceType({ value: sourceProps.type, label: sourceProps.type });
-    }
-  }, [sourceProps]);
-
-  useEffect(() => {
     (async () => {
       if (
-        sourceType.value === "GeoJSON" &&
+        sourceProps.type === "GeoJSON" &&
         geoJSON === "{}" &&
         sourceProps?.geojson
       ) {
@@ -108,7 +100,19 @@ const SourcePane = ({
         }));
       }
     })();
-  }, [geoJSON]);
+  }, []);
+
+  useEffect(() => {
+    if (sourceProps.type) {
+      const { properties, placeholders } = generatePropertiesArrayWithValues(
+        sourcePropertiesOptions[sourceProps.type],
+        sourceProps.props
+      );
+      setSourceProperties(properties);
+      SetPropertyPlaceholders(placeholders);
+      setSourceType({ value: sourceProps.type, label: sourceProps.type });
+    }
+  }, [sourceProps]);
 
   function handlePropertyChange({ newValue, rowIndex, field }) {
     const updatedSourceProperties = JSON.parse(
@@ -121,7 +125,7 @@ const SourcePane = ({
     setSourceProps((previousSourceProps) => ({
       ...previousSourceProps,
       ...{
-        props: parsedSourceProps,
+        props: removeEmptyValues(parsedSourceProps),
       },
     }));
   }
@@ -141,7 +145,7 @@ const SourcePane = ({
       ...previousSourceProps,
       ...{
         type: e.value,
-        props: parsedSourceProps,
+        props: removeEmptyValues(parsedSourceProps),
       },
     }));
     setAttributeVariables({});

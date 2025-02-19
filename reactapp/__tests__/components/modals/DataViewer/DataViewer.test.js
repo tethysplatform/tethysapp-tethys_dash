@@ -138,7 +138,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   fireEvent.click(customImageOption);
   expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
-    await screen.findByText("Variable Options Source:")
+    await screen.findByText("Variable Options Source")
   ).toBeInTheDocument();
 
   const variableNameInput = screen.getByLabelText("Variable Name Input");
@@ -248,7 +248,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   fireEvent.click(customImageOption);
   expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
-    await screen.findByText("Variable Options Source:")
+    await screen.findByText("Variable Options Source")
   ).toBeInTheDocument();
 
   const variableNameInput = screen.getByLabelText("Variable Name Input");
