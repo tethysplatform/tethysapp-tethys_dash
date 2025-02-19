@@ -490,7 +490,7 @@ async function getImageWMSLayerAttributes(sourceUrl, sourceParams) {
 
   // loop through data and parse fields
   const allLayersInfo = sourceInfoJSON["xsd:schema"].children.filter((obj) =>
-    obj.hasOwnProperty("xsd:complexType")
+    Reflect.has(obj, "xsd:complexType")
   );
   for (const { "xsd:complexType": layerInfo } of allLayersInfo) {
     const layerName = layerInfo.name.replace("Type", "");

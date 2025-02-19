@@ -18,6 +18,7 @@ test("LayersControl update layers", async () => {
   fireEvent.click(showLayersButton);
 
   const mapLayersDiv = await screen.findByLabelText("Map Layers");
+  // eslint-disable-next-line
   expect(mapLayersDiv.children.length).toBe(0);
 
   const mockedImageArcGISLayerProps = { name: "ImageArcGISLayer" };
@@ -44,6 +45,7 @@ test("LayersControl update layers", async () => {
       <LayersControl updater={updater} />
     </MapContext.Provider>
   );
+  // eslint-disable-next-line
   expect(mapLayersDiv.children.length).toBe(1);
   expect(getVisibleMock).toHaveBeenCalledTimes(1);
   expect(await screen.findByText("ImageArcGISLayer")).toBeInTheDocument();

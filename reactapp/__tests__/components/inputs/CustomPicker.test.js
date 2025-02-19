@@ -19,6 +19,7 @@ it("CustomPicker", async () => {
   expect(screen.getByText("Pick 1")).toBeInTheDocument();
   expect(screen.getByText("Pick 2")).toBeInTheDocument();
 
+  // eslint-disable-next-line
   expect(document.querySelectorAll(".row").length).toBe(2);
 
   fireEvent.click(screen.getByText("Pick 1"));

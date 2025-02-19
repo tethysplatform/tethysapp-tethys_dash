@@ -25,10 +25,6 @@ const StyledDiv = styled.div`
   margin: auto;
 `;
 
-const StyledB = styled.b`
-  color: white;
-`;
-
 function LockedIcon({ locked }) {
   return (
     <div
@@ -259,6 +255,10 @@ function DashboardSelector({ initialDashboard }) {
     </StyledDiv>
   );
 }
+
+LockedIcon.propTypes = {
+  locked: PropTypes.bool, // indicates what icon to use with the lock (opened or closed)
+};
 
 DashboardSelector.propTypes = {
   initialDashboard: PropTypes.string,

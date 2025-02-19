@@ -33,7 +33,6 @@ const Input = ({
   value,
   index,
   valueOptions,
-  includeVariableInputs,
   inputProps,
 }) => {
   const { variableInputValues } = useContext(VariableInputsContext);
@@ -56,7 +55,7 @@ const Input = ({
     }
     if (
       inDataViewerMode &&
-      includeVariableInputs !== false &&
+      inputProps?.includeVariableInputs !== false &&
       label !== "Variable Options Source"
     ) {
       const availableVariableInputs = Object.keys(variableInputValues);
@@ -160,13 +159,7 @@ const Input = ({
   }
 };
 
-const DataInput = ({
-  objValue,
-  onChange,
-  index,
-  includeVariableInputs,
-  inputProps,
-}) => {
+const DataInput = ({ objValue, onChange, index, inputProps }) => {
   const { label, type, value, valueOptions } = objValue;
 
   return (
@@ -180,7 +173,6 @@ const DataInput = ({
             value={value}
             valueOptions={valueOptions}
             index={index}
-            includeVariableInputs={includeVariableInputs}
             inputProps={inputProps}
           />
         </StyledDiv>
@@ -193,6 +185,7 @@ DataInput.propTypes = {
   objValue: PropTypes.object,
   onChange: PropTypes.func,
   index: PropTypes.number,
+  inputProps: PropTypes.object, // additional props to pass to the input
 };
 
 Input.propTypes = {
@@ -208,6 +201,7 @@ Input.propTypes = {
   ]),
   valueOptions: PropTypes.array,
   index: PropTypes.number,
+  inputProps: PropTypes.object, // additional props to pass to the input
 };
 
 export default DataInput;

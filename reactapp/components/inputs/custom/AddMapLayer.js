@@ -8,7 +8,7 @@ import Button from "react-bootstrap/Button";
 import { valuesEqual } from "components/modals/utilities";
 import { BsPencilSquare, BsTrash } from "react-icons/bs";
 import { RxDragHandleHorizontal } from "react-icons/rx";
-import { layerPropType, layerInfoPropType } from "components/map/utilities";
+import { layerPropType } from "components/map/utilities";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;
@@ -146,10 +146,12 @@ export const AddMapLayer = ({
     if (!valuesEqual(mapLayers, values)) {
       setMapLayers(values);
     }
+    // eslint-disable-next-line
   }, [values]);
 
   useEffect(() => {
     setShowingSubModal(showMapLayerModal);
+    // eslint-disable-next-line
   }, [showMapLayerModal]);
 
   const addMapLayer = (newMapLayer) => {
@@ -273,11 +275,10 @@ MapLayerTemplate.propTypes = {
     onDrop: PropTypes.func.isRequired,
     draggable: PropTypes.string.isRequired,
   }).isRequired,
-  // ref that tracks all the available map layers
-  mapLayers: PropTypes.arrayOf(layerPropType).isRequired,
-  onChange: PropTypes.func, // callback function will handle what is being passed to the dataviewer for the overall configured map visualization
-  // ref that tracks a map layer that is being edited.
-  layerInfo: layerInfoPropType,
+  mapLayers: PropTypes.arrayOf(layerPropType).isRequired, // state that tracks all the available map layers
+  setMapLayers: PropTypes.func.isRequired, // state setter for mapLayers
+  onChange: PropTypes.func.isRequired, // callback function will handle what is being passed to the dataviewer for the overall configured map visualization
+  setLayerInfo: PropTypes.func.isRequired, // state setter for layerInfo
   // ref that tracks the original name of map layer that is being edited
   existingLayerOriginalName: PropTypes.shape({
     current: PropTypes.string,

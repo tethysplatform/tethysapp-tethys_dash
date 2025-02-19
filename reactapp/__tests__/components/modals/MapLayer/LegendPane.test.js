@@ -1,14 +1,13 @@
-import { useState, useEffect, act, useRef } from "react";
+import { useState, act, useRef } from "react";
+import PropTypes from "prop-types";
 import {
   render,
   screen,
   within,
   waitFor,
-  findAllByAltText,
   fireEvent,
 } from "@testing-library/react";
 import LegendPane from "components/modals/MapLayer/LegendPane";
-import Target from "ol/events/Target";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -71,6 +70,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
     })
   );
 
+  // eslint-disable-next-line
   const symbolButton = screen.getAllByRole("cell")[1].querySelector("svg");
   fireEvent.click(symbolButton);
   const symbolTooltip = await screen.findByRole("tooltip");
@@ -78,6 +78,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
   expect(within(symbolTooltip).getByText("Symbol")).toBeInTheDocument();
   expect(within(symbolTooltip).getByText("Color")).toBeInTheDocument();
 
+  // eslint-disable-next-line
   const newSymbol = symbolTooltip.querySelectorAll(".col")[1];
   fireEvent.click(newSymbol);
   expect(await screen.findByTestId("legend")).toHaveTextContent(
@@ -87,7 +88,9 @@ test("LegendPane no initial legend, add new row and delete", async () => {
     })
   );
 
+  // eslint-disable-next-line
   const newColor = symbolTooltip.querySelectorAll(".rcp-field-input")[0];
+  // eslint-disable-next-line
   await act(async () => {
     fireEvent.change(newColor, { target: { value: "#2aff00" } });
   });
@@ -98,6 +101,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
     })
   );
 
+  // eslint-disable-next-line
   const deleteButton = screen.getAllByRole("cell")[2].querySelector("svg");
   fireEvent.mouseOver(deleteButton);
   expect(deleteButton).toHaveStyle("cursor: pointer");
@@ -138,21 +142,23 @@ test("LegendPane initial legend", async () => {
 
   const textboxes = screen.getAllByRole("textbox");
   expect(textboxes[0].value).toBe("Some Title");
-  waitFor(() => {
+  await waitFor(() => {
     expect(textboxes[1].value).toBe("Some Label");
   });
-  waitFor(() => {
+  await waitFor(() => {
     expect(textboxes[2].value).toBe("Another Label");
   });
 
   const [row1SymbolCell, row2SymbolCell] = screen.getAllByRole("cell");
 
-  waitFor(() => {
+  await waitFor(() => {
+    // eslint-disable-next-line
     expect(row1SymbolCell.querySelector("svg").getAttribute("color")).toBe(
       "yellow"
     );
   });
-  waitFor(() => {
+  await waitFor(() => {
+    // eslint-disable-next-line
     expect(row2SymbolCell.querySelector("svg").getAttribute("color")).toBe(
       "green"
     );
@@ -167,21 +173,27 @@ test("LegendPane initial legend", async () => {
   fireEvent.dragOver(textboxes[1]);
   fireEvent.drop(textboxes[1]);
 
-  waitFor(() => {
+  await waitFor(() => {
     expect(textboxes[1].value).toBe("Another Label");
   });
-  waitFor(() => {
+  await waitFor(() => {
     expect(textboxes[2].value).toBe("Some Label");
   });
 
-  waitFor(() => {
+  await waitFor(() => {
+    // eslint-disable-next-line
     expect(row1SymbolCell.querySelector("svg").getAttribute("color")).toBe(
       "green"
     );
   });
-  waitFor(() => {
+  await waitFor(() => {
+    // eslint-disable-next-line
     expect(row2SymbolCell.querySelector("svg").getAttribute("color")).toBe(
       "yellow"
     );
   });
 });
+
+TestingComponent.propTypes = {
+  initialLegend: PropTypes.object,
+};

@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useEffect, useState, useRef } from "react";
+import { useEffect } from "react";
 import styled from "styled-components";
 import FileUpload from "components/inputs/FileUpload";
 import appAPI from "services/api/app";
@@ -10,16 +10,19 @@ const StyledTextInput = styled.textarea`
 `;
 
 const StylePane = ({ style, setStyle }) => {
-  // layer name and source must be the same key must be the same
   useEffect(() => {
-    (async () => {
-      if (style && typeof style === "string") {
-        const apiResponse = await appAPI.downloadJSON({
-          filename: style,
-        });
-        setStyle(JSON.stringify(apiResponse.data, null, 4));
-      }
-    })();
+    const fetchJSON = async () => {
+      const apiResponse = await appAPI.downloadJSON({
+        filename: style,
+      });
+      setStyle(JSON.stringify(apiResponse.data, null, 4));
+    };
+
+    // if using already existing style, then load the json and set style accordingly
+    if (style && typeof style === "string") {
+      fetchJSON();
+    }
+    // eslint-disable-next-line
   }, []);
 
   function handleStyleJSONUpload({ fileContent }) {
@@ -47,13 +50,8 @@ const StylePane = ({ style, setStyle }) => {
 };
 
 StylePane.propTypes = {
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.node),
-    PropTypes.node,
-    PropTypes.object,
-  ]),
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
+  style: PropTypes.string, // stringified json for styling layer
+  setStyle: PropTypes.func,
 };
 
 export default StylePane;

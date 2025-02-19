@@ -1,11 +1,5 @@
-import { useState, useEffect, act } from "react";
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-  findAllByAltText,
-} from "@testing-library/react";
+import { useState } from "react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import LayerPane from "components/modals/MapLayer/LayerPane";
 
 const TestingComponent = () => {

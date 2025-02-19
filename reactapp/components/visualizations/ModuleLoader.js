@@ -30,10 +30,6 @@ function loadComponent(scope, module) {
 const DynamicComponent = ({ scope, module, url }) => {
   const [Component, setComponent] = useState();
 
-  if (!module) {
-    return <h2>No system specified</h2>;
-  }
-
   const { ready, failed } = useDynamicScript({
     url: module && url,
   });
@@ -43,6 +39,7 @@ const DynamicComponent = ({ scope, module, url }) => {
       const loadedComponent = React.lazy(loadComponent(scope, module));
       setComponent(memo(loadedComponent));
     }
+    // eslint-disable-next-line
   }, [Component, ready]);
 
   return { failed, Component };
@@ -64,6 +61,10 @@ function ModuleLoader(props) {
     () => variableInputValues,
     [variableInputValues]
   );
+
+  if (!props.module) {
+    return <h2>No system specified</h2>;
+  }
 
   const { failed, Component } = DynamicComponent({
     scope: props.scope,

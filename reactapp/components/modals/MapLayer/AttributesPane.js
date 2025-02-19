@@ -221,6 +221,7 @@ const AttributesPane = ({
         });
       }
     }
+    // eslint-disable-next-line
   }, [tabKey]);
 
   async function queryLayerAttributes() {

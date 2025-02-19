@@ -1,10 +1,9 @@
-import { useState, useEffect, act } from "react";
+import PropTypes from "prop-types";
 import {
   render,
   screen,
   fireEvent,
   within,
-  findAllByAltText,
   waitFor,
 } from "@testing-library/react";
 import selectEvent from "react-select-event";
@@ -1236,3 +1235,12 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
     },
   });
 });
+
+TestingComponent.propTypes = {
+  showModal: PropTypes.bool,
+  handleModalClose: PropTypes.func,
+  addMapLayer: PropTypes.func,
+  layerInfo: PropTypes.object,
+  mapLayers: PropTypes.array,
+  existingLayerOriginalName: PropTypes.object,
+};

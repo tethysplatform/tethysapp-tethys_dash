@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import MapComponent from "components/map/Map";
+import PropTypes from "prop-types";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -52,6 +53,7 @@ const TestingComponent = ({ expectedLayerCount, mapProps }) => {
     return () => {
       isMounted = false; // Prevent setting state on unmounted component
     };
+    // eslint-disable-next-line
   }, [mapProps]);
 
   useEffect(() => {
@@ -63,6 +65,7 @@ const TestingComponent = ({ expectedLayerCount, mapProps }) => {
       evt.coordinate[1] = 4079902;
       visualizationRef.current.dispatchEvent(evt);
     }
+    // eslint-disable-next-line
   }, [mapReady]);
 
   return (
@@ -96,6 +99,7 @@ test("Default Map", async () => {
 
   const mapPopupContent = await screen.findByLabelText("Map Popup Content");
   expect(mapPopupContent).toBeInTheDocument();
+  // eslint-disable-next-line
   expect(mapPopupContent.children.length).toBe(0);
 
   expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
@@ -350,3 +354,11 @@ test("Map Layer Styles", async () => {
     "World Light Gray Base"
   );
 });
+
+TestingComponent.propTypes = {
+  expectedLayerCount: PropTypes.number,
+  mapProps: PropTypes.shape({
+    onMapClick: PropTypes.func,
+    layers: PropTypes.array,
+  }),
+};

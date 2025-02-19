@@ -364,7 +364,16 @@ CustomTextOptions.propTypes = {
   index: PropTypes.number,
 };
 
+VisualizationArguments.propTypes = {
+  selectedVizTypeOption: PropTypes.object,
+  vizInputsValues: PropTypes.array,
+  handleInputChange: PropTypes.func,
+  setShowingSubModal: PropTypes.func,
+  gridItemIndex: PropTypes.number,
+};
+
 VisualizationPane.propTypes = {
+  gridItemIndex: PropTypes.number,
   source: PropTypes.string,
   argsString: PropTypes.string,
   setGridItemMessage: PropTypes.func,

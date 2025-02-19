@@ -59,9 +59,7 @@ export const removeEmptyValues = (values) => {
         if (item && typeof item === "object") {
           const updatedObject = removeEmptyValues(item);
           // only return nonempty objects
-          if (Object.keys(updatedObject).length > 0) {
-            return updatedObject;
-          }
+          return Object.keys(updatedObject).length > 0 ? updatedObject : null;
         } else {
           return typeof item === "string" ? item.trim() : item;
         }

@@ -1,5 +1,4 @@
 import { render, within, screen, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { AddMapLayer } from "components/inputs/custom/AddMapLayer";
 import {
   layerConfigImageArcGISRest,
@@ -130,7 +129,7 @@ it("AddMapLayer add new", async () => {
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("ImageArcGISRest");
   fireEvent.click(sourceOption);
-  expect(await screen.findByText("Source Properties"));
+  expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
   const urlInput = within(sourceTabContent).getByLabelText("value Input 0");
   fireEvent.change(urlInput, { target: { value: "Some Url" } });

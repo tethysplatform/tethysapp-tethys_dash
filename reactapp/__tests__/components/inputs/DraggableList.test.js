@@ -1,12 +1,19 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import DraggableList from "components/inputs/DraggableList";
 
+const draggableItems = [
+  <p key={1} data-testid={"item-1"}>
+    Item 1
+  </p>,
+  <p key={2} data-testid={"item-2"}>
+    Item 2
+  </p>,
+  <p key={3} data-testid={"item-3"}>
+    Item 3
+  </p>,
+];
+
 it("DraggableList with components", async () => {
-  const draggableItems = [
-    <p data-testid={"item-1"}>Item 1</p>,
-    <p data-testid={"item-2"}>Item 2</p>,
-    <p data-testid={"item-3"}>Item 3</p>,
-  ];
   const onOrderUpdate = jest.fn();
   render(
     <DraggableList items={draggableItems} onOrderUpdate={onOrderUpdate} />
@@ -35,18 +42,19 @@ it("DraggableList with components", async () => {
   // The order should now be: ["Item 2", "Item 1", "Item 3"]
   expect(updatedItems).toEqual(["Item 2", "Item 1", "Item 3"]);
   expect(onOrderUpdate).toHaveBeenCalledWith([
-    <p data-testid={"item-2"}>Item 2</p>,
-    <p data-testid={"item-1"}>Item 1</p>,
-    <p data-testid={"item-3"}>Item 3</p>,
+    <p key={2} data-testid={"item-2"}>
+      Item 2
+    </p>,
+    <p key={1} data-testid={"item-1"}>
+      Item 1
+    </p>,
+    <p key={3} data-testid={"item-3"}>
+      Item 3
+    </p>,
   ]);
 });
 
 it("DraggableList with components, drag to self", async () => {
-  const draggableItems = [
-    <p data-testid={"item-1"}>Item 1</p>,
-    <p data-testid={"item-2"}>Item 2</p>,
-    <p data-testid={"item-3"}>Item 3</p>,
-  ];
   const onOrderUpdate = jest.fn();
   render(
     <DraggableList items={draggableItems} onOrderUpdate={onOrderUpdate} />
@@ -76,11 +84,6 @@ it("DraggableList with components, drag to self", async () => {
 });
 
 it("DraggableList with components and no onOrderUpdate", async () => {
-  const draggableItems = [
-    <p data-testid={"item-1"}>Item 1</p>,
-    <p data-testid={"item-2"}>Item 2</p>,
-    <p data-testid={"item-3"}>Item 3</p>,
-  ];
   render(<DraggableList items={draggableItems} />);
 
   const item1 = screen.getByTestId("item-1");
@@ -108,7 +111,9 @@ it("DraggableList with components and no onOrderUpdate", async () => {
 });
 
 it("DraggableList with ItemTemplate", async () => {
+  // eslint-disable-next-line
   const ItemTemplate = ({ value, draggingProps }) => {
+    // eslint-disable-next-line
     const { textValue, testID } = value;
     return (
       <p data-testid={testID} {...draggingProps}>

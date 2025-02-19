@@ -51,6 +51,7 @@ const InputTable = ({
     if (!headers) {
       setTableHeaders(Object.keys(values[0]));
     }
+    // eslint-disable-next-line
   }, [values]);
 
   // check to see if all the field in a row are either a boolean or have empty strings as values
@@ -115,7 +116,6 @@ const InputTable = ({
       <b>{label}</b>:{" "}
       {tableRows.length > 0 && (
         <Table striped bordered hover size="sm">
-          {/* Create the headers from the keys of the user inputs object */}
           <thead>
             <tr>
               {tableHeaders.map((colHeader, index) => {
@@ -128,13 +128,9 @@ const InputTable = ({
             </tr>
           </thead>
           <tbody>
-            {/* loop through inputs to create the rows and fields */}
             {tableRows.map((row, rowIndex) => (
               <tr key={rowIndex}>
                 {Object.keys(row).map((field, fieldIndex) => {
-                  {
-                    /* check for disabled fields which will be displayed as text */
-                  }
                   if (disabledFields && disabledFields.includes(field)) {
                     return (
                       <CenteredTD key={fieldIndex}>
@@ -214,6 +210,7 @@ InputTable.propTypes = {
   ).isRequired, // array of objects (rows) that contain colum keys and values
   disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
   allowRowCreation: PropTypes.bool, // determines if the table rows can be added
+  headers: PropTypes.arrayOf(PropTypes.string), // array of strings to use for table headers
   placeholders: PropTypes.objectOf([PropTypes.string]), // object with key as field and value as placeholder
 };
 

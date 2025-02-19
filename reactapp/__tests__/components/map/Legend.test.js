@@ -1,11 +1,11 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { legendItems } from "__tests__/utilities/constants";
 import LegendControl from "components/map/LegendControl";
 
 test("LegendControl", async () => {
   const { rerender } = render(<LegendControl legendItems={[]} />);
   const mapLayersDiv = await screen.findByLabelText("Map Legend");
+  // eslint-disable-next-line
   expect(mapLayersDiv.children.length).toBe(0);
 
   rerender(<LegendControl legendItems={[legendItems]} />);

@@ -1,14 +1,9 @@
-import { useState, useEffect, act } from "react";
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-  findAllByAltText,
-} from "@testing-library/react";
+import { useState } from "react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import SourcePane from "components/modals/MapLayer/SourcePane";
 import selectEvent from "react-select-event";
 import appAPI from "services/api/app";
+import PropTypes from "prop-types";
 
 const exampleGeoJSON = {
   type: "FeatureCollection",
@@ -169,25 +164,6 @@ test("SourcePane GeoJson File Upload", async () => {
 
   expect(await screen.findByText("Upload GeoJSON file")).toBeInTheDocument();
 
-  const exampleGeoJSON = {
-    type: "FeatureCollection",
-    crs: {
-      type: "name",
-      properties: {
-        name: "EPSG:3857",
-      },
-    },
-    features: [
-      {
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [0, 0],
-        },
-      },
-    ],
-  };
-
   const file = new File([JSON.stringify(exampleGeoJSON)], "test-file.json", {
     type: "text/plain",
   });
@@ -277,3 +253,7 @@ test("SourcePane Updating Existing VectorTiles", async () => {
   );
   expect(urlsInput.value).toBe("some_url,some_other_url");
 });
+
+TestingComponent.propTypes = {
+  initialSourceProps: PropTypes.object,
+};

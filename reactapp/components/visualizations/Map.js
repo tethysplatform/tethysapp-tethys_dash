@@ -1,11 +1,4 @@
-import {
-  memo,
-  useRef,
-  useCallback,
-  useEffect,
-  useState,
-  useContext,
-} from "react";
+import { memo, useRef, useEffect, useState, useContext } from "react";
 import MapComponent from "components/map/Map";
 import {
   queryLayerFeatures,
@@ -358,6 +351,12 @@ MapVisualization.propTypes = {
   layers: PropTypes.array,
   legend: PropTypes.array,
   visualizationRef: PropTypes.shape({ current: PropTypes.any }),
+  baseMap: PropTypes.object,
+  layerControl: PropTypes.bool,
+};
+
+Popup.propTypes = {
+  layerAttributes: PropTypes.shape({ map: PropTypes.any }),
 };
 
 export default memo(MapVisualization);

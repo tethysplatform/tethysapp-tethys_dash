@@ -6,8 +6,6 @@ import {
   mockedCardBase,
   mockedCardData,
   mockedCustomImageBase,
-  mockedMapBase,
-  mockedMapData,
   mockedPlotBase,
   mockedPlotData,
   mockedTableBase,
@@ -460,6 +458,7 @@ it("Base - update variable input", async () => {
   const user = userEvent.setup();
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
   apiImageBase.args_string = JSON.stringify({
+    // eslint-disable-next-line
     url: "${Test Variable}",
   });
   const textVariable = JSON.parse(JSON.stringify(mockedTextVariable));

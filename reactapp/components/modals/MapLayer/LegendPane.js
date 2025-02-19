@@ -86,6 +86,7 @@ const LegendTemplate = ({
     updatedLegendItems[index].color = symbolColor;
     setSymbolComponent(getLegendSymbol(symbolValue, symbolColor));
     setLegendItems(updatedLegendItems);
+    // eslint-disable-next-line
   }, [symbolValue, symbolColor]);
 
   const onColorChange = (changedColor) => {
@@ -182,6 +183,7 @@ const LegendPane = ({ legend, setLegend, containerRef }) => {
 
     const newLegend = { title: legendTitle, items: legendItems };
     setLegend(newLegend);
+    // eslint-disable-next-line
   }, [legendItems, legendTitle]);
 
   const valueOptions = [

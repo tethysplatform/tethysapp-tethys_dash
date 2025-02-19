@@ -323,6 +323,7 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
       source: "",
       args_string: JSON.stringify({
         some_arg: true,
+        // eslint-disable-next-line
         some_arg2: "${Test Variable}",
         some_arg3: "some value",
       }),

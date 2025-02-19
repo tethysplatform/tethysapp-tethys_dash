@@ -1,5 +1,4 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { act } from "react";
 import ColorPicker from "components/inputs/ColorPicker";
 
 global.ResizeObserver = require("resize-observer-polyfill");
@@ -15,9 +14,8 @@ it("ColorPicker", async () => {
   const hexInput = screen.getByRole("textbox", { name: "HEX" });
   expect(hexInput.value).toBe("#ff0000");
 
-  await act(async () => {
-    fireEvent.change(hexInput, { target: { value: "#0000ff" } });
-  });
+  fireEvent.change(hexInput, { target: { value: "#0000ff" } });
+
   await waitFor(() => {
     expect(mockOnChange).toHaveBeenCalledWith("#0000ff");
   });

@@ -1,7 +1,8 @@
-import { useState, act } from "react";
+import { useState } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { getLayerAttributes } from "components/map/utilities";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
+import PropTypes from "prop-types";
 
 jest.mock("components/map/utilities", () => {
   const originalModule = jest.requireActual("components/map/utilities");
@@ -216,9 +217,7 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
   expect(screen.getAllByRole("textbox").length).toBe(2); // name and variable input
 
   const rowCheckbox = screen.getAllByRole("checkbox")[0];
-  await act(async () => {
-    fireEvent.click(rowCheckbox);
-  });
+  fireEvent.click(rowCheckbox);
   expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
     JSON.stringify({})
   );
@@ -349,9 +348,7 @@ test("AttributesPane popups header and body change", async () => {
   await waitFor(() => {
     expect(headerCheckbox.checked).toBe(true);
   });
-  await act(async () => {
-    fireEvent.click(headerCheckbox);
-  });
+  fireEvent.click(headerCheckbox);
   await waitFor(() => {
     expect(headerCheckbox.checked).toBe(false);
   });
@@ -361,9 +358,7 @@ test("AttributesPane popups header and body change", async () => {
 
   // turn field popup back on. header should come back as well
   const theGeomCheckbox = screen.getAllByRole("checkbox")[1];
-  await act(async () => {
-    fireEvent.click(theGeomCheckbox);
-  });
+  fireEvent.click(theGeomCheckbox);
   await waitFor(() => {
     expect(headerCheckbox.checked).toBe(true);
   });
@@ -372,9 +367,7 @@ test("AttributesPane popups header and body change", async () => {
   );
 
   // turn field popup back off. header should also turn off
-  await act(async () => {
-    fireEvent.click(theGeomCheckbox);
-  });
+  fireEvent.click(theGeomCheckbox);
   await waitFor(() => {
     expect(headerCheckbox.checked).toBe(false);
   });
@@ -422,9 +415,7 @@ test("AttributesPane popups initial values", async () => {
   checkboxes.forEach((checkbox) => expect(checkbox.checked).toBe(false));
 
   const headerCheckbox = screen.getAllByRole("checkbox")[0];
-  await act(async () => {
-    fireEvent.click(headerCheckbox);
-  });
+  fireEvent.click(headerCheckbox);
   await waitFor(() => {
     expect(headerCheckbox.checked).toBe(true);
   });
@@ -566,3 +557,11 @@ test("AttributesPane bad GeoJSON", async () => {
     )
   ).toBeInTheDocument();
 });
+
+TestingComponent.propTypes = {
+  initialAttributeVariables: PropTypes.object,
+  initialOmittedPopupAttributes: PropTypes.object,
+  sourceProps: PropTypes.object,
+  layerProps: PropTypes.object,
+  tabKey: PropTypes.string,
+};

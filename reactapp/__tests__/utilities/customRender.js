@@ -1,6 +1,5 @@
 import PropTypes from "prop-types";
 import { useContext, useEffect } from "react";
-import { render } from "@testing-library/react";
 import { Route } from "react-router-dom";
 import {
   mockedDashboards,

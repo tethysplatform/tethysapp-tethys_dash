@@ -3,13 +3,13 @@ import DataSelect from "components/inputs/DataSelect";
 import { useState, useEffect } from "react";
 import FileUpload from "components/inputs/FileUpload";
 import styled from "styled-components";
-import { sourcePropertiesOptions } from "components/map/utilities";
+import {
+  sourcePropertiesOptions,
+  sourcePropType,
+} from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
 import appAPI from "services/api/app";
-import {
-  removeEmptyValues,
-  checkRequiredKeys,
-} from "components/modals/utilities";
+import { removeEmptyValues } from "components/modals/utilities";
 import "components/modals/wideModal.css";
 
 const StyledTextInput = styled.textarea`
@@ -17,14 +17,22 @@ const StyledTextInput = styled.textarea`
   height: 30vh;
 `;
 
-const generatePropertiesArrayWithValues = (sourceProperties, mapping) => {
+// loop through the properties of a source type and extract potential settings and placeholders, setting new values from existing values if applicable
+const generatePropertiesArrayWithValues = (
+  sourceProperties,
+  existingPropertyValues
+) => {
   const properties = [];
   const placeholders = [];
-  let existingValues = mapping ?? {};
+  let existingValues = existingPropertyValues ?? {};
 
   const processKeys = (obj, required, parentKey = "", mappingObj = {}) => {
+    // loop through each key/value pair in the object
     for (const [key, value] of Object.entries(obj)) {
+      // if processing a nested object, combine the parent with the key to get a master key
       const property = parentKey ? `${parentKey} - ${key}` : key;
+
+      // try to get existing value if present
       const valueInMap = mappingObj[key];
       const existingValue = valueInMap?.value ?? valueInMap;
 
@@ -47,13 +55,14 @@ const generatePropertiesArrayWithValues = (sourceProperties, mapping) => {
     }
   };
 
-  // Process required and optional parts with mapping
+  // Process required and optional parts with existingValues
   processKeys(sourceProperties.required, true, "", existingValues);
   processKeys(sourceProperties.optional, false, "", existingValues);
 
   return { properties, placeholders };
 };
 
+// coverts a flat object of properties from the generatePropertiesArrayWithValues function into a nested object
 function parsePropertiesArray(properties) {
   return properties.reduce((acc, item) => {
     const { property, value } = item;
@@ -78,31 +87,24 @@ const SourcePane = ({
   setAttributeVariables,
   setOmittedPopupAttributes,
 }) => {
-  const [sourceProperties, setSourceProperties] = useState([]);
-  const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]);
-  const [sourceType, setSourceType] = useState({});
-  const [geoJSON, setGeoJSON] = useState("{}");
+  const [sourceProperties, setSourceProperties] = useState([]); // array of objects that represent properties that will be rendered in the table
+  const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]); // array of objects that represent placeholders for the table inputs
+  const [sourceType, setSourceType] = useState({}); // source type dropdown selection {value: ..., label: ...}
+  const [geoJSON, setGeoJSON] = useState("{}"); // track the geojson value
 
   useEffect(() => {
-    (async () => {
-      if (
-        sourceProps.type === "GeoJSON" &&
-        geoJSON === "{}" &&
-        sourceProps?.geojson
-      ) {
-        const apiResponse = await appAPI.downloadJSON({
-          filename: sourceProps.geojson,
-        });
-        setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
-        setSourceProps((previousSourceProps) => ({
-          ...previousSourceProps,
-          ...{ geojson: JSON.stringify(apiResponse.data) },
-        }));
-      }
-    })();
-  }, []);
+    const fetchGeoJSON = async () => {
+      const apiResponse = await appAPI.downloadJSON({
+        filename: sourceProps.geojson,
+      });
+      setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
+      setSourceProps((previousSourceProps) => ({
+        ...previousSourceProps,
+        ...{ geojson: JSON.stringify(apiResponse.data) },
+      }));
+    };
 
-  useEffect(() => {
+    // if loading existing layer, then set states appropriately
     if (sourceProps.type) {
       const { properties, placeholders } = generatePropertiesArrayWithValues(
         sourcePropertiesOptions[sourceProps.type],
@@ -112,15 +114,23 @@ const SourcePane = ({
       SetPropertyPlaceholders(placeholders);
       setSourceType({ value: sourceProps.type, label: sourceProps.type });
     }
-  }, [sourceProps]);
+
+    // if loading existing GeoJSON layer, then get JSON data and set states
+    if (sourceProps.type === "GeoJSON" && sourceProps?.geojson) {
+      fetchGeoJSON();
+    }
+    // eslint-disable-next-line
+  }, []);
 
   function handlePropertyChange({ newValue, rowIndex, field }) {
+    // update table values
     const updatedSourceProperties = JSON.parse(
       JSON.stringify(sourceProperties)
     );
     updatedSourceProperties[rowIndex][field] = newValue;
     setSourceProperties(updatedSourceProperties);
 
+    // update layer source props
     const parsedSourceProps = parsePropertiesArray(updatedSourceProperties);
     setSourceProps((previousSourceProps) => ({
       ...previousSourceProps,
@@ -133,6 +143,7 @@ const SourcePane = ({
   function handleLayerTypeChange(e) {
     setSourceType(e);
 
+    // update table values and placeholders from new source type
     const { properties, placeholders } = generatePropertiesArrayWithValues(
       sourcePropertiesOptions[e.value],
       sourceProps.props
@@ -140,6 +151,7 @@ const SourcePane = ({
     setSourceProperties(properties);
     SetPropertyPlaceholders(placeholders);
 
+    // update layer source props
     const parsedSourceProps = parsePropertiesArray(properties);
     setSourceProps((previousSourceProps) => ({
       ...previousSourceProps,
@@ -148,6 +160,8 @@ const SourcePane = ({
         props: removeEmptyValues(parsedSourceProps),
       },
     }));
+
+    // reset attribute variable and omitted popup attributes since the source has changed
     setAttributeVariables({});
     setOmittedPopupAttributes({});
   }
@@ -213,13 +227,10 @@ const SourcePane = ({
 };
 
 SourcePane.propTypes = {
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.node),
-    PropTypes.node,
-    PropTypes.object,
-  ]),
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
+  sourceProps: sourcePropType,
+  setSourceProps: PropTypes.func, // setter for sourceProps state
+  setAttributeVariables: PropTypes.func, // setter for attributeVariables state
+  setOmittedPopupAttributes: PropTypes.func, // setter for omittedPopupAttributes state
 };
 
 export default SourcePane;
