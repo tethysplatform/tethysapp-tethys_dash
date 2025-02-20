@@ -1,4 +1,3 @@
-import { act } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import createLoadedComponent from "__tests__/utilities/customRender";
@@ -53,9 +52,6 @@ test("app info modal and close", async () => {
   expect(localStorage.getItem("dontShowInfoOnStart")).toEqual("true");
 
   const closeButton = await screen.findByLabelText("Close");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(closeButton);
-  });
+  await userEvent.click(closeButton);
   expect(mockSetShowModal).toHaveBeenCalledWith(false);
 });

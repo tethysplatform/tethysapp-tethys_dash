@@ -1,4 +1,4 @@
-import { act, useState } from "react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import NewDashboardModal from "components/modals/NewDashboard";
@@ -64,11 +64,12 @@ test("New Dashboard Modal add dashboard success", async () => {
   const createDashboardInput = await screen.findByLabelText(
     "Create Dashboard Button"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(createDashboardInput);
+  await userEvent.click(createDashboardInput);
+  await waitFor(() => {
+    expect(
+      screen.queryByText("Create a new dashboard")
+    ).not.toBeInTheDocument();
   });
-  expect(screen.queryByText("Create a new dashboard")).not.toBeInTheDocument();
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
 
@@ -97,17 +98,11 @@ test("New Dashboard Modal add dashboard fail", async () => {
   const createDashboardInput = await screen.findByLabelText(
     "Create Dashboard Button"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(createDashboardInput);
-  });
+  await userEvent.click(createDashboardInput);
   expect(await screen.findByText("failed to add")).toBeInTheDocument();
 
   const closeModalButton = await screen.findByLabelText("Close Modal Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(closeModalButton);
-  });
+  await userEvent.click(closeModalButton);
   await waitFor(() => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });

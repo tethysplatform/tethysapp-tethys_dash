@@ -81,7 +81,7 @@ function VisualizationPane({
   setShowingSubModal,
 }) {
   const [deselectedVisualizations, setDeselectedVisualizations] = useState(
-    localStorage.getItem("deselected_visualizations") || []
+    localStorage.getItem("deselected_visualizations")?.split(",") || []
   );
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
@@ -263,7 +263,7 @@ function VisualizationPane({
         if (itemData.args.variable_options_source === "text") {
           itemData.args.initial_value = "";
         } else if (itemData.args.variable_options_source === "number") {
-          itemData.args.initial_value = 0;
+          itemData.args.initial_value = "0";
         }
       }
       setViz(

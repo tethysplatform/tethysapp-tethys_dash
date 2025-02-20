@@ -1,4 +1,3 @@
-import { act } from "react";
 import userEvent from "@testing-library/user-event";
 import {
   render,
@@ -42,7 +41,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
     createLoadedComponent({
       children: (
         <DataViewerModal
-          gridItemIndex={[0]}
+          gridItemIndex={0}
           source={gridItem.source}
           argsString={gridItem.args_string}
           metadataString={gridItem.metadata_string}
@@ -70,10 +69,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationTypeSelect);
-  });
+  await userEvent.click(visualizationTypeSelect);
   const customImageOption = await screen.findByText("Custom Image");
   fireEvent.click(customImageOption);
   expect(await screen.findByText("Image Source")).toBeInTheDocument();
@@ -102,7 +98,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
     createLoadedComponent({
       children: (
         <DataViewerModal
-          gridItemIndex={[0]}
+          gridItemIndex={0}
           source={gridItem.source}
           argsString={gridItem.args_string}
           metadataString={gridItem.metadata_string}
@@ -130,10 +126,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationTypeSelect);
-  });
+  await userEvent.click(visualizationTypeSelect);
   const customImageOption = await screen.findByText("Variable Input");
   fireEvent.click(customImageOption);
   expect(await screen.findByText("Variable Name")).toBeInTheDocument();
@@ -147,10 +140,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   const variableOptionsSourceSelect = screen.getByLabelText(
     "Variable Options Source Input"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(variableOptionsSourceSelect);
-  });
+  await userEvent.click(variableOptionsSourceSelect);
   const textOption = await screen.findByText("text");
   fireEvent.click(textOption);
 
@@ -209,7 +199,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
     createLoadedComponent({
       children: (
         <DataViewerModal
-          gridItemIndex={[0]}
+          gridItemIndex={0}
           source={gridItem.source}
           argsString={gridItem.args_string}
           metadataString={gridItem.metadata_string}
@@ -240,10 +230,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationTypeSelect);
-  });
+  await userEvent.click(visualizationTypeSelect);
   const customImageOption = await screen.findByText("Variable Input");
   fireEvent.click(customImageOption);
   expect(await screen.findByText("Variable Name")).toBeInTheDocument();
@@ -257,10 +244,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   const variableOptionsSourceSelect = screen.getByLabelText(
     "Variable Options Source Input"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(variableOptionsSourceSelect);
-  });
+  await userEvent.click(variableOptionsSourceSelect);
   const textOption = await screen.findByText("text");
   fireEvent.click(textOption);
 
@@ -342,7 +326,7 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
       children: (
         <>
           <DataViewerModal
-            gridItemIndex={[1]}
+            gridItemIndex={1}
             source={gridItem.source}
             argsString={gridItem.args_string}
             metadataString={gridItem.metadata_string}
@@ -397,7 +381,7 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
       children: (
         <>
           <DataViewerModal
-            gridItemIndex={[1]}
+            gridItemIndex={1}
             source={gridItem.source}
             argsString={gridItem.args_string}
             metadataString={gridItem.metadata_string}
@@ -443,7 +427,7 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
       children: (
         <>
           <DataViewerModal
-            gridItemIndex={[1]}
+            gridItemIndex={1}
             source={gridItem.source}
             argsString={gridItem.args_string}
             metadataString={gridItem.metadata_string}
@@ -467,10 +451,7 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
     "visualizationSettingButton"
   );
   expect(visualizationSettingButton).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationSettingButton);
-  });
+  await userEvent.click(visualizationSettingButton);
 
   const dataviewerModal = await screen.findByLabelText("DataViewer Modal");
   expect(dataviewerModal).toBeInTheDocument();
@@ -481,10 +462,7 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
   );
   expect(selectedVisualizationTypeModal).toBeInTheDocument();
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.keyboard("{Escape}");
-  });
+  await userEvent.keyboard("{Escape}");
   await waitFor(async () => {
     expect(
       screen.queryByLabelText("Selected Visualization Type Modal")
@@ -505,7 +483,7 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
       children: (
         <>
           <DataViewerModal
-            gridItemIndex={[0]}
+            gridItemIndex={0}
             source={gridItem.source}
             argsString={gridItem.args_string}
             metadataString={gridItem.metadata_string}
@@ -523,10 +501,7 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
   );
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationTypeSelect);
-  });
+  await userEvent.click(visualizationTypeSelect);
   const customImageOption = await screen.findByText("Map");
   fireEvent.click(customImageOption);
 

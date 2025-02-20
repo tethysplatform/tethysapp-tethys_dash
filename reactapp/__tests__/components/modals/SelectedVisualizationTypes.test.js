@@ -1,4 +1,4 @@
-import { act, useState } from "react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, fireEvent, screen, waitFor } from "@testing-library/react";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
@@ -98,10 +98,7 @@ test("selected visualization type modal save success and then close", async () =
   const saveSettingsButton = await screen.findByLabelText(
     "Save Settings Button"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(saveSettingsButton);
-  });
+  await userEvent.click(saveSettingsButton);
   expect(
     await screen.findByText("Settings have been saved.")
   ).toBeInTheDocument();
@@ -112,10 +109,7 @@ test("selected visualization type modal save success and then close", async () =
   ).toBeInTheDocument();
 
   const closeModalButton = await screen.findByLabelText("Close Modal Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(closeModalButton);
-  });
+  await userEvent.click(closeModalButton);
   await waitFor(async () => {
     expect(
       screen.queryByText(

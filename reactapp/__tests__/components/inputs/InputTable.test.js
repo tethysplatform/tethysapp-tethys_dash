@@ -119,7 +119,7 @@ it("InputTable Disabled Fields", async () => {
   const label = "Test Table";
   const onChange = jest.fn();
   const values = [
-    { "field 1": "value 1", "field 2": "value 2", "field 3": ["value 3"] },
+    { "field 1": "value 1", "field 2": "value 2", "field 3": "value 3" },
   ];
   render(
     <InputTable
@@ -133,7 +133,7 @@ it("InputTable Disabled Fields", async () => {
   expect(screen.getByText("field 1")).toBeInTheDocument();
   expect(screen.getByText("value 1")).toBeInTheDocument();
   expect(screen.getByText("field 3")).toBeInTheDocument();
-  expect(screen.getByText('["value 3"]')).toBeInTheDocument();
+  expect(screen.getByText("value 3")).toBeInTheDocument();
 
   expect(screen.getByText("field 2")).toBeInTheDocument();
   const field2Input = screen.getByLabelText("field 2 Input 0");

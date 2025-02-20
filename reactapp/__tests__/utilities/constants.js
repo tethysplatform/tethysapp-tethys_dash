@@ -584,7 +584,7 @@ export const mockedNumberVariable = {
   h: 20,
   source: "Variable Input",
   args_string: JSON.stringify({
-    initial_value: 0,
+    initial_value: "0",
     variable_name: "Test Variable",
     variable_options_source: "number", // TODO Change this to be an empty string or null
     variable_input_type: "number",

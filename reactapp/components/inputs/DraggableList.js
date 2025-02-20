@@ -46,7 +46,6 @@ const DraggableList = ({
     <>
       {itemsList.map((value, index) => {
         const draggingProps = {
-          key: index,
           onDragStart: (e) => handleDragStart(e, index),
           onDragOver: handleDragOver,
           onDrop: (e) => handleDrop(e, index),

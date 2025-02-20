@@ -1,4 +1,4 @@
-import { act, useState } from "react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
@@ -138,10 +138,7 @@ test("Dashboard Editor Canvas copy public url failed", async () => {
   );
   expect(copyClipboardButton).toBeInTheDocument();
   fireEvent.click(copyClipboardButton);
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.hover(copyClipboardButton);
-  });
+  await userEvent.hover(copyClipboardButton);
   expect(screen.getByRole("tooltip")).toHaveTextContent("Failed to Copy");
 });
 
@@ -187,10 +184,7 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
   const copyClipboardButton = await screen.findByLabelText(
     "Copy Clipboard Button"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.hover(copyClipboardButton);
-  });
+  await userEvent.hover(copyClipboardButton);
 
   const tooltip = screen.getByRole("tooltip");
   expect(tooltip).toBeInTheDocument();
@@ -200,10 +194,7 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
   expect(mockWriteText).toHaveBeenCalledWith(
     "http://api.test/apps/tethysdash/dashboard/noneditable"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.hover(copyClipboardButton);
-  });
+  await userEvent.hover(copyClipboardButton);
   expect(screen.getByRole("tooltip")).toHaveTextContent("Copied");
 });
 
@@ -239,21 +230,12 @@ test("Dashboard Editor Canvas edit and save", async () => {
   expect(await screen.findByLabelText("Name Input")).toBeInTheDocument();
 
   const textArea = await screen.findByLabelText("textEditor");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(textArea);
-  });
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.keyboard("Here are some notes");
-  });
+  await userEvent.click(textArea);
+  await userEvent.keyboard("Here are some notes");
   expect(await screen.findByText("Here are some notes")).toBeInTheDocument();
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(saveButton);
-  });
+  await userEvent.click(saveButton);
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
       accessGroups: ["public"],
@@ -311,10 +293,7 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
   expect(await screen.findByLabelText("Label Input")).toBeInTheDocument();
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(saveButton);
-  });
+  await userEvent.click(saveButton);
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
       accessGroups: [],
@@ -371,10 +350,7 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
   expect(labelInput).toBeInTheDocument();
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(saveButton);
-  });
+  await userEvent.click(saveButton);
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
       accessGroups: [],
@@ -422,10 +398,7 @@ test("Dashboard Editor Canvas delete success", async () => {
   );
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(deleteButton);
-  });
+  await userEvent.click(deleteButton);
   expect(mockDeleteDashboard).toHaveBeenCalled();
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(await screen.findByText("not show canvas")).toBeInTheDocument();
@@ -450,10 +423,7 @@ test("Dashboard Editor Canvas delete fail", async () => {
   );
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(deleteButton);
-  });
+  await userEvent.click(deleteButton);
   expect(mockDeleteDashboard).toHaveBeenCalled();
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(await screen.findByText("yes show canvas")).toBeInTheDocument();
@@ -483,10 +453,7 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
   );
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(deleteButton);
-  });
+  await userEvent.click(deleteButton);
   expect(mockDeleteDashboard).not.toHaveBeenCalled();
   expect(await screen.findByTestId("editing")).toHaveTextContent("not editing");
   expect(await screen.findByText("yes show canvas")).toBeInTheDocument();
@@ -507,10 +474,7 @@ test("Dashboard Editor Canvas copy and not confirm", async () => {
   );
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(copyButton);
-  });
+  await userEvent.click(copyButton);
   expect(mockAddDashboard).not.toHaveBeenCalled();
 });
 
@@ -554,10 +518,7 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
   );
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(copyButton);
-  });
+  await userEvent.click(copyButton);
   expect(mockAddDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("Successfully copied dashboard")
@@ -587,10 +548,7 @@ test("Dashboard Editor Canvas copy and confirm and fail with message", async () 
   );
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(copyButton);
-  });
+  await userEvent.click(copyButton);
   expect(mockAddDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("failed to copy for some reason")
@@ -615,10 +573,7 @@ test("Dashboard Editor Canvas copy and confirm and fail without message", async 
   );
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(copyButton);
-  });
+  await userEvent.click(copyButton);
   expect(mockAddDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("Failed to copy dashboard. Check server logs.")

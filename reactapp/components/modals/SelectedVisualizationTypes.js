@@ -193,7 +193,7 @@ function SelectedVisualizationTypesModal({
 SelectedVisualizationTypesModal.propTypes = {
   showModal: PropTypes.bool,
   handleModalClose: PropTypes.func,
-  deselectedVisualizations: PropTypes.arrayOf([PropTypes.string]),
+  deselectedVisualizations: PropTypes.arrayOf(PropTypes.string),
   setDeselectedVisualizations: PropTypes.func,
 };
 

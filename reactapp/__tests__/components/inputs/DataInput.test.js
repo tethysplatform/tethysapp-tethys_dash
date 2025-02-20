@@ -2,7 +2,6 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import selectEvent from "react-select-event";
 import DataInput from "components/inputs/DataInput";
-import { act } from "react";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import {
   mockedTextVariable,
@@ -201,11 +200,7 @@ describe("DataInput Component", () => {
     // Verify text input rendering
     expect(textInput).toBeInTheDocument();
     expect(textInput).toHaveValue("initial");
-
-    // Simulate typing
-    await act(async () => {
-      await user.type(textInput, "M");
-    });
+    await user.type(textInput, "M");
 
     // Ensure onChange is triggered with the correct value
     expect(mockOnChange).toHaveBeenCalledWith("initialM", 0);

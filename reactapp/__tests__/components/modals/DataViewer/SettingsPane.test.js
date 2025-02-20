@@ -1,4 +1,4 @@
-import { act, useEffect, useRef, useContext } from "react";
+import { useEffect, useRef, useContext } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import SettingsPane from "components/modals/DataViewer/SettingsPane";
@@ -115,10 +115,7 @@ test("Settings Pane with visualizationRef Image Element with current settings", 
   );
   expect(enforceAspectRationInput).toBeInTheDocument();
   expect(enforceAspectRationInput).toBeChecked();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(enforceAspectRationInput);
-  });
+  await userEvent.click(enforceAspectRationInput);
   expect(enforceAspectRationInput).not.toBeChecked();
 
   fireEvent.click(enforceAspectRationInput);

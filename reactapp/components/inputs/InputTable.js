@@ -211,7 +211,7 @@ InputTable.propTypes = {
   disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
   allowRowCreation: PropTypes.bool, // determines if the table rows can be added
   headers: PropTypes.arrayOf(PropTypes.string), // array of strings to use for table headers
-  placeholders: PropTypes.objectOf([PropTypes.string]), // object with key as field and value as placeholder
+  placeholders: PropTypes.arrayOf(PropTypes.objectOf(PropTypes.string)), // object with key as field and value as placeholder
 };
 
 export default InputTable;

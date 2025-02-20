@@ -107,10 +107,9 @@ const LegendTemplate = ({
     setLegendItems(newLegend);
     setShowColorPopover(false);
   };
-  const { key, ...otherDraggingProps } = draggingProps;
 
   return (
-    <tr key={key} {...otherDraggingProps}>
+    <tr key={index} {...draggingProps}>
       <td>
         <InLineButtonDiv>
           <AlignedDragHandle size={"1rem"} />
@@ -280,7 +279,6 @@ LegendTemplate.propTypes = {
   index: PropTypes.number, // index of the row (legenditem)
   // The properties from the DraggableList input to allow dragging functionality
   draggingProps: PropTypes.shape({
-    key: PropTypes.number.isRequired,
     onDragStart: PropTypes.func.isRequired,
     onDragOver: PropTypes.func.isRequired,
     onDrop: PropTypes.func.isRequired,

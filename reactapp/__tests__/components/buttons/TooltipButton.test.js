@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { act } from "react";
 import TooltipButton from "components/buttons/TooltipButton";
 
 test("TooltipButton tooltips and href", async () => {
@@ -14,10 +13,7 @@ test("TooltipButton tooltips and href", async () => {
 
   const button = screen.getByRole("button");
   expect(button).toHaveClass("btn-info");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.hover(button);
-  });
+  await userEvent.hover(button);
 
   const tooltip = screen.getByRole("tooltip");
   expect(tooltip).toBeInTheDocument();

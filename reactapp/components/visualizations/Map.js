@@ -351,7 +351,7 @@ MapVisualization.propTypes = {
   layers: PropTypes.array,
   legend: PropTypes.array,
   visualizationRef: PropTypes.shape({ current: PropTypes.any }),
-  baseMap: PropTypes.object,
+  baseMap: PropTypes.string,
   layerControl: PropTypes.bool,
 };
 

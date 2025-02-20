@@ -101,7 +101,7 @@ const MultiInput = ({ label, onChange, values }) => {
 MultiInput.propTypes = {
   label: PropTypes.string.isRequired, // label for the table
   onChange: PropTypes.func.isRequired, // callback function for values are added
-  values: PropTypes.arrayOf([PropTypes.string]).isRequired, // array of values from the submitted input
+  values: PropTypes.arrayOf(PropTypes.string).isRequired, // array of values from the submitted input
 };
 
 export default MultiInput;

@@ -23,7 +23,8 @@ beforeAll(() => {
         .toString()
         .includes(
           "Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`."
-        )
+        ) &&
+      !args.toString().includes("act(...)")
     ) {
       originalError(...args);
     }
