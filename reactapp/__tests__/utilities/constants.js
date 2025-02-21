@@ -394,8 +394,44 @@ export const mockedMapBase = {
   y: 0,
   w: 20,
   h: 20,
-  source: "map_api",
-  args_string: "{}",
+  source: "Map",
+  args_string: JSON.stringify({
+    base_map:
+      "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+    additional_layers: [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "NWC",
+            source: {
+              type: "ImageArcGISRest",
+              props: {
+                url: "some_url",
+              },
+            },
+          },
+        },
+        attributeVariables: {
+          NWC: {
+            nws_lid: "LID",
+          },
+        },
+        omittedPopupAttributes: {
+          NWC: ["nws_lid"],
+        },
+        legend: {
+          title: "Some Title",
+          items: [{ label: "Some label", color: "green", symbol: "square" }],
+        },
+      },
+    ],
+    show_layer_controls: true,
+    initial_view: {
+      center: [-9974138.670265444, 4049495.619645755],
+      zoom: 7.253038543654934,
+    },
+  }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
   }),

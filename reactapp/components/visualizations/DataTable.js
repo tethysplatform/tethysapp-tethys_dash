@@ -23,7 +23,7 @@ const DataTable = ({ data, title, visualizationRef }) => {
     return (
       <thead>
         <tr>
-          {tableKeys.map(key => (
+          {tableKeys.map((key) => (
             <th key={key}>{capitalizePhrase(key)}</th>
           ))}
         </tr>
@@ -36,7 +36,7 @@ const DataTable = ({ data, title, visualizationRef }) => {
       <tbody>
         {data.map((data, index) => (
           <tr key={index}>
-            {Object.keys(data).map(key => (
+            {Object.keys(data).map((key) => (
               <th key={key}>{data[key]}</th>
             ))}
           </tr>

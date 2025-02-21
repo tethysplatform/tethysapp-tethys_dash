@@ -38,6 +38,7 @@ afterEach(() => {
   server.resetHandlers();
   process.env = originalEnv;
   jest.clearAllMocks();
+  jest.restoreAllMocks();
 });
 afterAll(() => {
   server.close();

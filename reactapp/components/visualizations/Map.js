@@ -4,6 +4,7 @@ import {
   queryLayerFeatures,
   createHighlightLayer,
   createMarkerLayer,
+  configurationPropType,
 } from "components/map/utilities";
 import PropTypes from "prop-types";
 import { getBaseMapLayer } from "components/visualizations/utilities";
@@ -151,30 +152,38 @@ const MapVisualization = ({
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
   useEffect(() => {
-    (async () => {
+    const updateLayers = async () => {
       if (
         !valuesEqual(layers, currentLayers.current) ||
         !valuesEqual(baseMap, currentBaseMap.current)
       ) {
+        currentBaseMap.current = baseMap;
         currentLayers.current = JSON.parse(JSON.stringify(layers));
         const newMapLegend = [];
         const newMapLayers = [];
         for (const layer of layers) {
-          if (layer.configuration.props.source.type === "GeoJSON") {
-            const geoJSONResponse = await appAPI.downloadJSON({
-              filename: layer.configuration.props.source.geojson,
-            });
-            if (geoJSONResponse.success) {
-              layer.configuration.props.source.geojson = geoJSONResponse.data;
-            }
-          }
-
           if (layer.style) {
             const styleJSONResponse = await appAPI.downloadJSON({
               filename: layer.style,
             });
             if (styleJSONResponse.success) {
               layer.configuration.style = styleJSONResponse.data;
+            } else {
+              delete layer.configuration.style;
+              console.error(
+                `Failed to load the style for ${layer.configuration.props.name} layer`
+              );
+            }
+          }
+
+          if (layer.configuration.props.source.type === "GeoJSON") {
+            const geoJSONResponse = await appAPI.downloadJSON({
+              filename: layer.configuration.props.source.geojson,
+            });
+            if (geoJSONResponse.success) {
+              layer.configuration.props.source.geojson = geoJSONResponse.data;
+            } else {
+              delete layer.configuration.props.source.geojson;
             }
           }
 
@@ -188,6 +197,8 @@ const MapVisualization = ({
           const baseMapLayer = getBaseMapLayer(baseMap);
           if (baseMapLayer) {
             newMapLayers.splice(0, 0, baseMapLayer);
+          } else {
+            console.error(`${baseMap} is not a valid basemap`);
           }
         }
 
@@ -195,11 +206,12 @@ const MapVisualization = ({
           layer.props.zIndex = index;
         });
 
-        currentBaseMap.current = baseMap;
         setMapLegend(newMapLegend);
         setMapLayers(newMapLayers);
       }
-    })();
+    };
+
+    updateLayers();
   }, [layers, baseMap]);
 
   const onMapClick = async (map, evt, setPopupContent, popup) => {
@@ -346,13 +358,16 @@ const MapVisualization = ({
 };
 
 MapVisualization.propTypes = {
-  mapConfig: PropTypes.object,
-  viewConfig: PropTypes.object,
-  layers: PropTypes.array,
-  legend: PropTypes.array,
-  visualizationRef: PropTypes.shape({ current: PropTypes.any }),
-  baseMap: PropTypes.string,
-  layerControl: PropTypes.bool,
+  mapConfig: PropTypes.object, // div element properties for the map
+  viewConfig: PropTypes.object, // keys can be found at https://openlayers.org/en/latest/apidoc/module-ol_View-View.html
+  layers: PropTypes.arrayOf(
+    PropTypes.shape({
+      configuration: configurationPropType,
+    })
+  ),
+  visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
+  baseMap: PropTypes.string, // url for basemap layer, maps to baseMapLayers layers in components/visualizations/utilities.js
+  layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
 };
 
 Popup.propTypes = {

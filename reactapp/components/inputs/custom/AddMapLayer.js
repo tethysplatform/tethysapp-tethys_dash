@@ -43,6 +43,7 @@ const HoverDiv = styled.div`
 `;
 
 const MapLayerTemplate = ({
+  index,
   value,
   draggingProps,
   mapLayers,
@@ -90,10 +91,9 @@ const MapLayerTemplate = ({
     // Open the Map Layer Modal now that the layerInfo has been updated and will show that information
     setShowMapLayerModal(true);
   };
-  const { key, ...otherDraggingProps } = draggingProps;
 
   return (
-    <tr key={key} {...otherDraggingProps}>
+    <tr key={index} {...draggingProps}>
       <td>
         <AlignedDragHandle size={"1rem"} />
       </td>
@@ -269,7 +269,6 @@ MapLayerTemplate.propTypes = {
   value: layerPropType.isRequired,
   // The properties from the DraggableList input to allow dragging functionality
   draggingProps: PropTypes.shape({
-    key: PropTypes.number.isRequired,
     onDragStart: PropTypes.func.isRequired,
     onDragOver: PropTypes.func.isRequired,
     onDrop: PropTypes.func.isRequired,

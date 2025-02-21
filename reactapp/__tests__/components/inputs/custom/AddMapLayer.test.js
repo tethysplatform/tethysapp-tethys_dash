@@ -1,4 +1,10 @@
-import { render, within, screen, fireEvent } from "@testing-library/react";
+import {
+  render,
+  within,
+  screen,
+  fireEvent,
+  waitFor,
+} from "@testing-library/react";
 import { AddMapLayer } from "components/inputs/custom/AddMapLayer";
 import {
   layerConfigImageArcGISRest,
@@ -43,6 +49,10 @@ it("AddMapLayer update existing", async () => {
   expect(screen.getByText("On")).toBeInTheDocument();
 
   const editMapLayerButton = screen.getByTestId("editMapLayer");
+  fireEvent.mouseOver(editMapLayerButton);
+  expect(editMapLayerButton).toHaveStyle("cursor: pointer");
+  fireEvent.mouseOut(editMapLayerButton);
+  expect(editMapLayerButton).toHaveStyle("cursor: default");
   fireEvent.click(editMapLayerButton);
 
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
@@ -57,6 +67,10 @@ it("AddMapLayer update existing", async () => {
   expect(screen.queryByText("ImageArcGISRest Layer")).not.toBeInTheDocument();
 
   const removeMapLayerButton = screen.getByTestId("removeMapLayer");
+  fireEvent.mouseOver(removeMapLayerButton);
+  expect(removeMapLayerButton).toHaveStyle("cursor: pointer");
+  fireEvent.mouseOut(removeMapLayerButton);
+  expect(removeMapLayerButton).toHaveStyle("cursor: default");
   fireEvent.click(removeMapLayerButton);
 
   expect(screen.queryByText("New Layer Name")).not.toBeInTheDocument();
@@ -225,25 +239,25 @@ it("AddMapLayer reorder", async () => {
   expect(wmsLayer).toBeInTheDocument();
   expect(imageArcGISRestLayer).toBeInTheDocument();
 
-  let updatedItems = screen
-    .queryAllByTestId(/\blayerItem\b/)
-    .map((el) => el.textContent);
+  const tabelCells = screen.getAllByRole("cell");
+  expect(tabelCells[1]).toHaveTextContent("ImageArcGISRest Layer");
+  expect(tabelCells[5]).toHaveTextContent("Image WMS");
 
-  expect(updatedItems).toEqual(["ImageArcGISRest Layer", "Image WMS"]);
-
-  fireEvent.dragStart(wmsLayer, {
+  fireEvent.dragStart(tabelCells[1], {
     dataTransfer: {
       items: [{ type: "text/plain" }],
     },
   });
 
-  fireEvent.dragOver(imageArcGISRestLayer);
-  fireEvent.drop(imageArcGISRestLayer);
+  fireEvent.dragOver(tabelCells[5]);
+  fireEvent.drop(tabelCells[5]);
 
-  updatedItems = screen
-    .queryAllByTestId(/\blayerItem\b/)
-    .map((el) => el.textContent);
-  expect(updatedItems).toEqual(["Image WMS", "ImageArcGISRest Layer"]);
+  await waitFor(() => {
+    expect(tabelCells[1]).toHaveTextContent("Image WMS");
+  });
+  await waitFor(() => {
+    expect(tabelCells[5]).toHaveTextContent("ImageArcGISRest Layer");
+  });
 
   expect(onChange).toHaveBeenCalledWith([
     {

@@ -53,111 +53,111 @@ const TestingComponent = ({
   );
 };
 
-// test("Visualization Pane Custom Image", async () => {
-//   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
-//   const gridItem = mockedDashboard.gridItems[0];
-//   const mockSetGridItemMessage = jest.fn();
-//   const mockSetViz = jest.fn();
-//   const mockSetVizMetadata = jest.fn();
+test("Visualization Pane Custom Image", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetViz = jest.fn();
+  const mockSetVizMetadata = jest.fn();
 
-//   render(
-//     createLoadedComponent({
-//       children: (
-//         <TestingComponent
-//           layoutContext={mockedDashboard}
-//           source={gridItem.source}
-//           argsString={gridItem.args_string}
-//           setGridItemMessage={mockSetGridItemMessage}
-//           setViz={mockSetViz}
-//           setVizMetadata={mockSetVizMetadata}
-//         />
-//       ),
-//       options: {
-//         inDataViewerMode: true,
-//       },
-//     })
-//   );
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
 
-//   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
-//   expect(mockSetViz).toHaveBeenCalledTimes(0);
+  expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
+  expect(mockSetViz).toHaveBeenCalledTimes(0);
 
-//   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
-//   await userEvent.click(visualizationTypeSelect);
-//   const customImageOption = await screen.findByText("Custom Image");
-//   fireEvent.click(customImageOption);
-//   expect(await screen.findByText("Image Source")).toBeInTheDocument();
+  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  await userEvent.click(visualizationTypeSelect);
+  const customImageOption = await screen.findByText("Custom Image");
+  fireEvent.click(customImageOption);
+  expect(await screen.findByText("Image Source")).toBeInTheDocument();
 
-//   expect(mockSetVizMetadata).toHaveBeenCalledWith(null);
-//   expect(mockSetViz).toHaveBeenCalledWith(null);
+  expect(mockSetVizMetadata).toHaveBeenCalledWith(null);
+  expect(mockSetViz).toHaveBeenCalledWith(null);
 
-//   const imageSourceInput = screen.getByLabelText("Image Source Input");
-//   fireEvent.change(imageSourceInput, { target: { value: "some_png" } });
+  const imageSourceInput = screen.getByLabelText("Image Source Input");
+  fireEvent.change(imageSourceInput, { target: { value: "some_png" } });
 
-//   expect(mockSetVizMetadata).toHaveBeenCalledWith({
-//     source: "Custom Image",
-//     args: { image_source: "some_png" },
-//   });
-//   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
-//     "Cell updated to show Other Custom Image"
-//   );
-//   expect(mockSetViz).toHaveBeenCalledWith(
-//     <Image source={"some_png"} visualizationRef={{ current: null }} />
-//   );
-// });
+  expect(mockSetVizMetadata).toHaveBeenCalledWith({
+    source: "Custom Image",
+    args: { image_source: "some_png" },
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show Other Custom Image"
+  );
+  expect(mockSetViz).toHaveBeenCalledWith(
+    <Image source={"some_png"} visualizationRef={{ current: null }} />
+  );
+});
 
-// test("Visualization Pane Text", async () => {
-//   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
-//   const gridItem = mockedDashboard.gridItems[0];
-//   const mockSetGridItemMessage = jest.fn();
-//   const mockSetViz = jest.fn();
-//   const mockSetVizMetadata = jest.fn();
+test("Visualization Pane Text", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetViz = jest.fn();
+  const mockSetVizMetadata = jest.fn();
 
-//   render(
-//     createLoadedComponent({
-//       children: (
-//         <TestingComponent
-//           layoutContext={mockedDashboard}
-//           source={gridItem.source}
-//           argsString={gridItem.args_string}
-//           setGridItemMessage={mockSetGridItemMessage}
-//           setViz={mockSetViz}
-//           setVizMetadata={mockSetVizMetadata}
-//         />
-//       ),
-//       options: {
-//         inDataViewerMode: true,
-//       },
-//     })
-//   );
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
 
-//   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
-//   expect(mockSetViz).toHaveBeenCalledTimes(0);
+  expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
+  expect(mockSetViz).toHaveBeenCalledTimes(0);
 
-//   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
-//   await userEvent.click(visualizationTypeSelect);
-//   const texteOption = await screen.findByText("Text");
-//   fireEvent.click(texteOption);
+  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  await userEvent.click(visualizationTypeSelect);
+  const texteOption = await screen.findByText("Text");
+  fireEvent.click(texteOption);
 
-//   expect(mockSetVizMetadata).toHaveBeenCalledWith(null);
-//   expect(mockSetViz).toHaveBeenCalledWith(null);
+  expect(mockSetVizMetadata).toHaveBeenCalledWith(null);
+  expect(mockSetViz).toHaveBeenCalledWith(null);
 
-//   expect(mockSetVizMetadata).toHaveBeenCalledWith({
-//     source: "Text",
-//     args: { text: "" },
-//   });
-//   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
-//     "Cell updated to show Other Text"
-//   );
+  expect(mockSetVizMetadata).toHaveBeenCalledWith({
+    source: "Text",
+    args: { text: "" },
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show Other Text"
+  );
 
-//   expect(mockSetViz.mock.calls[1][0].type.name).toBe("CustomTextOptions");
-//   expect(mockSetViz.mock.calls[1][0].props.index).toBe(0);
-//   expect(mockSetViz.mock.calls[1][0].props.objValue).toStrictEqual({
-//     label: "Text",
-//     name: "text",
-//     type: "text",
-//     value: "",
-//   });
-// });
+  expect(mockSetViz.mock.calls[1][0].type.name).toBe("CustomTextOptions");
+  expect(mockSetViz.mock.calls[1][0].props.index).toBe(0);
+  expect(mockSetViz.mock.calls[1][0].props.objValue).toStrictEqual({
+    label: "Text",
+    name: "text",
+    type: "text",
+    value: "",
+  });
+});
 
 test("Visualization Pane Variable Input", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
@@ -767,8 +767,8 @@ test("CustomTextOptions", async () => {
       index={0}
       objValue={{
         label: "Text",
-        name: "text",
-        type: "text",
+        name: "Text",
+        type: "Text",
         value: "Here is some text",
       }}
       onChange={onChange}

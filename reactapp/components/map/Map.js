@@ -7,6 +7,10 @@ import Overlay from "ol/Overlay";
 import moduleLoader from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
 import LegendControl from "components/map/LegendControl";
+import {
+  legendPropType,
+  configurationPropType,
+} from "components/map/utilities";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
 import { applyStyle } from "ol-mapbox-style";
@@ -76,7 +80,7 @@ const MapComponent = ({
   legend,
   layerControl,
   onMapClick,
-  visualizationRef: mapRef,
+  visualizationRef,
 }) => {
   const [map, setMap] = useState();
   const [errorMessage, setErrorMessage] = useState("");
@@ -111,7 +115,7 @@ const MapComponent = ({
     });
 
     setMap(initialMap);
-    mapRef.current = initialMap;
+    visualizationRef.current = initialMap;
 
     return () => {
       initialMap.setTarget(undefined);
@@ -123,7 +127,7 @@ const MapComponent = ({
     // Update the map view if new viewConfig
     const customViewConfig = { ...defaultViewConfig, ...viewConfig };
     if (!viewRef.current || !valuesEqual(viewRef.current, customViewConfig)) {
-      mapRef.current.setView(new View(customViewConfig));
+      visualizationRef.current.setView(new View(customViewConfig));
       viewRef.current = customViewConfig;
     }
     // eslint-disable-next-line
@@ -133,9 +137,11 @@ const MapComponent = ({
     setErrorMessage(null);
     const updateLayers = async () => {
       // Remove current map layers so new ones can be added
-      const mapDerivedLayers = [...mapRef.current.getLayers().getArray()];
+      const mapDerivedLayers = [
+        ...visualizationRef.current.getLayers().getArray(),
+      ];
       mapDerivedLayers.forEach((mapLayer) =>
-        mapRef.current.removeLayer(mapLayer)
+        visualizationRef.current.removeLayer(mapLayer)
       );
 
       // setup constants for handling new layers
@@ -147,9 +153,9 @@ const MapComponent = ({
         customLayers.map(async (layerConfig) => {
           try {
             const layerInstance = await moduleLoader(layerConfig);
-            mapRef.current.addLayer(layerInstance);
+            visualizationRef.current.addLayer(layerInstance);
             if (layerConfig.style) {
-              applyStyle(
+              await applyStyle(
                 layerInstance,
                 layerConfig.style,
                 layerConfig.props.name
@@ -182,26 +188,31 @@ const MapComponent = ({
         autoPanMargin: 20,
       });
       if (popupCurrent.current) {
-        mapRef.current.removeOverlay(popupCurrent.current);
+        visualizationRef.current.removeOverlay(popupCurrent.current);
       }
       popupCurrent.current = popup;
-      mapRef.current.addOverlay(popup);
+      visualizationRef.current.addOverlay(popup);
 
       // setup click event with new layers. This is done so that the variable
       // and states in the passed function are updated and not stale
       if (onMapClickCurrent.current) {
-        mapRef.current.un("singleclick", onMapClickCurrent.current);
+        visualizationRef.current.un("singleclick", onMapClickCurrent.current);
       }
       onMapClickCurrent.current = async function (evt) {
-        onMapClick(mapRef.current, evt, setPopupContent, popupCurrent.current);
+        onMapClick(
+          visualizationRef.current,
+          evt,
+          setPopupContent,
+          popupCurrent.current
+        );
       };
-      mapRef.current.on("singleclick", onMapClickCurrent.current);
+      visualizationRef.current.on("singleclick", onMapClickCurrent.current);
 
       // update the layerControlUpdate so that the layer controls are triggered to rerender with the new layers
       setLayerControlUpdate(!layerControlUpdate);
 
       // sync map with changes
-      mapRef.current.renderSync();
+      visualizationRef.current.renderSync();
     };
 
     updateLayers();
@@ -224,7 +235,9 @@ const MapComponent = ({
           )}
           <div>
             {layerControl && <LayersControl updater={layerControlUpdate} />}
-            {legend && <LegendControl legendItems={legend} />}
+            {legend && legend.length > 0 && (
+              <LegendControl legendItems={legend} />
+            )}
           </div>
         </div>
         <OverLayContentWrapper
@@ -260,32 +273,10 @@ MapComponent.propTypes = {
   viewConfig: PropTypes.object, // keys can be found at https://openlayers.org/en/latest/apidoc/module-ol_View-View.html
   layers: PropTypes.arrayOf(
     PropTypes.shape({
-      configuration: PropTypes.shape({
-        type: PropTypes.string.isRequired, // openlayers layer type
-        props: PropTypes.shape({
-          name: PropTypes.string.isRequired, // name of the layer
-          source: PropTypes.shape({
-            type: PropTypes.string.isRequired, // openlayers source type
-            props: PropTypes.shape({
-              url: PropTypes.string.isRequired, // openlayers source url
-            }),
-          }),
-        }),
-      }),
+      configuration: configurationPropType,
     })
   ),
-  legend: PropTypes.arrayOf(
-    PropTypes.shape({
-      title: PropTypes.string, // Title for layer legend
-      items: PropTypes.arrayOf(
-        PropTypes.shape({
-          label: PropTypes.string, // Label for legend item
-          color: PropTypes.string, // Color for legend item
-          symbol: PropTypes.string, // Symbol for legend item
-        })
-      ),
-    })
-  ),
+  legend: PropTypes.arrayOf(legendPropType),
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
   onMapClick: PropTypes.func, // function for when user click on the map
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map

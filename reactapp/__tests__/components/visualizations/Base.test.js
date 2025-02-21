@@ -14,6 +14,7 @@ import {
   mockedTextVariable,
   mockedUnknownBase,
   mockedDashboards,
+  mockedMapBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization from "components/visualizations/Base";
 import appAPI from "services/api/app";
@@ -123,6 +124,39 @@ it("Creates an Base Item with a Text Box", async () => {
 
   const text = await screen.findByText("Custom Text");
   expect(text).toBeInTheDocument();
+});
+
+it("Creates an Base Item with a Map", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <div>
+          <BaseVisualization
+            source={mockedMapBase.source}
+            argsString={mockedMapBase.args_string}
+            metadataString={mockedMapBase.metadata_string}
+            showFullscreen={false}
+            hideFullscreen={jest.fn()}
+          />
+        </div>
+      ),
+    })
+  );
+
+  const mapDiv = await screen.findByLabelText("Map Div");
+  expect(mapDiv).toBeInTheDocument();
+  expect(mapDiv).toHaveStyle("width: 100%");
+
+  const mapPopup = await screen.findByLabelText("Map Popup");
+  expect(mapPopup).toBeInTheDocument();
+
+  const mapPopupContent = await screen.findByLabelText("Map Popup Content");
+  expect(mapPopupContent).toBeInTheDocument();
+  // eslint-disable-next-line
+  expect(mapPopupContent.children.length).toBe(0);
+
+  expect(screen.getByLabelText("Map Legend")).toBeInTheDocument();
+  expect(screen.getByLabelText("Show Layers Control")).toBeInTheDocument();
 });
 
 it("Creates an Base Item with a variable input text box", async () => {

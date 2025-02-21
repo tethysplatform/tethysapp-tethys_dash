@@ -111,7 +111,7 @@ test("Default Map", async () => {
 test("Default Map with layer control and legend", async () => {
   render(<TestingComponent mapProps={{ layerControl: true, legend: [] }} />);
 
-  expect(await screen.findByLabelText("Map Legend")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
   expect(
     await screen.findByLabelText("Show Layers Control")
   ).toBeInTheDocument();
