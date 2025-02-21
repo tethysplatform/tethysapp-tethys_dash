@@ -265,6 +265,7 @@ export const AddMapLayer = ({
 };
 
 MapLayerTemplate.propTypes = {
+  index: PropTypes.number, // index of value in mapLayers
   // The map layer object that contains layer metadata
   value: layerPropType.isRequired,
   // The properties from the DraggableList input to allow dragging functionality

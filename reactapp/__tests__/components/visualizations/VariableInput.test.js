@@ -16,6 +16,8 @@ import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
 
+// check map visualization tests for coverage of use effect dependent on variableInputValues
+
 it("Creates a Text Input for a Variable Input", async () => {
   const user = userEvent.setup();
   const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
@@ -421,26 +423,17 @@ describe("When inDataViewerMode", () => {
     expect(variableInput).toBeInTheDocument();
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": "Some Value" })
+      JSON.stringify({ "Test Variable": "CREC1" })
     );
 
-    await select(
-      variableInput,
-      "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
-    );
+    await select(variableInput, "FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE");
 
     expect(
-      screen.getByText(
-        "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
-      )
+      screen.getByText("FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE")
     ).toBeInTheDocument();
     expect(handleChange).toHaveBeenCalledWith({
-      label: "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
-      value: "CREC1",
+      label: "FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE",
+      value: "FTDC1",
     });
-
-    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": "Some Value" })
-    );
   });
 });

@@ -96,7 +96,7 @@ const VariableInput = ({ args, onChange }) => {
     if (Array.isArray(type)) {
       newValue = findSelectOptionByValue(type, newValue);
     }
-    if (value && value !== newValue) {
+    if (newValue && value !== newValue) {
       setValue(newValue);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

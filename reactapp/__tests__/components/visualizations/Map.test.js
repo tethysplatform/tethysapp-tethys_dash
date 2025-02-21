@@ -1,5 +1,5 @@
-import { useRef, useState, useEffect, act } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { useRef, useState, useEffect } from "react";
+import { render, screen, waitFor } from "@testing-library/react";
 import MapVisualization from "components/visualizations/Map";
 import createLoadedComponent, {
   InputVariablePComponent,
@@ -7,12 +7,19 @@ import createLoadedComponent, {
 import PropTypes from "prop-types";
 import { Map } from "ol";
 import ImageArcGISRest from "ol/source/ImageArcGISRest.js";
+import VariableInput from "components/visualizations/VariableInput";
 import { Vector as VectorSource } from "ol/source.js";
 import appAPI from "services/api/app";
 import { applyStyle } from "ol-mapbox-style";
 import Point from "ol/geom/Point.js";
 import { queryLayerFeatures } from "components/map/utilities";
 import Overlay from "ol/Overlay";
+import {
+  mockedTextVariable,
+  mockedDropdownVariable,
+  mockedDropdownVizArgs,
+  mockedDashboards,
+} from "__tests__/utilities/constants";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -596,7 +603,7 @@ test("Map click all attributes omitted", async () => {
   expect(popSetPosition).toHaveBeenLastCalledWith(undefined);
 });
 
-test("Map click attribute variables", async () => {
+test("Map click attribute variables update text variable input", async () => {
   const mockMapClick = jest.fn();
   mockedQueryLayerFeatures.mockResolvedValue([
     {
@@ -607,6 +614,9 @@ test("Map click attribute variables", async () => {
   ]);
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+  const handleChange = jest.fn();
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  dashboard.gridItems = [mockedTextVariable];
 
   const layers = [
     {
@@ -622,25 +632,32 @@ test("Map click attribute variables", async () => {
           },
         },
       },
-      attributeVariables: { "Some Layer": { field1: "Some Variable" } },
+      attributeVariables: { "Some Layer": { field1: "Test Variable" } },
     },
   ];
   const clickCoordinates = [10, 20];
   const LoadedComponent = createLoadedComponent({
     children: (
-      <TestingComponent
-        expectedLayerCount={1}
-        onMapClick={mockMapClick}
-        clickCoordinates={clickCoordinates}
-        mapProps={{
-          mapConfig: {},
-          viewConfig: {},
-          layers,
-          baseMap: null,
-          layerControl: false,
-        }}
-      />
+      <>
+        <TestingComponent
+          expectedLayerCount={1}
+          onMapClick={mockMapClick}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+        <VariableInput
+          args={JSON.parse(mockedTextVariable.args_string)}
+          onChange={handleChange}
+        />
+      </>
     ),
+    options: { dashboards: { editable: dashboard } },
   });
   render(LoadedComponent);
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
@@ -666,9 +683,103 @@ test("Map click attribute variables", async () => {
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
-      "Some Variable": "some value",
+      "Test Variable": "some value",
     })
   );
+  const variableInput = screen.getByRole("textbox");
+  await waitFor(() => {
+    expect(variableInput.value).toBe("some value");
+  });
+});
+
+test("Map click attribute variables update dropdown variable input", async () => {
+  const mockMapClick = jest.fn();
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: "FTDC1" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Some Layer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+  const handleChange = jest.fn();
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  dashboard.gridItems = [mockedDropdownVariable];
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ImageArcGISRest",
+            props: {
+              url: "some_url",
+            },
+          },
+        },
+      },
+      attributeVariables: { "Some Layer": { field1: "Test Variable" } },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <>
+        <TestingComponent
+          expectedLayerCount={1}
+          onMapClick={mockMapClick}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+        <VariableInput
+          args={JSON.parse(mockedDropdownVariable.args_string)}
+          onChange={handleChange}
+        />
+      </>
+    ),
+    options: {
+      dashboards: { editable: dashboard },
+      visualizationArgs: mockedDropdownVizArgs,
+    },
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+
+  await waitFor(
+    async () => {
+      expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    },
+    { timeout: 2000 }
+  );
+  // popup
+  expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+
+  expect(await screen.findByText("Some Layer")).toBeInTheDocument();
+  expect(await screen.findByText("Field")).toBeInTheDocument();
+  expect(await screen.findByText("Value")).toBeInTheDocument();
+  expect(await screen.findByText("field1")).toBeInTheDocument();
+  expect(await screen.findByText("FTDC1")).toBeInTheDocument();
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      "Test Variable": "FTDC1",
+    })
+  );
+  await waitFor(async () => {
+    expect(
+      screen.getByText("FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE")
+    ).toBeInTheDocument();
+  });
 });
 
 test("Map click attribute variables Null values", async () => {
@@ -1029,4 +1140,6 @@ TestingComponent.propTypes = {
     onMapClick: PropTypes.func,
     layers: PropTypes.array,
   }),
+  onMapClick: PropTypes.func,
+  clickCoordinates: PropTypes.arrayOf(PropTypes.string),
 };

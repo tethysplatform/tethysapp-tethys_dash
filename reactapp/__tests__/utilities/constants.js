@@ -674,7 +674,7 @@ export const mockedDropdownVariable = {
   h: 20,
   source: "Variable Input",
   args_string: JSON.stringify({
-    initial_value: "Some Value",
+    initial_value: "CREC1",
     variable_name: "Test Variable",
     variable_options_source:
       "Some Visualization Group Name: Some Visualization Name - Some Visualization Arg",
