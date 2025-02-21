@@ -1,6 +1,6 @@
 import { useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import {
   mockedDashboards,
@@ -139,7 +139,9 @@ test("Dashboard Editor Canvas copy public url failed", async () => {
   expect(copyClipboardButton).toBeInTheDocument();
   fireEvent.click(copyClipboardButton);
   await userEvent.hover(copyClipboardButton);
-  expect(screen.getByRole("tooltip")).toHaveTextContent("Failed to Copy");
+  expect(await screen.findByRole("tooltip")).toHaveTextContent(
+    "Failed to Copy"
+  );
 });
 
 test("Dashboard Editor Canvas noneditable and copy public url", async () => {
