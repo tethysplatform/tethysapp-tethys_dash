@@ -40,7 +40,6 @@
     "react-router-dom": "^6.3.0",
     "react-select": "^5.8.0",
     "react-simple-wysiwyg": "^3.1.1",
-    "react-tiny-popover": "",
     "sass": "^1.49.0",
     "sass-loader": "^12.3.0",
     "simple-xml-to-json": "^1.2.3",

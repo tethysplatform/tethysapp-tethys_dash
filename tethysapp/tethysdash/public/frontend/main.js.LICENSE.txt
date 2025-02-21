@@ -4,9 +4,7 @@
 	http://jedwatson.github.io/classnames
 */
 
-/*! For license information please see index.js.LICENSE.txt */
-
-/*! For license information please see plotly-cartesian.min.js.LICENSE.txt */
+/*! For license information please see plotly-strict.min.js.LICENSE.txt */
 
 /**
  * @license React
@@ -20,9 +18,9 @@
 
 /**
  * @license React
- * react-is.production.min.js
+ * react-is.production.js
  *
- * Copyright (c) Facebook, Inc. and its affiliates.
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
  *
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
@@ -79,7 +77,7 @@
  */
 
 /**
- * React Router v6.28.0
+ * React Router v6.28.1
  *
  * Copyright (c) Remix Software Inc.
  *
