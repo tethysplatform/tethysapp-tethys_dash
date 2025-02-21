@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import VariableInput from "components/visualizations/VariableInput";
@@ -12,9 +12,11 @@ import {
   mockedDashboards,
 } from "__tests__/utilities/constants";
 import { select } from "react-select-event";
-import renderWithLoaders, {
+import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
+
+// check map visualization tests for coverage of use effect dependent on variableInputValues
 
 it("Creates a Text Input for a Variable Input", async () => {
   const user = userEvent.setup();
@@ -22,18 +24,20 @@ it("Creates a Text Input for a Variable Input", async () => {
   dashboard.gridItems = [mockedTextVariable];
   const handleChange = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <>
-        <VariableInput
-          args={JSON.parse(mockedTextVariable.args_string)}
-          onChange={handleChange}
-        />
-        <InputVariablePComponent />
-      </>
-    ),
-    options: { dashboards: { editable: dashboard } },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            args={JSON.parse(mockedTextVariable.args_string)}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { editable: dashboard } },
+    })
+  );
 
   const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
@@ -62,18 +66,20 @@ it("Creates a Number Input for a Variable Input", async () => {
   dashboard.gridItems = [mockedNumberVariable];
   const handleChange = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <>
-        <VariableInput
-          args={JSON.parse(mockedNumberVariable.args_string)}
-          onChange={handleChange}
-        />
-        <InputVariablePComponent />
-      </>
-    ),
-    options: { dashboards: { editable: dashboard } },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            args={JSON.parse(mockedNumberVariable.args_string)}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { editable: dashboard } },
+    })
+  );
 
   const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
@@ -102,18 +108,20 @@ it("Creates a Checkbox Input for a Variable Input", async () => {
   dashboard.gridItems = [mockedCheckboxVariable];
   const handleChange = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <>
-        <VariableInput
-          args={JSON.parse(mockedCheckboxVariable.args_string)}
-          onChange={handleChange}
-        />
-        <InputVariablePComponent />
-      </>
-    ),
-    options: { dashboards: { editable: dashboard } },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            args={JSON.parse(mockedCheckboxVariable.args_string)}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { editable: dashboard } },
+    })
+  );
 
   const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
@@ -134,18 +142,20 @@ it("Creates a Checkbox Input for a Variable Input with a null value", async () =
   dashboard.gridItems = [mockedNullCheckboxVariable];
   const handleChange = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <>
-        <VariableInput
-          args={JSON.parse(mockedNullCheckboxVariable.args_string)}
-          onChange={handleChange}
-        />
-        <InputVariablePComponent />
-      </>
-    ),
-    options: { dashboards: { editable: dashboard } },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            args={JSON.parse(mockedNullCheckboxVariable.args_string)}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { editable: dashboard } },
+    })
+  );
 
   const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
@@ -170,21 +180,23 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
   dashboard.gridItems = [mockedDropdownVariable];
   const handleChange = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <>
-        <VariableInput
-          args={JSON.parse(mockedDropdownVariable.args_string)}
-          onChange={handleChange}
-        />
-        <InputVariablePComponent />
-      </>
-    ),
-    options: {
-      dashboards: { editable: dashboard },
-      visualizationArgs: mockedDropdownVizArgs,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            args={JSON.parse(mockedDropdownVariable.args_string)}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        dashboards: { editable: dashboard },
+        visualizationArgs: mockedDropdownVizArgs,
+      },
+    })
+  );
 
   const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
@@ -216,21 +228,23 @@ describe("When inDataViewerMode", () => {
     dashboard.gridItems = [mockedTextVariable];
     const handleChange = jest.fn();
 
-    renderWithLoaders({
-      children: (
-        <>
-          <VariableInput
-            args={JSON.parse(mockedTextVariable.args_string)}
-            onChange={handleChange}
-          />
-          <InputVariablePComponent />
-        </>
-      ),
-      options: {
-        dashboards: { editable: dashboard },
-        inDataViewerMode: true,
-      },
-    });
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <VariableInput
+              args={JSON.parse(mockedTextVariable.args_string)}
+              onChange={handleChange}
+            />
+            <InputVariablePComponent />
+          </>
+        ),
+        options: {
+          dashboards: { editable: dashboard },
+          inDataViewerMode: true,
+        },
+      })
+    );
 
     const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
@@ -259,21 +273,23 @@ describe("When inDataViewerMode", () => {
     dashboard.gridItems = [mockedNumberVariable];
     const handleChange = jest.fn();
 
-    renderWithLoaders({
-      children: (
-        <>
-          <VariableInput
-            args={JSON.parse(mockedNumberVariable.args_string)}
-            onChange={handleChange}
-          />
-          <InputVariablePComponent />
-        </>
-      ),
-      options: {
-        dashboards: { editable: dashboard },
-        inDataViewerMode: true,
-      },
-    });
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <VariableInput
+              args={JSON.parse(mockedNumberVariable.args_string)}
+              onChange={handleChange}
+            />
+            <InputVariablePComponent />
+          </>
+        ),
+        options: {
+          dashboards: { editable: dashboard },
+          inDataViewerMode: true,
+        },
+      })
+    );
 
     const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
@@ -303,21 +319,23 @@ describe("When inDataViewerMode", () => {
     dashboard.gridItems = [mockedCheckboxVariable];
     const handleChange = jest.fn();
 
-    renderWithLoaders({
-      children: (
-        <>
-          <VariableInput
-            args={JSON.parse(mockedCheckboxVariable.args_string)}
-            onChange={handleChange}
-          />
-          <InputVariablePComponent />
-        </>
-      ),
-      options: {
-        dashboards: { editable: dashboard },
-        inDataViewerMode: true,
-      },
-    });
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <VariableInput
+              args={JSON.parse(mockedCheckboxVariable.args_string)}
+              onChange={handleChange}
+            />
+            <InputVariablePComponent />
+          </>
+        ),
+        options: {
+          dashboards: { editable: dashboard },
+          inDataViewerMode: true,
+        },
+      })
+    );
 
     const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
@@ -342,21 +360,23 @@ describe("When inDataViewerMode", () => {
     dashboard.gridItems = [mockedNullCheckboxVariable];
     const handleChange = jest.fn();
 
-    renderWithLoaders({
-      children: (
-        <>
-          <VariableInput
-            args={JSON.parse(mockedNullCheckboxVariable.args_string)}
-            onChange={handleChange}
-          />
-          <InputVariablePComponent />
-        </>
-      ),
-      options: {
-        dashboards: { editable: dashboard },
-        inDataViewerMode: true,
-      },
-    });
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <VariableInput
+              args={JSON.parse(mockedNullCheckboxVariable.args_string)}
+              onChange={handleChange}
+            />
+            <InputVariablePComponent />
+          </>
+        ),
+        options: {
+          dashboards: { editable: dashboard },
+          inDataViewerMode: true,
+        },
+      })
+    );
 
     const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
@@ -380,47 +400,40 @@ describe("When inDataViewerMode", () => {
     dashboard.gridItems = [mockedDropdownVariable];
     const handleChange = jest.fn();
 
-    renderWithLoaders({
-      children: (
-        <>
-          <VariableInput
-            args={JSON.parse(mockedDropdownVariable.args_string)}
-            onChange={handleChange}
-          />
-          <InputVariablePComponent />
-        </>
-      ),
-      options: {
-        dashboards: { editable: dashboard },
-        inDataViewerMode: true,
-        visualizationArgs: mockedDropdownVizArgs,
-      },
-    });
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <VariableInput
+              args={JSON.parse(mockedDropdownVariable.args_string)}
+              onChange={handleChange}
+            />
+            <InputVariablePComponent />
+          </>
+        ),
+        options: {
+          dashboards: { editable: dashboard },
+          inDataViewerMode: true,
+          visualizationArgs: mockedDropdownVizArgs,
+        },
+      })
+    );
 
     const variableInput = screen.getByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": "Some Value" })
+      JSON.stringify({ "Test Variable": "CREC1" })
     );
 
-    await select(
-      variableInput,
-      "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
-    );
+    await select(variableInput, "FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE");
 
     expect(
-      screen.getByText(
-        "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
-      )
+      screen.getByText("FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE")
     ).toBeInTheDocument();
     expect(handleChange).toHaveBeenCalledWith({
-      label: "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
-      value: "CREC1",
+      label: "FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE",
+      value: "FTDC1",
     });
-
-    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": "Some Value" })
-    );
   });
 });

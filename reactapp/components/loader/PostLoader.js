@@ -9,6 +9,7 @@ import {
   AvailableDashboardsContext,
   DashboardDropdownContext,
   EditingContext,
+  DisabledEditingMovementContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
 import AppTourContextProvider from "components/contexts/AppTourContext";
@@ -30,6 +31,7 @@ const PostLoader = ({ children }) => {
   const [selectedDashboardDropdownOption, setSelectedDashboardDropdownOption] =
     useState(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [disabledEditingMovement, setDisabledEditingMovement] = useState(false);
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
 
   useEffect(() => {
@@ -58,6 +60,12 @@ const PostLoader = ({ children }) => {
     setIsLoaded(true);
     // eslint-disable-next-line
   }, []);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setDisabledEditingMovement(false);
+    }
+  }, [isEditing]);
 
   function updateVariableInputValuesWithGridItems(gridItems) {
     const updatedVariableInputValues = {};
@@ -288,14 +296,21 @@ const PostLoader = ({ children }) => {
               }}
             >
               <EditingContext.Provider value={{ isEditing, setIsEditing }}>
-                <DataViewerModeContext.Provider
+                <DisabledEditingMovementContext.Provider
                   value={{
-                    inDataViewerMode,
-                    setInDataViewerMode,
+                    disabledEditingMovement,
+                    setDisabledEditingMovement,
                   }}
                 >
-                  <AppTourContextProvider>{children}</AppTourContextProvider>
-                </DataViewerModeContext.Provider>
+                  <DataViewerModeContext.Provider
+                    value={{
+                      inDataViewerMode,
+                      setInDataViewerMode,
+                    }}
+                  >
+                    <AppTourContextProvider>{children}</AppTourContextProvider>
+                  </DataViewerModeContext.Provider>
+                </DisabledEditingMovementContext.Provider>
               </EditingContext.Provider>
             </DashboardDropdownContext.Provider>
           </AvailableDashboardsContext.Provider>
@@ -307,8 +322,9 @@ const PostLoader = ({ children }) => {
 
 PostLoader.propTypes = {
   children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.element),
-    PropTypes.element,
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.node,
+    PropTypes.object,
   ]),
 };
 

@@ -27,6 +27,16 @@ const appAPI = {
       headers: { "x-csrftoken": csrf },
     });
   },
+  uploadJSON: (data, csrf) => {
+    return apiClient.post(`${APP_ROOT_URL}json/upload/`, data, {
+      headers: { "x-csrftoken": csrf },
+    });
+  },
+  downloadJSON: (data) => {
+    return apiClient.get(`${APP_ROOT_URL}json/download/`, {
+      params: data,
+    });
+  },
 };
 
 export default appAPI;

@@ -1,6 +1,5 @@
-import { act, useState } from "react";
-import userEvent from "@testing-library/user-event";
-import { render, screen } from "@testing-library/react";
+import { useState } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import FullscreenPlotModal from "components/modals/FullscreenPlot";
 import PropTypes from "prop-types";
 
@@ -31,11 +30,11 @@ test("fullscreen modal and close", async () => {
   expect(await screen.findByRole("dialog")).toHaveClass("fullscreen");
 
   const closeButton = await screen.findByLabelText("Close");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(closeButton);
+  fireEvent.click(closeButton);
+
+  await waitFor(() => {
+    expect(screen.queryByText("Hello World")).not.toBeInTheDocument();
   });
-  expect(screen.queryByText("Hello World")).not.toBeInTheDocument();
 });
 
 TestingComponent.propTypes = {

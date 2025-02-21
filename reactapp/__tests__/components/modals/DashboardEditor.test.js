@@ -1,13 +1,13 @@
-import { act, useState } from "react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import {
   mockedDashboards,
   updatedDashboard,
 } from "__tests__/utilities/constants";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import renderWithLoaders, {
+import createLoadedComponent, {
   EditingPComponent,
 } from "__tests__/utilities/customRender";
 import appAPI from "services/api/app";
@@ -58,19 +58,21 @@ const TestingComponent = () => {
 };
 
 test("Dashboard Editor Canvas editable dashboard change sharing status", async () => {
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
-  expect(await screen.findByText("Name:")).toBeInTheDocument();
+  expect(await screen.findByText("Name")).toBeInTheDocument();
   expect(await screen.findByLabelText("Name Input")).toBeInTheDocument();
-  expect(await screen.findByText("Label:")).toBeInTheDocument();
+  expect(await screen.findByText("Label")).toBeInTheDocument();
   expect(await screen.findByLabelText("Label Input")).toBeInTheDocument();
-  expect(await screen.findByText("Sharing Status:")).toBeInTheDocument();
+  expect(await screen.findByText("Sharing Status")).toBeInTheDocument();
   expect(await screen.findByText("Notes:")).toBeInTheDocument();
   expect(await screen.findByLabelText("textEditor")).toBeInTheDocument();
   expect(await screen.findByText("Close")).toBeInTheDocument();
@@ -100,12 +102,14 @@ test("Dashboard Editor Canvas editable dashboard change sharing status", async (
 });
 
 test("Dashboard Editor Canvas copy public url failed", async () => {
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.noneditable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.noneditable.name,
+      },
+    })
+  );
 
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
   expect(await screen.findByText("Name:")).toBeInTheDocument();
@@ -134,11 +138,10 @@ test("Dashboard Editor Canvas copy public url failed", async () => {
   );
   expect(copyClipboardButton).toBeInTheDocument();
   fireEvent.click(copyClipboardButton);
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.hover(copyClipboardButton);
-  });
-  expect(screen.getByRole("tooltip")).toHaveTextContent("Failed to Copy");
+  await userEvent.hover(copyClipboardButton);
+  expect(await screen.findByRole("tooltip")).toHaveTextContent(
+    "Failed to Copy"
+  );
 });
 
 test("Dashboard Editor Canvas noneditable and copy public url", async () => {
@@ -149,12 +152,14 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
     },
   });
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.noneditable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.noneditable.name,
+      },
+    })
+  );
 
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
   expect(await screen.findByText("Name:")).toBeInTheDocument();
@@ -181,10 +186,7 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
   const copyClipboardButton = await screen.findByLabelText(
     "Copy Clipboard Button"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.hover(copyClipboardButton);
-  });
+  await userEvent.hover(copyClipboardButton);
 
   const tooltip = screen.getByRole("tooltip");
   expect(tooltip).toBeInTheDocument();
@@ -194,10 +196,7 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
   expect(mockWriteText).toHaveBeenCalledWith(
     "http://api.test/apps/tethysdash/dashboard/noneditable"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.hover(copyClipboardButton);
-  });
+  await userEvent.hover(copyClipboardButton);
   expect(screen.getByRole("tooltip")).toHaveTextContent("Copied");
 });
 
@@ -210,42 +209,35 @@ test("Dashboard Editor Canvas edit and save", async () => {
   });
   appAPI.updateDashboard = mockUpdateDashboard;
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   const publicRadioButton = screen.getByLabelText("Public");
   fireEvent.click(publicRadioButton);
 
   const labelInput = await screen.findByLabelText("Label Input");
   fireEvent.change(labelInput, { target: { value: "New Label" } });
-  expect(await screen.findByText("Label:")).toBeInTheDocument();
+  expect(await screen.findByText("Label")).toBeInTheDocument();
   expect(await screen.findByLabelText("Label Input")).toBeInTheDocument();
 
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "new_name" } });
-  expect(await screen.findByText("Name:")).toBeInTheDocument();
+  expect(await screen.findByText("Name")).toBeInTheDocument();
   expect(await screen.findByLabelText("Name Input")).toBeInTheDocument();
 
   const textArea = await screen.findByLabelText("textEditor");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(textArea);
-  });
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.keyboard("Here are some notes");
-  });
+  await userEvent.click(textArea);
+  await userEvent.keyboard("Here are some notes");
   expect(await screen.findByText("Here are some notes")).toBeInTheDocument();
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(saveButton);
-  });
+  await userEvent.click(saveButton);
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
       accessGroups: ["public"],
@@ -288,23 +280,22 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
   mockUpdateDashboard.mockResolvedValue({ success: false });
   appAPI.updateDashboard = mockUpdateDashboard;
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   const labelInput = await screen.findByLabelText("Label Input");
   fireEvent.change(labelInput, { target: { value: "New Label" } });
-  expect(await screen.findByText("Label:")).toBeInTheDocument();
+  expect(await screen.findByText("Label")).toBeInTheDocument();
   expect(await screen.findByLabelText("Label Input")).toBeInTheDocument();
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(saveButton);
-  });
+  await userEvent.click(saveButton);
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
       accessGroups: [],
@@ -346,23 +337,22 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
   });
   appAPI.updateDashboard = mockUpdateDashboard;
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   const labelInput = await screen.findByLabelText("Label Input");
   fireEvent.change(labelInput, { target: { value: "New Label" } });
-  expect(await screen.findByText("Label:")).toBeInTheDocument();
+  expect(await screen.findByText("Label")).toBeInTheDocument();
   expect(labelInput).toBeInTheDocument();
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(saveButton);
-  });
+  await userEvent.click(saveButton);
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
       accessGroups: [],
@@ -400,18 +390,17 @@ test("Dashboard Editor Canvas delete success", async () => {
   appAPI.deleteDashboard = mockDeleteDashboard;
   mockedConfirm.mockResolvedValue(true);
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(deleteButton);
-  });
+  await userEvent.click(deleteButton);
   expect(mockDeleteDashboard).toHaveBeenCalled();
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(await screen.findByText("not show canvas")).toBeInTheDocument();
@@ -426,18 +415,17 @@ test("Dashboard Editor Canvas delete fail", async () => {
   appAPI.deleteDashboard = mockDeleteDashboard;
   mockedConfirm.mockResolvedValue(true);
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(deleteButton);
-  });
+  await userEvent.click(deleteButton);
   expect(mockDeleteDashboard).toHaveBeenCalled();
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(await screen.findByText("yes show canvas")).toBeInTheDocument();
@@ -457,18 +445,17 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
   appAPI.deleteDashboard = mockDeleteDashboard;
   mockedConfirm.mockResolvedValue(false);
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(deleteButton);
-  });
+  await userEvent.click(deleteButton);
   expect(mockDeleteDashboard).not.toHaveBeenCalled();
   expect(await screen.findByTestId("editing")).toHaveTextContent("not editing");
   expect(await screen.findByText("yes show canvas")).toBeInTheDocument();
@@ -479,18 +466,17 @@ test("Dashboard Editor Canvas copy and not confirm", async () => {
   appAPI.addDashboard = mockAddDashboard;
   mockedConfirm.mockResolvedValue(false);
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(copyButton);
-  });
+  await userEvent.click(copyButton);
   expect(mockAddDashboard).not.toHaveBeenCalled();
 });
 
@@ -524,18 +510,17 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
   appAPI.addDashboard = mockAddDashboard;
   mockedConfirm.mockResolvedValue(true);
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(copyButton);
-  });
+  await userEvent.click(copyButton);
   expect(mockAddDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("Successfully copied dashboard")
@@ -555,18 +540,17 @@ test("Dashboard Editor Canvas copy and confirm and fail with message", async () 
   appAPI.addDashboard = mockAddDashboard;
   mockedConfirm.mockResolvedValue(true);
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(copyButton);
-  });
+  await userEvent.click(copyButton);
   expect(mockAddDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("failed to copy for some reason")
@@ -581,18 +565,17 @@ test("Dashboard Editor Canvas copy and confirm and fail without message", async 
   appAPI.addDashboard = mockAddDashboard;
   mockedConfirm.mockResolvedValue(true);
 
-  renderWithLoaders({
-    children: <TestingComponent />,
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(copyButton);
-  });
+  await userEvent.click(copyButton);
   expect(mockAddDashboard).toHaveBeenCalled();
   expect(
     await screen.findByText("Failed to copy dashboard. Check server logs.")

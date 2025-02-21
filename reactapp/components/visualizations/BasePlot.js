@@ -4,7 +4,7 @@ import createPlotlyComponent from "react-plotly.js/factory";
 import { useResizeDetector } from "react-resize-detector";
 import { memo } from "react";
 
-const Plotly = require("plotly.js-cartesian-dist-min");
+const Plotly = require("plotly.js-strict-dist-min");
 const Plot = createPlotlyComponent(Plotly);
 
 const StyledPlot = styled(Plot)`

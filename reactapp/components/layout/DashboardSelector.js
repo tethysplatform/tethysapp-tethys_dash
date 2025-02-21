@@ -7,13 +7,15 @@ import {
   AvailableDashboardsContext,
   DashboardDropdownContext,
   EditingContext,
+  DisabledEditingMovementContext,
 } from "components/contexts/Contexts";
 import {
   BsArrowReturnLeft,
-  BsFloppy,
+  BsFloppyFill,
   BsPencilSquare,
-  BsPlus,
 } from "react-icons/bs";
+import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
+import { FaPlus } from "react-icons/fa6";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import styled from "styled-components";
 import { useAppTourContext } from "components/contexts/AppTourContext";
@@ -22,6 +24,28 @@ import PropTypes from "prop-types";
 const StyledDiv = styled.div`
   margin: auto;
 `;
+
+function LockedIcon({ locked }) {
+  return (
+    <div
+      style={{ position: "relative", display: "flex" }}
+      className="items-center justify-center"
+    >
+      {locked ? <FaLock size="1.5rem" /> : <FaUnlock size="1.5rem" />}
+      <FaExpandArrowsAlt
+        size=".75rem"
+        color="black"
+        style={{
+          position: "absolute",
+          right: 0,
+          left: 0,
+          bottom: 0,
+          width: "100%",
+        }}
+      />
+    </div>
+  );
+}
 
 function DashboardSelector({ initialDashboard }) {
   const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
@@ -34,6 +58,9 @@ function DashboardSelector({ initialDashboard }) {
   } = useContext(DashboardDropdownContext);
   const [showModal, setShowModal] = useState(false);
   const { isEditing, setIsEditing } = useContext(EditingContext);
+  const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
+    DisabledEditingMovementContext
+  );
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const [menuIsOpen, setMenuIsOpen] = useState(false);
   const userDashboardDropdownOptions = dashboardDropdownOptions.filter(
@@ -161,7 +188,7 @@ function DashboardSelector({ initialDashboard }) {
         <>
           {editable && (
             <>
-              {isEditing && (
+              {isEditing ? (
                 <>
                   <TooltipButton
                     tooltipPlacement="bottom"
@@ -180,7 +207,7 @@ function DashboardSelector({ initialDashboard }) {
                     aria-label="saveButton"
                     className="saveChangesButton"
                   >
-                    <BsFloppy size="1.5rem" />
+                    <BsFloppyFill size="1.5rem" />
                   </TooltipButton>
                   <TooltipButton
                     tooltipPlacement="bottom"
@@ -189,11 +216,25 @@ function DashboardSelector({ initialDashboard }) {
                     aria-label="addGridItemButton"
                     className="addGridItemsButton"
                   >
-                    <BsPlus size="1.5rem" />
+                    <FaPlus size="1.5rem" />
+                  </TooltipButton>
+                  <TooltipButton
+                    tooltipPlacement="bottom"
+                    tooltipText={
+                      disabledEditingMovement
+                        ? "Unlock Movement"
+                        : "Lock Movement"
+                    }
+                    onClick={() =>
+                      setDisabledEditingMovement(!disabledEditingMovement)
+                    }
+                    aria-label="Disable Movement Button"
+                    className="lockUnlocKMovementButton"
+                  >
+                    <LockedIcon locked={disabledEditingMovement} />
                   </TooltipButton>
                 </>
-              )}
-              {!isEditing && (
+              ) : (
                 <TooltipButton
                   tooltipPlacement="bottom"
                   tooltipText="Edit Dashboard"
@@ -214,6 +255,10 @@ function DashboardSelector({ initialDashboard }) {
     </StyledDiv>
   );
 }
+
+LockedIcon.propTypes = {
+  locked: PropTypes.bool, // indicates what icon to use with the lock (opened or closed)
+};
 
 DashboardSelector.propTypes = {
   initialDashboard: PropTypes.string,

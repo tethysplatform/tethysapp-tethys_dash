@@ -22,7 +22,7 @@ describe("DataRadioSelect Component", () => {
         onChange={mockOnChange}
       />
     );
-    expect(screen.getByText("Test Label:")).toBeInTheDocument();
+    expect(screen.getByText("Test Label")).toBeInTheDocument();
   });
 
   it("renders the correct number of radio buttons", () => {

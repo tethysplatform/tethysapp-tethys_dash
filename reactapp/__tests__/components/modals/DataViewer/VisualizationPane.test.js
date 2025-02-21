@@ -1,4 +1,4 @@
-import { act, useEffect, useRef, useState, useContext } from "react";
+import { useEffect, useRef, useState, useContext } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import VisualizationPane, {
@@ -8,7 +8,7 @@ import { mockedDashboards } from "__tests__/utilities/constants";
 import Image from "components/visualizations/Image";
 import appAPI from "services/api/app";
 import { LayoutContext } from "components/contexts/Contexts";
-import renderWithLoaders from "__tests__/utilities/customRender";
+import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 
 const TestingComponent = ({
@@ -48,6 +48,7 @@ const TestingComponent = ({
         settingsRef={settingsRef}
         visualizationRef={visualizationRef}
       />
+      <p data-testid="viz-input-values">{JSON.stringify(vizInputsValues)}</p>
     </>
   );
 };
@@ -59,33 +60,32 @@ test("Visualization Pane Custom Image", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationTypeSelect);
-  });
+  await userEvent.click(visualizationTypeSelect);
   const customImageOption = await screen.findByText("Custom Image");
   fireEvent.click(customImageOption);
-  expect(await screen.findByText("Image Source:")).toBeInTheDocument();
+  expect(await screen.findByText("Image Source")).toBeInTheDocument();
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith(null);
   expect(mockSetViz).toHaveBeenCalledWith(null);
@@ -112,30 +112,29 @@ test("Visualization Pane Text", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationTypeSelect);
-  });
+  await userEvent.click(visualizationTypeSelect);
   const texteOption = await screen.findByText("Text");
   fireEvent.click(texteOption);
 
@@ -167,36 +166,35 @@ test("Visualization Pane Variable Input", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationTypeSelect);
-  });
+  await userEvent.click(visualizationTypeSelect);
 
   const customImageOption = await screen.findByText("Variable Input");
   fireEvent.click(customImageOption);
-  expect(await screen.findByText("Variable Name:")).toBeInTheDocument();
+  expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
-    await screen.findByText("Variable Options Source:")
+    await screen.findByText("Variable Options Source")
   ).toBeInTheDocument();
 
   const variableNameInput = screen.getByLabelText("Variable Name Input");
@@ -205,10 +203,7 @@ test("Visualization Pane Variable Input", async () => {
   const variableOptionsSourceSelect = screen.getByLabelText(
     "Variable Options Source Input"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(variableOptionsSourceSelect);
-  });
+  await userEvent.click(variableOptionsSourceSelect);
   const textOption = await screen.findByText("text");
   fireEvent.click(textOption);
 
@@ -233,17 +228,14 @@ test("Visualization Pane Variable Input", async () => {
     variable_options_source: "text",
   });
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(variableOptionsSourceSelect);
-  });
+  await userEvent.click(variableOptionsSourceSelect);
   const numberOption = await screen.findByText("number");
   fireEvent.click(numberOption);
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "Variable Input",
     args: {
-      initial_value: 0,
+      initial_value: "0",
       variable_name: "Test Variable",
       variable_options_source: "number",
     },
@@ -253,15 +245,12 @@ test("Visualization Pane Variable Input", async () => {
   );
   expect(mockSetViz.mock.calls[2][0].type.name).toBe("VariableInput");
   expect(mockSetViz.mock.calls[2][0].props.args).toStrictEqual({
-    initial_value: 0,
+    initial_value: "0",
     variable_name: "Test Variable",
     variable_options_source: "number",
   });
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(variableOptionsSourceSelect);
-  });
+  await userEvent.click(variableOptionsSourceSelect);
   const checkboxOption = await screen.findByText("checkbox");
   fireEvent.click(checkboxOption);
 
@@ -297,34 +286,33 @@ test("Visualization Pane Other Type", async () => {
     });
   };
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationTypeSelect);
-  });
+  await userEvent.click(visualizationTypeSelect);
 
   const pluginLabelOption = await screen.findByText("plugin_label");
   fireEvent.click(pluginLabelOption);
-  expect(await screen.findByText("Plugin Arg:")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg")).toBeInTheDocument();
 
   const pluginArg1Input = screen.getByLabelText("Plugin Arg Input");
   fireEvent.change(pluginArg1Input, { target: { value: "some value" } });
@@ -348,14 +336,11 @@ test("Visualization Pane Other Type", async () => {
     variant: "info",
   });
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationTypeSelect);
-  });
+  await userEvent.click(visualizationTypeSelect);
 
   const pluginLabel2Option = await screen.findByText("plugin_label2");
   fireEvent.click(pluginLabel2Option);
-  expect(await screen.findByText("Plugin Arg:")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg")).toBeInTheDocument();
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "plugin_source2",
@@ -373,14 +358,11 @@ test("Visualization Pane Other Type", async () => {
     variant: "info",
   });
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationTypeSelect);
-  });
+  await userEvent.click(visualizationTypeSelect);
 
   const pluginLabel3Option = await screen.findByText("plugin_label3");
   fireEvent.click(pluginLabel3Option);
-  expect(await screen.findByText("Plugin Arg3:")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg3")).toBeInTheDocument();
 
   const pluginArg3Input = screen.getByLabelText("Plugin Arg3 Input");
   fireEvent.change(pluginArg3Input, { target: { value: "some new value" } });
@@ -428,46 +410,39 @@ test("Visualization Pane Other Type Checkbox", async () => {
     },
   ];
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-      visualizations: availableVisualizations,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        visualizations: availableVisualizations,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = screen.getByLabelText("visualizationType");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(visualizationTypeSelect);
-  });
+  await userEvent.click(visualizationTypeSelect);
 
   const pluginLabelOption = await screen.findByText("plugin_label_checkbox");
   fireEvent.click(pluginLabelOption);
-  expect(await screen.findByText("Plugin Arg:")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg")).toBeInTheDocument();
 
   const pluginArgSelect = screen.getByLabelText("Plugin Arg Input");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(pluginArgSelect);
-  });
+  await userEvent.click(pluginArgSelect);
   const trueOption = await screen.findByText("True");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(trueOption);
-  });
+  await userEvent.click(trueOption);
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith(null);
   expect(mockSetViz).toHaveBeenCalledWith(null);
@@ -503,7 +478,7 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
       args_string: JSON.stringify({
         variable_name: "test_var",
         variable_options_source: "text",
-        initial_value: { value: "some value" },
+        initial_value: "some value",
       }),
       metadata_string: JSON.stringify({
         refreshRate: 0,
@@ -515,29 +490,31 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-      dashboards: updatedMockedDashboards,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "Variable Input",
     args: {
       variable_name: "test_var",
       variable_options_source: "text",
-      initial_value: { value: "some value" },
+      initial_value: "some value",
     },
   });
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
@@ -545,9 +522,7 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
   );
   expect(mockSetViz).toHaveBeenCalled();
   expect(mockSetViz.mock.calls[0][0].props.args).toStrictEqual({
-    initial_value: {
-      value: "some value",
-    },
+    initial_value: "some value",
     variable_name: "test_var",
     variable_options_source: "text",
   });
@@ -577,22 +552,24 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-      dashboards: updatedMockedDashboards,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "Custom Image",
@@ -609,7 +586,7 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
   );
 });
 
-test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
+test("Visualization Pane Use Existing Args Viz with True checkbox", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.editable;
   mockedDashboard.gridItems = [
@@ -646,23 +623,25 @@ test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
   const mockSetViz = jest.fn();
   const mockSetVizMetadata = jest.fn();
 
-  renderWithLoaders({
-    children: (
-      <TestingComponent
-        layoutContext={mockedDashboard}
-        source={gridItem.source}
-        argsString={gridItem.args_string}
-        setGridItemMessage={mockSetGridItemMessage}
-        setViz={mockSetViz}
-        setVizMetadata={mockSetVizMetadata}
-      />
-    ),
-    options: {
-      inDataViewerMode: true,
-      dashboards: updatedMockedDashboards,
-      visualizations: mockedVisualizations,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+        visualizations: mockedVisualizations,
+      },
+    })
+  );
 
   expect(mockSetVizMetadata).toHaveBeenCalledWith({
     source: "plugin_source",
@@ -679,6 +658,106 @@ test("Visualization Pane Use Existing Args Viz with checkbox", async () => {
     "data-testid": "Loading...",
     variant: "info",
   });
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify([
+      {
+        label: "Plugin Arg",
+        name: "plugin_arg",
+        type: [
+          { label: "True", value: true },
+          { label: "False", value: false },
+        ],
+        value: { label: "True", value: true },
+      },
+    ])
+  );
+});
+
+test("Visualization Pane Use Existing Args Viz with False checkbox", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.editable;
+  mockedDashboard.gridItems = [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "plugin_source",
+      args_string: JSON.stringify({
+        plugin_arg: false,
+      }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ];
+  const mockedVisualizations = [
+    {
+      label: "Other",
+      options: [
+        {
+          source: "plugin_source",
+          value: "plugin_value",
+          label: "plugin_label",
+          args: { plugin_arg: "checkbox" },
+        },
+      ],
+    },
+  ];
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetViz = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+        visualizations: mockedVisualizations,
+      },
+    })
+  );
+
+  expect(mockSetVizMetadata).toHaveBeenCalledWith({
+    source: "plugin_source",
+    args: {
+      plugin_arg: false,
+    },
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show Other plugin_label"
+  );
+  expect(mockSetViz).toHaveBeenCalled();
+  expect(mockSetViz.mock.calls[0][0].props).toStrictEqual({
+    animation: "border",
+    "data-testid": "Loading...",
+    variant: "info",
+  });
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify([
+      {
+        label: "Plugin Arg",
+        name: "plugin_arg",
+        type: [
+          { label: "True", value: true },
+          { label: "False", value: false },
+        ],
+        value: { label: "False", value: false },
+      },
+    ])
+  );
 });
 
 test("CustomTextOptions", async () => {
@@ -688,8 +767,8 @@ test("CustomTextOptions", async () => {
       index={0}
       objValue={{
         label: "Text",
-        name: "text",
-        type: "text",
+        name: "Text",
+        type: "Text",
         value: "Here is some text",
       }}
       onChange={onChange}

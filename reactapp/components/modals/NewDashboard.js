@@ -39,6 +39,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
       if (response["success"]) {
         handleModalClose();
         if (activeAppTour) {
+          setAppTourStep(null);
           setTimeout(() => {
             setIsEditing(false);
             setAppTourStep(4);

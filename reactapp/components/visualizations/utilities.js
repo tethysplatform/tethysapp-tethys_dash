@@ -7,6 +7,7 @@ import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/Map";
 import ModuleLoader from "./ModuleLoader";
 import Spinner from "react-bootstrap/Spinner";
+import { spaceAndCapitalize } from "components/modals/utilities";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -18,7 +19,9 @@ const StyledH2 = styled.h2`
 `;
 
 export function setVisualization(setViz, itemData, visualizationRef) {
-  setViz(<StyledSpinner data-testid="Loading..." animation="border" variant="info" />);
+  setViz(
+    <StyledSpinner data-testid="Loading..." animation="border" variant="info" />
+  );
 
   appAPI.getPlotData(itemData).then((response) => {
     if (response.success === true) {
@@ -32,7 +35,11 @@ export function setVisualization(setViz, itemData, visualizationRef) {
         );
       } else if (response["viz_type"] === "image") {
         setViz(
-          <Image source={response.data} alt={itemData.source} visualizationRef={visualizationRef} />
+          <Image
+            source={response.data}
+            alt={itemData.source}
+            visualizationRef={visualizationRef}
+          />
         );
       } else if (response["viz_type"] === "table") {
         setViz(
@@ -97,16 +104,149 @@ export function updateGridItemArgsWithVariableInputs(
   const gridItemsArgs = JSON.parse(argsString);
   for (let gridItemsArg in gridItemsArgs) {
     const value = gridItemsArgs[gridItemsArg];
-    if (typeof value !== "string") {
-      continue;
-    }
-    if (value.includes("Variable Input:")) {
-      const neededVariable = value.replace("Variable Input:", "");
-      gridItemsArgs[gridItemsArg] = variableInputs[neededVariable];
-    }
+    const stringifiedValue = JSON.stringify(value);
+    const updatedValuesWithVariableInputs = JSON.parse(
+      stringifiedValue.replace(
+        /\$\{([^}]+)\}/g,
+        (_, key) => variableInputs[key] || ""
+      )
+    );
+    gridItemsArgs[gridItemsArg] = updatedValuesWithVariableInputs;
   }
 
   return gridItemsArgs;
 }
 
 export const nonDropDownVariableInputTypes = ["text", "number", "checkbox"];
+
+export const baseMapLayers = [
+  {
+    label: "ArcGIS Map Service Base Maps",
+    options: [
+      {
+        label: "World Light Gray Base",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+      },
+      {
+        label: "World Dark Gray Base",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer",
+      },
+      {
+        label: "World Topo Map",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer",
+      },
+      {
+        label: "World Imagery",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer",
+      },
+      {
+        label: "World Terrain Base",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/World_Terrain_Base/MapServer",
+      },
+      {
+        label: "World Street Map",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/World_Street_Map/MapServer",
+      },
+      {
+        label: "World Physical Map",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/World_Physical_Map/MapServer",
+      },
+      {
+        label: "World Shaded Relief",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/World_Shaded_Relief/MapServer",
+      },
+      {
+        label: "World Terrain Reference",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/World_Terrain_Reference/MapServer",
+      },
+      {
+        label: "World Hillshade Dark",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade_Dark/MapServer",
+      },
+      {
+        label: "World Hillshade",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer",
+      },
+      {
+        label: "World Boundaries and Places Alternate",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Boundaries_and_Places_Alternate/MapServer",
+      },
+      {
+        label: "World Boundaries and Places",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Boundaries_and_Places/MapServer",
+      },
+      {
+        label: "World Reference Overlay",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Reference_Overlay/MapServer",
+      },
+      {
+        label: "World Transportation",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Transportation/MapServer",
+      },
+      {
+        label: "World Ocean Base ",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer",
+      },
+      {
+        label: "World Ocean Reference",
+        value:
+          "https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Reference/MapServer",
+      },
+    ],
+  },
+];
+
+export function getBaseMapLayer(baseMapURL) {
+  if (!baseMapURL.includes("/")) return null;
+
+  const baseMapURLSplit = baseMapURL.split("/");
+  const baseMapName = spaceAndCapitalize(
+    baseMapURLSplit[baseMapURLSplit.length - 2]
+  );
+  const layer_dict = {
+    type: "WebGLTile",
+    props: {
+      source: {
+        type: "ImageTile",
+        props: {
+          url: baseMapURL + "/tile/{z}/{y}/{x}",
+          attributions: 'Tiles © <a href="' + baseMapURL + '">ArcGIS</a>',
+        },
+      },
+      name: baseMapName,
+    },
+  };
+
+  return layer_dict;
+}
+
+export function findSelectOptionByValue(data, searchValue) {
+  for (const element of data) {
+    if (element.value === searchValue) {
+      return element; // Return the matching element
+    }
+    if (element.options && Array.isArray(element.options)) {
+      const found = findSelectOptionByValue(element.options, searchValue); // Recursively search in options
+      if (found) {
+        return found; // Return the matching element from nested options
+      }
+    }
+  }
+  return null; // Return null if no match is found
+}

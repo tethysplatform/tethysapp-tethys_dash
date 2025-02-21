@@ -1,11 +1,10 @@
-import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import Header from "components/layout/Header";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import AppTour from "components/dashboard/AppTour";
 import { MemoryRouter } from "react-router-dom";
-import renderWithLoaders from "__tests__/utilities/customRender";
+import createLoadedComponent from "__tests__/utilities/customRender";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import appAPI from "services/api/app";
 import { confirm } from "components/dashboard/DeleteConfirmation";
@@ -72,17 +71,19 @@ test("App Tour skip steps 3", async () => {
     },
   });
 
-  renderWithLoaders({
-    children: (
-      <MemoryRouter initialEntries={["/"]}>
-        <LayoutAlertContextProvider>
-          <AppTour />
-          <Header />
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-      </MemoryRouter>
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <AppTour />
+            <Header />
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    })
+  );
 
   expect(
     // eslint-disable-next-line
@@ -119,10 +120,7 @@ test("App Tour skip steps 3", async () => {
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
   expect(selector).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
 
   ////////////
   // STEP 1 //
@@ -136,10 +134,7 @@ test("App Tour skip steps 3", async () => {
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
   const newDashboardOption = await screen.findByText("Create a New Dashboard");
   expect(newDashboardOption).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(newDashboardOption);
-  });
+  await userEvent.click(newDashboardOption);
 
   ////////////
   // STEP 2 //
@@ -156,10 +151,7 @@ test("App Tour skip steps 3", async () => {
   const createDashboardInput = await screen.findByLabelText(
     "Create Dashboard Button"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(createDashboardInput);
-  });
+  await userEvent.click(createDashboardInput);
   await waitFor(() => {
     expect(
       screen.queryByLabelText("Create Dashboard Button")
@@ -176,10 +168,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   ////////////
   // STEP 5 //
@@ -191,10 +180,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(backButton);
-  });
+  await userEvent.click(backButton);
 
   ////////////
   // STEP 4 //
@@ -206,10 +192,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   ////////////
   // STEP 5 //
@@ -221,10 +204,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   ////////////
   // STEP 6 //
@@ -235,10 +215,7 @@ test("App Tour skip steps 3", async () => {
   expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
   const dashboardEditButton = await screen.findByLabelText("editButton");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(dashboardEditButton);
-  });
+  await userEvent.click(dashboardEditButton);
 
   ////////////
   // STEP 7 //
@@ -250,10 +227,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   ////////////
   // STEP 8 //
@@ -268,10 +242,7 @@ test("App Tour skip steps 3", async () => {
   const dashboardItemDropdownToggle = await screen.findByLabelText(
     "dashboard-item-dropdown-toggle"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(dashboardItemDropdownToggle);
-  });
+  await userEvent.click(dashboardItemDropdownToggle);
 
   ////////////
   // STEP 9 //
@@ -289,10 +260,7 @@ test("App Tour skip steps 3", async () => {
   nextButton = await screen.findByLabelText("Next");
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
   const editGridItemButton = await screen.findByText("Edit Visualization");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(editGridItemButton);
-  });
+  await userEvent.click(editGridItemButton);
 
   //////////////////////////
   // STEP 17 - DATAVIEWER //
@@ -304,10 +272,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   //////////////////////////
   // STEP 18 - DATAVIEWER //
@@ -319,10 +284,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   //////////////////////////
   // STEP 19 - DATAVIEWER //
@@ -344,10 +306,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   //////////////////////////
   // STEP 20 - DATAVIEWER //
@@ -359,10 +318,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   //////////////////////////
   // STEP 21 - DATAVIEWER //
@@ -377,10 +333,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   //////////////////////////
   // STEP 22 - DATAVIEWER //
@@ -392,10 +345,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   //////////////////////////
   // STEP 23 - DATAVIEWER //
@@ -410,10 +360,7 @@ test("App Tour skip steps 3", async () => {
   const closeDataviewer = await screen.findByLabelText(
     "dataviewer-close-button"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(closeDataviewer);
-  });
+  await userEvent.click(closeDataviewer);
 
   /////////////
   // STEP 10 //
@@ -425,10 +372,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(backButton);
-  });
+  await userEvent.click(backButton);
 
   ////////////
   // STEP 9 //
@@ -445,10 +389,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   /////////////
   // STEP 10 //
@@ -460,10 +401,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   /////////////
   // STEP 11 //
@@ -475,10 +413,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   /////////////
   // STEP 12 //
@@ -490,10 +425,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   /////////////
   // STEP 13 //
@@ -505,10 +437,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   /////////////
   // STEP 14 //
@@ -520,10 +449,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   /////////////
   // STEP 15 //
@@ -543,10 +469,7 @@ test("App Tour skip steps 3", async () => {
   const dashboardSettingButton = await screen.findByLabelText(
     "dashboardSettingButton"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(dashboardSettingButton);
-  });
+  await userEvent.click(dashboardSettingButton);
 
   ////////////////////////////////
   // STEP 24 - DASHBOARD EDITOR //
@@ -580,10 +503,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   ////////////////////////////////
   // STEP 25 - DASHBOARD EDITOR //
@@ -593,10 +513,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   ////////////////////////////////
   // STEP 26 - DASHBOARD EDITOR //
@@ -608,10 +525,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   ////////////////////////////////
   // STEP 27 - DASHBOARD EDITOR //
@@ -623,10 +537,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   ////////////////////////////////
   // STEP 28 - DASHBOARD EDITOR //
@@ -641,10 +552,7 @@ test("App Tour skip steps 3", async () => {
   const cancelDashboardEditorButton = await screen.findByLabelText(
     "Cancel Dashboard Editor Button"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(cancelDashboardEditorButton);
-  });
+  await userEvent.click(cancelDashboardEditorButton);
 
   /////////////
   // STEP 16 //
@@ -665,10 +573,7 @@ test("App Tour skip steps 3", async () => {
   expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
   endTourButton = await screen.findByLabelText("End App Tour");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(backButton);
-  });
+  await userEvent.click(backButton);
 
   /////////////
   // STEP 15 //
@@ -685,10 +590,7 @@ test("App Tour skip steps 3", async () => {
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(nextButton);
-  });
+  await userEvent.click(nextButton);
 
   /////////////
   // STEP 16 //
@@ -709,16 +611,13 @@ test("App Tour skip steps 3", async () => {
   expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
   endTourButton = await screen.findByLabelText("End App Tour");
   backButton = await screen.findByLabelText("Back");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(endTourButton);
-  });
+  await userEvent.click(endTourButton);
 
   expect(
     // eslint-disable-next-line
     document.querySelector("#react-joyride-portal")
   ).not.toBeInTheDocument();
-}, 20000);
+}, 40000);
 
 test("App Tour skip to step 3", async () => {
   let dashboardNameInput;
@@ -755,17 +654,19 @@ test("App Tour skip to step 3", async () => {
       },
     });
 
-  renderWithLoaders({
-    children: (
-      <MemoryRouter initialEntries={["/"]}>
-        <LayoutAlertContextProvider>
-          <AppTour />
-          <Header />
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-      </MemoryRouter>
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <AppTour />
+            <Header />
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    })
+  );
 
   expect(
     // eslint-disable-next-line
@@ -802,10 +703,7 @@ test("App Tour skip to step 3", async () => {
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
   expect(selector).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
 
   ////////////
   // STEP 1 //
@@ -819,10 +717,7 @@ test("App Tour skip to step 3", async () => {
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
   const newDashboardOption = await screen.findByText("Create a New Dashboard");
   expect(newDashboardOption).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(newDashboardOption);
-  });
+  await userEvent.click(newDashboardOption);
 
   ////////////
   // STEP 2 //
@@ -837,10 +732,7 @@ test("App Tour skip to step 3", async () => {
   createDashboardInput = await screen.findByLabelText(
     "Create Dashboard Button"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(createDashboardInput);
-  });
+  await userEvent.click(createDashboardInput);
 
   ////////////
   // STEP 3 //
@@ -857,10 +749,7 @@ test("App Tour skip to step 3", async () => {
   createDashboardInput = await screen.findByLabelText(
     "Create Dashboard Button"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(createDashboardInput);
-  });
+  await userEvent.click(createDashboardInput);
   await waitFor(() => {
     expect(
       screen.queryByLabelText("Create Dashboard Button")
@@ -876,11 +765,8 @@ test("App Tour skip to step 3", async () => {
     )
   ).toBeInTheDocument();
 
-  const closeButton = await screen.findByLabelText("Close");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(closeButton);
-  });
+  const closeButton = await screen.findByLabelText("End App Tour");
+  await userEvent.click(closeButton);
 
   expect(
     // eslint-disable-next-line
@@ -921,17 +807,19 @@ test("App Tour from header and select existing dashboard", async () => {
   mockedConfirm.mockResolvedValueOnce(false);
   mockedConfirm.mockResolvedValueOnce(true);
 
-  renderWithLoaders({
-    children: (
-      <MemoryRouter initialEntries={["/"]}>
-        <LayoutAlertContextProvider>
-          <AppTour />
-          <Header />
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-      </MemoryRouter>
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <AppTour />
+            <Header />
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    })
+  );
 
   expect(
     // eslint-disable-next-line
@@ -948,10 +836,7 @@ test("App Tour from header and select existing dashboard", async () => {
     )
   ).toBeInTheDocument();
   const closeButton = await screen.findByLabelText("Close");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(closeButton);
-  });
+  await userEvent.click(closeButton);
 
   //////////////////////
   // Main Application //
@@ -966,30 +851,18 @@ test("App Tour from header and select existing dashboard", async () => {
   ////////////////////////////////////////
   selector = await screen.findByRole("combobox");
   expect(selector).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
   existingDashboardOption = await screen.findByText("test_label");
   expect(existingDashboardOption).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(existingDashboardOption);
-  });
+  await userEvent.click(existingDashboardOption);
   const dashboardEditButton = await screen.findByLabelText("editButton");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(dashboardEditButton);
-  });
+  await userEvent.click(dashboardEditButton);
 
   /////////////////////////
   // Open App Info Modal //
   /////////////////////////
   const appInfoButton = await screen.findByLabelText("appInfoButton");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(appInfoButton);
-  });
+  await userEvent.click(appInfoButton);
 
   ////////////////////
   // App Info Modal //
@@ -1036,10 +909,7 @@ test("App Tour from header and select existing dashboard", async () => {
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
   selector = await screen.findByRole("combobox");
   expect(selector).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
 
   ////////////
   // STEP 1 //
@@ -1053,10 +923,7 @@ test("App Tour from header and select existing dashboard", async () => {
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
   existingDashboardOption = await screen.findByText("test_label");
   expect(existingDashboardOption).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(existingDashboardOption);
-  });
+  await userEvent.click(existingDashboardOption);
 
   ////////////
   // STEP 4 //

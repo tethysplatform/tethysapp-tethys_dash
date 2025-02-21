@@ -1,11 +1,11 @@
-import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import DashboardSelector from "components/layout/DashboardSelector";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import { confirm } from "components/dashboard/DeleteConfirmation";
-import renderWithLoaders, {
+import createLoadedComponent, {
   ContextLayoutPComponent,
+  DisabledMovementPComponent,
 } from "__tests__/utilities/customRender";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
@@ -16,7 +16,7 @@ jest.mock("components/dashboard/DeleteConfirmation", () => {
 const mockedConfirm = jest.mocked(confirm);
 
 test("Dashboard Selector without initial", async () => {
-  renderWithLoaders({ children: <DashboardSelector /> });
+  render(createLoadedComponent({ children: <DashboardSelector /> }));
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   expect(await screen.findByRole("combobox")).toBeInTheDocument();
@@ -26,9 +26,11 @@ test("Dashboard Selector without initial", async () => {
 test("Dashboard Selector with initial", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
 
-  renderWithLoaders({
-    children: <DashboardSelector initialDashboard={mockedDashboard.name} />,
-  });
+  render(
+    createLoadedComponent({
+      children: <DashboardSelector initialDashboard={mockedDashboard.name} />,
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   expect(await screen.findByRole("combobox")).toBeInTheDocument();
@@ -37,17 +39,16 @@ test("Dashboard Selector with initial", async () => {
 });
 
 test("Dashboard Selector changing between public and user options", async () => {
-  renderWithLoaders({
-    children: <DashboardSelector />,
-  });
+  render(
+    createLoadedComponent({
+      children: <DashboardSelector />,
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
   expect(selector).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
 
   expect(await screen.findByText("Create a New Dashboard")).toBeInTheDocument();
   const publicGroupHeading = await screen.findByText("Public");
@@ -59,20 +60,14 @@ test("Dashboard Selector changing between public and user options", async () => 
   const publicOption = await screen.findByText("test_label2");
   expect(publicOption).toBeInTheDocument();
   expect(publicOption).toHaveAttribute("id", "react-select-4-option-1-0");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(publicOption);
-  });
+  await userEvent.click(publicOption);
 
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("cancelButton")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("saveButton")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("addGridItemButton")).not.toBeInTheDocument();
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
   const userGroupHeading = await screen.findByText("User");
   expect(userGroupHeading).toBeInTheDocument();
   expect(userGroupHeading).toHaveAttribute(
@@ -83,10 +78,7 @@ test("Dashboard Selector changing between public and user options", async () => 
   expect(userOption).toBeInTheDocument();
   expect(userOption).toHaveAttribute("id", "react-select-4-option-2-0");
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(userOption);
-  });
+  await userEvent.click(userOption);
 
   const editButton = screen.getByLabelText("editButton");
   expect(editButton).toBeInTheDocument();
@@ -94,10 +86,7 @@ test("Dashboard Selector changing between public and user options", async () => 
   expect(screen.queryByLabelText("saveButton")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("addGridItemButton")).not.toBeInTheDocument();
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(editButton);
-  });
+  await userEvent.click(editButton);
 
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
   expect(screen.getByLabelText("cancelButton")).toBeInTheDocument();
@@ -106,24 +95,20 @@ test("Dashboard Selector changing between public and user options", async () => 
 });
 
 test("Dashboard Selector create new dashboard", async () => {
-  renderWithLoaders({
-    children: <DashboardSelector />,
-  });
+  render(
+    createLoadedComponent({
+      children: <DashboardSelector />,
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
   expect(selector).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
 
   const newDashboardOption = await screen.findByText("Create a New Dashboard");
   expect(newDashboardOption).toBeInTheDocument();
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(newDashboardOption);
-  });
+  await userEvent.click(newDashboardOption);
   const newDashboardModal = await screen.findByRole("dialog");
   expect(newDashboardModal).toBeInTheDocument();
   expect(newDashboardModal).toHaveClass("newdashboard");
@@ -132,40 +117,27 @@ test("Dashboard Selector create new dashboard", async () => {
 test("Dashboard Selector changing when editing, true confirm", async () => {
   mockedConfirm.mockResolvedValue(true);
 
-  renderWithLoaders({
-    children: <DashboardSelector />,
-  });
+  render(
+    createLoadedComponent({
+      children: <DashboardSelector />,
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
 
   const userOption = await screen.findByText("test_label");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(userOption);
-  });
+  await userEvent.click(userOption);
   expect(await screen.findByText("test_label")).toBeInTheDocument();
   const editButton = screen.getByLabelText("editButton");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(editButton);
-  });
+  await userEvent.click(editButton);
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
 
   const publicOption = await screen.findByText("test_label2");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(publicOption);
-  });
+  await userEvent.click(publicOption);
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
   expect(await screen.findByText("test_label2")).toBeInTheDocument();
 });
@@ -173,40 +145,27 @@ test("Dashboard Selector changing when editing, true confirm", async () => {
 test("Dashboard Selector changing when editing, false confirm", async () => {
   mockedConfirm.mockResolvedValue(false);
 
-  renderWithLoaders({
-    children: <DashboardSelector />,
-  });
+  render(
+    createLoadedComponent({
+      children: <DashboardSelector />,
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
 
   const userOption = await screen.findByText("test_label");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(userOption);
-  });
+  await userEvent.click(userOption);
 
   const editButton = screen.getByLabelText("editButton");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(editButton);
-  });
+  await userEvent.click(editButton);
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
 
   const publicOption = await screen.findByText("test_label2");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(publicOption);
-  });
+  await userEvent.click(publicOption);
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
   expect(screen.queryByText("test_label2")).not.toBeInTheDocument();
   expect(await screen.findByText("test_label")).toBeInTheDocument();
@@ -261,40 +220,42 @@ test("Dashboard Selector add and then cancel button", async () => {
     ],
   };
 
-  renderWithLoaders({
-    children: (
-      <>
-        <DashboardSelector />
-        <ContextLayoutPComponent />
-      </>
-    ),
-    options: { dashboards: copiedMockedDashboards },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardSelector />
+          <ContextLayoutPComponent />
+          <DisabledMovementPComponent />
+        </>
+      ),
+      options: { dashboards: copiedMockedDashboards },
+    })
+  );
 
   expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
   const selector = await screen.findByRole("combobox");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(selector);
-  });
+  await userEvent.click(selector);
 
   const userOption = await screen.findByText("test_label");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(userOption);
-  });
+  await userEvent.click(userOption);
 
   const editButton = screen.getByLabelText("editButton");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(editButton);
-  });
+  await userEvent.click(editButton);
+
+  expect(await screen.findByTestId("disabledMovement")).toHaveTextContent(
+    "allowed movement"
+  );
+  const disableMovementButton = screen.getByLabelText(
+    "Disable Movement Button"
+  );
+  await userEvent.click(disableMovementButton);
+  expect(await screen.findByTestId("disabledMovement")).toHaveTextContent(
+    "disabled movement"
+  );
 
   const addGridItemButton = screen.getByLabelText("addGridItemButton");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(addGridItemButton);
-  });
+  await userEvent.click(addGridItemButton);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
       name: "editable",
@@ -356,10 +317,7 @@ test("Dashboard Selector add and then cancel button", async () => {
   );
 
   const cancelButton = screen.getByLabelText("cancelButton");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(cancelButton);
-  });
+  await userEvent.click(cancelButton);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
       name: "editable",

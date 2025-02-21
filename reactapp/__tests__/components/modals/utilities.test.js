@@ -2,6 +2,9 @@ import {
   getInitialInputValue,
   spaceAndCapitalize,
   valuesEqual,
+  removeEmptyValues,
+  checkRequiredKeys,
+  extractVariableInputNames,
 } from "components/modals/utilities";
 
 test("getInitialInputValue", async () => {
@@ -15,6 +18,12 @@ test("getInitialInputValue", async () => {
 
   inputValue = getInitialInputValue([{}]);
   expect(inputValue).toBe(null);
+
+  inputValue = getInitialInputValue("multiinput");
+  expect(inputValue).toStrictEqual([]);
+
+  inputValue = getInitialInputValue("custom-AddMapLayer");
+  expect(inputValue).toStrictEqual([]);
 });
 
 test("spaceAndCapitalize", async () => {
@@ -54,4 +63,175 @@ test("valuesEqual", async () => {
 
   equal = valuesEqual("test", "test2");
   expect(equal).toBe(false);
+
+  equal = valuesEqual(null, null);
+  expect(equal).toBe(true);
+});
+
+test("removeEmptyStringsFromObject", async () => {
+  let newValue = removeEmptyValues({ test: "test" });
+  expect(newValue).toStrictEqual({ test: "test" });
+
+  newValue = removeEmptyValues({ test: "", test2: "test2" });
+  expect(newValue).toStrictEqual({ test2: "test2" });
+
+  newValue = removeEmptyValues({ test: null });
+  expect(newValue).toStrictEqual({});
+
+  newValue = removeEmptyValues([{ test: "test" }, { test: "test2" }]);
+  expect(newValue).toStrictEqual([{ test: "test" }, { test: "test2" }]);
+
+  newValue = removeEmptyValues([{ test: null }, { test: "test2" }]);
+  expect(newValue).toStrictEqual([{ test: "test2" }]);
+
+  newValue = removeEmptyValues([{ test: null }]);
+  expect(newValue).toStrictEqual([]);
+
+  newValue = removeEmptyValues([[[{ test: null }]]]);
+  expect(newValue).toStrictEqual([]);
+
+  newValue = removeEmptyValues({ test: [1, " "] });
+  expect(newValue).toStrictEqual({ test: [1] });
+
+  newValue = removeEmptyValues({ test: [""] });
+  expect(newValue).toStrictEqual({});
+
+  newValue = removeEmptyValues({
+    "Max Status - Forecast Trend": {
+      WFO: "Test",
+      "NWS LID": " ",
+    },
+  });
+  expect(newValue).toStrictEqual({
+    "Max Status - Forecast Trend": { WFO: "Test" },
+  });
+});
+
+test("checkRequiredKeys", async () => {
+  let requiredKeysObj = {
+    test: "test",
+    test2: { test3: "some value" },
+  };
+  let checkingObj = {
+    test: "test",
+    test2: { test3: "some value" },
+  };
+  let missingKeys = checkRequiredKeys(requiredKeysObj, checkingObj);
+  expect(missingKeys).toStrictEqual([]);
+
+  requiredKeysObj = {
+    test: "",
+    test2: { test3: "" },
+  };
+  checkingObj = {
+    test: "test",
+  };
+  missingKeys = checkRequiredKeys(requiredKeysObj, checkingObj);
+  expect(missingKeys).toStrictEqual(["test2"]);
+
+  requiredKeysObj = {
+    test: "",
+    test2: { test3: "" },
+  };
+  checkingObj = {
+    test2: { test5: "" },
+  };
+  missingKeys = checkRequiredKeys(requiredKeysObj, checkingObj);
+  expect(missingKeys).toStrictEqual(["test", "test2.test3"]);
+});
+
+test("extractVariableInputNames", async () => {
+  let attributeVariables = extractVariableInputNames({
+    "some layer": [
+      {
+        name: "nws_name",
+        alias: "Name",
+        variableInput: "",
+        popup: true,
+      },
+    ],
+  });
+  expect(attributeVariables).toStrictEqual({});
+
+  attributeVariables = extractVariableInputNames({
+    "some layer": [
+      {
+        name: "nws_name",
+        alias: "Name",
+        variableInput: "Some Variable Name",
+        popup: true,
+      },
+    ],
+  });
+  expect(attributeVariables).toStrictEqual({
+    "some layer": { Name: "Some Variable Name" },
+  });
+
+  attributeVariables = extractVariableInputNames({
+    "some layer": [
+      {
+        name: "nws_name",
+        alias: "Name",
+        variableInput: "Some Variable Name",
+        popup: true,
+      },
+    ],
+    "some other layer": [
+      {
+        name: "nws_name",
+        alias: "Name",
+        variableInput: "",
+        popup: true,
+      },
+    ],
+  });
+  expect(attributeVariables).toStrictEqual({
+    "some layer": { Name: "Some Variable Name" },
+  });
+
+  attributeVariables = extractVariableInputNames({
+    "some layer": [
+      {
+        name: "nws_name",
+        alias: "Name",
+        variableInput: "Some Variable Name",
+        popup: true,
+      },
+    ],
+    "some other layer": [
+      {
+        name: "nws_name",
+        alias: "Name",
+        variableInput: "Some Other Variable Name",
+        popup: true,
+      },
+    ],
+  });
+  expect(attributeVariables).toStrictEqual({
+    "some layer": { Name: "Some Variable Name" },
+    "some other layer": { Name: "Some Other Variable Name" },
+  });
+
+  attributeVariables = extractVariableInputNames({
+    "some layer": [
+      {
+        name: "nws_name",
+        alias: "Name",
+        variableInput: "Some Variable Name",
+        popup: true,
+      },
+    ],
+    "some other layer": [
+      {
+        name: "nws_name",
+        alias: "Name",
+        variableInput: "Some Other Variable Name",
+        popup: true,
+      },
+    ],
+  });
+  expect(attributeVariables).toStrictEqual({
+    "some layer": { Name: "Some Variable Name" },
+    "some other layer": { Name: "Some Other Variable Name" },
+  });
 });

@@ -5,6 +5,7 @@ import styled from "styled-components";
 import Image from "components/visualizations/Image";
 import DataInput from "components/inputs/DataInput";
 import TextEditor from "components/inputs/TextEditor";
+import MapVisualization from "components/visualizations/Map";
 import { setVisualization } from "components/visualizations/utilities";
 import {
   AppContext,
@@ -18,13 +19,13 @@ import {
 import { updateGridItemArgsWithVariableInputs } from "components/visualizations/utilities";
 import VariableInput from "components/visualizations/VariableInput";
 import TooltipButton from "components/buttons/TooltipButton";
-import { BsGear } from "react-icons/bs";
+import { CiFilter } from "react-icons/ci";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import "components/modals/wideModal.css";
 
 const StyledDiv = styled.div`
-  height: 90%;
+  padding-bottom: 1rem;
 `;
 
 const InLineInputDiv = styled.div`
@@ -35,7 +36,35 @@ const InLineButtonDiv = styled.div`
   display: inline-block;
 `;
 
+const VisualizationArguments = ({
+  selectedVizTypeOption,
+  vizInputsValues,
+  handleInputChange,
+  setShowingSubModal,
+  gridItemIndex,
+}) => {
+  if (!selectedVizTypeOption || selectedVizTypeOption["value"] === "Text") {
+    return null;
+  }
+
+  const VizArgs = [];
+  vizInputsValues.forEach((obj, index) => {
+    VizArgs.push(
+      <DataInput
+        key={index}
+        objValue={obj}
+        onChange={handleInputChange}
+        index={index}
+        inputProps={{ gridItemIndex, setShowingSubModal }}
+      />
+    );
+  });
+
+  return VizArgs;
+};
+
 function VisualizationPane({
+  gridItemIndex,
   source,
   argsString,
   setGridItemMessage,
@@ -49,14 +78,17 @@ function VisualizationPane({
   setVariableInputValue,
   settingsRef,
   visualizationRef,
-  showVisualizationTypeSettings,
-  setShowVisualizationTypeSettings,
+  setShowingSubModal,
 }) {
   const [deselectedVisualizations, setDeselectedVisualizations] = useState(
-    localStorage.getItem("deselected_visualizations") || []
+    localStorage.getItem("deselected_visualizations")?.split(",") || []
   );
   const [vizOptions, setVizOptions] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
+  const [
+    showVisualizationTypeSettingsModal,
+    setShowVisualizationTypeSettingsModal,
+  ] = useState(false);
   const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useContext(VariableInputsContext);
   const { activeAppTour } = useAppTourContext();
@@ -90,18 +122,23 @@ function VisualizationPane({
             }
 
             for (let arg in vizOptionGroupOption.args) {
-              if (vizOptionGroupOption.args[arg] === "checkbox") {
-                vizOptionGroupOption.args[arg] = [
+              let vizArgType = vizOptionGroupOption.args[arg];
+              let existingArg = existingArgs[arg];
+              if (vizArgType === "checkbox") {
+                vizArgType = [
                   { label: "True", value: true },
                   { label: "False", value: false },
                 ];
+                existingArg = existingArg
+                  ? { label: "True", value: true }
+                  : { label: "False", value: false };
               }
 
               const userInputsValue = {
                 label: spaceAndCapitalize(arg),
                 name: arg,
-                type: vizOptionGroupOption.args[arg],
-                value: existingArgs[arg],
+                type: vizArgType,
+                value: existingArg,
               };
               userInputsValues.push(userInputsValue);
             }
@@ -187,8 +224,10 @@ function VisualizationPane({
   function previewVisualization() {
     const itemData = {
       source: selectedVizTypeOption["source"],
-      args: {},
+      args: JSON.parse(argsString), // initialize with initial values for some vizualization like Map where additional args are used that dont have options
     };
+
+    // Loop through each visualization input and overwrite initial values
     vizInputsValues.forEach((arg) => {
       if (typeof arg.value.value !== "undefined") {
         itemData["args"][arg.name] = arg.value.value;
@@ -224,7 +263,7 @@ function VisualizationPane({
         if (itemData.args.variable_options_source === "text") {
           itemData.args.initial_value = "";
         } else if (itemData.args.variable_options_source === "number") {
-          itemData.args.initial_value = 0;
+          itemData.args.initial_value = "0";
         }
       }
       setViz(
@@ -238,8 +277,20 @@ function VisualizationPane({
         JSON.stringify(itemData.args),
         variableInputValues
       );
-      itemData.args = updatedGridItemArgs;
-      setVisualization(setViz, itemData, visualizationRef);
+      if (selectedVizTypeOption["value"] === "Map") {
+        setViz(
+          <MapVisualization
+            visualizationRef={visualizationRef}
+            baseMap={updatedGridItemArgs["base_map"]}
+            layers={updatedGridItemArgs["additional_layers"]}
+            layerControl={updatedGridItemArgs["show_layer_controls"]}
+            viewConfig={updatedGridItemArgs["initial_view"]}
+          />
+        );
+      } else {
+        itemData.args = updatedGridItemArgs;
+        setVisualization(setViz, itemData, visualizationRef);
+      }
     }
   }
 
@@ -253,10 +304,13 @@ function VisualizationPane({
           onClick={
             activeAppTour
               ? () => {}
-              : () => setShowVisualizationTypeSettings(true)
+              : () => {
+                  setShowVisualizationTypeSettingsModal(true);
+                  setShowingSubModal(true);
+                }
           }
         >
-          <BsGear size="1.5rem" />
+          <CiFilter size="1.5rem" />
         </TooltipButton>
       </InLineButtonDiv>
       <InLineInputDiv>
@@ -269,20 +323,20 @@ function VisualizationPane({
           className={"visualizationTypeDropdown"}
         />
       </InLineInputDiv>
-      {selectedVizTypeOption &&
-        selectedVizTypeOption["value"] !== "Text" &&
-        vizInputsValues.map((obj, index) => (
-          <DataInput
-            key={index}
-            objValue={obj}
-            onChange={handleInputChange}
-            index={index}
-          />
-        ))}
-      {showVisualizationTypeSettings && (
+      <VisualizationArguments
+        selectedVizTypeOption={selectedVizTypeOption}
+        vizInputsValues={vizInputsValues}
+        handleInputChange={handleInputChange}
+        setShowingSubModal={setShowingSubModal}
+        gridItemIndex={gridItemIndex}
+      />
+      {showVisualizationTypeSettingsModal && (
         <SelectedVisualizationTypesModal
-          showModal={showVisualizationTypeSettings}
-          setShowModal={setShowVisualizationTypeSettings}
+          showModal={showVisualizationTypeSettingsModal}
+          handleModalClose={() => {
+            setShowVisualizationTypeSettingsModal(false);
+            setShowingSubModal(false);
+          }}
           deselectedVisualizations={deselectedVisualizations}
           setDeselectedVisualizations={setDeselectedVisualizations}
         />
@@ -310,7 +364,16 @@ CustomTextOptions.propTypes = {
   index: PropTypes.number,
 };
 
+VisualizationArguments.propTypes = {
+  selectedVizTypeOption: PropTypes.object,
+  vizInputsValues: PropTypes.array,
+  handleInputChange: PropTypes.func,
+  setShowingSubModal: PropTypes.func,
+  gridItemIndex: PropTypes.number,
+};
+
 VisualizationPane.propTypes = {
+  gridItemIndex: PropTypes.number,
   source: PropTypes.string,
   argsString: PropTypes.string,
   setGridItemMessage: PropTypes.func,
@@ -330,8 +393,7 @@ VisualizationPane.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
-  showVisualizationTypeSettings: PropTypes.bool,
-  setShowVisualizationTypeSettings: PropTypes.func,
+  setShowingSubModal: PropTypes.func,
 };
 
 export default VisualizationPane;
