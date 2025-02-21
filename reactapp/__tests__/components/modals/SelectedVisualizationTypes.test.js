@@ -1,30 +1,36 @@
-import { act, useState } from "react";
+import { useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { render, fireEvent, screen, waitFor } from "@testing-library/react";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
-import renderWithLoaders from "__tests__/utilities/customRender";
+import createLoadedComponent from "__tests__/utilities/customRender";
 
 const TestingComponent = () => {
   const [showModal, setShowmodal] = useState(true);
   const [deselectedVisualizations, setDeselectedVisualizations] = useState([]);
 
+  function handleModalClose() {
+    setShowmodal(false);
+  }
+
   return (
-    <>
+    <div>
       <SelectedVisualizationTypesModal
         showModal={showModal}
-        setShowModal={setShowmodal}
+        handleModalClose={handleModalClose}
         deselectedVisualizations={deselectedVisualizations}
         setDeselectedVisualizations={setDeselectedVisualizations}
       />
       <p>{JSON.stringify(deselectedVisualizations)}</p>
-    </>
+    </div>
   );
 };
 
 test("selected visualization type modal save success and then close", async () => {
-  renderWithLoaders({
-    children: <TestingComponent />,
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+    })
+  );
 
   expect(
     await screen.findByText(
@@ -32,7 +38,7 @@ test("selected visualization type modal save success and then close", async () =
     )
   ).toBeInTheDocument();
   const allCheckboxes = await screen.findAllByRole("checkbox");
-  expect(allCheckboxes.length).toBe(9);
+  expect(allCheckboxes.length).toBe(10);
   allCheckboxes.forEach((checkbox) => {
     expect(checkbox).toBeChecked();
   });
@@ -92,10 +98,7 @@ test("selected visualization type modal save success and then close", async () =
   const saveSettingsButton = await screen.findByLabelText(
     "Save Settings Button"
   );
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(saveSettingsButton);
-  });
+  await userEvent.click(saveSettingsButton);
   expect(
     await screen.findByText("Settings have been saved.")
   ).toBeInTheDocument();
@@ -106,10 +109,7 @@ test("selected visualization type modal save success and then close", async () =
   ).toBeInTheDocument();
 
   const closeModalButton = await screen.findByLabelText("Close Modal Button");
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.click(closeModalButton);
-  });
+  await userEvent.click(closeModalButton);
   await waitFor(async () => {
     expect(
       screen.queryByText(
@@ -120,14 +120,13 @@ test("selected visualization type modal save success and then close", async () =
 });
 
 test("selected visualization type modal then escape", async () => {
-  renderWithLoaders({
-    children: <TestingComponent />,
-  });
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+    })
+  );
 
-  // eslint-disable-next-line
-  await act(async () => {
-    await userEvent.keyboard("{Escape}");
-  });
+  fireEvent.keyDown(document, { key: "Escape", code: "Escape" });
   await waitFor(async () => {
     expect(
       screen.queryByText(

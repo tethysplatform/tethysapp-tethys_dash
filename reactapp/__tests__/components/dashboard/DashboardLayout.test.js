@@ -1,11 +1,11 @@
-import { screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import {
   mockedDashboards,
   updatedDashboard,
 } from "__tests__/utilities/constants";
-import renderWithLoaders, {
+import createLoadedComponent, {
   ContextLayoutPComponent,
   EditingPComponent,
 } from "__tests__/utilities/customRender";
@@ -22,20 +22,22 @@ jest.mock("components/dashboard/DashboardItem", () => (props) => (
 ));
 
 test("Dashboard Layout resize and update layout", async () => {
-  const { container } = renderWithLoaders({
-    children: (
-      <>
-        <LayoutAlertContextProvider>
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-        <ContextLayoutPComponent />
-      </>
-    ),
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-      inEditing: true,
-    },
-  });
+  const { container } = render(
+    createLoadedComponent({
+      children: (
+        <>
+          <LayoutAlertContextProvider>
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+          <ContextLayoutPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+        inEditing: true,
+      },
+    })
+  );
 
   // eslint-disable-next-line
   const resizeSpan = container.querySelector(".react-resizable-handle");
@@ -72,18 +74,20 @@ test("Dashboard Layout submit changes not editing", async () => {
 
   appAPI.updateDashboard = mockUpdateDashboard;
 
-  renderWithLoaders({
-    children: (
-      <>
-        <LayoutAlertContextProvider>
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-      </>
-    ),
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <LayoutAlertContextProvider>
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+      },
+    })
+  );
 
   const submitButton = screen.getByTestId("test-submit");
   fireEvent.click(submitButton);
@@ -101,21 +105,23 @@ test("Dashboard Layout submit changes success", async () => {
   });
   appAPI.updateDashboard = mockUpdateDashboard;
 
-  renderWithLoaders({
-    children: (
-      <>
-        <LayoutAlertContextProvider>
-          <DashboardLayoutAlerts />
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-        <EditingPComponent />
-      </>
-    ),
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-      inEditing: true,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <LayoutAlertContextProvider>
+            <DashboardLayoutAlerts />
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+        inEditing: true,
+      },
+    })
+  );
 
   const submitButton = screen.getByTestId("test-submit");
   fireEvent.click(submitButton);
@@ -133,21 +139,23 @@ test("Dashboard Layout submit changes fail", async () => {
   });
   appAPI.updateDashboard = mockUpdateDashboard;
 
-  renderWithLoaders({
-    children: (
-      <>
-        <LayoutAlertContextProvider>
-          <DashboardLayoutAlerts />
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-        <EditingPComponent />
-      </>
-    ),
-    options: {
-      initialDashboard: mockedDashboards.editable.name,
-      inEditing: true,
-    },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <LayoutAlertContextProvider>
+            <DashboardLayoutAlerts />
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboards.editable.name,
+        inEditing: true,
+      },
+    })
+  );
 
   const submitButton = screen.getByTestId("test-submit");
   fireEvent.click(submitButton);
@@ -183,21 +191,23 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
   };
   const dashboards = { editable: mockedDashboard };
 
-  const { container } = renderWithLoaders({
-    children: (
-      <>
-        <LayoutAlertContextProvider>
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-        <ContextLayoutPComponent />
-      </>
-    ),
-    options: {
-      dashboards: dashboards,
-      initialDashboard: mockedDashboards.editable.name,
-      inEditing: true,
-    },
-  });
+  const { container } = render(
+    createLoadedComponent({
+      children: (
+        <>
+          <LayoutAlertContextProvider>
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+          <ContextLayoutPComponent />
+        </>
+      ),
+      options: {
+        dashboards: dashboards,
+        initialDashboard: mockedDashboards.editable.name,
+        inEditing: true,
+      },
+    })
+  );
 
   // eslint-disable-next-line
   const resizeSpan = container.querySelector(".react-resizable-handle");
@@ -255,21 +265,23 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
   };
   const dashboards = { editable: mockedDashboard };
 
-  const { container } = renderWithLoaders({
-    children: (
-      <>
-        <LayoutAlertContextProvider>
-          <DashboardLayout />
-        </LayoutAlertContextProvider>
-        <ContextLayoutPComponent />
-      </>
-    ),
-    options: {
-      dashboards: dashboards,
-      initialDashboard: mockedDashboards.editable.name,
-      inEditing: true,
-    },
-  });
+  const { container } = render(
+    createLoadedComponent({
+      children: (
+        <>
+          <LayoutAlertContextProvider>
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+          <ContextLayoutPComponent />
+        </>
+      ),
+      options: {
+        dashboards: dashboards,
+        initialDashboard: mockedDashboards.editable.name,
+        inEditing: true,
+      },
+    })
+  );
 
   // eslint-disable-next-line
   const resizeSpan = container.querySelector(".react-resizable-handle");

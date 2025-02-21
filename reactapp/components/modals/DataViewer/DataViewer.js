@@ -61,8 +61,7 @@ function DataViewerModal({
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );
-  const [showVisualizationTypeSettings, setShowVisualizationTypeSettings] =
-    useState(false);
+  const [showingSubModal, setShowingSubModal] = useState(false);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   const gridMetadata = JSON.parse(metadataString);
@@ -113,7 +112,20 @@ function DataViewerModal({
 
         let vizArgs = {};
         for (const vizArg of vizInputsValues) {
-          vizArgs[vizArg.name] = vizArg.value.value || vizArg.value;
+          vizArgs[vizArg.name] =
+            vizArg.value?.value === false
+              ? false
+              : vizArg.value.value || vizArg.value; // can be a basic value or an object (like when a checkbox is a dropdown in the dataviewer)
+        }
+
+        if (
+          selectedVizTypeOption.source === "Map" &&
+          visualizationRef.current
+        ) {
+          vizArgs["initial_view"] = {
+            center: visualizationRef.current.getView().getCenter(),
+            zoom: visualizationRef.current.getView().getZoom(),
+          };
         }
         updatedGridItems[gridItemIndex].args_string = JSON.stringify(vizArgs);
 
@@ -155,8 +167,8 @@ function DataViewerModal({
               continue;
             }
 
-            if (value === "Variable Input:" + existingVariableName) {
-              const newValue = "Variable Input:" + vizArgs.variable_name;
+            if (value === "${" + existingVariableName + "}") {
+              const newValue = "${" + vizArgs.variable_name + "}";
               args[arg] = newValue;
             }
           }
@@ -185,7 +197,7 @@ function DataViewerModal({
         onHide={activeAppTour ? closeAndSetAppTour : handleModalClose}
         className="dataviewer"
         dialogClassName="semiWideModalDialog"
-        style={showVisualizationTypeSettings && { zIndex: 1050 }}
+        style={showingSubModal && { zIndex: 1050 }}
         aria-label={"DataViewer Modal"}
       >
         <Modal.Header closeButton>
@@ -212,6 +224,7 @@ function DataViewerModal({
                     className="visualizationTab"
                   >
                     <VisualizationPane
+                      gridItemIndex={gridItemIndex}
                       source={source}
                       argsString={argsString}
                       setGridItemMessage={setGridItemMessage}
@@ -225,12 +238,7 @@ function DataViewerModal({
                       setVariableInputValue={setVariableInputValue}
                       settingsRef={settingsRef}
                       visualizationRef={visualizationRef}
-                      showVisualizationTypeSettings={
-                        showVisualizationTypeSettings
-                      }
-                      setShowVisualizationTypeSettings={
-                        setShowVisualizationTypeSettings
-                      }
+                      setShowingSubModal={setShowingSubModal}
                     />
                   </Tab>
                   <Tab

@@ -4,6 +4,7 @@ import FullscreenPlotModal from "components/modals/FullscreenPlot";
 import Image from "components/visualizations/Image";
 import Text from "components/visualizations/Text";
 import VariableInput from "components/visualizations/VariableInput";
+import MapVisualization from "components/visualizations/Map";
 import {
   setVisualization,
   updateGridItemArgsWithVariableInputs,
@@ -33,7 +34,6 @@ const BaseVisualization = ({
 
   useEffect(() => {
     const args = JSON.parse(argsString);
-    const itemData = { source: source, args: args };
     if (source === "") {
       setViz(<div data-testid="Source_Unknown"></div>);
     } else if (source === "Custom Image") {
@@ -43,38 +43,14 @@ const BaseVisualization = ({
     } else if (source === "Variable Input") {
       setViz(<VariableInput args={args} onChange={(e) => e} />);
     } else {
-      const updatedGridItemArgs = updateGridItemArgsWithVariableInputs(
-        argsString,
-        variableInputValues
-      );
-      itemData.args = updatedGridItemArgs;
-      gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
-      gridItemSource.current = source;
-      setVisualization(setViz, itemData, visualizationRef);
+      setVariableDependentVisualizations();
     }
     // eslint-disable-next-line
   }, [source, argsString]);
 
   useEffect(() => {
-    const args = JSON.parse(argsString);
-    const itemData = { source: source, args: args };
-    if (!["", "Custom Image", "Text", "Variable Input"].includes(source)) {
-      const updatedGridItemArgs = updateGridItemArgsWithVariableInputs(
-        argsString,
-        variableInputValues
-      );
-      if (
-        !valuesEqual(
-          gridItemArgsWithVariableInputs.current,
-          updatedGridItemArgs
-        ) &&
-        Object.keys(updatedGridItemArgs).length !== 0
-      ) {
-        itemData.args = updatedGridItemArgs;
-        gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
-        gridItemSource.current = source;
-        setVisualization(setViz, itemData, visualizationRef);
-      }
+    if (!["", "Custom Image", "Variable Input"].includes(source)) {
+      setVariableDependentVisualizations();
     }
     // eslint-disable-next-line
   }, [variableInputValues]);
@@ -83,7 +59,7 @@ const BaseVisualization = ({
     if (
       refreshRate &&
       refreshRate > 0 &&
-      !["", "Text", "Variable Input"].includes(source)
+      !["", "Text", "Variable Input", "Map"].includes(source)
     ) {
       const args = JSON.parse(argsString);
       const itemData = { source: source, args: args };
@@ -105,6 +81,38 @@ const BaseVisualization = ({
     }
     // eslint-disable-next-line
   }, [refreshRate, isEditing]);
+
+  function setVariableDependentVisualizations() {
+    const args = JSON.parse(argsString);
+    const itemData = { source: source, args: args };
+    const updatedGridItemArgs = updateGridItemArgsWithVariableInputs(
+      argsString,
+      variableInputValues
+    );
+    if (
+      !valuesEqual(gridItemArgsWithVariableInputs.current, updatedGridItemArgs)
+    ) {
+      itemData.args = updatedGridItemArgs;
+      gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
+      gridItemSource.current = source;
+
+      if (source === "Map") {
+        setViz(
+          <MapVisualization
+            visualizationRef={visualizationRef}
+            baseMap={updatedGridItemArgs["base_map"]}
+            layers={updatedGridItemArgs["additional_layers"]}
+            layerControl={updatedGridItemArgs["show_layer_controls"]}
+            viewConfig={updatedGridItemArgs["initial_view"]}
+          />
+        );
+      } else if (source === "Text") {
+        setViz(<Text textValue={updatedGridItemArgs["text"]} />);
+      } else {
+        setVisualization(setViz, itemData, visualizationRef);
+      }
+    }
+  }
 
   return (
     <>

@@ -5,6 +5,7 @@ import {
   LayoutContext,
   AvailableDashboardsContext,
   EditingContext,
+  DisabledEditingMovementContext,
 } from "components/contexts/Contexts";
 import {
   useLayoutSuccessAlertContext,
@@ -35,6 +36,9 @@ function DashboardLayout() {
   const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
   const { gridItems } = getLayoutContext();
   const { isEditing, setIsEditing } = useContext(EditingContext);
+  const { disabledEditingMovement } = useContext(
+    DisabledEditingMovementContext
+  );
   const [layout, setLayout] = useState([]);
   const [items, setItems] = useState([]);
   const gridItemsUpdated = useRef();
@@ -48,7 +52,7 @@ function DashboardLayout() {
   useEffect(() => {
     updateGridEditing(gridItems);
     // eslint-disable-next-line
-  }, [isEditing]);
+  }, [isEditing, disabledEditingMovement]);
 
   function updateGridLayout() {
     setItems(
@@ -79,8 +83,8 @@ function DashboardLayout() {
         w: griditem.w,
         x: griditem.x,
         y: griditem.y,
-        isDraggable: isEditing,
-        isResizable: isEditing,
+        isDraggable: isEditing && !disabledEditingMovement,
+        isResizable: isEditing && !disabledEditingMovement,
       });
     }
     setLayout(updatedGridItems);
@@ -166,7 +170,7 @@ function DashboardLayout() {
         onLayoutChange={(newLayout) => updateLayout(newLayout)}
         isDraggable={false}
         isResizable={false}
-        draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer"
+        draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover"
         onResize={handleResize}
       >
         {items}

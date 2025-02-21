@@ -133,6 +133,27 @@ export const mockedVisualizationsWithDefaults = [
         args: { image_source: "text" },
       },
       {
+        source: "Map",
+        value: "Map",
+        label: "Map",
+        args: {
+          base_map: [
+            {
+              label: "ArcGIS Map Service Base Maps",
+              options: [
+                {
+                  label: "World Light Gray Base",
+                  value:
+                    "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+                },
+              ],
+            },
+          ],
+          additional_layers: "custom-AddMapLayer",
+          show_layer_controls: "checkbox",
+        },
+      },
+      {
         source: "Text",
         value: "Text",
         label: "Text",
@@ -373,8 +394,44 @@ export const mockedMapBase = {
   y: 0,
   w: 20,
   h: 20,
-  source: "map_api",
-  args_string: "{}",
+  source: "Map",
+  args_string: JSON.stringify({
+    base_map:
+      "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+    additional_layers: [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "NWC",
+            source: {
+              type: "ImageArcGISRest",
+              props: {
+                url: "some_url",
+              },
+            },
+          },
+        },
+        attributeVariables: {
+          NWC: {
+            nws_lid: "LID",
+          },
+        },
+        omittedPopupAttributes: {
+          NWC: ["nws_lid"],
+        },
+        legend: {
+          title: "Some Title",
+          items: [{ label: "Some label", color: "green", symbol: "square" }],
+        },
+      },
+    ],
+    show_layer_controls: true,
+    initial_view: {
+      center: [-9974138.670265444, 4049495.619645755],
+      zoom: 7.253038543654934,
+    },
+  }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
   }),
@@ -563,7 +620,7 @@ export const mockedNumberVariable = {
   h: 20,
   source: "Variable Input",
   args_string: JSON.stringify({
-    initial_value: 0,
+    initial_value: "0",
     variable_name: "Test Variable",
     variable_options_source: "number", // TODO Change this to be an empty string or null
     variable_input_type: "number",
@@ -617,7 +674,7 @@ export const mockedDropdownVariable = {
   h: 20,
   source: "Variable Input",
   args_string: JSON.stringify({
-    initial_value: "Some Value",
+    initial_value: "CREC1",
     variable_name: "Test Variable",
     variable_options_source:
       "Some Visualization Group Name: Some Visualization Name - Some Visualization Arg",
@@ -655,6 +712,191 @@ export const mockedDropdownVizArgs = [
     ],
   },
 ];
+
 export const mockedUserSetting = {
   deselected_visualizations: [],
+};
+
+export const legendItems = {
+  title: "Some Title",
+  items: [
+    {
+      label: "square",
+      color: "#4935d0",
+      symbol: "square",
+    },
+    {
+      label: "circle",
+      color: "#4935d0",
+      symbol: "circle",
+    },
+    {
+      label: "upTriangle",
+      color: "#4935d0",
+      symbol: "upTriangle",
+    },
+    {
+      label: "rightTriangle",
+      color: "#4935d0",
+      symbol: "rightTriangle",
+    },
+    {
+      label: "downTriangle",
+      color: "#4935d0",
+      symbol: "downTriangle",
+    },
+    {
+      label: "leftTriangle",
+      color: "#4935d0",
+      symbol: "leftTriangle",
+    },
+    {
+      label: "rectangle",
+      color: "#4935d0",
+      symbol: "rectangle",
+    },
+    {
+      label: "line",
+      color: "#4935d0",
+      symbol: "line",
+    },
+  ],
+};
+
+export const mapConfig = {
+  className: "test-map",
+  style: { width: "100%", height: "100%", position: "relative" },
+};
+
+export const viewConfig = {
+  center: [-10739800.855969304, 4724173.713444437],
+  zoom: 4.715261169570117,
+};
+
+export const layerConfig = {
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name: "Some Layer",
+      source: {
+        type: "ImageArcGISRest",
+        props: {
+          url: "Some Url",
+        },
+      },
+    },
+  },
+};
+
+export const layerAttributeVariables = {
+  "Some Layer": {
+    "attribute 1": "variable 1",
+  },
+};
+
+export const layerOmittedPopupAttributes = {
+  "Some Layer": ["attribute 2"],
+};
+
+export const layerConfigGeoJSON = {
+  configuration: {
+    type: "VectorLayer",
+    props: {
+      name: "GeoJSON Layer",
+      opacity: ".5",
+      source: {
+        type: "GeoJSON",
+        props: {},
+        geojson: {
+          type: "FeatureCollection",
+          crs: {
+            type: "name",
+            properties: {
+              name: "EPSG:3857",
+            },
+          },
+          features: [
+            {
+              type: "Feature",
+              geometry: {
+                type: "Point",
+                coordinates: [0, 0],
+              },
+              properties: { "Some Field": "Some Value" },
+            },
+          ],
+        },
+      },
+      zIndex: 1,
+    },
+  },
+};
+
+export const layerConfigImageArcGISRest = {
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name: "ImageArcGISRest Layer",
+      source: {
+        type: "ImageArcGISRest",
+        props: {
+          url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+        },
+      },
+      zIndex: 1,
+    },
+  },
+};
+
+export const layerConfigImageWMS = {
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name: "Image WMS",
+      source: {
+        type: "ImageWMS",
+        props: {
+          url: "https://ahocevar.com/geoserver/wms",
+          params: { LAYERS: "topp:states" },
+        },
+      },
+      zIndex: 1,
+    },
+  },
+};
+
+export const layerConfigVectorTile = {
+  configuration: {
+    type: "VectorTileLayer",
+    props: {
+      source: {
+        type: "VectorTile",
+        props: {
+          urls: [
+            "https://ahocevar.com/geoserver/gwc/service/tms/1.0.0/ne:ne_10m_admin_0_countries@EPSG%3A900913@pbf/{z}/{x}/{-y}.pbf",
+          ],
+          someProp: [{ randomProp: "someValue" }],
+          someOtherProp: { randomProp: "someValue" },
+        },
+      },
+      name: "Vector Tile Layer",
+      zIndex: 0,
+    },
+  },
+};
+
+export const layerConfigWebGLTile = {
+  configuration: {
+    type: "WebGLTile",
+    props: {
+      source: {
+        type: "ImageTile",
+        props: {
+          url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        },
+      },
+      name: "World Light Gray Base",
+      zIndex: 0,
+    },
+  },
 };

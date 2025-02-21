@@ -3,6 +3,7 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import "@testing-library/jest-dom";
+import { cleanup } from "@testing-library/react";
 import { server } from "./utilities/server.js";
 
 // Mock `window.location` with Jest spies and extend expect
@@ -22,7 +23,8 @@ beforeAll(() => {
         .toString()
         .includes(
           "Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`."
-        )
+        ) &&
+      !args.toString().includes("act(...)")
     ) {
       originalError(...args);
     }
@@ -32,9 +34,11 @@ beforeAll(() => {
 // this will remove that handler for the rest of them
 // (which is important for test isolation):
 afterEach(() => {
+  cleanup();
   server.resetHandlers();
   process.env = originalEnv;
   jest.clearAllMocks();
+  jest.restoreAllMocks();
 });
 afterAll(() => {
   server.close();

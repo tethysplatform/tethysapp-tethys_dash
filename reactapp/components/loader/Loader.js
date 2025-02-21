@@ -1,7 +1,10 @@
 import PropTypes from "prop-types";
 import { useState, useEffect } from "react";
 import { spaceAndCapitalize } from "components/modals/utilities";
-import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
+import {
+  nonDropDownVariableInputTypes,
+  baseMapLayers,
+} from "components/visualizations/utilities";
 import tethysAPI from "services/api/tethys";
 import appAPI from "services/api/app";
 import LoadingAnimation from "components/loader/LoadingAnimation";
@@ -40,7 +43,14 @@ function Loader({ children }) {
         ])
           .then(([tethysApp, user, csrf, dashboards, visualizations]) => {
             const allVisualizations = visualizations.visualizations;
-            const visualizationArgs = [];
+            const visualizationArgs = [
+              {
+                label: "Base Map Layers",
+                value: "Base Map Layers",
+                argOptions: baseMapLayers,
+              },
+            ];
+
             for (let optionGroup of allVisualizations) {
               for (let option of optionGroup.options) {
                 let args = option.args;
@@ -67,6 +77,16 @@ function Loader({ children }) {
             allVisualizations.push({
               label: "Other",
               options: [
+                {
+                  source: "Map",
+                  value: "Map",
+                  label: "Map",
+                  args: {
+                    base_map: baseMapLayers,
+                    additional_layers: "custom-AddMapLayer",
+                    show_layer_controls: "checkbox",
+                  },
+                },
                 {
                   source: "Custom Image",
                   value: "Custom Image",
@@ -168,6 +188,7 @@ Loader.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.element),
     PropTypes.element,
+    PropTypes.object,
   ]),
 };
 

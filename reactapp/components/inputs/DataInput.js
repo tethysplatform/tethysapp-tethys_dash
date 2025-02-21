@@ -8,6 +8,10 @@ import {
   DataViewerModeContext,
 } from "components/contexts/Contexts";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
+import MultiInput from "components/inputs/MultiInput";
+import InputTable from "components/inputs/InputTable";
+import NormalInput from "components/inputs/NormalInput";
+import * as customInputs from "components/inputs/Custom";
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
@@ -22,7 +26,15 @@ const InlineFormCheck = styled(Form.Check)`
   display: inline;
 `;
 
-const Input = ({ label, type, onChange, value, index, valueOptions }) => {
+const Input = ({
+  label,
+  type,
+  onChange,
+  value,
+  index,
+  valueOptions,
+  inputProps,
+}) => {
   const { variableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
@@ -41,14 +53,18 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
         inputValue = value;
       }
     }
-    if (inDataViewerMode && label !== "Variable Options Source") {
+    if (
+      inDataViewerMode &&
+      inputProps?.includeVariableInputs !== false &&
+      label !== "Variable Options Source"
+    ) {
       const availableVariableInputs = Object.keys(variableInputValues);
       if (availableVariableInputs.length !== 0) {
         options.push({
           label: "Variable Inputs",
           options: availableVariableInputs.map((availableVariableInput) => ({
             label: availableVariableInput,
-            value: "Variable Input:" + availableVariableInput,
+            value: "${" + availableVariableInput + "}",
           })),
         });
       }
@@ -61,6 +77,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
         selectedOption={inputValue}
         onChange={(e) => onChange(e, index)}
         options={options}
+        {...inputProps}
       />
     );
   } else if (type === "checkbox") {
@@ -75,6 +92,7 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
           id={label.replace(" ", "_")}
           checked={value}
           onChange={(e) => onChange(e.target.checked, index)}
+          {...inputProps}
         />
       </div>
     );
@@ -88,31 +106,60 @@ const Input = ({ label, type, onChange, value, index, valueOptions }) => {
         onChange={(e) => {
           onChange(e.target.value, index);
         }}
+        {...inputProps}
+      />
+    );
+  } else if (type === "multiinput") {
+    return (
+      <MultiInput
+        label={label}
+        aria-label={label + " Input"}
+        onChange={(values) => {
+          onChange(values, index);
+        }}
+        values={value}
+        {...inputProps}
+      />
+    );
+  } else if (type === "inputtable") {
+    return (
+      <InputTable
+        label={label}
+        aria-label={label + " Input"}
+        onChange={(values) => {
+          onChange(values, index);
+        }}
+        values={value}
+        {...inputProps}
+      />
+    );
+  } else if (typeof type === "string" && type.includes("custom-")) {
+    const customInput = type.replace("custom-", "");
+    const CustomComponent = customInputs[customInput];
+    return (
+      <CustomComponent
+        label={label}
+        aria-label={label + " Input"}
+        onChange={(values) => {
+          onChange(values, index);
+        }}
+        values={value}
+        {...inputProps}
       />
     );
   } else {
     return (
-      <>
-        <Form.Label>
-          <b>{label}:</b>
-        </Form.Label>
-        <Form.Control
-          aria-label={label + " Input"}
-          type={type}
-          onChange={(e) => onChange(e.target.value, index)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault(); // prevents submitting form on enter
-            }
-          }}
-          value={value}
-        />
-      </>
+      <NormalInput
+        label={label}
+        onChange={(e) => onChange(e.target.value, index)}
+        value={value}
+        type={type}
+      />
     );
   }
 };
 
-const DataInput = ({ objValue, onChange, index }) => {
+const DataInput = ({ objValue, onChange, index, inputProps }) => {
   const { label, type, value, valueOptions } = objValue;
 
   return (
@@ -126,6 +173,7 @@ const DataInput = ({ objValue, onChange, index }) => {
             value={value}
             valueOptions={valueOptions}
             index={index}
+            inputProps={inputProps}
           />
         </StyledDiv>
       )}
@@ -137,6 +185,7 @@ DataInput.propTypes = {
   objValue: PropTypes.object,
   onChange: PropTypes.func,
   index: PropTypes.number,
+  inputProps: PropTypes.object, // additional props to pass to the input
 };
 
 Input.propTypes = {
@@ -148,9 +197,11 @@ Input.propTypes = {
     PropTypes.string,
     PropTypes.bool,
     PropTypes.object,
+    PropTypes.array,
   ]),
   valueOptions: PropTypes.array,
   index: PropTypes.number,
+  inputProps: PropTypes.object, // additional props to pass to the input
 };
 
 export default DataInput;

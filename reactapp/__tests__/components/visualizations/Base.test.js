@@ -1,14 +1,11 @@
-import { screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
-
 import {
   mockedApiImageBase,
   mockedCardBase,
   mockedCardData,
   mockedCustomImageBase,
-  mockedMapBase,
-  mockedMapData,
   mockedPlotBase,
   mockedPlotData,
   mockedTableBase,
@@ -17,10 +14,11 @@ import {
   mockedTextVariable,
   mockedUnknownBase,
   mockedDashboards,
+  mockedMapBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization from "components/visualizations/Base";
 import appAPI from "services/api/app";
-import renderWithLoaders, {
+import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
 
@@ -41,17 +39,19 @@ afterEach(() => {
 });
 
 it("Initializes a Base Item with an empty div", () => {
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={""}
-        argsString={"{}"}
-        metadataString={"{}"}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={""}
+          argsString={"{}"}
+          metadataString={"{}"}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
 
   expect(screen.getByTestId("Source_Unknown")).toBeInTheDocument();
 });
@@ -65,17 +65,19 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
     });
   };
 
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={mockedApiImageBase.source}
-        argsString={mockedApiImageBase.args_string}
-        metadataString={mockedApiImageBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedApiImageBase.source}
+          argsString={mockedApiImageBase.args_string}
+          metadataString={mockedApiImageBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
@@ -87,37 +89,74 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
 });
 
 it("Creates an Base Item with a Custom Image", async () => {
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={mockedCustomImageBase.source}
-        argsString={mockedCustomImageBase.args_string}
-        metadataString={mockedCustomImageBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedCustomImageBase.source}
+          argsString={mockedCustomImageBase.args_string}
+          metadataString={mockedCustomImageBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
 
   const image = await screen.findByAltText("custom_image");
   expect(image.src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
 });
 
 it("Creates an Base Item with a Text Box", async () => {
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={mockedTextBase.source}
-        argsString={mockedTextBase.args_string}
-        metadataString={mockedTextBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedTextBase.source}
+          argsString={mockedTextBase.args_string}
+          metadataString={mockedTextBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
 
   const text = await screen.findByText("Custom Text");
   expect(text).toBeInTheDocument();
+});
+
+it("Creates an Base Item with a Map", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <div>
+          <BaseVisualization
+            source={mockedMapBase.source}
+            argsString={mockedMapBase.args_string}
+            metadataString={mockedMapBase.metadata_string}
+            showFullscreen={false}
+            hideFullscreen={jest.fn()}
+          />
+        </div>
+      ),
+    })
+  );
+
+  const mapDiv = await screen.findByLabelText("Map Div");
+  expect(mapDiv).toBeInTheDocument();
+  expect(mapDiv).toHaveStyle("width: 100%");
+
+  const mapPopup = await screen.findByLabelText("Map Popup");
+  expect(mapPopup).toBeInTheDocument();
+
+  const mapPopupContent = await screen.findByLabelText("Map Popup Content");
+  expect(mapPopupContent).toBeInTheDocument();
+  // eslint-disable-next-line
+  expect(mapPopupContent.children.length).toBe(0);
+
+  expect(screen.getByLabelText("Map Legend")).toBeInTheDocument();
+  expect(screen.getByLabelText("Show Layers Control")).toBeInTheDocument();
 });
 
 it("Creates an Base Item with a variable input text box", async () => {
@@ -125,21 +164,23 @@ it("Creates an Base Item with a variable input text box", async () => {
   dashboard.gridItems = [mockedTextVariable];
   const user = userEvent.setup();
 
-  renderWithLoaders({
-    children: (
-      <>
-        <BaseVisualization
-          source={mockedTextVariable.source}
-          argsString={mockedTextVariable.args_string}
-          metadataString={mockedTextVariable.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
-        />
-        <InputVariablePComponent />
-      </>
-    ),
-    options: { dashboards: { editable: dashboard } },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <BaseVisualization
+            source={mockedTextVariable.source}
+            argsString={mockedTextVariable.args_string}
+            metadataString={mockedTextVariable.metadata_string}
+            showFullscreen={false}
+            hideFullscreen={jest.fn()}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { editable: dashboard } },
+    })
+  );
 
   const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
@@ -181,17 +222,19 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
     refreshRate: 1,
   });
 
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={apiImageBase.source}
-        argsString={apiImageBase.args_string}
-        metadataString={apiImageBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={apiImageBase.source}
+          argsString={apiImageBase.args_string}
+          metadataString={apiImageBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
@@ -251,18 +294,20 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
     refreshRate: 1,
   });
 
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={apiImageBase.source}
-        argsString={apiImageBase.args_string}
-        metadataString={apiImageBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-    options: { inEditing: true },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={apiImageBase.source}
+          argsString={apiImageBase.args_string}
+          metadataString={apiImageBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+      options: { inEditing: true },
+    })
+  );
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
@@ -300,17 +345,19 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
     });
   };
 
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={mockedPlotBase.source}
-        argsString={mockedPlotBase.args_string}
-        metadataString={mockedPlotBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedPlotBase.source}
+          argsString={mockedPlotBase.args_string}
+          metadataString={mockedPlotBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
@@ -328,17 +375,19 @@ it("Creates an Base Item with a table obtained from the api", async () => {
     });
   };
 
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={mockedTableBase.source}
-        argsString={mockedTableBase.args_string}
-        metadataString={mockedTableBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedTableBase.source}
+          argsString={mockedTableBase.args_string}
+          metadataString={mockedTableBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
@@ -356,50 +405,25 @@ it("Creates an Base Item with a card obtained from the api", async () => {
     });
   };
 
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={mockedCardBase.source}
-        argsString={mockedCardBase.args_string}
-        metadataString={mockedCardBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedCardBase.source}
+          argsString={mockedCardBase.args_string}
+          metadataString={mockedCardBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   const card = await screen.findByText("Company Statistics");
   expect(card).toBeInTheDocument();
-});
-
-it("Creates an Base Item with a map obtained from the api", async () => {
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: mockedMapData,
-      viz_type: "map",
-    });
-  };
-
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={mockedMapBase.source}
-        argsString={mockedMapBase.args_string}
-        metadataString={mockedMapBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
-
-  const spinner = screen.getByTestId("Loading...");
-  expect(spinner).toBeInTheDocument();
-
-  expect(await screen.findByTestId("backlayer-map")).toBeInTheDocument();
 });
 
 it("Gives the user an error message if an unknown viz type is obtained from the api", async () => {
@@ -411,17 +435,19 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
     });
   };
 
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={mockedUnknownBase.source}
-        argsString={mockedUnknownBase.args_string}
-        metadataString={mockedUnknownBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedUnknownBase.source}
+          argsString={mockedUnknownBase.args_string}
+          metadataString={mockedUnknownBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
@@ -441,17 +467,19 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
     });
   };
 
-  renderWithLoaders({
-    children: (
-      <BaseVisualization
-        source={mockedUnknownBase.source}
-        argsString={mockedUnknownBase.args_string}
-        metadataString={mockedUnknownBase.metadata_string}
-        showFullscreen={false}
-        hideFullscreen={jest.fn()}
-      />
-    ),
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedUnknownBase.source}
+          argsString={mockedUnknownBase.args_string}
+          metadataString={mockedUnknownBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
@@ -464,7 +492,8 @@ it("Base - update variable input", async () => {
   const user = userEvent.setup();
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
   apiImageBase.args_string = JSON.stringify({
-    url: "Variable Input:Test Variable",
+    // eslint-disable-next-line
+    url: "${Test Variable}",
   });
   const textVariable = JSON.parse(JSON.stringify(mockedTextVariable));
   textVariable.args_string = JSON.stringify({
@@ -493,27 +522,29 @@ it("Base - update variable input", async () => {
     });
   };
 
-  renderWithLoaders({
-    children: (
-      <>
-        <BaseVisualization
-          source={mockedDashboard.gridItems[0].source}
-          argsString={mockedDashboard.gridItems[0].args_string}
-          metadataString={mockedDashboard.gridItems[0].metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
-        />
-        <BaseVisualization
-          source={mockedDashboard.gridItems[1].source}
-          argsString={mockedDashboard.gridItems[1].args_string}
-          metadataString={mockedDashboard.gridItems[1].metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
-        />
-      </>
-    ),
-    options: { dashboards, initialDashboard: mockedDashboard.name },
-  });
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <BaseVisualization
+            source={mockedDashboard.gridItems[0].source}
+            argsString={mockedDashboard.gridItems[0].args_string}
+            metadataString={mockedDashboard.gridItems[0].metadata_string}
+            showFullscreen={false}
+            hideFullscreen={jest.fn()}
+          />
+          <BaseVisualization
+            source={mockedDashboard.gridItems[1].source}
+            argsString={mockedDashboard.gridItems[1].args_string}
+            metadataString={mockedDashboard.gridItems[1].metadata_string}
+            showFullscreen={false}
+            hideFullscreen={jest.fn()}
+          />
+        </>
+      ),
+      options: { dashboards, initialDashboard: mockedDashboard.name },
+    })
+  );
 
   const spinner = screen.getByTestId("Loading...");
   expect(spinner).toBeInTheDocument();

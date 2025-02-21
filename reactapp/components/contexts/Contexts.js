@@ -6,4 +6,6 @@ export const LayoutContext = createContext();
 export const AvailableDashboardsContext = createContext();
 export const DashboardDropdownContext = createContext();
 export const EditingContext = createContext();
+export const DisabledEditingMovementContext = createContext();
 export const DataViewerModeContext = createContext();
+export const MapContext = createContext();

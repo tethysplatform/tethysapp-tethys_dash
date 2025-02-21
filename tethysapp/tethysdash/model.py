@@ -3,9 +3,12 @@ from sqlalchemy import Column, Integer, String, ARRAY, ForeignKey, UniqueConstra
 from sqlalchemy.orm import relationship
 import json
 import nh3
-
+import os
 from .app import App as app
 
+
+tethysdash_base = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+geojson_folder = os.path.join(tethysdash_base, "geojson")
 Base = declarative_base()
 
 
@@ -367,6 +370,35 @@ def check_existing_public_dashboards(session, dashboard_name, dashboard_label):
             f"A dashboard with the label {dashboard_label} is already public. Change the label before attempting again."  # noqa: E501
         )
 
+def clean_up_jsons(user):
+    print("Checking to see if there are any unused geojson files to remove")
+    Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+    user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user).all()
+    in_use_geojsons = []
+    for user_dashboard in user_dashboards:
+        maps_grid_items_layers = flatten([json.loads(grid_item.args_string)["additional_layers"] for grid_item in user_dashboard.grid_items if grid_item.source == "Map"])
+        if maps_grid_items_layers:
+            geojson_files = [maps_grid_items_layer["configuration"]["props"]["source"]["geojson"] for maps_grid_items_layer in maps_grid_items_layers if maps_grid_items_layer["configuration"]["props"]["source"]["type"] == "GeoJSON"]
+            in_use_geojsons.append(geojson_files)
+            
+            stylejson_files = [maps_grid_items_layer["style"] for maps_grid_items_layer in maps_grid_items_layers if "style" in maps_grid_items_layer]
+            in_use_geojsons.append(stylejson_files)
+    
+    in_use_geojsons = flatten(in_use_geojsons)
+    path = os.path.join(geojson_folder, user)
+    if not os.path.exists(path):
+        os.makedirs(path)
+    geojson_user_files = os.listdir(path)
+    for geojson_user_file in geojson_user_files:
+        if geojson_user_file not in in_use_geojsons:
+            print(f"Removing the {geojson_user_file} file")
+            os.remove(os.path.join(geojson_folder, user, geojson_user_file))
+    
+    return
+
+def flatten(xss):
+    return [x for xs in xss for x in xs]
 
 def init_primary_db(engine, first_time):
     """

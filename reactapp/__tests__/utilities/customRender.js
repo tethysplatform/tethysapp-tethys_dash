@@ -1,6 +1,5 @@
 import PropTypes from "prop-types";
 import { useContext, useEffect } from "react";
-import { render } from "@testing-library/react";
 import { Route } from "react-router-dom";
 import {
   mockedDashboards,
@@ -18,6 +17,7 @@ import {
   EditingContext,
   DataViewerModeContext,
   VariableInputsContext,
+  DisabledEditingMovementContext,
 } from "components/contexts/Contexts";
 
 const TestingComponent = ({ children, options = {} }) => {
@@ -52,7 +52,7 @@ const TestingComponent = ({ children, options = {} }) => {
   return <>{children}</>;
 };
 
-const renderWithLoaders = ({ children, options = {} }) => {
+const createLoadedComponent = ({ children, options = {} }) => {
   const tethysApp = {
     title: "TethysDash",
     description: "",
@@ -96,7 +96,7 @@ const renderWithLoaders = ({ children, options = {} }) => {
     );
   }
 
-  return render(
+  return (
     <AppContext.Provider
       value={{
         tethysApp: options.tethysApp ? options.tethysApp : tethysApp,
@@ -133,6 +133,18 @@ export const EditingPComponent = () => {
   return <p data-testid="editing">{isEditing ? "editing" : "not editing"}</p>;
 };
 
+export const DisabledMovementPComponent = () => {
+  const { disabledEditingMovement } = useContext(
+    DisabledEditingMovementContext
+  );
+
+  return (
+    <p data-testid="disabledMovement">
+      {disabledEditingMovement ? "disabled movement" : "allowed movement"}
+    </p>
+  );
+};
+
 export const DataViewerPComponent = () => {
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
@@ -151,14 +163,6 @@ export const InputVariablePComponent = () => {
   );
 };
 
-renderWithLoaders.propTypes = {
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.element),
-    PropTypes.element,
-  ]),
-  options: PropTypes.object,
-};
-
 TestingComponent.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.element),
@@ -167,4 +171,4 @@ TestingComponent.propTypes = {
   options: PropTypes.object,
 };
 
-export default renderWithLoaders;
+export default createLoadedComponent;
