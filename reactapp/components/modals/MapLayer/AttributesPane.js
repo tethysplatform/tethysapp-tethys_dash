@@ -317,10 +317,20 @@ const AttributesPane = ({
     return result;
   }
 
-  function updateAttributes({ index, layerName, field, fieldChange }) {
-    // make a deep copy of the attributes to actually cause a rerender on state change
+  function updateAttributes({
+    index,
+    layerName,
+    field,
+    fieldChange,
+    fullChange,
+  }) {
     const updatedAttributes = JSON.parse(JSON.stringify(attributes));
-    updatedAttributes[layerName][index][field] = fieldChange;
+    // make a deep copy of the attributes to actually cause a rerender on state change
+    if (fullChange) {
+      updatedAttributes[layerName] = fullChange;
+    } else {
+      updatedAttributes[layerName][index][field] = fieldChange;
+    }
     setAttributes(updatedAttributes);
 
     // extract attribute variables and set state and ref
@@ -465,12 +475,13 @@ const AttributesPane = ({
               <InputTable
                 key={index}
                 label={layerName}
-                onChange={({ newValue, field }) =>
+                onChange={({ newValue, field, fullChange }) =>
                   updateAttributes({
                     index,
                     layerName,
                     field,
                     fieldChange: newValue,
+                    fullChange: fullChange,
                   })
                 }
                 values={attributes[layerName]}
