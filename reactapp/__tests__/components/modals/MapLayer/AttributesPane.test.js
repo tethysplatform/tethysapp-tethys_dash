@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { getLayerAttributes } from "components/map/utilities";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import PropTypes from "prop-types";
@@ -233,6 +234,13 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
   expect(screen.getByTestId("attributeVariables")).toHaveTextContent(
     JSON.stringify({ states: { test: "some variable" } })
   );
+
+  variableTextbox.focus();
+  // adds a new row
+  await userEvent.tab();
+  expect(screen.getAllByRole("checkbox").length).toBe(2);
+  expect(screen.getAllByRole("textbox").length).toBe(4);
+  expect(screen.getAllByRole("textbox")[2]).toHaveFocus();
 
   // dont rerun query if source props dont change
   rerender(
