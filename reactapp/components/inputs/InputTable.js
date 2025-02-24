@@ -73,7 +73,7 @@ const InputTable = ({
       // Add a new row
       const newTableRows = [...tableRows, getEmptyRow()];
       setTableRows(newTableRows);
-      onChange(newTableRows);
+      onChange({ fullChange: newTableRows });
 
       // Focus the first input of the new row
       setTimeout(() => {
@@ -93,7 +93,7 @@ const InputTable = ({
       e.preventDefault(); // Prevent default backspace behavior
       const newTableRows = tableRows.filter((_, index) => index !== rowIndex);
       setTableRows(newTableRows);
-      onChange(newTableRows);
+      onChange({ fullChange: newTableRows });
 
       // Focus the previous row's first input
       const prevRowIndex = rowIndex - 1;
