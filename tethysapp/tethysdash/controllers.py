@@ -15,8 +15,7 @@ from .model import (
 )
 from .visualizations import get_available_visualizations, get_visualization
 
-tethysdash_base = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-geojson_folder = os.path.join(tethysdash_base, "geojson")
+geojson_folder = App.get_custom_setting('data_folder')
 
 @controller(login_required=True)
 def home(request):
