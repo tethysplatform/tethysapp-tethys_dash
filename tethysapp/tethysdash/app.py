@@ -1,5 +1,5 @@
 from tethys_sdk.base import TethysAppBase
-from tethys_sdk.app_settings import PersistentStoreDatabaseSetting
+from tethys_sdk.app_settings import PersistentStoreDatabaseSetting, CustomSetting
 
 
 class App(TethysAppBase):
@@ -33,3 +33,18 @@ class App(TethysAppBase):
         )
 
         return ps_settings
+
+    def custom_settings(self):
+        """
+        Example custom_settings method.
+        """
+        custom_settings = (
+            CustomSetting(
+                name='data_folder',
+                type=CustomSetting.TYPE_STRING,
+                description='file path to data folder',
+                required=True
+            ),
+        )
+
+        return custom_settings

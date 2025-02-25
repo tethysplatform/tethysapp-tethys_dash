@@ -7,8 +7,7 @@ import os
 from .app import App as app
 
 
-tethysdash_base = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-geojson_folder = os.path.join(tethysdash_base, "geojson")
+geojson_folder = app.get_custom_setting('data_folder')
 Base = declarative_base()
 
 
