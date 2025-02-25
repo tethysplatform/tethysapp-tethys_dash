@@ -7,12 +7,11 @@ import {
   mockedVisualizationArgs,
 } from "__tests__/utilities/constants";
 import NotFound from "components/error/NotFound";
-import DashboardView from "views/dashboard/Dashboard";
-import PostLoader from "components/loader/PostLoader";
+import DashboardView from "views/Dashboard";
+import PostLoader from "components/loader/DashboardLoader";
 import {
   AppContext,
   LayoutContext,
-  DashboardDropdownContext,
   AvailableDashboardsContext,
   EditingContext,
   DataViewerModeContext,

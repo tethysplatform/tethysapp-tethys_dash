@@ -8,10 +8,14 @@ import {
 import tethysAPI from "services/api/tethys";
 import appAPI from "services/api/app";
 import LoadingAnimation from "components/loader/LoadingAnimation";
-import { AppContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  AvailableDashboardsContext,
+} from "components/contexts/Contexts";
 import { Route } from "react-router-dom";
 import NotFound from "components/error/NotFound";
-import DashboardView from "views/dashboard/Dashboard";
+import DashboardView from "views/Dashboard";
+import LandingPage from "views/LandingPage";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -20,6 +24,7 @@ function Loader({ children }) {
   const [error, setError] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [appContext, setAppContext] = useState(null);
+  const [availableDashboards, setAvailableDashboards] = useState(null);
 
   const handleError = (error) => {
     // Delay setting the error to avoid flashing the loading animation
@@ -119,31 +124,25 @@ function Loader({ children }) {
               ],
             });
 
-            const PATH_HOME = "/",
-              PATH_DASHBOARD = "/dashboard";
+            const PATH_HOME = "/";
             const routes = [
               <Route
                 path={PATH_HOME}
-                element={<DashboardView />}
+                element={<LandingPage />}
                 key="route-home"
               />,
               <Route
-                path={PATH_DASHBOARD}
-                element={<DashboardView />}
-                key="route-dashboard"
+                key={"dashboard-not-found"}
+                path="/dashboard/*"
+                element={<NotFound />}
               />,
             ];
 
-            for (const name of Object.keys(dashboards)) {
+            for (const [name, metadata] of Object.entries(dashboards)) {
               routes.push(
                 <Route
-                  key={"dashboard-not-found"}
-                  path="/dashboard/*"
-                  element={<NotFound />}
-                />,
-                <Route
                   path={"/dashboard/" + name}
-                  element={<DashboardView initialDashboard={name} />}
+                  element={<DashboardView {...metadata} />}
                   key={"route-" + name}
                 />
               );
@@ -155,10 +154,10 @@ function Loader({ children }) {
               user,
               csrf,
               routes,
-              dashboards,
               visualizations: allVisualizations,
               visualizationArgs,
             });
+            setAvailableDashboards(dashboards);
 
             // Allow for minimum delay to display loader
             setTimeout(() => {
@@ -178,7 +177,16 @@ function Loader({ children }) {
   } else {
     return (
       <>
-        <AppContext.Provider value={appContext}>{children}</AppContext.Provider>
+        <AppContext.Provider value={appContext}>
+          <AvailableDashboardsContext.Provider
+            value={{
+              availableDashboards,
+              setAvailableDashboards,
+            }}
+          >
+            {children}
+          </AvailableDashboardsContext.Provider>
+        </AppContext.Provider>
       </>
     );
   }

@@ -28,7 +28,7 @@ const StyledDiv = styled.div`
 const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
-function DashboardLayout() {
+const DashboardLayout = () => {
   const { setSuccessMessage, setShowSuccessMessage } =
     useLayoutSuccessAlertContext();
   const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
@@ -177,6 +177,6 @@ function DashboardLayout() {
       </ReactGridLayout>
     </Form>
   );
-}
+};
 
 export default DashboardLayout;
