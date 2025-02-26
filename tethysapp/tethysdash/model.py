@@ -21,7 +21,7 @@ class Dashboard(Base):
 
     # Columns
     id = Column(Integer, primary_key=True)
-    label = Column(String)
+    description = Column(String)
     name = Column(String)
     notes = Column(String)
     owner = Column(String)
@@ -50,19 +50,16 @@ class GridItem(Base):
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
-def add_new_dashboard(label, name, notes, owner, access_groups, grid_items):
+def add_new_dashboard(description, name, notes, owner, access_groups, grid_items):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
         check_existing_user_dashboard_names(session, owner, name)
-        check_existing_user_dashboard_labels(session, owner, label)
-        if "public" in access_groups:
-            check_existing_public_dashboards(session, name, label)
 
         new_dashboard = Dashboard(
-            label=label,
+            description=description,
             name=name,
             notes=notes,
             owner=owner,
@@ -177,11 +174,10 @@ def delete_named_dashboard(user, name):
 
 def update_named_dashboard(
     original_name,
-    original_label,
     original_access_groups,
     user,
     name,
-    label,
+    description,
     notes,
     grid_items,
     access_groups,
@@ -205,14 +201,11 @@ def update_named_dashboard(
         if original_name != name:
             check_existing_user_dashboard_names(session, user, name)
 
-        if original_label != label:
-            check_existing_user_dashboard_labels(session, user, label)
-
         if "public" in access_groups and original_access_groups != access_groups:
-            check_existing_public_dashboards(session, name, label)
+            check_existing_public_dashboards(session, name)
 
         db_dashboard.name = name
-        db_dashboard.label = label
+        db_dashboard.description = description
         db_dashboard.notes = notes
         grid_items = (
             json.loads(grid_items) if isinstance(grid_items, str) else grid_items
@@ -281,55 +274,65 @@ def update_named_dashboard(
         session.commit()
     finally:
         session.close()
+        
+def parse_db_dashboard(dashboards, user):
+    dashboard_dict = {}
+    
+    for dashboard in dashboards:
+        dashboard_dict[dashboard.name] = {
+            "id": dashboard.id,
+            "name": dashboard.name,
+            "description": dashboard.description,
+            "notes": dashboard.notes,
+            "editable": True if dashboard.owner == user else False,
+            "accessGroups": (
+                ["public"] if "public" in dashboard.access_groups else []
+            ),
+        }
+
+        griditems = []
+        for griditem in dashboard.grid_items:
+            griditem_data = {
+                "id": griditem.id,
+                "i": griditem.i,
+                "x": griditem.x,
+                "y": griditem.y,
+                "w": griditem.w,
+                "h": griditem.h,
+                "source": griditem.source,
+                "args_string": griditem.args_string,
+                "metadata_string": griditem.metadata_string,
+            }
+            griditems.append(griditem_data)
+
+        dashboard_dict[dashboard.name]["gridItems"] = griditems
+        
+    return dashboard_dict
 
 
 def get_dashboards(user, name=None):
     """
     Get all persisted dashboards.
     """
-    dashboard_dict = {}
+    dashboard_dict = {"user": {}, "public": {}}
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
         # Query for all records
-        available_dashboards = session.query(Dashboard).filter(
-            (Dashboard.owner == user) | (Dashboard.access_groups.any("public"))
-        )
+        user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user)
         if name:
-            dashboards = available_dashboards.filter(Dashboard.name == name).all()
-        else:
-            dashboards = available_dashboards.order_by(Dashboard.name).all()
+            user_dashboards = user_dashboards.filter(Dashboard.name == name).all()
 
-        for dashboard in dashboards:
-            dashboard_dict[dashboard.name] = {
-                "id": dashboard.id,
-                "name": dashboard.name,
-                "label": dashboard.label,
-                "notes": dashboard.notes,
-                "editable": True if dashboard.owner == user else False,
-                "accessGroups": (
-                    ["public"] if "public" in dashboard.access_groups else []
-                ),
-            }
+        dashboard_dict["user"] = parse_db_dashboard(user_dashboards, user)
+        
+        if not name:
+            public_dashboards = session.query(Dashboard).filter(
+                (Dashboard.owner != user) & (Dashboard.access_groups.any("public"))
+            )
 
-            griditems = []
-            for griditem in dashboard.grid_items:
-                griditem_data = {
-                    "id": griditem.id,
-                    "i": griditem.i,
-                    "x": griditem.x,
-                    "y": griditem.y,
-                    "w": griditem.w,
-                    "h": griditem.h,
-                    "source": griditem.source,
-                    "args_string": griditem.args_string,
-                    "metadata_string": griditem.metadata_string,
-                }
-                griditems.append(griditem_data)
-
-            dashboard_dict[dashboard.name]["gridItems"] = griditems
+            dashboard_dict["public"] = parse_db_dashboard(public_dashboards, user)
 
     finally:
         session.close()
@@ -346,28 +349,15 @@ def check_existing_user_dashboard_names(session, user, dashboard_name):
         )
 
 
-def check_existing_user_dashboard_labels(session, user, dashboard_label):
-    user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user).all()
-    user_dashboard_labels = [dashboard.label for dashboard in user_dashboards]
-    if dashboard_label in user_dashboard_labels:
-        raise Exception(
-            f"A dashboard with the label {dashboard_label} already exists. Change the label before attempting again."  # noqa: E501
-        )
-
-
-def check_existing_public_dashboards(session, dashboard_name, dashboard_label):
+def check_existing_public_dashboards(session, dashboard_name):
     public_dashboards = (
         session.query(Dashboard).filter(Dashboard.access_groups.any("public")).all()
     )
+    breakpoint()
     public_dashboard_names = [dashboard.name for dashboard in public_dashboards]
     if dashboard_name in public_dashboard_names:
         raise Exception(
             f"A dashboard with the name {dashboard_name} is already public. Change the name before attempting again."  # noqa: E501
-        )
-    public_dashboard_labels = [dashboard.name for dashboard in public_dashboards]
-    if dashboard_label in public_dashboard_labels:
-        raise Exception(
-            f"A dashboard with the label {dashboard_label} is already public. Change the label before attempting again."  # noqa: E501
         )
 
 def clean_up_jsons(user):

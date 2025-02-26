@@ -18,9 +18,9 @@ import {
   LayoutContext,
   EditingContext,
   DisabledEditingMovementContext,
+  AppContext,
 } from "components/contexts/Contexts";
 import TooltipButton from "components/buttons/TooltipButton";
-import { AppContext } from "components/contexts/Contexts";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import AppInfoModal from "components/modals/AppInfo";
 import { useAppTourContext } from "components/contexts/AppTourContext";
@@ -72,8 +72,41 @@ function LockedIcon({ locked }) {
   );
 }
 
-const Header = ({ dashboardView }) => {
+export const LandingPageHeader = () => {
   const { tethysApp, user } = useContext(AppContext);
+
+  return (
+    <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
+      <CustomContainer as="header" fluid className="px-4">
+        <WhiteTitle>Available Dashboards</WhiteTitle>
+        <Form inline="true">
+          <>
+            {user.isStaff && (
+              <TooltipButton
+                href={tethysApp.settingsUrl}
+                tooltipPlacement="bottom"
+                tooltipText="App Settings"
+                aria-label={"appSettingButton"}
+              >
+                <BsGear size="1.5rem" />
+              </TooltipButton>
+            )}
+            <TooltipButton
+              href={tethysApp.exitUrl}
+              tooltipPlacement="bottom"
+              tooltipText="Exit TethysDash"
+              aria-label={"appExitButton"}
+            >
+              <BsX size="1.5rem" />
+            </TooltipButton>
+          </>
+        </Form>
+      </CustomContainer>
+    </CustomNavBar>
+  );
+};
+
+export const DashboardHeader = () => {
   const [showEditCanvas, setShowEditCanvas] = useState(false);
   const dontShowInfoOnStart = localStorage.getItem("dontShowInfoOnStart");
   const [showInfoModal, setShowInfoModal] = useState(
@@ -81,7 +114,7 @@ const Header = ({ dashboardView }) => {
   );
   const { getLayoutContext, setLayoutContext, resetLayoutContext } =
     useContext(LayoutContext);
-  const { label, editable } = getLayoutContext();
+  const { name, editable } = getLayoutContext();
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
     DisabledEditingMovementContext
@@ -137,112 +170,89 @@ const Header = ({ dashboardView }) => {
     <>
       <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
         <CustomContainer as="header" fluid className="px-4">
-          {label && <WhiteTitle>{label}</WhiteTitle>}
+          {name && <WhiteTitle>{name}</WhiteTitle>}
           <Form inline="true">
-            {label ? (
-              <>
-                {editable && (
-                  <>
-                    {isEditing ? (
-                      <>
-                        <TooltipButton
-                          tooltipPlacement="bottom"
-                          tooltipText="Cancel Changes"
-                          onClick={onCancel}
-                          aria-label="cancelButton"
-                          className="cancelChangesButton"
-                        >
-                          <BsArrowReturnLeft size="1.5rem" />
-                        </TooltipButton>
-                        <TooltipButton
-                          tooltipPlacement="bottom"
-                          tooltipText="Save Changes"
-                          form="gridUpdate"
-                          type="submit"
-                          aria-label="saveButton"
-                          className="saveChangesButton"
-                        >
-                          <BsFloppyFill size="1.5rem" />
-                        </TooltipButton>
-                        <TooltipButton
-                          tooltipPlacement="bottom"
-                          tooltipText="Add Dashboard Item"
-                          onClick={onAddGridItem}
-                          aria-label="addGridItemButton"
-                          className="addGridItemsButton"
-                        >
-                          <FaPlus size="1.5rem" />
-                        </TooltipButton>
-                        <TooltipButton
-                          tooltipPlacement="bottom"
-                          tooltipText={
-                            disabledEditingMovement
-                              ? "Unlock Movement"
-                              : "Lock Movement"
-                          }
-                          onClick={() =>
-                            setDisabledEditingMovement(!disabledEditingMovement)
-                          }
-                          aria-label="Disable Movement Button"
-                          className="lockUnlocKMovementButton"
-                        >
-                          <LockedIcon locked={disabledEditingMovement} />
-                        </TooltipButton>
-                      </>
-                    ) : (
+            <>
+              {editable && (
+                <>
+                  {isEditing ? (
+                    <>
                       <TooltipButton
                         tooltipPlacement="bottom"
-                        tooltipText="Edit Dashboard"
-                        onClick={onEdit}
-                        aria-label={"editButton"}
-                        className={"editDashboardButton"}
+                        tooltipText="Cancel Changes"
+                        onClick={onCancel}
+                        aria-label="cancelButton"
+                        className="cancelChangesButton"
                       >
-                        <BsPencilSquare size="1.5rem" />
+                        <BsArrowReturnLeft size="1.5rem" />
                       </TooltipButton>
-                    )}
-                  </>
-                )}
-                <TooltipButton
-                  onClick={showNav}
-                  tooltipPlacement="bottom"
-                  tooltipText="Dashboard Settings"
-                  aria-label="dashboardSettingButton"
-                >
-                  <BsGear size="1.5rem" />
-                </TooltipButton>
-                <TooltipButton
-                  onClick={() => {
-                    navigate("/");
-                  }}
-                  tooltipPlacement="bottom"
-                  tooltipText="Exit Dashboard"
-                  aria-label={"dashboardExitButton"}
-                >
-                  <BsX size="1.5rem" />
-                </TooltipButton>
-              </>
-            ) : (
-              <>
-                {user.isStaff && (
-                  <TooltipButton
-                    href={tethysApp.settingsUrl}
-                    tooltipPlacement="bottom"
-                    tooltipText="App Settings"
-                    aria-label={"appSettingButton"}
-                  >
-                    <BsGear size="1.5rem" />
-                  </TooltipButton>
-                )}
-                <TooltipButton
-                  href={tethysApp.exitUrl}
-                  tooltipPlacement="bottom"
-                  tooltipText="Exit TethysDash"
-                  aria-label={"appExitButton"}
-                >
-                  <BsX size="1.5rem" />
-                </TooltipButton>
-              </>
-            )}
+                      <TooltipButton
+                        tooltipPlacement="bottom"
+                        tooltipText="Save Changes"
+                        form="gridUpdate"
+                        type="submit"
+                        aria-label="saveButton"
+                        className="saveChangesButton"
+                      >
+                        <BsFloppyFill size="1.5rem" />
+                      </TooltipButton>
+                      <TooltipButton
+                        tooltipPlacement="bottom"
+                        tooltipText="Add Dashboard Item"
+                        onClick={onAddGridItem}
+                        aria-label="addGridItemButton"
+                        className="addGridItemsButton"
+                      >
+                        <FaPlus size="1.5rem" />
+                      </TooltipButton>
+                      <TooltipButton
+                        tooltipPlacement="bottom"
+                        tooltipText={
+                          disabledEditingMovement
+                            ? "Unlock Movement"
+                            : "Lock Movement"
+                        }
+                        onClick={() =>
+                          setDisabledEditingMovement(!disabledEditingMovement)
+                        }
+                        aria-label="Disable Movement Button"
+                        className="lockUnlocKMovementButton"
+                      >
+                        <LockedIcon locked={disabledEditingMovement} />
+                      </TooltipButton>
+                    </>
+                  ) : (
+                    <TooltipButton
+                      tooltipPlacement="bottom"
+                      tooltipText="Edit Dashboard"
+                      onClick={onEdit}
+                      aria-label={"editButton"}
+                      className={"editDashboardButton"}
+                    >
+                      <BsPencilSquare size="1.5rem" />
+                    </TooltipButton>
+                  )}
+                </>
+              )}
+              <TooltipButton
+                onClick={showNav}
+                tooltipPlacement="bottom"
+                tooltipText="Dashboard Settings"
+                aria-label="dashboardSettingButton"
+              >
+                <BsGear size="1.5rem" />
+              </TooltipButton>
+              <TooltipButton
+                onClick={() => {
+                  navigate("/");
+                }}
+                tooltipPlacement="bottom"
+                tooltipText="Exit Dashboard"
+                aria-label={"dashboardExitButton"}
+              >
+                <BsX size="1.5rem" />
+              </TooltipButton>
+            </>
           </Form>
         </CustomContainer>
       </CustomNavBar>
@@ -261,9 +271,3 @@ const Header = ({ dashboardView }) => {
     </>
   );
 };
-
-Header.propTypes = {
-  initialDashboard: PropTypes.string,
-};
-
-export default Header;

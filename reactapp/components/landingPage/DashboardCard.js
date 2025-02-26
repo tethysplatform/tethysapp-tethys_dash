@@ -1,25 +1,45 @@
 import PropTypes from "prop-types";
+import { useContext, useState } from "react";
 import Button from "react-bootstrap/Button";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
 import { BsTrash } from "react-icons/bs";
+import { FaPlus } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import { confirm } from "components/dashboard/DeleteConfirmation";
+import { AvailableDashboardsContext } from "components/contexts/Contexts";
+import Alert from "react-bootstrap/Alert";
+import NewDashboardModal from "components/modals/NewDashboard";
 
 const RedTrashIcon = styled(BsTrash)`
   color: red;
 `;
 
-const CustomCard = styled(Card)`
+const CustomCard = styled(Card).withConfig({
+  shouldForwardProp: (prop) => prop !== "newCard", // Prevent `newCard` from being passed to the DOM
+})`
   width: 15rem;
   height: 20rem;
   display: flex;
+  background-color: rgb(238, 238, 238);
+  border: ${(props) => props?.newCard && "#dcdcdc dashed 1px"};
+`;
+
+const CardBody = styled(Card.Body)`
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  overflow-y: auto;
 `;
 
 const CardHeader = styled(Card.Header)`
   background-color: transparent;
   text-align: center;
   border-bottom: 1px solid black;
-  padding-bottom: 1rem;
+  min-height: 3rem;
+  max-height: 3rem;
+  overflow-y: auto;
 `;
 
 const CardFooter = styled(Card.Footer)`
@@ -35,30 +55,65 @@ const HoverDiv = styled.div`
   right: 0.5rem;
 `;
 
-const DashboardCard = ({
-  id,
-  name,
-  label,
-  description,
-  notes,
-  editable,
-  accessGroups,
-  gridItems,
-}) => {
+const NewDashboardDiv = styled.div`
+  text-align: center;
+  display: flex;
+  flex-direction: column; /* Stack items vertically */
+  align-items: center; /* Center items horizontally */
+  justify-content: center; /* Center items vertically */
+  height: 100%; /* Ensure it takes full height of its parent */
+  cursor: pointer;
+`;
+
+const CenteredP = styled.p`
+  margin: 0.5rem;
+`;
+
+const DashboardCard = ({ name, description }) => {
   const navigate = useNavigate();
+  const { deleteDashboard } = useContext(AvailableDashboardsContext);
+  const [errorMessage, setErrorMessage] = useState(null);
+
+  async function onDelete() {
+    setErrorMessage("");
+    if (
+      await confirm(
+        "Are you sure you want to delete the " + name + " dashboard?"
+      )
+    ) {
+      deleteDashboard(name).then((response) => {
+        if (!response["success"]) {
+          setErrorMessage("Failed to delete dashboard");
+        }
+      });
+    }
+  }
 
   return (
     <CustomCard>
-      <Card.Body>
-        <CardHeader as="h5">{label}</CardHeader>
+      <CardHeader as="h5">
+        <CenteredP>{name}</CenteredP>
         <HoverDiv
+          onClick={onDelete}
           onMouseOver={(e) => (e.target.style.cursor = "pointer")}
           onMouseOut={(e) => (e.target.style.cursor = "default")}
         >
           <RedTrashIcon size={"1rem"} />
         </HoverDiv>
-        <Card.Text>{description}</Card.Text>
-      </Card.Body>
+      </CardHeader>
+      <CardBody>
+        {errorMessage && (
+          <Alert
+            key="danger"
+            variant="danger"
+            onClose={() => setErrorMessage("")}
+            dismissible={true}
+          >
+            {errorMessage}
+          </Alert>
+        )}
+        {description}
+      </CardBody>
       <CardFooter>
         <Button
           variant="success"
@@ -74,24 +129,39 @@ const DashboardCard = ({
   );
 };
 
+export const NewDashboardCard = () => {
+  const [showNewDashboardModal, setShowNewDashboardModal] = useState(false);
+
+  return (
+    <>
+      <CustomCard newCard={true}>
+        <CardBody>
+          <NewDashboardDiv
+            onClick={() => {
+              setShowNewDashboardModal(true);
+            }}
+            onMouseOver={(e) => (e.target.style.cursor = "pointer")}
+            onMouseOut={(e) => (e.target.style.cursor = "default")}
+          >
+            <FaPlus size={"1rem"} />
+            <p>Create a New Dashboard</p>
+          </NewDashboardDiv>
+        </CardBody>
+      </CustomCard>
+      {showNewDashboardModal && (
+        <NewDashboardModal
+          showModal={showNewDashboardModal}
+          setShowModal={setShowNewDashboardModal}
+        />
+      )}
+    </>
+  );
+};
+
 DashboardCard.propTypes = {
-  id: PropTypes.number,
   name: PropTypes.string,
   label: PropTypes.string,
-  notes: PropTypes.string,
-  editable: PropTypes.bool,
-  accessGroups: PropTypes.arrayOf(PropTypes.string),
-  gridItems: PropTypes.shape({
-    id: PropTypes.number,
-    i: PropTypes.string,
-    x: PropTypes.number,
-    y: PropTypes.number,
-    w: PropTypes.number,
-    h: PropTypes.number,
-    source: PropTypes.string,
-    args_string: PropTypes.string,
-    metadata_string: PropTypes.string,
-  }),
+  description: PropTypes.string,
 };
 
 export default DashboardCard;

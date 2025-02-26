@@ -17,7 +17,6 @@ const DashboardLoader = ({
   children,
   id,
   dashboardName,
-  dashboardLabel,
   dashboardDescription,
   dashboardNotes,
   dashboardEditable,
@@ -29,7 +28,6 @@ const DashboardLoader = ({
   const [isLoaded, setIsLoaded] = useState(false);
   const [variableInputValues, setVariableInputValues] = useState({});
   const [name, setName] = useState(dashboardName);
-  const [label, setLabel] = useState(dashboardLabel);
   const [accessGroups, setAccessGroups] = useState(dashboardAccessGroups);
   const [editable, setEditable] = useState(dashboardEditable);
   const [notes, setNotes] = useState(dashboardNotes);
@@ -43,7 +41,6 @@ const DashboardLoader = ({
   const originalMetadata = useRef({
     id,
     dashboardName,
-    dashboardLabel,
     dashboardDescription,
     dashboardNotes,
     dashboardEditable,
@@ -82,7 +79,6 @@ const DashboardLoader = ({
 
   function setLayoutContext(dashboardContext) {
     setName(dashboardContext["name"]);
-    setLabel(dashboardContext["label"]);
     setAccessGroups(dashboardContext["accessGroups"]);
     setNotes(dashboardContext["notes"]);
     setGridItems(dashboardContext["gridItems"]);
@@ -93,7 +89,6 @@ const DashboardLoader = ({
   function getLayoutContext() {
     return {
       name: name,
-      label: label,
       accessGroups: accessGroups,
       notes: notes,
       gridItems: gridItems,
@@ -103,7 +98,6 @@ const DashboardLoader = ({
 
   function resetLayoutContext() {
     setName(originalMetadata.current.dashboardName);
-    setLabel(originalMetadata.current.dashboardLabel);
     setAccessGroups(originalMetadata.current.dashboardAccessGroups);
     setNotes(originalMetadata.current.dashboardNotes);
     setGridItems(originalMetadata.current.dashboardGridItems);
@@ -116,10 +110,8 @@ const DashboardLoader = ({
   async function saveLayoutContext(newProperties) {
     const originalDashboard = getLayoutContext();
     const originalName = originalDashboard["name"];
-    const originalLabel = originalDashboard["label"];
     const originalAccessGroups = originalDashboard["accessGroups"];
     originalDashboard["originalName"] = originalName;
-    originalDashboard["originalLabel"] = originalLabel;
     originalDashboard["originalAccessGroups"] = originalAccessGroups;
 
     const updatedLayoutContext = {
@@ -142,7 +134,6 @@ const DashboardLoader = ({
       originalMetadata.current = {
         id: updatedDashboard.id,
         dashboardName: updatedDashboard.name,
-        dashboardLabel: updatedDashboard.label,
         dashboardDescription: updatedDashboard.description,
         dashboardNotes: updatedDashboard.notes,
         dashboardEditable: updatedDashboard.editable,

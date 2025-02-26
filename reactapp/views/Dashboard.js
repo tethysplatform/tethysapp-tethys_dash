@@ -1,7 +1,7 @@
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
-import Header from "components/layout/Header";
+import { DashboardHeader } from "components/layout/Header";
 import PropTypes from "prop-types";
 import AppTour from "components/dashboard/AppTour";
 import DashboardLoader from "components/loader/DashboardLoader";
@@ -9,7 +9,6 @@ import DashboardLoader from "components/loader/DashboardLoader";
 function DashboardView({
   id,
   name,
-  label,
   description,
   notes,
   editable,
@@ -20,7 +19,6 @@ function DashboardView({
     <DashboardLoader
       id={id}
       dashboardName={name}
-      dashboardLabel={label}
       dashboardDescription={description}
       dashboardNotes={notes}
       dashboardEditable={editable}
@@ -28,7 +26,7 @@ function DashboardView({
       dashboardGridItems={gridItems}
     >
       {/* <AppTour /> */}
-      <Header dashboardView={true} />
+      <DashboardHeader />
       <LayoutAlertContextProvider>
         <DashboardLayoutAlerts />
         <DashboardLayout />
@@ -40,7 +38,7 @@ function DashboardView({
 DashboardView.propTypes = {
   id: PropTypes.number,
   name: PropTypes.string,
-  label: PropTypes.string,
+  description: PropTypes.string,
   notes: PropTypes.string,
   editable: PropTypes.bool,
   accessGroups: PropTypes.arrayOf(PropTypes.string),

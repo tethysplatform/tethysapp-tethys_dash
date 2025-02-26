@@ -1,13 +1,37 @@
 import { useContext, useEffect, useState } from "react";
-import Header from "components/layout/Header";
+import { LandingPageHeader } from "components/layout/Header";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import CustomPicker from "components/inputs/CustomPicker";
-import DashboardCard from "components/landingPage/DashboardCard";
+import DashboardCard, {
+  NewDashboardCard,
+} from "components/landingPage/DashboardCard";
 import styled from "styled-components";
+import { Card, Button } from "react-bootstrap";
+import { BsChevronDown, BsChevronUp } from "react-icons/bs";
 
-const DashboardCardsDiv = styled.div`
-  margin-top: 1rem;
+const DashboardCardDiv = styled(Card)`
+  border-radius: 0;
 `;
+
+const CollapsibleSection = ({ title, children }) => {
+  const [isOpen, setIsOpen] = useState(true);
+
+  return (
+    <DashboardCardDiv>
+      <Card.Header className="d-flex justify-content-between align-items-center">
+        <span>{title}</span>
+        <Button
+          variant="link"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-expanded={isOpen}
+        >
+          {isOpen ? <BsChevronUp /> : <BsChevronDown />}
+        </Button>
+      </Card.Header>
+      {isOpen && <Card.Body>{children}</Card.Body>}
+    </DashboardCardDiv>
+  );
+};
 
 const LandingPage = () => {
   const { availableDashboards } = useContext(AvailableDashboardsContext);
@@ -15,40 +39,48 @@ const LandingPage = () => {
   const [publicDashboards, setPublicDashboards] = useState({});
 
   useEffect(() => {
-    setUserDashboards(
-      Object.fromEntries(
-        Object.entries(availableDashboards)
-          .filter(([_, dashboardMetadata]) => dashboardMetadata.editable)
-          .map(([key, dashboardMetadata]) => [
-            key,
-            () => <DashboardCard {...dashboardMetadata} />,
-          ])
+    const availableUserDashboards = Object.fromEntries(
+      Object.entries(availableDashboards.user).map(
+        ([key, dashboardMetadata]) => [
+          key,
+          () => <DashboardCard {...dashboardMetadata} />,
+        ]
       )
     );
+    availableUserDashboards["user_clicked_new_dashboard"] = () => (
+      <NewDashboardCard />
+    );
+    setUserDashboards(availableUserDashboards);
+
     setPublicDashboards(
       Object.fromEntries(
-        Object.entries(availableDashboards)
-          .filter(([_, value]) => !value.editable)
-          .map(([key, value]) => [
+        Object.entries(availableDashboards.public).map(
+          ([key, dashboardMetadata]) => [
             key,
-            () => <DashboardCard dashboardMetadata={value} />,
-          ])
+            () => <DashboardCard {...dashboardMetadata} />,
+          ]
+        )
       )
     );
   }, [availableDashboards]);
 
-  function onSelect() {}
-
   return (
     <>
-      <Header />
-      <DashboardCardsDiv>
+      <LandingPageHeader />
+      <CollapsibleSection title="User Dashboards">
         <CustomPicker
           maxColCount={5}
           pickerOptions={userDashboards}
-          onSelect={onSelect}
+          onSelect={() => {}}
         />
-      </DashboardCardsDiv>
+      </CollapsibleSection>
+      <CollapsibleSection title="Public Dashboards">
+        <CustomPicker
+          maxColCount={5}
+          pickerOptions={publicDashboards}
+          onSelect={() => {}}
+        />
+      </CollapsibleSection>
     </>
   );
 };

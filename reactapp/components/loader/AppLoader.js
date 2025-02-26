@@ -16,6 +16,7 @@ import { Route } from "react-router-dom";
 import NotFound from "components/error/NotFound";
 import DashboardView from "views/Dashboard";
 import LandingPage from "views/LandingPage";
+import { confirm } from "components/dashboard/DeleteConfirmation";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -169,6 +170,32 @@ function Loader({ children }) {
       .catch(handleError);
   }, []);
 
+  async function addDashboard(dashboardContext) {
+    const apiResponse = await appAPI.addDashboard(
+      dashboardContext,
+      appContext.csrf
+    );
+    if (apiResponse.success) {
+      const newDashboard = apiResponse["new_dashboard"];
+      let newAvailableDashboards = Object.assign({}, availableDashboards);
+      newAvailableDashboards["user"][newDashboard.name] = newDashboard;
+      setAvailableDashboards(newAvailableDashboards);
+    }
+    return apiResponse;
+  }
+
+  async function deleteDashboard(name) {
+    const apiResponse = await appAPI.deleteDashboard({ name }, appContext.csrf);
+    if (apiResponse["success"]) {
+      let newAvailableDashboards = Object.assign({}, availableDashboards);
+      newAvailableDashboards["user"] = Object.fromEntries(
+        Object.entries(availableDashboards.user).filter(([key]) => key !== name)
+      );
+      setAvailableDashboards(newAvailableDashboards);
+    }
+    return apiResponse;
+  }
+
   if (error) {
     // Throw error so it will be caught by the ErrorBoundary
     throw error;
@@ -182,6 +209,8 @@ function Loader({ children }) {
             value={{
               availableDashboards,
               setAvailableDashboards,
+              addDashboard,
+              deleteDashboard,
             }}
           >
             {children}

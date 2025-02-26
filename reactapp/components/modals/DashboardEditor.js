@@ -58,13 +58,12 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
   const { getLayoutContext } = useContext(LayoutContext);
-  const { name, label, editable, accessGroups, notes } = getLayoutContext();
+  const { name, editable, accessGroups, notes } = getLayoutContext();
   const { deleteDashboard, updateDashboard, copyCurrentDashboard } = useContext(
     AvailableDashboardsContext
   );
   const [localNotes, setLocalNotes] = useState(notes);
   const [localName, setLocalName] = useState(name);
-  const [localLabel, setLocalLabel] = useState(label);
   const dashboardPublicUrl =
     getTethysPortalHost() + APP_ROOT_URL + "dashboard/" + name;
   const { setIsEditing } = useContext(EditingContext);
@@ -110,7 +109,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
       accessGroups: selectedSharingStatus === "public" ? ["public"] : [],
       notes: localNotes,
       name: localName,
-      label: localLabel,
     };
     updateDashboard(newProperties).then((response) => {
       if (response["success"]) {
@@ -154,7 +152,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
         if (response["success"]) {
           const newDashboard = response["new_dashboard"];
           setLocalName(newDashboard.name);
-          setLocalLabel(newDashboard.label);
           setSuccessMessage("Successfully copied dashboard");
         } else {
           if ("message" in response) {
@@ -212,12 +209,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
                 setLocalName(e);
               }}
             />
-            <DataInput
-              objValue={{ label: "Label", type: "text", value: localLabel }}
-              onChange={(e) => {
-                setLocalLabel(e);
-              }}
-            />
             <DataRadioSelect
               label={"Sharing Status"}
               selectedRadio={selectedSharingStatus}
@@ -230,9 +221,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
             <b>Name:</b>
             <br></br>
             <p>{name}</p>
-            <b>Label:</b>
-            <br></br>
-            <p>{label}</p>
           </>
         )}
         {selectedSharingStatus === "public" && (
