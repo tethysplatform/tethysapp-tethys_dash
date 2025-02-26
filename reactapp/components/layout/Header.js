@@ -26,6 +26,10 @@ import AppInfoModal from "components/modals/AppInfo";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
+import {
+  useLayoutSuccessAlertContext,
+  useLayoutErrorAlertContext,
+} from "components/contexts/LayoutAlertContext";
 import "components/buttons/HeaderButton.css";
 
 const CustomNavBar = styled(Navbar)`
@@ -112,14 +116,21 @@ export const DashboardHeader = () => {
   const [showInfoModal, setShowInfoModal] = useState(
     dontShowInfoOnStart !== "true"
   );
-  const { getLayoutContext, setLayoutContext, resetLayoutContext } =
-    useContext(LayoutContext);
+  const {
+    getLayoutContext,
+    setLayoutContext,
+    resetLayoutContext,
+    saveLayoutContext,
+  } = useContext(LayoutContext);
   const { name, editable } = getLayoutContext();
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
     DisabledEditingMovementContext
   );
   const { setAppTourStep, activeAppTour } = useAppTourContext();
+  const { setSuccessMessage, setShowSuccessMessage } =
+    useLayoutSuccessAlertContext();
+  const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
   const navigate = useNavigate();
 
   const showNav = () => {
@@ -131,12 +142,12 @@ export const DashboardHeader = () => {
     }
   };
 
-  function onCancel(e) {
+  function onCancel() {
     resetLayoutContext();
     setIsEditing(false);
   }
 
-  function onAddGridItem(e) {
+  function onAddGridItem() {
     const layout = getLayoutContext();
     let maxGridItemI = layout["gridItems"].reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
@@ -157,12 +168,32 @@ export const DashboardHeader = () => {
     setLayoutContext(layout);
   }
 
-  function onEdit(e) {
+  function onEdit() {
     setIsEditing(true);
     if (activeAppTour) {
       setTimeout(() => {
         setAppTourStep((previousStep) => previousStep + 1);
       }, 400);
+    }
+  }
+
+  async function onSave() {
+    setShowSuccessMessage(false);
+    setShowErrorMessage(false);
+
+    if (isEditing) {
+      saveLayoutContext({}).then((response) => {
+        if (response.success) {
+          setSuccessMessage("Change have been saved.");
+          setShowSuccessMessage(true);
+          setIsEditing(false);
+        } else {
+          setErrorMessage(
+            "Failed to save changes. Check server logs for more information."
+          );
+          setShowErrorMessage(true);
+        }
+      });
     }
   }
 
@@ -187,10 +218,9 @@ export const DashboardHeader = () => {
                         <BsArrowReturnLeft size="1.5rem" />
                       </TooltipButton>
                       <TooltipButton
+                        onClick={onSave}
                         tooltipPlacement="bottom"
                         tooltipText="Save Changes"
-                        form="gridUpdate"
-                        type="submit"
                         aria-label="saveButton"
                         className="saveChangesButton"
                       >

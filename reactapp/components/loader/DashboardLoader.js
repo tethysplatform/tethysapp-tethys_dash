@@ -28,6 +28,7 @@ const DashboardLoader = ({
   const [isLoaded, setIsLoaded] = useState(false);
   const [variableInputValues, setVariableInputValues] = useState({});
   const [name, setName] = useState(dashboardName);
+  const [description, setDescription] = useState(dashboardDescription);
   const [accessGroups, setAccessGroups] = useState(dashboardAccessGroups);
   const [editable, setEditable] = useState(dashboardEditable);
   const [notes, setNotes] = useState(dashboardNotes);
@@ -79,6 +80,7 @@ const DashboardLoader = ({
 
   function setLayoutContext(dashboardContext) {
     setName(dashboardContext["name"]);
+    setDescription(dashboardContext["description"]);
     setAccessGroups(dashboardContext["accessGroups"]);
     setNotes(dashboardContext["notes"]);
     setGridItems(dashboardContext["gridItems"]);
@@ -88,16 +90,18 @@ const DashboardLoader = ({
 
   function getLayoutContext() {
     return {
-      name: name,
-      accessGroups: accessGroups,
-      notes: notes,
-      gridItems: gridItems,
-      editable: editable,
+      name,
+      description,
+      accessGroups,
+      notes,
+      gridItems,
+      editable,
     };
   }
 
   function resetLayoutContext() {
     setName(originalMetadata.current.dashboardName);
+    setDescription(originalMetadata.current.dashboardDescription);
     setAccessGroups(originalMetadata.current.dashboardAccessGroups);
     setNotes(originalMetadata.current.dashboardNotes);
     setGridItems(originalMetadata.current.dashboardGridItems);

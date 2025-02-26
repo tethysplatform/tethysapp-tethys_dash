@@ -26,8 +26,8 @@ function DashboardView({
       dashboardGridItems={gridItems}
     >
       {/* <AppTour /> */}
-      <DashboardHeader />
       <LayoutAlertContextProvider>
+        <DashboardHeader />
         <DashboardLayoutAlerts />
         <DashboardLayout />
       </LayoutAlertContextProvider>
