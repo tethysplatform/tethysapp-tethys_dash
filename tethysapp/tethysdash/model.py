@@ -6,8 +6,6 @@ import nh3
 import os
 from .app import App as app
 
-
-geojson_folder = app.get_custom_setting('data_folder')
 Base = declarative_base()
 
 
@@ -385,6 +383,7 @@ def clean_up_jsons(user):
             in_use_geojsons.append(stylejson_files)
     
     in_use_geojsons = flatten(in_use_geojsons)
+    geojson_folder = app.get_custom_setting('data_folder')
     path = os.path.join(geojson_folder, user)
     if not os.path.exists(path):
         os.makedirs(path)
