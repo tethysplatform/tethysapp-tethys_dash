@@ -34,6 +34,25 @@ function Loader({ children }) {
     }, LOADER_DELAY);
   };
 
+  const PATH_HOME = "/";
+  const baseRoutes = [
+    <Route path={PATH_HOME} element={<LandingPage />} key="route-home" />,
+    <Route
+      key={"dashboard-not-found"}
+      path="/dashboard/*"
+      element={<NotFound />}
+    />,
+  ];
+
+  useEffect(() => {
+    if (availableDashboards) {
+      setAppContext((existingAppContext) => ({
+        ...existingAppContext,
+        routes: setupRoutes(availableDashboards),
+      }));
+    }
+  }, [availableDashboards]);
+
   useEffect(() => {
     // Get the session first
     tethysAPI
@@ -125,36 +144,12 @@ function Loader({ children }) {
               ],
             });
 
-            const PATH_HOME = "/";
-            const routes = [
-              <Route
-                path={PATH_HOME}
-                element={<LandingPage />}
-                key="route-home"
-              />,
-              <Route
-                key={"dashboard-not-found"}
-                path="/dashboard/*"
-                element={<NotFound />}
-              />,
-            ];
-
-            for (const [name, metadata] of Object.entries(dashboards)) {
-              routes.push(
-                <Route
-                  path={"/dashboard/" + name}
-                  element={<DashboardView {...metadata} />}
-                  key={"route-" + name}
-                />
-              );
-            }
-
             // Update app context
             setAppContext({
               tethysApp,
               user,
               csrf,
-              routes,
+              routes: setupRoutes(dashboards),
               visualizations: allVisualizations,
               visualizationArgs,
             });
@@ -169,6 +164,52 @@ function Loader({ children }) {
       })
       .catch(handleError);
   }, []);
+
+  function setupRoutes(dashboards) {
+    const dashboardRoutes = [];
+    for (const [name, metadata] of Object.entries(dashboards.user)) {
+      dashboardRoutes.push(
+        <Route
+          path={`/dashboard/user/${name}`}
+          element={<DashboardView {...metadata} />}
+          key={`route-user-${name}`}
+        />
+      );
+    }
+
+    for (const [name, metadata] of Object.entries(dashboards.public)) {
+      dashboardRoutes.push(
+        <Route
+          path={`/dashboard/public/${name}`}
+          element={<DashboardView {...metadata} />}
+          key={`route-public-${name}`}
+        />
+      );
+    }
+    const allRoutes = [...baseRoutes, ...dashboardRoutes];
+
+    return allRoutes;
+  }
+
+  function getUniqueName(name) {
+    let newName = `${name} - Copy`;
+    let count = 2;
+
+    while (newName in availableDashboards.user) {
+      newName = `${name} - Copy (${count})`;
+      count++;
+    }
+
+    return newName;
+  }
+
+  async function copyDashboard(name) {
+    const newName = getUniqueName(name);
+    const copiedDashboard = { ...availableDashboards["user"][name] };
+    copiedDashboard.name = newName;
+
+    return await addDashboard(copiedDashboard);
+  }
 
   async function addDashboard(dashboardContext) {
     const apiResponse = await appAPI.addDashboard(
@@ -211,6 +252,7 @@ function Loader({ children }) {
               setAvailableDashboards,
               addDashboard,
               deleteDashboard,
+              copyDashboard,
             }}
           >
             {children}

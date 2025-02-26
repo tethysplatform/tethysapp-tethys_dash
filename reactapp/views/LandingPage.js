@@ -39,17 +39,14 @@ const LandingPage = () => {
   const [publicDashboards, setPublicDashboards] = useState({});
 
   useEffect(() => {
-    const availableUserDashboards = Object.fromEntries(
-      Object.entries(availableDashboards.user).map(
-        ([key, dashboardMetadata]) => [
-          key,
-          () => <DashboardCard {...dashboardMetadata} />,
-        ]
-      )
-    );
-    availableUserDashboards["user_clicked_new_dashboard"] = () => (
-      <NewDashboardCard />
-    );
+    const availableUserDashboards = {
+      user_clicked_new_dashboard: () => <NewDashboardCard />,
+    };
+    for (const userDashboard in availableDashboards.user) {
+      availableUserDashboards[userDashboard] = () => (
+        <DashboardCard {...availableDashboards.user[userDashboard]} />
+      );
+    }
     setUserDashboards(availableUserDashboards);
 
     setPublicDashboards(

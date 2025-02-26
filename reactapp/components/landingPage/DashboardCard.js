@@ -69,9 +69,16 @@ const CenteredP = styled.p`
   margin: 0.5rem;
 `;
 
-const DashboardCard = ({ name, description }) => {
+const StyledAlert = styled(Alert)`
+  position: absolute;
+  margin: 1rem;
+`;
+
+const DashboardCard = ({ name, editable, description }) => {
   const navigate = useNavigate();
-  const { deleteDashboard } = useContext(AvailableDashboardsContext);
+  const { deleteDashboard, copyDashboard } = useContext(
+    AvailableDashboardsContext
+  );
   const [errorMessage, setErrorMessage] = useState(null);
 
   async function onDelete() {
@@ -89,6 +96,23 @@ const DashboardCard = ({ name, description }) => {
     }
   }
 
+  function viewDashboard() {
+    if (editable) {
+      navigate("/dashboard/user/" + name);
+    } else {
+      navigate("/dashboard/public/" + name);
+    }
+  }
+
+  function onCopy() {
+    setErrorMessage("");
+    copyDashboard(name).then((response) => {
+      if (!response["success"]) {
+        setErrorMessage("Failed to copy dashboard");
+      }
+    });
+  }
+
   return (
     <CustomCard>
       <CardHeader as="h5">
@@ -103,27 +127,24 @@ const DashboardCard = ({ name, description }) => {
       </CardHeader>
       <CardBody>
         {errorMessage && (
-          <Alert
+          <StyledAlert
             key="danger"
             variant="danger"
             onClose={() => setErrorMessage("")}
             dismissible={true}
           >
             {errorMessage}
-          </Alert>
+          </StyledAlert>
         )}
         {description}
       </CardBody>
       <CardFooter>
-        <Button
-          variant="success"
-          onClick={() => {
-            navigate("/dashboard/" + name);
-          }}
-        >
+        <Button variant="success" onClick={viewDashboard}>
           View
         </Button>
-        <Button variant="info">Copy</Button>
+        <Button variant="info" onClick={onCopy}>
+          Copy
+        </Button>
       </CardFooter>
     </CustomCard>
   );
