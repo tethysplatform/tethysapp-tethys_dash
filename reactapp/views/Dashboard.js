@@ -6,25 +6,9 @@ import PropTypes from "prop-types";
 import AppTour from "components/dashboard/AppTour";
 import DashboardLoader from "components/loader/DashboardLoader";
 
-function DashboardView({
-  id,
-  name,
-  description,
-  notes,
-  editable,
-  accessGroups,
-  gridItems,
-}) {
+function DashboardView({ id, name, editable }) {
   return (
-    <DashboardLoader
-      id={id}
-      dashboardName={name}
-      dashboardDescription={description}
-      dashboardNotes={notes}
-      dashboardEditable={editable}
-      dashboardAccessGroups={accessGroups}
-      dashboardGridItems={gridItems}
-    >
+    <DashboardLoader id={id} editable={editable} name={name}>
       {/* <AppTour /> */}
       <LayoutAlertContextProvider>
         <DashboardHeader />

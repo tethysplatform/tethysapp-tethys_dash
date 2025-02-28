@@ -3,7 +3,6 @@ import { useState, useEffect, useContext, useRef } from "react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 import appAPI from "services/api/app";
 import {
-  AppContext,
   VariableInputsContext,
   LayoutContext,
   EditingContext,
@@ -12,44 +11,38 @@ import {
   AvailableDashboardsContext,
 } from "components/contexts/Contexts";
 import AppTourContextProvider from "components/contexts/AppTourContext";
+import Error from "components/error/Error";
+import errorImage from "assets/error404.png";
 
-const DashboardLoader = ({
-  children,
-  id,
-  dashboardName,
-  dashboardDescription,
-  dashboardNotes,
-  dashboardEditable,
-  dashboardAccessGroups,
-  dashboardGridItems,
-}) => {
-  const { csrf } = useContext(AppContext);
-
+const DashboardLoader = ({ children, id, name, editable }) => {
   const [isLoaded, setIsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [variableInputValues, setVariableInputValues] = useState({});
-  const [name, setName] = useState(dashboardName);
-  const [description, setDescription] = useState(dashboardDescription);
-  const [accessGroups, setAccessGroups] = useState(dashboardAccessGroups);
-  const [editable, setEditable] = useState(dashboardEditable);
-  const [notes, setNotes] = useState(dashboardNotes);
-  const [gridItems, setGridItems] = useState(dashboardGridItems);
+  const [notes, setNotes] = useState("");
+  const [gridItems, setGridItems] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [disabledEditingMovement, setDisabledEditingMovement] = useState(false);
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
-  const { availableDashboards, setAvailableDashboards } = useContext(
-    AvailableDashboardsContext
-  );
-  const originalMetadata = useRef({
-    id,
-    dashboardName,
-    dashboardDescription,
-    dashboardNotes,
-    dashboardEditable,
-    dashboardAccessGroups,
-    dashboardGridItems,
-  });
+  const { updateDashboard } = useContext(AvailableDashboardsContext);
+  const originalLayoutContext = useRef({});
 
   useEffect(() => {
+    const fetchDashboard = async () => {
+      const response = await appAPI.getDashboard({ id, name });
+      if (response.success) {
+        setNotes(response.dashboard.notes);
+        setGridItems(response.dashboard.gridItems);
+
+        originalLayoutContext.current = {
+          dashboardNotes: response.dashboard.notes,
+          dashboardGridItems: response.dashboard.gridItems,
+        };
+      } else {
+        setLoadError(true);
+      }
+    };
+
+    fetchDashboard();
     setIsLoaded(true);
     // eslint-disable-next-line
   }, []);
@@ -79,20 +72,14 @@ const DashboardLoader = ({
   }
 
   function setLayoutContext(dashboardContext) {
-    setName(dashboardContext["name"]);
-    setDescription(dashboardContext["description"]);
-    setAccessGroups(dashboardContext["accessGroups"]);
     setNotes(dashboardContext["notes"]);
     setGridItems(dashboardContext["gridItems"]);
-    setEditable(dashboardContext["editable"]);
     updateVariableInputValuesWithGridItems(dashboardContext["gridItems"]);
   }
 
   function getLayoutContext() {
     return {
       name,
-      description,
-      accessGroups,
       notes,
       gridItems,
       editable,
@@ -100,55 +87,33 @@ const DashboardLoader = ({
   }
 
   function resetLayoutContext() {
-    setName(originalMetadata.current.dashboardName);
-    setDescription(originalMetadata.current.dashboardDescription);
-    setAccessGroups(originalMetadata.current.dashboardAccessGroups);
-    setNotes(originalMetadata.current.dashboardNotes);
-    setGridItems(originalMetadata.current.dashboardGridItems);
-    setEditable(originalMetadata.current.dashboardEditable);
+    setNotes(originalLayoutContext.current.dashboardNotes);
+    setGridItems(originalLayoutContext.current.dashboardGridItems);
     updateVariableInputValuesWithGridItems(
-      originalMetadata.current.dashboardGridItems
+      originalLayoutContext.current.dashboardGridItems
     );
   }
 
   async function saveLayoutContext(newProperties) {
-    const originalDashboard = getLayoutContext();
-    const originalName = originalDashboard["name"];
-    const originalAccessGroups = originalDashboard["accessGroups"];
-    originalDashboard["originalName"] = originalName;
-    originalDashboard["originalAccessGroups"] = originalAccessGroups;
-
-    const updatedLayoutContext = {
-      ...originalDashboard,
-      ...newProperties,
-    };
-    const apiResponse = await appAPI.updateDashboard(
-      updatedLayoutContext,
-      csrf
-    );
+    const apiResponse = await updateDashboard(id, newProperties);
     if (apiResponse["success"]) {
-      let newavailableDashboards = Object.assign({}, availableDashboards);
-      delete newavailableDashboards[originalName];
-
-      const updatedDashboard = apiResponse["updated_dashboard"];
-      const name = updatedDashboard["name"];
-      newavailableDashboards[name] = updatedDashboard;
-      setAvailableDashboards(newavailableDashboards);
+      const updatedDashboard = apiResponse.updated_dashboard;
       setLayoutContext(updatedDashboard);
-      originalMetadata.current = {
-        id: updatedDashboard.id,
-        dashboardName: updatedDashboard.name,
-        dashboardDescription: updatedDashboard.description,
+      originalLayoutContext.current = {
         dashboardNotes: updatedDashboard.notes,
-        dashboardEditable: updatedDashboard.editable,
-        dashboardAccessGroups: updatedDashboard.accessGroups,
         dashboardGridItems: updatedDashboard.gridItems,
       };
     }
     return apiResponse;
   }
 
-  if (!isLoaded) {
+  if (loadError) {
+    return (
+      <Error title="Dashboard Failed to Load" image={errorImage}>
+        The dashboard failed to load. Please try again or contact admins.
+      </Error>
+    );
+  } else if (!isLoaded) {
     return <LoadingAnimation />;
   } else {
     return (

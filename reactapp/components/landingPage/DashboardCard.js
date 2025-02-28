@@ -3,7 +3,7 @@ import { useContext, useState } from "react";
 import Button from "react-bootstrap/Button";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
-import { BsTrash } from "react-icons/bs";
+import { BsTrash, BsCopy, BsPeople, BsSlashLg } from "react-icons/bs";
 import { FaPlus } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { confirm } from "components/dashboard/DeleteConfirmation";
@@ -15,12 +15,17 @@ const RedTrashIcon = styled(BsTrash)`
   color: red;
 `;
 
+const BlueCopyIcon = styled(BsCopy)`
+  color: #1e6b8b;
+`;
+
 const CustomCard = styled(Card).withConfig({
   shouldForwardProp: (prop) => prop !== "newCard", // Prevent `newCard` from being passed to the DOM
 })`
   width: 15rem;
   height: 20rem;
   display: flex;
+  margin-bottom: 1.5rem;
   background-color: rgb(238, 238, 238);
   border: ${(props) => props?.newCard && "#dcdcdc dashed 1px"};
 `;
@@ -34,12 +39,11 @@ const CardBody = styled(Card.Body)`
 `;
 
 const CardHeader = styled(Card.Header)`
-  background-color: transparent;
-  text-align: center;
-  border-bottom: 1px solid black;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   min-height: 3rem;
-  max-height: 3rem;
-  overflow-y: auto;
+  max-height: 4.5rem;
 `;
 
 const CardFooter = styled(Card.Footer)`
@@ -50,9 +54,16 @@ const CardFooter = styled(Card.Footer)`
 
 const HoverDiv = styled.div`
   cursor: pointer;
-  position: absolute;
-  top: 0.3rem;
-  right: 0.5rem;
+  padding-left: 0.3rem;
+  height: 100%;
+  justify-content: center;
+  display: flex;
+  align-items: center;
+`;
+
+const ButtonGroup = styled.div`
+  display: inline-flex;
+  height: 100%;
 `;
 
 const NewDashboardDiv = styled.div`
@@ -65,8 +76,15 @@ const NewDashboardDiv = styled.div`
   cursor: pointer;
 `;
 
-const CenteredP = styled.p`
-  margin: 0.5rem;
+const CardTitleDiv = styled.div`
+  height: 100%;
+  overflow-y: auto;
+  margin: 0.1rem;
+`;
+
+const CardTitle = styled.h5`
+  margin: 0;
+  width: 100%;
 `;
 
 const StyledAlert = styled(Alert)`
@@ -74,12 +92,30 @@ const StyledAlert = styled(Alert)`
   margin: 1rem;
 `;
 
-const DashboardCard = ({ name, editable, description }) => {
+const SharingIconDiv = styled.div`
+  position: relative;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  align-items: center;
+`;
+
+const SharingIcon = ({ shared }) => {
+  return (
+    <SharingIconDiv>
+      <BsPeople size="1.2rem" />
+      {!shared && <BsSlashLg size="1.2rem" style={{ position: "absolute" }} />}
+    </SharingIconDiv>
+  );
+};
+
+const DashboardCard = ({ id, name, editable, description, accessGroups }) => {
   const navigate = useNavigate();
-  const { deleteDashboard, copyDashboard } = useContext(
+  const { deleteDashboard, copyDashboard, updateDashboard } = useContext(
     AvailableDashboardsContext
   );
   const [errorMessage, setErrorMessage] = useState(null);
+  const [shared, setShared] = useState(accessGroups.includes("public"));
 
   async function onDelete() {
     setErrorMessage("");
@@ -88,7 +124,7 @@ const DashboardCard = ({ name, editable, description }) => {
         "Are you sure you want to delete the " + name + " dashboard?"
       )
     ) {
-      deleteDashboard(name).then((response) => {
+      deleteDashboard(id).then((response) => {
         if (!response["success"]) {
           setErrorMessage("Failed to delete dashboard");
         }
@@ -106,24 +142,58 @@ const DashboardCard = ({ name, editable, description }) => {
 
   function onCopy() {
     setErrorMessage("");
-    copyDashboard(name).then((response) => {
+    copyDashboard(id, name).then((response) => {
       if (!response["success"]) {
         setErrorMessage("Failed to copy dashboard");
       }
     });
   }
 
+  async function onShare() {
+    const apiResponse = await updateDashboard(id, {
+      accessGroups: !shared ? ["public"] : [],
+    });
+    if (apiResponse["success"]) {
+      setShared(!shared);
+    } else {
+      setErrorMessage(apiResponse["message"] ?? "Failed to share dashboard");
+    }
+    return apiResponse;
+  }
+
   return (
     <CustomCard>
-      <CardHeader as="h5">
-        <CenteredP>{name}</CenteredP>
-        <HoverDiv
-          onClick={onDelete}
-          onMouseOver={(e) => (e.target.style.cursor = "pointer")}
-          onMouseOut={(e) => (e.target.style.cursor = "default")}
-        >
-          <RedTrashIcon size={"1rem"} />
-        </HoverDiv>
+      <CardHeader>
+        <CardTitleDiv>
+          <CardTitle>{name}</CardTitle>
+        </CardTitleDiv>
+        <ButtonGroup>
+          <HoverDiv
+            onClick={onCopy}
+            onMouseOver={(e) => (e.target.style.cursor = "pointer")}
+            onMouseOut={(e) => (e.target.style.cursor = "default")}
+          >
+            <BlueCopyIcon size={"1.1rem"} />
+          </HoverDiv>
+          {editable && (
+            <>
+              <HoverDiv
+                onClick={onShare}
+                onMouseOver={(e) => (e.target.style.cursor = "pointer")}
+                onMouseOut={(e) => (e.target.style.cursor = "default")}
+              >
+                <SharingIcon shared={shared} />
+              </HoverDiv>
+              <HoverDiv
+                onClick={onDelete}
+                onMouseOver={(e) => (e.target.style.cursor = "pointer")}
+                onMouseOut={(e) => (e.target.style.cursor = "default")}
+              >
+                <RedTrashIcon size={"1.1rem"} />
+              </HoverDiv>
+            </>
+          )}
+        </ButtonGroup>
       </CardHeader>
       <CardBody>
         {errorMessage && (
@@ -141,9 +211,6 @@ const DashboardCard = ({ name, editable, description }) => {
       <CardFooter>
         <Button variant="success" onClick={viewDashboard}>
           View
-        </Button>
-        <Button variant="info" onClick={onCopy}>
-          Copy
         </Button>
       </CardFooter>
     </CustomCard>

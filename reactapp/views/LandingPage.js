@@ -44,7 +44,10 @@ const LandingPage = () => {
     };
     for (const userDashboard in availableDashboards.user) {
       availableUserDashboards[userDashboard] = () => (
-        <DashboardCard {...availableDashboards.user[userDashboard]} />
+        <DashboardCard
+          editable={true}
+          {...availableDashboards.user[userDashboard]}
+        />
       );
     }
     setUserDashboards(availableUserDashboards);
@@ -54,7 +57,7 @@ const LandingPage = () => {
         Object.entries(availableDashboards.public).map(
           ([key, dashboardMetadata]) => [
             key,
-            () => <DashboardCard {...dashboardMetadata} />,
+            () => <DashboardCard editable={false} {...dashboardMetadata} />,
           ]
         )
       )

@@ -1,6 +1,6 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, ARRAY, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, make_transient
 import json
 import nh3
 import os
@@ -147,7 +147,51 @@ def delete_grid_item(session, dashboard_id, i):
     return
 
 
-def delete_named_dashboard(user, name):
+def copy_named_dashboard(user, id, new_name):
+    # Get connection/session to database
+    Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+
+    try:
+        original_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
+
+        new_dashboard = Dashboard(
+            description=original_dashboard.description,
+            name=new_name,
+            notes=original_dashboard.notes,
+            owner=user,
+            access_groups=[],
+        )
+
+        # Add and flush to generate new ID
+        session.add(new_dashboard)
+        session.flush()  # Ensure new_dashboard gets an ID before copying grid_items
+
+        # Copy GridItems and explicitly add them to the session
+        new_grid_items = []
+        for grid_item in original_dashboard.grid_items:
+            new_item = GridItem(
+                i=grid_item.i,
+                x=grid_item.x,
+                y=grid_item.y,
+                w=grid_item.w,
+                h=grid_item.h,
+                source=grid_item.source,
+                args_string=grid_item.args_string,
+                metadata_string=grid_item.metadata_string,
+                dashboard_id=new_dashboard.id,  # Explicitly link to new dashboard
+            )
+            session.add(new_item)  # Explicitly add to session
+            new_grid_items.append(new_item)
+
+        new_dashboard.grid_items = new_grid_items  # Assign the new items
+
+        session.commit()  # Save everything
+    finally:
+        session.close()
+
+
+def delete_named_dashboard(user, id):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -156,12 +200,12 @@ def delete_named_dashboard(user, name):
         db_dashboard = (
             session.query(Dashboard)
             .filter(Dashboard.owner == user)
-            .filter(Dashboard.name == name)
+            .filter(Dashboard.id == id)
             .first()
         )
         if not db_dashboard:
             raise Exception(
-                f"A dashboard with the name {name} does not exist for this user"
+                f"A dashboard with the id {id} does not exist for this user"
             )
 
         session.delete(db_dashboard)
@@ -172,16 +216,7 @@ def delete_named_dashboard(user, name):
         session.close()
 
 
-def update_named_dashboard(
-    original_name,
-    original_access_groups,
-    user,
-    name,
-    description,
-    notes,
-    grid_items,
-    access_groups,
-):
+def update_named_dashboard(user, id, dashboard_updates):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -190,127 +225,138 @@ def update_named_dashboard(
         db_dashboard = (
             session.query(Dashboard)
             .filter(Dashboard.owner == user)
-            .filter(Dashboard.name == original_name)
+            .filter(Dashboard.id == id)
             .first()
         )
         if not db_dashboard:
             raise Exception(
-                f"A dashboard with the name {original_name} does not exist for this user"  # noqa: E501
+                f"A dashboard with the id {id} does not exist for this user"  # noqa: E501
             )
 
-        if original_name != name:
-            check_existing_user_dashboard_names(session, user, name)
+        db_name = dashboard_updates.get("name", db_dashboard.name)
 
-        if "public" in access_groups and original_access_groups != access_groups:
-            check_existing_public_dashboards(session, name)
+        if "name" in dashboard_updates:
+            check_existing_user_dashboard_names(
+                session, user, dashboard_updates["name"]
+            )
+            db_dashboard.name = dashboard_updates["name"]
 
-        db_dashboard.name = name
-        db_dashboard.description = description
-        db_dashboard.notes = notes
-        grid_items = (
-            json.loads(grid_items) if isinstance(grid_items, str) else grid_items
-        )
-        db_dashboard.access_groups = access_groups
+        if "description" in dashboard_updates:
+            db_dashboard.description = dashboard_updates["description"]
 
-        existing_db_grid_items_ids = [
-            grid_item.i for grid_item in db_dashboard.grid_items
-        ]
-        grid_items_ids = [grid_item["i"] for grid_item in grid_items]
-        grid_items_to_delete = [
-            i for i in existing_db_grid_items_ids if i not in grid_items_ids
-        ]
-        grid_items_to_add = [
-            grid_item
-            for grid_item in grid_items
-            if grid_item["i"] not in existing_db_grid_items_ids
-        ]
+        if "notes" in dashboard_updates:
+            db_dashboard.notes = dashboard_updates["notes"]
 
-        for grid_item_id in grid_items_to_delete:
-            delete_grid_item(session, db_dashboard.id, grid_item_id)
+        if "accessGroups" in dashboard_updates:
+            if "public" in dashboard_updates["accessGroups"]:
+                check_existing_public_dashboards(session, db_name)
+            db_dashboard.access_groups = dashboard_updates["accessGroups"]
 
-        for grid_item in grid_items:
-            grid_item_i = grid_item["i"]
-            grid_item_x = int(grid_item["x"])
-            grid_item_y = int(grid_item["y"])
-            grid_item_w = int(grid_item["w"])
-            grid_item_h = int(grid_item["h"])
-            grid_item_source = grid_item["source"]
-            grid_item_args_string = grid_item["args_string"]
-            grid_item_metadata_string = grid_item["metadata_string"]
-            if grid_item_source == "Text":
-                clean_text = nh3.clean(json.loads(grid_item_args_string)["text"])
-                grid_item_args_string = json.dumps({"text": clean_text})
+        if "gridItems" in dashboard_updates:
+            updated_grid_items = dashboard_updates["gridItems"]
+            existing_db_grid_items_ids = [
+                grid_item.i for grid_item in db_dashboard.grid_items
+            ]
+            grid_items_ids = [grid_item["i"] for grid_item in updated_grid_items]
+            grid_items_to_delete = [
+                i for i in existing_db_grid_items_ids if i not in grid_items_ids
+            ]
+            grid_items_to_add = [
+                grid_item
+                for grid_item in updated_grid_items
+                if grid_item["i"] not in existing_db_grid_items_ids
+            ]
 
-            if grid_item in grid_items_to_add:
-                db_grid_item = add_new_grid_item(
-                    session,
-                    db_dashboard.id,
-                    grid_item_i,
-                    grid_item_x,
-                    grid_item_y,
-                    grid_item_w,
-                    grid_item_h,
-                    grid_item_source,
-                    grid_item_args_string,
-                    grid_item_metadata_string,
-                )
-            else:
-                db_grid_item = (
-                    session.query(GridItem)
-                    .filter(GridItem.dashboard_id == db_dashboard.id)
-                    .filter(GridItem.i == grid_item_i)
-                    .first()
-                )
-                db_grid_item.i = grid_item_i
-                db_grid_item.x = grid_item_x
-                db_grid_item.y = grid_item_y
-                db_grid_item.w = grid_item_w
-                db_grid_item.h = grid_item_h
-                db_grid_item.source = grid_item_source
-                db_grid_item.args_string = grid_item_args_string
-                db_grid_item.metadata_string = grid_item_metadata_string
+            for grid_item_id in grid_items_to_delete:
+                delete_grid_item(session, db_dashboard.id, grid_item_id)
+
+            for grid_item in updated_grid_items:
+                grid_item_i = grid_item["i"]
+                grid_item_x = int(grid_item["x"])
+                grid_item_y = int(grid_item["y"])
+                grid_item_w = int(grid_item["w"])
+                grid_item_h = int(grid_item["h"])
+                grid_item_source = grid_item["source"]
+                grid_item_args_string = grid_item["args_string"]
+                grid_item_metadata_string = grid_item["metadata_string"]
+                if grid_item_source == "Text":
+                    clean_text = nh3.clean(json.loads(grid_item_args_string)["text"])
+                    grid_item_args_string = json.dumps({"text": clean_text})
+
+                if grid_item in grid_items_to_add:
+                    db_grid_item = add_new_grid_item(
+                        session,
+                        db_dashboard.id,
+                        grid_item_i,
+                        grid_item_x,
+                        grid_item_y,
+                        grid_item_w,
+                        grid_item_h,
+                        grid_item_source,
+                        grid_item_args_string,
+                        grid_item_metadata_string,
+                    )
+                else:
+                    db_grid_item = (
+                        session.query(GridItem)
+                        .filter(GridItem.dashboard_id == db_dashboard.id)
+                        .filter(GridItem.i == grid_item_i)
+                        .first()
+                    )
+                    db_grid_item.i = grid_item_i
+                    db_grid_item.x = grid_item_x
+                    db_grid_item.y = grid_item_y
+                    db_grid_item.w = grid_item_w
+                    db_grid_item.h = grid_item_h
+                    db_grid_item.source = grid_item_source
+                    db_grid_item.args_string = grid_item_args_string
+                    db_grid_item.metadata_string = grid_item_metadata_string
 
         # Commit the session and close the connection
         session.commit()
     finally:
         session.close()
-        
-def parse_db_dashboard(dashboards, user):
+
+
+def parse_db_dashboard(dashboards, landing_page_fields):
     dashboard_dict = {}
-    
+
     for dashboard in dashboards:
         dashboard_dict[dashboard.name] = {
             "id": dashboard.id,
             "name": dashboard.name,
             "description": dashboard.description,
-            "notes": dashboard.notes,
-            "editable": True if dashboard.owner == user else False,
-            "accessGroups": (
-                ["public"] if "public" in dashboard.access_groups else []
-            ),
+            "accessGroups": (["public"] if "public" in dashboard.access_groups else []),
         }
 
-        griditems = []
-        for griditem in dashboard.grid_items:
-            griditem_data = {
-                "id": griditem.id,
-                "i": griditem.i,
-                "x": griditem.x,
-                "y": griditem.y,
-                "w": griditem.w,
-                "h": griditem.h,
-                "source": griditem.source,
-                "args_string": griditem.args_string,
-                "metadata_string": griditem.metadata_string,
-            }
-            griditems.append(griditem_data)
+        if not landing_page_fields:
+            dashboard_dict[dashboard.name].update(
+                {
+                    "notes": dashboard.notes,
+                }
+            )
 
-        dashboard_dict[dashboard.name]["gridItems"] = griditems
-        
+            griditems = []
+            for griditem in dashboard.grid_items:
+                griditem_data = {
+                    "id": griditem.id,
+                    "i": griditem.i,
+                    "x": griditem.x,
+                    "y": griditem.y,
+                    "w": griditem.w,
+                    "h": griditem.h,
+                    "source": griditem.source,
+                    "args_string": griditem.args_string,
+                    "metadata_string": griditem.metadata_string,
+                }
+                griditems.append(griditem_data)
+
+            dashboard_dict[dashboard.name]["gridItems"] = griditems
+
     return dashboard_dict
 
 
-def get_dashboards(user, name=None):
+def get_dashboards(user, landing_page_fields=False, name=None, id=None):
     """
     Get all persisted dashboards.
     """
@@ -322,17 +368,25 @@ def get_dashboards(user, name=None):
     try:
         # Query for all records
         user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user)
+        if id:
+            dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
+            return parse_db_dashboard([dashboard], landing_page_fields)[dashboard.name]
+
         if name:
             user_dashboards = user_dashboards.filter(Dashboard.name == name).all()
+            return parse_db_dashboard(user_dashboards, landing_page_fields)[name]
 
-        dashboard_dict["user"] = parse_db_dashboard(user_dashboards, user)
-        
-        if not name:
-            public_dashboards = session.query(Dashboard).filter(
-                (Dashboard.owner != user) & (Dashboard.access_groups.any("public"))
-            )
+        dashboard_dict["user"] = parse_db_dashboard(
+            user_dashboards, landing_page_fields
+        )
 
-            dashboard_dict["public"] = parse_db_dashboard(public_dashboards, user)
+        public_dashboards = session.query(Dashboard).filter(
+            Dashboard.access_groups.any("public")
+        )
+
+        dashboard_dict["public"] = parse_db_dashboard(
+            public_dashboards, landing_page_fields
+        )
 
     finally:
         session.close()
@@ -353,12 +407,12 @@ def check_existing_public_dashboards(session, dashboard_name):
     public_dashboards = (
         session.query(Dashboard).filter(Dashboard.access_groups.any("public")).all()
     )
-    breakpoint()
     public_dashboard_names = [dashboard.name for dashboard in public_dashboards]
     if dashboard_name in public_dashboard_names:
         raise Exception(
             f"A dashboard with the name {dashboard_name} is already public. Change the name before attempting again."  # noqa: E501
         )
+
 
 def clean_up_jsons(user):
     print("Checking to see if there are any unused geojson files to remove")
@@ -367,14 +421,29 @@ def clean_up_jsons(user):
     user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user).all()
     in_use_geojsons = []
     for user_dashboard in user_dashboards:
-        maps_grid_items_layers = flatten([json.loads(grid_item.args_string)["additional_layers"] for grid_item in user_dashboard.grid_items if grid_item.source == "Map"])
+        maps_grid_items_layers = flatten(
+            [
+                json.loads(grid_item.args_string)["additional_layers"]
+                for grid_item in user_dashboard.grid_items
+                if grid_item.source == "Map"
+            ]
+        )
         if maps_grid_items_layers:
-            geojson_files = [maps_grid_items_layer["configuration"]["props"]["source"]["geojson"] for maps_grid_items_layer in maps_grid_items_layers if maps_grid_items_layer["configuration"]["props"]["source"]["type"] == "GeoJSON"]
+            geojson_files = [
+                maps_grid_items_layer["configuration"]["props"]["source"]["geojson"]
+                for maps_grid_items_layer in maps_grid_items_layers
+                if maps_grid_items_layer["configuration"]["props"]["source"]["type"]
+                == "GeoJSON"
+            ]
             in_use_geojsons.append(geojson_files)
-            
-            stylejson_files = [maps_grid_items_layer["style"] for maps_grid_items_layer in maps_grid_items_layers if "style" in maps_grid_items_layer]
+
+            stylejson_files = [
+                maps_grid_items_layer["style"]
+                for maps_grid_items_layer in maps_grid_items_layers
+                if "style" in maps_grid_items_layer
+            ]
             in_use_geojsons.append(stylejson_files)
-    
+
     in_use_geojsons = flatten(in_use_geojsons)
     path = os.path.join(geojson_folder, user)
     if not os.path.exists(path):
@@ -384,11 +453,13 @@ def clean_up_jsons(user):
         if geojson_user_file not in in_use_geojsons:
             print(f"Removing the {geojson_user_file} file")
             os.remove(os.path.join(geojson_folder, user, geojson_user_file))
-    
+
     return
+
 
 def flatten(xss):
     return [x for xs in xss for x in xs]
+
 
 def init_primary_db(engine, first_time):
     """

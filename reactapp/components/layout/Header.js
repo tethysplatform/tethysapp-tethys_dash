@@ -14,6 +14,7 @@ import {
   BsPencilSquare,
 } from "react-icons/bs";
 import { FaPlus } from "react-icons/fa6";
+import { LuNotepadText } from "react-icons/lu";
 import {
   LayoutContext,
   EditingContext,
@@ -21,7 +22,7 @@ import {
   AppContext,
 } from "components/contexts/Contexts";
 import TooltipButton from "components/buttons/TooltipButton";
-import DashboardEditorCanvas from "components/modals/DashboardEditor";
+import DashboardNotes from "components/modals/DashboardNotes";
 import AppInfoModal from "components/modals/AppInfo";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
@@ -182,7 +183,8 @@ export const DashboardHeader = () => {
     setShowErrorMessage(false);
 
     if (isEditing) {
-      saveLayoutContext({}).then((response) => {
+      const { gridItems } = getLayoutContext();
+      saveLayoutContext({ gridItems }).then((response) => {
         if (response.success) {
           setSuccessMessage("Change have been saved.");
           setShowSuccessMessage(true);
@@ -267,10 +269,10 @@ export const DashboardHeader = () => {
               <TooltipButton
                 onClick={showNav}
                 tooltipPlacement="bottom"
-                tooltipText="Dashboard Settings"
-                aria-label="dashboardSettingButton"
+                tooltipText="Dashboard Notes"
+                aria-label="dashboarcNotesButton"
               >
-                <BsGear size="1.5rem" />
+                <LuNotepadText size="1.5rem" />
               </TooltipButton>
               <TooltipButton
                 onClick={() => {
@@ -287,7 +289,7 @@ export const DashboardHeader = () => {
         </CustomContainer>
       </CustomNavBar>
       {showEditCanvas && (
-        <DashboardEditorCanvas
+        <DashboardNotes
           showCanvas={showEditCanvas}
           setShowCanvas={setShowEditCanvas}
         />

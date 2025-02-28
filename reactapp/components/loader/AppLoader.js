@@ -171,7 +171,7 @@ function Loader({ children }) {
       dashboardRoutes.push(
         <Route
           path={`/dashboard/user/${name}`}
-          element={<DashboardView {...metadata} />}
+          element={<DashboardView editable={true} {...metadata} />}
           key={`route-user-${name}`}
         />
       );
@@ -181,7 +181,7 @@ function Loader({ children }) {
       dashboardRoutes.push(
         <Route
           path={`/dashboard/public/${name}`}
-          element={<DashboardView {...metadata} />}
+          element={<DashboardView editable={false} {...metadata} />}
           key={`route-public-${name}`}
         />
       );
@@ -191,7 +191,7 @@ function Loader({ children }) {
     return allRoutes;
   }
 
-  function getUniqueName(name) {
+  function getUniqueDashboardName(name) {
     let newName = `${name} - Copy`;
     let count = 2;
 
@@ -202,13 +202,38 @@ function Loader({ children }) {
 
     return newName;
   }
+  function removeDashboardById(id) {
+    const newAvailableDashboards = JSON.parse(
+      JSON.stringify(availableDashboards)
+    );
 
-  async function copyDashboard(name) {
-    const newName = getUniqueName(name);
-    const copiedDashboard = { ...availableDashboards["user"][name] };
-    copiedDashboard.name = newName;
+    // Loop through each category (e.g., user, public)
+    for (const category in availableDashboards) {
+      // Loop through each dashboard in the category
+      for (const key in availableDashboards[category]) {
+        const dashboard = availableDashboards[category][key];
+        if (dashboard.id === id) {
+          delete newAvailableDashboards[category][key];
+        }
+      }
+    }
+    return newAvailableDashboards;
+  }
 
-    return await addDashboard(copiedDashboard);
+  async function copyDashboard(id, name) {
+    const newName = getUniqueDashboardName(name);
+
+    const apiResponse = await appAPI.copyDashboard(
+      { id, newName },
+      appContext.csrf
+    );
+    if (apiResponse.success) {
+      const newDashboard = apiResponse["new_dashboard"];
+      let newAvailableDashboards = Object.assign({}, availableDashboards);
+      newAvailableDashboards["user"][newDashboard.name] = newDashboard;
+      setAvailableDashboards(newAvailableDashboards);
+    }
+    return apiResponse;
   }
 
   async function addDashboard(dashboardContext) {
@@ -225,13 +250,31 @@ function Loader({ children }) {
     return apiResponse;
   }
 
-  async function deleteDashboard(name) {
-    const apiResponse = await appAPI.deleteDashboard({ name }, appContext.csrf);
+  async function deleteDashboard(id) {
+    const apiResponse = await appAPI.deleteDashboard({ id }, appContext.csrf);
     if (apiResponse["success"]) {
-      let newAvailableDashboards = Object.assign({}, availableDashboards);
-      newAvailableDashboards["user"] = Object.fromEntries(
-        Object.entries(availableDashboards.user).filter(([key]) => key !== name)
-      );
+      const newAvailableDashboards = removeDashboardById(id);
+      setAvailableDashboards(newAvailableDashboards);
+    }
+    return apiResponse;
+  }
+
+  async function updateDashboard(id, newProperties) {
+    const apiResponse = await appAPI.updateDashboard(
+      { ...newProperties, id },
+      appContext.csrf
+    );
+    if (apiResponse["success"]) {
+      const newAvailableDashboards = removeDashboardById(id);
+
+      const updatedDashboard = apiResponse["updated_dashboard"];
+      const name = updatedDashboard["name"];
+      newAvailableDashboards["user"][name] = updatedDashboard;
+
+      if (updatedDashboard.accessGroups.includes("public")) {
+        newAvailableDashboards["public"][name] = updatedDashboard;
+      }
+
       setAvailableDashboards(newAvailableDashboards);
     }
     return apiResponse;
@@ -253,6 +296,7 @@ function Loader({ children }) {
               addDashboard,
               deleteDashboard,
               copyDashboard,
+              updateDashboard,
             }}
           >
             {children}
