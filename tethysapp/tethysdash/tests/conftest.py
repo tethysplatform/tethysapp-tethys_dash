@@ -1,6 +1,6 @@
 import pytest
 import json
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, delete
 from sqlalchemy.orm import Session
 from tethysapp.tethysdash.tests.integrated_tests import TEST_DB_URL
 from django.http import HttpResponse
@@ -21,7 +21,7 @@ def db_connection(db_url):
     transaction = connection.begin()
 
     # Create ATCore-related tables (e.g.: Resources)
-    init_primary_db(connection, first_time=True)
+    init_primary_db(engine, first_time=True)
 
     yield connection
 
@@ -46,9 +46,11 @@ def session_maker(db_connection):
 def db_session(session_maker):
     """Create a SQLAlchemy session for the primary database."""
     session = session_maker()
+    session.expire_all()
 
     yield session
 
+    session.rollback()
     session.close()
 
 
@@ -68,9 +70,9 @@ def mock_app_get_ps_db(session_maker, mocker):
 def dashboard_data():
     return {
         "name": "test_dashboard",
-        "label": "test_dashboard",
+        "description": "test_dashboard",
         "notes": "some notes",
-        "owner": "test_user",
+        "owner": "admin",
         "access_groups": [],
     }
 
@@ -79,7 +81,7 @@ def dashboard_data():
 def public_dashboard_data():
     return {
         "name": "public_dashboard",
-        "label": "public_dashboard",
+        "description": "public_dashboard",
         "notes": "some notes",
         "owner": "public_user",
         "access_groups": ["public"],
@@ -88,63 +90,41 @@ def public_dashboard_data():
 
 @pytest.fixture(scope="function")
 def grid_item():
-    return json.dumps(
-        [
-            {
-                "i": "1",
-                "x": 1,
-                "y": 1,
-                "w": 1,
-                "h": 1,
-                "source": "Custom Image",
-                "args_string": json.dumps({"uri": "some_path"}),
-                "metadata_string": json.dumps({"refreshRate": 0}),
-            }
-        ]
-    )
+    return [
+        {
+            "i": "1",
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "source": "Custom Image",
+            "args_string": json.dumps({"uri": "some_path"}),
+            "metadata_string": json.dumps({"refreshRate": 0}),
+        }
+    ]
 
 
 @pytest.fixture(scope="function")
 def dashboard(db_session, dashboard_data):
-    dashboard = Dashboard(
-        name=dashboard_data["name"],
-        label=dashboard_data["label"],
-        notes=dashboard_data["notes"],
-        owner=dashboard_data["owner"],
-        access_groups=dashboard_data["access_groups"],
-    )
+    dashboard = Dashboard(**dashboard_data)
     db_session.add(dashboard)
     db_session.commit()
+
     yield dashboard
-    if (
-        db_session.query(Dashboard)
-        .filter(Dashboard.name == dashboard_data["name"])
-        .all()
-    ):
-        db_session.refresh(dashboard)
-        db_session.delete(dashboard)
+
+    db_session.delete(dashboard)
     db_session.commit()
 
 
 @pytest.fixture(scope="function")
 def public_dashboard(db_session, public_dashboard_data):
-    dashboard = Dashboard(
-        name=public_dashboard_data["name"],
-        label=public_dashboard_data["label"],
-        notes=public_dashboard_data["notes"],
-        owner=public_dashboard_data["owner"],
-        access_groups=public_dashboard_data["access_groups"],
-    )
+    dashboard = Dashboard(**public_dashboard_data)
     db_session.add(dashboard)
     db_session.commit()
+
     yield dashboard
-    if (
-        db_session.query(Dashboard)
-        .filter(Dashboard.name == public_dashboard_data["name"])
-        .all()
-    ):
-        db_session.refresh(dashboard)
-        db_session.delete(dashboard)
+
+    db_session.delete(dashboard)
     db_session.commit()
 
 

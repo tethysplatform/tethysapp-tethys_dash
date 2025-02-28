@@ -248,7 +248,7 @@ def test_delete_dashboard_failed_unknown_exception(
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
-        "name": "dashboard_name",
+        "id": "1",
     }
 
     url = reverse("tethysdash:delete_dashboard")
@@ -270,49 +270,32 @@ def test_delete_dashboard_failed_unknown_exception(
 
 
 @pytest.mark.django_db
-def test_update_dashboard(client, admin_user, mock_app, mocker):
+def test_update_dashboard(client, admin_user, mock_app, mock_app_get_ps_db, dashboard):
     mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
     itemData = {
-        "originalName": "dashboard_name",
-        "originalLabel": "label",
-        "originalAccessGroups": [],
-        "name": "dashboard_name",
-        "label": "label",
-        "notes": "notes",
-        "gridItems": [],
-        "accessGroups": [],
+        "id": dashboard.id,
+        "name": "new_dashboard_name",
     }
 
     url = reverse("tethysdash:update_dashboard")
     client.force_login(admin_user)
-    mock_update_dashboard = mocker.patch(
-        "tethysapp.tethysdash.controllers.update_named_dashboard"
-    )
-    mock_get_dashboards = mocker.patch(
-        "tethysapp.tethysdash.controllers.get_dashboards"
-    )
-    mock_get_dashboards_return = {itemData["name"]: {"id": 1}}
-    mock_get_dashboards.return_value = mock_get_dashboards_return
 
     response = client.generic("POST", url, json.dumps(itemData))
-
-    mock_update_dashboard.assert_called_with(
-        itemData["originalName"],
-        itemData["originalLabel"],
-        itemData["originalAccessGroups"],
-        "admin",
-        itemData["name"],
-        itemData["label"],
-        itemData["notes"],
-        itemData["gridItems"],
-        itemData["accessGroups"],
-    )
-    mock_get_dashboards.assert_called_with("admin", name=itemData["name"])
+    expected_dashboard = {
+        'accessGroups': dashboard.access_groups,
+        'description': dashboard.description,
+        'gridItems': dashboard.grid_items,
+        'id': dashboard.id,
+        'name': 'new_dashboard_name',
+        "notes": dashboard.notes,
+    }
+    
     assert response.status_code == 200
     assert response.json()["success"]
     assert (
         response.json()["updated_dashboard"]
-        == mock_get_dashboards_return[itemData["name"]]
+        == expected_dashboard
     )
 
 
@@ -320,14 +303,8 @@ def test_update_dashboard(client, admin_user, mock_app, mocker):
 def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
-        "originalName": "dashboard_name",
-        "originalLabel": "label",
-        "originalAccessGroups": [],
+        "id": "1",
         "name": "dashboard_name",
-        "label": "label",
-        "notes": "notes",
-        "gridItems": [],
-        "accessGroups": [],
     }
 
     url = reverse("tethysdash:update_dashboard")
@@ -335,23 +312,14 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     mock_update_dashboard = mocker.patch(
         "tethysapp.tethysdash.controllers.update_named_dashboard"
     )
-    mock_get_dashboards = mocker.patch(
-        "tethysapp.tethysdash.controllers.get_dashboards"
-    )
-    mock_get_dashboards.side_effect = [Exception("failed to update")]
+    mock_update_dashboard.side_effect = [Exception("failed to update")]
 
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_update_dashboard.assert_called_with(
-        itemData["originalName"],
-        itemData["originalLabel"],
-        itemData["originalAccessGroups"],
         "admin",
-        itemData["name"],
-        itemData["label"],
-        itemData["notes"],
-        itemData["gridItems"],
-        itemData["accessGroups"],
+        itemData["id"],
+        {"name": "dashboard_name"},
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
@@ -364,14 +332,8 @@ def test_update_dashboard_failed_unknown_exception(
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
-        "originalName": "dashboard_name",
-        "originalLabel": "label",
-        "originalAccessGroups": [],
+        "id": "1",
         "name": "dashboard_name",
-        "label": "label",
-        "notes": "notes",
-        "gridItems": [],
-        "accessGroups": [],
     }
 
     url = reverse("tethysdash:update_dashboard")
@@ -379,27 +341,18 @@ def test_update_dashboard_failed_unknown_exception(
     mock_update_dashboard = mocker.patch(
         "tethysapp.tethysdash.controllers.update_named_dashboard"
     )
-    mock_get_dashboards = mocker.patch(
-        "tethysapp.tethysdash.controllers.get_dashboards"
-    )
-    mock_get_dashboards.side_effect = [Exception()]
+    mock_update_dashboard.side_effect = [Exception()]
 
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_update_dashboard.assert_called_with(
-        itemData["originalName"],
-        itemData["originalLabel"],
-        itemData["originalAccessGroups"],
         "admin",
-        itemData["name"],
-        itemData["label"],
-        itemData["notes"],
-        itemData["gridItems"],
-        itemData["accessGroups"],
+        itemData["id"],
+        {"name": "dashboard_name"},
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert (
         response.json()["message"]
-        == f"Failed to update the dashboard named {itemData["name"]}. Check server for logs."  # noqa: E501
+        == f"Failed to update the dashboard {itemData["id"]}. Check server for logs."  # noqa: E501
     )

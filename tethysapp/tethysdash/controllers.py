@@ -73,17 +73,16 @@ def get_dashboard(request):
     """API controller for the dashboards page."""
     user = str(request.user)
     dashboard_id = request.GET["id"]
-    dashboard_name = request.GET["name"]
 
     try:
-        dashboard = get_dashboards(user, id=dashboard_id, name=dashboard_name)
+        dashboard = get_dashboards(user, id=dashboard_id)
         return JsonResponse({"success": True, "dashboard": dashboard})
     except Exception as e:
         print(e)
         try:
             message = e.args[0]
         except Exception:
-            message = f"Failed to get the dashboard named {dashboard_name}. Check server for logs."
+            message = f"Failed to get the dashboard. Check server for logs."
 
         return JsonResponse({"success": False, "message": message})
 
@@ -163,9 +162,7 @@ def delete_dashboard(request):
         try:
             message = e.args[0]
         except Exception:
-            message = (
-                f"Failed to delete the dashboard named {name}. Check server for logs."
-            )
+            message = f"Failed to delete the dashboard {id}. Check server for logs."
 
         return JsonResponse({"success": False, "message": message})
 
@@ -181,7 +178,7 @@ def update_dashboard(request):
     try:
         update_named_dashboard(user, id, dashboard_updates)
         updated_dashboard = get_dashboards(user, id=id)
-        print(f"Successfully updated the dashboard named {updated_dashboard['name']}")
+        print(f"Successfully updated the dashboard {id}")
 
         return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
     except Exception as e:
@@ -189,7 +186,7 @@ def update_dashboard(request):
         try:
             message = e.args[0]
         except Exception:
-            message = f"Failed to update the dashboard named {updated_dashboard['name']}. Check server for logs."
+            message = f"Failed to update the dashboard {id}. Check server for logs."
 
         return JsonResponse({"success": False, "message": message})
 

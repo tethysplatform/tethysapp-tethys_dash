@@ -11,7 +11,6 @@ from tethysapp.tethysdash.model import (
     Dashboard,
     GridItem,
     check_existing_user_dashboard_names,
-    check_existing_user_dashboard_labels,
     check_existing_public_dashboards,
 )
 
@@ -19,7 +18,7 @@ from tethysapp.tethysdash.model import (
 @pytest.mark.django_db
 def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, grid_item):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    label = "added_dashboard"
+    description = "added_dashboard"
     name = "added_dashboard"
     notes = "added notes"
     owner = "some_user"
@@ -27,10 +26,10 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, grid_item):
     grid_items = []
 
     # Create a new dashboard and Verify dashboard, rows, and columns were created
-    add_new_dashboard(label, name, notes, owner, access_groups, grid_items)
+    add_new_dashboard(description, name, notes, owner, access_groups, grid_items)
 
     dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
-    assert dashboard.label == label
+    assert dashboard.description == description
     assert dashboard.name == name
     assert dashboard.notes == notes
     assert dashboard.owner == owner
@@ -77,7 +76,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, grid_item):
     assert len(new_grid_item) == 0
 
     # Delete the dashboard and Verify dashboard, rows, and columns were deleted
-    delete_named_dashboard(owner, name)
+    delete_named_dashboard(owner, dashboard_id)
 
     dashboard = db_session.query(Dashboard).filter(Dashboard.id == dashboard_id).all()
     assert len(dashboard) == 0
@@ -92,21 +91,21 @@ def test_add_with_grid_items_and_delete_dashboard(
     db_session, mock_app_get_ps_db, grid_item
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    label = "added_dashboard"
+    description = "added_dashboard"
     name = "added_dashboard"
     notes = "added notes"
     owner = "some_user"
     access_groups = ["public"]
-    grid_item = json.loads(grid_item)[0]
+    grid_item = grid_item[0]
     grid_item["source"] = "Text"
     grid_item["args_string"] = json.dumps({"text": "some new item"})
     grid_items = [grid_item]
 
     # Create a new dashboard and Verify dashboard, rows, and columns were created
-    add_new_dashboard(label, name, notes, owner, access_groups, grid_items)
+    add_new_dashboard(description, name, notes, owner, access_groups, grid_items)
 
     dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
-    assert dashboard.label == label
+    assert dashboard.description == description
     assert dashboard.name == name
     assert dashboard.notes == notes
     assert dashboard.owner == owner
@@ -120,7 +119,7 @@ def test_add_with_grid_items_and_delete_dashboard(
     grid_item_id = grid_item.id
 
     # Delete the dashboard and Verify dashboard, rows, and columns were deleted
-    delete_named_dashboard(owner, name)
+    delete_named_dashboard(owner, dashboard_id)
 
     dashboard = db_session.query(Dashboard).filter(Dashboard.id == dashboard_id).all()
     assert len(dashboard) == 0
@@ -131,13 +130,11 @@ def test_add_with_grid_items_and_delete_dashboard(
 @pytest.mark.django_db
 def test_delete_named_dashboard(dashboard, db_session, mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    dashboard_name = dashboard.name
-    dashboard_owner = dashboard.owner
 
-    delete_named_dashboard(dashboard_owner, dashboard_name)
+    delete_named_dashboard(dashboard.owner, dashboard.id)
 
     db_dashboard = (
-        db_session.query(Dashboard).filter(Dashboard.name == dashboard_name).all()
+        db_session.query(Dashboard).filter(Dashboard.name == dashboard.name).all()
     )
     assert len(db_dashboard) == 0
 
@@ -145,20 +142,19 @@ def test_delete_named_dashboard(dashboard, db_session, mock_app_get_ps_db):
 @pytest.mark.django_db
 def test_delete_named_dashboard_not_allowed(dashboard, db_session, mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    dashboard_name = dashboard.name
 
     with pytest.raises(Exception) as excinfo:
-        delete_named_dashboard("test_not_valid_user", dashboard_name)
+        delete_named_dashboard("test_not_valid_user", dashboard.id)
     assert (
-        f"A dashboard with the name {dashboard_name} does not exist for this user"
+        f"A dashboard with the id {dashboard.id} does not exist for this user"
         in str(excinfo.value)
     )
 
     db_dashboard = (
-        db_session.query(Dashboard).filter(Dashboard.name == dashboard_name).all()
+        db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).all()
     )
     assert len(db_dashboard) == 1
-    assert db_dashboard[0].name == dashboard_name
+    assert db_dashboard[0].name == dashboard.name
 
 
 @pytest.mark.django_db
@@ -167,50 +163,43 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
     mock_nh3_clean = mocker.patch(
         "tethysapp.tethysdash.model.nh3.clean", wraps=nh3.clean
     )
-    dashboard_name = dashboard.name
     new_dashboard_name = "new_name"
-    dashboard_label = dashboard.label
-    dashboard_owner = dashboard.owner
-    dashboard_access_groups = dashboard.access_groups
 
-    grid_items = json.dumps(
-        [
-            {
-                "i": "1",
-                "x": 1,
-                "y": 1,
-                "w": 1,
-                "h": 1,
-                "source": "Custom Image",
-                "args_string": json.dumps({"uri": "some_path"}),
-                "metadata_string": json.dumps({"refreshRate": 0}),
-            },
-            {
-                "i": "2",
-                "x": 1,
-                "y": 1,
-                "w": 1,
-                "h": 1,
-                "source": "Custom Image",
-                "args_string": json.dumps({"uri": "some_other_path"}),
-                "metadata_string": json.dumps({"refreshRate": 0}),
-            },
-        ]
-    )
+    grid_items = [
+        {
+            "i": "1",
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "source": "Custom Image",
+            "args_string": json.dumps({"uri": "some_path"}),
+            "metadata_string": json.dumps({"refreshRate": 0}),
+        },
+        {
+            "i": "2",
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "source": "Custom Image",
+            "args_string": json.dumps({"uri": "some_other_path"}),
+            "metadata_string": json.dumps({"refreshRate": 0}),
+        },
+    ]
 
     # Add rows/cells and update dashboards
     updated_notes = "Some new notes"
     updated_access_groups = ["public"]
     update_named_dashboard(
-        dashboard_name,
-        dashboard_label,
-        dashboard_access_groups,
-        dashboard_owner,
-        new_dashboard_name,
-        dashboard_label,
-        updated_notes,
-        grid_items,
-        updated_access_groups,
+        dashboard.owner,
+        dashboard.id,
+        {
+            "name": new_dashboard_name,
+            "notes": updated_notes,
+            "accessGroups": updated_access_groups,
+            "gridItems": grid_items,
+        },
     )
 
     db_session.refresh(dashboard)
@@ -224,35 +213,28 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
     grid_item1 = dashboard.grid_items[0]
 
     # Add and update rows/cells
-    updated_grid_item = json.dumps(
-        [
-            {
-                "id": grid_item1.id,
-                "i": "1",
-                "x": 1,
-                "y": 1,
-                "w": 2,
-                "h": 2,
-                "source": "Text",
-                "args_string": json.dumps({"text": "some text"}),
-                "metadata_string": json.dumps({"refreshRate": 30}),
-            }
-        ]
-    )
+    updated_grid_item = [
+        {
+            "id": grid_item1.id,
+            "i": "1",
+            "x": 1,
+            "y": 1,
+            "w": 2,
+            "h": 2,
+            "source": "Text",
+            "args_string": json.dumps({"text": "some text"}),
+            "metadata_string": json.dumps({"refreshRate": 30}),
+        }
+    ]
+
     update_named_dashboard(
-        new_dashboard_name,
-        dashboard_label,
-        updated_access_groups,
-        dashboard_owner,
-        dashboard_name,
-        dashboard_label,
-        updated_notes,
-        updated_grid_item,
-        updated_access_groups,
+        dashboard.owner,
+        dashboard.id,
+        {"gridItems": updated_grid_item},
     )
 
     db_session.refresh(dashboard)
-    assert dashboard.name == dashboard_name
+    assert dashboard.name == new_dashboard_name
     assert len(dashboard.grid_items) == 1
 
     db_session.refresh(dashboard.grid_items[0])
@@ -263,180 +245,93 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
 
 
 @pytest.mark.django_db
-def test_update_named_dashboard_not_allowed(
-    dashboard, db_session, mock_app_get_ps_db, grid_item
-):
+def test_update_named_dashboard_not_allowed(dashboard, db_session, mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    dashboard_name = dashboard.name
-    dashboard_label = dashboard.label
-    dashboard_notes = dashboard.notes
-    dashboard_access_groups = dashboard.access_groups
 
     with pytest.raises(Exception) as excinfo:
         updated_notes = "Some new notes"
         updated_access_groups = ["public"]
         update_named_dashboard(
-            dashboard_name,
-            dashboard_label,
-            dashboard_access_groups,
             "test_not_valid_user",
-            dashboard_name,
-            dashboard_label,
-            updated_notes,
-            grid_item,
-            updated_access_groups,
+            dashboard.id,
+            {"notes": updated_notes, "accessGroups": updated_access_groups},
         )
     assert (
-        f"A dashboard with the name {dashboard_name} does not exist for this user"
+        f"A dashboard with the id {dashboard.id} does not exist for this user"
         in str(excinfo.value)
     )
 
     db_session.refresh(dashboard)
-    assert dashboard.notes == dashboard_notes
+    assert dashboard.notes == dashboard.notes
     assert dashboard.grid_items == []
-    assert dashboard.access_groups == dashboard_access_groups
+    assert dashboard.access_groups == dashboard.access_groups
 
 
 @pytest.mark.django_db
 def test_update_named_dashboard_already_public_name(
-    dashboard, public_dashboard, db_session, mock_app_get_ps_db, grid_item
+    dashboard, public_dashboard, db_session, mock_app_get_ps_db
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    original_dashboard_name = dashboard.name
-    new_dashboard_name = public_dashboard.name
-    dashboard_owner = dashboard.owner
-    dashboard_label = dashboard.label
-    dashboard_notes = dashboard.notes
-    dashboard_access_groups = dashboard.access_groups
-    updated_access_groups = ["public"]
 
     with pytest.raises(Exception) as excinfo:
         update_named_dashboard(
-            original_dashboard_name,
-            dashboard_label,
-            dashboard_access_groups,
-            dashboard_owner,
-            new_dashboard_name,
-            dashboard_label,
-            dashboard_notes,
-            grid_item,
-            updated_access_groups,
+            dashboard.owner,
+            dashboard.id,
+            {"name": public_dashboard.name, "accessGroups": ["public"]},
         )
 
     assert (
-        f"A dashboard with the name {new_dashboard_name} is already public. Change the name before attempting again."  # noqa: E501
+        f"A dashboard with the name {public_dashboard.name} is already public. Change the name before attempting again."  # noqa: E501
         in str(excinfo.value)
     )
 
     db_session.refresh(dashboard)
-    assert dashboard.notes == dashboard_notes
+    assert dashboard.notes == dashboard.notes
     assert dashboard.grid_items == []
-    assert dashboard.access_groups == dashboard_access_groups
+    assert dashboard.access_groups == dashboard.access_groups
 
 
 @pytest.mark.django_db
-def test_update_named_dashboard_already_public_label(
-    dashboard, public_dashboard, db_session, mock_app_get_ps_db, grid_item
-):
+def test_get_dashboards_all(dashboard, public_dashboard, mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    dashboard_name = dashboard.name
-    dashboard_owner = dashboard.owner
-    dashboard_label = dashboard.label
-    new_dashboard_label = public_dashboard.label
-    dashboard_notes = dashboard.notes
-    dashboard_access_groups = dashboard.access_groups
-    updated_access_groups = ["public"]
 
-    with pytest.raises(Exception) as excinfo:
-        update_named_dashboard(
-            dashboard_name,
-            dashboard_label,
-            dashboard_access_groups,
-            dashboard_owner,
-            dashboard_name,
-            new_dashboard_label,
-            dashboard_notes,
-            grid_item,
-            updated_access_groups,
-        )
-
-    assert (
-        f"A dashboard with the label {new_dashboard_label} is already public. Change the label before attempting again."  # noqa: E501
-        in str(excinfo.value)
-    )
-
-    db_session.refresh(dashboard)
-    assert dashboard.notes == dashboard_notes
-    assert dashboard.grid_items == []
-    assert dashboard.access_groups == dashboard_access_groups
-
-
-@pytest.mark.django_db
-def test_get_dashboards_all(dashboard, mock_app_get_ps_db, grid_item):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    dashboard_name = dashboard.name
-    dashboard_label = dashboard.label
-    dashboard_notes = dashboard.notes
-    dashboard_owner = dashboard.owner
-    dashboard_access_groups = dashboard.access_groups
-
-    update_named_dashboard(
-        dashboard_name,
-        dashboard_label,
-        dashboard_access_groups,
-        dashboard_owner,
-        dashboard_name,
-        dashboard_label,
-        dashboard_notes,
-        grid_item,
-        dashboard_access_groups,
-    )
-
-    all_dashboards = get_dashboards(dashboard_owner)
+    all_dashboards = get_dashboards(dashboard.owner)
     assert all_dashboards == {
-        dashboard_name: {
-            "id": dashboard.id,
-            "name": dashboard_name,
-            "label": dashboard_label,
-            "notes": dashboard_notes,
-            "editable": True,
-            "accessGroups": [],
-            "gridItems": [
-                {
-                    "id": 6,
-                    "i": "1",
-                    "x": 1,
-                    "y": 1,
-                    "w": 1,
-                    "h": 1,
-                    "source": "Custom Image",
-                    "args_string": '{"uri": "some_path"}',
-                    "metadata_string": json.dumps({"refreshRate": 0}),
-                }
-            ],
-        }
+        "user": {
+            dashboard.name: {
+                "id": dashboard.id,
+                "name": dashboard.name,
+                "description": dashboard.description,
+                "accessGroups": [],
+                "notes": dashboard.notes,
+                "gridItems": [],
+            }
+        },
+        "public": {
+            public_dashboard.name: {
+                "id": public_dashboard.id,
+                "name": public_dashboard.name,
+                "description": public_dashboard.description,
+                "accessGroups": ["public"],
+                "notes": public_dashboard.notes,
+                "gridItems": [],
+            }
+        },
     }
 
 
 @pytest.mark.django_db
 def test_get_dashboards_specific(dashboard, mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    dashboard_name = dashboard.name
-    dashboard_label = dashboard.label
-    dashboard_notes = dashboard.notes
-    dashboard_owner = dashboard.owner
 
-    all_dashboards = get_dashboards(dashboard_owner, dashboard.name)
-    assert all_dashboards == {
-        dashboard_name: {
-            "id": dashboard.id,
-            "name": dashboard_name,
-            "label": dashboard_label,
-            "notes": dashboard_notes,
-            "editable": True,
-            "accessGroups": [],
-            "gridItems": [],
-        }
+    retrieved_dashboard = get_dashboards(dashboard.owner, id=dashboard.id)
+    assert retrieved_dashboard == {
+        "id": dashboard.id,
+        "name": dashboard.name,
+        "description": dashboard.description,
+        "notes": dashboard.notes,
+        "accessGroups": [],
+        "gridItems": [],
     }
 
 
@@ -464,39 +359,11 @@ def test_check_existing_user_dashboard_names_fail(
 
 
 @pytest.mark.django_db
-def test_check_existing_user_dashboard_labels(
-    dashboard, db_session, mock_app_get_ps_db
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-
-    check_existing_user_dashboard_labels(
-        db_session, dashboard.owner, "some_new_dashboard_label"
-    )
-
-
-@pytest.mark.django_db
-def test_check_existing_user_dashboard_labels_fail(
-    dashboard, db_session, mock_app_get_ps_db
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    with pytest.raises(Exception) as excinfo:
-        check_existing_user_dashboard_labels(
-            db_session, dashboard.owner, dashboard.label
-        )
-
-    assert (
-        f"A dashboard with the label {dashboard.label} already exists. Change the label before attempting again."  # noqa: E501
-        in str(excinfo.value)
-    )
-
-
-@pytest.mark.django_db
 def test_check_existing_public_dashboards(db_session, mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
 
-    check_existing_public_dashboards(
-        db_session, "some_new_public_name", "some_new_public_label"
-    )
+    result = check_existing_public_dashboards(db_session, "some_new_public_name")
+    assert result is None
 
 
 @pytest.mark.django_db
@@ -505,27 +372,9 @@ def test_check_existing_public_dashboards_failed_name(
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
     with pytest.raises(Exception) as excinfo:
-        check_existing_public_dashboards(
-            db_session, public_dashboard.name, "some_new_public_label"
-        )
+        check_existing_public_dashboards(db_session, public_dashboard.name)
 
     assert (
         f"A dashboard with the name {public_dashboard.name} is already public. Change the name before attempting again."  # noqa: E501
-        in str(excinfo.value)
-    )
-
-
-@pytest.mark.django_db
-def test_check_existing_public_dashboards_failed_label(
-    public_dashboard, db_session, mock_app_get_ps_db
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    with pytest.raises(Exception) as excinfo:
-        check_existing_public_dashboards(
-            db_session, "some_new_public_name", public_dashboard.label
-        )
-
-    assert (
-        f"A dashboard with the label {public_dashboard.label} is already public. Change the label before attempting again."  # noqa: E501
         in str(excinfo.value)
     )

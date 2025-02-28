@@ -28,7 +28,7 @@ const DashboardLoader = ({ children, id, name, editable }) => {
 
   useEffect(() => {
     const fetchDashboard = async () => {
-      const response = await appAPI.getDashboard({ id, name });
+      const response = await appAPI.getDashboard({ id });
       if (response.success) {
         setNotes(response.dashboard.notes);
         setGridItems(response.dashboard.gridItems);

@@ -1,6 +1,6 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column, Integer, String, ARRAY, ForeignKey, UniqueConstraint
-from sqlalchemy.orm import relationship, make_transient
+from sqlalchemy.orm import relationship
 import json
 import nh3
 import os
@@ -356,7 +356,7 @@ def parse_db_dashboard(dashboards, landing_page_fields):
     return dashboard_dict
 
 
-def get_dashboards(user, landing_page_fields=False, name=None, id=None):
+def get_dashboards(user, landing_page_fields=False, id=None):
     """
     Get all persisted dashboards.
     """
@@ -371,10 +371,6 @@ def get_dashboards(user, landing_page_fields=False, name=None, id=None):
         if id:
             dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
             return parse_db_dashboard([dashboard], landing_page_fields)[dashboard.name]
-
-        if name:
-            user_dashboards = user_dashboards.filter(Dashboard.name == name).all()
-            return parse_db_dashboard(user_dashboards, landing_page_fields)[name]
 
         dashboard_dict["user"] = parse_db_dashboard(
             user_dashboards, landing_page_fields

@@ -12,7 +12,7 @@ const appAPI = {
   getVisualizations: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/`);
   },
-  getDashboard: ({ id, name }) => {
+  getDashboard: ({ id }) => {
     return apiClient.get(`${APP_ROOT_URL}dashboards/get/`, {
       params: { id, name },
     });
