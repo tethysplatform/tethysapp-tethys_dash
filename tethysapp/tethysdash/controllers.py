@@ -94,15 +94,14 @@ def add_dashboard(request):
     dashboard_metadata = json.loads(request.body)
     name = dashboard_metadata["name"]
     description = dashboard_metadata["description"]
-    notes = dashboard_metadata.get("notes", "")
-    access_groups = dashboard_metadata.get("accessGroups", [])
-    grid_items = dashboard_metadata.get("gridItems", [])
     owner = str(request.user)
     print(f"Creating a dashboard named {name}")
 
     try:
-        add_new_dashboard(description, name, notes, owner, access_groups, grid_items)
-        new_dashboard = get_dashboards(owner, name=name, landing_page_fields=True)
+        new_dashboard_id = add_new_dashboard(owner, name, description)
+        new_dashboard = get_dashboards(
+            owner, id=new_dashboard_id, landing_page_fields=True
+        )
         print(f"Successfully created the dashboard named {name}")
 
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})

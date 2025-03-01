@@ -1,6 +1,7 @@
 import pytest
 import json
 from django.urls import reverse
+from tethysapp.tethysdash.model import Dashboard
 
 
 @pytest.mark.django_db
@@ -95,63 +96,63 @@ def test_visualizations(
 
 
 @pytest.mark.django_db
-def test_dashboards(client, admin_user, mock_app, mocker):
+def test_dashboards(client, admin_user, mock_app, mock_app_get_ps_db, dashboard):
     mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    
     url = reverse("tethysdash:dashboards")
     client.force_login(admin_user)
-    mock_get_dashboards = mocker.patch(
-        "tethysapp.tethysdash.controllers.get_dashboards"
-    )
-    mock_get_dashboards_return = {"dashboard_name": {"id": 1}}
-    mock_get_dashboards.return_value = mock_get_dashboards_return
-
     response = client.get(url)
 
-    mock_get_dashboards.assert_called_with("admin")
     assert response.status_code == 200
-    assert response.json() == mock_get_dashboards_return
+    assert response.json() == {
+        "user": {
+            dashboard.name: {
+                'accessGroups': dashboard.access_groups,
+                'description': dashboard.description,
+                'id': dashboard.id,
+                'name': dashboard.name}
+        }, 
+        "public": {}
+    }
 
 
 @pytest.mark.django_db
-def test_add_dashboard(client, admin_user, mock_app, mocker):
+def test_add_dashboard(client, admin_user, mock_app, db_session, mock_app_get_ps_db):
     mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
     itemData = {
-        "name": "dashboard_name",
-        "label": "label",
-        "notes": "notes",
+        "name": "some_new_dashboard_name",
+        "description": "description",
     }
 
     url = reverse("tethysdash:add_dashboard")
     client.force_login(admin_user)
-    mock_add_new_dashboard = mocker.patch(
-        "tethysapp.tethysdash.controllers.add_new_dashboard"
-    )
-    mock_get_dashboards = mocker.patch(
-        "tethysapp.tethysdash.controllers.get_dashboards"
-    )
-    mock_get_dashboards_return = {itemData["name"]: {"id": 1}}
-    mock_get_dashboards.return_value = mock_get_dashboards_return
 
     response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_add_new_dashboard.assert_called_with(
-        itemData["label"], itemData["name"], itemData["notes"], "admin", [], []
-    )
-    mock_get_dashboards.assert_called_with("admin", name=itemData["name"])
     assert response.status_code == 200
     assert response.json()["success"]
+    new_dashboard = response.json()["new_dashboard"]
+    expected_result = {
+        'accessGroups': [],
+        'description': 'description',
+        'id': new_dashboard['id'],
+        'name': 'some_new_dashboard_name'
+    }
     assert (
-        response.json()["new_dashboard"] == mock_get_dashboards_return[itemData["name"]]
+        response.json()["new_dashboard"] == expected_result
     )
-
+    
+    added_dashboard =  db_session.query(Dashboard).filter(Dashboard.id == new_dashboard['id']).first()
+    assert added_dashboard is not None
 
 @pytest.mark.django_db
 def test_add_dashboard_failed(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
         "name": "dashboard_name",
-        "label": "label",
-        "notes": "notes",
+        "description": "description",
     }
 
     url = reverse("tethysdash:add_dashboard")
@@ -163,9 +164,7 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker):
 
     response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_add_new_dashboard.assert_called_with(
-        itemData["label"], itemData["name"], itemData["notes"], "admin", [], []
-    )
+    mock_add_new_dashboard.assert_called_with("admin", itemData["name"], itemData["description"])
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert response.json()["message"] == "failed to add"
@@ -176,8 +175,7 @@ def test_add_dashboard_failed_unknown_exception(client, admin_user, mock_app, mo
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
         "name": "dashboard_name",
-        "label": "label",
-        "notes": "notes",
+        "description": "description",
     }
 
     url = reverse("tethysdash:add_dashboard")
@@ -189,9 +187,7 @@ def test_add_dashboard_failed_unknown_exception(client, admin_user, mock_app, mo
 
     response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_add_new_dashboard.assert_called_with(
-        itemData["label"], itemData["name"], itemData["notes"], "admin", [], []
-    )
+    mock_add_new_dashboard.assert_called_with("admin", itemData["name"], itemData["description"])
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert (
@@ -201,30 +197,29 @@ def test_add_dashboard_failed_unknown_exception(client, admin_user, mock_app, mo
 
 
 @pytest.mark.django_db
-def test_delete_dashboard(client, admin_user, mock_app, mocker):
+def test_delete_dashboard(client, admin_user, mock_app, db_session, mock_app_get_ps_db, dashboard):
     mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
     itemData = {
-        "name": "dashboard_name",
+        "id": dashboard.id,
     }
 
     url = reverse("tethysdash:delete_dashboard")
     client.force_login(admin_user)
-    mock_delete_named_dashboard = mocker.patch(
-        "tethysapp.tethysdash.controllers.delete_named_dashboard"
-    )
 
     response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_delete_named_dashboard.assert_called_with("admin", itemData["name"])
     assert response.status_code == 200
     assert response.json()["success"]
+    
+    assert db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).first() is None
 
 
 @pytest.mark.django_db
 def test_delete_dashboard_failed(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     itemData = {
-        "name": "dashboard_name",
+        "id": "1",
     }
 
     url = reverse("tethysdash:delete_dashboard")
@@ -236,7 +231,7 @@ def test_delete_dashboard_failed(client, admin_user, mock_app, mocker):
 
     response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_delete_named_dashboard.assert_called_with("admin", itemData["name"])
+    mock_delete_named_dashboard.assert_called_with("admin", itemData["id"])
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert response.json()["message"] == "failed to delete"
@@ -260,12 +255,12 @@ def test_delete_dashboard_failed_unknown_exception(
 
     response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_delete_named_dashboard.assert_called_with("admin", itemData["name"])
+    mock_delete_named_dashboard.assert_called_with("admin", itemData["id"])
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert (
         response.json()["message"]
-        == f"Failed to delete the dashboard named {itemData["name"]}. Check server for logs."  # noqa: E501
+        == f"Failed to delete the dashboard {itemData["id"]}. Check server for logs."  # noqa: E501
     )
 
 

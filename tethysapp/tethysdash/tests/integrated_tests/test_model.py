@@ -20,20 +20,18 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, grid_item):
     mock_app_get_ps_db("tethysapp.tethysdash.model.app")
     description = "added_dashboard"
     name = "added_dashboard"
-    notes = "added notes"
     owner = "some_user"
-    access_groups = ["public"]
     grid_items = []
 
     # Create a new dashboard and Verify dashboard, rows, and columns were created
-    add_new_dashboard(description, name, notes, owner, access_groups, grid_items)
+    add_new_dashboard(owner, name, description)
 
     dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
     assert dashboard.description == description
     assert dashboard.name == name
-    assert dashboard.notes == notes
+    assert dashboard.notes == ""
     assert dashboard.owner == owner
-    assert dashboard.access_groups == access_groups
+    assert dashboard.access_groups == []
     dashboard_id = dashboard.id
 
     assert len(dashboard.grid_items) == 1
@@ -83,47 +81,6 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, grid_item):
     grid_items = (
         db_session.query(GridItem).filter(GridItem.id == new_grid_item_id).all()
     )
-    assert len(grid_items) == 0
-
-
-@pytest.mark.django_db
-def test_add_with_grid_items_and_delete_dashboard(
-    db_session, mock_app_get_ps_db, grid_item
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
-    description = "added_dashboard"
-    name = "added_dashboard"
-    notes = "added notes"
-    owner = "some_user"
-    access_groups = ["public"]
-    grid_item = grid_item[0]
-    grid_item["source"] = "Text"
-    grid_item["args_string"] = json.dumps({"text": "some new item"})
-    grid_items = [grid_item]
-
-    # Create a new dashboard and Verify dashboard, rows, and columns were created
-    add_new_dashboard(description, name, notes, owner, access_groups, grid_items)
-
-    dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
-    assert dashboard.description == description
-    assert dashboard.name == name
-    assert dashboard.notes == notes
-    assert dashboard.owner == owner
-    assert dashboard.access_groups == access_groups
-    dashboard_id = dashboard.id
-
-    assert len(dashboard.grid_items) == 1
-    grid_item = dashboard.grid_items[0]
-    assert grid_item.source == "Text"
-    assert grid_item.args_string == json.dumps({"text": "some new item"})
-    grid_item_id = grid_item.id
-
-    # Delete the dashboard and Verify dashboard, rows, and columns were deleted
-    delete_named_dashboard(owner, dashboard_id)
-
-    dashboard = db_session.query(Dashboard).filter(Dashboard.id == dashboard_id).all()
-    assert len(dashboard) == 0
-    grid_items = db_session.query(GridItem).filter(GridItem.id == grid_item_id).all()
     assert len(grid_items) == 0
 
 

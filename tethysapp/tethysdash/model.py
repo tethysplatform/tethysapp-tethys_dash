@@ -50,7 +50,7 @@ class GridItem(Base):
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
-def add_new_dashboard(description, name, notes, owner, access_groups, grid_items):
+def add_new_dashboard(owner, name, description):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -61,48 +61,25 @@ def add_new_dashboard(description, name, notes, owner, access_groups, grid_items
         new_dashboard = Dashboard(
             description=description,
             name=name,
-            notes=notes,
+            notes="",
             owner=owner,
-            access_groups=access_groups,
+            access_groups=[],
+            grid_items=[],
         )
 
         session.add(new_dashboard)
         session.commit()
         session.refresh(new_dashboard)
+        new_dashboard_id = new_dashboard.id
 
-        if grid_items:
-            for grid_item in grid_items:
-                grid_item_i = grid_item["i"]
-                grid_item_x = int(grid_item["x"])
-                grid_item_y = int(grid_item["y"])
-                grid_item_w = int(grid_item["w"])
-                grid_item_h = int(grid_item["h"])
-                grid_item_source = grid_item["source"]
-                grid_item_args_string = grid_item["args_string"]
-                grid_item_metadata_string = grid_item["metadata_string"]
-                if grid_item_source == "Text":
-                    clean_text = nh3.clean(json.loads(grid_item_args_string)["text"])
-                    grid_item_args_string = json.dumps({"text": clean_text})
-
-                add_new_grid_item(
-                    session,
-                    new_dashboard.id,
-                    grid_item_i,
-                    grid_item_x,
-                    grid_item_y,
-                    grid_item_w,
-                    grid_item_h,
-                    grid_item_source,
-                    grid_item_args_string,
-                    grid_item_metadata_string,
-                )
-        else:
-            add_new_grid_item(session, new_dashboard.id, "1", 0, 0, 20, 20, "", "{}", 0)
+        add_new_grid_item(session, new_dashboard_id, "1", 0, 0, 20, 20, "", "{}", 0)
 
         # Commit the session and close the connection
         session.commit()
     finally:
         session.close()
+
+    return new_dashboard_id
 
 
 def add_new_grid_item(
