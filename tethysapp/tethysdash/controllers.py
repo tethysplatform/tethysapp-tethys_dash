@@ -1,9 +1,11 @@
 from django.http import JsonResponse
 import json
 import os
+import shutil
 import nh3
 from rest_framework.decorators import api_view
-
+import uuid
+import base64
 from tethys_sdk.routing import controller
 from .app import App
 from .model import (
@@ -49,7 +51,7 @@ def data(request):
 def dashboards(request):
     """API controller for the dashboards page."""
     user = str(request.user)
-    dashboards = get_dashboards(user, landing_page_fields=True)
+    dashboards = get_dashboards(user)
     clean_up_jsons(user)
 
     return JsonResponse(dashboards)
@@ -72,7 +74,7 @@ def get_dashboard(request):
     dashboard_id = request.GET["id"]
 
     try:
-        dashboard = get_dashboards(user, id=dashboard_id)
+        dashboard = get_dashboards(user, id=dashboard_id, dashboard_view=True)
         return JsonResponse({"success": True, "dashboard": dashboard})
     except Exception as e:
         print(e)
@@ -85,20 +87,26 @@ def get_dashboard(request):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/dashboards/add", login_required=True)
-def add_dashboard(request):
+@controller(url="tethysdash/dashboards/add", login_required=True, app_media=True)
+def add_dashboard(request, app_media):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
     name = dashboard_metadata["name"]
     description = dashboard_metadata["description"]
     owner = str(request.user)
+    dashboard_uuid = str(uuid.uuid4())
     print(f"Creating a dashboard named {name}")
 
     try:
-        new_dashboard_id = add_new_dashboard(owner, name, description)
-        new_dashboard = get_dashboards(
-            owner, id=new_dashboard_id, landing_page_fields=True
+        new_dashboard_id = add_new_dashboard(owner, dashboard_uuid, name, description)
+
+        dashboard_image = os.path.join(
+            os.path.dirname(__file__), "default_dashboard.png"
         )
+        shutil.copyfile(
+            dashboard_image, os.path.join(app_media.path, f"{dashboard_uuid}.png")
+        )
+        new_dashboard = get_dashboards(owner, id=new_dashboard_id)
         print(f"Successfully created the dashboard named {name}")
 
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})
@@ -126,7 +134,7 @@ def copy_dashboard(request):
 
     try:
         copy_named_dashboard(user, id, new_name)
-        new_dashboard = get_dashboards(user, name=new_name, landing_page_fields=True)
+        new_dashboard = get_dashboards(user, name=new_name)
         print(f"Successfully copied dashboard {id}")
 
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})
@@ -164,8 +172,8 @@ def delete_dashboard(request):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/dashboards/update", login_required=True)
-def update_dashboard(request):
+@controller(url="tethysdash/dashboards/update", login_required=True, app_media=True)
+def update_dashboard(request, app_media):
     """API controller for the dashboards page."""
     dashboard_updates = json.loads(request.body)
     id = dashboard_updates.pop("id")
@@ -173,7 +181,17 @@ def update_dashboard(request):
 
     try:
         update_named_dashboard(user, id, dashboard_updates)
-        updated_dashboard = get_dashboards(user, id=id)
+        updated_dashboard = get_dashboards(user, id=id, dashboard_view=True)
+
+        if "image" in dashboard_updates:
+            # Extract the file format (e.g., 'data:image/png;base64,')
+            imgstr = dashboard_updates["image"].split(";base64,")[1]
+            file_path = os.path.join(app_media.path, f"{updated_dashboard['uuid']}.png")
+
+            # Decode and write the image file
+            with open(file_path, "wb") as file:
+                file.write(base64.b64decode(imgstr))
+
         print(f"Successfully updated the dashboard {id}")
 
         return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
@@ -197,7 +215,8 @@ def upload_geojson(request):
     data = geojson_data["data"]
     filename = geojson_data["filename"]
     clean_data = nh3.clean(data)
-    geojson_folder = App.get_custom_setting("data_folder")
+    data_folder = App.get_custom_setting("data_folder")
+    geojson_folder = os.path.join(data_folder, "geojson")
 
     try:
         if not os.path.exists(geojson_folder):
@@ -229,7 +248,8 @@ def download_geojson(request):
     """API controller for the dashboards page."""
     filename = request.GET["filename"]
     user = str(request.user)
-    geojson_folder = App.get_custom_setting("data_folder")
+    data_folder = App.get_custom_setting("data_folder")
+    geojson_folder = os.path.join(data_folder, "geojson")
 
     try:
         geojson_user_file = os.path.join(geojson_folder, user, filename)

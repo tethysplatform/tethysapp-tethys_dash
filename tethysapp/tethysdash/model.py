@@ -1,10 +1,20 @@
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, ARRAY, ForeignKey, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    ARRAY,
+    ForeignKey,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import relationship
 import json
 import nh3
 import os
 from .app import App as app
+from datetime import datetime, timezone
+from django.conf import settings
 
 Base = declarative_base()
 
@@ -18,12 +28,14 @@ class Dashboard(Base):
 
     # Columns
     id = Column(Integer, primary_key=True)
+    uuid = Column(String)
     description = Column(String)
     name = Column(String)
     notes = Column(String)
     owner = Column(String)
     access_groups = Column(ARRAY(String))
     grid_items = relationship("GridItem", cascade="delete")
+    last_updated = Column(DateTime, default=datetime.now(timezone.utc))
 
 
 class GridItem(Base):
@@ -47,7 +59,7 @@ class GridItem(Base):
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
-def add_new_dashboard(owner, name, description):
+def add_new_dashboard(owner, uuid, name, description):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -56,6 +68,7 @@ def add_new_dashboard(owner, name, description):
         check_existing_user_dashboard_names(session, owner, name)
 
         new_dashboard = Dashboard(
+            uuid=uuid,
             description=description,
             name=name,
             notes="",
@@ -286,27 +299,38 @@ def update_named_dashboard(user, id, dashboard_updates):
                     db_grid_item.args_string = grid_item_args_string
                     db_grid_item.metadata_string = grid_item_metadata_string
 
+        db_dashboard.last_updated = datetime.now(timezone.utc)
+
         # Commit the session and close the connection
         session.commit()
     finally:
         session.close()
 
 
-def parse_db_dashboard(dashboards, landing_page_fields):
+def parse_db_dashboard(dashboards, dashboard_view):
     dashboard_dict = {}
 
     for dashboard in dashboards:
+
+        dashboard_image = os.path.join(
+            settings.MEDIA_URL, app.root_url, f"app/{dashboard.uuid}.png"
+        )
+
         dashboard_dict[dashboard.name] = {
             "id": dashboard.id,
+            "uuid": dashboard.uuid,
             "name": dashboard.name,
             "description": dashboard.description,
             "accessGroups": (["public"] if "public" in dashboard.access_groups else []),
+            "last_updated": dashboard.last_updated,
+            "image": dashboard_image,
         }
 
-        if not landing_page_fields:
+        if dashboard_view:
             dashboard_dict[dashboard.name].update(
                 {
                     "notes": dashboard.notes,
+                    "uuid": dashboard.uuid,
                 }
             )
 
@@ -330,7 +354,7 @@ def parse_db_dashboard(dashboards, landing_page_fields):
     return dashboard_dict
 
 
-def get_dashboards(user, landing_page_fields=False, id=None):
+def get_dashboards(user, dashboard_view=False, id=None):
     """
     Get all persisted dashboards.
     """
@@ -344,19 +368,15 @@ def get_dashboards(user, landing_page_fields=False, id=None):
         user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user)
         if id:
             dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-            return parse_db_dashboard([dashboard], landing_page_fields)[dashboard.name]
+            return parse_db_dashboard([dashboard], dashboard_view)[dashboard.name]
 
-        dashboard_dict["user"] = parse_db_dashboard(
-            user_dashboards, landing_page_fields
-        )
+        dashboard_dict["user"] = parse_db_dashboard(user_dashboards, dashboard_view)
 
         public_dashboards = session.query(Dashboard).filter(
             Dashboard.access_groups.any("public")
         )
 
-        dashboard_dict["public"] = parse_db_dashboard(
-            public_dashboards, landing_page_fields
-        )
+        dashboard_dict["public"] = parse_db_dashboard(public_dashboards, dashboard_view)
 
     finally:
         session.close()
@@ -415,7 +435,8 @@ def clean_up_jsons(user):
             in_use_geojsons.append(stylejson_files)
 
     in_use_geojsons = flatten(in_use_geojsons)
-    geojson_folder = app.get_custom_setting('data_folder')
+    data_folder = app.get_custom_setting("data_folder")
+    geojson_folder = os.path.join(data_folder, "geojson")
     path = os.path.join(geojson_folder, user)
     if not os.path.exists(path):
         os.makedirs(path)

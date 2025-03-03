@@ -113,13 +113,23 @@ const SharingIcon = ({ shared }) => {
   );
 };
 
-const DashboardCard = ({ id, name, editable, description, accessGroups }) => {
+const DashboardCard = ({
+  id,
+  name,
+  editable,
+  description,
+  accessGroups,
+  last_updated,
+  image,
+}) => {
   const navigate = useNavigate();
   const { deleteDashboard, copyDashboard, updateDashboard } = useContext(
     AvailableDashboardsContext
   );
   const [errorMessage, setErrorMessage] = useState(null);
   const [shared, setShared] = useState(accessGroups.includes("public"));
+  const updatedTime = new Date(`${last_updated}Z`);
+  const localUpdatedTime = updatedTime.toLocaleString();
 
   async function onDelete() {
     setErrorMessage("");
@@ -154,8 +164,11 @@ const DashboardCard = ({ id, name, editable, description, accessGroups }) => {
   }
 
   async function onShare() {
-    const apiResponse = await updateDashboard(id, {
-      accessGroups: !shared ? ["public"] : [],
+    const apiResponse = await updateDashboard({
+      id,
+      newProperties: {
+        accessGroups: !shared ? ["public"] : [],
+      },
     });
     if (apiResponse["success"]) {
       setShared(!shared);
@@ -210,9 +223,13 @@ const DashboardCard = ({ id, name, editable, description, accessGroups }) => {
             {errorMessage}
           </StyledAlert>
         )}
+        <Card.Img variant="top" src={image} />
         {description}
         <p>
-          <b>Last Updated</b>: 3/3/25 10:43 AM CT
+          <b>Last Updated</b>: {localUpdatedTime}
+        </p>
+        <p>
+          <b>Author</b>: someone
         </p>
       </CardBody>
       <CardFooter>

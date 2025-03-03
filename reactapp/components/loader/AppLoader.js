@@ -171,7 +171,13 @@ function Loader({ children }) {
       dashboardRoutes.push(
         <Route
           path={`/dashboard/user/${name}`}
-          element={<DashboardView editable={true} {...metadata} />}
+          element={
+            <DashboardView
+              editable={true}
+              id={metadata.id}
+              name={metadata.name}
+            />
+          }
           key={`route-user-${name}`}
         />
       );
@@ -181,7 +187,13 @@ function Loader({ children }) {
       dashboardRoutes.push(
         <Route
           path={`/dashboard/public/${name}`}
-          element={<DashboardView editable={false} {...metadata} />}
+          element={
+            <DashboardView
+              editable={false}
+              id={metadata.id}
+              name={metadata.name}
+            />
+          }
           key={`route-public-${name}`}
         />
       );
@@ -259,24 +271,22 @@ function Loader({ children }) {
     return apiResponse;
   }
 
-  async function updateDashboard(id, newProperties) {
+  async function updateDashboard({ id, newProperties }) {
     const apiResponse = await appAPI.updateDashboard(
       { ...newProperties, id },
       appContext.csrf
     );
-    if (apiResponse["success"]) {
-      const newAvailableDashboards = removeDashboardById(id);
+    const newAvailableDashboards = removeDashboardById(id);
 
-      const updatedDashboard = apiResponse["updated_dashboard"];
-      const name = updatedDashboard["name"];
-      newAvailableDashboards["user"][name] = updatedDashboard;
+    const updatedDashboard = apiResponse["updated_dashboard"];
+    const name = updatedDashboard["name"];
+    newAvailableDashboards["user"][name] = updatedDashboard;
 
-      if (updatedDashboard.accessGroups.includes("public")) {
-        newAvailableDashboards["public"][name] = updatedDashboard;
-      }
-
-      setAvailableDashboards(newAvailableDashboards);
+    if (updatedDashboard.accessGroups.includes("public")) {
+      newAvailableDashboards["public"][name] = updatedDashboard;
     }
+
+    setAvailableDashboards(newAvailableDashboards);
     return apiResponse;
   }
 

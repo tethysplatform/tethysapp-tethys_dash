@@ -8,6 +8,8 @@ Before running DB migrations, ensure that the following environment variables ar
     - TETHYS_DB_NAME
     - TETHYS_DB_PORT
 
+To create a new migration, run `alembic revision -m "some comment"`
+
 To run the latest DB migration, run the `alembic upgrade head` command from the alembic directory.
 
 You can also upgrade or downgrade "N" versions by running `alembic upgrade +N` or `alembic downgrade +N`

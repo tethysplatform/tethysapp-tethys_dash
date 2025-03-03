@@ -5,15 +5,15 @@ import GeoJSON from "ol/format/GeoJSON.js";
 
 const moduleCache = {};
 
-const moduleLoader = async (config) => {
+const moduleLoader = async (config, mapProjection) => {
   const { type, props } = config;
 
   try {
     if (moduleCache[type]) {
       if (type === "GeoJSON") {
-        return loadGeoJSON(config);
+        return loadGeoJSON(config, mapProjection);
       } else {
-        const resolvedProps = await resolveProps(props);
+        const resolvedProps = await resolveProps(props, mapProjection);
         if (type === "VectorTile") {
           resolvedProps.format = new MVT();
         }
@@ -31,13 +31,13 @@ const moduleLoader = async (config) => {
 
     moduleCache[type] = ModuleConstructor;
 
-    const resolvedProps = await resolveProps(props);
+    const resolvedProps = await resolveProps(props, mapProjection);
     if (type === "VectorTile") {
       resolvedProps.format = new MVT();
     }
 
     if (type === "GeoJSON") {
-      return loadGeoJSON(config);
+      return loadGeoJSON(config, mapProjection);
     } else {
       return new ModuleConstructor(resolvedProps);
     }
@@ -48,7 +48,7 @@ const moduleLoader = async (config) => {
 };
 
 // Helper function to resolve nested props
-const resolveProps = async (props) => {
+const resolveProps = async (props, mapProjection) => {
   if (!props) return {};
 
   const resolvedProps = {};
@@ -59,13 +59,13 @@ const resolveProps = async (props) => {
     if (value && typeof value === "object") {
       if ("type" in value && "props" in value) {
         // It's a module configuration; process with moduleLoader
-        resolvedProps[key] = await moduleLoader(value);
+        resolvedProps[key] = await moduleLoader(value, mapProjection);
       } else if (Array.isArray(value)) {
         // It's an array; resolve each item
         resolvedProps[key] = await Promise.all(
           value.map(async (item) => {
             if (item && typeof item === "object") {
-              return await resolveProps(item);
+              return await resolveProps(item, mapProjection);
             } else {
               return item;
             }
@@ -73,7 +73,7 @@ const resolveProps = async (props) => {
         );
       } else {
         // It's a regular object; recursively resolve its properties
-        resolvedProps[key] = await resolveProps(value);
+        resolvedProps[key] = await resolveProps(value, mapProjection);
       }
     } else {
       // It's a primitive value; assign as is
@@ -146,9 +146,12 @@ const getModuleImporter = (type) => {
   return importer;
 };
 
-const loadGeoJSON = (config) => {
+const loadGeoJSON = (config, mapProjection) => {
   const vectorSource = new VectorSource({
-    features: new GeoJSON().readFeatures(config.geojson),
+    features: new GeoJSON().readFeatures(config.geojson, {
+      dataProjection: config.geojson.crs.properties.name, // CRS of the GeoJSON data
+      featureProjection: mapProjection, // CRS of the map
+    }),
   });
   return vectorSource;
 };

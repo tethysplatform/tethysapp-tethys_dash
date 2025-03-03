@@ -95,7 +95,7 @@ const DashboardLoader = ({ children, id, name, editable }) => {
   }
 
   async function saveLayoutContext(newProperties) {
-    const apiResponse = await updateDashboard(id, newProperties);
+    const apiResponse = await updateDashboard({ id, newProperties });
     if (apiResponse["success"]) {
       const updatedDashboard = apiResponse.updated_dashboard;
       setLayoutContext(updatedDashboard);
