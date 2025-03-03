@@ -100,6 +100,10 @@ const SharingIconDiv = styled.div`
   align-items: center;
 `;
 
+const WideButton = styled(Button)`
+  width: 100%;
+`;
+
 const SharingIcon = ({ shared }) => {
   return (
     <SharingIconDiv>
@@ -207,11 +211,14 @@ const DashboardCard = ({ id, name, editable, description, accessGroups }) => {
           </StyledAlert>
         )}
         {description}
+        <p>
+          <b>Last Updated</b>: 3/3/25 10:43 AM CT
+        </p>
       </CardBody>
       <CardFooter>
-        <Button variant="success" onClick={viewDashboard}>
+        <WideButton variant="success" onClick={viewDashboard}>
           View
-        </Button>
+        </WideButton>
       </CardFooter>
     </CustomCard>
   );
