@@ -144,8 +144,10 @@ export const DashboardHeader = () => {
   };
 
   function onCancel() {
-    resetLayoutContext();
-    setIsEditing(false);
+    setTimeout(() => {
+      resetLayoutContext();
+      setIsEditing(false);
+    }, 100); // This ensures that the old overlay doesn't show after the new buttons appear
   }
 
   function onAddGridItem() {
@@ -170,7 +172,9 @@ export const DashboardHeader = () => {
   }
 
   function onEdit() {
-    setIsEditing(true);
+    setTimeout(() => {
+      setIsEditing(true);
+    }, 100); // This ensures that the old overlay doesn't show after the new buttons appear
     if (activeAppTour) {
       setTimeout(() => {
         setAppTourStep((previousStep) => previousStep + 1);
