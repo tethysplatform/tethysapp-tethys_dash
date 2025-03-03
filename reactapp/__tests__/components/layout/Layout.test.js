@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import Layout from "components/layout/Layout";
-import Loader from "components/loader/Loader";
+import Loader from "components/loader/AppLoader";
 import { MemoryRouter } from "react-router-dom";
 
 // eslint-disable-next-line

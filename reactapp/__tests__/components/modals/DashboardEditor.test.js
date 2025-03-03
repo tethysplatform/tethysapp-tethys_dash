@@ -1,7 +1,7 @@
 import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
-import DashboardEditorCanvas from "components/modals/DashboardEditor";
+import DashboardNotes from "components/modals/DashboardNotes";
 import {
   mockedDashboards,
   updatedDashboard,
@@ -47,10 +47,7 @@ const TestingComponent = () => {
 
   return (
     <>
-      <DashboardEditorCanvas
-        showCanvas={showCanvas}
-        setShowCanvas={setShowCanvas}
-      />
+      <DashboardNotes showCanvas={showCanvas} setShowCanvas={setShowCanvas} />
       <EditingPComponent />
       <p>{showCanvas ? "yes show canvas" : "not show canvas"}</p>
     </>

@@ -2,6 +2,11 @@ import PropTypes from "prop-types";
 import Modal from "react-bootstrap/Modal";
 import Button from "react-bootstrap/Button";
 import { confirmable, createConfirmation } from "react-confirm";
+import styled from "styled-components";
+
+const OverflowBody = styled(Modal.Body)`
+  overflow-x: auto;
+`;
 
 const Confirmation = ({
   okLabel = "OK",
@@ -23,7 +28,7 @@ const Confirmation = ({
         <Modal.Header>
           <Modal.Title>{title}</Modal.Title>
         </Modal.Header>
-        <Modal.Body>{confirmation}</Modal.Body>
+        <OverflowBody>{confirmation}</OverflowBody>
         <Modal.Footer>
           <Button onClick={() => proceed(false)}>{cancelLabel}</Button>
           <Button
