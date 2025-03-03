@@ -15,8 +15,6 @@ from .model import (
 )
 from .visualizations import get_available_visualizations, get_visualization
 
-geojson_folder = App.get_custom_setting('data_folder')
-
 @controller(login_required=True)
 def home(request):
     """Controller for the app home page."""
@@ -173,6 +171,7 @@ def upload_geojson(request):
     data = geojson_data["data"]
     filename = geojson_data["filename"]
     clean_data = nh3.clean(data)
+    geojson_folder = App.get_custom_setting('data_folder')
 
     try:
         if not os.path.exists(geojson_folder):
@@ -206,7 +205,7 @@ def download_geojson(request):
     """API controller for the dashboards page."""
     filename = request.GET["filename"]
     user = str(request.user)
-
+    geojson_folder = App.get_custom_setting('data_folder')
     try:
         geojson_user_file = os.path.join(geojson_folder, user, filename)
         # Writing to sample.json
