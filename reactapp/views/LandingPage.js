@@ -55,7 +55,7 @@ const LandingPage = () => {
               <NewDashboardCard />
             </Col>
             {userDashboards.map((dashboardMetadata) => (
-              <Col>
+              <Col key={dashboardMetadata.id}>
                 <DashboardCard editable={true} {...dashboardMetadata} />
               </Col>
             ))}
@@ -66,7 +66,9 @@ const LandingPage = () => {
         <Container fluid>
           <Row>
             {publicDashboards.map((dashboardMetadata) => (
-              <DashboardCard editable={false} {...dashboardMetadata} />
+              <Col key={dashboardMetadata.id}>
+                <DashboardCard editable={false} {...dashboardMetadata} />
+              </Col>
             ))}
           </Row>
         </Container>

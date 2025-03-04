@@ -142,11 +142,16 @@ const EditableTextarea = styled.textarea`
 const CardTitle = styled.h5`
   margin: 0;
   width: 100%;
+  cursor: ${({ editable }) => (editable ? "text" : "default")};
 
-  &:hover {
-    border: 1px solid rgb(7, 7, 7); /* Add an outline when hovered */
-    border-radius: 4px;
-  }
+  ${({ editable }) =>
+    editable &&
+    `
+    &:hover {
+      border: 1px solid rgb(7, 7, 7); /* Add an outline when hovered */
+      border-radius: 4px;
+    }
+  `}
 `;
 
 const StyledAlert = styled(Alert)`
