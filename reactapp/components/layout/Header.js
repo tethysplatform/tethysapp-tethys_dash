@@ -32,7 +32,13 @@ import {
   useLayoutErrorAlertContext,
 } from "components/contexts/LayoutAlertContext";
 import html2canvas from "html2canvas";
+import Spinner from "react-bootstrap/Spinner";
 import "components/buttons/HeaderButton.css";
+
+const StyledSpinner = styled(Spinner)`
+  vertical-align: middle;
+  margin-right: 0.5rem;
+`;
 
 const CustomNavBar = styled(Navbar)`
   min-height: var(--ts-header-height);
@@ -126,6 +132,7 @@ export const DashboardHeader = () => {
   } = useContext(LayoutContext);
   const { name, editable } = getLayoutContext();
   const { isEditing, setIsEditing } = useContext(EditingContext);
+  const [isSaving, setIsSaving] = useState(false);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
     DisabledEditingMovementContext
   );
@@ -204,6 +211,7 @@ export const DashboardHeader = () => {
   async function onSave() {
     setShowSuccessMessage(false);
     setShowErrorMessage(false);
+    setIsSaving(true);
 
     if (isEditing) {
       const image = await captureScreenshot();
@@ -221,6 +229,8 @@ export const DashboardHeader = () => {
         }
       });
     }
+
+    setIsSaving(false);
   }
 
   return (
@@ -234,12 +244,20 @@ export const DashboardHeader = () => {
                 <>
                   {isEditing ? (
                     <>
+                      {isSaving && (
+                        <StyledSpinner
+                          data-testid="Loading..."
+                          animation="border"
+                          variant="info"
+                        />
+                      )}
                       <TooltipButton
                         tooltipPlacement="bottom"
                         tooltipText="Cancel Changes"
                         onClick={onCancel}
                         aria-label="cancelButton"
                         className="cancelChangesButton"
+                        disabled={isSaving}
                       >
                         <BsArrowReturnLeft size="1.5rem" />
                       </TooltipButton>
@@ -249,6 +267,7 @@ export const DashboardHeader = () => {
                         tooltipText="Save Changes"
                         aria-label="saveButton"
                         className="saveChangesButton"
+                        disabled={isSaving}
                       >
                         <BsFloppyFill size="1.5rem" />
                       </TooltipButton>
@@ -258,6 +277,7 @@ export const DashboardHeader = () => {
                         onClick={onAddGridItem}
                         aria-label="addGridItemButton"
                         className="addGridItemsButton"
+                        disabled={isSaving}
                       >
                         <FaPlus size="1.5rem" />
                       </TooltipButton>
@@ -273,6 +293,7 @@ export const DashboardHeader = () => {
                         }
                         aria-label="Disable Movement Button"
                         className="lockUnlocKMovementButton"
+                        disabled={isSaving}
                       >
                         <LockedIcon locked={disabledEditingMovement} />
                       </TooltipButton>
@@ -295,6 +316,7 @@ export const DashboardHeader = () => {
                 tooltipPlacement="bottom"
                 tooltipText="Dashboard Notes"
                 aria-label="dashboarcNotesButton"
+                disabled={isSaving}
               >
                 <LuNotepadText size="1.5rem" />
               </TooltipButton>
@@ -305,6 +327,7 @@ export const DashboardHeader = () => {
                 tooltipPlacement="bottom"
                 tooltipText="Exit Dashboard"
                 aria-label={"dashboardExitButton"}
+                disabled={isSaving}
               >
                 <BsX size="1.5rem" />
               </TooltipButton>
