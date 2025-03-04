@@ -134,15 +134,17 @@ def delete_grid_item(session, dashboard_id, i):
     return
 
 
-def copy_named_dashboard(user, id, new_name):
+def copy_named_dashboard(user, id, new_name, dashboard_uuid):
     # Get connection/session to database
     Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
         original_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
+        copied_dashboard_uuid = original_dashboard.uuid
 
         new_dashboard = Dashboard(
+            uuid=dashboard_uuid,
             description=original_dashboard.description,
             name=new_name,
             notes=original_dashboard.notes,
@@ -153,6 +155,7 @@ def copy_named_dashboard(user, id, new_name):
         # Add and flush to generate new ID
         session.add(new_dashboard)
         session.flush()  # Ensure new_dashboard gets an ID before copying grid_items
+        new_dashboard_id = new_dashboard.id
 
         # Copy GridItems and explicitly add them to the session
         new_grid_items = []
@@ -177,6 +180,8 @@ def copy_named_dashboard(user, id, new_name):
     finally:
         session.close()
 
+    return [new_dashboard_id, copied_dashboard_uuid]
+
 
 def delete_named_dashboard(user, id):
     # Get connection/session to database
@@ -195,12 +200,15 @@ def delete_named_dashboard(user, id):
                 f"A dashboard with the id {id} does not exist for this user"
             )
 
+        db_dashboard_uuid = db_dashboard.uuid
         session.delete(db_dashboard)
 
         # Commit the session and close the connection
         session.commit()
     finally:
         session.close()
+
+    return db_dashboard_uuid
 
 
 def update_named_dashboard(user, id, dashboard_updates):

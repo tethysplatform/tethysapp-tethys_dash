@@ -123,18 +123,28 @@ def add_dashboard(request, app_media):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/dashboards/copy", login_required=True)
-def copy_dashboard(request):
+@controller(url="tethysdash/dashboards/copy", login_required=True, app_media=True)
+def copy_dashboard(request, app_media):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
     id = dashboard_metadata["id"]
     new_name = dashboard_metadata["newName"]
     user = str(request.user)
+    dashboard_uuid = str(uuid.uuid4())
     print(f"Creating a dashboard {id}")
 
     try:
-        copy_named_dashboard(user, id, new_name)
-        new_dashboard = get_dashboards(user, name=new_name)
+        new_dashboard_id, copied_dashboard_uuid = copy_named_dashboard(
+            user, id, new_name, dashboard_uuid
+        )
+
+        copid_dashboard_image = os.path.join(
+            os.path.join(app_media.path, f"{copied_dashboard_uuid}.png")
+        )
+        shutil.copyfile(
+            copid_dashboard_image, os.path.join(app_media.path, f"{dashboard_uuid}.png")
+        )
+        new_dashboard = get_dashboards(user, id=new_dashboard_id)
         print(f"Successfully copied dashboard {id}")
 
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})
@@ -149,16 +159,19 @@ def copy_dashboard(request):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/dashboards/delete", login_required=True)
-def delete_dashboard(request):
+@controller(url="tethysdash/dashboards/delete", login_required=True, app_media=True)
+def delete_dashboard(request, app_media):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
     id = dashboard_metadata["id"]
     user = str(request.user)
 
     try:
-        delete_named_dashboard(user, id)
+        dashboard_uuid = delete_named_dashboard(user, id)
         print(f"Successfully deleted dashboard {id}")
+
+        dashboard_image = os.path.join(app_media.path, f"{dashboard_uuid}.png")
+        os.remove(dashboard_image)
 
         return JsonResponse({"success": True})
     except Exception as e:
