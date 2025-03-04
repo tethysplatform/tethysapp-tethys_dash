@@ -167,34 +167,34 @@ function Loader({ children }) {
 
   function setupRoutes(dashboards) {
     const dashboardRoutes = [];
-    for (const [name, metadata] of Object.entries(dashboards.user)) {
+    for (const dashboardMetadata of dashboards.user) {
       dashboardRoutes.push(
         <Route
-          path={`/dashboard/user/${name}`}
+          path={`/dashboard/user/${dashboardMetadata.name}`}
           element={
             <DashboardView
               editable={true}
-              id={metadata.id}
-              name={metadata.name}
+              id={dashboardMetadata.id}
+              name={dashboardMetadata.name}
             />
           }
-          key={`route-user-${name}`}
+          key={`route-user-${dashboardMetadata.name}`}
         />
       );
     }
 
-    for (const [name, metadata] of Object.entries(dashboards.public)) {
+    for (const dashboardMetadata of dashboards.public) {
       dashboardRoutes.push(
         <Route
-          path={`/dashboard/public/${name}`}
+          path={`/dashboard/public/${dashboardMetadata.name}`}
           element={
             <DashboardView
               editable={false}
-              id={metadata.id}
-              name={metadata.name}
+              id={dashboardMetadata.id}
+              name={dashboardMetadata.name}
             />
           }
-          key={`route-public-${name}`}
+          key={`route-public-${dashboardMetadata.name}`}
         />
       );
     }
@@ -204,32 +204,32 @@ function Loader({ children }) {
   }
 
   function getUniqueDashboardName(name) {
+    const existingNames = availableDashboards.user.map((obj) => obj.name);
     let newName = `${name} - Copy`;
     let count = 2;
 
-    while (newName in availableDashboards.user) {
+    while (existingNames.includes(newName)) {
       newName = `${name} - Copy (${count})`;
       count++;
     }
 
     return newName;
   }
-  function removeDashboardById(id) {
-    const newAvailableDashboards = JSON.parse(
-      JSON.stringify(availableDashboards)
-    );
 
-    // Loop through each category (e.g., user, public)
-    for (const category in availableDashboards) {
-      // Loop through each dashboard in the category
-      for (const key in availableDashboards[category]) {
-        const dashboard = availableDashboards[category][key];
-        if (dashboard.id === id) {
-          delete newAvailableDashboards[category][key];
+  function removeDashboardById({ id, replacementDashboard }) {
+    // Reconstruct the object while replacing the matching dashboard
+    const newUserDashboards = [];
+    for (const dashboard of availableDashboards.user) {
+      if (dashboard.id === id) {
+        if (replacementDashboard) {
+          newUserDashboards.push(replacementDashboard); // Replace with new object
         }
+      } else {
+        newUserDashboards.push(dashboard); // Keep existing
       }
     }
-    return newAvailableDashboards;
+
+    return newUserDashboards;
   }
 
   async function copyDashboard(id, name) {
@@ -241,8 +241,10 @@ function Loader({ children }) {
     );
     if (apiResponse.success) {
       const newDashboard = apiResponse["new_dashboard"];
-      let newAvailableDashboards = Object.assign({}, availableDashboards);
-      newAvailableDashboards["user"][newDashboard.name] = newDashboard;
+      let newAvailableDashboards = JSON.parse(
+        JSON.stringify(availableDashboards)
+      );
+      newAvailableDashboards["user"].push(newDashboard);
       setAvailableDashboards(newAvailableDashboards);
     }
     return apiResponse;
@@ -255,8 +257,10 @@ function Loader({ children }) {
     );
     if (apiResponse.success) {
       const newDashboard = apiResponse["new_dashboard"];
-      let newAvailableDashboards = Object.assign({}, availableDashboards);
-      newAvailableDashboards["user"][newDashboard.name] = newDashboard;
+      let newAvailableDashboards = JSON.parse(
+        JSON.stringify(availableDashboards)
+      );
+      newAvailableDashboards["user"].push(newDashboard);
       setAvailableDashboards(newAvailableDashboards);
     }
     return apiResponse;
@@ -265,8 +269,8 @@ function Loader({ children }) {
   async function deleteDashboard(id) {
     const apiResponse = await appAPI.deleteDashboard({ id }, appContext.csrf);
     if (apiResponse["success"]) {
-      const newAvailableDashboards = removeDashboardById(id);
-      setAvailableDashboards(newAvailableDashboards);
+      const userDashboards = removeDashboardById({ id });
+      setAvailableDashboards({ ...availableDashboards, user: userDashboards });
     }
     return apiResponse;
   }
@@ -277,17 +281,13 @@ function Loader({ children }) {
       appContext.csrf
     );
     if (apiResponse.success) {
-      const newAvailableDashboards = removeDashboardById(id);
-
       const updatedDashboard = apiResponse["updated_dashboard"];
-      const name = updatedDashboard["name"];
-      newAvailableDashboards["user"][name] = updatedDashboard;
+      const userDashboards = removeDashboardById({
+        id,
+        replacementDashboard: updatedDashboard,
+      });
 
-      if (updatedDashboard.accessGroups.includes("public")) {
-        newAvailableDashboards["public"][name] = updatedDashboard;
-      }
-
-      setAvailableDashboards(newAvailableDashboards);
+      setAvailableDashboards({ ...availableDashboards, user: userDashboards });
     }
     return apiResponse;
   }

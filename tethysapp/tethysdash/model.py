@@ -316,18 +316,18 @@ def update_named_dashboard(user, id, dashboard_updates):
 
 
 def parse_db_dashboard(dashboards, dashboard_view):
-    dashboard_dict = {}
+    dashboard_list = []
 
     for dashboard in dashboards:
-
         dashboard_image = os.path.join(
             settings.MEDIA_URL, app.root_url, f"app/{dashboard.uuid}.png"
         )
 
-        dashboard_dict[dashboard.name] = {
+        dashboard_dict = {
             "id": dashboard.id,
             "uuid": dashboard.uuid,
             "name": dashboard.name,
+            "owner": dashboard.owner,
             "description": dashboard.description,
             "accessGroups": (["public"] if "public" in dashboard.access_groups else []),
             "last_updated": dashboard.last_updated,
@@ -335,7 +335,7 @@ def parse_db_dashboard(dashboards, dashboard_view):
         }
 
         if dashboard_view:
-            dashboard_dict[dashboard.name].update(
+            dashboard_dict.update(
                 {
                     "notes": dashboard.notes,
                     "uuid": dashboard.uuid,
@@ -357,9 +357,11 @@ def parse_db_dashboard(dashboards, dashboard_view):
                 }
                 griditems.append(griditem_data)
 
-            dashboard_dict[dashboard.name]["gridItems"] = griditems
+            dashboard_dict["gridItems"] = griditems
 
-    return dashboard_dict
+        dashboard_list.append(dashboard_dict)
+
+    return dashboard_list
 
 
 def get_dashboards(user, dashboard_view=False, id=None):
@@ -376,12 +378,14 @@ def get_dashboards(user, dashboard_view=False, id=None):
         user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user)
         if id:
             dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-            return parse_db_dashboard([dashboard], dashboard_view)[dashboard.name]
+            return parse_db_dashboard([dashboard], dashboard_view)[0]
 
         dashboard_dict["user"] = parse_db_dashboard(user_dashboards, dashboard_view)
 
-        public_dashboards = session.query(Dashboard).filter(
-            Dashboard.access_groups.any("public")
+        public_dashboards = (
+            session.query(Dashboard)
+            .filter(Dashboard.owner != user)
+            .filter(Dashboard.access_groups.any("public"))
         )
 
         dashboard_dict["public"] = parse_db_dashboard(public_dashboards, dashboard_view)

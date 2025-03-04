@@ -1,13 +1,15 @@
 import { useContext, useEffect, useState } from "react";
 import { LandingPageHeader } from "components/layout/Header";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
-import CustomPicker from "components/inputs/CustomPicker";
 import DashboardCard, {
   NewDashboardCard,
 } from "components/landingPage/DashboardCard";
 import styled from "styled-components";
 import { Card, Button } from "react-bootstrap";
 import { BsChevronDown, BsChevronUp } from "react-icons/bs";
+import Container from "react-bootstrap/Container";
+import Row from "react-bootstrap/Row";
+import Col from "react-bootstrap/Col";
 
 const DashboardCardDiv = styled(Card)`
   border-radius: 0;
@@ -35,51 +37,39 @@ const CollapsibleSection = ({ title, children }) => {
 
 const LandingPage = () => {
   const { availableDashboards } = useContext(AvailableDashboardsContext);
-  const [userDashboards, setUserDashboards] = useState({});
-  const [publicDashboards, setPublicDashboards] = useState({});
+  const [userDashboards, setUserDashboards] = useState([]);
+  const [publicDashboards, setPublicDashboards] = useState([]);
 
   useEffect(() => {
-    const availableUserDashboards = {
-      user_clicked_new_dashboard: () => <NewDashboardCard />,
-    };
-    for (const userDashboard in availableDashboards.user) {
-      availableUserDashboards[userDashboard] = () => (
-        <DashboardCard
-          editable={true}
-          {...availableDashboards.user[userDashboard]}
-        />
-      );
-    }
-    setUserDashboards(availableUserDashboards);
-
-    setPublicDashboards(
-      Object.fromEntries(
-        Object.entries(availableDashboards.public).map(
-          ([key, dashboardMetadata]) => [
-            key,
-            () => <DashboardCard editable={false} {...dashboardMetadata} />,
-          ]
-        )
-      )
-    );
+    setUserDashboards(availableDashboards.user);
+    setPublicDashboards(availableDashboards.public);
   }, [availableDashboards]);
 
   return (
     <>
       <LandingPageHeader />
-      <CollapsibleSection title="User Dashboards">
-        <CustomPicker
-          maxColCount={5}
-          pickerOptions={userDashboards}
-          onSelect={() => {}}
-        />
+      <CollapsibleSection title="My Dashboards">
+        <Container fluid>
+          <Row>
+            <Col>
+              <NewDashboardCard />
+            </Col>
+            {userDashboards.map((dashboardMetadata) => (
+              <Col>
+                <DashboardCard editable={true} {...dashboardMetadata} />
+              </Col>
+            ))}
+          </Row>
+        </Container>
       </CollapsibleSection>
       <CollapsibleSection title="Public Dashboards">
-        <CustomPicker
-          maxColCount={5}
-          pickerOptions={publicDashboards}
-          onSelect={() => {}}
-        />
+        <Container fluid>
+          <Row>
+            {publicDashboards.map((dashboardMetadata) => (
+              <DashboardCard editable={false} {...dashboardMetadata} />
+            ))}
+          </Row>
+        </Container>
       </CollapsibleSection>
     </>
   );

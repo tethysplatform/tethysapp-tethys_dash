@@ -1,17 +1,21 @@
 import PropTypes from "prop-types";
-import { useContext, useState } from "react";
+import { useContext, useState, memo } from "react";
 import Button from "react-bootstrap/Button";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
-import { BsTrash, BsCopy, BsPeople, BsSlashLg } from "react-icons/bs";
+import {
+  BsTrash,
+  BsCopy,
+  BsPeople,
+  BsPeopleFill,
+  BsSlashLg,
+} from "react-icons/bs";
 import { FaPlus } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { confirm } from "components/dashboard/DeleteConfirmation";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import Alert from "react-bootstrap/Alert";
 import NewDashboardModal from "components/modals/NewDashboard";
-import OverlayTrigger from "react-bootstrap/OverlayTrigger";
-import Tooltip from "react-bootstrap/Tooltip";
 
 const RedTrashIcon = styled(BsTrash)`
   color: red;
@@ -19,6 +23,10 @@ const RedTrashIcon = styled(BsTrash)`
 
 const BlueCopyIcon = styled(BsCopy)`
   color: #1e6b8b;
+`;
+
+const BluePeopleFilledIcon = styled(BsPeopleFill)`
+  color: blue;
 `;
 
 const CustomCard = styled(Card).withConfig({
@@ -41,12 +49,16 @@ const CardBody = styled(Card.Body)`
 `;
 
 const DescriptionDiv = styled.div`
-  cursor: text;
+  cursor: ${({ editable }) => (editable ? "text" : "default")};
 
-  &:hover {
-    border: 1px solid rgb(7, 7, 7); /* Add an outline when hovered */
-    border-radius: 4px;
-  }
+  ${({ editable }) =>
+    editable &&
+    `
+    &:hover {
+      border: 1px solid rgb(7, 7, 7); /* Add an outline when hovered */
+      border-radius: 4px;
+    }
+  `}
 `;
 
 const CardHeader = styled(Card.Header)`
@@ -154,15 +166,25 @@ const WideButton = styled(Button)`
   width: 100%;
 `;
 
-const CardBodyDiv = styled.div``;
+const CardImage = styled(Card.Img)`
+  margin-bottom: 1rem;
+`;
 
 const SharingIcon = ({ shared }) => {
-  return (
-    <SharingIconDiv>
-      <BsPeople size="1.2rem" />
-      {!shared && <BsSlashLg size="1.2rem" style={{ position: "absolute" }} />}
-    </SharingIconDiv>
-  );
+  if (shared) {
+    return (
+      <SharingIconDiv>
+        <BluePeopleFilledIcon size="1.2rem" />
+      </SharingIconDiv>
+    );
+  } else {
+    return (
+      <SharingIconDiv>
+        <BsPeople size="1.2rem" />
+        <BsSlashLg size="1.2rem" style={{ position: "absolute" }} />
+      </SharingIconDiv>
+    );
+  }
 };
 
 const DashboardCard = ({
@@ -173,6 +195,7 @@ const DashboardCard = ({
   accessGroups,
   last_updated,
   image,
+  owner,
 }) => {
   const navigate = useNavigate();
   const { deleteDashboard, copyDashboard, updateDashboard } = useContext(
@@ -293,12 +316,7 @@ const DashboardCard = ({
               }
             />
           ) : (
-            <OverlayTrigger
-              placement="bottom"
-              overlay={<Tooltip id={`tooltip-${id}`}>Rename</Tooltip>}
-            >
-              <CardTitle>{title}</CardTitle>
-            </OverlayTrigger>
+            <CardTitle>{title}</CardTitle>
           )}
         </CardTitleDiv>
         <ButtonGroup>
@@ -340,8 +358,8 @@ const DashboardCard = ({
             {errorMessage}
           </StyledAlert>
         )}
-        <Card.Img variant="top" src={image} />
-        <CardBodyDiv onClick={() => handleEditClick(setIsEditingDescription)}>
+        <CardImage variant="top" src={image} />
+        <div onClick={() => handleEditClick(setIsEditingDescription)}>
           <label>
             <b>Description</b>:
             {editable && isEditingDescription ? (
@@ -362,22 +380,24 @@ const DashboardCard = ({
                 }
               />
             ) : (
-              <DescriptionDiv title="Update">
+              <DescriptionDiv editable={editable}>
                 <p>{desc}</p>
               </DescriptionDiv>
             )}
           </label>
-        </CardBodyDiv>
-        <CardBodyDiv>
+        </div>
+        <div>
           <label>
             <b>Last Updated</b>:<p>{localUpdatedTime}</p>
           </label>
-        </CardBodyDiv>
-        <CardBodyDiv>
-          <label>
-            <b>Author</b>:<p>{"Someone"}</p>
-          </label>
-        </CardBodyDiv>
+        </div>
+        {!editable && (
+          <div>
+            <label>
+              <b>Owner</b>:<p>{owner}</p>
+            </label>
+          </div>
+        )}
       </CardBody>
       <CardFooter>
         <WideButton variant="success" onClick={viewDashboard}>
@@ -423,4 +443,4 @@ DashboardCard.propTypes = {
   description: PropTypes.string,
 };
 
-export default DashboardCard;
+export default memo(DashboardCard);
