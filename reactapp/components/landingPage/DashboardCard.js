@@ -10,6 +10,8 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import Alert from "react-bootstrap/Alert";
 import NewDashboardModal from "components/modals/NewDashboard";
+import OverlayTrigger from "react-bootstrap/OverlayTrigger";
+import Tooltip from "react-bootstrap/Tooltip";
 
 const RedTrashIcon = styled(BsTrash)`
   color: red;
@@ -36,6 +38,15 @@ const CardBody = styled(Card.Body)`
   -ms-user-select: none;
   user-select: none;
   overflow-y: auto;
+`;
+
+const DescriptionDiv = styled.div`
+  cursor: text;
+
+  &:hover {
+    border: 1px solid rgb(7, 7, 7); /* Add an outline when hovered */
+    border-radius: 4px;
+  }
 `;
 
 const CardHeader = styled(Card.Header)`
@@ -80,11 +91,50 @@ const CardTitleDiv = styled.div`
   height: 100%;
   overflow-y: auto;
   margin: 0.1rem;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  cursor: text;
+  position: relative;
+`;
+
+const EditableInput = styled.input`
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  transition: border 0.3s ease; /* Smooth transition for border change */
+  border-radius: 4px;
+
+  &:focus {
+    outline: none; /* Prevent default focus outline */
+    border: 1px solid #007bff; /* Outline color when focused */
+  }
+`;
+
+const EditableTextarea = styled.textarea`
+  width: 100%;
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  outline: none;
+  transition: border 0.3s ease;
+  border-radius: 4px;
+
+  &:focus {
+    outline: none;
+    border: 1px solid #007bff;
+  }
 `;
 
 const CardTitle = styled.h5`
   margin: 0;
   width: 100%;
+
+  &:hover {
+    border: 1px solid rgb(7, 7, 7); /* Add an outline when hovered */
+    border-radius: 4px;
+  }
 `;
 
 const StyledAlert = styled(Alert)`
@@ -103,6 +153,8 @@ const SharingIconDiv = styled.div`
 const WideButton = styled(Button)`
   width: 100%;
 `;
+
+const CardBodyDiv = styled.div``;
 
 const SharingIcon = ({ shared }) => {
   return (
@@ -130,6 +182,10 @@ const DashboardCard = ({
   const [shared, setShared] = useState(accessGroups.includes("public"));
   const updatedTime = new Date(`${last_updated}Z`);
   const localUpdatedTime = updatedTime.toLocaleString();
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [title, setTitle] = useState(name);
+  const [desc, setDesc] = useState(description);
 
   async function onDelete() {
     setErrorMessage("");
@@ -178,11 +234,72 @@ const DashboardCard = ({
     return apiResponse;
   }
 
+  const handleFieldChange = async (field, setField, setIsEditing) => {
+    const value = field === "name" ? title : desc;
+    const originalValue = field === "name" ? name : description;
+    if (value !== originalValue) {
+      const apiResponse = await updateDashboard({
+        id,
+        newProperties: { [field]: value },
+      });
+      if (apiResponse["success"]) {
+        setIsEditing(false);
+      } else {
+        setErrorMessage(apiResponse["message"] ?? "Failed to update dashboard");
+      }
+    } else {
+      setIsEditing(false);
+    }
+  };
+
+  // Handle the click event to start editing a field (title or description)
+  const handleEditClick = (setIsEditing) => {
+    setIsEditing(true);
+  };
+
+  // Handle the change event for title and description
+  const handleChange = (e, setField) => {
+    setField(e.target.value);
+  };
+
+  // Handle blur and enter keydown for title and description
+  const handleBlur = async (field, setField, setIsEditing) => {
+    await handleFieldChange(field, setField, setIsEditing);
+  };
+
+  const handleKeyDown = async (e, field, setField, setIsEditing) => {
+    if (e.key === "Enter") {
+      await handleFieldChange(field, setField, setIsEditing);
+    } else if (e.key === "Escape") {
+      // Reset the field value to its original value (either title or description)
+      setField(field === "name" ? name : description);
+      setIsEditing(false);
+    }
+  };
+
   return (
     <CustomCard>
       <CardHeader>
-        <CardTitleDiv>
-          <CardTitle>{name}</CardTitle>
+        <CardTitleDiv onClick={() => handleEditClick(setIsEditingTitle)}>
+          {editable && isEditingTitle ? (
+            <EditableInput
+              type="text"
+              value={title}
+              autoFocus
+              onChange={(e) => handleChange(e, setTitle)}
+              onBlur={() => handleBlur("name", setTitle, setIsEditingTitle)}
+              onKeyDown={(e) =>
+                handleKeyDown(e, "name", setTitle, setIsEditingTitle)
+              }
+            />
+          ) : (
+            <OverlayTrigger
+              placement="bottom"
+              overlay={<Tooltip id={`tooltip-${id}`}>Rename</Tooltip>}
+            >
+              <CardTitle>{title}</CardTitle>
+            </OverlayTrigger>
+          )}
         </CardTitleDiv>
         <ButtonGroup>
           <HoverDiv
@@ -224,13 +341,43 @@ const DashboardCard = ({
           </StyledAlert>
         )}
         <Card.Img variant="top" src={image} />
-        {description}
-        <p>
-          <b>Last Updated</b>: {localUpdatedTime}
-        </p>
-        <p>
-          <b>Author</b>: someone
-        </p>
+        <CardBodyDiv onClick={() => handleEditClick(setIsEditingDescription)}>
+          <label>
+            <b>Description</b>:
+            {editable && isEditingDescription ? (
+              <EditableTextarea
+                value={desc}
+                autoFocus
+                onChange={(e) => handleChange(e, setDesc)}
+                onBlur={() =>
+                  handleBlur("description", setDesc, setIsEditingDescription)
+                }
+                onKeyDown={(e) =>
+                  handleKeyDown(
+                    e,
+                    "description",
+                    setDesc,
+                    setIsEditingDescription
+                  )
+                }
+              />
+            ) : (
+              <DescriptionDiv title="Update">
+                <p>{desc}</p>
+              </DescriptionDiv>
+            )}
+          </label>
+        </CardBodyDiv>
+        <CardBodyDiv>
+          <label>
+            <b>Last Updated</b>:<p>{localUpdatedTime}</p>
+          </label>
+        </CardBodyDiv>
+        <CardBodyDiv>
+          <label>
+            <b>Author</b>:<p>{"Someone"}</p>
+          </label>
+        </CardBodyDiv>
       </CardBody>
       <CardFooter>
         <WideButton variant="success" onClick={viewDashboard}>

@@ -276,17 +276,19 @@ function Loader({ children }) {
       { ...newProperties, id },
       appContext.csrf
     );
-    const newAvailableDashboards = removeDashboardById(id);
+    if (apiResponse.success) {
+      const newAvailableDashboards = removeDashboardById(id);
 
-    const updatedDashboard = apiResponse["updated_dashboard"];
-    const name = updatedDashboard["name"];
-    newAvailableDashboards["user"][name] = updatedDashboard;
+      const updatedDashboard = apiResponse["updated_dashboard"];
+      const name = updatedDashboard["name"];
+      newAvailableDashboards["user"][name] = updatedDashboard;
 
-    if (updatedDashboard.accessGroups.includes("public")) {
-      newAvailableDashboards["public"][name] = updatedDashboard;
+      if (updatedDashboard.accessGroups.includes("public")) {
+        newAvailableDashboards["public"][name] = updatedDashboard;
+      }
+
+      setAvailableDashboards(newAvailableDashboards);
     }
-
-    setAvailableDashboards(newAvailableDashboards);
     return apiResponse;
   }
 
