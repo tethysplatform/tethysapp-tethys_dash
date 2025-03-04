@@ -32,6 +32,10 @@ const BluePeopleFilledIcon = styled(BsPeopleFill)`
 const CustomCard = styled(Card).withConfig({
   shouldForwardProp: (prop) => prop !== "newCard", // Prevent `newCard` from being passed to the DOM
 })`
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
   width: 15rem;
   height: 20rem;
   display: flex;
@@ -41,10 +45,6 @@ const CustomCard = styled(Card).withConfig({
 `;
 
 const CardBody = styled(Card.Body)`
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
-  user-select: none;
   overflow-y: auto;
 `;
 
@@ -321,7 +321,7 @@ const DashboardCard = ({
               }
             />
           ) : (
-            <CardTitle>{title}</CardTitle>
+            <CardTitle editable={editable}>{title}</CardTitle>
           )}
         </CardTitleDiv>
         <ButtonGroup>
