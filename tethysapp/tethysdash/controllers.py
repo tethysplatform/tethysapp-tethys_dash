@@ -138,12 +138,14 @@ def copy_dashboard(request, app_media):
             user, id, new_name, dashboard_uuid
         )
 
-        copid_dashboard_image = os.path.join(
+        copied_dashboard_image = os.path.join(
             os.path.join(app_media.path, f"{copied_dashboard_uuid}.png")
         )
-        shutil.copyfile(
-            copid_dashboard_image, os.path.join(app_media.path, f"{dashboard_uuid}.png")
-        )
+        if os.path.exists(copied_dashboard_image):
+            shutil.copyfile(
+                copied_dashboard_image,
+                os.path.join(app_media.path, f"{dashboard_uuid}.png"),
+            )
         new_dashboard = get_dashboards(user, id=new_dashboard_id)
         print(f"Successfully copied dashboard {id}")
 
@@ -171,7 +173,8 @@ def delete_dashboard(request, app_media):
         print(f"Successfully deleted dashboard {id}")
 
         dashboard_image = os.path.join(app_media.path, f"{dashboard_uuid}.png")
-        os.remove(dashboard_image)
+        if os.path.exists(dashboard_image):
+            os.remove(dashboard_image)
 
         return JsonResponse({"success": True})
     except Exception as e:

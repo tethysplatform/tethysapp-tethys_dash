@@ -181,6 +181,22 @@ function Loader({ children }) {
           key={`route-user-${dashboardMetadata.name}`}
         />
       );
+
+      if (dashboardMetadata.accessGroups.includes("public")) {
+        dashboardRoutes.push(
+          <Route
+            path={`/dashboard/public/${dashboardMetadata.name}`}
+            element={
+              <DashboardView
+                editable={false}
+                id={dashboardMetadata.id}
+                name={dashboardMetadata.name}
+              />
+            }
+            key={`route-public-${dashboardMetadata.name}`}
+          />
+        );
+      }
     }
 
     for (const dashboardMetadata of dashboards.public) {

@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useContext, useState, memo } from "react";
+import { useContext, useState, memo, useEffect, useRef } from "react";
 import Button from "react-bootstrap/Button";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
@@ -16,6 +16,8 @@ import { confirm } from "components/dashboard/DeleteConfirmation";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import Alert from "react-bootstrap/Alert";
 import NewDashboardModal from "components/modals/NewDashboard";
+import { FaRegUserCircle } from "react-icons/fa";
+import ContextMenu from "components/landingPage/ContextMenu";
 
 const RedTrashIcon = styled(BsTrash)`
   color: red;
@@ -36,8 +38,8 @@ const CustomCard = styled(Card).withConfig({
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
-  width: 15rem;
-  height: 20rem;
+  width: 20rem;
+  height: 15rem;
   display: flex;
   margin-bottom: 1.5rem;
   background-color: rgb(238, 238, 238);
@@ -45,20 +47,39 @@ const CustomCard = styled(Card).withConfig({
 `;
 
 const CardBody = styled(Card.Body)`
+  position: relative; /* Ensure content is layered properly */
   overflow-y: auto;
+
+  &:hover {
+    background-color: rgba(
+      169,
+      169,
+      169,
+      0.5
+    ); /* Light gray background on hover */
+  }
 `;
 
-const DescriptionDiv = styled.div`
-  cursor: ${({ editable }) => (editable ? "text" : "default")};
+const DescriptionDiv = styled.div.withConfig({
+  shouldForwardProp: (prop) => prop !== "isEditing", // Prevent `newCard` from being passed to the DOM
+})`
+  position: absolute; /* Overlay the description on top of the image */
+  bottom: 10px; /* Adjust the position as needed */
+  left: 10px; /* Adjust the position as needed */
+  right: 10px;
+  color: white;
+  font-size: 1rem;
+  background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent background */
+  padding: 5px;
+  border-radius: 4px;
+  display: ${(props) => (props?.isEditing ? "flex" : "none")};
+  height: 90%; /* Ensure it takes full height of the parent */
+  overflow-y: auto;
+  white-space: pre-wrap;
 
-  ${({ editable }) =>
-    editable &&
-    `
-    &:hover {
-      border: 1px solid rgb(7, 7, 7); /* Add an outline when hovered */
-      border-radius: 4px;
-    }
-  `}
+  ${CardBody}:hover & {
+    display: flex; /* Show the description on hover */
+  }
 `;
 
 const CardHeader = styled(Card.Header)`
@@ -108,6 +129,7 @@ const CardTitleDiv = styled.div`
   width: 100%;
   cursor: text;
   position: relative;
+  text-align: center;
 `;
 
 const EditableInput = styled.input`
@@ -132,6 +154,8 @@ const EditableTextarea = styled.textarea`
   outline: none;
   transition: border 0.3s ease;
   border-radius: 4px;
+  resize: none;
+  color: white;
 
   &:focus {
     outline: none;
@@ -142,21 +166,12 @@ const EditableTextarea = styled.textarea`
 const CardTitle = styled.h5`
   margin: 0;
   width: 100%;
-  cursor: ${({ editable }) => (editable ? "text" : "default")};
-
-  ${({ editable }) =>
-    editable &&
-    `
-    &:hover {
-      border: 1px solid rgb(7, 7, 7); /* Add an outline when hovered */
-      border-radius: 4px;
-    }
-  `}
 `;
 
 const StyledAlert = styled(Alert)`
   position: absolute;
   margin: 1rem;
+  z-index: 1;
 `;
 
 const SharingIconDiv = styled.div`
@@ -167,12 +182,16 @@ const SharingIconDiv = styled.div`
   align-items: center;
 `;
 
-const WideButton = styled(Button)`
-  width: 100%;
-`;
-
 const CardImage = styled(Card.Img)`
-  margin-bottom: 1rem;
+  transition: opacity 0.3s ease; /* Smooth transition for opacity change */
+  opacity: 1; /* Default visibility */
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+
+  ${CardBody}:hover & {
+    opacity: 0.5; /* Dim the image on hover */
+  }
 `;
 
 const SharingIcon = ({ shared }) => {
@@ -214,6 +233,20 @@ const DashboardCard = ({
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [title, setTitle] = useState(name);
   const [desc, setDesc] = useState(description);
+  const nameInput = useRef();
+  const descriptionInput = useRef();
+
+  useEffect(() => {
+    if (isEditingTitle) {
+      nameInput.current.focus();
+    }
+  }, [isEditingTitle]);
+
+  useEffect(() => {
+    if (isEditingDescription) {
+      descriptionInput.current.focus();
+    }
+  }, [isEditingDescription]);
 
   async function onDelete() {
     setErrorMessage("");
@@ -296,8 +329,10 @@ const DashboardCard = ({
   };
 
   const handleKeyDown = async (e, field, setField, setIsEditing) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && !e.shiftKey) {
       await handleFieldChange(field, setField, setIsEditing);
+    } else if (e.key === "Enter" && e.shiftKey) {
+      setField(e.target.value); // Update the textarea value with the new line
     } else if (e.key === "Escape") {
       // Reset the field value to its original value (either title or description)
       setField(field === "name" ? name : description);
@@ -308,12 +343,17 @@ const DashboardCard = ({
   return (
     <CustomCard>
       <CardHeader>
-        <CardTitleDiv onClick={() => handleEditClick(setIsEditingTitle)}>
-          {editable && isEditingTitle ? (
+        {editable && (
+          <div>
+            <FaRegUserCircle size={"1rem"} title={"You are the owner"} />
+          </div>
+        )}
+        <CardTitleDiv>
+          {isEditingTitle ? (
             <EditableInput
+              ref={nameInput}
               type="text"
               value={title}
-              autoFocus
               onChange={(e) => handleChange(e, setTitle)}
               onBlur={() => handleBlur("name", setTitle, setIsEditingTitle)}
               onKeyDown={(e) =>
@@ -321,36 +361,19 @@ const DashboardCard = ({
               }
             />
           ) : (
-            <CardTitle editable={editable}>{title}</CardTitle>
+            <CardTitle>{title}</CardTitle>
           )}
         </CardTitleDiv>
-        <ButtonGroup>
-          <HoverDiv
-            onClick={onCopy}
-            onMouseOver={(e) => (e.target.style.cursor = "pointer")}
-            onMouseOut={(e) => (e.target.style.cursor = "default")}
-          >
-            <BlueCopyIcon size={"1.1rem"} />
-          </HoverDiv>
-          {editable && (
-            <>
-              <HoverDiv
-                onClick={onShare}
-                onMouseOver={(e) => (e.target.style.cursor = "pointer")}
-                onMouseOut={(e) => (e.target.style.cursor = "default")}
-              >
-                <SharingIcon shared={shared} />
-              </HoverDiv>
-              <HoverDiv
-                onClick={onDelete}
-                onMouseOver={(e) => (e.target.style.cursor = "pointer")}
-                onMouseOut={(e) => (e.target.style.cursor = "default")}
-              >
-                <RedTrashIcon size={"1.1rem"} />
-              </HoverDiv>
-            </>
-          )}
-        </ButtonGroup>
+        <ContextMenu
+          editable={editable}
+          setIsEditingTitle={setIsEditingTitle}
+          setIsEditingDescription={setIsEditingDescription}
+          onDelete={onDelete}
+          onCopy={onCopy}
+          viewDashboard={viewDashboard}
+          onShare={onShare}
+          shared={shared}
+        />
       </CardHeader>
       <CardBody>
         {errorMessage && (
@@ -364,51 +387,31 @@ const DashboardCard = ({
           </StyledAlert>
         )}
         <CardImage variant="top" src={image} />
-        <div onClick={() => handleEditClick(setIsEditingDescription)}>
-          <label>
-            <b>Description</b>:
-            {editable && isEditingDescription ? (
-              <EditableTextarea
-                value={desc}
-                autoFocus
-                onChange={(e) => handleChange(e, setDesc)}
-                onBlur={() =>
-                  handleBlur("description", setDesc, setIsEditingDescription)
-                }
-                onKeyDown={(e) =>
-                  handleKeyDown(
-                    e,
-                    "description",
-                    setDesc,
-                    setIsEditingDescription
-                  )
-                }
-              />
-            ) : (
-              <DescriptionDiv editable={editable}>
-                <p>{desc}</p>
-              </DescriptionDiv>
-            )}
-          </label>
-        </div>
-        <div>
-          <label>
-            <b>Last Updated</b>:<p>{localUpdatedTime}</p>
-          </label>
-        </div>
-        {!editable && (
-          <div>
-            <label>
-              <b>Owner</b>:<p>{owner}</p>
-            </label>
-          </div>
-        )}
+
+        <DescriptionDiv isEditing={isEditingDescription}>
+          {isEditingDescription ? (
+            <EditableTextarea
+              ref={descriptionInput}
+              type="text"
+              value={desc}
+              onChange={(e) => handleChange(e, setDesc)}
+              onBlur={() =>
+                handleBlur("description", setDesc, setIsEditingDescription)
+              }
+              onKeyDown={(e) =>
+                handleKeyDown(
+                  e,
+                  "description",
+                  setDesc,
+                  setIsEditingDescription
+                )
+              }
+            />
+          ) : (
+            desc
+          )}
+        </DescriptionDiv>
       </CardBody>
-      <CardFooter>
-        <WideButton variant="success" onClick={viewDashboard}>
-          View
-        </WideButton>
-      </CardFooter>
     </CustomCard>
   );
 };

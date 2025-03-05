@@ -15,6 +15,7 @@ import os
 from .app import App as app
 from datetime import datetime, timezone
 from django.conf import settings
+from tethys_sdk.paths import get_app_media
 
 Base = declarative_base()
 
@@ -234,6 +235,10 @@ def update_named_dashboard(user, id, dashboard_updates):
             check_existing_user_dashboard_names(
                 session, user, dashboard_updates["name"]
             )
+            if "public" in dashboard_updates.get(
+                "accessGroups", db_dashboard.access_groups
+            ):
+                check_existing_public_dashboards(session, dashboard_updates["name"])
             db_dashboard.name = dashboard_updates["name"]
 
         if "description" in dashboard_updates:
@@ -322,6 +327,9 @@ def parse_db_dashboard(dashboards, dashboard_view):
         dashboard_image = os.path.join(
             settings.MEDIA_URL, app.root_url, f"app/{dashboard.uuid}.png"
         )
+        app_media = get_app_media(app)
+        if not os.path.exists(os.path.join(app_media.path, f"{dashboard.uuid}.png")):
+            dashboard_image = "/static/tethysdash/images/tethys_dash.png"
 
         dashboard_dict = {
             "id": dashboard.id,
