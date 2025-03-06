@@ -30,6 +30,7 @@ const StyledDiv = styled.div`
 
 const DropdownDiv = styled.div`
   flex: 1;
+  margin-right: 1rem;
 `;
 
 const ButtonDiv = styled.div`
@@ -324,7 +325,7 @@ function VisualizationPane({
             <CiFilter size="1.5rem" />
           </TooltipButton>
         </ButtonDiv>
-        <DropdownDiv className={"labelWithFilterButton"}>
+        <DropdownDiv>
           <DataSelect
             selectedOption={selectedVizTypeOption}
             onChange={onDataTypeChange}
