@@ -23,6 +23,8 @@ import PropTypes from "prop-types";
 
 const StyledDiv = styled.div`
   margin: auto;
+  align-items: center;
+  display: flex;
 `;
 
 function LockedIcon({ locked }) {
