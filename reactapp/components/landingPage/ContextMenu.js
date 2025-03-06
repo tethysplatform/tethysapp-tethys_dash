@@ -27,6 +27,7 @@ const ContextMenu = ({
   viewDashboard,
   onShare,
   shared,
+  setShowThumbnailModal,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -54,7 +55,9 @@ const ContextMenu = ({
             <Dropdown.Item onClick={() => setIsEditingDescription(true)}>
               Update Description
             </Dropdown.Item>
-            <Dropdown.Item>Update Thumbnail</Dropdown.Item>
+            <Dropdown.Item onClick={() => setShowThumbnailModal(true)}>
+              Update Thumbnail
+            </Dropdown.Item>
             <Dropdown.Item onClick={onShare}>
               {shared ? "Make Private" : "Make Public"}
             </Dropdown.Item>

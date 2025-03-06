@@ -18,6 +18,7 @@ import Alert from "react-bootstrap/Alert";
 import NewDashboardModal from "components/modals/NewDashboard";
 import { FaRegUserCircle } from "react-icons/fa";
 import ContextMenu from "components/landingPage/ContextMenu";
+import DashboardThumbnailModal from "components/modals/DashboardThumbnail";
 
 const RedTrashIcon = styled(BsTrash)`
   color: red;
@@ -187,7 +188,6 @@ const CardImage = styled(Card.Img)`
   opacity: 1; /* Default visibility */
   width: 100%;
   height: 100%;
-  object-fit: cover;
 
   ${CardBody}:hover & {
     opacity: 0.5; /* Dim the image on hover */
@@ -229,10 +229,12 @@ const DashboardCard = ({
   const [shared, setShared] = useState(accessGroups.includes("public"));
   const updatedTime = new Date(`${last_updated}Z`);
   const localUpdatedTime = updatedTime.toLocaleString();
+  const [showThumbnailModal, setShowThumbnailModal] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [title, setTitle] = useState(name);
   const [desc, setDesc] = useState(description);
+  const [dashboardImage, setDashboardImage] = useState(image);
   const nameInput = useRef();
   const descriptionInput = useRef();
 
@@ -292,7 +294,6 @@ const DashboardCard = ({
     } else {
       setErrorMessage(apiResponse["message"] ?? "Failed to share dashboard");
     }
-    return apiResponse;
   }
 
   const handleFieldChange = async (field, setField, setIsEditing) => {
@@ -313,9 +314,19 @@ const DashboardCard = ({
     }
   };
 
-  // Handle the click event to start editing a field (title or description)
-  const handleEditClick = (setIsEditing) => {
-    setIsEditing(true);
+  const onUpdateThumbnail = async (newImage) => {
+    setShowThumbnailModal(false);
+    const apiResponse = await updateDashboard({
+      id,
+      newProperties: {
+        image: newImage,
+      },
+    });
+    if (apiResponse["success"]) {
+      setDashboardImage(newImage);
+    } else {
+      setErrorMessage(apiResponse["message"] ?? "Failed to update dashboard");
+    }
   };
 
   // Handle the change event for title and description
@@ -341,78 +352,88 @@ const DashboardCard = ({
   };
 
   return (
-    <CustomCard>
-      <CardHeader>
-        {editable && (
-          <div>
-            <FaRegUserCircle size={"1rem"} title={"You are the owner"} />
-          </div>
-        )}
-        <CardTitleDiv>
-          {isEditingTitle ? (
-            <EditableInput
-              ref={nameInput}
-              type="text"
-              value={title}
-              onChange={(e) => handleChange(e, setTitle)}
-              onBlur={() => handleBlur("name", setTitle, setIsEditingTitle)}
-              onKeyDown={(e) =>
-                handleKeyDown(e, "name", setTitle, setIsEditingTitle)
-              }
-            />
-          ) : (
-            <CardTitle>{title}</CardTitle>
+    <>
+      <CustomCard>
+        <CardHeader>
+          {editable && (
+            <div>
+              <FaRegUserCircle size={"1rem"} title={"You are the owner"} />
+            </div>
           )}
-        </CardTitleDiv>
-        <ContextMenu
-          editable={editable}
-          setIsEditingTitle={setIsEditingTitle}
-          setIsEditingDescription={setIsEditingDescription}
-          onDelete={onDelete}
-          onCopy={onCopy}
-          viewDashboard={viewDashboard}
-          onShare={onShare}
-          shared={shared}
-        />
-      </CardHeader>
-      <CardBody>
-        {errorMessage && (
-          <StyledAlert
-            key="danger"
-            variant="danger"
-            onClose={() => setErrorMessage("")}
-            dismissible={true}
-          >
-            {errorMessage}
-          </StyledAlert>
-        )}
-        <CardImage variant="top" src={image} />
+          <CardTitleDiv>
+            {isEditingTitle ? (
+              <EditableInput
+                ref={nameInput}
+                type="text"
+                value={title}
+                onChange={(e) => handleChange(e, setTitle)}
+                onBlur={() => handleBlur("name", setTitle, setIsEditingTitle)}
+                onKeyDown={(e) =>
+                  handleKeyDown(e, "name", setTitle, setIsEditingTitle)
+                }
+              />
+            ) : (
+              <CardTitle>{title}</CardTitle>
+            )}
+          </CardTitleDiv>
+          <ContextMenu
+            editable={editable}
+            setIsEditingTitle={setIsEditingTitle}
+            setIsEditingDescription={setIsEditingDescription}
+            onDelete={onDelete}
+            onCopy={onCopy}
+            viewDashboard={viewDashboard}
+            onShare={onShare}
+            shared={shared}
+            setShowThumbnailModal={setShowThumbnailModal}
+          />
+        </CardHeader>
+        <CardBody>
+          {errorMessage && (
+            <StyledAlert
+              key="danger"
+              variant="danger"
+              onClose={() => setErrorMessage("")}
+              dismissible={true}
+            >
+              {errorMessage}
+            </StyledAlert>
+          )}
+          <CardImage variant="top" src={dashboardImage} />
 
-        <DescriptionDiv isEditing={isEditingDescription}>
-          {isEditingDescription ? (
-            <EditableTextarea
-              ref={descriptionInput}
-              type="text"
-              value={desc}
-              onChange={(e) => handleChange(e, setDesc)}
-              onBlur={() =>
-                handleBlur("description", setDesc, setIsEditingDescription)
-              }
-              onKeyDown={(e) =>
-                handleKeyDown(
-                  e,
-                  "description",
-                  setDesc,
-                  setIsEditingDescription
-                )
-              }
-            />
-          ) : (
-            desc
-          )}
-        </DescriptionDiv>
-      </CardBody>
-    </CustomCard>
+          <DescriptionDiv isEditing={isEditingDescription}>
+            {isEditingDescription ? (
+              <EditableTextarea
+                ref={descriptionInput}
+                type="text"
+                value={desc}
+                onChange={(e) => handleChange(e, setDesc)}
+                onBlur={() =>
+                  handleBlur("description", setDesc, setIsEditingDescription)
+                }
+                onKeyDown={(e) =>
+                  handleKeyDown(
+                    e,
+                    "description",
+                    setDesc,
+                    setIsEditingDescription
+                  )
+                }
+              />
+            ) : (
+              desc
+            )}
+          </DescriptionDiv>
+        </CardBody>
+      </CustomCard>
+      {showThumbnailModal && (
+        <DashboardThumbnailModal
+          showModal={showThumbnailModal}
+          setShowModal={setShowThumbnailModal}
+          onUpdateThumbnail={onUpdateThumbnail}
+        />
+      )}
+    </>
   );
 };
 
