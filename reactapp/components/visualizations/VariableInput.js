@@ -18,12 +18,18 @@ const StyledDiv = styled.div`
   padding: 1rem;
   width: 100%;
 `;
-const InLineInputDiv = styled.div`
-  display: inline-block;
-  width: calc(100% - 3em);
+
+const InputDiv = styled.div`
+  flex: 1;
 `;
-const InLineButtonDiv = styled.div`
-  display: inline-block;
+
+const ButtonDiv = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const FlexDiv = styled.div`
+  display: flex;
+  width: 100%;
 `;
 
 const VariableInput = ({ args, onChange }) => {
@@ -135,22 +141,28 @@ const VariableInput = ({ args, onChange }) => {
   } else {
     return (
       <StyledDiv>
-        <InLineInputDiv>
-          <DataInput
-            objValue={{ label, type, value }}
-            onChange={handleInputChange}
-          />
-        </InLineInputDiv>
-        <InLineButtonDiv>
-          <TooltipButton
-            onClick={handleInputRefresh}
-            tooltipPlacement={"right"}
-            tooltipText={"Refresh variable input"}
-            variant={"warning"}
-          >
-            <BsArrowClockwise />
-          </TooltipButton>
-        </InLineButtonDiv>
+        <label>
+          <b>{label}</b>:
+        </label>
+        <FlexDiv>
+          <InputDiv>
+            <DataInput
+              objValue={{ type, value }}
+              onChange={handleInputChange}
+            />
+          </InputDiv>
+          <ButtonDiv>
+            <TooltipButton
+              onClick={handleInputRefresh}
+              tooltipPlacement={"right"}
+              tooltipText={"Refresh variable input"}
+              variant={"warning"}
+              style={{ height: "100%" }}
+            >
+              <BsArrowClockwise />
+            </TooltipButton>
+          </ButtonDiv>
+        </FlexDiv>
       </StyledDiv>
     );
   }

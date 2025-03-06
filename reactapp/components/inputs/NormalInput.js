@@ -4,9 +4,11 @@ import PropTypes from "prop-types";
 const NormalInput = ({ label, onChange, value, type }) => {
   return (
     <div>
-      <Form.Label>
-        <b>{label}</b>:
-      </Form.Label>
+      {label && (
+        <Form.Label>
+          <b>{label}</b>:
+        </Form.Label>
+      )}
       <Form.Control
         aria-label={label + " Input"}
         type={type}

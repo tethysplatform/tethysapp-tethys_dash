@@ -10,4 +10,4 @@ Before running DB migrations, ensure that the following environment variables ar
 
 To run the latest DB migration, run the `alembic upgrade head` command from the alembic directory.
 
-You can also upgrade or downgrade "N" versions by running `alembic upgrade +N` or `alembic downgrade +N`
+You can also upgrade or downgrade "N" versions by running `alembic upgrade +N` or `alembic downgrade -N`

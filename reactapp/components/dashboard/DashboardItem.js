@@ -19,6 +19,7 @@ import CustomAlert from "components/dashboard/CustomAlert";
 const StyledContainer = styled(Container)`
   position: relative;
   padding: 0;
+  overflow-y: auto;
 `;
 
 const StyledButtonDiv = styled.div`
