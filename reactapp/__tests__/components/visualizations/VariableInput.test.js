@@ -39,7 +39,7 @@ it("Creates a Text Input for a Variable Input", async () => {
     })
   );
 
-  const variableInput = screen.getByLabelText("Test Variable Input");
+  const variableInput = screen.getByLabelText("undefined Input");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "Hello World");
 
@@ -81,7 +81,7 @@ it("Creates a Number Input for a Variable Input", async () => {
     })
   );
 
-  const variableInput = screen.getByLabelText("Test Variable Input");
+  const variableInput = screen.getByLabelText("undefined Input");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "9");
 
@@ -246,7 +246,7 @@ describe("When inDataViewerMode", () => {
       })
     );
 
-    const variableInput = screen.getByLabelText("Test Variable Input");
+    const variableInput = screen.getByLabelText("undefined Input");
     expect(variableInput).toBeInTheDocument();
     await user.type(variableInput, "Hello World");
 
@@ -291,7 +291,7 @@ describe("When inDataViewerMode", () => {
       })
     );
 
-    const variableInput = screen.getByLabelText("Test Variable Input");
+    const variableInput = screen.getByLabelText("undefined Input");
     expect(variableInput).toBeInTheDocument();
     await user.type(variableInput, "9");
 

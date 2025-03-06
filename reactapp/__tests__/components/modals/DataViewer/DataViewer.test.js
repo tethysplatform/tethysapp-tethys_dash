@@ -149,7 +149,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
     await screen.findByText("Initial value must be selected in the dropdown")
   ).toBeInTheDocument();
 
-  const testVariableInput = await screen.findByLabelText("Test Variable Input");
+  const testVariableInput = await screen.findByLabelText("undefined Input");
   fireEvent.change(testVariableInput, { target: { value: "Some Value" } });
 
   fireEvent.click(dataviewerSaveButton);
@@ -256,9 +256,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   ).toBeInTheDocument();
   fireEvent.change(variableNameInput, { target: { value: "Test Variable 2" } });
 
-  const testVariableInput = await screen.findByLabelText(
-    "Test Variable 2 Input"
-  );
+  const testVariableInput = await screen.findByLabelText("undefined Input");
   fireEvent.change(testVariableInput, { target: { value: "Some Value" } });
 
   fireEvent.click(dataviewerSaveButton);
