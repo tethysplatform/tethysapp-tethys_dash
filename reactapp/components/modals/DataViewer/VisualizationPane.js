@@ -23,6 +23,7 @@ import { CiFilter } from "react-icons/ci";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import "components/modals/wideModal.css";
+import "components/modals/DataViewer/visualizationPane.css";
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
@@ -30,7 +31,7 @@ const StyledDiv = styled.div`
 
 const InLineInputDiv = styled.div`
   display: inline-block;
-  width: calc(100% - 3.5em);
+  width: calc(100% - 4.125em);
 `;
 const InLineButtonDiv = styled.div`
   display: inline-block;
@@ -309,11 +310,12 @@ function VisualizationPane({
                   setShowingSubModal(true);
                 }
           }
+          className={"filterButton"}
         >
           <CiFilter size="1.5rem" />
         </TooltipButton>
       </InLineButtonDiv>
-      <InLineInputDiv>
+      <InLineInputDiv className={"labelWithFilterButton"}>
         <DataSelect
           label="Visualization Type"
           selectedOption={selectedVizTypeOption}
