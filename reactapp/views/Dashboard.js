@@ -3,12 +3,12 @@ import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import { DashboardHeader } from "components/layout/Header";
 import PropTypes from "prop-types";
-import AppTour from "components/dashboard/AppTour";
+import AppTour from "components/appTour/AppTour";
 import DashboardLoader from "components/loader/DashboardLoader";
 
-function DashboardView({ id, name, editable }) {
+function DashboardView(dashboardProps) {
   return (
-    <DashboardLoader id={id} editable={editable} name={name}>
+    <DashboardLoader {...dashboardProps}>
       {/* <AppTour /> */}
       <LayoutAlertContextProvider>
         <DashboardHeader />

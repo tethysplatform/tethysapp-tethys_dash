@@ -6,7 +6,7 @@ import Form from "react-bootstrap/Form";
 import styled from "styled-components";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import { EditingContext, LayoutContext } from "components/contexts/Contexts";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
 
 const StyledCheck = styled(Form.Check)`
   width: 100%;

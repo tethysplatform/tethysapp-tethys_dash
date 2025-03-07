@@ -10,11 +10,12 @@ import {
   BsList,
   BsInfo,
   BsArrowReturnLeft,
-  BsFloppyFill,
+  BsFloppy,
   BsPencilSquare,
 } from "react-icons/bs";
 import { FaPlus } from "react-icons/fa6";
-import { LuNotepadText } from "react-icons/lu";
+import { CiUndo } from "react-icons/ci";
+import { IoArrowBackOutline } from "react-icons/io5";
 import {
   LayoutContext,
   EditingContext,
@@ -22,7 +23,7 @@ import {
   AppContext,
 } from "components/contexts/Contexts";
 import TooltipButton from "components/buttons/TooltipButton";
-import DashboardNotes from "components/modals/DashboardNotes";
+import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import AppInfoModal from "components/modals/AppInfo";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
@@ -42,11 +43,10 @@ const StyledSpinner = styled(Spinner)`
 
 const CustomNavBar = styled(Navbar)`
   min-height: var(--ts-header-height);
-  justify-content: flex-end;
 `;
 
-const CustomContainer = styled(Container)`
-  justify-content: flex-end;
+const TitleDiv = styled.div`
+  justify-content: center;
 `;
 
 const WhiteTitle = styled.h1`
@@ -89,31 +89,31 @@ export const LandingPageHeader = () => {
 
   return (
     <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
-      <CustomContainer as="header" fluid className="px-4">
-        <WhiteTitle>Available Dashboards</WhiteTitle>
-        <Form inline="true">
-          <>
-            {user.isStaff && (
-              <TooltipButton
-                href={tethysApp.settingsUrl}
-                tooltipPlacement="bottom"
-                tooltipText="App Settings"
-                aria-label={"appSettingButton"}
-              >
-                <BsGear size="1.5rem" />
-              </TooltipButton>
-            )}
+      <Container as="header" fluid className="px-4">
+        <TitleDiv>
+          <WhiteTitle>Available Dashboards</WhiteTitle>
+        </TitleDiv>
+        <div>
+          {user.isStaff && (
             <TooltipButton
-              href={tethysApp.exitUrl}
+              href={tethysApp.settingsUrl}
               tooltipPlacement="bottom"
-              tooltipText="Exit TethysDash"
-              aria-label={"appExitButton"}
+              tooltipText="App Settings"
+              aria-label={"appSettingButton"}
             >
-              <BsX size="1.5rem" />
+              <BsGear size="1.5rem" />
             </TooltipButton>
-          </>
-        </Form>
-      </CustomContainer>
+          )}
+          <TooltipButton
+            href={tethysApp.exitUrl}
+            tooltipPlacement="bottom"
+            tooltipText="Exit TethysDash"
+            aria-label={"appExitButton"}
+          >
+            <BsX size="1.5rem" />
+          </TooltipButton>
+        </div>
+      </Container>
     </CustomNavBar>
   );
 };
@@ -236,107 +236,105 @@ export const DashboardHeader = () => {
   return (
     <>
       <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
-        <CustomContainer as="header" fluid className="px-4">
+        <Container as="header" fluid className="px-4">
+          <TooltipButton
+            onClick={() => {
+              navigate("/");
+            }}
+            tooltipPlacement="bottom"
+            tooltipText="Exit Dashboard"
+            aria-label={"dashboardExitButton"}
+            disabled={isSaving}
+          >
+            <IoArrowBackOutline size="1.5rem" />
+          </TooltipButton>
           {name && <WhiteTitle>{name}</WhiteTitle>}
-          <Form inline="true">
-            <>
-              {editable && (
-                <>
-                  {isEditing ? (
-                    <>
-                      {isSaving && (
-                        <StyledSpinner
-                          data-testid="Loading..."
-                          animation="border"
-                          variant="info"
-                        />
-                      )}
-                      <TooltipButton
-                        tooltipPlacement="bottom"
-                        tooltipText="Cancel Changes"
-                        onClick={onCancel}
-                        aria-label="cancelButton"
-                        className="cancelChangesButton"
-                        disabled={isSaving}
-                      >
-                        <BsArrowReturnLeft size="1.5rem" />
-                      </TooltipButton>
-                      <TooltipButton
-                        onClick={onSave}
-                        tooltipPlacement="bottom"
-                        tooltipText="Save Changes"
-                        aria-label="saveButton"
-                        className="saveChangesButton"
-                        disabled={isSaving}
-                      >
-                        <BsFloppyFill size="1.5rem" />
-                      </TooltipButton>
-                      <TooltipButton
-                        tooltipPlacement="bottom"
-                        tooltipText="Add Dashboard Item"
-                        onClick={onAddGridItem}
-                        aria-label="addGridItemButton"
-                        className="addGridItemsButton"
-                        disabled={isSaving}
-                      >
-                        <FaPlus size="1.5rem" />
-                      </TooltipButton>
-                      <TooltipButton
-                        tooltipPlacement="bottom"
-                        tooltipText={
-                          disabledEditingMovement
-                            ? "Unlock Movement"
-                            : "Lock Movement"
-                        }
-                        onClick={() =>
-                          setDisabledEditingMovement(!disabledEditingMovement)
-                        }
-                        aria-label="Disable Movement Button"
-                        className="lockUnlocKMovementButton"
-                        disabled={isSaving}
-                      >
-                        <LockedIcon locked={disabledEditingMovement} />
-                      </TooltipButton>
-                    </>
-                  ) : (
+          <div>
+            {editable && (
+              <>
+                {isEditing ? (
+                  <>
+                    {isSaving && (
+                      <StyledSpinner
+                        data-testid="Loading..."
+                        animation="border"
+                        variant="info"
+                      />
+                    )}
                     <TooltipButton
                       tooltipPlacement="bottom"
-                      tooltipText="Edit Dashboard"
-                      onClick={onEdit}
-                      aria-label={"editButton"}
-                      className={"editDashboardButton"}
+                      tooltipText="Cancel Changes"
+                      onClick={onCancel}
+                      aria-label="cancelButton"
+                      className="cancelChangesButton"
+                      disabled={isSaving}
                     >
-                      <BsPencilSquare size="1.5rem" />
+                      <CiUndo size="1.5rem" strokeWidth={1.5} />
                     </TooltipButton>
-                  )}
-                </>
-              )}
-              <TooltipButton
-                onClick={showNav}
-                tooltipPlacement="bottom"
-                tooltipText="Dashboard Notes"
-                aria-label="dashboarcNotesButton"
-                disabled={isSaving}
-              >
-                <LuNotepadText size="1.5rem" />
-              </TooltipButton>
-              <TooltipButton
-                onClick={() => {
-                  navigate("/");
-                }}
-                tooltipPlacement="bottom"
-                tooltipText="Exit Dashboard"
-                aria-label={"dashboardExitButton"}
-                disabled={isSaving}
-              >
-                <BsX size="1.5rem" />
-              </TooltipButton>
-            </>
-          </Form>
-        </CustomContainer>
+                    <TooltipButton
+                      onClick={onSave}
+                      tooltipPlacement="bottom"
+                      tooltipText="Save Changes"
+                      aria-label="saveButton"
+                      className="saveChangesButton"
+                      disabled={isSaving}
+                    >
+                      <BsFloppy size="1.5rem" />
+                    </TooltipButton>
+                    <TooltipButton
+                      tooltipPlacement="bottom"
+                      tooltipText="Add Dashboard Item"
+                      onClick={onAddGridItem}
+                      aria-label="addGridItemButton"
+                      className="addGridItemsButton"
+                      disabled={isSaving}
+                    >
+                      <FaPlus size="1.5rem" />
+                    </TooltipButton>
+                    <TooltipButton
+                      tooltipPlacement="bottom"
+                      tooltipText={
+                        disabledEditingMovement
+                          ? "Unlock Movement"
+                          : "Lock Movement"
+                      }
+                      onClick={() =>
+                        setDisabledEditingMovement(!disabledEditingMovement)
+                      }
+                      aria-label="Disable Movement Button"
+                      className="lockUnlocKMovementButton"
+                      disabled={isSaving}
+                    >
+                      <LockedIcon locked={disabledEditingMovement} />
+                    </TooltipButton>
+                  </>
+                ) : (
+                  <TooltipButton
+                    tooltipPlacement="bottom"
+                    tooltipText="Edit Dashboard"
+                    onClick={onEdit}
+                    aria-label={"editButton"}
+                    className={"editDashboardButton"}
+                  >
+                    <BsPencilSquare size="1.5rem" />
+                  </TooltipButton>
+                )}
+              </>
+            )}
+            <TooltipButton
+              onClick={showNav}
+              tooltipPlacement="bottom"
+              tooltipText="Dashboard Settings"
+              aria-label="dashboarcSettingsButton"
+              disabled={isSaving}
+            >
+              <BsGear size="1.5rem" />
+            </TooltipButton>
+          </div>
+        </Container>
       </CustomNavBar>
       {showEditCanvas && (
-        <DashboardNotes
+        <DashboardEditorCanvas
           showCanvas={showEditCanvas}
           setShowCanvas={setShowEditCanvas}
         />

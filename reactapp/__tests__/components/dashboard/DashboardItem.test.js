@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import DashboardItem from "components/dashboard/DashboardItem";
 import { mockedDashboards } from "__tests__/utilities/constants";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
 import createLoadedComponent, {
   ContextLayoutPComponent,
   EditingPComponent,

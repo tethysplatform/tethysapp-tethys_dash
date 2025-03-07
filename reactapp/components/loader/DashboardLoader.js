@@ -14,7 +14,14 @@ import AppTourContextProvider from "components/contexts/AppTourContext";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
 
-const DashboardLoader = ({ children, id, name, editable }) => {
+const DashboardLoader = ({
+  children,
+  id,
+  name,
+  editable,
+  accessGroups,
+  description,
+}) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [variableInputValues, setVariableInputValues] = useState({});
@@ -72,7 +79,6 @@ const DashboardLoader = ({ children, id, name, editable }) => {
   }
 
   function setLayoutContext(dashboardContext) {
-    setNotes(dashboardContext["notes"]);
     setGridItems(dashboardContext["gridItems"]);
     updateVariableInputValuesWithGridItems(dashboardContext["gridItems"]);
   }
@@ -83,11 +89,12 @@ const DashboardLoader = ({ children, id, name, editable }) => {
       notes,
       gridItems,
       editable,
+      accessGroups,
+      description,
     };
   }
 
   function resetLayoutContext() {
-    setNotes(originalLayoutContext.current.dashboardNotes);
     setGridItems(originalLayoutContext.current.dashboardGridItems);
     updateVariableInputValuesWithGridItems(
       originalLayoutContext.current.dashboardGridItems
@@ -98,11 +105,12 @@ const DashboardLoader = ({ children, id, name, editable }) => {
     const apiResponse = await updateDashboard({ id, newProperties });
     if (apiResponse["success"]) {
       const updatedDashboard = apiResponse.updated_dashboard;
-      setLayoutContext(updatedDashboard);
-      originalLayoutContext.current = {
-        dashboardNotes: updatedDashboard.notes,
-        dashboardGridItems: updatedDashboard.gridItems,
-      };
+      if ("gridItems" in newProperties) {
+        setLayoutContext(updatedDashboard);
+        originalLayoutContext.current = {
+          dashboardGridItems: updatedDashboard.gridItems,
+        };
+      }
     }
     return apiResponse;
   }

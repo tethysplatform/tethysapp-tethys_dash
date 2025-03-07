@@ -12,7 +12,7 @@ import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
 import { getGridItem } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
 

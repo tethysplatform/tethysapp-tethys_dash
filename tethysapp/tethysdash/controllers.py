@@ -187,8 +187,8 @@ def delete_dashboard(request, app_media):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/dashboards/update", login_required=True, app_media=True)
-def update_dashboard(request, app_media):
+@controller(url="tethysdash/dashboards/update", login_required=True)
+def update_dashboard(request):
     """API controller for the dashboards page."""
     dashboard_updates = json.loads(request.body)
     id = dashboard_updates.pop("id")

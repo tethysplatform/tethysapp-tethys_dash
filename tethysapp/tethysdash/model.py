@@ -231,14 +231,13 @@ def update_named_dashboard(user, id, dashboard_updates):
             )
 
         db_name = dashboard_updates.get("name", db_dashboard.name)
+        db_access = dashboard_updates.get("accessGroups", db_dashboard.access_groups)
 
-        if "name" in dashboard_updates:
+        if db_name != db_dashboard.name:
             check_existing_user_dashboard_names(
                 session, user, dashboard_updates["name"]
             )
-            if "public" in dashboard_updates.get(
-                "accessGroups", db_dashboard.access_groups
-            ):
+            if "public" in db_access:
                 check_existing_public_dashboards(session, dashboard_updates["name"])
             db_dashboard.name = dashboard_updates["name"]
 
@@ -248,7 +247,7 @@ def update_named_dashboard(user, id, dashboard_updates):
         if "notes" in dashboard_updates:
             db_dashboard.notes = dashboard_updates["notes"]
 
-        if "accessGroups" in dashboard_updates:
+        if db_access != db_dashboard.access_groups:
             if "public" in dashboard_updates["accessGroups"]:
                 check_existing_public_dashboards(session, db_name)
             db_dashboard.access_groups = dashboard_updates["accessGroups"]

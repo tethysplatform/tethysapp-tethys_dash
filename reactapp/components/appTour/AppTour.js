@@ -1,5 +1,6 @@
 import Joyride, { ACTIONS, EVENTS, STATUS } from "react-joyride";
 import { useAppTourContext } from "components/contexts/AppTourContext";
+import { Card } from "react-bootstrap";
 
 const AppTour = () => {
   const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
@@ -30,53 +31,26 @@ const AppTour = () => {
     }
   };
 
+  // Landing Page Steps
+  // 1 - Landing page
+  // 2 - New Dashboard
+  // 3 - Card
+  // 4 - owner
+  // 5 - public
+  // 6 - Name
+  // 7 - Thumbnail
+  // 8 - description
+  // 9 - context menu
+  // 10 - open
+  // 11 - rename
+  // 12 - update description
+  // 13 - update thumbnail
+  // 14 - public
+  // 15 - copy
+  // 16 - delete
+  // 17 - double click to open dashboard
+
   const steps = [
-    {
-      target: ".dashboard-selector", // 0
-      content: (
-        <div>
-          Begin by clicking on the dropdown to select or create a dashboard.
-        </div>
-      ),
-      disableBeacon: true,
-      disableOverlayClose: true,
-      hideFooter: true,
-      spotlightClicks: true,
-    },
-    {
-      target: ".dashboard-selector-prefix__menu", // 1
-      content: (
-        <div>
-          Select an existing dashboard to view or create a new dashboard with
-          the "Create a New Dashboard" option.
-        </div>
-      ),
-      disableBeacon: true,
-      disableOverlayClose: true,
-      hideFooter: true,
-      spotlightClicks: true,
-    },
-    {
-      target: ".newdashboard-content", // 2
-      content: <div>Enter the dashboard name and select "Create".</div>,
-      disableBeacon: true,
-      disableOverlayClose: true,
-      hideFooter: true,
-      spotlightClicks: true,
-    },
-    {
-      target: ".newdashboard-content", // 3
-      content: (
-        <div>
-          The dashboard name is already used. Try to update the dashboard name
-          and select "Create" again.
-        </div>
-      ),
-      disableBeacon: true,
-      disableOverlayClose: true,
-      hideFooter: true,
-      spotlightClicks: true,
-    },
     {
       target: ".complex-interface-layout", // 4
       content: (
@@ -246,6 +220,7 @@ const AppTour = () => {
       data: { callbackNext: true },
       spotlightPadding: 5,
     },
+    // change to notes
     {
       target: ".dashboardSettingButton", // 15
       content: (

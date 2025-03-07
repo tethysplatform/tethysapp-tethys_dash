@@ -1,7 +1,7 @@
 import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
 
 const TestingComponent = () => {
   const [confirmed, setConfirmed] = useState(true);

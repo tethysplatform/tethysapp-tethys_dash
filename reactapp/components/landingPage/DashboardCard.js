@@ -1,18 +1,12 @@
 import PropTypes from "prop-types";
 import { useContext, useState, memo, useEffect, useRef } from "react";
-import Button from "react-bootstrap/Button";
+import { getPublicUrl } from "services/utilities";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
-import {
-  BsTrash,
-  BsCopy,
-  BsPeople,
-  BsPeopleFill,
-  BsSlashLg,
-} from "react-icons/bs";
+import { BsPeople, BsPeopleFill, BsSlashLg } from "react-icons/bs";
 import { FaPlus } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import Alert from "react-bootstrap/Alert";
 import NewDashboardModal from "components/modals/NewDashboard";
@@ -291,7 +285,16 @@ const DashboardCard = ({
     }
   }
 
-  const handleFieldChange = async (field, setField, setIsEditing) => {
+  const onCopyPublicLink = async () => {
+    const dashboardPublicUrl = getPublicUrl(name);
+    try {
+      await window.navigator.clipboard.writeText(dashboardPublicUrl);
+    } catch (err) {
+      setErrorMessage("Failed to copy public link");
+    }
+  };
+
+  const handleFieldChange = async (field, setIsEditing) => {
     const value = field === "name" ? title : desc;
     const originalValue = field === "name" ? name : description;
     if (value !== originalValue) {
@@ -337,13 +340,13 @@ const DashboardCard = ({
   };
 
   // Handle blur and enter keydown for title and description
-  const handleBlur = async (field, setField, setIsEditing) => {
-    await handleFieldChange(field, setField, setIsEditing);
+  const handleBlur = async (field, setIsEditing) => {
+    await handleFieldChange(field, setIsEditing);
   };
 
   const handleKeyDown = async (e, field, setField, setIsEditing) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      await handleFieldChange(field, setField, setIsEditing);
+      await handleFieldChange(field, setIsEditing);
     } else if (e.key === "Enter" && e.shiftKey) {
       setField(e.target.value); // Update the textarea value with the new line
     } else if (e.key === "Escape") {
@@ -370,7 +373,7 @@ const DashboardCard = ({
                 type="text"
                 value={title}
                 onChange={(e) => handleChange(e, setTitle)}
-                onBlur={() => handleBlur("name", setTitle, setIsEditingTitle)}
+                onBlur={() => handleBlur("name", setIsEditingTitle)}
                 onKeyDown={(e) =>
                   handleKeyDown(e, "name", setTitle, setIsEditingTitle)
                 }
@@ -389,6 +392,7 @@ const DashboardCard = ({
             onCopy={onCopy}
             viewDashboard={viewDashboard}
             onShare={onShare}
+            onCopyPublicLink={onCopyPublicLink}
             shared={shared}
             setShowThumbnailModal={setShowThumbnailModal}
           />
@@ -414,11 +418,10 @@ const DashboardCard = ({
             {isEditingDescription ? (
               <EditableTextarea
                 ref={descriptionInput}
-                type="text"
                 value={desc}
                 onChange={(e) => handleChange(e, setDesc)}
                 onBlur={() =>
-                  handleBlur("description", setDesc, setIsEditingDescription)
+                  handleBlur("description", setIsEditingDescription)
                 }
                 onKeyDown={(e) =>
                   handleKeyDown(

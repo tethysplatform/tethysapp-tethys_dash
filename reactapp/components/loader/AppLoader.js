@@ -16,7 +16,7 @@ import { Route } from "react-router-dom";
 import NotFound from "components/error/NotFound";
 import DashboardView from "views/Dashboard";
 import LandingPage from "views/LandingPage";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -171,13 +171,7 @@ function Loader({ children }) {
       dashboardRoutes.push(
         <Route
           path={`/dashboard/user/${dashboardMetadata.name}`}
-          element={
-            <DashboardView
-              editable={true}
-              id={dashboardMetadata.id}
-              name={dashboardMetadata.name}
-            />
-          }
+          element={<DashboardView editable={true} {...dashboardMetadata} />}
           key={`route-user-${dashboardMetadata.name}`}
         />
       );
@@ -186,13 +180,7 @@ function Loader({ children }) {
         dashboardRoutes.push(
           <Route
             path={`/dashboard/public/${dashboardMetadata.name}`}
-            element={
-              <DashboardView
-                editable={false}
-                id={dashboardMetadata.id}
-                name={dashboardMetadata.name}
-              />
-            }
+            element={<DashboardView editable={false} {...dashboardMetadata} />}
             key={`route-public-${dashboardMetadata.name}`}
           />
         );
@@ -203,13 +191,7 @@ function Loader({ children }) {
       dashboardRoutes.push(
         <Route
           path={`/dashboard/public/${dashboardMetadata.name}`}
-          element={
-            <DashboardView
-              editable={false}
-              id={dashboardMetadata.id}
-              name={dashboardMetadata.name}
-            />
-          }
+          element={<DashboardView editable={false} {...dashboardMetadata} />}
           key={`route-public-${dashboardMetadata.name}`}
         />
       );

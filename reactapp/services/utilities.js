@@ -1,4 +1,6 @@
-function getTethysPortalHost() {
+const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
+
+export function getTethysPortalHost() {
   let tethys_portal_host = process.env.TETHYS_PORTAL_HOST;
 
   // If the .env property is not set, derive from current location
@@ -10,4 +12,6 @@ function getTethysPortalHost() {
   return tethys_portal_host;
 }
 
-export { getTethysPortalHost };
+export const getPublicUrl = (name) => {
+  return getTethysPortalHost() + APP_ROOT_URL + "dashboard/public/" + name;
+};

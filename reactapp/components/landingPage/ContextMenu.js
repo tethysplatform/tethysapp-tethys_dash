@@ -26,6 +26,7 @@ const ContextMenu = ({
   onCopy,
   viewDashboard,
   onShare,
+  onCopyPublicLink,
   shared,
   setShowThumbnailModal,
 }) => {
@@ -58,9 +59,16 @@ const ContextMenu = ({
             <Dropdown.Item onClick={() => setShowThumbnailModal(true)}>
               Update Thumbnail
             </Dropdown.Item>
-            <Dropdown.Item onClick={onShare}>
-              {shared ? "Make Private" : "Make Public"}
-            </Dropdown.Item>
+            {shared ? (
+              <>
+                <Dropdown.Item onClick={onShare}>Make Private</Dropdown.Item>
+                <Dropdown.Item onClick={onCopyPublicLink}>
+                  Copy Public Link
+                </Dropdown.Item>
+              </>
+            ) : (
+              <Dropdown.Item onClick={onShare}>Make Public</Dropdown.Item>
+            )}
           </>
         )}
         <Dropdown.Item onClick={onCopy}>Copy</Dropdown.Item>

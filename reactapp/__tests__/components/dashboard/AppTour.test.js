@@ -2,12 +2,12 @@ import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import Header from "components/layout/Header";
 import DashboardLayout from "components/dashboard/DashboardLayout";
-import AppTour from "components/dashboard/AppTour";
+import AppTour from "components/appTour/AppTour";
 import { MemoryRouter } from "react-router-dom";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import appAPI from "services/api/app";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
 
 jest.mock("components/dashboard/DeleteConfirmation", () => {
   return {

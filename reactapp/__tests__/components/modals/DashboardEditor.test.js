@@ -6,7 +6,7 @@ import {
   mockedDashboards,
   updatedDashboard,
 } from "__tests__/utilities/constants";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
 import createLoadedComponent, {
   EditingPComponent,
 } from "__tests__/utilities/customRender";
