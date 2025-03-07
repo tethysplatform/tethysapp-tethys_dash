@@ -48,7 +48,7 @@ const CardBody = styled(Card.Body)`
 `;
 
 const DescriptionDiv = styled.div.withConfig({
-  shouldForwardProp: (prop) => !["isEditing", "editable"].includes(prop),
+  shouldForwardProp: (prop) => !["isEditing"].includes(prop),
 })`
   position: absolute; /* Overlay the description on top of the image */
   bottom: 10px; /* Adjust the position as needed */
@@ -60,7 +60,6 @@ const DescriptionDiv = styled.div.withConfig({
   padding: 5px;
   border-radius: 4px;
   display: ${(props) => (props?.isEditing ? "flex" : "none")};
-  cursor: ${(props) => props.editable && "text"};
   height: 90%; /* Ensure it takes full height of the parent */
   overflow-y: auto;
   white-space: pre-wrap;
@@ -108,16 +107,13 @@ const NewDashboardDiv = styled.div`
   cursor: pointer;
 `;
 
-const CardTitleDiv = styled.div.withConfig({
-  shouldForwardProp: (prop) => prop !== "editable", // Prevent `editable` from being passed to the DOM
-})`
+const CardTitleDiv = styled.div`
   height: 100%;
   overflow-y: auto;
   margin: 0.1rem;
   display: flex;
   align-items: center;
   width: 100%;
-  cursor: ${(props) => props.editable && "text"};
   position: relative;
   text-align: center;
 `;
@@ -327,13 +323,6 @@ const DashboardCard = ({
     }
   };
 
-  // Handle the click event to start editing a field (title or description)
-  const handleEditClick = (setIsEditing) => {
-    if (editable) {
-      setIsEditing(true);
-    }
-  };
-
   // Handle the change event for title and description
   const handleChange = (e, setField) => {
     setField(e.target.value);
@@ -356,9 +345,15 @@ const DashboardCard = ({
     }
   };
 
+  const onDoubleClickCard = () => {
+    if (!isEditingTitle && !isEditingDescription) {
+      viewDashboard();
+    }
+  };
+
   return (
     <>
-      <CustomCard onDoubleClick={viewDashboard}>
+      <CustomCard onDoubleClick={onDoubleClickCard}>
         <CardHeader>
           {editable && (
             <FaRegUserCircle size={"1.4rem"} title={"You are the owner"} />
@@ -379,9 +374,7 @@ const DashboardCard = ({
                 }
               />
             ) : (
-              <CardTitle onClick={() => handleEditClick(setIsEditingTitle)}>
-                {title}
-              </CardTitle>
+              <CardTitle>{title}</CardTitle>
             )}
           </CardTitleDiv>
           <ContextMenu
@@ -410,11 +403,7 @@ const DashboardCard = ({
           )}
           <CardImage variant="top" src={dashboardImage} />
 
-          <DescriptionDiv
-            isEditing={isEditingDescription}
-            editable={editable}
-            onClick={() => handleEditClick(setIsEditingDescription)}
-          >
+          <DescriptionDiv isEditing={isEditingDescription} editable={editable}>
             {isEditingDescription ? (
               <EditableTextarea
                 ref={descriptionInput}
