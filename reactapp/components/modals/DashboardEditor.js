@@ -83,9 +83,9 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
   const { getLayoutContext, saveLayoutContext } = useContext(LayoutContext);
-  const { name, description, editable, accessGroups, notes } =
+  const { id, name, description, editable, accessGroups, notes } =
     getLayoutContext();
-  const { deleteDashboard, updateDashboard, copyCurrentDashboard } = useContext(
+  const { deleteDashboard, copyDashboard } = useContext(
     AvailableDashboardsContext
   );
   const [localNotes, setLocalNotes] = useState(notes);
@@ -160,41 +160,30 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   async function onDelete(e) {
     setSuccessMessage("");
     setErrorMessage("");
-    deleteDashboard().then((response) => {
-      if (response["success"]) {
-        setIsEditing(false);
-        handleClose();
-      } else {
-        if (!response["confirmExit"]) {
-          setErrorMessage("Failed to delete dashboard. Check server logs.");
-        }
-      }
-    });
-  }
-
-  async function onCopy(e) {
-    setSuccessMessage("");
-    setErrorMessage("");
     if (
       await confirm(
-        "Are your sure you want to copy the " + name + " dashboard?"
+        "Are you sure you want to delete the " + name + " dashboard?"
       )
     ) {
-      copyCurrentDashboard().then((response) => {
+      deleteDashboard(id).then((response) => {
         if (response["success"]) {
-          const newDashboard = response["new_dashboard"];
-          setLocalName(newDashboard.name);
-          setLocalDescription(newDashboard.description);
-          setSuccessMessage("Successfully copied dashboard");
+          navigate("/");
         } else {
-          if ("message" in response) {
-            setErrorMessage(response["message"]);
-          } else {
-            setErrorMessage("Failed to copy dashboard. Check server logs.");
-          }
+          setErrorMessage("Failed to delete dashboard");
         }
       });
     }
+  }
+
+  function onCopy() {
+    setErrorMessage("");
+    copyDashboard(id, name).then((response) => {
+      if (response["success"]) {
+        navigate(`/dashboard/user/${response["new_dashboard"].name}`);
+      } else {
+        setErrorMessage("Failed to copy dashboard");
+      }
+    });
   }
 
   function onNotesChange({ target: { value } }) {

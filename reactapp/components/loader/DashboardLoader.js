@@ -85,6 +85,7 @@ const DashboardLoader = ({
 
   function getLayoutContext() {
     return {
+      id,
       name,
       notes,
       gridItems,
