@@ -15,7 +15,8 @@ import os
 from .app import App as app
 from datetime import datetime, timezone
 from django.conf import settings
-from tethys_sdk.paths import get_app_media
+from tethys_sdk.paths import get_app_media, get_app_workspace
+import base64
 
 Base = declarative_base()
 
@@ -314,10 +315,24 @@ def update_named_dashboard(user, id, dashboard_updates):
 
         db_dashboard.last_updated = datetime.now(timezone.utc)
 
+        if "image" in dashboard_updates:
+            # Extract the file format (e.g., 'data:image/png;base64,')
+            imgstr = dashboard_updates["image"].split(";base64,")[1]
+            app_media = get_app_media(app)
+            file_path = os.path.join(app_media.path, f"{db_dashboard.uuid}.png")
+
+            # Decode and write the image file
+            with open(file_path, "wb") as file:
+                file.write(base64.b64decode(imgstr))
+
+        parsed_dashboard = parse_db_dashboard([db_dashboard], dashboard_view=True)[0]
+
         # Commit the session and close the connection
         session.commit()
     finally:
         session.close()
+
+    return parsed_dashboard
 
 
 def parse_db_dashboard(dashboards, dashboard_view):
@@ -455,8 +470,8 @@ def clean_up_jsons(user):
             in_use_geojsons.append(stylejson_files)
 
     in_use_geojsons = flatten(in_use_geojsons)
-    data_folder = app.get_custom_setting("data_folder")
-    geojson_folder = os.path.join(data_folder, "geojson")
+    app_workspace = get_app_workspace(app)
+    geojson_folder = os.path.join(app_workspace.path, "geojson")
     path = os.path.join(geojson_folder, user)
     if not os.path.exists(path):
         os.makedirs(path)

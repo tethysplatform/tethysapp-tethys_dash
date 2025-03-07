@@ -5,7 +5,6 @@ import shutil
 import nh3
 from rest_framework.decorators import api_view
 import uuid
-import base64
 from tethys_sdk.routing import controller
 from .app import App
 from .model import (
@@ -196,18 +195,7 @@ def update_dashboard(request, app_media):
     user = str(request.user)
 
     try:
-        update_named_dashboard(user, id, dashboard_updates)
-        updated_dashboard = get_dashboards(user, id=id, dashboard_view=True)
-
-        if "image" in dashboard_updates:
-            # Extract the file format (e.g., 'data:image/png;base64,')
-            imgstr = dashboard_updates["image"].split(";base64,")[1]
-            file_path = os.path.join(app_media.path, f"{updated_dashboard['uuid']}.png")
-
-            # Decode and write the image file
-            with open(file_path, "wb") as file:
-                file.write(base64.b64decode(imgstr))
-
+        updated_dashboard = update_named_dashboard(user, id, dashboard_updates)
         print(f"Successfully updated the dashboard {id}")
 
         return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
@@ -222,8 +210,8 @@ def update_dashboard(request, app_media):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/json/upload", login_required=True)
-def upload_geojson(request):
+@controller(url="tethysdash/json/upload", login_required=True, app_workspace=True)
+def upload_geojson(request, app_workspace):
     """API controller for the dashboards page."""
     geojson_data = json.loads(request.body)
     user = str(request.user)
@@ -231,8 +219,7 @@ def upload_geojson(request):
     data = geojson_data["data"]
     filename = geojson_data["filename"]
     clean_data = nh3.clean(data)
-    data_folder = App.get_custom_setting("data_folder")
-    geojson_folder = os.path.join(data_folder, "geojson")
+    geojson_folder = os.path.join(app_workspace.path, "geojson")
 
     try:
         if not os.path.exists(geojson_folder):
@@ -259,13 +246,12 @@ def upload_geojson(request):
 
 
 @api_view(["GET"])
-@controller(url="tethysdash/json/download", login_required=True)
-def download_geojson(request):
+@controller(url="tethysdash/json/download", login_required=True, app_workspace=True)
+def download_geojson(request, app_workspace):
     """API controller for the dashboards page."""
     filename = request.GET["filename"]
     user = str(request.user)
-    data_folder = App.get_custom_setting("data_folder")
-    geojson_folder = os.path.join(data_folder, "geojson")
+    geojson_folder = os.path.join(app_workspace.path, "geojson")
 
     try:
         geojson_user_file = os.path.join(geojson_folder, user, filename)
