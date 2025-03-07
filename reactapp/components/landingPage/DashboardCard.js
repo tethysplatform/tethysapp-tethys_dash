@@ -20,16 +20,8 @@ import { FaRegUserCircle } from "react-icons/fa";
 import ContextMenu from "components/landingPage/ContextMenu";
 import DashboardThumbnailModal from "components/modals/DashboardThumbnail";
 
-const RedTrashIcon = styled(BsTrash)`
-  color: red;
-`;
-
-const BlueCopyIcon = styled(BsCopy)`
-  color: #1e6b8b;
-`;
-
-const BluePeopleFilledIcon = styled(BsPeopleFill)`
-  color: blue;
+const StyledBsPeopleFill = styled(BsPeopleFill)`
+  margin-left: 0.3rem;
 `;
 
 const CustomCard = styled(Card).withConfig({
@@ -62,7 +54,7 @@ const CardBody = styled(Card.Body)`
 `;
 
 const DescriptionDiv = styled.div.withConfig({
-  shouldForwardProp: (prop) => prop !== "isEditing", // Prevent `newCard` from being passed to the DOM
+  shouldForwardProp: (prop) => !["isEditing", "editable"].includes(prop),
 })`
   position: absolute; /* Overlay the description on top of the image */
   bottom: 10px; /* Adjust the position as needed */
@@ -74,6 +66,7 @@ const DescriptionDiv = styled.div.withConfig({
   padding: 5px;
   border-radius: 4px;
   display: ${(props) => (props?.isEditing ? "flex" : "none")};
+  cursor: ${(props) => props.editable && "text"};
   height: 90%; /* Ensure it takes full height of the parent */
   overflow-y: auto;
   white-space: pre-wrap;
@@ -121,14 +114,16 @@ const NewDashboardDiv = styled.div`
   cursor: pointer;
 `;
 
-const CardTitleDiv = styled.div`
+const CardTitleDiv = styled.div.withConfig({
+  shouldForwardProp: (prop) => prop !== "editable", // Prevent `editable` from being passed to the DOM
+})`
   height: 100%;
   overflow-y: auto;
   margin: 0.1rem;
   display: flex;
   align-items: center;
   width: 100%;
-  cursor: text;
+  cursor: ${(props) => props.editable && "text"};
   position: relative;
   text-align: center;
 `;
@@ -329,6 +324,13 @@ const DashboardCard = ({
     }
   };
 
+  // Handle the click event to start editing a field (title or description)
+  const handleEditClick = (setIsEditing) => {
+    if (editable) {
+      setIsEditing(true);
+    }
+  };
+
   // Handle the change event for title and description
   const handleChange = (e, setField) => {
     setField(e.target.value);
@@ -353,14 +355,15 @@ const DashboardCard = ({
 
   return (
     <>
-      <CustomCard>
+      <CustomCard onDoubleClick={viewDashboard}>
         <CardHeader>
           {editable && (
-            <div>
-              <FaRegUserCircle size={"1rem"} title={"You are the owner"} />
-            </div>
+            <FaRegUserCircle size={"1.4rem"} title={"You are the owner"} />
           )}
-          <CardTitleDiv>
+          {shared && (
+            <StyledBsPeopleFill size={"1.4rem"} title={"Public dashboard"} />
+          )}
+          <CardTitleDiv editable={editable}>
             {isEditingTitle ? (
               <EditableInput
                 ref={nameInput}
@@ -373,7 +376,9 @@ const DashboardCard = ({
                 }
               />
             ) : (
-              <CardTitle>{title}</CardTitle>
+              <CardTitle onClick={() => handleEditClick(setIsEditingTitle)}>
+                {title}
+              </CardTitle>
             )}
           </CardTitleDiv>
           <ContextMenu
@@ -401,7 +406,11 @@ const DashboardCard = ({
           )}
           <CardImage variant="top" src={dashboardImage} />
 
-          <DescriptionDiv isEditing={isEditingDescription}>
+          <DescriptionDiv
+            isEditing={isEditingDescription}
+            editable={editable}
+            onClick={() => handleEditClick(setIsEditingDescription)}
+          >
             {isEditingDescription ? (
               <EditableTextarea
                 ref={descriptionInput}
