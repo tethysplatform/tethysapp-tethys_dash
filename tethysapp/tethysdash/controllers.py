@@ -18,7 +18,7 @@ from .model import (
 from .visualizations import get_available_visualizations, get_visualization
 
 
-@controller(login_required=True)
+@controller(login_required=False)
 def home(request):
     """Controller for the app home page."""
     # The index.html template loads the React frontend
@@ -26,7 +26,7 @@ def home(request):
 
 
 @api_view(["GET"])
-@controller(login_required=True)
+@controller(login_required=False)
 def data(request):
     """API controller for the plot page."""
     viz_source = request.GET["source"]
@@ -46,7 +46,7 @@ def data(request):
 
 
 @api_view(["GET"])
-@controller(login_required=True)
+@controller(login_required=False)
 def dashboards(request):
     """API controller for the dashboards page."""
     user = str(request.user)
@@ -57,7 +57,7 @@ def dashboards(request):
 
 
 @api_view(["GET"])
-@controller(login_required=True)
+@controller(login_required=False)
 def visualizations(request):
     """API controller for the visualizations page."""
     visualizations = get_available_visualizations()
@@ -66,7 +66,7 @@ def visualizations(request):
 
 
 @api_view(["GET"])
-@controller(url="tethysdash/dashboards/get", login_required=True)
+@controller(url="tethysdash/dashboards/get", login_required=False)
 def get_dashboard(request):
     """API controller for the dashboards page."""
     user = str(request.user)
@@ -246,7 +246,7 @@ def upload_geojson(request, app_workspace):
 
 
 @api_view(["GET"])
-@controller(url="tethysdash/json/download", login_required=True, app_workspace=True)
+@controller(url="tethysdash/json/download", login_required=False, app_workspace=True)
 def download_geojson(request, app_workspace):
     """API controller for the dashboards page."""
     filename = request.GET["filename"]

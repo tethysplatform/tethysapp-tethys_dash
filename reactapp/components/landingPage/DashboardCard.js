@@ -457,6 +457,18 @@ export const NewDashboardCard = () => {
   );
 };
 
+export const NoDashboardCard = () => {
+  return (
+    <CustomCard newCard={true}>
+      <CardBody>
+        <NewDashboardDiv>
+          <p>There are no available public dashboards</p>
+        </NewDashboardDiv>
+      </CardBody>
+    </CustomCard>
+  );
+};
+
 DashboardCard.propTypes = {
   id: PropTypes.number,
   name: PropTypes.string,
