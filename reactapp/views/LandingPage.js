@@ -1,8 +1,9 @@
 import { useContext, useEffect, useState } from "react";
 import { LandingPageHeader } from "components/layout/Header";
-import { AvailableDashboardsContext } from "components/contexts/Contexts";
+import { AppContext, AvailableDashboardsContext } from "components/contexts/Contexts";
 import DashboardCard, {
   NewDashboardCard,
+  NoDashboardCard,
 } from "components/landingPage/DashboardCard";
 import styled from "styled-components";
 import Container from "react-bootstrap/Container";
@@ -24,6 +25,7 @@ const StyledCol = styled(Col)`
 
 const LandingPage = () => {
   const { availableDashboards } = useContext(AvailableDashboardsContext);
+  const { user } = useContext(AppContext);
   const [userDashboards, setUserDashboards] = useState([]);
   const [publicDashboards, setPublicDashboards] = useState([]);
 
@@ -37,9 +39,11 @@ const LandingPage = () => {
       <LandingPageHeader />
       <StyledContainer fluid>
         <StyledRow>
-          <StyledCol>
-            <NewDashboardCard />
-          </StyledCol>
+          {user?.username !== "public" && (
+            <StyledCol>
+              <NewDashboardCard />
+            </StyledCol>
+          )}
           {userDashboards.map((dashboardMetadata) => (
             <StyledCol key={dashboardMetadata.id}>
               <DashboardCard editable={true} {...dashboardMetadata} />
@@ -50,6 +54,14 @@ const LandingPage = () => {
               <DashboardCard editable={false} {...dashboardMetadata} />
             </StyledCol>
           ))}
+          {
+            user?.username === "public" &&
+            publicDashboards.length === 0 && (
+              <StyledCol key='no-content'>
+                <NoDashboardCard />
+              </StyledCol>
+            )
+          }
         </StyledRow>
       </StyledContainer>
     </>
