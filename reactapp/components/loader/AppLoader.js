@@ -259,7 +259,7 @@ function Loader({ children }) {
       let newAvailableDashboards = JSON.parse(
         JSON.stringify(availableDashboards)
       );
-      newAvailableDashboards["user"].push(newDashboard);
+      newAvailableDashboards["user"].unshift(newDashboard);
       setAvailableDashboards(newAvailableDashboards);
     }
     return apiResponse;

@@ -2,6 +2,7 @@ import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import Alert from "react-bootstrap/Alert";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import { useState, useContext } from "react";
 import TextArea from "components/inputs/TextArea";
 import NormalInput from "components/inputs/NormalInput";
@@ -16,6 +17,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const { addDashboard } = useContext(AvailableDashboardsContext);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
   const [errorMessage, setErrorMessage] = useState(null);
 
   const handleModalClose = () => {
@@ -40,6 +42,9 @@ function NewDashboardModal({ showModal, setShowModal }) {
     addDashboard(inputData).then((response) => {
       if (response["success"]) {
         handleModalClose();
+        if (activeAppTour) {
+          setAppTourStep((previousStep) => previousStep + 1);
+        }
       } else {
         setErrorMessage(response["message"]);
       }

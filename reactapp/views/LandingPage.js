@@ -35,7 +35,7 @@ const LandingPage = () => {
   return (
     <>
       <LandingPageHeader />
-      <StyledContainer fluid>
+      <StyledContainer fluid className="landing-page">
         <StyledRow>
           <StyledCol>
             <NewDashboardCard />

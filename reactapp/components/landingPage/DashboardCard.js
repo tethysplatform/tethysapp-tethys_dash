@@ -8,6 +8,7 @@ import { FaPlus } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import Alert from "react-bootstrap/Alert";
 import NewDashboardModal from "components/modals/NewDashboard";
 import { FaRegUserCircle } from "react-icons/fa";
@@ -179,6 +180,10 @@ const CardImage = styled(Card.Img)`
   }
 `;
 
+const FlexDiv = styled.div`
+  display: flex;
+`;
+
 const SharingIcon = ({ shared }) => {
   if (shared) {
     return (
@@ -222,6 +227,8 @@ const DashboardCard = ({
   const [dashboardImage, setDashboardImage] = useState(image);
   const nameInput = useRef();
   const descriptionInput = useRef();
+  const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
+    useAppTourContext();
 
   useEffect(() => {
     if (isEditingTitle) {
@@ -346,22 +353,27 @@ const DashboardCard = ({
   };
 
   const onDoubleClickCard = () => {
-    if (!isEditingTitle && !isEditingDescription) {
+    if (!isEditingTitle && !isEditingDescription && !activeAppTour) {
       viewDashboard();
     }
   };
 
   return (
     <>
-      <CustomCard onDoubleClick={onDoubleClickCard}>
+      <CustomCard
+        onDoubleClick={onDoubleClickCard}
+        className={editable ? `${name}-user-card` : `${name}-public-card`}
+      >
         <CardHeader>
-          {editable && (
-            <FaRegUserCircle size={"1.4rem"} title={"You are the owner"} />
-          )}
-          {shared && (
-            <StyledBsPeopleFill size={"1.4rem"} title={"Public dashboard"} />
-          )}
-          <CardTitleDiv editable={editable}>
+          <FlexDiv className="card-header-icons">
+            {editable && (
+              <FaRegUserCircle size={"1.2rem"} title={"You are the owner"} />
+            )}
+            {shared && (
+              <StyledBsPeopleFill size={"1.2rem"} title={"Public dashboard"} />
+            )}
+          </FlexDiv>
+          <CardTitleDiv editable={editable} className="card-header-title">
             {isEditingTitle ? (
               <EditableInput
                 ref={nameInput}
@@ -440,15 +452,21 @@ const DashboardCard = ({
 
 export const NewDashboardCard = () => {
   const [showNewDashboardModal, setShowNewDashboardModal] = useState(false);
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
+
+  const onClick = () => {
+    setShowNewDashboardModal(true);
+    if (activeAppTour) {
+      setAppTourStep((previousStep) => previousStep + 1);
+    }
+  };
 
   return (
     <>
-      <CustomCard newCard={true}>
+      <CustomCard newCard={true} className="create-new-card">
         <CardBody>
           <NewDashboardDiv
-            onClick={() => {
-              setShowNewDashboardModal(true);
-            }}
+            onClick={onClick}
             onMouseOver={(e) => (e.target.style.cursor = "pointer")}
             onMouseOut={(e) => (e.target.style.cursor = "default")}
           >

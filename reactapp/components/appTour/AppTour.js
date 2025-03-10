@@ -1,15 +1,12 @@
 import Joyride, { ACTIONS, EVENTS, STATUS } from "react-joyride";
 import { useAppTourContext } from "components/contexts/AppTourContext";
-import { Card } from "react-bootstrap";
-import { useEffect } from "react";
+import { FaRegUserCircle } from "react-icons/fa";
+import { BsPeopleFill } from "react-icons/bs";
 
 const AppTour = () => {
   const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
     useAppTourContext();
 
-  useEffect(() => {
-    console.log(appTourStep);
-  }, [appTourStep]);
   const handleCallback = (event) => {
     const { status, action, index, type, step } = event;
 
@@ -56,22 +53,250 @@ const AppTour = () => {
   // 17 - double click to open dashboard
 
   const steps = [
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
-    {},
+    {
+      target: ".landing-page", // 0
+      content: (
+        <div>
+          All available user and public dashboards will be displayed on this
+          page.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      hideBackButton: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".create-new-card", // 1
+      content: (
+        <div>
+          Dashboard can be created by clicking on the "Create a New Dashboard"
+          card.
+          <br />
+          <br />
+          Click on on the card to create a new dashboard and continue with the
+          App tour.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      hideFooter: true,
+      spotlightPadding: 5,
+    },
+    {
+      target: ".modal-content", // 2
+      content: (
+        <div>
+          This is a modal for creating a new dashboard. Provide a name and a
+          description for your dashboard and then click on "Create".
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      hideFooter: true,
+      spotlightPadding: 5,
+    },
+    {
+      target: ".landing-page > div > div:nth-child(2) > div", // 3
+      content: (
+        <div>
+          Each card in the landing page represents a dashboard and its
+          information.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      hideBackButton: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target:
+        ".landing-page > div > div:nth-child(2) > div > div.card-header > div.card-header-icons", // 4
+      content: (
+        <div>
+          Card icons will indicate ownership and public availability.
+          <br />
+          <br />
+          <FaRegUserCircle />: You are the owner of the dashboard.
+          <br />
+          <BsPeopleFill />: Dashboard is publicly available.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target:
+        ".landing-page > div > div:nth-child(2) > div > div.card-header > div.card-header-title", // 5
+      content: <div>Dashboard names are displayed in the card header.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".landing-page > div > div:nth-child(2) > div > div.card-body", // 6
+      content: (
+        <div>
+          Thumbnails provide an image representing the dashboard. Hover over the
+          card body to see the description of the dashboard.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target:
+        ".landing-page > div > div:nth-child(2) > div > div.card-header > div.card-header-menu", // 7
+      content: (
+        <div>
+          Additional dashboard options and interactions are available through
+          the card context menu.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      hideFooter: true,
+      spotlightPadding: 5,
+    },
+    {
+      target: ".card-open-option", // 8
+      content: <div>Open and view the dashboard.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-rename-option", // 9
+      content: (
+        <div>
+          Rename the dashboard. This will also update any public urls tied to
+          this dashboard.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-update-description-option", // 10
+      content: <div>Update the description of the dashboard.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-update-thumbnail-option", // 11
+      content: <div>Update the thumbnail of the dashboard.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-share-option", // 12
+      content: (
+        <div>
+          Update the sharing status of the dashboard or copy the public link for
+          the dashboard if it is public.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-copy-option", // 13
+      content: (
+        <div>
+          Copy with the same settings and dashboard items. The new dashboard
+          will have the name with "_copy" at the end.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-delete-option", // 14
+      content: <div>Delete the dashboard. This action cannot be undone.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".landing-page", // 15
+      content: (
+        <div>
+          For more information about TethysDash, visit the{" "}
+          <a
+            href="https://tethysdashdocs.readthedocs.io/en/latest/usage/settings_tab.html"
+            target="_black"
+            rel="noopener noreferrer"
+          >
+            TethysDash documentation
+          </a>
+          . Please follow instructions found in the{" "}
+          <a
+            href="https://tethysdashdocs.readthedocs.io/en/latest/feedback.html"
+            target="_black"
+            rel="noopener noreferrer"
+          >
+            feedback
+          </a>{" "}
+          sessions for reporting any bugs or issues.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      locale: { next: "End App Tour" },
+      showSkipButton: false,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { endAppTourStep: true },
+      placement: "center",
+    },
     {},
     {
       target: ".complex-interface-layout", // 17
