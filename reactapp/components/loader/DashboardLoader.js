@@ -10,7 +10,6 @@ import {
   DataViewerModeContext,
   AvailableDashboardsContext,
 } from "components/contexts/Contexts";
-import AppTourContextProvider from "components/contexts/AppTourContext";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
 
@@ -154,7 +153,7 @@ const DashboardLoader = ({
                   setInDataViewerMode,
                 }}
               >
-                <AppTourContextProvider>{children}</AppTourContextProvider>
+                {children}
               </DataViewerModeContext.Provider>
             </DisabledEditingMovementContext.Provider>
           </EditingContext.Provider>

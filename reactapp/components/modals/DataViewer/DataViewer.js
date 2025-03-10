@@ -185,7 +185,7 @@ function DataViewerModal({
 
   function closeAndSetAppTour() {
     handleModalClose();
-    setAppTourStep(10);
+    setAppTourStep(23);
   }
 
   function emptyFunction() {}

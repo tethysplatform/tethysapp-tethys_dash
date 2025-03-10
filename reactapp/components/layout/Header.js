@@ -86,43 +86,67 @@ function LockedIcon({ locked }) {
 
 export const LandingPageHeader = () => {
   const { tethysApp, user } = useContext(AppContext);
+  const dontShowLandingPageInfoOnStart = localStorage.getItem(
+    "dontShowLandingPageInfoOnStart"
+  );
+  const [showInfoModal, setShowInfoModal] = useState(
+    dontShowLandingPageInfoOnStart !== "true"
+  );
 
   return (
-    <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
-      <Container as="header" fluid className="px-4">
-        <TitleDiv>
-          <WhiteTitle>Available Dashboards</WhiteTitle>
-        </TitleDiv>
-        <div>
-          {user.isStaff && (
+    <>
+      <CustomNavBar fixed="top" bg="primary" variant="dark" className="shadow">
+        <Container as="header" fluid className="px-4">
+          <TitleDiv>
+            <WhiteTitle>Available Dashboards</WhiteTitle>
+          </TitleDiv>
+          <div>
+            {user.isStaff && (
+              <TooltipButton
+                href={tethysApp.settingsUrl}
+                tooltipPlacement="bottom"
+                tooltipText="App Settings"
+                aria-label={"appSettingButton"}
+              >
+                <BsGear size="1.5rem" />
+              </TooltipButton>
+            )}
             <TooltipButton
-              href={tethysApp.settingsUrl}
+              onClick={() => setShowInfoModal(true)}
               tooltipPlacement="bottom"
-              tooltipText="App Settings"
-              aria-label={"appSettingButton"}
+              tooltipText="App Info"
+              aria-label="appInfoButton"
             >
-              <BsGear size="1.5rem" />
+              <BsInfo size="1.5rem" />
             </TooltipButton>
-          )}
-          <TooltipButton
-            href={tethysApp.exitUrl}
-            tooltipPlacement="bottom"
-            tooltipText="Exit TethysDash"
-            aria-label={"appExitButton"}
-          >
-            <BsX size="1.5rem" />
-          </TooltipButton>
-        </div>
-      </Container>
-    </CustomNavBar>
+            <TooltipButton
+              href={tethysApp.exitUrl}
+              tooltipPlacement="bottom"
+              tooltipText="Exit TethysDash"
+              aria-label={"appExitButton"}
+            >
+              <BsX size="1.5rem" />
+            </TooltipButton>
+          </div>
+        </Container>
+      </CustomNavBar>
+      {showInfoModal && (
+        <AppInfoModal
+          showModal={showInfoModal}
+          setShowModal={setShowInfoModal}
+        />
+      )}
+    </>
   );
 };
 
 export const DashboardHeader = () => {
   const [showEditCanvas, setShowEditCanvas] = useState(false);
-  const dontShowInfoOnStart = localStorage.getItem("dontShowInfoOnStart");
+  const dontShowDashboardInfoOnStart = localStorage.getItem(
+    "dontShowDashboardInfoOnStart"
+  );
   const [showInfoModal, setShowInfoModal] = useState(
-    dontShowInfoOnStart !== "true"
+    dontShowDashboardInfoOnStart !== "true"
   );
   const {
     getLayoutContext,
@@ -146,7 +170,7 @@ export const DashboardHeader = () => {
     setShowEditCanvas(true);
     if (activeAppTour) {
       setTimeout(() => {
-        setAppTourStep(24);
+        setAppTourStep(38);
       }, 400);
     }
   };
@@ -325,10 +349,19 @@ export const DashboardHeader = () => {
               onClick={showNav}
               tooltipPlacement="bottom"
               tooltipText="Dashboard Settings"
-              aria-label="dashboarcSettingsButton"
+              aria-label="dashboardSettingButton"
+              className={"dashboardSettingButton"}
               disabled={isSaving}
             >
               <BsGear size="1.5rem" />
+            </TooltipButton>
+            <TooltipButton
+              onClick={() => setShowInfoModal(true)}
+              tooltipPlacement="bottom"
+              tooltipText="App Info"
+              aria-label="appInfoButton"
+            >
+              <BsInfo size="1.5rem" />
             </TooltipButton>
           </div>
         </Container>
@@ -343,6 +376,7 @@ export const DashboardHeader = () => {
         <AppInfoModal
           showModal={showInfoModal}
           setShowModal={setShowInfoModal}
+          view="dashboard"
         />
       )}
     </>

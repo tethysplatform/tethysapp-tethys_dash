@@ -16,6 +16,7 @@ import { Route } from "react-router-dom";
 import NotFound from "components/error/NotFound";
 import DashboardView from "views/Dashboard";
 import LandingPage from "views/LandingPage";
+import AppTourContextProvider from "components/contexts/AppTourContext";
 import { confirm } from "components/inputs/DeleteConfirmation";
 
 const APP_ID = process.env.TETHYS_APP_ID;
@@ -309,7 +310,7 @@ function Loader({ children }) {
               updateDashboard,
             }}
           >
-            {children}
+            <AppTourContextProvider>{children}</AppTourContextProvider>
           </AvailableDashboardsContext.Provider>
         </AppContext.Provider>
       </>

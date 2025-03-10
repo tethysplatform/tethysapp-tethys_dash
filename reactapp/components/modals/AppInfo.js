@@ -16,39 +16,49 @@ const StyledBody = styled(Modal.Body)`
   text-align: center;
 `;
 
-function AppInfoModal({ showModal, setShowModal }) {
-  const { resetLayoutContext } = useContext(LayoutContext);
+function AppInfoModal({ showModal, setShowModal, view }) {
   const { setActiveAppTour, setAppTourStep } = useAppTourContext();
-  const dontShowInfoOnStart = localStorage.getItem("dontShowInfoOnStart");
-  const [checked, setChecked] = useState(
-    dontShowInfoOnStart === null ? false : dontShowInfoOnStart === "true"
+  const dontShowLandingPageInfoOnStart = localStorage.getItem(
+    "dontShowLandingPageInfoOnStart"
   );
+  const dontShowDashboardInfoOnStart = localStorage.getItem(
+    "dontShowDashboardInfoOnStart"
+  );
+  let checked;
+  let setChecked;
+  if (view === "dashboard") {
+    [checked, setChecked] = useState(
+      dontShowDashboardInfoOnStart === null
+        ? false
+        : dontShowDashboardInfoOnStart === "true"
+    );
+  } else {
+    [checked, setChecked] = useState(
+      dontShowLandingPageInfoOnStart === null
+        ? false
+        : dontShowLandingPageInfoOnStart === "true"
+    );
+  }
   const [showingConfirm, setShowingConfirm] = useState(false);
-  const { isEditing, setIsEditing } = useContext(EditingContext);
   const handleClose = () => setShowModal(false);
 
   const startAppTour = async () => {
-    if (isEditing) {
-      setShowingConfirm(true);
-      if (
-        !(await confirm(
-          "Starting the app tour will cancel any changes you have made to the current dashboard. Are your sure you want to start the tour?"
-        ))
-      ) {
-        return;
-      }
-      setShowingConfirm(false);
+    if (view === "dashboard") {
+      setAppTourStep(17);
+    } else {
+      setAppTourStep(0);
     }
-    resetLayoutContext();
-    setIsEditing(false);
     setShowModal(false);
-    setAppTourStep(0);
     setActiveAppTour(true);
   };
 
   const handleDontShow = (e) => {
     setChecked(e.target.checked);
-    localStorage.setItem("dontShowInfoOnStart", e.target.checked);
+    if (view === "dashboard") {
+      localStorage.setItem("dontShowDashboardInfoOnStart", e.target.checked);
+    } else {
+      localStorage.setItem("dontShowLandingPageInfoOnStart", e.target.checked);
+    }
   };
 
   return (
@@ -62,20 +72,44 @@ function AppInfoModal({ showModal, setShowModal }) {
         style={showingConfirm && { zIndex: 1050 }}
       >
         <Modal.Header closeButton>
-          <Modal.Title className="ms-auto">Welcome to TethysDash</Modal.Title>
+          <Modal.Title className="ms-auto">
+            {view === "dashboard"
+              ? "TethysDash Dashboards"
+              : "TethysDash Landing Page"}
+          </Modal.Title>
         </Modal.Header>
         <StyledBody>
-          Welcome to TethysDash, a customizable data viewer and dashboard
-          application. For more information about the application and developing
-          visualizations, check the official{" "}
-          <a
-            target="_blank"
-            rel="noopener noreferrer"
-            href="https://tethysdashdocs.readthedocs.io/en/latest/index.html"
-          >
-            TethysDash documentation
-          </a>
-          .
+          {view === "dashboard" ? (
+            <>
+              TethysDash dashboards provide a customizable dataviewer for a
+              variety of user defined data sources. For more information about
+              the application and developing visualizations, check the official{" "}
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://tethysdashdocs.readthedocs.io/en/latest/index.html"
+              >
+                TethysDash documentation
+              </a>
+              .
+            </>
+          ) : (
+            <>
+              Welcome to TethysDash, a customizable data viewer and dashboard
+              application. The landing page provides a summary of all available
+              dashboards for the user, including publicly available dashboards.
+              For more information about the application and developing
+              visualizations, check the official{" "}
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://tethysdashdocs.readthedocs.io/en/latest/index.html"
+              >
+                TethysDash documentation
+              </a>
+              .
+            </>
+          )}
           <br />
           <br />
           If you would like to take a tour of the application, click on the
@@ -83,7 +117,9 @@ function AppInfoModal({ showModal, setShowModal }) {
           <br />
           <br />
           <Button onClick={startAppTour} variant="info">
-            Start App Tour
+            {view === "dashboard"
+              ? "Start Dashboard Tour"
+              : "Start landing Page Tour"}
           </Button>
         </StyledBody>
         <Modal.Footer>
