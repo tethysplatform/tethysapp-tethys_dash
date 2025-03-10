@@ -13,5 +13,7 @@ export function getTethysPortalHost() {
 }
 
 export const getPublicUrl = (name) => {
-  return getTethysPortalHost() + APP_ROOT_URL + "dashboard/public/" + name;
+  return new URL(
+    getTethysPortalHost() + APP_ROOT_URL + "dashboard/public/" + name
+  ).href;
 };

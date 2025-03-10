@@ -33,25 +33,6 @@ const AppTour = () => {
     }
   };
 
-  // Landing Page Steps
-  // 1 - Landing page
-  // 2 - New Dashboard
-  // 3 - Card
-  // 4 - owner
-  // 5 - public
-  // 6 - Name
-  // 7 - Thumbnail
-  // 8 - description
-  // 9 - context menu
-  // 10 - open
-  // 11 - rename
-  // 12 - update description
-  // 13 - update thumbnail
-  // 14 - public
-  // 15 - copy
-  // 16 - delete
-  // 17 - double click to open dashboard
-
   const steps = [
     {
       target: ".landing-page", // 0
@@ -181,7 +162,12 @@ const AppTour = () => {
     },
     {
       target: ".card-open-option", // 8
-      content: <div>Open and view the dashboard.</div>,
+      content: (
+        <div>
+          Open and view the dashboard. You can also double click on the card to
+          open the dashboard.
+        </div>
+      ),
       disableBeacon: true,
       disableOverlayClose: true,
       styles: {
