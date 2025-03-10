@@ -1,18 +1,11 @@
-import styled from "styled-components";
-import Container from "react-bootstrap/Container";
-import Navbar from "react-bootstrap/Navbar";
 import PropTypes from "prop-types";
 import { useContext, useState } from "react";
-import {
-  BsX,
-  BsGear,
-  BsGrid3X3Gap,
-  BsInfo,
-  BsFloppy,
-  BsPencilSquare,
-} from "react-icons/bs";
-import { FaPlus } from "react-icons/fa6";
-import { CiUndo } from "react-icons/ci";
+import { useNavigate } from "react-router-dom";
+import Container from "react-bootstrap/Container";
+import Navbar from "react-bootstrap/Navbar";
+import Spinner from "react-bootstrap/Spinner";
+import styled from "styled-components";
+
 import {
   LayoutContext,
   EditingContext,
@@ -23,14 +16,28 @@ import TooltipButton from "components/buttons/TooltipButton";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import AppInfoModal from "components/modals/AppInfo";
 import { useAppTourContext } from "components/contexts/AppTourContext";
-import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
-import { useNavigate } from "react-router-dom";
 import {
   useLayoutSuccessAlertContext,
   useLayoutErrorAlertContext,
 } from "components/contexts/LayoutAlertContext";
-import html2canvas from "html2canvas";
-import Spinner from "react-bootstrap/Spinner";
+import { getTethysPortalHost } from "services/utilities";
+
+import {
+  BsX,
+  BsGear,
+  BsGrid3X3Gap,
+  BsInfo,
+  BsArrowReturnLeft,
+  BsFloppy,
+  BsFloppyFill,
+  BsPencilSquare,
+  BsFillPersonFill,
+} from "react-icons/bs";
+import { CiUndo } from "react-icons/ci";
+import { IoArrowBackOutline } from "react-icons/io5";
+import { FaPlus } from "react-icons/fa6";
+import { LuNotepadText } from "react-icons/lu";
+import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
 import "components/buttons/HeaderButton.css";
 
 const StyledSpinner = styled(Spinner)`
@@ -89,6 +96,7 @@ export const LandingPageHeader = () => {
   const [showInfoModal, setShowInfoModal] = useState(
     dontShowLandingPageInfoOnStart !== "true"
   );
+  const TETHYS_PORTAL_HOST = getTethysPortalHost();
 
   return (
     <>
@@ -116,6 +124,20 @@ export const LandingPageHeader = () => {
             >
               <BsInfo size="1.5rem" />
             </TooltipButton>
+            {user?.username === "public" && (
+              <TooltipButton
+                onClick={() => {
+                  window.location.assign(
+                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`,
+                  );
+                }}
+                tooltipPlacement="bottom"
+                tooltipText="Login"
+                aria-label={"dashboardLoginButton"}
+              >
+                <BsFillPersonFill size="1.5rem" />
+              </TooltipButton>
+            )}
             <TooltipButton
               href={tethysApp.exitUrl}
               tooltipPlacement="bottom"
@@ -145,6 +167,7 @@ export const DashboardHeader = () => {
   const [showInfoModal, setShowInfoModal] = useState(
     dontShowDashboardInfoOnStart !== "true"
   );
+  const { user } = useContext(AppContext);
   const {
     getDashboardMetadata,
     updateGridItems,
@@ -162,6 +185,7 @@ export const DashboardHeader = () => {
     useLayoutSuccessAlertContext();
   const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
   const navigate = useNavigate();
+  const TETHYS_PORTAL_HOST = getTethysPortalHost();
 
   const showNav = () => {
     setShowEditCanvas(true);
@@ -350,6 +374,21 @@ export const DashboardHeader = () => {
                   <BsInfo size="1.5rem" />
                 </TooltipButton>
               </>
+            )}
+            {user?.username === "public" && (
+              <TooltipButton
+                onClick={() => {
+                  window.location.assign(
+                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`,
+                  );
+                }}
+                tooltipPlacement="bottom"
+                tooltipText="Login"
+                aria-label={"dashboardLoginButton"}
+                disabled={isSaving}
+              >
+                <BsFillPersonFill size="1.5rem" />
+              </TooltipButton>
             )}
             <TooltipButton
               onClick={showNav}

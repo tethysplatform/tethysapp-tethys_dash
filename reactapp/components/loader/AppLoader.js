@@ -1,5 +1,6 @@
 import PropTypes from "prop-types";
 import { useState, useEffect } from "react";
+import Form from "react-bootstrap/Form";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import {
   nonDropDownVariableInputTypes,
@@ -86,9 +87,12 @@ function setupRoutes(dashboards) {
 
 
 function Loader({ children }) {
+  const dontShowPublicLoginOnStart = localStorage.getItem("dontShowPublicLoginOnStart");
   const [error, setError] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [redirectPublicUser, setRedirectPublicUser] = useState(false);
+  const [showRedirectPublicUserModal, setShowRedirectPublicUserModal] = useState(false);
+  const [checked, setChecked] = useState(false);
   const [appContext, setAppContext] = useState(null);
   const [availableDashboards, setAvailableDashboards] = useState(null);
   const TETHYS_PORTAL_HOST = getTethysPortalHost();
@@ -101,12 +105,22 @@ function Loader({ children }) {
       return
     }
     setRedirectPublicUser(false);
+    setShowRedirectPublicUserModal(false)
+  };
+
+  const handleDontShow = (e) => {
+    setChecked(e.target.checked);
+    localStorage.setItem("dontShowPublicLoginOnStart", e.target.checked);
   };
 
   const handleError = (error) => {
     if (error.response.status === 401) {
       console.log("There's a unsigned user")
       setRedirectPublicUser(true);
+      console.log(dontShowPublicLoginOnStart)
+      if (dontShowPublicLoginOnStart === "false" || !dontShowPublicLoginOnStart) {
+        setShowRedirectPublicUserModal(true)
+      }
       setTimeout(() => {
         setIsLoaded(true);
       }, LOADER_DELAY);
@@ -258,7 +272,7 @@ function Loader({ children }) {
             argOptions: baseMapLayers,
           },
         ];
-  
+
         for (let optionGroup of allVisualizations) {
           for (let option of optionGroup.options) {
             let args = option.args;
@@ -281,7 +295,7 @@ function Loader({ children }) {
             }
           }
         }
-  
+
         allVisualizations.push({
           label: "Other",
           options: [
@@ -326,7 +340,7 @@ function Loader({ children }) {
             },
           ],
         });
-  
+
         // Update app context
         setAppContext({
           tethysApp,
@@ -344,7 +358,7 @@ function Loader({ children }) {
           visualizationArgs,
         });
         setAvailableDashboards(dashboards);
-  
+
         // Allow for minimum delay to display loader
         setTimeout(() => {
           setIsLoaded(true);
@@ -452,14 +466,31 @@ function Loader({ children }) {
     throw error;
   } else if (!isLoaded) {
     return <LoadingAnimation />;
-  } else if (redirectPublicUser) {
+  } else if (showRedirectPublicUserModal) {
     return (
       <Confirmation
-        show={redirectPublicUser}
+        show={showRedirectPublicUserModal}
         okLabel="Proceed Without Signing in"
         cancelLabel="Sign in"
         title="Public User Login"
-        confirmation="There is no user signed in currently. Would you like to continue to the public dashboards?"
+        confirmation={
+          <>
+            <div>
+              You are not signed in. Sign in to create and update dashboards.
+            </div>
+            <div style={{ marginTop: ".75rem" }}>
+              If you'd like to continue, you will only have access to public dashboards
+            </div>
+            <Form.Check
+              onChange={handleDontShow}
+              type="checkbox"
+              label="Don't show on startup"
+              checked={checked}
+              aria-label="dont-show-public-user-on-startup"
+              style={{ marginTop: ".75rem" }}
+            />
+          </>
+        }
         proceed={handlePublicUser}
         backdrop={"static"}
       />
