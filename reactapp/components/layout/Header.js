@@ -170,7 +170,7 @@ export const DashboardHeader = () => {
     setShowEditCanvas(true);
     if (activeAppTour) {
       setTimeout(() => {
-        setAppTourStep(38);
+        setAppTourStep(39);
       }, 400);
     }
   };
@@ -267,7 +267,8 @@ export const DashboardHeader = () => {
             }}
             tooltipPlacement="bottom"
             tooltipText="Exit Dashboard"
-            aria-label={"dashboardExitButton"}
+            aria-label="dashboardExitButton"
+            className="dashboardExitButton"
             disabled={isSaving}
           >
             <IoArrowBackOutline size="1.5rem" />
