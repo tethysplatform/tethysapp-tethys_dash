@@ -7,7 +7,7 @@ import { useContext, useState } from "react";
 import {
   BsX,
   BsGear,
-  BsList,
+  BsGrid3X3Gap,
   BsInfo,
   BsArrowReturnLeft,
   BsFloppy,
@@ -266,12 +266,12 @@ export const DashboardHeader = () => {
               navigate("/");
             }}
             tooltipPlacement="bottom"
-            tooltipText="Exit Dashboard"
+            tooltipText="Return to Landing Page"
             aria-label="dashboardExitButton"
             className="dashboardExitButton"
             disabled={isSaving}
           >
-            <IoArrowBackOutline size="1.5rem" />
+            <BsGrid3X3Gap size="1.5rem" />
           </TooltipButton>
           {name && <WhiteTitle>{name}</WhiteTitle>}
           <div>
