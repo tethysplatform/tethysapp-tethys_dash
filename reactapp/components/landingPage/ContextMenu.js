@@ -3,7 +3,7 @@ import PropTypes from "prop-types";
 import Dropdown from "react-bootstrap/Dropdown";
 import { BsThreeDotsVertical, BsFillCaretRightFill } from "react-icons/bs";
 import { useAppTourContext } from "components/contexts/AppTourContext";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import "components/buttons/itemDropdown.css";
 
 const StyledDropdownToggle = styled(Dropdown.Toggle)`
@@ -26,17 +26,13 @@ const StyledDropdownMenu = styled(Dropdown.Menu)`
 
 const SubmenuWrapper = styled.div`
   position: relative;
-
-  &:hover .submenu {
-    display: block;
-  }
 `;
 
 const Submenu = styled.div`
-  display: none;
+  display: ${({ isVisible }) => (isVisible ? "block" : "none")};
   position: absolute;
   top: 0;
-  left: 100%;
+  ${({ position }) => (position === "left" ? "right: 100%;" : "left: 100%;")}
   background: white;
   border: 1px solid #ddd;
   box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
@@ -57,14 +53,33 @@ const ContextMenu = ({
   setShowThumbnailModal,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
+  const submenuRef = useRef(null);
+  const [submenuPosition, setSubmenuPosition] = useState("right");
+  const [submenuVisible, setSubmenuVisible] = useState(false);
   const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
     useAppTourContext();
+
+  useEffect(() => {
+    if (submenuRef.current) {
+      const rect = submenuRef.current.getBoundingClientRect();
+      const isOverflowing = rect.right > window.innerWidth;
+      setSubmenuPosition(isOverflowing ? "left" : "right");
+    }
+  }, [submenuVisible]);
 
   const onToggle = ({ nextShow }) => {
     setShowMenu(nextShow);
     if (activeAppTour) {
       setAppTourStep((previousStep) => previousStep + 1);
     }
+  };
+
+  const onMouseEnter = () => {
+    setSubmenuVisible(true);
+  };
+
+  const onMouseLeave = () => {
+    setSubmenuVisible(false);
   };
 
   return (
@@ -115,10 +130,17 @@ const ContextMenu = ({
               alignItems: "center",
             }}
             className="card-share-option"
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
           >
             Share <BsFillCaretRightFill style={{ marginLeft: "auto" }} />
           </Dropdown.Item>
-          <Submenu className="submenu">
+          <Submenu
+            className="submenu"
+            position={submenuPosition}
+            isVisible={submenuVisible}
+            ref={submenuRef}
+          >
             {editable && (
               <Dropdown.Item onClick={onShare}>
                 {shared ? "Make Private" : "Make Public"}
@@ -147,11 +169,16 @@ const ContextMenu = ({
 };
 
 ContextMenu.propTypes = {
-  showFullscreen: PropTypes.func,
-  deleteGridItem: PropTypes.func,
-  editGridItem: PropTypes.func,
-  editSize: PropTypes.func,
-  copyGridItem: PropTypes.func,
+  viewDashboard: PropTypes.func,
+  setIsEditingTitle: PropTypes.func,
+  setIsEditingDescription: PropTypes.func,
+  setShowThumbnailModal: PropTypes.func,
+  onDelete: PropTypes.func,
+  onCopy: PropTypes.func,
+  onShare: PropTypes.func,
+  onCopyPublicLink: PropTypes.func,
+  shared: PropTypes.bool,
+  editable: PropTypes.bool,
 };
 
 export default ContextMenu;
