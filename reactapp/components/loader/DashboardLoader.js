@@ -37,10 +37,6 @@ const DashboardLoader = ({
       const response = await appAPI.getDashboard({ id });
       if (response.success) {
         updateGridItems(response.dashboard.gridItems);
-
-        originalLayoutContext.current = {
-          dashboardGridItems: response.dashboard.gridItems,
-        };
       } else {
         setLoadError(true);
       }

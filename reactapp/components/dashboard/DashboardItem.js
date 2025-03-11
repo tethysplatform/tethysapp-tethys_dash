@@ -41,7 +41,6 @@ const DashboardItem = ({
   const [gridItemMessage, setGridItemMessage] = useState("");
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
   const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
-  const { gridItems } = getDashboardMetadata();
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );
@@ -49,8 +48,9 @@ const DashboardItem = ({
   const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   async function deleteGridItem(e) {
+    const { gridItems } = getDashboardMetadata();
     if (await confirm("Are you sure you want to delete the item?")) {
-      const updated_grid_items = [...gridItems];
+      const updated_grid_items = JSON.parse(JSON.stringify(gridItems));
       updated_grid_items.splice(gridItemIndex, 1);
 
       updateGridItems(updated_grid_items);
@@ -76,6 +76,7 @@ const DashboardItem = ({
   }
 
   function copyGridItem() {
+    const { gridItems } = getDashboardMetadata();
     let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
@@ -102,9 +103,8 @@ const DashboardItem = ({
         variableInputValues[copiedVariableName];
       setVariableInputValues(variableInputValues);
     }
-    const layout = getDashboardMetadata();
-    const updatedGridItems = [...layout["gridItems"], newGridItem];
-    updateGridItems(updatedGridItems);
+    const updatedGridItems = JSON.parse(JSON.stringify(gridItems));
+    updateGridItems([...updatedGridItems, newGridItem]);
     setIsEditing(true);
   }
 

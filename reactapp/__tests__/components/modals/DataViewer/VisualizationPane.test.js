@@ -18,22 +18,19 @@ const TestingComponent = ({
   setGridItemMessage,
   setViz,
   setVizMetadata,
+  setShowingSubModal,
+  gridItemIndex,
 }) => {
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
   const [vizInputsValues, setVizInputsValues] = useState([]);
   const [variableInputValue, setVariableInputValue] = useState(null);
-  const { setLayoutContext } = useContext(LayoutContext);
   const settingsRef = useRef({});
   const visualizationRef = useRef();
-
-  useEffect(() => {
-    setLayoutContext(layoutContext);
-    // eslint-disable-next-line
-  }, []);
 
   return (
     <>
       <VisualizationPane
+        gridItemIndex={gridItemIndex}
         source={source}
         argsString={argsString}
         setGridItemMessage={setGridItemMessage}
@@ -47,6 +44,7 @@ const TestingComponent = ({
         setVariableInputValue={setVariableInputValue}
         settingsRef={settingsRef}
         visualizationRef={visualizationRef}
+        setShowingSubModal={setShowingSubModal}
       />
       <p data-testid="viz-input-values">{JSON.stringify(vizInputsValues)}</p>
     </>
@@ -64,6 +62,7 @@ test("Visualization Pane Custom Image", async () => {
     createLoadedComponent({
       children: (
         <TestingComponent
+          gridItemIndex={0}
           layoutContext={mockedDashboard}
           source={gridItem.source}
           argsString={gridItem.args_string}

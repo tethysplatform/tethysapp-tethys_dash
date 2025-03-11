@@ -183,8 +183,8 @@ export const DashboardHeader = () => {
   }
 
   function onAddGridItem() {
-    const layout = getDashboardMetadata();
-    let maxGridItemI = layout["gridItems"].reduce((acc, value) => {
+    const { gridItems } = getDashboardMetadata();
+    let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
     const newGridItem = {
@@ -199,7 +199,7 @@ export const DashboardHeader = () => {
         refreshRate: 0,
       }),
     };
-    const updatedGridItems = [...layout["gridItems"], newGridItem];
+    const updatedGridItems = [...gridItems, newGridItem];
     updateGridItems(updatedGridItems);
   }
 
