@@ -30,13 +30,14 @@ const DashboardLoader = ({
   const [disabledEditingMovement, setDisabledEditingMovement] = useState(false);
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
   const { updateDashboard } = useContext(AvailableDashboardsContext);
-  const originalLayoutContext = useRef({});
+  const originalGridItems = useRef({});
 
   useEffect(() => {
     const fetchDashboard = async () => {
       const response = await appAPI.getDashboard({ id });
       if (response.success) {
         updateGridItems(response.dashboard.gridItems);
+        originalGridItems.current = response.dashboard.gridItems;
       } else {
         setLoadError(true);
       }
@@ -53,9 +54,9 @@ const DashboardLoader = ({
     }
   }, [isEditing]);
 
-  function updateVariableInputValuesWithGridItems(gridItems) {
+  function updateVariableInputValuesWithGridItems(updatedGridItems) {
     const updatedVariableInputValues = {};
-    for (let gridItem of gridItems) {
+    for (let gridItem of updatedGridItems) {
       const args = JSON.parse(gridItem.args_string);
 
       if (gridItem.source === "Variable Input") {
@@ -89,10 +90,8 @@ const DashboardLoader = ({
   }
 
   function resetGridItems() {
-    setGridItems(originalLayoutContext.current.dashboardGridItems);
-    updateVariableInputValuesWithGridItems(
-      originalLayoutContext.current.dashboardGridItems
-    );
+    setGridItems(originalGridItems.current);
+    updateVariableInputValuesWithGridItems(originalGridItems.current);
   }
 
   async function saveLayoutContext(newProperties) {
@@ -101,9 +100,7 @@ const DashboardLoader = ({
       const updatedDashboard = apiResponse.updated_dashboard;
       if ("gridItems" in newProperties) {
         setGridItems(updatedDashboard.gridItems);
-        originalLayoutContext.current = {
-          dashboardGridItems: updatedDashboard.gridItems,
-        };
+        originalGridItems.current = updatedDashboard.gridItems;
       }
     }
     return apiResponse;

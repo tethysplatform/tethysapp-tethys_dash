@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import { useContext, createContext, useState } from "react";
 
-const AppTourContext = createContext();
+export const AppTourContext = createContext();
 
 const AppTourContextProvider = ({ children }) => {
   const [activeAppTour, setActiveAppTour] = useState(false);

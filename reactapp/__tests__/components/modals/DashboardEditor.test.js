@@ -12,7 +12,7 @@ import createLoadedComponent, {
 } from "__tests__/utilities/customRender";
 import appAPI from "services/api/app";
 
-jest.mock("components/dashboard/DeleteConfirmation", () => {
+jest.mock("components/inputs/DeleteConfirmation", () => {
   return {
     confirm: jest.fn(),
   };

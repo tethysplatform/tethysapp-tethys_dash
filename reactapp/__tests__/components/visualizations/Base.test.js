@@ -542,7 +542,7 @@ it("Base - update variable input", async () => {
           />
         </>
       ),
-      options: { dashboards, initialDashboard: mockedDashboard.name },
+      options: { dashboards, initialDashboard: mockedDashboard },
     })
   );
 

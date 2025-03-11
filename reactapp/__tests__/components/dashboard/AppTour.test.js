@@ -9,7 +9,7 @@ import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import appAPI from "services/api/app";
 import { confirm } from "components/inputs/DeleteConfirmation";
 
-jest.mock("components/dashboard/DeleteConfirmation", () => {
+jest.mock("components/inputs/DeleteConfirmation", () => {
   return {
     confirm: jest.fn(),
   };
