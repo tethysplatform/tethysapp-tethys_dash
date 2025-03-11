@@ -82,9 +82,9 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
-  const { getLayoutContext, saveLayoutContext } = useContext(LayoutContext);
+  const { getDashboardMetadata, saveLayoutContext } = useContext(LayoutContext);
   const { id, name, description, editable, accessGroups, notes } =
-    getLayoutContext();
+    getDashboardMetadata();
   const { deleteDashboard, copyDashboard } = useContext(
     AvailableDashboardsContext
   );

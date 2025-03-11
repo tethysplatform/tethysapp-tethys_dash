@@ -17,6 +17,7 @@ const DashboardLoader = ({
   children,
   id,
   name,
+  notes,
   editable,
   accessGroups,
   description,
@@ -24,7 +25,6 @@ const DashboardLoader = ({
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [variableInputValues, setVariableInputValues] = useState({});
-  const [notes, setNotes] = useState("");
   const [gridItems, setGridItems] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [disabledEditingMovement, setDisabledEditingMovement] = useState(false);
@@ -36,11 +36,9 @@ const DashboardLoader = ({
     const fetchDashboard = async () => {
       const response = await appAPI.getDashboard({ id });
       if (response.success) {
-        setNotes(response.dashboard.notes);
-        setGridItems(response.dashboard.gridItems);
+        updateGridItems(response.dashboard.gridItems);
 
         originalLayoutContext.current = {
-          dashboardNotes: response.dashboard.notes,
           dashboardGridItems: response.dashboard.gridItems,
         };
       } else {
@@ -77,12 +75,12 @@ const DashboardLoader = ({
     setVariableInputValues(updatedVariableInputValues);
   }
 
-  function setLayoutContext(dashboardContext) {
-    setGridItems(dashboardContext["gridItems"]);
-    updateVariableInputValuesWithGridItems(dashboardContext["gridItems"]);
+  function updateGridItems(updatedGridItems) {
+    setGridItems(updatedGridItems);
+    updateVariableInputValuesWithGridItems(updatedGridItems);
   }
 
-  function getLayoutContext() {
+  function getDashboardMetadata() {
     return {
       id,
       name,
@@ -94,7 +92,7 @@ const DashboardLoader = ({
     };
   }
 
-  function resetLayoutContext() {
+  function resetGridItems() {
     setGridItems(originalLayoutContext.current.dashboardGridItems);
     updateVariableInputValuesWithGridItems(
       originalLayoutContext.current.dashboardGridItems
@@ -106,7 +104,7 @@ const DashboardLoader = ({
     if (apiResponse["success"]) {
       const updatedDashboard = apiResponse.updated_dashboard;
       if ("gridItems" in newProperties) {
-        setLayoutContext(updatedDashboard);
+        setGridItems(updatedDashboard.gridItems);
         originalLayoutContext.current = {
           dashboardGridItems: updatedDashboard.gridItems,
         };
@@ -134,9 +132,9 @@ const DashboardLoader = ({
       >
         <LayoutContext.Provider
           value={{
-            setLayoutContext,
-            getLayoutContext,
-            resetLayoutContext,
+            updateGridItems,
+            getDashboardMetadata,
+            resetGridItems,
             saveLayoutContext,
           }}
         >

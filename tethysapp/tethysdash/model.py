@@ -349,20 +349,13 @@ def parse_db_dashboard(dashboards, dashboard_view):
             "id": dashboard.id,
             "uuid": dashboard.uuid,
             "name": dashboard.name,
-            "owner": dashboard.owner,
             "description": dashboard.description,
             "accessGroups": (["public"] if "public" in dashboard.access_groups else []),
-            "last_updated": dashboard.last_updated,
             "image": dashboard_image,
         }
 
         if dashboard_view:
-            dashboard_dict.update(
-                {
-                    "notes": dashboard.notes,
-                    "uuid": dashboard.uuid,
-                }
-            )
+            dashboard_dict.update({"notes": dashboard.notes})
 
             griditems = []
             for griditem in dashboard.grid_items:

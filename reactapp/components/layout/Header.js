@@ -149,12 +149,12 @@ export const DashboardHeader = () => {
     dontShowDashboardInfoOnStart !== "true"
   );
   const {
-    getLayoutContext,
-    setLayoutContext,
-    resetLayoutContext,
+    getDashboardMetadata,
+    updateGridItems,
+    resetGridItems,
     saveLayoutContext,
   } = useContext(LayoutContext);
-  const { name, editable } = getLayoutContext();
+  const { name, editable } = getDashboardMetadata();
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [isSaving, setIsSaving] = useState(false);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
@@ -177,13 +177,13 @@ export const DashboardHeader = () => {
 
   function onCancel() {
     setTimeout(() => {
-      resetLayoutContext();
+      resetGridItems();
       setIsEditing(false);
     }, 100); // This ensures that the old overlay doesn't show after the new buttons appear
   }
 
   function onAddGridItem() {
-    const layout = getLayoutContext();
+    const layout = getDashboardMetadata();
     let maxGridItemI = layout["gridItems"].reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
@@ -199,8 +199,8 @@ export const DashboardHeader = () => {
         refreshRate: 0,
       }),
     };
-    layout["gridItems"] = [...layout["gridItems"], newGridItem];
-    setLayoutContext(layout);
+    const updatedGridItems = [...layout["gridItems"], newGridItem];
+    updateGridItems(updatedGridItems);
   }
 
   function onEdit() {
@@ -239,7 +239,7 @@ export const DashboardHeader = () => {
 
     if (isEditing) {
       const image = await captureScreenshot();
-      const { gridItems } = getLayoutContext();
+      const { gridItems } = getDashboardMetadata();
       saveLayoutContext({ gridItems, image }).then((response) => {
         if (response.success) {
           setSuccessMessage("Change have been saved.");

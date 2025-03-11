@@ -160,7 +160,7 @@ it("Creates an Base Item with a Map", async () => {
 });
 
 it("Creates an Base Item with a variable input text box", async () => {
-  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   dashboard.gridItems = [mockedTextVariable];
   const user = userEvent.setup();
 
@@ -178,7 +178,7 @@ it("Creates an Base Item with a variable input text box", async () => {
           <InputVariablePComponent />
         </>
       ),
-      options: { dashboards: { editable: dashboard } },
+      options: { dashboards: { user: [dashboard], public: [] } },
     })
   );
 

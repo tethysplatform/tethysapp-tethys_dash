@@ -23,8 +23,8 @@ const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
 const DashboardLayout = () => {
-  const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
-  const { gridItems } = getLayoutContext();
+  const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
+  const { gridItems } = getDashboardMetadata();
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const { disabledEditingMovement } = useContext(
     DisabledEditingMovementContext
@@ -98,9 +98,8 @@ const DashboardLayout = () => {
         y: lay.y,
       });
     }
-    const layout = getLayoutContext();
-    layout["gridItems"] = updatedGridItems;
-    setLayoutContext(layout);
+
+    updateGridItems(updatedGridItems);
     updateGridEditing(updatedGridItems);
   }
 

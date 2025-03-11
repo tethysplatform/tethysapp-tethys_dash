@@ -8,7 +8,8 @@ import {
 } from "__tests__/utilities/constants";
 import NotFound from "components/error/NotFound";
 import DashboardView from "views/Dashboard";
-import PostLoader from "components/loader/DashboardLoader";
+import DashboardLoader from "components/loader/DashboardLoader";
+import Loader from "components/loader/AppLoader";
 import {
   AppContext,
   LayoutContext,
@@ -18,26 +19,14 @@ import {
   VariableInputsContext,
   DisabledEditingMovementContext,
 } from "components/contexts/Contexts";
+import { server } from "__tests__/utilities/server";
+import { rest } from "msw";
 
 const TestingComponent = ({ children, options = {} }) => {
-  const { setLayoutContext } = useContext(LayoutContext);
   const { setIsEditing } = useContext(EditingContext);
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
-  const { setSelectedDashboardDropdownOption } = useContext(
-    DashboardDropdownContext
-  );
-  const { availableDashboards } = useContext(AvailableDashboardsContext);
 
   useEffect(() => {
-    if (options.initialDashboard) {
-      let selectedDashboard = availableDashboards[options.initialDashboard];
-      setSelectedDashboardDropdownOption({
-        value: selectedDashboard.value,
-        label: selectedDashboard.label,
-      });
-      setLayoutContext(selectedDashboard);
-    }
-
     if (options.inEditing) {
       setIsEditing(true);
     }
@@ -52,77 +41,73 @@ const TestingComponent = ({ children, options = {} }) => {
 };
 
 const createLoadedComponent = ({ children, options = {} }) => {
-  const tethysApp = {
-    title: "TethysDash",
-    description: "",
-    tags: "",
-    package: "tethysdash",
-    urlNamespace: "tethysdash",
-    color: "",
-    icon: "/static/tethysdash/images/tethys_dash.png",
-    exitUrl: "/apps/",
-    rootUrl: "/apps/tethysdash/",
-    settingsUrl: "/admin/tethys_apps/tethysapp/999/change/",
-  };
+  const dashboards = options.dashboards ?? mockedDashboards;
+  const initialDashboard = options.initialDashboard ?? dashboards[0];
 
-  const user = { isAuthenticated: true, isStaff: true };
+  if (options.dashboards) {
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/dashboards/",
+        (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json(options.dashboards),
+            ctx.set("Content-Type", "application/json")
+          );
+        }
+      )
+    );
+  }
 
-  const csrf = "Token";
+  if (options.initialDashboard) {
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/dashboards/get/",
+        (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({ success: true, dashboard: initialDashboard }),
+            ctx.set("Content-Type", "application/json")
+          );
+        }
+      )
+    );
+  }
 
-  const PATH_HOME = "/",
-    PATH_DASHBOARD = "/dashboard";
-  const routes = [
-    <Route path={PATH_HOME} element={<DashboardView />} key="route-home" />,
-    <Route
-      path={PATH_DASHBOARD}
-      element={<DashboardView />}
-      key="route-dashboard"
-    />,
-  ];
-
-  for (const name of Object.keys(mockedDashboards)) {
-    routes.push(
-      <Route
-        key={"dashboard-not-found"}
-        path="/dashboard/*"
-        element={<NotFound />}
-      />,
-      <Route
-        path={"/dashboard/" + name}
-        element={<DashboardView initialDashboard={name} />}
-        key={"route-" + name}
-      />
+  if (options.visualizations) {
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/",
+        (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              visualizations: options.visualizations,
+            }),
+            ctx.set("Content-Type", "application/json")
+          );
+        }
+      )
     );
   }
 
   return (
-    <AppContext.Provider
-      value={{
-        tethysApp: options.tethysApp ? options.tethysApp : tethysApp,
-        user: options.user ? options.user : user,
-        csrf: options.csrf ? options.csrf : csrf,
-        routes: options.routes ? options.routes : routes,
-        dashboards: options.dashboards ? options.dashboards : mockedDashboards,
-        visualizations: options.visualizations
-          ? options.visualizations
-          : mockedVisualizationsWithDefaults,
-        visualizationArgs: options.visualizationArgs
-          ? options.visualizationArgs
-          : mockedVisualizationArgs,
-      }}
-    >
-      <PostLoader>
+    <Loader>
+      <DashboardLoader
+        editable={options.editableDashboard}
+        {...initialDashboard}
+      >
         <TestingComponent options={options}>{children}</TestingComponent>
-      </PostLoader>
-    </AppContext.Provider>
+      </DashboardLoader>
+    </Loader>
   );
 };
 
 export const ContextLayoutPComponent = () => {
-  const { getLayoutContext } = useContext(LayoutContext);
+  const { getDashboardMetadata } = useContext(LayoutContext);
 
   return (
-    <p data-testid="layout-context">{JSON.stringify(getLayoutContext())}</p>
+    <p data-testid="layout-context">{JSON.stringify(getDashboardMetadata())}</p>
   );
 };
 

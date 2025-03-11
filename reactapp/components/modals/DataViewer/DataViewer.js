@@ -54,8 +54,8 @@ function DataViewerModal({
   const [vizInputsValues, setVizInputsValues] = useState([]);
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
-  const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
-  const { gridItems } = getLayoutContext();
+  const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
+  const { gridItems } = getDashboardMetadata();
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
   const { variableInputValues, setVariableInputValues } = useContext(
@@ -137,9 +137,7 @@ function DataViewerModal({
           updatedGridItems = updateVariableInputs(vizArgs, updatedGridItems);
         }
 
-        const layout = getLayoutContext();
-        layout["gridItems"] = updatedGridItems;
-        setLayoutContext(layout);
+        updateGridItems(updatedGridItems);
         setShowGridItemMessage(true);
         handleModalClose();
       } else {

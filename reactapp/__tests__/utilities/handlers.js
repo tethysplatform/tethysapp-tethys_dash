@@ -42,6 +42,23 @@ const handlers = [
       ctx.set("Content-Type", "application/json")
     );
   }),
+  rest.get(
+    "http://api.test/apps/tethysdash/dashboards/get/",
+    (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({ success: true, dashboard: mockedDashboards.user[0] }),
+        ctx.set("Content-Type", "application/json")
+      );
+    }
+  ),
+  rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({ success: true, data: {}, viz_type: "plotly" }),
+      ctx.set("Content-Type", "application/json")
+    );
+  }),
   rest.get("http://api.test/api/session/", (req, res, ctx) => {
     return res(
       ctx.status(200),

@@ -33,7 +33,7 @@ test("Dashboard Layout resize and update layout", async () => {
         </>
       ),
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
         inEditing: true,
       },
     })
@@ -84,7 +84,7 @@ test("Dashboard Layout submit changes not editing", async () => {
         </>
       ),
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );
@@ -117,7 +117,7 @@ test("Dashboard Layout submit changes success", async () => {
         </>
       ),
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
         inEditing: true,
       },
     })
@@ -151,7 +151,7 @@ test("Dashboard Layout submit changes fail", async () => {
         </>
       ),
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
         inEditing: true,
       },
     })
@@ -203,7 +203,7 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
       ),
       options: {
         dashboards: dashboards,
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
         inEditing: true,
       },
     })
@@ -277,7 +277,7 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
       ),
       options: {
         dashboards: dashboards,
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
         inEditing: true,
       },
     })

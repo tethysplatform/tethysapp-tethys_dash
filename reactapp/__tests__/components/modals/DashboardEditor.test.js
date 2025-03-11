@@ -59,7 +59,7 @@ test("Dashboard Editor Canvas editable dashboard change sharing status", async (
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );
@@ -210,7 +210,7 @@ test("Dashboard Editor Canvas edit and save", async () => {
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );
@@ -281,7 +281,7 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );
@@ -338,7 +338,7 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );
@@ -391,7 +391,7 @@ test("Dashboard Editor Canvas delete success", async () => {
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );
@@ -416,7 +416,7 @@ test("Dashboard Editor Canvas delete fail", async () => {
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );
@@ -446,7 +446,7 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );
@@ -467,7 +467,7 @@ test("Dashboard Editor Canvas copy and not confirm", async () => {
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );
@@ -511,7 +511,7 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );
@@ -541,7 +541,7 @@ test("Dashboard Editor Canvas copy and confirm and fail with message", async () 
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );
@@ -566,7 +566,7 @@ test("Dashboard Editor Canvas copy and confirm and fail without message", async 
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
       },
     })
   );

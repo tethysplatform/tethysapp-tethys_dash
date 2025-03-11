@@ -207,9 +207,7 @@ const DashboardCard = ({
   editable,
   description,
   accessGroups,
-  last_updated,
   image,
-  owner,
 }) => {
   const navigate = useNavigate();
   const { deleteDashboard, copyDashboard, updateDashboard } = useContext(
@@ -217,8 +215,6 @@ const DashboardCard = ({
   );
   const [errorMessage, setErrorMessage] = useState(null);
   const [shared, setShared] = useState(accessGroups.includes("public"));
-  const updatedTime = new Date(`${last_updated}Z`);
-  const localUpdatedTime = updatedTime.toLocaleString();
   const [showThumbnailModal, setShowThumbnailModal] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);

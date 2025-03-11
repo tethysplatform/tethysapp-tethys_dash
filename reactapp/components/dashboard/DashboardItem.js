@@ -40,8 +40,8 @@ const DashboardItem = ({
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
-  const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
-  const { gridItems } = getLayoutContext();
+  const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
+  const { gridItems } = getDashboardMetadata();
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );
@@ -53,9 +53,7 @@ const DashboardItem = ({
       const updated_grid_items = [...gridItems];
       updated_grid_items.splice(gridItemIndex, 1);
 
-      const layout = getLayoutContext();
-      layout["gridItems"] = updated_grid_items;
-      setLayoutContext(layout);
+      updateGridItems(updated_grid_items);
       setIsEditing(true);
     }
   }
@@ -78,7 +76,6 @@ const DashboardItem = ({
   }
 
   function copyGridItem() {
-    const layout = getLayoutContext();
     let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
@@ -105,8 +102,9 @@ const DashboardItem = ({
         variableInputValues[copiedVariableName];
       setVariableInputValues(variableInputValues);
     }
-    layout["gridItems"] = [...layout["gridItems"], newGridItem];
-    setLayoutContext(layout);
+    const layout = getDashboardMetadata();
+    const updatedGridItems = [...layout["gridItems"], newGridItem];
+    updateGridItems(updatedGridItems);
     setIsEditing(true);
   }
 

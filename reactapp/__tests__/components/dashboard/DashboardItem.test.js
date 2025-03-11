@@ -38,7 +38,7 @@ jest.mock("components/dashboard/DeleteConfirmation", () => {
 const mockedConfirm = jest.mocked(confirm);
 
 test("Dashboard Item delete grid item", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   mockedConfirm.mockResolvedValue(true);
 
@@ -57,7 +57,7 @@ test("Dashboard Item delete grid item", async () => {
           <EditingPComponent />
         </>
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: { initialDashboard: mockedDashboards.user[0] },
     })
   );
 
@@ -81,7 +81,7 @@ test("Dashboard Item delete grid item", async () => {
 });
 
 test("Dashboard Item delete grid item cancel", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   mockedConfirm.mockResolvedValue(false);
 
@@ -100,7 +100,7 @@ test("Dashboard Item delete grid item cancel", async () => {
           <EditingPComponent />
         </>
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: { initialDashboard: mockedDashboards.user[0] },
     })
   );
 
@@ -137,7 +137,7 @@ test("Dashboard Item delete grid item cancel", async () => {
 });
 
 test("Dashboard Item fullscreen but no source", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
 
   render(
@@ -151,7 +151,7 @@ test("Dashboard Item fullscreen but no source", async () => {
           gridItemIndex={0}
         />
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: { initialDashboard: mockedDashboards.user[0] },
     })
   );
 
@@ -163,7 +163,7 @@ test("Dashboard Item fullscreen but no source", async () => {
 
 test("Dashboard Item fullscreen", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   const gridItem = mockedDashboard.gridItems[0];
   gridItem.source = "Custom Image";
   gridItem.args_string = JSON.stringify({
@@ -183,7 +183,7 @@ test("Dashboard Item fullscreen", async () => {
       ),
       options: {
         dashboards: updatedMockedDashboards,
-        initialDashboard: updatedMockedDashboards.editable.name,
+        initialDashboard: updatedMockedDashboards.user[0].name,
       },
     })
   );
@@ -207,7 +207,7 @@ test("Dashboard Item fullscreen", async () => {
 });
 
 test("Dashboard Item edit item", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
 
   render(
@@ -255,7 +255,7 @@ test("Dashboard Item edit item", async () => {
 
 test("Dashboard Item copy item", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -314,7 +314,7 @@ test("Dashboard Item copy item", async () => {
       ),
       options: {
         dashboards: updatedMockedDashboards,
-        initialDashboard: updatedMockedDashboards.editable.name,
+        initialDashboard: updatedMockedDashboards.user[0].name,
       },
     })
   );
@@ -389,7 +389,7 @@ test("Dashboard Item copy item", async () => {
 
 test("Dashboard Item copy item variable input", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -428,7 +428,7 @@ test("Dashboard Item copy item variable input", async () => {
       ),
       options: {
         dashboards: updatedMockedDashboards,
-        initialDashboard: updatedMockedDashboards.editable.name,
+        initialDashboard: updatedMockedDashboards.user[0].name,
       },
     })
   );
@@ -493,7 +493,7 @@ test("Dashboard Item copy item variable input", async () => {
 
 test("Dashboard Item copy item variable input already exists", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -548,7 +548,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
       ),
       options: {
         dashboards: updatedMockedDashboards,
-        initialDashboard: updatedMockedDashboards.editable.name,
+        initialDashboard: updatedMockedDashboards.user[0].name,
       },
     })
   );
@@ -630,7 +630,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
 
 test("Dashboard Item edit size", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   const gridItem = mockedDashboard.gridItems[0];
   gridItem.source = "Custom Image";
   gridItem.args_string = JSON.stringify({
@@ -653,7 +653,7 @@ test("Dashboard Item edit size", async () => {
       ),
       options: {
         dashboards: updatedMockedDashboards,
-        initialDashboard: updatedMockedDashboards.editable.name,
+        initialDashboard: updatedMockedDashboards.user[0].name,
       },
     })
   );

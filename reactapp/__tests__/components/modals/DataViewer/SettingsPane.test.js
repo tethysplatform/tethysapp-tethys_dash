@@ -36,7 +36,7 @@ const TestingComponent = ({
 };
 
 test("Settings Pane", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
 
   render(
     createLoadedComponent({
@@ -53,7 +53,7 @@ test("Settings Pane", async () => {
 });
 
 test("Settings Pane with visualizationRef Element", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
 
   render(
     createLoadedComponent({
@@ -83,7 +83,7 @@ test("Settings Pane with visualizationRef Element", async () => {
 });
 
 test("Settings Pane with visualizationRef Image Element with current settings", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
 
   render(
     createLoadedComponent({
@@ -123,7 +123,7 @@ test("Settings Pane with visualizationRef Image Element with current settings", 
 });
 
 test("Settings Pane with visualizationRef Image Element but no natural width", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
 
   render(
     createLoadedComponent({

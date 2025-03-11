@@ -21,8 +21,8 @@ const DashboardItemDropdown = ({
   editSize,
   copyGridItem,
 }) => {
-  const { getLayoutContext } = useContext(LayoutContext);
-  const { editable } = getLayoutContext();
+  const { getDashboardMetadata } = useContext(LayoutContext);
+  const { editable } = getDashboardMetadata();
   const [showMenu, setShowMenu] = useState(false);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
 

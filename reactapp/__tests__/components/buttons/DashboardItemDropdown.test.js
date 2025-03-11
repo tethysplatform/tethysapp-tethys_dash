@@ -76,7 +76,7 @@ test("DashboardItemDropdown for editable item but already in edit mode", async (
           copyGridItem={mockCopyGridItem}
         />
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: { initialDashboard: mockedDashboards.user[0] },
     })
   );
 
@@ -124,7 +124,7 @@ test("DashboardItemDropdown for editable item and not in edit mode", async () =>
           copyGridItem={mockCopyGridItem}
         />
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: { initialDashboard: mockedDashboards.user[0] },
     })
   );
 
