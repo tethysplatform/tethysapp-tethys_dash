@@ -115,9 +115,7 @@ function Loader({ children }) {
 
   const handleError = (error) => {
     if (error.response.status === 401) {
-      console.log("There's a unsigned user")
       setRedirectPublicUser(true);
-      console.log(dontShowPublicLoginOnStart)
       if (dontShowPublicLoginOnStart === "false" || !dontShowPublicLoginOnStart) {
         setShowRedirectPublicUserModal(true)
       }
@@ -263,7 +261,6 @@ function Loader({ children }) {
         appAPI.getVisualizations(),
       ])
       .then(([tethysApp, dashboards, visualizations]) => {
-        console.log("Data Obtained!")
         const allVisualizations = visualizations.visualizations;
         const visualizationArgs = [
           {

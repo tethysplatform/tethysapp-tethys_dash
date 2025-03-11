@@ -15,7 +15,7 @@ export const Confirmation = ({
   confirmation,
   show,
   proceed,
-  backdrop,
+  backdrop=true,
   ...props
 }) => {
   return (
