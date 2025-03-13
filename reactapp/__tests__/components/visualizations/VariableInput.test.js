@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import VariableInput from "components/visualizations/VariableInput";
@@ -9,6 +9,7 @@ import {
   mockedNullCheckboxVariable,
   mockedNumberVariable,
   mockedTextVariable,
+  mockedDropdownVisualization,
   mockedDashboards,
 } from "__tests__/utilities/constants";
 import { select } from "react-select-event";
@@ -39,7 +40,7 @@ it("Creates a Text Input for a Variable Input", async () => {
     })
   );
 
-  const variableInput = screen.getByLabelText("Test Variable Input");
+  const variableInput = await screen.findByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "Hello World");
 
@@ -81,7 +82,7 @@ it("Creates a Number Input for a Variable Input", async () => {
     })
   );
 
-  const variableInput = screen.getByLabelText("Test Variable Input");
+  const variableInput = await screen.findByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "9");
 
@@ -123,7 +124,7 @@ it("Creates a Checkbox Input for a Variable Input", async () => {
     })
   );
 
-  const variableInput = screen.getByLabelText("Test Variable Input");
+  const variableInput = await screen.findByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   expect(variableInput).toBeChecked();
   await user.click(variableInput);
@@ -157,7 +158,7 @@ it("Creates a Checkbox Input for a Variable Input with a null value", async () =
     })
   );
 
-  const variableInput = screen.getByLabelText("Test Variable Input");
+  const variableInput = await screen.findByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   expect(variableInput).not.toBeChecked();
 
@@ -193,12 +194,12 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
       ),
       options: {
         dashboards: { user: [dashboard], public: [] },
-        visualizationArgs: mockedDropdownVizArgs,
+        visualizations: mockedDropdownVisualization,
       },
     })
   );
 
-  const variableInput = screen.getByLabelText("Test Variable Input");
+  const variableInput = await screen.findByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   await select(
     variableInput,
@@ -246,7 +247,7 @@ describe("When inDataViewerMode", () => {
       })
     );
 
-    const variableInput = screen.getByLabelText("Test Variable Input");
+    const variableInput = await screen.findByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     await user.type(variableInput, "Hello World");
 
@@ -291,7 +292,7 @@ describe("When inDataViewerMode", () => {
       })
     );
 
-    const variableInput = screen.getByLabelText("Test Variable Input");
+    const variableInput = await screen.findByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     await user.type(variableInput, "9");
 
@@ -337,13 +338,15 @@ describe("When inDataViewerMode", () => {
       })
     );
 
-    const variableInput = screen.getByLabelText("Test Variable Input");
+    const variableInput = await screen.findByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     expect(variableInput).toBeChecked();
 
-    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": true })
-    );
+    await waitFor(async () => {
+      expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Test Variable": true })
+      );
+    });
     await user.click(variableInput);
 
     expect(variableInput).not.toBeChecked();
@@ -378,7 +381,7 @@ describe("When inDataViewerMode", () => {
       })
     );
 
-    const variableInput = screen.getByLabelText("Test Variable Input");
+    const variableInput = await screen.findByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
     expect(variableInput).not.toBeChecked();
 
@@ -414,12 +417,12 @@ describe("When inDataViewerMode", () => {
         options: {
           dashboards: { user: [dashboard], public: [] },
           inDataViewerMode: true,
-          visualizationArgs: mockedDropdownVizArgs,
+          visualizations: mockedDropdownVisualization,
         },
       })
     );
 
-    const variableInput = screen.getByLabelText("Test Variable Input");
+    const variableInput = await screen.findByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
