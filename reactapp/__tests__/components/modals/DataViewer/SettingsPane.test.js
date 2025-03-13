@@ -3,26 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import SettingsPane from "components/modals/DataViewer/SettingsPane";
 import { mockedDashboards } from "__tests__/utilities/constants";
-import { LayoutContext } from "components/contexts/Contexts";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 
 const TestingComponent = ({
-  layoutContext,
   visualizationRefElement,
   currentSettings = {},
 }) => {
-  const { setLayoutContext } = useContext(LayoutContext);
   const settingsRef = useRef(currentSettings);
-  const visualizationRef = useRef();
-
-  useEffect(() => {
-    setLayoutContext(layoutContext);
-    if (visualizationRefElement) {
-      visualizationRef.current = visualizationRefElement;
-    }
-    // eslint-disable-next-line
-  }, []);
+  const visualizationRef = useRef(visualizationRefElement);
 
   return (
     <>
@@ -36,11 +25,9 @@ const TestingComponent = ({
 };
 
 test("Settings Pane", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
-
   render(
     createLoadedComponent({
-      children: <TestingComponent layoutContext={mockedDashboard} />,
+      children: <TestingComponent />,
       options: {
         inDataViewerMode: true,
       },
@@ -48,18 +35,15 @@ test("Settings Pane", async () => {
   );
 
   expect(
-    screen.getByText("Visualization must be loaded to change settings.")
+    await screen.findByText("Visualization must be loaded to change settings.")
   ).toBeInTheDocument();
 });
 
 test("Settings Pane with visualizationRef Element", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          layoutContext={mockedDashboard}
           visualizationRefElement={{
             tagName: "div",
           }}
@@ -71,7 +55,7 @@ test("Settings Pane with visualizationRef Element", async () => {
     })
   );
 
-  const refreshRateInput = screen.getByLabelText(
+  const refreshRateInput = await screen.findByLabelText(
     "Refresh Rate (Minutes) Input"
   );
   expect(refreshRateInput).toBeInTheDocument();
@@ -83,13 +67,10 @@ test("Settings Pane with visualizationRef Element", async () => {
 });
 
 test("Settings Pane with visualizationRef Image Element with current settings", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          layoutContext={mockedDashboard}
           visualizationRefElement={{
             tagName: "img",
             naturalWidth: 1,
@@ -104,7 +85,7 @@ test("Settings Pane with visualizationRef Image Element with current settings", 
     })
   );
 
-  const refreshRateInput = screen.getByLabelText(
+  const refreshRateInput = await screen.findByLabelText(
     "Refresh Rate (Minutes) Input"
   );
   expect(refreshRateInput).toBeInTheDocument();
@@ -123,13 +104,10 @@ test("Settings Pane with visualizationRef Image Element with current settings", 
 });
 
 test("Settings Pane with visualizationRef Image Element but no natural width", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          layoutContext={mockedDashboard}
           visualizationRefElement={{
             tagName: "img",
           }}
@@ -148,7 +126,6 @@ test("Settings Pane with visualizationRef Image Element but no natural width", a
 });
 
 TestingComponent.propTypes = {
-  layoutContext: PropTypes.object,
   visualizationRefElement: PropTypes.object,
   currentSettings: PropTypes.object,
 };
