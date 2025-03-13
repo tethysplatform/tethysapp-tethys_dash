@@ -1,7 +1,7 @@
 import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
-import DashboardNotes from "components/modals/DashboardNotes";
+import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import {
   mockedDashboards,
   updatedDashboard,
@@ -11,6 +11,8 @@ import createLoadedComponent, {
   EditingPComponent,
 } from "__tests__/utilities/customRender";
 import appAPI from "services/api/app";
+import { MemoryRouter } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 
 jest.mock("components/inputs/DeleteConfirmation", () => {
   return {
@@ -18,6 +20,11 @@ jest.mock("components/inputs/DeleteConfirmation", () => {
   };
 });
 const mockedConfirm = jest.mocked(confirm);
+
+jest.mock("react-router-dom", () => ({
+  ...jest.requireActual("react-router-dom"),
+  useNavigate: jest.fn(),
+}));
 
 const { matchMedia } = window;
 
@@ -46,11 +53,14 @@ const TestingComponent = () => {
   const [showCanvas, setShowCanvas] = useState(true);
 
   return (
-    <>
-      <DashboardNotes showCanvas={showCanvas} setShowCanvas={setShowCanvas} />
+    <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+      <DashboardEditorCanvas
+        showCanvas={showCanvas}
+        setShowCanvas={setShowCanvas}
+      />
       <EditingPComponent />
       <p>{showCanvas ? "yes show canvas" : "not show canvas"}</p>
-    </>
+    </MemoryRouter>
   );
 };
 
@@ -60,6 +70,7 @@ test("Dashboard Editor Canvas editable dashboard change sharing status", async (
       children: <TestingComponent />,
       options: {
         initialDashboard: mockedDashboards.user[0],
+        editableDashboard: true,
       },
     })
   );
@@ -67,10 +78,10 @@ test("Dashboard Editor Canvas editable dashboard change sharing status", async (
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
   expect(await screen.findByText("Name")).toBeInTheDocument();
   expect(await screen.findByLabelText("Name Input")).toBeInTheDocument();
-  expect(await screen.findByText("Label")).toBeInTheDocument();
-  expect(await screen.findByLabelText("Label Input")).toBeInTheDocument();
+  expect(await screen.findByText("Description")).toBeInTheDocument();
+  expect(await screen.findByLabelText("Description Input")).toBeInTheDocument();
   expect(await screen.findByText("Sharing Status")).toBeInTheDocument();
-  expect(await screen.findByText("Notes:")).toBeInTheDocument();
+  expect(await screen.findByText("Notes")).toBeInTheDocument();
   expect(await screen.findByLabelText("textEditor")).toBeInTheDocument();
   expect(await screen.findByText("Close")).toBeInTheDocument();
   expect(await screen.findByText("Copy dashboard")).toBeInTheDocument();
@@ -84,16 +95,16 @@ test("Dashboard Editor Canvas editable dashboard change sharing status", async (
 
   expect(publicRadioButton).not.toBeChecked();
   expect(privateRadioButton).toBeChecked();
-  expect(screen.queryByText("Public URL:")).not.toBeInTheDocument();
+  expect(screen.queryByText("Public URL")).not.toBeInTheDocument();
 
   fireEvent.click(publicRadioButton);
 
   expect(publicRadioButton).toBeChecked();
   expect(privateRadioButton).not.toBeChecked();
-  expect(await screen.findByText("Public URL:")).toBeInTheDocument();
+  expect(await screen.findByText("Public URL")).toBeInTheDocument();
   expect(
     await screen.findByText(
-      "http://api.test/apps/tethysdash/dashboard/editable"
+      "http://api.test/apps/tethysdash/dashboard/public/editable"
     )
   ).toBeInTheDocument();
 });
@@ -103,18 +114,18 @@ test("Dashboard Editor Canvas copy public url failed", async () => {
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.noneditable.name,
+        initialDashboard: mockedDashboards.public[0],
       },
     })
   );
 
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
-  expect(await screen.findByText("Name:")).toBeInTheDocument();
+  expect(await screen.findByText("Name")).toBeInTheDocument();
   expect(screen.queryByLabelText("Name Input")).not.toBeInTheDocument();
-  expect(await screen.findByText("Label:")).toBeInTheDocument();
-  expect(screen.queryByLabelText("Label Input")).not.toBeInTheDocument();
-  expect(screen.queryByText("Sharing Status:")).not.toBeInTheDocument();
-  expect(await screen.findByText("Notes:")).toBeInTheDocument();
+  expect(await screen.findByText("Description")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Description Input")).not.toBeInTheDocument();
+  expect(screen.queryByText("Sharing Status")).not.toBeInTheDocument();
+  expect(await screen.findByText("Notes")).toBeInTheDocument();
   expect(screen.queryByLabelText("textEditor")).not.toBeInTheDocument();
   expect(await screen.findByText("Close")).toBeInTheDocument();
   expect(await screen.findByText("Copy dashboard")).toBeInTheDocument();
@@ -123,10 +134,10 @@ test("Dashboard Editor Canvas copy public url failed", async () => {
 
   expect(screen.queryByLabelText("Public")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Private")).not.toBeInTheDocument();
-  expect(await screen.findByText("Public URL:")).toBeInTheDocument();
+  expect(await screen.findByText("Public URL")).toBeInTheDocument();
   expect(
     await screen.findByText(
-      "http://api.test/apps/tethysdash/dashboard/noneditable"
+      "http://api.test/apps/tethysdash/dashboard/public/noneditable"
     )
   ).toBeInTheDocument();
 
@@ -153,18 +164,18 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
     createLoadedComponent({
       children: <TestingComponent />,
       options: {
-        initialDashboard: mockedDashboards.noneditable.name,
+        initialDashboard: mockedDashboards.public[0],
       },
     })
   );
 
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
-  expect(await screen.findByText("Name:")).toBeInTheDocument();
+  expect(await screen.findByText("Name")).toBeInTheDocument();
   expect(screen.queryByLabelText("Name Input")).not.toBeInTheDocument();
-  expect(await screen.findByText("Label:")).toBeInTheDocument();
-  expect(screen.queryByLabelText("Label Input")).not.toBeInTheDocument();
-  expect(screen.queryByText("Sharing Status:")).not.toBeInTheDocument();
-  expect(await screen.findByText("Notes:")).toBeInTheDocument();
+  expect(await screen.findByText("Description")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Description Input")).not.toBeInTheDocument();
+  expect(screen.queryByText("Sharing Status")).not.toBeInTheDocument();
+  expect(await screen.findByText("Notes")).toBeInTheDocument();
   expect(screen.queryByLabelText("textEditor")).not.toBeInTheDocument();
   expect(await screen.findByText("Close")).toBeInTheDocument();
   expect(await screen.findByText("Copy dashboard")).toBeInTheDocument();
@@ -173,10 +184,10 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
 
   expect(screen.queryByLabelText("Public")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Private")).not.toBeInTheDocument();
-  expect(await screen.findByText("Public URL:")).toBeInTheDocument();
+  expect(await screen.findByText("Public URL")).toBeInTheDocument();
   expect(
     await screen.findByText(
-      "http://api.test/apps/tethysdash/dashboard/noneditable"
+      "http://api.test/apps/tethysdash/dashboard/public/noneditable"
     )
   ).toBeInTheDocument();
 
@@ -191,13 +202,15 @@ test("Dashboard Editor Canvas noneditable and copy public url", async () => {
   expect(copyClipboardButton).toBeInTheDocument();
   fireEvent.click(copyClipboardButton);
   expect(mockWriteText).toHaveBeenCalledWith(
-    "http://api.test/apps/tethysdash/dashboard/noneditable"
+    "http://api.test/apps/tethysdash/dashboard/public/noneditable"
   );
   await userEvent.hover(copyClipboardButton);
   expect(screen.getByRole("tooltip")).toHaveTextContent("Copied");
 });
 
 test("Dashboard Editor Canvas edit and save", async () => {
+  const navigateMock = jest.fn();
+  useNavigate.mockReturnValue(navigateMock);
   const mockUpdateDashboard = jest.fn();
 
   mockUpdateDashboard.mockResolvedValue({
@@ -211,54 +224,38 @@ test("Dashboard Editor Canvas edit and save", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: mockedDashboards.user[0],
+        editableDashboard: true,
       },
     })
   );
 
-  const publicRadioButton = screen.getByLabelText("Public");
+  const publicRadioButton = await screen.findByLabelText("Public");
   fireEvent.click(publicRadioButton);
 
-  const labelInput = await screen.findByLabelText("Label Input");
-  fireEvent.change(labelInput, { target: { value: "New Label" } });
-  expect(await screen.findByText("Label")).toBeInTheDocument();
-  expect(await screen.findByLabelText("Label Input")).toBeInTheDocument();
+  const descriptionInput = await screen.findByLabelText("Description Input");
+  fireEvent.change(descriptionInput, { target: { value: "New Description" } });
 
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "new_name" } });
-  expect(await screen.findByText("Name")).toBeInTheDocument();
-  expect(await screen.findByLabelText("Name Input")).toBeInTheDocument();
 
   const textArea = await screen.findByLabelText("textEditor");
   await userEvent.click(textArea);
-  await userEvent.keyboard("Here are some notes");
-  expect(await screen.findByText("Here are some notes")).toBeInTheDocument();
+  await userEvent.keyboard(". Here are some notes");
+  expect(
+    await screen.findByText("test_notes. Here are some notes")
+  ).toBeInTheDocument();
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
   await userEvent.click(saveButton);
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
       accessGroups: ["public"],
-      editable: true,
-      gridItems: [
-        {
-          args_string: "{}",
-          h: 20,
-          i: "1",
-          metadata_string: '{"refreshRate":0}',
-          source: "",
-          w: 20,
-          x: 0,
-          y: 0,
-        },
-      ],
-      label: "New Label",
       name: "new_name",
-      notes: "Here are some notes",
-      originalAccessGroups: [],
-      originalLabel: "test_label",
-      originalName: "editable",
+      description: "New Description",
+      id: 1,
+      notes: "test_notes. Here are some notes",
     },
-    "Token"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
   expect(
     await screen.findByText("Successfully updated dashboard settings")
@@ -269,6 +266,8 @@ test("Dashboard Editor Canvas edit and save", async () => {
   expect(
     screen.queryByText("Successfully updated dashboard settings")
   ).not.toBeInTheDocument();
+
+  expect(navigateMock).toHaveBeenCalledWith("/dashboard/user/new_name");
 });
 
 test("Dashboard Editor Canvas edit and save fail without message", async () => {
@@ -282,41 +281,25 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: mockedDashboards.user[0],
+        editableDashboard: true,
       },
     })
   );
 
-  const labelInput = await screen.findByLabelText("Label Input");
-  fireEvent.change(labelInput, { target: { value: "New Label" } });
-  expect(await screen.findByText("Label")).toBeInTheDocument();
-  expect(await screen.findByLabelText("Label Input")).toBeInTheDocument();
+  const descriptionInput = await screen.findByLabelText("Description Input");
+  fireEvent.change(descriptionInput, { target: { value: "New Description" } });
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
   await userEvent.click(saveButton);
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
       accessGroups: [],
-      editable: true,
-      gridItems: [
-        {
-          args_string: "{}",
-          h: 20,
-          i: "1",
-          metadata_string: '{"refreshRate":0}',
-          source: "",
-          w: 20,
-          x: 0,
-          y: 0,
-        },
-      ],
-      label: "New Label",
-      name: "",
-      notes: "",
-      originalAccessGroups: [],
-      originalLabel: "test_label",
-      originalName: "editable",
+      name: "editable",
+      description: "New Description",
+      id: 1,
+      notes: "test_notes",
     },
-    "Token"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
   expect(
     await screen.findByText(
@@ -339,46 +322,32 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: mockedDashboards.user[0],
+        editableDashboard: true,
       },
     })
   );
 
-  const labelInput = await screen.findByLabelText("Label Input");
-  fireEvent.change(labelInput, { target: { value: "New Label" } });
-  expect(await screen.findByText("Label")).toBeInTheDocument();
-  expect(labelInput).toBeInTheDocument();
+  const descriptionInput = await screen.findByLabelText("Description Input");
+  fireEvent.change(descriptionInput, { target: { value: "New Description" } });
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
   await userEvent.click(saveButton);
   expect(mockUpdateDashboard).toHaveBeenCalledWith(
     {
       accessGroups: [],
-      editable: true,
-      gridItems: [
-        {
-          args_string: "{}",
-          h: 20,
-          i: "1",
-          metadata_string: '{"refreshRate":0}',
-          source: "",
-          w: 20,
-          x: 0,
-          y: 0,
-        },
-      ],
-      label: "New Label",
-      name: "",
-      notes: "",
-      originalAccessGroups: [],
-      originalLabel: "test_label",
-      originalName: "editable",
+      name: "editable",
+      description: "New Description",
+      id: 1,
+      notes: "test_notes",
     },
-    "Token"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
   expect(await screen.findByText("failed to update")).toBeInTheDocument();
 });
 
 test("Dashboard Editor Canvas delete success", async () => {
+  const navigateMock = jest.fn();
+  useNavigate.mockReturnValue(navigateMock);
   const mockDeleteDashboard = jest.fn();
 
   mockDeleteDashboard.mockResolvedValue({
@@ -392,6 +361,7 @@ test("Dashboard Editor Canvas delete success", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: mockedDashboards.user[0],
+        editableDashboard: true,
       },
     })
   );
@@ -399,11 +369,13 @@ test("Dashboard Editor Canvas delete success", async () => {
   const deleteButton = await screen.findByLabelText("Delete Dashboard Button");
   await userEvent.click(deleteButton);
   expect(mockDeleteDashboard).toHaveBeenCalled();
-  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
-  expect(await screen.findByText("not show canvas")).toBeInTheDocument();
+
+  expect(navigateMock).toHaveBeenCalledWith("/");
 });
 
 test("Dashboard Editor Canvas delete fail", async () => {
+  const navigateMock = jest.fn();
+  useNavigate.mockReturnValue(navigateMock);
   const mockDeleteDashboard = jest.fn();
 
   mockDeleteDashboard.mockResolvedValue({
@@ -417,6 +389,7 @@ test("Dashboard Editor Canvas delete fail", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: mockedDashboards.user[0],
+        editableDashboard: true,
       },
     })
   );
@@ -427,7 +400,7 @@ test("Dashboard Editor Canvas delete fail", async () => {
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(await screen.findByText("yes show canvas")).toBeInTheDocument();
   expect(
-    await screen.findByText("Failed to delete dashboard. Check server logs.")
+    await screen.findByText("Failed to delete dashboard")
   ).toBeInTheDocument();
 
   const closeAlertButton = await screen.findByLabelText("Close alert");
@@ -435,9 +408,13 @@ test("Dashboard Editor Canvas delete fail", async () => {
   expect(
     screen.queryByText("Failed to adelete dashboard. Check server logs.")
   ).not.toBeInTheDocument();
+
+  expect(navigateMock).toHaveBeenCalledTimes(0);
 });
 
 test("Dashboard Editor Canvas delete not confirm", async () => {
+  const navigateMock = jest.fn();
+  useNavigate.mockReturnValue(navigateMock);
   const mockDeleteDashboard = jest.fn();
   appAPI.deleteDashboard = mockDeleteDashboard;
   mockedConfirm.mockResolvedValue(false);
@@ -447,6 +424,7 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: mockedDashboards.user[0],
+        editableDashboard: true,
       },
     })
   );
@@ -456,55 +434,26 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
   expect(mockDeleteDashboard).not.toHaveBeenCalled();
   expect(await screen.findByTestId("editing")).toHaveTextContent("not editing");
   expect(await screen.findByText("yes show canvas")).toBeInTheDocument();
+
+  expect(navigateMock).toHaveBeenCalledTimes(0);
 });
 
-test("Dashboard Editor Canvas copy and not confirm", async () => {
-  const mockAddDashboard = jest.fn();
-  appAPI.addDashboard = mockAddDashboard;
-  mockedConfirm.mockResolvedValue(false);
-
-  render(
-    createLoadedComponent({
-      children: <TestingComponent />,
-      options: {
-        initialDashboard: mockedDashboards.user[0],
-      },
-    })
-  );
-
-  const copyButton = await screen.findByLabelText("Copy Dashboard Button");
-  await userEvent.click(copyButton);
-  expect(mockAddDashboard).not.toHaveBeenCalled();
-});
-
-test("Dashboard Editor Canvas copy and confirm and success", async () => {
-  const mockAddDashboard = jest.fn();
-  mockAddDashboard.mockResolvedValue({
+test("Dashboard Editor Canvas copy and success", async () => {
+  const navigateMock = jest.fn();
+  useNavigate.mockReturnValue(navigateMock);
+  const mockCopyDashboard = jest.fn();
+  mockCopyDashboard.mockResolvedValue({
     success: true,
     new_dashboard: {
-      id: 1,
+      id: 2,
       name: "editable_copy",
-      label: "test_label Copy",
+      description: "test_description",
       notes: "test_notes",
       editable: true,
       accessGroups: [],
-      gridItems: [
-        {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
-        },
-      ],
     },
   });
-  appAPI.addDashboard = mockAddDashboard;
+  appAPI.copyDashboard = mockCopyDashboard;
   mockedConfirm.mockResolvedValue(true);
 
   render(
@@ -518,24 +467,23 @@ test("Dashboard Editor Canvas copy and confirm and success", async () => {
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
-  expect(mockAddDashboard).toHaveBeenCalled();
-  expect(
-    await screen.findByText("Successfully copied dashboard")
-  ).toBeInTheDocument();
-  const nameInput = await screen.findByLabelText("Name Input");
-  const labelInput = await screen.findByLabelText("Label Input");
-  expect(nameInput.value).toBe("editable_copy");
-  expect(labelInput.value).toBe("test_label Copy");
+  expect(mockCopyDashboard).toHaveBeenCalledWith(
+    { id: 1, newName: "editable - Copy" },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+  );
+
+  expect(navigateMock).toHaveBeenCalledWith("/dashboard/user/editable_copy");
 });
 
-test("Dashboard Editor Canvas copy and confirm and fail with message", async () => {
-  const mockAddDashboard = jest.fn();
-  mockAddDashboard.mockResolvedValue({
+test("Dashboard Editor Canvas copy and fail with message", async () => {
+  const navigateMock = jest.fn();
+  useNavigate.mockReturnValue(navigateMock);
+  const mockCopyDashboard = jest.fn();
+  mockCopyDashboard.mockResolvedValue({
     success: false,
     message: "failed to copy for some reason",
   });
-  appAPI.addDashboard = mockAddDashboard;
-  mockedConfirm.mockResolvedValue(true);
+  appAPI.copyDashboard = mockCopyDashboard;
 
   render(
     createLoadedComponent({
@@ -548,18 +496,24 @@ test("Dashboard Editor Canvas copy and confirm and fail with message", async () 
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
-  expect(mockAddDashboard).toHaveBeenCalled();
+  expect(mockCopyDashboard).toHaveBeenCalledWith(
+    { id: 1, newName: "editable - Copy" },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+  );
   expect(
     await screen.findByText("failed to copy for some reason")
   ).toBeInTheDocument();
+  expect(navigateMock).toHaveBeenCalledTimes(0);
 });
 
-test("Dashboard Editor Canvas copy and confirm and fail without message", async () => {
-  const mockAddDashboard = jest.fn();
-  mockAddDashboard.mockResolvedValue({
+test("Dashboard Editor Canvas copy and fail without message", async () => {
+  const navigateMock = jest.fn();
+  useNavigate.mockReturnValue(navigateMock);
+  const mockCopyDashboard = jest.fn();
+  mockCopyDashboard.mockResolvedValue({
     success: false,
   });
-  appAPI.addDashboard = mockAddDashboard;
+  appAPI.copyDashboard = mockCopyDashboard;
   mockedConfirm.mockResolvedValue(true);
 
   render(
@@ -573,8 +527,12 @@ test("Dashboard Editor Canvas copy and confirm and fail without message", async 
 
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
-  expect(mockAddDashboard).toHaveBeenCalled();
+  expect(mockCopyDashboard).toHaveBeenCalledWith(
+    { id: 1, newName: "editable - Copy" },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+  );
   expect(
-    await screen.findByText("Failed to copy dashboard. Check server logs.")
+    await screen.findByText("Failed to copy dashboard")
   ).toBeInTheDocument();
+  expect(navigateMock).toHaveBeenCalledTimes(0);
 });

@@ -16,7 +16,7 @@ test("DashboardItemDropdown for noneditable item and no fullscreen", () => {
           copyGridItem={jest.fn()}
         />
       ),
-      options: { initialDashboard: mockedDashboards.noneditable.name },
+      options: { initialDashboard: mockedDashboards.public[0] },
     })
   );
 
@@ -41,7 +41,7 @@ test("DashboardItemDropdown for noneditable item but has fullscreen", async () =
           copyGridItem={jest.fn()}
         />
       ),
-      options: { initialDashboard: mockedDashboards.noneditable.name },
+      options: { initialDashboard: mockedDashboards.public[0] },
     })
   );
 

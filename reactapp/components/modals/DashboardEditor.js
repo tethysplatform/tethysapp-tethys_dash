@@ -146,13 +146,10 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
           navigate("/dashboard/user/" + localName);
         }
       } else {
-        if ("message" in response) {
-          setErrorMessage(response["message"]);
-        } else {
-          setErrorMessage(
+        setErrorMessage(
+          response["message"] ??
             "Failed to update dashboard settings. Check server logs."
-          );
-        }
+        );
       }
     });
   }
@@ -169,7 +166,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
         if (response["success"]) {
           navigate("/");
         } else {
-          setErrorMessage("Failed to delete dashboard");
+          setErrorMessage(response["message"] ?? "Failed to delete dashboard");
         }
       });
     }
@@ -181,7 +178,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
       if (response["success"]) {
         navigate(`/dashboard/user/${response["new_dashboard"].name}`);
       } else {
-        setErrorMessage("Failed to copy dashboard");
+        setErrorMessage(response["message"] ?? "Failed to copy dashboard");
       }
     });
   }
@@ -243,6 +240,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
                     value={localDescription}
                     rows={4}
                     onChange={(e) => setLocalDescription(e.target.value)}
+                    aria-label="Description Input"
                   />
                 </div>
               </WideLabel>
@@ -256,11 +254,9 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
           </>
         ) : (
           <>
-            <b>Name:</b>
-            <br></br>
+            <b>Name</b>:<br></br>
             <p>{name}</p>
-            <b>Description:</b>
-            <br></br>
+            <b>Description</b>:<br></br>
             <p>{description}</p>
           </>
         )}
@@ -293,8 +289,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
           </>
         )}
         <TextEditorDiv>
-          <b>Notes:</b>
-          <br></br>
+          <b>Notes</b>:<br></br>
           {editable ? (
             <TextEditor textValue={localNotes} onChange={onNotesChange} />
           ) : (
