@@ -352,9 +352,11 @@ describe("When inDataViewerMode", () => {
     expect(variableInput).not.toBeChecked();
     expect(handleChange).toHaveBeenCalledWith(false);
 
-    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": true })
-    );
+    await waitFor(async () => {
+      expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Test Variable": true })
+      );
+    });
   });
 
   it("Creates a Checkbox Input for a Variable Input with a null value", async () => {
@@ -393,9 +395,11 @@ describe("When inDataViewerMode", () => {
     expect(variableInput).toBeChecked();
     expect(handleChange).toHaveBeenCalledWith(true);
 
-    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": false })
-    );
+    await waitFor(async () => {
+      expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+        JSON.stringify({ "Test Variable": false })
+      );
+    });
   });
 
   it("Creates a Dropdown Input for a Variable Input", async () => {
