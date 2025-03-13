@@ -49,7 +49,7 @@ it("Creates a Text Input for a Variable Input", async () => {
 
   // Only update the Text Input after clicking the input refresh button
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({ "Test Variable": "" })
   );
 
   const refreshButton = screen.getByRole("button");
@@ -91,7 +91,7 @@ it("Creates a Number Input for a Variable Input", async () => {
 
   // Only update the Text Input after clicking the input refresh button
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({ "Test Variable": "0" })
   );
 
   const refreshButton = screen.getByRole("button");
@@ -256,7 +256,7 @@ describe("When inDataViewerMode", () => {
 
     // Only update the Text Input after clicking the input refresh button
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({})
+      JSON.stringify({ "Test Variable": "" })
     );
 
     const refreshButton = screen.getByRole("button");
@@ -264,7 +264,7 @@ describe("When inDataViewerMode", () => {
     await user.click(refreshButton);
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({})
+      JSON.stringify({ "Test Variable": "" })
     );
   });
 
@@ -302,7 +302,7 @@ describe("When inDataViewerMode", () => {
     // Only update the Text Input after clicking the input refresh button
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({})
+      JSON.stringify({ "Test Variable": "0" })
     );
 
     const refreshButton = screen.getByRole("button");
@@ -310,7 +310,7 @@ describe("When inDataViewerMode", () => {
     await user.click(refreshButton);
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({})
+      JSON.stringify({ "Test Variable": "0" })
     );
   });
 
@@ -395,11 +395,9 @@ describe("When inDataViewerMode", () => {
     expect(variableInput).toBeChecked();
     expect(handleChange).toHaveBeenCalledWith(true);
 
-    await waitFor(async () => {
-      expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-        JSON.stringify({ "Test Variable": false })
-      );
-    });
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": false })
+    );
   });
 
   it("Creates a Dropdown Input for a Variable Input", async () => {
