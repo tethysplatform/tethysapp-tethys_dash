@@ -42,7 +42,26 @@ const TestingComponent = ({ children, options = {} }) => {
 
 const createLoadedComponent = ({ children, options = {} }) => {
   const dashboards = options.dashboards ?? mockedDashboards;
-  const initialDashboard = options.initialDashboard ?? dashboards[0];
+  const initialDashboard = options.initialDashboard ?? dashboards.user[0];
+
+  if (options.user) {
+    server.use(
+      rest.get("http://api.test/api/whoami/", (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            username: "jsmith",
+            firstName: "John",
+            lastName: "Smith",
+            email: "jsmith@tethys.org",
+            isAuthenticated: options.user.isAuthenticated ?? true,
+            isStaff: options.user.isStaff ?? true,
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      })
+    );
+  }
 
   if (options.dashboards) {
     server.use(

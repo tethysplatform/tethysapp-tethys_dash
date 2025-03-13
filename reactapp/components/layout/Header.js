@@ -273,7 +273,7 @@ export const DashboardHeader = () => {
           >
             <BsGrid3X3Gap size="1.5rem" />
           </TooltipButton>
-          {name && <WhiteTitle>{name}</WhiteTitle>}
+          <WhiteTitle>{name}</WhiteTitle>
           <div>
             {editable && (
               <>
@@ -344,6 +344,14 @@ export const DashboardHeader = () => {
                     <BsPencilSquare size="1.5rem" />
                   </TooltipButton>
                 )}
+                <TooltipButton
+                  onClick={() => setShowInfoModal(true)}
+                  tooltipPlacement="bottom"
+                  tooltipText="App Info"
+                  aria-label="appInfoButton"
+                >
+                  <BsInfo size="1.5rem" />
+                </TooltipButton>
               </>
             )}
             <TooltipButton
@@ -355,14 +363,6 @@ export const DashboardHeader = () => {
               disabled={isSaving}
             >
               <BsGear size="1.5rem" />
-            </TooltipButton>
-            <TooltipButton
-              onClick={() => setShowInfoModal(true)}
-              tooltipPlacement="bottom"
-              tooltipText="App Info"
-              aria-label="appInfoButton"
-            >
-              <BsInfo size="1.5rem" />
             </TooltipButton>
           </div>
         </Container>

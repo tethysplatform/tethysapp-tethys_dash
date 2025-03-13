@@ -1,9 +1,10 @@
 import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
-import Header from "components/layout/Header";
+import { LandingPageHeader, DashboardHeader } from "components/layout/Header";
 import { MemoryRouter } from "react-router-dom";
 import selectEvent from "react-select-event";
 import createLoadedComponent from "__tests__/utilities/customRender";
+import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 
 window.matchMedia =
   window.matchMedia ||
@@ -15,54 +16,84 @@ window.matchMedia =
     };
   };
 
-test("Header, staff user", async () => {
+test("LandingPageHeader, staff user", async () => {
   render(
     createLoadedComponent({
       children: (
         <MemoryRouter initialEntries={["/"]}>
-          <Header />
+          <LandingPageHeader />
         </MemoryRouter>
       ),
     })
   );
 
-  expect(
-    screen.queryByLabelText("dashboardSettingButton")
-  ).not.toBeInTheDocument();
+  expect(await screen.findByLabelText("appExitButton")).toBeInTheDocument();
+  expect(screen.getByText("Available Dashboards")).toBeInTheDocument();
   expect(screen.getByLabelText("appSettingButton")).toBeInTheDocument();
+  expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
   expect(screen.getByLabelText("appExitButton")).toBeInTheDocument();
-
-  expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
-  const selector = await screen.findByRole("combobox");
-  selectEvent.openMenu(selector);
-
-  const userOption = await screen.findByText("test_label");
-  await userEvent.click(userOption);
-
-  const dashboardSettingButton = screen.getByLabelText(
-    "dashboardSettingButton"
-  );
-  await userEvent.click(dashboardSettingButton);
-  expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
 });
 
-test("Header, non staff user", async () => {
+test("LandingPageHeader, non staff user", async () => {
   render(
     createLoadedComponent({
       children: (
         <MemoryRouter initialEntries={["/"]}>
-          <Header />
+          <LandingPageHeader />
         </MemoryRouter>
       ),
       options: { user: { isAuthenticated: true, isStaff: false } },
     })
   );
 
-  expect(
-    screen.queryByLabelText("dashboardSettingButton")
-  ).not.toBeInTheDocument();
+  expect(await screen.findByLabelText("appExitButton")).toBeInTheDocument();
+  expect(screen.getByText("Available Dashboards")).toBeInTheDocument();
   expect(screen.queryByLabelText("appSettingButton")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
   expect(screen.getByLabelText("appExitButton")).toBeInTheDocument();
+});
 
-  expect(await screen.findByText("Select/Add Dashboard:")).toBeInTheDocument();
+test("DashboardHeader, not editable", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    })
+  );
+
+  expect(
+    await screen.findByLabelText("dashboardExitButton")
+  ).toBeInTheDocument();
+  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
+});
+
+test("DashboardHeader, editable", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: { editableDashboard: true },
+    })
+  );
+
+  expect(
+    await screen.findByLabelText("dashboardExitButton")
+  ).toBeInTheDocument();
+  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(screen.getByLabelText("editButton")).toBeInTheDocument();
+  expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
+  expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
 });
