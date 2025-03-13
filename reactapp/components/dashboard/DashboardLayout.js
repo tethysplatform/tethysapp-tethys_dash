@@ -25,7 +25,7 @@ const rowHeight = window.innerWidth / colCount - 10;
 const DashboardLayout = () => {
   const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
   const { gridItems } = getDashboardMetadata();
-  const { isEditing, setIsEditing } = useContext(EditingContext);
+  const { isEditing } = useContext(EditingContext);
   const { disabledEditingMovement } = useContext(
     DisabledEditingMovementContext
   );

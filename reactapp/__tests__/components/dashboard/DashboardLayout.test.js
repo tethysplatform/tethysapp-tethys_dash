@@ -1,24 +1,18 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import DashboardLayout from "components/dashboard/DashboardLayout";
-import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
-import {
-  mockedDashboards,
-  updatedDashboard,
-} from "__tests__/utilities/constants";
+import { mockedDashboards } from "__tests__/utilities/constants";
 import createLoadedComponent, {
   ContextLayoutPComponent,
-  EditingPComponent,
 } from "__tests__/utilities/customRender";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
-import appAPI from "services/api/app";
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // eslint-disable-next-line
 jest.mock("components/dashboard/DashboardItem", () => (props) => (
-  <>
-    <button data-testid="test-submit" type="submit" form="gridUpdate" />
-    <br></br>
-    <br></br>
-  </>
+  <p>Rendered Item</p>
 ));
 
 test("Dashboard Layout resize and update layout", async () => {
@@ -38,6 +32,9 @@ test("Dashboard Layout resize and update layout", async () => {
       },
     })
   );
+  expect(await screen.findByText("Rendered Item")).toBeInTheDocument();
+
+  await sleep(100);
 
   // eslint-disable-next-line
   const resizeSpan = container.querySelector(".react-resizable-handle");
@@ -48,9 +45,8 @@ test("Dashboard Layout resize and update layout", async () => {
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
+      id: 1,
       name: "editable",
-      label: "test_label",
-      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -64,108 +60,10 @@ test("Dashboard Layout resize and update layout", async () => {
           y: 0,
         },
       ],
-      editable: true,
+      accessGroups: [],
+      description: "test_description",
     })
   );
-});
-
-test("Dashboard Layout submit changes not editing", async () => {
-  const mockUpdateDashboard = jest.fn();
-
-  appAPI.updateDashboard = mockUpdateDashboard;
-
-  render(
-    createLoadedComponent({
-      children: (
-        <>
-          <LayoutAlertContextProvider>
-            <DashboardLayout />
-          </LayoutAlertContextProvider>
-        </>
-      ),
-      options: {
-        initialDashboard: mockedDashboards.user[0],
-      },
-    })
-  );
-
-  const submitButton = screen.getByTestId("test-submit");
-  fireEvent.click(submitButton);
-
-  expect(mockUpdateDashboard).not.toHaveBeenCalled();
-});
-
-test("Dashboard Layout submit changes success", async () => {
-  const newUpdatedDashboard = updatedDashboard;
-  newUpdatedDashboard.label = "test_label";
-  const mockUpdateDashboard = jest.fn();
-  mockUpdateDashboard.mockResolvedValue({
-    success: true,
-    updated_dashboard: newUpdatedDashboard,
-  });
-  appAPI.updateDashboard = mockUpdateDashboard;
-
-  render(
-    createLoadedComponent({
-      children: (
-        <>
-          <LayoutAlertContextProvider>
-            <DashboardLayoutAlerts />
-            <DashboardLayout />
-          </LayoutAlertContextProvider>
-          <EditingPComponent />
-        </>
-      ),
-      options: {
-        initialDashboard: mockedDashboards.user[0],
-        inEditing: true,
-      },
-    })
-  );
-
-  const submitButton = screen.getByTestId("test-submit");
-  fireEvent.click(submitButton);
-
-  expect(
-    await screen.findByText("Change have been saved.")
-  ).toBeInTheDocument();
-  expect(await screen.findByTestId("editing")).toHaveTextContent("not editing");
-});
-
-test("Dashboard Layout submit changes fail", async () => {
-  const mockUpdateDashboard = jest.fn();
-  mockUpdateDashboard.mockResolvedValue({
-    success: false,
-  });
-  appAPI.updateDashboard = mockUpdateDashboard;
-
-  render(
-    createLoadedComponent({
-      children: (
-        <>
-          <LayoutAlertContextProvider>
-            <DashboardLayoutAlerts />
-            <DashboardLayout />
-          </LayoutAlertContextProvider>
-          <EditingPComponent />
-        </>
-      ),
-      options: {
-        initialDashboard: mockedDashboards.user[0],
-        inEditing: true,
-      },
-    })
-  );
-
-  const submitButton = screen.getByTestId("test-submit");
-  fireEvent.click(submitButton);
-
-  expect(
-    await screen.findByText(
-      "Failed to save changes. Check server logs for more information."
-    )
-  ).toBeInTheDocument();
-  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
 
 test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", async () => {
@@ -189,7 +87,7 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
       },
     ],
   };
-  const dashboards = { editable: mockedDashboard };
+  const dashboards = { user: [mockedDashboard], public: [] };
 
   const { container } = render(
     createLoadedComponent({
@@ -203,11 +101,13 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
       ),
       options: {
         dashboards: dashboards,
-        initialDashboard: mockedDashboards.user[0],
         inEditing: true,
       },
     })
   );
+  expect(await screen.findByText("Rendered Item")).toBeInTheDocument();
+
+  await sleep(100);
 
   // eslint-disable-next-line
   const resizeSpan = container.querySelector(".react-resizable-handle");
@@ -218,9 +118,8 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
+      id: 1,
       name: "editable",
-      label: "test_label",
-      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -235,6 +134,7 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
         },
       ],
       editable: true,
+      accessGroups: [],
     })
   );
 });
@@ -263,7 +163,7 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
       },
     ],
   };
-  const dashboards = { editable: mockedDashboard };
+  const dashboards = { user: [mockedDashboard], public: [] };
 
   const { container } = render(
     createLoadedComponent({
@@ -277,11 +177,14 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
       ),
       options: {
         dashboards: dashboards,
-        initialDashboard: mockedDashboards.user[0],
         inEditing: true,
       },
     })
   );
+
+  expect(await screen.findByText("Rendered Item")).toBeInTheDocument();
+
+  await sleep(100);
 
   // eslint-disable-next-line
   const resizeSpan = container.querySelector(".react-resizable-handle");
@@ -292,9 +195,8 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
+      id: 1,
       name: "editable",
-      label: "test_label",
-      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -312,6 +214,7 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
         },
       ],
       editable: true,
+      accessGroups: [],
     })
   );
 
@@ -321,9 +224,8 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
+      id: 1,
       name: "editable",
-      label: "test_label",
-      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -341,6 +243,7 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
         },
       ],
       editable: true,
+      accessGroups: [],
     })
   );
 });

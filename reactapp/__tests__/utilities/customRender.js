@@ -63,22 +63,20 @@ const createLoadedComponent = ({ children, options = {} }) => {
     );
   }
 
-  if (options.dashboards) {
+  if (options.dashboards || options.initialDashboard) {
     server.use(
       rest.get(
         "http://api.test/apps/tethysdash/dashboards/",
         (req, res, ctx) => {
           return res(
             ctx.status(200),
-            ctx.json(options.dashboards),
+            ctx.json(dashboards),
             ctx.set("Content-Type", "application/json")
           );
         }
       )
     );
-  }
 
-  if (options.initialDashboard) {
     server.use(
       rest.get(
         "http://api.test/apps/tethysdash/dashboards/get/",

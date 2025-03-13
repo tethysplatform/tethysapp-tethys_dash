@@ -512,7 +512,7 @@ it("Base - update variable input", async () => {
     accessGroups: [],
     gridItems: [textVariable, apiImageBase],
   };
-  const dashboards = { editable: mockedDashboard };
+  const dashboards = { user: [mockedDashboard], public: [] };
 
   appAPI.getPlotData = (props) => {
     return Promise.resolve({
