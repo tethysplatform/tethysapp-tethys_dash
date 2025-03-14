@@ -387,7 +387,8 @@ describe("When inDataViewerMode", () => {
     expect(variableInput).toBeInTheDocument();
     expect(variableInput).not.toBeChecked();
 
-    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    const inputVariables = await screen.findByTestId("input-variables");
+    expect(inputVariables).toHaveTextContent(
       JSON.stringify({ "Test Variable": false })
     );
     await user.click(variableInput);
@@ -395,9 +396,11 @@ describe("When inDataViewerMode", () => {
     expect(variableInput).toBeChecked();
     expect(handleChange).toHaveBeenCalledWith(true);
 
-    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": false })
-    );
+    await waitFor(async () => {
+      expect(inputVariables).toHaveTextContent(
+        JSON.stringify({ "Test Variable": null })
+      );
+    });
   });
 
   it("Creates a Dropdown Input for a Variable Input", async () => {

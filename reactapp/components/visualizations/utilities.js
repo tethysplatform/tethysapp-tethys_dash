@@ -6,23 +6,13 @@ import styled from "styled-components";
 import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/Map";
 import ModuleLoader from "./ModuleLoader";
-import Spinner from "react-bootstrap/Spinner";
 import { spaceAndCapitalize } from "components/modals/utilities";
-
-const StyledSpinner = styled(Spinner)`
-  margin: auto;
-  display: block;
-`;
 
 const StyledH2 = styled.h2`
   text-align: center;
 `;
 
 export function setVisualization(setViz, itemData, visualizationRef) {
-  setViz(
-    <StyledSpinner data-testid="Loading..." animation="border" variant="info" />
-  );
-
   appAPI.getPlotData(itemData).then((response) => {
     if (response.success === true) {
       if (response["viz_type"] === "plotly") {

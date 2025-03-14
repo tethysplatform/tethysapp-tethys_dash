@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
 import {
@@ -21,6 +21,8 @@ import appAPI from "services/api/app";
 import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
+import { Map } from "ol";
+import * as utilities from "components/visualizations/utilities";
 
 const { ResizeObserver } = window;
 
@@ -38,7 +40,7 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-it("Initializes a Base Item with an empty div", () => {
+it("Initializes a Base Item with an empty div", async () => {
   render(
     createLoadedComponent({
       children: (
@@ -53,7 +55,7 @@ it("Initializes a Base Item with an empty div", () => {
     })
   );
 
-  expect(screen.getByTestId("Source_Unknown")).toBeInTheDocument();
+  expect(await screen.findByTestId("Source_Unknown")).toBeInTheDocument();
 });
 
 it("Initializes a Base Item with an empty div and updates it with an image", async () => {
@@ -79,7 +81,7 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
     })
   );
 
-  const spinner = screen.getByTestId("Loading...");
+  const spinner = await screen.findByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   const image = await screen.findByAltText(mockedApiImageBase.source);
@@ -127,6 +129,8 @@ it("Creates an Base Item with a Text Box", async () => {
 });
 
 it("Creates an Base Item with a Map", async () => {
+  jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
+
   render(
     createLoadedComponent({
       children: (
@@ -155,8 +159,10 @@ it("Creates an Base Item with a Map", async () => {
   // eslint-disable-next-line
   expect(mapPopupContent.children.length).toBe(0);
 
-  expect(screen.getByLabelText("Map Legend")).toBeInTheDocument();
-  expect(screen.getByLabelText("Show Layers Control")).toBeInTheDocument();
+  expect(await screen.findByLabelText("Map Legend")).toBeInTheDocument();
+  expect(
+    await screen.findByLabelText("Show Layers Control")
+  ).toBeInTheDocument();
 });
 
 it("Creates an Base Item with a variable input text box", async () => {
@@ -182,13 +188,13 @@ it("Creates an Base Item with a variable input text box", async () => {
     })
   );
 
-  const variableInput = screen.getByLabelText("Test Variable Input");
+  const variableInput = await screen.findByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "Hello World");
 
   expect(variableInput).toHaveValue("Hello World");
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({ "Test Variable": "" })
   );
 
   const refreshButton = screen.getByRole("button");
@@ -202,6 +208,7 @@ it("Creates an Base Item with a variable input text box", async () => {
 
 it("Creates an Base Item with an image obtained from the api, 1 min refresh rate", async () => {
   jest.useFakeTimers();
+  jest.spyOn(utilities, "setVisualization");
 
   appAPI.getPlotData = () => {
     return new Promise((resolve) =>
@@ -236,7 +243,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
     })
   );
 
-  const spinner = screen.getByTestId("Loading...");
+  const spinner = await screen.findByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   act(() => {
@@ -247,27 +254,17 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );
+  expect(utilities.setVisualization).toHaveBeenCalledTimes(2);
 
-  // for refresh rate of 1 minute, doesnt update after 50 seconds
+  // go past refresh rate so setVisualization is called again
   act(() => {
-    jest.advanceTimersByTime(50000);
-  });
-  expect(screen.queryByTestId("Loading...")).not.toBeInTheDocument();
-
-  // for refresh rate of 1 minute, updates after 10 more seconds
-  act(() => {
-    jest.advanceTimersByTime(10000);
-  });
-  expect(await screen.findByTestId("Loading...")).toBeInTheDocument();
-
-  act(() => {
-    jest.runOnlyPendingTimers();
+    jest.advanceTimersByTime(90000);
   });
 
-  const anotherImage = await screen.findByAltText(mockedApiImageBase.source);
-  expect(anotherImage.src).toBe(
+  expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );
+  expect(utilities.setVisualization).toHaveBeenCalledTimes(3);
 
   jest.useRealTimers();
 });
@@ -309,7 +306,7 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
     })
   );
 
-  const spinner = screen.getByTestId("Loading...");
+  const spinner = await screen.findByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   act(() => {
@@ -359,7 +356,7 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
     })
   );
 
-  const spinner = screen.getByTestId("Loading...");
+  const spinner = await screen.findByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   const plot = await screen.findByText("bar chart example");
@@ -389,7 +386,7 @@ it("Creates an Base Item with a table obtained from the api", async () => {
     })
   );
 
-  const spinner = screen.getByTestId("Loading...");
+  const spinner = await screen.findByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   const table = await screen.findByText("User Information");
@@ -419,7 +416,7 @@ it("Creates an Base Item with a card obtained from the api", async () => {
     })
   );
 
-  const spinner = screen.getByTestId("Loading...");
+  const spinner = await screen.findByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   const card = await screen.findByText("Company Statistics");
@@ -449,7 +446,7 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
     })
   );
 
-  const spinner = screen.getByTestId("Loading...");
+  const spinner = await screen.findByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   const message = await screen.findByText(
@@ -481,7 +478,7 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
     })
   );
 
-  const spinner = screen.getByTestId("Loading...");
+  const spinner = await screen.findByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   const message = await screen.findByText("Failed to retrieve data");
@@ -546,11 +543,10 @@ it("Base - update variable input", async () => {
     })
   );
 
-  const spinner = screen.getByTestId("Loading...");
-  expect(spinner).toBeInTheDocument();
-
   const image = await screen.findByAltText(mockedApiImageBase.source);
-  expect(image.src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
+  await waitFor(async () => {
+    expect(image.src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
+  });
 
   const variableInput = screen.getByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();

@@ -1,4 +1,5 @@
 import PropTypes from "prop-types";
+import styled from "styled-components";
 import { useEffect, useState, memo, useRef, useContext } from "react";
 import FullscreenPlotModal from "components/modals/FullscreenPlot";
 import Image from "components/visualizations/Image";
@@ -14,6 +15,12 @@ import {
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import { valuesEqual } from "components/modals/utilities";
+import Spinner from "react-bootstrap/Spinner";
+
+const StyledSpinner = styled(Spinner)`
+  margin: auto;
+  display: block;
+`;
 
 const BaseVisualization = ({
   source,
@@ -22,7 +29,9 @@ const BaseVisualization = ({
   showFullscreen,
   hideFullscreen,
 }) => {
-  const [viz, setViz] = useState(null);
+  const [viz, setViz] = useState(
+    <StyledSpinner data-testid="Loading..." animation="border" variant="info" />
+  );
   const { variableInputValues } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemSource = useRef(0);
