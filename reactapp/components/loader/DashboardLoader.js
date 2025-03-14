@@ -65,7 +65,14 @@ const DashboardLoader = ({
           updatedVariableInputValues[args.variable_name] =
             variableInputValues[args.variable_name];
         } else {
-          updatedVariableInputValues[args.variable_name] = args.initial_value;
+          let initialValue = args.initial_value;
+          if (
+            args.variable_options_source === "checkbox" &&
+            args.initial_value === null
+          ) {
+            initialValue = false;
+          }
+          updatedVariableInputValues[args.variable_name] = initialValue;
         }
       }
     }
