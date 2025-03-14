@@ -1008,6 +1008,7 @@ test("Map bad GeoJSON", async () => {
   });
 
   mockedApplyStyle.mockResolvedValue(true);
+  jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
 
   const layers = [

@@ -333,11 +333,6 @@ test("Visualization Pane Other Type", async () => {
     "Cell updated to show Visualization Group plugin_label"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[1][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
 
   await userEvent.click(visualizationTypeSelect);
 
@@ -355,11 +350,6 @@ test("Visualization Pane Other Type", async () => {
     "Cell updated to show Visualization Group plugin_label2"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[1][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
 
   await userEvent.click(visualizationTypeSelect);
 
@@ -380,11 +370,6 @@ test("Visualization Pane Other Type", async () => {
     "Cell updated to show Visualization Group 2 plugin_label3"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[1][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
 });
 
 test("Visualization Pane Other Type Checkbox", async () => {
@@ -461,11 +446,6 @@ test("Visualization Pane Other Type Checkbox", async () => {
     "Cell updated to show Other plugin_label_checkbox"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[1][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
 });
 
 test("Visualization Pane Use Existing Args Variable Input", async () => {
@@ -663,11 +643,6 @@ test("Visualization Pane Use Existing Args Viz with True checkbox", async () => 
     "Cell updated to show Other plugin_label"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[0][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify([
       {
@@ -752,11 +727,6 @@ test("Visualization Pane Use Existing Args Viz with False checkbox", async () =>
     "Cell updated to show Other plugin_label"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[0][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify([
       {

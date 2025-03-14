@@ -165,7 +165,6 @@ it("Creates a Checkbox Input for a Variable Input with a null value", async () =
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({ "Test Variable": false })
   );
-
   await user.click(variableInput);
 
   expect(variableInput).toBeChecked();
@@ -398,7 +397,7 @@ describe("When inDataViewerMode", () => {
 
     await waitFor(async () => {
       expect(inputVariables).toHaveTextContent(
-        JSON.stringify({ "Test Variable": null })
+        JSON.stringify({ "Test Variable": false })
       );
     });
   });

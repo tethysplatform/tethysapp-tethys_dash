@@ -49,10 +49,6 @@ const VariableInput = ({ args, onChange }) => {
   );
 
   useEffect(() => {
-    // When any of the args are updated, the variable is changed to null
-    // The label is set to the variable_name,
-    setValue(null);
-    setLabel(args.variable_name);
     let initialVariableValue = args.initial_value;
     let variableValue = initialVariableValue;
 
@@ -84,6 +80,7 @@ const VariableInput = ({ args, onChange }) => {
       variableValue = initialVariableValue;
     }
     setValue(initialVariableValue);
+    setLabel(args.variable_name);
 
     if (!inDataViewerMode) {
       updateVariableInputs(variableValue);
