@@ -39,7 +39,6 @@ function AppInfoModal({ showModal, setShowModal, view }) {
         : dontShowLandingPageInfoOnStart === "true"
     );
   }
-  const [showingConfirm, setShowingConfirm] = useState(false);
   const handleClose = () => setShowModal(false);
 
   const startAppTour = async () => {
@@ -69,7 +68,6 @@ function AppInfoModal({ showModal, setShowModal, view }) {
         className="appinfo"
         aria-label={"App Info Modal"}
         centered
-        style={showingConfirm && { zIndex: 1050 }}
       >
         <Modal.Header closeButton>
           <Modal.Title className="ms-auto">
