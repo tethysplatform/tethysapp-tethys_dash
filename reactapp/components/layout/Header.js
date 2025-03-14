@@ -5,6 +5,7 @@ import Container from "react-bootstrap/Container";
 import Navbar from "react-bootstrap/Navbar";
 import Spinner from "react-bootstrap/Spinner";
 import styled from "styled-components";
+import html2canvas from "html2canvas";
 
 import {
   LayoutContext,
