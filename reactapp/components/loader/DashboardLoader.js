@@ -167,6 +167,12 @@ DashboardLoader.propTypes = {
     PropTypes.node,
     PropTypes.object,
   ]),
+  id: PropTypes.number,
+  name: PropTypes.string,
+  notes: PropTypes.string,
+  editable: PropTypes.bool,
+  accessGroups: PropTypes.arrayOf(PropTypes.string),
+  description: PropTypes.string,
 };
 
 export default DashboardLoader;

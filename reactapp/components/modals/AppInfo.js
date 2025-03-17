@@ -145,6 +145,7 @@ function AppInfoModal({ showModal, setShowModal, view }) {
 AppInfoModal.propTypes = {
   showModal: PropTypes.bool,
   setShowModal: PropTypes.func,
+  view: PropTypes.string,
 };
 
 export default AppInfoModal;

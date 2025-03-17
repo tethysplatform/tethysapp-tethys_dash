@@ -1,8 +1,6 @@
-import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import { LandingPageHeader, DashboardHeader } from "components/layout/Header";
 import { MemoryRouter } from "react-router-dom";
-import selectEvent from "react-select-event";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 

@@ -1,6 +1,5 @@
 import styled from "styled-components";
 import Container from "react-bootstrap/Container";
-import Form from "react-bootstrap/Form";
 import Navbar from "react-bootstrap/Navbar";
 import PropTypes from "prop-types";
 import { useContext, useState } from "react";
@@ -9,13 +8,11 @@ import {
   BsGear,
   BsGrid3X3Gap,
   BsInfo,
-  BsArrowReturnLeft,
   BsFloppy,
   BsPencilSquare,
 } from "react-icons/bs";
 import { FaPlus } from "react-icons/fa6";
 import { CiUndo } from "react-icons/ci";
-import { IoArrowBackOutline } from "react-icons/io5";
 import {
   LayoutContext,
   EditingContext,
@@ -382,4 +379,8 @@ export const DashboardHeader = () => {
       )}
     </>
   );
+};
+
+LockedIcon.propTypes = {
+  locked: PropTypes.bool,
 };

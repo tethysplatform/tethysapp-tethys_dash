@@ -1,10 +1,6 @@
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
-import Alert from "react-bootstrap/Alert";
-import { AvailableDashboardsContext } from "components/contexts/Contexts";
-import { useState, useContext } from "react";
-import TextArea from "components/inputs/TextArea";
-import NormalInput from "components/inputs/NormalInput";
+import { useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 
@@ -80,6 +76,7 @@ function DashboardThumbnailModal({
 DashboardThumbnailModal.propTypes = {
   showModal: PropTypes.bool,
   setShowModal: PropTypes.func,
+  onUpdateThumbnail: PropTypes.func,
 };
 
 export default DashboardThumbnailModal;

@@ -3,7 +3,6 @@ import userEvent from "@testing-library/user-event";
 
 import VariableInput from "components/visualizations/VariableInput";
 import {
-  mockedDropdownVizArgs,
   mockedCheckboxVariable,
   mockedDropdownVariable,
   mockedNullCheckboxVariable,

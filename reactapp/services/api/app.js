@@ -14,7 +14,7 @@ const appAPI = {
   },
   getDashboard: ({ id }) => {
     return apiClient.get(`${APP_ROOT_URL}dashboards/get/`, {
-      params: { id, name },
+      params: { id },
     });
   },
   addDashboard: (data, csrf) => {

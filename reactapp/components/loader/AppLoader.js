@@ -17,7 +17,6 @@ import NotFound from "components/error/NotFound";
 import DashboardView from "views/Dashboard";
 import LandingPage from "views/LandingPage";
 import AppTourContextProvider from "components/contexts/AppTourContext";
-import { confirm } from "components/inputs/DeleteConfirmation";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -52,6 +51,7 @@ function Loader({ children }) {
         routes: setupRoutes(availableDashboards),
       }));
     }
+    // eslint-disable-next-line
   }, [availableDashboards]);
 
   useEffect(() => {
@@ -164,6 +164,7 @@ function Loader({ children }) {
           .catch(handleError);
       })
       .catch(handleError);
+    // eslint-disable-next-line
   }, []);
 
   function setupRoutes(dashboards) {

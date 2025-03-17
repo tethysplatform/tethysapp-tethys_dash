@@ -1,8 +1,7 @@
-import { useEffect, useRef, useContext } from "react";
+import { useRef } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent } from "@testing-library/react";
 import SettingsPane from "components/modals/DataViewer/SettingsPane";
-import { mockedDashboards } from "__tests__/utilities/constants";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 

@@ -1,19 +1,10 @@
 import PropTypes from "prop-types";
 import { useContext, useEffect } from "react";
-import { Route } from "react-router-dom";
-import {
-  mockedDashboards,
-  mockedVisualizationsWithDefaults,
-  mockedVisualizationArgs,
-} from "__tests__/utilities/constants";
-import NotFound from "components/error/NotFound";
-import DashboardView from "views/Dashboard";
+import { mockedDashboards } from "__tests__/utilities/constants";
 import DashboardLoader from "components/loader/DashboardLoader";
 import Loader from "components/loader/AppLoader";
 import {
-  AppContext,
   LayoutContext,
-  AvailableDashboardsContext,
   EditingContext,
   DataViewerModeContext,
   VariableInputsContext,

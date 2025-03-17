@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useContext } from "react";
+import { useRef, useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import VisualizationPane, {
@@ -7,12 +7,10 @@ import VisualizationPane, {
 import { mockedDashboards } from "__tests__/utilities/constants";
 import Image from "components/visualizations/Image";
 import appAPI from "services/api/app";
-import { LayoutContext } from "components/contexts/Contexts";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 
 const TestingComponent = ({
-  layoutContext,
   source,
   argsString,
   setGridItemMessage,
@@ -773,4 +771,6 @@ TestingComponent.propTypes = {
   setGridItemMessage: PropTypes.func,
   setViz: PropTypes.func,
   setVizMetadata: PropTypes.func,
+  setShowingSubModal: PropTypes.func,
+  gridItemIndex: PropTypes.number,
 };

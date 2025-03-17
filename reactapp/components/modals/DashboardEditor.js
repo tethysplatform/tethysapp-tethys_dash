@@ -6,7 +6,6 @@ import { useState, useEffect, useContext } from "react";
 import {
   LayoutContext,
   AvailableDashboardsContext,
-  EditingContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import styled from "styled-components";
@@ -23,13 +22,6 @@ import { useNavigate } from "react-router-dom";
 const StyledOffcanvas = styled(Offcanvas)`
   height: 100vh;
   width: 33% !important;
-`;
-const StyledDiv = styled.div`
-  display: inline-block;
-`;
-const StyledMarginDiv = styled.div`
-  display: inline-block;
-  margin-right: 1rem;
 `;
 const StyledHeader = styled(Offcanvas.Header)`
   border-bottom: 1px solid #ccc;
@@ -91,7 +83,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [localNotes, setLocalNotes] = useState(notes);
   const [localName, setLocalName] = useState(name);
   const [localDescription, setLocalDescription] = useState(description);
-  const { setIsEditing } = useContext(EditingContext);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const navigate = useNavigate();
 

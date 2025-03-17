@@ -3,7 +3,7 @@ import { useContext, useState, memo, useEffect, useRef } from "react";
 import { getPublicUrl } from "services/utilities";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
-import { BsPeople, BsPeopleFill, BsSlashLg } from "react-icons/bs";
+import { BsPeopleFill } from "react-icons/bs";
 import { FaPlus } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { confirm } from "components/inputs/DeleteConfirmation";
@@ -78,26 +78,6 @@ const CardHeader = styled(Card.Header)`
   max-height: 4.5rem;
 `;
 
-const CardFooter = styled(Card.Footer)`
-  justify-content: space-between;
-  display: flex;
-  background-color: transparent;
-`;
-
-const HoverDiv = styled.div`
-  cursor: pointer;
-  padding-left: 0.3rem;
-  height: 100%;
-  justify-content: center;
-  display: flex;
-  align-items: center;
-`;
-
-const ButtonGroup = styled.div`
-  display: inline-flex;
-  height: 100%;
-`;
-
 const NewDashboardDiv = styled.div`
   text-align: center;
   display: flex;
@@ -161,14 +141,6 @@ const StyledAlert = styled(Alert)`
   z-index: 1;
 `;
 
-const SharingIconDiv = styled.div`
-  position: relative;
-  display: flex;
-  height: 100%;
-  justify-content: center;
-  align-items: center;
-`;
-
 const CardImage = styled(Card.Img)`
   transition: opacity 0.3s ease; /* Smooth transition for opacity change */
   opacity: 1; /* Default visibility */
@@ -183,23 +155,6 @@ const CardImage = styled(Card.Img)`
 const FlexDiv = styled.div`
   display: flex;
 `;
-
-const SharingIcon = ({ shared }) => {
-  if (shared) {
-    return (
-      <SharingIconDiv>
-        <BluePeopleFilledIcon size="1.2rem" />
-      </SharingIconDiv>
-    );
-  } else {
-    return (
-      <SharingIconDiv>
-        <BsPeople size="1.2rem" />
-        <BsSlashLg size="1.2rem" style={{ position: "absolute" }} />
-      </SharingIconDiv>
-    );
-  }
-};
 
 const DashboardCard = ({
   id,
@@ -223,8 +178,7 @@ const DashboardCard = ({
   const [dashboardImage, setDashboardImage] = useState(image);
   const nameInput = useRef();
   const descriptionInput = useRef();
-  const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
-    useAppTourContext();
+  const { activeAppTour } = useAppTourContext();
 
   useEffect(() => {
     if (isEditingTitle) {
@@ -480,9 +434,12 @@ export const NewDashboardCard = () => {
 };
 
 DashboardCard.propTypes = {
+  id: PropTypes.number,
   name: PropTypes.string,
-  label: PropTypes.string,
+  editable: PropTypes.bool,
   description: PropTypes.string,
+  accessGroups: PropTypes.arrayOf(PropTypes.string),
+  image: PropTypes.string,
 };
 
 export default memo(DashboardCard);

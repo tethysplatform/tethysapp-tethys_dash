@@ -1,6 +1,6 @@
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { DashboardHeader, LandingPageHeader } from "components/layout/Header";
+import { DashboardHeader } from "components/layout/Header";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import AppTour from "components/appTour/AppTour";
 import { MemoryRouter } from "react-router-dom";
@@ -590,8 +590,6 @@ test("Dashboard App Tour", async () => {
 }, 40000);
 
 test("Dashboard App Tour while editing and then exit", async () => {
-  let selector;
-  let existingDashboardOption;
   const mockAddDashboard = jest.fn();
   appAPI.addDashboard = mockAddDashboard;
   mockAddDashboard.mockResolvedValue({
@@ -697,7 +695,6 @@ test("Dashboard App Tour while editing and then exit", async () => {
 
 test("Landing Page App Tour", async () => {
   let nextButton;
-  let backButton;
   let endTourButton;
   const mockAddDashboard = jest.fn();
   appAPI.addDashboard = mockAddDashboard;
@@ -868,7 +865,7 @@ test("Landing Page App Tour", async () => {
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
-  backButton = await screen.findByLabelText("Back");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
   await userEvent.click(nextButton);
 
   ////////////
@@ -878,7 +875,7 @@ test("Landing Page App Tour", async () => {
     await screen.findByText("Dashboard names are displayed in the card header.")
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
-  backButton = await screen.findByLabelText("Back");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
   await userEvent.click(nextButton);
 
   ////////////
@@ -890,7 +887,7 @@ test("Landing Page App Tour", async () => {
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
-  backButton = await screen.findByLabelText("Back");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
   await userEvent.click(nextButton);
 
   ////////////
@@ -934,7 +931,7 @@ test("Landing Page App Tour", async () => {
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
-  backButton = await screen.findByLabelText("Back");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
   await userEvent.click(nextButton);
 
   /////////////
@@ -944,7 +941,7 @@ test("Landing Page App Tour", async () => {
     await screen.findByText("Update the description of the dashboard.")
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
-  backButton = await screen.findByLabelText("Back");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
   await userEvent.click(nextButton);
 
   /////////////
@@ -954,7 +951,7 @@ test("Landing Page App Tour", async () => {
     await screen.findByText("Update the thumbnail of the dashboard.")
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
-  backButton = await screen.findByLabelText("Back");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
   await userEvent.click(nextButton);
 
   /////////////
@@ -966,7 +963,7 @@ test("Landing Page App Tour", async () => {
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
-  backButton = await screen.findByLabelText("Back");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
   await userEvent.click(nextButton);
 
   /////////////
@@ -978,7 +975,7 @@ test("Landing Page App Tour", async () => {
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
-  backButton = await screen.findByLabelText("Back");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
   await userEvent.click(nextButton);
 
   /////////////
@@ -990,7 +987,6 @@ test("Landing Page App Tour", async () => {
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
-  backButton = await screen.findByLabelText("Back");
   await userEvent.click(nextButton);
 
   /////////////
@@ -1011,7 +1007,6 @@ test("Landing Page App Tour", async () => {
   ).toBeInTheDocument();
   expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
   endTourButton = await screen.findByLabelText("End App Tour");
-  backButton = await screen.findByLabelText("Back");
   await userEvent.click(endTourButton);
 
   expect(

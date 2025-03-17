@@ -2,9 +2,7 @@ import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import NewDashboardModal from "components/modals/NewDashboard";
-import createLoadedComponent, {
-  EditingPComponent,
-} from "__tests__/utilities/customRender";
+import createLoadedComponent from "__tests__/utilities/customRender";
 import appAPI from "services/api/app";
 import { AppTourContext } from "components/contexts/AppTourContext";
 

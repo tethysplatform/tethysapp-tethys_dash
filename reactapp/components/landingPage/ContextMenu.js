@@ -19,11 +19,6 @@ const StyledDropdownToggle = styled(Dropdown.Toggle)`
   padding: 0;
 `;
 
-const StyledDropdownMenu = styled(Dropdown.Menu)`
-  position: absolute;
-  z-index: 1000;
-`;
-
 const SubmenuWrapper = styled.div`
   position: relative;
 `;
@@ -56,8 +51,7 @@ const ContextMenu = ({
   const submenuRef = useRef(null);
   const [submenuPosition, setSubmenuPosition] = useState("right");
   const [submenuVisible, setSubmenuVisible] = useState(false);
-  const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
-    useAppTourContext();
+  const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   useEffect(() => {
     if (submenuRef.current) {
