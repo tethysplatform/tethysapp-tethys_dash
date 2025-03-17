@@ -17,7 +17,8 @@ const StyledBody = styled(Modal.Body)`
 `;
 
 function AppInfoModal({ showModal, setShowModal, view }) {
-  const { resetGridItems } = useContext(LayoutContext);
+  const layoutContext = useContext(LayoutContext);
+  const editingContext = useContext(EditingContext);
   const { setActiveAppTour, setAppTourStep } = useAppTourContext();
   const dontShowLandingPageInfoOnStart = localStorage.getItem(
     "dontShowLandingPageInfoOnStart"
@@ -26,45 +27,33 @@ function AppInfoModal({ showModal, setShowModal, view }) {
     "dontShowDashboardInfoOnStart"
   );
   const [showingConfirm, setShowingConfirm] = useState(false);
-  const { isEditing, setIsEditing } = useContext(EditingContext);
+  const [checked, setChecked] = useState(
+    view === "dashboard"
+      ? (dontShowDashboardInfoOnStart ?? false)
+      : (dontShowLandingPageInfoOnStart ?? false)
+  );
 
-  let checked;
-  let setChecked;
-  if (view === "dashboard") {
-    [checked, setChecked] = useState(
-      dontShowDashboardInfoOnStart === null
-        ? false
-        : dontShowDashboardInfoOnStart === "true"
-    );
-  } else {
-    [checked, setChecked] = useState(
-      dontShowLandingPageInfoOnStart === null
-        ? false
-        : dontShowLandingPageInfoOnStart === "true"
-    );
-  }
   const handleClose = () => setShowModal(false);
 
   const startAppTour = async () => {
-    if (isEditing) {
-      setShowingConfirm(true);
-      if (
-        !(await confirm(
-          "Starting the app tour will cancel any changes you have made to the current dashboard. Are your sure you want to start the tour?"
-        ))
-      ) {
-        return;
-      }
-      setShowingConfirm(false);
-    }
-
     if (view === "dashboard") {
+      if (editingContext.isEditing) {
+        setShowingConfirm(true);
+        if (
+          !(await confirm(
+            "Starting the app tour will cancel any changes you have made to the current dashboard. Are your sure you want to start the tour?"
+          ))
+        ) {
+          return;
+        }
+        setShowingConfirm(false);
+        editingContext.setIsEditing(false);
+      }
       setAppTourStep(17);
+      layoutContext.resetGridItems();
     } else {
       setAppTourStep(0);
     }
-    setIsEditing(false);
-    resetGridItems();
     setShowModal(false);
     setActiveAppTour(true);
   };
