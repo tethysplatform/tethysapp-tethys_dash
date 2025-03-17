@@ -51,6 +51,26 @@ test("LandingPageHeader, non staff user", async () => {
   expect(screen.getByLabelText("appExitButton")).toBeInTheDocument();
 });
 
+test("LandingPageHeader, public user", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LandingPageHeader />
+        </MemoryRouter>
+      ),
+      options: { user: { username: "public", isAuthenticated: true, isStaff: false } },
+    })
+  );
+
+  expect(await screen.findByLabelText("appExitButton")).toBeInTheDocument();
+  expect(screen.getByText("Available Dashboards")).toBeInTheDocument();
+  expect(screen.queryByLabelText("appSettingButton")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "dashboardLoginButton" })).toBeInTheDocument();
+  expect(screen.getByLabelText("appExitButton")).toBeInTheDocument();
+});
+
 test("DashboardHeader, not editable", async () => {
   render(
     createLoadedComponent({
