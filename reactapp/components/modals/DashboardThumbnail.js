@@ -32,17 +32,22 @@ function DashboardThumbnailModal({
 
   return (
     <Modal
-      className="newdashboard"
-      contentClassName="newdashboard-content"
+      className="dashboardThumbnail"
       show={showModal}
       onHide={handleModalClose}
+      aria-label="Dashboard Thumbnail Modal"
       centered
     >
       <Modal.Header closeButton>
         <Modal.Title>Update Dashboard Thumbnail</Modal.Title>
       </Modal.Header>
       <Modal.Body>
-        <input type="file" accept="image/*" onChange={handleImageChange} />
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleImageChange}
+          data-testid="file-input"
+        />
         {imageSrc && (
           <StyledDiv>
             <img
@@ -57,16 +62,16 @@ function DashboardThumbnailModal({
         <Button
           variant="secondary"
           onClick={handleModalClose}
-          aria-label={"Close Modal Button"}
+          aria-label={"Close Thumbnail Modal Button"}
         >
           Close
         </Button>
         <Button
           variant="success"
           onClick={() => onUpdateThumbnail(imageSrc)}
-          aria-label={"Create Dashboard Button"}
+          aria-label={"Update Thumbnail Button"}
         >
-          Create
+          Update
         </Button>
       </Modal.Footer>
     </Modal>

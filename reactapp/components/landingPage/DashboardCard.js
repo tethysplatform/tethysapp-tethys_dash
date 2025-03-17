@@ -267,16 +267,18 @@ const DashboardCard = ({
 
   const onUpdateThumbnail = async (newImage) => {
     setShowThumbnailModal(false);
-    const apiResponse = await updateDashboard({
-      id,
-      newProperties: {
-        image: newImage,
-      },
-    });
-    if (apiResponse["success"]) {
-      setDashboardImage(newImage);
-    } else {
-      setErrorMessage(apiResponse["message"] ?? "Failed to update dashboard");
+    if (newImage) {
+      const apiResponse = await updateDashboard({
+        id,
+        newProperties: {
+          image: newImage,
+        },
+      });
+      if (apiResponse["success"]) {
+        setDashboardImage(newImage);
+      } else {
+        setErrorMessage("Failed to update dashboard");
+      }
     }
   };
 
@@ -310,14 +312,26 @@ const DashboardCard = ({
 
   return (
     <>
-      <CustomCard onDoubleClick={onDoubleClickCard} className={"dashboardCard"}>
+      <CustomCard
+        onDoubleClick={onDoubleClickCard}
+        className={"dashboardCard"}
+        aria-label="Dashboard Card"
+      >
         <CardHeader>
           <FlexDiv className="card-header-icons">
             {editable && (
-              <FaRegUserCircle size={"1.2rem"} title={"You are the owner"} />
+              <FaRegUserCircle
+                size={"1.2rem"}
+                title={"You are the owner"}
+                aria-label="Owner Icon"
+              />
             )}
             {shared && (
-              <StyledBsPeopleFill size={"1.2rem"} title={"Public dashboard"} />
+              <StyledBsPeopleFill
+                size={"1.2rem"}
+                title={"Public dashboard"}
+                aria-label="Public Icon"
+              />
             )}
           </FlexDiv>
           <CardTitleDiv editable={editable} className="card-header-title">
@@ -331,6 +345,7 @@ const DashboardCard = ({
                 onKeyDown={(e) =>
                   handleKeyDown(e, "name", setTitle, setIsEditingTitle)
                 }
+                aria-label="Title Input"
               />
             ) : (
               <CardTitle>{title}</CardTitle>
@@ -360,9 +375,17 @@ const DashboardCard = ({
               {errorMessage}
             </StyledAlert>
           )}
-          <CardImage variant="top" src={dashboardImage} />
+          <CardImage
+            variant="top"
+            src={dashboardImage}
+            aria-label="Dashboard Card Image"
+          />
 
-          <DescriptionDiv isEditing={isEditingDescription} editable={editable}>
+          <DescriptionDiv
+            isEditing={isEditingDescription}
+            editable={editable}
+            aria-label="Description"
+          >
             {isEditingDescription ? (
               <EditableTextarea
                 ref={descriptionInput}
@@ -379,6 +402,7 @@ const DashboardCard = ({
                     setIsEditingDescription
                   )
                 }
+                aria-label="Description Input"
               />
             ) : (
               desc

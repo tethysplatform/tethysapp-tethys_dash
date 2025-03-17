@@ -152,10 +152,10 @@ it("ContextMenu editable and not shared", async () => {
   expect(window.getComputedStyle(subMenu).display).toBe("none");
   fireEvent.mouseEnter(shareOption);
 
-  const makePrivateOption = await screen.findByText("Make Public");
-  expect(makePrivateOption).toBeInTheDocument();
+  const makePublicOption = await screen.findByText("Make Public");
+  expect(makePublicOption).toBeInTheDocument();
   expect(window.getComputedStyle(subMenu).display).toBe("block");
-  await userEvent.click(makePrivateOption);
+  await userEvent.click(makePublicOption);
   expect(onShare).toHaveBeenCalled();
 
   fireEvent.mouseLeave(shareOption);

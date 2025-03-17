@@ -10,12 +10,14 @@ import {
   VariableInputsContext,
   DisabledEditingMovementContext,
 } from "components/contexts/Contexts";
+import { useAppTourContext } from "components/contexts/AppTourContext";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 
 const TestingComponent = ({ children, options = {} }) => {
   const { setIsEditing } = useContext(EditingContext);
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
+  const { setActiveAppTour, setAppTourStep } = useAppTourContext();
 
   useEffect(() => {
     if (options.inEditing) {
@@ -24,6 +26,11 @@ const TestingComponent = ({ children, options = {} }) => {
 
     if (options.inDataViewerMode) {
       setInDataViewerMode(true);
+    }
+
+    if (options.inAppTour) {
+      setActiveAppTour(true);
+      setAppTourStep(options.appTourStep);
     }
     // eslint-disable-next-line
   }, []);
