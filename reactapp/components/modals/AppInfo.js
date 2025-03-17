@@ -125,7 +125,7 @@ function AppInfoModal({ showModal, setShowModal, view }) {
           <Button onClick={startAppTour} variant="info">
             {view === "dashboard"
               ? "Start Dashboard Tour"
-              : "Start landing Page Tour"}
+              : "Start Landing Page Tour"}
           </Button>
         </StyledBody>
         <Modal.Footer>

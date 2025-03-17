@@ -21,6 +21,9 @@ function NewDashboardModal({ showModal, setShowModal }) {
   const [errorMessage, setErrorMessage] = useState(null);
 
   const handleModalClose = () => {
+    if (activeAppTour) {
+      setAppTourStep((previousStep) => previousStep - 1);
+    }
     setShowModal(false);
   };
 
@@ -41,7 +44,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
     };
     addDashboard(inputData).then((response) => {
       if (response["success"]) {
-        handleModalClose();
+        setShowModal(false);
         if (activeAppTour) {
           setAppTourStep((previousStep) => previousStep + 1);
         }

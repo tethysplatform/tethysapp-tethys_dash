@@ -356,10 +356,7 @@ const DashboardCard = ({
 
   return (
     <>
-      <CustomCard
-        onDoubleClick={onDoubleClickCard}
-        className={editable ? `${name}-user-card` : `${name}-public-card`}
-      >
+      <CustomCard onDoubleClick={onDoubleClickCard} className={"dashboardCard"}>
         <CardHeader>
           <FlexDiv className="card-header-icons">
             {editable && (
@@ -465,6 +462,7 @@ export const NewDashboardCard = () => {
             onClick={onClick}
             onMouseOver={(e) => (e.target.style.cursor = "pointer")}
             onMouseOut={(e) => (e.target.style.cursor = "default")}
+            aria-label="Create New Card"
           >
             <FaPlus size={"1rem"} />
             <p>Create a New Dashboard</p>

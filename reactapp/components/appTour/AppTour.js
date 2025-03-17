@@ -58,8 +58,8 @@ const AppTour = () => {
           card.
           <br />
           <br />
-          Click on on the card to create a new dashboard and continue with the
-          App tour.
+          Click on this card to create a new dashboard and continue with the App
+          tour.
         </div>
       ),
       disableBeacon: true,
@@ -152,6 +152,9 @@ const AppTour = () => {
         <div>
           Additional dashboard options and interactions are available through
           the card context menu.
+          <br />
+          <br />
+          Click on the context menu to see additional options.
         </div>
       ),
       disableBeacon: true,
@@ -173,6 +176,7 @@ const AppTour = () => {
       styles: {
         overlay: { "pointer-events": "auto" },
       },
+      hideBackButton: true,
       data: { callbackNext: true },
     },
     {
