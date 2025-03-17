@@ -90,7 +90,7 @@ const ContextMenu = ({
         <BsThreeDotsVertical />
       </StyledDropdownToggle>
 
-      <Dropdown.Menu align="start" show={showMenu}>
+      <Dropdown.Menu align="start" show={showMenu} container="body">
         <Dropdown.Item onClick={viewDashboard} className="card-open-option">
           Open
         </Dropdown.Item>
@@ -131,6 +131,7 @@ const ContextMenu = ({
           </Dropdown.Item>
           <Submenu
             className="submenu"
+            aria-label="Context Menu Submenu"
             position={submenuPosition}
             isVisible={submenuVisible}
             ref={submenuRef}

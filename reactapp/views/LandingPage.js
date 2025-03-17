@@ -11,7 +11,6 @@ import Col from "react-bootstrap/Col";
 
 const StyledContainer = styled(Container)`
   margin-top: 1rem;
-  overflow-x: hidden;
 `;
 
 const StyledRow = styled(Row)`
