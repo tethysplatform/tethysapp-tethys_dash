@@ -28,19 +28,16 @@ import {
   BsGear,
   BsGrid3X3Gap,
   BsInfo,
-  BsArrowReturnLeft,
   BsFloppy,
-  BsFloppyFill,
   BsPencilSquare,
   BsFillPersonFill,
 } from "react-icons/bs";
 import { CiUndo } from "react-icons/ci";
-import { IoArrowBackOutline } from "react-icons/io5";
 import { FaPlus } from "react-icons/fa6";
-import { LuNotepadText } from "react-icons/lu";
 import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
 import "components/buttons/HeaderButton.css";
 
+const TETHYS_PORTAL_HOST = getTethysPortalHost();
 const StyledSpinner = styled(Spinner)`
   vertical-align: middle;
   margin-right: 0.5rem;
@@ -116,15 +113,7 @@ export const LandingPageHeader = () => {
                 <BsGear size="1.5rem" />
               </TooltipButton>
             )}
-            <TooltipButton
-              onClick={() => setShowInfoModal(true)}
-              tooltipPlacement="bottom"
-              tooltipText="App Info"
-              aria-label="appInfoButton"
-            >
-              <BsInfo size="1.5rem" />
-            </TooltipButton>
-            {user?.username === "public" && (
+            {user?.username === "public" ? (
               <TooltipButton
                 onClick={() => {
                   window.location.assign(
@@ -136,6 +125,15 @@ export const LandingPageHeader = () => {
                 aria-label={"dashboardLoginButton"}
               >
                 <BsFillPersonFill size="1.5rem" />
+              </TooltipButton>
+            ) : (
+              <TooltipButton
+                onClick={() => setShowInfoModal(true)}
+                tooltipPlacement="bottom"
+                tooltipText="App Info"
+                aria-label="appInfoButton"
+              >
+                <BsInfo size="1.5rem" />
               </TooltipButton>
             )}
             <TooltipButton

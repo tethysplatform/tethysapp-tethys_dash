@@ -85,7 +85,6 @@ const NewDashboardDiv = styled.div`
   align-items: center; /* Center items horizontally */
   justify-content: center; /* Center items vertically */
   height: 100%; /* Ensure it takes full height of its parent */
-  cursor: pointer;
 `;
 
 const CardTitleDiv = styled.div`
@@ -459,11 +458,11 @@ export const NewDashboardCard = () => {
 export const NoDashboardCard = () => {
   return (
     <CustomCard newCard={true}>
-      <CardBody>
+      <Card.Body>
         <NewDashboardDiv>
           <p>There are no available public dashboards</p>
         </NewDashboardDiv>
-      </CardBody>
+      </Card.Body>
     </CustomCard>
   );
 };
