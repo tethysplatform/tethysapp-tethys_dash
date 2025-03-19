@@ -356,8 +356,10 @@ def test_delete_dashboard(
 
     assert response.status_code == 200
     assert response.json()["success"]
-    
-    assert db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).first() is None
+
+    assert (
+        db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).first() is None
+    )
 
     assert (
         db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).first() is None

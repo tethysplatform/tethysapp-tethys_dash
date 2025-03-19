@@ -18,7 +18,7 @@ import NotFound from "components/error/NotFound";
 import DashboardView from "views/Dashboard";
 import LandingPage from "views/LandingPage";
 import AppTourContextProvider from "components/contexts/AppTourContext";
-import { Confirmation, confirm } from "components/inputs/DeleteConfirmation";
+import { Confirmation } from "components/inputs/DeleteConfirmation";
 import { getTethysPortalHost } from "services/utilities";
 
 const APP_ID = process.env.TETHYS_APP_ID;

@@ -1,6 +1,6 @@
 import pytest
 import json
-from sqlalchemy import create_engine, delete
+from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from tethysapp.tethysdash.tests.integrated_tests import TEST_DB_URL
 from django.http import HttpResponse
