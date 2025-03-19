@@ -8,10 +8,11 @@ import shutil
 
 
 @pytest.mark.django_db
-def test_home_not_logged_in(client):
+def test_home_not_logged_in(client, mock_app):
+    mock_app("tethysapp.tethysdash.controllers.App")
     url = reverse("tethysdash:home")
     response = client.get(url)
-    assert response.status_code == 302
+    assert response.status_code == 200
 
 
 @pytest.mark.django_db
@@ -25,19 +26,9 @@ def test_home_logged_in(client, admin_user, mock_app):
 
 
 @pytest.mark.django_db
-def test_data_not_logged_in(client, mock_app):
+def test_data_failed(client, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     url = reverse("tethysdash:data")
-    response = client.get(url)
-
-    assert response.status_code == 302
-
-
-@pytest.mark.django_db
-def test_data_failed(client, admin_user, mock_app, mocker):
-    mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:data")
-    client.force_login(admin_user)
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     mock_gv.side_effect = [Exception("Failed data retrieval")]
 
@@ -56,10 +47,9 @@ def test_data_failed(client, admin_user, mock_app, mocker):
 
 
 @pytest.mark.django_db
-def test_data(client, admin_user, mock_app, mocker):
+def test_data(client, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
     url = reverse("tethysdash:data")
-    client.force_login(admin_user)
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     plot_data = {"data": [], "layout": {}}
     mock_gv.return_value = ["plotly", plot_data]
@@ -480,7 +470,7 @@ def test_update_dashboard(
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     itemData = {
         "id": dashboard.id,
         "name": "new_dashboard_name",
