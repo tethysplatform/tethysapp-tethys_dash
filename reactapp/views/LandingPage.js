@@ -1,6 +1,9 @@
 import { useContext, useEffect, useState } from "react";
 import { LandingPageHeader } from "components/layout/Header";
-import { AppContext, AvailableDashboardsContext } from "components/contexts/Contexts";
+import {
+  AppContext,
+  AvailableDashboardsContext,
+} from "components/contexts/Contexts";
 import DashboardCard, {
   NewDashboardCard,
   NoDashboardCard,
@@ -54,14 +57,11 @@ const LandingPage = () => {
               <DashboardCard editable={false} {...dashboardMetadata} />
             </StyledCol>
           ))}
-          {
-            user?.username === "public" &&
-            publicDashboards.length === 0 && (
-              <StyledCol key='no-content'>
-                <NoDashboardCard />
-              </StyledCol>
-            )
-          }
+          {user?.username === "public" && publicDashboards.length === 0 && (
+            <StyledCol key="no-content">
+              <NoDashboardCard />
+            </StyledCol>
+          )}
         </StyledRow>
       </StyledContainer>
     </>

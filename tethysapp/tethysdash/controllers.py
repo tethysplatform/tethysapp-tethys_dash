@@ -6,8 +6,8 @@ import nh3
 from rest_framework.decorators import api_view
 import uuid
 from tethys_sdk.routing import controller
-from .app import App
-from .model import (
+from tethysapp.tethysdash.app import App
+from tethysapp.tethysdash.model import (
     get_dashboards,
     add_new_dashboard,
     copy_named_dashboard,
@@ -15,7 +15,11 @@ from .model import (
     update_named_dashboard,
     clean_up_jsons,
 )
-from .visualizations import get_available_visualizations, get_visualization
+from tethysapp.tethysdash.visualizations import (
+    get_available_visualizations,
+    get_visualization,
+)
+from pathlib import Path
 
 
 @controller(login_required=False)
@@ -80,7 +84,7 @@ def get_dashboard(request):
         try:
             message = e.args[0]
         except Exception:
-            message = f"Failed to get the dashboard. Check server for logs."
+            message = "Failed to get the dashboard. Check server for logs."
 
         return JsonResponse({"success": False, "message": message})
 
@@ -154,7 +158,7 @@ def copy_dashboard(request, app_media):
         try:
             message = e.args[0]
         except Exception:
-            message = f"Failed to create the dashboard named {new_name}. Check server for logs."
+            message = f"Failed to create the dashboard named {new_name}. Check server for logs."  # noqa:E501
 
         return JsonResponse({"success": False, "message": message})
 
@@ -210,29 +214,32 @@ def update_dashboard(request):
 
 
 @api_view(["POST"])
-@controller(url="tethysdash/json/upload", login_required=True, app_workspace=True)
-def upload_geojson(request, app_workspace):
+@controller(url="tethysdash/json/upload", login_required=False, app_workspace=True)
+def upload_json(request, app_workspace):
     """API controller for the dashboards page."""
-    geojson_data = json.loads(request.body)
+    json_data = json.loads(request.body)
     user = str(request.user)
 
-    data = geojson_data["data"]
-    filename = geojson_data["filename"]
+    data = json_data["data"]
+    filename = json_data["filename"]
     clean_data = nh3.clean(data)
-    geojson_folder = os.path.join(app_workspace.path, "geojson")
+    json_folder = os.path.join(app_workspace.path, "json")
 
     try:
-        if not os.path.exists(geojson_folder):
-            os.mkdir(geojson_folder)
+        if not os.path.exists(json_folder):
+            os.mkdir(json_folder)
 
-        geojson_user_folder = os.path.join(geojson_folder, user)
-        if not os.path.exists(geojson_user_folder):
-            os.mkdir(geojson_user_folder)
-
-        geojson_user_file = os.path.join(geojson_user_folder, filename)
+        json_file = os.path.join(json_folder, filename)
         # Writing to sample.json
-        with open(geojson_user_file, "w") as outfile:
+        with open(json_file, "w") as outfile:
             outfile.write(clean_data)
+
+        json_user_folder = os.path.join(json_folder, user)
+        if not os.path.exists(json_user_folder):
+            os.mkdir(json_user_folder)
+
+        json_user_file = os.path.join(json_user_folder, filename)
+        Path(json_user_file).touch()
 
         return JsonResponse({"success": True})
     except Exception as e:
@@ -240,23 +247,22 @@ def upload_geojson(request, app_workspace):
         try:
             message = e.args[0]
         except Exception:
-            message = f"Failed to upload the geojson. Check server for logs."
+            message = "Failed to upload the json. Check server for logs."
 
         return JsonResponse({"success": False, "message": message})
 
 
 @api_view(["GET"])
 @controller(url="tethysdash/json/download", login_required=False, app_workspace=True)
-def download_geojson(request, app_workspace):
+def download_json(request, app_workspace):
     """API controller for the dashboards page."""
     filename = request.GET["filename"]
-    user = str(request.user)
-    geojson_folder = os.path.join(app_workspace.path, "geojson")
+    json_folder = os.path.join(app_workspace.path, "json")
 
     try:
-        geojson_user_file = os.path.join(geojson_folder, user, filename)
+        json_user_file = os.path.join(json_folder, filename)
         # Writing to sample.json
-        with open(geojson_user_file, "r") as file:
+        with open(json_user_file, "r") as file:
             data = json.load(file)
             data = json.loads(nh3.clean(json.dumps(data)))
 
@@ -266,6 +272,6 @@ def download_geojson(request, app_workspace):
         try:
             message = e.args[0]
         except Exception:
-            message = f"Failed to upload the geojson. Check server for logs."
+            message = "Failed to upload the json. Check server for logs."
 
         return JsonResponse({"success": False, "message": message})

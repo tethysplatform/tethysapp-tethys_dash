@@ -5,6 +5,7 @@ from tethysapp.tethysdash.model import (
     add_new_dashboard,
     delete_named_dashboard,
     update_named_dashboard,
+    copy_named_dashboard,
     get_dashboards,
     add_new_grid_item,
     delete_grid_item,
@@ -12,24 +13,32 @@ from tethysapp.tethysdash.model import (
     GridItem,
     check_existing_user_dashboard_names,
     check_existing_public_dashboards,
+    parse_db_dashboard,
+    clean_up_jsons,
 )
+from unittest.mock import MagicMock
+import base64
+import os
+from pathlib import Path
 
 
 @pytest.mark.django_db
-def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, grid_item):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     description = "added_dashboard"
+    uuid = "3ddc3d80-2593-468f-825a-425f816c892f"
     name = "added_dashboard"
     owner = "some_user"
     grid_items = []
 
     # Create a new dashboard and Verify dashboard, rows, and columns were created
-    add_new_dashboard(owner, name, description)
+    add_new_dashboard(owner, uuid, name, description)
 
     dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
     assert dashboard.description == description
     assert dashboard.name == name
     assert dashboard.notes == ""
+    assert dashboard.uuid == uuid
     assert dashboard.owner == owner
     assert dashboard.access_groups == []
     dashboard_id = dashboard.id
@@ -86,7 +95,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, grid_item):
 
 @pytest.mark.django_db
 def test_delete_named_dashboard(dashboard, db_session, mock_app_get_ps_db):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
 
     delete_named_dashboard(dashboard.owner, dashboard.id)
 
@@ -98,7 +107,7 @@ def test_delete_named_dashboard(dashboard, db_session, mock_app_get_ps_db):
 
 @pytest.mark.django_db
 def test_delete_named_dashboard_not_allowed(dashboard, db_session, mock_app_get_ps_db):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
 
     with pytest.raises(Exception) as excinfo:
         delete_named_dashboard("test_not_valid_user", dashboard.id)
@@ -115,8 +124,12 @@ def test_delete_named_dashboard_not_allowed(dashboard, db_session, mock_app_get_
 
 
 @pytest.mark.django_db
-def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocker):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+def test_update_named_dashboard(
+    dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
     mock_nh3_clean = mocker.patch(
         "tethysapp.tethysdash.model.nh3.clean", wraps=nh3.clean
     )
@@ -202,8 +215,38 @@ def test_update_named_dashboard(dashboard, db_session, mock_app_get_ps_db, mocke
 
 
 @pytest.mark.django_db
+def test_update_named_dashboard_image(dashboard, mock_app_get_ps_db, mocker, tmp_path):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+
+    existing_dashboard = parse_db_dashboard([dashboard], False)
+    assert existing_dashboard[0]["image"] == "/static/tethysdash/images/tethys_dash.png"
+
+    example_image = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        "files/thumbnail.png",
+    )
+    with open(example_image, "rb") as image_file:
+        base64_string = base64.b64encode(image_file.read()).decode("utf-8")
+
+    image = f"data:image/png;base64,{base64_string}"
+    updated_dashboard = update_named_dashboard(
+        dashboard.owner,
+        dashboard.id,
+        {
+            "image": image,
+        },
+    )
+
+    assert (
+        updated_dashboard["image"] == "/media/app_root/app/some_user_dashboard_uuid.png"
+    )
+
+
+@pytest.mark.django_db
 def test_update_named_dashboard_not_allowed(dashboard, db_session, mock_app_get_ps_db):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
 
     with pytest.raises(Exception) as excinfo:
         updated_notes = "Some new notes"
@@ -228,7 +271,7 @@ def test_update_named_dashboard_not_allowed(dashboard, db_session, mock_app_get_
 def test_update_named_dashboard_already_public_name(
     dashboard, public_dashboard, db_session, mock_app_get_ps_db
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
 
     with pytest.raises(Exception) as excinfo:
         update_named_dashboard(
@@ -249,39 +292,49 @@ def test_update_named_dashboard_already_public_name(
 
 
 @pytest.mark.django_db
-def test_get_dashboards_all(dashboard, public_dashboard, mock_app_get_ps_db):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+def test_get_dashboards_all(
+    dashboard, public_dashboard, mock_app_get_ps_db, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     all_dashboards = get_dashboards(dashboard.owner)
     assert all_dashboards == {
-        "user": {
-            dashboard.name: {
+        "user": [
+            {
                 "id": dashboard.id,
                 "name": dashboard.name,
                 "description": dashboard.description,
                 "accessGroups": [],
-                "notes": dashboard.notes,
-                "gridItems": [],
+                "image": "/static/tethysdash/images/tethys_dash.png",
+                "uuid": "some_user_dashboard_uuid",
             }
-        },
-        "public": {
-            public_dashboard.name: {
+        ],
+        "public": [
+            {
                 "id": public_dashboard.id,
                 "name": public_dashboard.name,
                 "description": public_dashboard.description,
                 "accessGroups": ["public"],
-                "notes": public_dashboard.notes,
-                "gridItems": [],
+                "image": "/static/tethysdash/images/tethys_dash.png",
+                "uuid": "some_public_dashboard_uuid",
             }
-        },
+        ],
     }
 
 
 @pytest.mark.django_db
-def test_get_dashboards_specific(dashboard, mock_app_get_ps_db):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+def test_get_dashboards_specific_dashboard_view(
+    dashboard, mock_app_get_ps_db, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
-    retrieved_dashboard = get_dashboards(dashboard.owner, id=dashboard.id)
+    retrieved_dashboard = get_dashboards(
+        dashboard.owner, dashboard_view=True, id=dashboard.id
+    )
     assert retrieved_dashboard == {
         "id": dashboard.id,
         "name": dashboard.name,
@@ -289,12 +342,33 @@ def test_get_dashboards_specific(dashboard, mock_app_get_ps_db):
         "notes": dashboard.notes,
         "accessGroups": [],
         "gridItems": [],
+        "image": "/static/tethysdash/images/tethys_dash.png",
+        "uuid": "some_user_dashboard_uuid",
+    }
+
+
+@pytest.mark.django_db
+def test_get_dashboards_specific_landing_page_view(
+    dashboard, mock_app_get_ps_db, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+
+    retrieved_dashboard = get_dashboards(dashboard.owner, id=dashboard.id)
+    assert retrieved_dashboard == {
+        "id": dashboard.id,
+        "name": dashboard.name,
+        "description": dashboard.description,
+        "accessGroups": [],
+        "image": "/static/tethysdash/images/tethys_dash.png",
+        "uuid": "some_user_dashboard_uuid",
     }
 
 
 @pytest.mark.django_db
 def test_check_existing_user_dashboard_names(dashboard, db_session, mock_app_get_ps_db):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
 
     check_existing_user_dashboard_names(
         db_session, dashboard.owner, "some_new_dashboard_name"
@@ -305,7 +379,7 @@ def test_check_existing_user_dashboard_names(dashboard, db_session, mock_app_get
 def test_check_existing_user_dashboard_names_fail(
     dashboard, db_session, mock_app_get_ps_db
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     with pytest.raises(Exception) as excinfo:
         check_existing_user_dashboard_names(db_session, dashboard.owner, dashboard.name)
 
@@ -317,7 +391,7 @@ def test_check_existing_user_dashboard_names_fail(
 
 @pytest.mark.django_db
 def test_check_existing_public_dashboards(db_session, mock_app_get_ps_db):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
 
     result = check_existing_public_dashboards(db_session, "some_new_public_name")
     assert result is None
@@ -327,7 +401,7 @@ def test_check_existing_public_dashboards(db_session, mock_app_get_ps_db):
 def test_check_existing_public_dashboards_failed_name(
     public_dashboard, db_session, mock_app_get_ps_db
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.app")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     with pytest.raises(Exception) as excinfo:
         check_existing_public_dashboards(db_session, public_dashboard.name)
 
@@ -335,3 +409,186 @@ def test_check_existing_public_dashboards_failed_name(
         f"A dashboard with the name {public_dashboard.name} is already public. Change the name before attempting again."  # noqa: E501
         in str(excinfo.value)
     )
+
+
+@pytest.mark.django_db
+def test_copy_named_dashboard(
+    dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+    mocker.patch("tethysapp.tethysdash.model.nh3.clean", wraps=nh3.clean)
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    new_dashboard_name = "new_name"
+    new_description = "some updated descripion"
+    grid_items = [
+        {
+            "i": "1",
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "source": "Custom Image",
+            "args_string": json.dumps({"uri": "some_path"}),
+            "metadata_string": json.dumps({"refreshRate": 0}),
+        },
+    ]
+
+    # Add rows/cells and update dashboards
+    update_named_dashboard(
+        dashboard.owner,
+        dashboard.id,
+        {"gridItems": grid_items, "description": new_description},
+    )
+
+    # Add rows/cells and update dashboards
+    new_dashboard_id, copied_dashboard_uuid = copy_named_dashboard(
+        dashboard.owner, dashboard.id, new_dashboard_name, "123456789"
+    )
+
+    assert copied_dashboard_uuid == "some_user_dashboard_uuid"
+    copied_dashboard = (
+        db_session.query(Dashboard).filter(Dashboard.id == new_dashboard_id).first()
+    )
+    assert copied_dashboard.name == new_dashboard_name
+    assert copied_dashboard.notes == dashboard.notes
+    assert copied_dashboard.description == new_description
+    assert copied_dashboard.access_groups == dashboard.access_groups
+    assert copied_dashboard.uuid == "123456789"
+    assert len(copied_dashboard.grid_items) == len(dashboard.grid_items) == 1
+    assert dashboard.grid_items[0].dashboard_id == dashboard.id
+    assert copied_dashboard.grid_items[0].dashboard_id == copied_dashboard.id
+
+
+@pytest.mark.django_db
+def test_parse_db_dashboard_landing_page_view(
+    dashboard, mock_app_get_ps_db, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+
+    existing_dashboard = parse_db_dashboard([dashboard], dashboard_view=False)
+    assert existing_dashboard[0] == {
+        "id": dashboard.id,
+        "uuid": dashboard.uuid,
+        "name": dashboard.name,
+        "description": dashboard.description,
+        "accessGroups": [],
+        "image": "/static/tethysdash/images/tethys_dash.png",
+    }
+
+
+@pytest.mark.django_db
+def test_parse_db_dashboard_dashboard_view(
+    dashboard, mock_app_get_ps_db, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+
+    existing_dashboard = parse_db_dashboard([dashboard], dashboard_view=True)
+    assert existing_dashboard[0] == {
+        "id": dashboard.id,
+        "uuid": dashboard.uuid,
+        "name": dashboard.name,
+        "description": dashboard.description,
+        "accessGroups": [],
+        "image": "/static/tethysdash/images/tethys_dash.png",
+        "notes": dashboard.notes,
+        "gridItems": [],
+    }
+
+
+@pytest.mark.django_db
+def test_clean_up_jsons(dashboard, mock_app_get_ps_db, mocker, tmp_path):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+
+    workspace_path = tmp_path
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
+
+    grid_items = [
+        {
+            "i": "1",
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "source": "Map",
+            "args_string": json.dumps(
+                {
+                    "additional_layers": [
+                        {
+                            "configuration": {
+                                "props": {
+                                    "source": {
+                                        "type": "GeoJSON",
+                                        "geojson": "used_geojson.geojson",
+                                    }
+                                }
+                            },
+                            "style": "used_style.json",
+                        }
+                    ]
+                }
+            ),
+            "metadata_string": json.dumps({"refreshRate": 0}),
+        },
+    ]
+
+    json_folder = os.path.join(workspace_path, "json")
+    user_json_folder = os.path.join(json_folder, dashboard.owner)
+    os.makedirs(user_json_folder, exist_ok=True)
+
+    user_used_geojson_file = os.path.join(user_json_folder, "used_geojson.geojson")
+    used_geojson_file = os.path.join(json_folder, "used_geojson.geojson")
+    Path(user_used_geojson_file).touch()
+    Path(used_geojson_file).touch()
+
+    user_unused_geojson_file = os.path.join(user_json_folder, "unused_geojson.geojson")
+    unused_geojson_file = os.path.join(json_folder, "unused_geojson.geojson")
+    Path(user_unused_geojson_file).touch()
+    Path(unused_geojson_file).touch()
+
+    nonuser_geojson_file = os.path.join(json_folder, "nonuser_geojson.geojson")
+    Path(nonuser_geojson_file).touch()
+
+    user_used_style_file = os.path.join(user_json_folder, "used_style.json")
+    used_style_file = os.path.join(json_folder, "used_style.json")
+    Path(user_used_style_file).touch()
+    Path(used_style_file).touch()
+
+    user_unused_style_file = os.path.join(user_json_folder, "unused_style.json")
+    unused_style_file = os.path.join(json_folder, "unused_style.json")
+    Path(user_unused_style_file).touch()
+    Path(unused_style_file).touch()
+
+    nonuser_style_file = os.path.join(json_folder, "nonuser_style.json")
+    Path(nonuser_style_file).touch()
+
+    # Add rows/cells and update dashboards
+    update_named_dashboard(
+        dashboard.owner,
+        dashboard.id,
+        {"gridItems": grid_items},
+    )
+
+    clean_up_jsons(dashboard.owner)
+
+    assert os.path.exists(user_used_geojson_file)
+    assert os.path.exists(used_geojson_file)
+    assert not os.path.exists(user_unused_geojson_file)
+    assert not os.path.exists(unused_geojson_file)
+    assert os.path.exists(nonuser_geojson_file)
+
+    assert os.path.exists(user_used_style_file)
+    assert os.path.exists(used_style_file)
+    assert not os.path.exists(user_unused_style_file)
+    assert not os.path.exists(unused_style_file)
+    assert os.path.exists(nonuser_style_file)

@@ -135,6 +135,8 @@ const ContextMenu = ({
             position={submenuPosition}
             isVisible={submenuVisible}
             ref={submenuRef}
+            onMouseEnter={onMouseEnter}
+            onMouseLeave={onMouseLeave}
           >
             {editable && (
               <Dropdown.Item onClick={onShare}>

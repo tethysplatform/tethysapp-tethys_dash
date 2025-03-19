@@ -97,7 +97,6 @@ export const LandingPageHeader = () => {
   const [showInfoModal, setShowInfoModal] = useState(
     dontShowLandingPageInfoOnStart !== "true"
   );
-  const TETHYS_PORTAL_HOST = getTethysPortalHost();
 
   return (
     <>
@@ -129,7 +128,7 @@ export const LandingPageHeader = () => {
               <TooltipButton
                 onClick={() => {
                   window.location.assign(
-                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`,
+                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
                   );
                 }}
                 tooltipPlacement="bottom"
@@ -259,22 +258,20 @@ export const DashboardHeader = () => {
     setShowErrorMessage(false);
     setIsSaving(true);
 
-    if (isEditing) {
-      const image = await captureScreenshot();
-      const { gridItems } = getDashboardMetadata();
-      saveLayoutContext({ gridItems, image }).then((response) => {
-        if (response.success) {
-          setSuccessMessage("Change have been saved.");
-          setShowSuccessMessage(true);
-          setIsEditing(false);
-        } else {
-          setErrorMessage(
-            "Failed to save changes. Check server logs for more information."
-          );
-          setShowErrorMessage(true);
-        }
-      });
-    }
+    const image = await captureScreenshot();
+    const { gridItems } = getDashboardMetadata();
+    saveLayoutContext({ gridItems, image }).then((response) => {
+      if (response.success) {
+        setSuccessMessage("Change have been saved.");
+        setShowSuccessMessage(true);
+        setIsEditing(false);
+      } else {
+        setErrorMessage(
+          "Failed to save changes. Check server logs for more information."
+        );
+        setShowErrorMessage(true);
+      }
+    });
 
     setIsSaving(false);
   }
@@ -380,7 +377,7 @@ export const DashboardHeader = () => {
               <TooltipButton
                 onClick={() => {
                   window.location.assign(
-                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`,
+                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
                   );
                 }}
                 tooltipPlacement="bottom"

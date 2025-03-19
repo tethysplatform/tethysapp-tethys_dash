@@ -40,12 +40,7 @@ function setupRoutes(dashboards) {
     dashboardRoutes.push(
       <Route
         path={`/dashboard/user/${dashboardMetadata.name}`}
-        element={
-          <DashboardView
-            editable={true}
-            {...dashboardMetadata}
-          />
-        }
+        element={<DashboardView editable={true} {...dashboardMetadata} />}
         key={`route-user-${dashboardMetadata.name}`}
       />
     );
@@ -54,12 +49,7 @@ function setupRoutes(dashboards) {
       dashboardRoutes.push(
         <Route
           path={`/dashboard/public/${dashboardMetadata.name}`}
-          element={
-            <DashboardView
-              editable={false}
-              {...dashboardMetadata}
-            />
-          }
+          element={<DashboardView editable={false} {...dashboardMetadata} />}
           key={`route-public-${dashboardMetadata.name}`}
         />
       );
@@ -70,12 +60,7 @@ function setupRoutes(dashboards) {
     dashboardRoutes.push(
       <Route
         path={`/dashboard/public/${dashboardMetadata.name}`}
-        element={
-          <DashboardView
-            editable={false}
-            {...dashboardMetadata}
-          />
-        }
+        element={<DashboardView editable={false} {...dashboardMetadata} />}
         key={`route-public-${dashboardMetadata.name}`}
       />
     );
@@ -85,13 +70,15 @@ function setupRoutes(dashboards) {
   return allRoutes;
 }
 
-
 function Loader({ children }) {
-  const dontShowPublicLoginOnStart = localStorage.getItem("dontShowPublicLoginOnStart");
+  const dontShowPublicLoginOnStart = localStorage.getItem(
+    "dontShowPublicLoginOnStart"
+  );
   const [error, setError] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [redirectPublicUser, setRedirectPublicUser] = useState(false);
-  const [showRedirectPublicUserModal, setShowRedirectPublicUserModal] = useState(false);
+  const [showRedirectPublicUserModal, setShowRedirectPublicUserModal] =
+    useState(false);
   const [checked, setChecked] = useState(false);
   const [appContext, setAppContext] = useState(null);
   const [availableDashboards, setAvailableDashboards] = useState(null);
@@ -100,12 +87,12 @@ function Loader({ children }) {
   const handlePublicUser = (confirmation) => {
     if (!confirmation) {
       window.location.assign(
-        `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`,
+        `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
       );
-      return
+      return;
     }
     setRedirectPublicUser(false);
-    setShowRedirectPublicUserModal(false)
+    setShowRedirectPublicUserModal(false);
   };
 
   const handleDontShow = (e) => {
@@ -116,8 +103,11 @@ function Loader({ children }) {
   const handleError = (error) => {
     if (error.response.status === 401) {
       setRedirectPublicUser(true);
-      if (dontShowPublicLoginOnStart === "false" || !dontShowPublicLoginOnStart) {
-        setShowRedirectPublicUserModal(true)
+      if (
+        dontShowPublicLoginOnStart === "false" ||
+        !dontShowPublicLoginOnStart
+      ) {
+        setShowRedirectPublicUserModal(true);
       }
       setTimeout(() => {
         setIsLoaded(true);
@@ -128,7 +118,6 @@ function Loader({ children }) {
       }, LOADER_DELAY);
     }
   };
-
 
   useEffect(() => {
     if (availableDashboards) {
@@ -260,112 +249,112 @@ function Loader({ children }) {
         appAPI.getDashboards(),
         appAPI.getVisualizations(),
       ])
-      .then(([tethysApp, dashboards, visualizations]) => {
-        const allVisualizations = visualizations.visualizations;
-        const visualizationArgs = [
-          {
-            label: "Base Map Layers",
-            value: "Base Map Layers",
-            argOptions: baseMapLayers,
-          },
-        ];
+        .then(([tethysApp, dashboards, visualizations]) => {
+          const allVisualizations = visualizations.visualizations;
+          const visualizationArgs = [
+            {
+              label: "Base Map Layers",
+              value: "Base Map Layers",
+              argOptions: baseMapLayers,
+            },
+          ];
 
-        for (let optionGroup of allVisualizations) {
-          for (let option of optionGroup.options) {
-            let args = option.args;
-            for (let arg in args) {
-              visualizationArgs.push({
-                label:
-                  optionGroup.label +
-                  ": " +
-                  option.label +
-                  " - " +
-                  spaceAndCapitalize(arg),
-                value:
-                  optionGroup.label +
-                  ": " +
-                  option.label +
-                  " - " +
-                  spaceAndCapitalize(arg),
-                argOptions: args[arg],
-              });
+          for (let optionGroup of allVisualizations) {
+            for (let option of optionGroup.options) {
+              let args = option.args;
+              for (let arg in args) {
+                visualizationArgs.push({
+                  label:
+                    optionGroup.label +
+                    ": " +
+                    option.label +
+                    " - " +
+                    spaceAndCapitalize(arg),
+                  value:
+                    optionGroup.label +
+                    ": " +
+                    option.label +
+                    " - " +
+                    spaceAndCapitalize(arg),
+                  argOptions: args[arg],
+                });
+              }
             }
           }
-        }
 
-        allVisualizations.push({
-          label: "Other",
-          options: [
-            {
-              source: "Map",
-              value: "Map",
-              label: "Map",
-              args: {
-                base_map: baseMapLayers,
-                additional_layers: "custom-AddMapLayer",
-                show_layer_controls: "checkbox",
+          allVisualizations.push({
+            label: "Other",
+            options: [
+              {
+                source: "Map",
+                value: "Map",
+                label: "Map",
+                args: {
+                  base_map: baseMapLayers,
+                  additional_layers: "custom-AddMapLayer",
+                  show_layer_controls: "checkbox",
+                },
               },
-            },
-            {
-              source: "Custom Image",
-              value: "Custom Image",
-              label: "Custom Image",
-              args: { image_source: "text" },
-            },
-            {
-              source: "Text",
-              value: "Text",
-              label: "Text",
-              args: { text: "text" },
-            },
-            {
-              source: "Variable Input",
-              value: "Variable Input",
-              label: "Variable Input",
-              args: {
-                variable_name: "text",
-                variable_options_source: [
-                  ...nonDropDownVariableInputTypes,
-                  ...[
-                    {
-                      label: "Existing Visualization Inputs",
-                      options: visualizationArgs,
-                    },
+              {
+                source: "Custom Image",
+                value: "Custom Image",
+                label: "Custom Image",
+                args: { image_source: "text" },
+              },
+              {
+                source: "Text",
+                value: "Text",
+                label: "Text",
+                args: { text: "text" },
+              },
+              {
+                source: "Variable Input",
+                value: "Variable Input",
+                label: "Variable Input",
+                args: {
+                  variable_name: "text",
+                  variable_options_source: [
+                    ...nonDropDownVariableInputTypes,
+                    ...[
+                      {
+                        label: "Existing Visualization Inputs",
+                        options: visualizationArgs,
+                      },
+                    ],
                   ],
-                ],
+                },
               },
+            ],
+          });
+
+          // Update app context
+          setAppContext({
+            tethysApp,
+            user: {
+              username: "public",
+              firstName: "",
+              lastName: "",
+              email: "",
+              isAuthenticated: true,
+              isStaff: false,
             },
-          ],
-        });
+            csrf: null,
+            routes: setupRoutes(dashboards),
+            visualizations: allVisualizations,
+            visualizationArgs,
+          });
+          setAvailableDashboards(dashboards);
 
-        // Update app context
-        setAppContext({
-          tethysApp,
-          user: {
-            username: "public",
-            firstName: "",
-            lastName: "",
-            email: "",
-            isAuthenticated: true,
-            isStaff: false
-          },
-          csrf: null,
-          routes: setupRoutes(dashboards),
-          visualizations: allVisualizations,
-          visualizationArgs,
+          // Allow for minimum delay to display loader
+          setTimeout(() => {
+            setIsLoaded(true);
+          }, LOADER_DELAY);
+        })
+        .catch((err) => {
+          setTimeout(() => {
+            setError(err); // Use 'err' instead of 'error'
+          }, LOADER_DELAY);
         });
-        setAvailableDashboards(dashboards);
-
-        // Allow for minimum delay to display loader
-        setTimeout(() => {
-          setIsLoaded(true);
-        }, LOADER_DELAY);
-      })
-      .catch((err) => {
-        setTimeout(() => {
-          setError(err); // Use 'err' instead of 'error'
-        }, LOADER_DELAY);
-      });
     }
   }, [isLoaded, redirectPublicUser]);
 
@@ -476,7 +465,8 @@ function Loader({ children }) {
               You are not signed in. Sign in to create and update dashboards.
             </div>
             <div style={{ marginTop: ".75rem" }}>
-              If you'd like to continue, you will only have access to public dashboards
+              If you'd like to continue, you will only have access to public
+              dashboards
             </div>
             <Form.Check
               onChange={handleDontShow}
@@ -515,11 +505,7 @@ function Loader({ children }) {
 }
 
 Loader.propTypes = {
-  children: PropTypes.oneOfType([
-    PropTypes.arrayOf(PropTypes.element),
-    PropTypes.element,
-    PropTypes.object,
-  ]),
+  children: PropTypes.arrayOf(PropTypes.object),
 };
 
 export default Loader;

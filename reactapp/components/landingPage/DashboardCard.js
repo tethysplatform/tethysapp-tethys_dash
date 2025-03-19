@@ -334,7 +334,7 @@ const DashboardCard = ({
               />
             )}
           </FlexDiv>
-          <CardTitleDiv editable={editable} className="card-header-title">
+          <CardTitleDiv className="card-header-title">
             {isEditingTitle ? (
               <EditableInput
                 ref={nameInput}
@@ -383,7 +383,6 @@ const DashboardCard = ({
 
           <DescriptionDiv
             isEditing={isEditingDescription}
-            editable={editable}
             aria-label="Description"
           >
             {isEditingDescription ? (

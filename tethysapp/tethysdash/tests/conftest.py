@@ -60,7 +60,9 @@ def mock_app_get_ps_db(session_maker, mocker):
 
     def mock_app_factory(mock_path):
         mock_app = mocker.patch(mock_path)
+        mock_app.render.return_value = HttpResponse("Success")
         mock_app.get_persistent_store_database.return_value = session_maker
+        mock_app.root_url = "app_root"
         return mock_app
 
     return mock_app_factory
@@ -71,6 +73,7 @@ def dashboard_data():
     return {
         "name": "test_dashboard",
         "description": "test_dashboard",
+        "uuid": "some_user_dashboard_uuid",
         "notes": "some notes",
         "owner": "admin",
         "access_groups": [],
@@ -82,6 +85,7 @@ def public_dashboard_data():
     return {
         "name": "public_dashboard",
         "description": "public_dashboard",
+        "uuid": "some_public_dashboard_uuid",
         "notes": "some notes",
         "owner": "public_user",
         "access_groups": ["public"],
@@ -133,6 +137,7 @@ def mock_app(mocker):
     def mocked_path(mock_path):
         mock_app = mocker.patch(mock_path)
         mock_app.render.return_value = HttpResponse("Success")
+        mock_app.root_url = "app_root"
         return mock_app
 
     return mocked_path

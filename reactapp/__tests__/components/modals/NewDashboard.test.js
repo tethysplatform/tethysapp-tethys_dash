@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import NewDashboardModal from "components/modals/NewDashboard";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import appAPI from "services/api/app";
-import { AppTourContext } from "components/contexts/Contexts";
+import { AppTourContext } from "components/contexts/AppTourContext";
 
 const TestingComponent = () => {
   const [showModal, setShowModal] = useState(true);

@@ -15,7 +15,7 @@ export const Confirmation = ({
   confirmation,
   show,
   proceed,
-  backdrop=true,
+  backdrop = true,
   ...props
 }) => {
   return (
@@ -55,11 +55,7 @@ Confirmation.propTypes = {
   show: PropTypes.bool,
   proceed: PropTypes.func, // called when ok button is clicked.
   enableEscape: PropTypes.bool,
-  backdrop: PropTypes.oneOf([
-    true,
-    false,
-    'static'
-  ])
+  backdrop: PropTypes.oneOf([true, false, "static"]),
 };
 
 export function confirm(

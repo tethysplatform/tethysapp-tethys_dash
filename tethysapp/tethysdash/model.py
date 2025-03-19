@@ -12,7 +12,7 @@ from sqlalchemy.orm import relationship
 import json
 import nh3
 import os
-from .app import App as app
+from tethysapp.tethysdash.app import App
 from datetime import datetime, timezone
 from django.conf import settings
 from tethys_sdk.paths import get_app_media, get_app_workspace
@@ -63,7 +63,7 @@ class GridItem(Base):
 
 def add_new_dashboard(owner, uuid, name, description):
     # Get connection/session to database
-    Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
@@ -138,7 +138,7 @@ def delete_grid_item(session, dashboard_id, i):
 
 def copy_named_dashboard(user, id, new_name, dashboard_uuid):
     # Get connection/session to database
-    Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
@@ -187,7 +187,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
 
 def delete_named_dashboard(user, id):
     # Get connection/session to database
-    Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
@@ -215,7 +215,7 @@ def delete_named_dashboard(user, id):
 
 def update_named_dashboard(user, id, dashboard_updates):
     # Get connection/session to database
-    Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
@@ -317,7 +317,7 @@ def update_named_dashboard(user, id, dashboard_updates):
         if "image" in dashboard_updates:
             # Extract the file format (e.g., 'data:image/png;base64,')
             imgstr = dashboard_updates["image"].split(";base64,")[1]
-            app_media = get_app_media(app)
+            app_media = get_app_media(App)
             file_path = os.path.join(app_media.path, f"{db_dashboard.uuid}.png")
 
             # Decode and write the image file
@@ -339,9 +339,9 @@ def parse_db_dashboard(dashboards, dashboard_view):
 
     for dashboard in dashboards:
         dashboard_image = os.path.join(
-            settings.MEDIA_URL, app.root_url, f"app/{dashboard.uuid}.png"
+            settings.MEDIA_URL, App.root_url, f"app/{dashboard.uuid}.png"
         )
-        app_media = get_app_media(app)
+        app_media = get_app_media(App)
         if not os.path.exists(os.path.join(app_media.path, f"{dashboard.uuid}.png")):
             dashboard_image = "/static/tethysdash/images/tethys_dash.png"
 
@@ -385,7 +385,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
     """
     dashboard_dict = {"user": {}, "public": {}}
     # Get connection/session to database
-    Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
@@ -432,11 +432,11 @@ def check_existing_public_dashboards(session, dashboard_name):
 
 
 def clean_up_jsons(user):
-    print("Checking to see if there are any unused geojson files to remove")
-    Session = app.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    print("Checking to see if there are any unused json files to remove")
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
     user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user).all()
-    in_use_geojsons = []
+    in_use_jsons = []
     for user_dashboard in user_dashboards:
         maps_grid_items_layers = flatten(
             [
@@ -446,32 +446,38 @@ def clean_up_jsons(user):
             ]
         )
         if maps_grid_items_layers:
-            geojson_files = [
+            json_files = [
                 maps_grid_items_layer["configuration"]["props"]["source"]["geojson"]
                 for maps_grid_items_layer in maps_grid_items_layers
                 if maps_grid_items_layer["configuration"]["props"]["source"]["type"]
                 == "GeoJSON"
             ]
-            in_use_geojsons.append(geojson_files)
+            in_use_jsons.append(json_files)
 
             stylejson_files = [
                 maps_grid_items_layer["style"]
                 for maps_grid_items_layer in maps_grid_items_layers
                 if "style" in maps_grid_items_layer
             ]
-            in_use_geojsons.append(stylejson_files)
+            in_use_jsons.append(stylejson_files)
 
-    in_use_geojsons = flatten(in_use_geojsons)
-    app_workspace = get_app_workspace(app)
-    geojson_folder = os.path.join(app_workspace.path, "geojson")
-    path = os.path.join(geojson_folder, user)
-    if not os.path.exists(path):
-        os.makedirs(path)
-    geojson_user_files = os.listdir(path)
-    for geojson_user_file in geojson_user_files:
-        if geojson_user_file not in in_use_geojsons:
-            print(f"Removing the {geojson_user_file} file")
-            os.remove(os.path.join(geojson_folder, user, geojson_user_file))
+    in_use_jsons = flatten(in_use_jsons)
+
+    app_workspace = get_app_workspace(App)
+    json_folder = os.path.join(app_workspace.path, "json")
+    json_user_folder = os.path.join(json_folder, user)
+    if not os.path.exists(json_user_folder):
+        os.makedirs(json_user_folder)
+    existing_json_user_files = os.listdir(json_user_folder)
+
+    unused_files = [
+        file for file in existing_json_user_files if file not in in_use_jsons
+    ]
+
+    for unused_file in unused_files:
+        print(f"Removing the {unused_file} file")
+        os.remove(os.path.join(json_folder, user, unused_file))
+        os.remove(os.path.join(json_folder, unused_file))
 
     return
 

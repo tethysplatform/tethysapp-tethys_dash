@@ -1,5 +1,5 @@
 from tethys_sdk.base import TethysAppBase
-from tethys_sdk.app_settings import PersistentStoreDatabaseSetting, CustomSetting
+from tethys_sdk.app_settings import PersistentStoreDatabaseSetting
 
 
 class App(TethysAppBase):

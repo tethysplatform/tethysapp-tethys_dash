@@ -119,7 +119,11 @@ const DashboardItem = ({
 
   return (
     <>
-      <StyledContainer fluid className="h-100 gridVisualization">
+      <StyledContainer
+        fluid
+        className="h-100 gridVisualization"
+        aria-label="gridItem"
+      >
         <CustomAlert
           alertType={"success"}
           showAlert={showGridItemMessage}

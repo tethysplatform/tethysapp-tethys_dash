@@ -1,6 +1,6 @@
 import { useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import {
   mockedDashboards,
@@ -13,6 +13,7 @@ import createLoadedComponent, {
 import appAPI from "services/api/app";
 import { MemoryRouter } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
+import { AppTourContext } from "components/contexts/AppTourContext";
 
 jest.mock("components/inputs/DeleteConfirmation", () => {
   return {
@@ -268,6 +269,65 @@ test("Dashboard Editor Canvas edit and save", async () => {
   ).not.toBeInTheDocument();
 
   expect(navigateMock).toHaveBeenCalledWith("/dashboard/user/new_name");
+});
+
+test("Dashboard Editor Canvas edit desription only and save", async () => {
+  const navigateMock = jest.fn();
+  useNavigate.mockReturnValue(navigateMock);
+  const mockUpdateDashboard = jest.fn();
+
+  mockUpdateDashboard.mockResolvedValue({
+    success: true,
+    updated_dashboard: updatedDashboard,
+  });
+  appAPI.updateDashboard = mockUpdateDashboard;
+
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: mockedDashboards.user[0],
+        editableDashboard: true,
+      },
+    })
+  );
+
+  const publicRadioButton = await screen.findByLabelText("Public");
+  fireEvent.click(publicRadioButton);
+
+  const descriptionInput = await screen.findByLabelText("Description Input");
+  fireEvent.change(descriptionInput, { target: { value: "New Description" } });
+
+  const textArea = await screen.findByLabelText("textEditor");
+  await userEvent.click(textArea);
+  await userEvent.keyboard(". Here are some notes");
+  expect(
+    await screen.findByText("test_notes. Here are some notes")
+  ).toBeInTheDocument();
+
+  const saveButton = await screen.findByLabelText("Save Dashboard Button");
+  await userEvent.click(saveButton);
+  expect(mockUpdateDashboard).toHaveBeenCalledWith(
+    {
+      accessGroups: ["public"],
+      name: "editable",
+      description: "New Description",
+      id: 1,
+      notes: "test_notes. Here are some notes",
+    },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+  );
+  expect(
+    await screen.findByText("Successfully updated dashboard settings")
+  ).toBeInTheDocument();
+
+  const closeAlertButton = await screen.findByLabelText("Close alert");
+  fireEvent.click(closeAlertButton);
+  expect(
+    screen.queryByText("Successfully updated dashboard settings")
+  ).not.toBeInTheDocument();
+
+  expect(navigateMock).toHaveBeenCalledTimes(0);
 });
 
 test("Dashboard Editor Canvas edit and save fail without message", async () => {
@@ -535,4 +595,70 @@ test("Dashboard Editor Canvas copy and fail without message", async () => {
     await screen.findByText("Failed to copy dashboard")
   ).toBeInTheDocument();
   expect(navigateMock).toHaveBeenCalledTimes(0);
+});
+
+test("Dashboard Editor Canvas close", async () => {
+  const mockSetAppTourStep = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <AppTourContext.Provider
+          value={{
+            activeAppTour: false,
+            setAppTourStep: mockSetAppTourStep,
+          }}
+        >
+          <TestingComponent />
+        </AppTourContext.Provider>
+      ),
+      options: {
+        initialDashboard: mockedDashboards.user[0],
+      },
+    })
+  );
+
+  const cancelDashboardEditorButton = await screen.findByLabelText(
+    "Cancel Dashboard Editor Button"
+  );
+  await userEvent.click(cancelDashboardEditorButton);
+
+  await waitFor(() => {
+    expect(screen.queryByText("Dashboard Settings")).not.toBeInTheDocument();
+  });
+
+  expect(mockSetAppTourStep).toHaveBeenCalledTimes(0);
+});
+
+test("Dashboard Editor Canvas close in app tour", async () => {
+  const mockSetAppTourStep = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <AppTourContext.Provider
+          value={{
+            activeAppTour: true,
+            setAppTourStep: mockSetAppTourStep,
+          }}
+        >
+          <TestingComponent />
+        </AppTourContext.Provider>
+      ),
+      options: {
+        initialDashboard: mockedDashboards.user[0],
+      },
+    })
+  );
+
+  const cancelDashboardEditorButton = await screen.findByLabelText(
+    "Cancel Dashboard Editor Button"
+  );
+  await userEvent.click(cancelDashboardEditorButton);
+
+  await waitFor(() => {
+    expect(screen.queryByText("Dashboard Settings")).not.toBeInTheDocument();
+  });
+
+  expect(mockSetAppTourStep).toHaveBeenCalledWith(31);
 });

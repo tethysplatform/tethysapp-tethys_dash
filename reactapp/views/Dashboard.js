@@ -24,17 +24,19 @@ DashboardView.propTypes = {
   notes: PropTypes.string,
   editable: PropTypes.bool,
   accessGroups: PropTypes.arrayOf(PropTypes.string),
-  gridItems: PropTypes.shape({
-    id: PropTypes.number,
-    i: PropTypes.string,
-    x: PropTypes.number,
-    y: PropTypes.number,
-    w: PropTypes.number,
-    h: PropTypes.number,
-    source: PropTypes.string,
-    args_string: PropTypes.string,
-    metadata_string: PropTypes.string,
-  }),
+  gridItems: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.number,
+      i: PropTypes.string,
+      x: PropTypes.number,
+      y: PropTypes.number,
+      w: PropTypes.number,
+      h: PropTypes.number,
+      source: PropTypes.string,
+      args_string: PropTypes.string,
+      metadata_string: PropTypes.string,
+    })
+  ),
 };
 
 export default DashboardView;
