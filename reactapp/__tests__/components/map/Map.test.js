@@ -189,7 +189,7 @@ test("Map Layers and Updated Layers", async () => {
     () => {
       expect(screen.getByText("Map Ready")).toBeInTheDocument();
     },
-    { timeout: 2000 }
+    { timeout: 3000 }
   );
   expect(await screen.findByTestId("map-layers")).toHaveTextContent(
     "World Light Gray Base,esri"

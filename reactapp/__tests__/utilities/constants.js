@@ -1,48 +1,77 @@
+export const mockedLandingPageDashboards = {
+  user: [
+    {
+      id: 1,
+      uuid: "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+      name: "editable",
+      description: "test_description",
+      accessGroups: [],
+      image: "my_image.png",
+    },
+  ],
+  public: [
+    {
+      id: 2,
+      uuid: "acde070d-8c4c-4f0d-9d8a-162843c10333",
+      name: "noneditable",
+      description: "test_description2",
+      accessGroups: ["public"],
+      image: "public_image.png",
+    },
+  ],
+};
+
 export const mockedDashboards = {
-  editable: {
-    id: 1,
-    name: "editable",
-    label: "test_label",
-    notes: "test_notes",
-    editable: true,
-    accessGroups: [],
-    gridItems: [
-      {
-        i: "1",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-    ],
-  },
-  noneditable: {
-    id: 2,
-    name: "noneditable",
-    label: "test_label2",
-    notes: "test_notes2",
-    editable: false,
-    accessGroups: ["public"],
-    gridItems: [
-      {
-        i: "1",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-    ],
-  },
+  user: [
+    {
+      id: 1,
+      uuid: "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
+      name: "editable",
+      description: "test_description",
+      accessGroups: [],
+      image: "my_image.png",
+      notes: "test_notes",
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
+    },
+  ],
+  public: [
+    {
+      id: 2,
+      uuid: "acde070d-8c4c-4f0d-9d8a-162843c10333",
+      name: "noneditable",
+      description: "test_description2",
+      accessGroups: ["public"],
+      image: "public_image.png",
+      notes: "test_notes2",
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
+    },
+  ],
 };
 
 export const mockedVisualizations = [
@@ -685,29 +714,36 @@ export const mockedDropdownVariable = {
   }),
 };
 
-export const mockedDropdownVizArgs = [
+export const mockedDropdownVisualization = [
   {
-    label:
-      "Some Visualization Group Name: Some Visualization Name - Some Visualization Arg",
-    value:
-      "Some Visualization Group Name: Some Visualization Name - Some Visualization Arg",
-    argOptions: [
+    label: "Some Visualization Group Name",
+    options: [
       {
-        label: "North Coast",
-        options: [
-          {
-            label: "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
-            value: "CREC1",
-          },
-          {
-            label: "FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE",
-            value: "FTDC1",
-          },
-          {
-            label: "ORIC1 - REDWOOD CREEK - ORICK",
-            value: "ORIC1",
-          },
-        ],
+        source: "plugin_source",
+        value: "plugin_value",
+        label: "Some Visualization Name",
+        args: {
+          some_visualization_arg: [
+            {
+              label: "North Coast",
+              options: [
+                {
+                  label:
+                    "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
+                  value: "CREC1",
+                },
+                {
+                  label: "FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE",
+                  value: "FTDC1",
+                },
+                {
+                  label: "ORIC1 - REDWOOD CREEK - ORICK",
+                  value: "ORIC1",
+                },
+              ],
+            },
+          ],
+        },
       },
     ],
   },

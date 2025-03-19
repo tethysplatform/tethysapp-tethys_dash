@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import DashboardItem from "components/dashboard/DashboardItem";
 import { mockedDashboards } from "__tests__/utilities/constants";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
 import createLoadedComponent, {
   ContextLayoutPComponent,
   EditingPComponent,
@@ -30,7 +30,7 @@ jest.mock("components/modals/DataViewer/SettingsPane", () => (props) => (
   </>
 ));
 
-jest.mock("components/dashboard/DeleteConfirmation", () => {
+jest.mock("components/inputs/DeleteConfirmation", () => {
   return {
     confirm: jest.fn(),
   };
@@ -38,7 +38,7 @@ jest.mock("components/dashboard/DeleteConfirmation", () => {
 const mockedConfirm = jest.mocked(confirm);
 
 test("Dashboard Item delete grid item", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   mockedConfirm.mockResolvedValue(true);
 
@@ -57,31 +57,37 @@ test("Dashboard Item delete grid item", async () => {
           <EditingPComponent />
         </>
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: {
+        editableDashboard: true,
+        initialDashboard: mockedDashboards.user[0],
+      },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
-  await userEvent.click(dropdownToggle);
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
 
   const deleteGridItemButton = await screen.findByText("Delete");
   await userEvent.click(deleteGridItemButton);
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
+      id: 1,
       name: "editable",
-      label: "test_label",
-      accessGroups: [],
       notes: "test_notes",
       gridItems: [],
       editable: true,
+      accessGroups: [],
+      description: "test_description",
     })
   );
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
 
 test("Dashboard Item delete grid item cancel", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   mockedConfirm.mockResolvedValue(false);
 
@@ -100,21 +106,25 @@ test("Dashboard Item delete grid item cancel", async () => {
           <EditingPComponent />
         </>
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: {
+        editableDashboard: true,
+        initialDashboard: mockedDashboards.user[0],
+      },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
-  await userEvent.click(dropdownToggle);
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
 
   const deleteGridItemButton = await screen.findByText("Delete");
   await userEvent.click(deleteGridItemButton);
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
+      id: 1,
       name: "editable",
-      label: "test_label",
-      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -131,13 +141,15 @@ test("Dashboard Item delete grid item cancel", async () => {
         },
       ],
       editable: true,
+      accessGroups: [],
+      description: "test_description",
     })
   );
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
 
 test("Dashboard Item fullscreen but no source", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
 
   render(
@@ -151,19 +163,24 @@ test("Dashboard Item fullscreen but no source", async () => {
           gridItemIndex={0}
         />
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: {
+        editableDashboard: true,
+        initialDashboard: mockedDashboards.user[0],
+      },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
-  await userEvent.click(dropdownToggle);
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
 
   expect(screen.queryByText("Fullscreen")).not.toBeInTheDocument();
 });
 
 test("Dashboard Item fullscreen", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   const gridItem = mockedDashboard.gridItems[0];
   gridItem.source = "Custom Image";
   gridItem.args_string = JSON.stringify({
@@ -182,14 +199,17 @@ test("Dashboard Item fullscreen", async () => {
         />
       ),
       options: {
+        editableDashboard: true,
         dashboards: updatedMockedDashboards,
-        initialDashboard: updatedMockedDashboards.editable.name,
+        initialDashboard: mockedDashboard,
       },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
-  await userEvent.click(dropdownToggle);
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
 
   const fullScreenButton = await screen.findByText("Fullscreen");
   await userEvent.click(fullScreenButton);
@@ -207,7 +227,7 @@ test("Dashboard Item fullscreen", async () => {
 });
 
 test("Dashboard Item edit item", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
 
   render(
@@ -227,13 +247,16 @@ test("Dashboard Item edit item", async () => {
         </>
       ),
       options: {
-        initialDashboard: mockedDashboard.name,
+        editableDashboard: true,
+        initialDashboard: mockedDashboard,
       },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
-  await userEvent.click(dropdownToggle);
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
 
   const editGridItemButton = await screen.findByText("Edit Visualization");
   await userEvent.click(editGridItemButton);
@@ -255,7 +278,7 @@ test("Dashboard Item edit item", async () => {
 
 test("Dashboard Item copy item", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -313,23 +336,25 @@ test("Dashboard Item copy item", async () => {
         </>
       ),
       options: {
+        editableDashboard: true,
         dashboards: updatedMockedDashboards,
-        initialDashboard: updatedMockedDashboards.editable.name,
+        initialDashboard: mockedDashboard,
       },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
-  await userEvent.click(dropdownToggle);
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
 
   const createCopyButton = await screen.findByText("Create Copy");
   await userEvent.click(createCopyButton);
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
+      id: 1,
       name: "editable",
-      label: "test_label",
-      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -382,6 +407,8 @@ test("Dashboard Item copy item", async () => {
         },
       ],
       editable: true,
+      accessGroups: [],
+      description: "test_description",
     })
   );
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
@@ -389,7 +416,7 @@ test("Dashboard Item copy item", async () => {
 
 test("Dashboard Item copy item variable input", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -427,23 +454,25 @@ test("Dashboard Item copy item variable input", async () => {
         </>
       ),
       options: {
+        editableDashboard: true,
         dashboards: updatedMockedDashboards,
-        initialDashboard: updatedMockedDashboards.editable.name,
+        initialDashboard: mockedDashboard,
       },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
-  await userEvent.click(dropdownToggle);
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
 
   const createCopyButton = await screen.findByText("Create Copy");
   await userEvent.click(createCopyButton);
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
+      id: 1,
       name: "editable",
-      label: "test_label",
-      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -480,6 +509,8 @@ test("Dashboard Item copy item variable input", async () => {
         },
       ],
       editable: true,
+      accessGroups: [],
+      description: "test_description",
     })
   );
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
@@ -493,7 +524,7 @@ test("Dashboard Item copy item variable input", async () => {
 
 test("Dashboard Item copy item variable input already exists", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -547,23 +578,25 @@ test("Dashboard Item copy item variable input already exists", async () => {
         </>
       ),
       options: {
+        editableDashboard: true,
         dashboards: updatedMockedDashboards,
-        initialDashboard: updatedMockedDashboards.editable.name,
+        initialDashboard: mockedDashboard,
       },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
-  await userEvent.click(dropdownToggle);
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
 
   const createCopyButton = await screen.findByText("Create Copy");
   await userEvent.click(createCopyButton);
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
+      id: 1,
       name: "editable",
-      label: "test_label",
-      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -616,6 +649,8 @@ test("Dashboard Item copy item variable input already exists", async () => {
         },
       ],
       editable: true,
+      accessGroups: [],
+      description: "test_description",
     })
   );
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
@@ -630,7 +665,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
 
 test("Dashboard Item edit size", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   const gridItem = mockedDashboard.gridItems[0];
   gridItem.source = "Custom Image";
   gridItem.args_string = JSON.stringify({
@@ -652,14 +687,17 @@ test("Dashboard Item edit size", async () => {
         </>
       ),
       options: {
+        editableDashboard: true,
         dashboards: updatedMockedDashboards,
-        initialDashboard: updatedMockedDashboards.editable.name,
+        initialDashboard: mockedDashboard,
       },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
-  await userEvent.click(dropdownToggle);
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
 
   const editSizeButton = await screen.findByText("Edit Size/Location");
   await userEvent.click(editSizeButton);

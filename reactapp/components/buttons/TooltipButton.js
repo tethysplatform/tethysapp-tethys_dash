@@ -30,6 +30,7 @@ const TooltipButton = ({
     <OverlayTrigger
       key={tooltipPlacement}
       placement={tooltipPlacement}
+      trigger={["hover", "click"]}
       overlay={
         <StyledTooltip id={`tooltip-${tooltipPlacement}`}>
           {tooltipText}

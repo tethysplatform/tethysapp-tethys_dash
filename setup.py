@@ -16,7 +16,7 @@ dependencies = [
     "pytest-cov",
     "intake",
     "djangorestframework",
-    "alembic"
+    "alembic",
 ]
 
 # -- Get Resource File -- #
@@ -26,7 +26,7 @@ django.setup()
 
 setup(
     name=release_package,
-    version="0.7.3",
+    version="0.8.0",
     description="",
     long_description="",
     keywords="",

@@ -12,7 +12,7 @@ import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
 import { getGridItem } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
 
@@ -40,8 +40,7 @@ const DashboardItem = ({
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
-  const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
-  const { gridItems } = getLayoutContext();
+  const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );
@@ -49,13 +48,12 @@ const DashboardItem = ({
   const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   async function deleteGridItem(e) {
+    const { gridItems } = getDashboardMetadata();
     if (await confirm("Are you sure you want to delete the item?")) {
-      const updated_grid_items = [...gridItems];
+      const updated_grid_items = JSON.parse(JSON.stringify(gridItems));
       updated_grid_items.splice(gridItemIndex, 1);
 
-      const layout = getLayoutContext();
-      layout["gridItems"] = updated_grid_items;
-      setLayoutContext(layout);
+      updateGridItems(updated_grid_items);
       setIsEditing(true);
     }
   }
@@ -73,12 +71,12 @@ const DashboardItem = ({
     setIsEditing(true);
     setInDataViewerMode(true);
     if (activeAppTour) {
-      setAppTourStep(17);
+      setAppTourStep(32);
     }
   }
 
   function copyGridItem() {
-    const layout = getLayoutContext();
+    const { gridItems } = getDashboardMetadata();
     let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
@@ -105,8 +103,8 @@ const DashboardItem = ({
         variableInputValues[copiedVariableName];
       setVariableInputValues(variableInputValues);
     }
-    layout["gridItems"] = [...layout["gridItems"], newGridItem];
-    setLayoutContext(layout);
+    const updatedGridItems = JSON.parse(JSON.stringify(gridItems));
+    updateGridItems([...updatedGridItems, newGridItem]);
     setIsEditing(true);
   }
 
@@ -121,7 +119,11 @@ const DashboardItem = ({
 
   return (
     <>
-      <StyledContainer fluid className="h-100 gridVisualization">
+      <StyledContainer
+        fluid
+        className="h-100 gridVisualization"
+        aria-label="gridItem"
+      >
         <CustomAlert
           alertType={"success"}
           showAlert={showGridItemMessage}

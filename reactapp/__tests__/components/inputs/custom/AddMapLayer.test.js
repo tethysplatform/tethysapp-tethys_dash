@@ -39,7 +39,7 @@ it("AddMapLayer update existing", async () => {
     })
   );
 
-  const addLayerButton = screen.getByText("Add Layer");
+  const addLayerButton = await screen.findByText("Add Layer");
   expect(addLayerButton).toBeInTheDocument();
   expect(screen.getByText("Layer Name")).toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
@@ -123,7 +123,7 @@ it("AddMapLayer add new", async () => {
     })
   );
 
-  const addLayerButton = screen.getByText("Add Layer");
+  const addLayerButton = await screen.findByText("Add Layer");
   expect(addLayerButton).toBeInTheDocument();
   expect(screen.getByText("Layer Name")).toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
@@ -191,7 +191,7 @@ it("AddMapLayer rerender", async () => {
   });
   const { rerender } = render(LoadedComponent);
 
-  const addLayerButton = screen.getByText("Add Layer");
+  const addLayerButton = await screen.findByText("Add Layer");
   expect(addLayerButton).toBeInTheDocument();
   expect(screen.getByText("Layer Name")).toBeInTheDocument();
   expect(screen.getByText("Legend")).toBeInTheDocument();
@@ -234,7 +234,7 @@ it("AddMapLayer reorder", async () => {
     })
   );
 
-  const wmsLayer = screen.getByText("Image WMS");
+  const wmsLayer = await screen.findByText("Image WMS");
   const imageArcGISRestLayer = screen.getByText("ImageArcGISRest Layer");
   expect(wmsLayer).toBeInTheDocument();
   expect(imageArcGISRestLayer).toBeInTheDocument();

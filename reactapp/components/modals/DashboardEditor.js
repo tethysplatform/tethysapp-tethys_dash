@@ -6,31 +6,22 @@ import { useState, useEffect, useContext } from "react";
 import {
   LayoutContext,
   AvailableDashboardsContext,
-  EditingContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import styled from "styled-components";
-import { getTethysPortalHost } from "services/utilities";
+import { getPublicUrl } from "services/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
 import PropTypes from "prop-types";
 import TextEditor from "components/inputs/TextEditor";
-import DataInput from "components/inputs/DataInput";
+import NormalInput from "components/inputs/NormalInput";
 import Text from "components/visualizations/Text";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
 import { BsClipboard } from "react-icons/bs";
-
-const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
+import { useNavigate } from "react-router-dom";
 
 const StyledOffcanvas = styled(Offcanvas)`
   height: 100vh;
-  width: 33%;
-`;
-const StyledDiv = styled.div`
-  display: inline-block;
-`;
-const StyledMarginDiv = styled.div`
-  display: inline-block;
-  margin-right: 1rem;
+  width: 33% !important;
 `;
 const StyledHeader = styled(Offcanvas.Header)`
   border-bottom: 1px solid #ccc;
@@ -46,10 +37,36 @@ const StyledFooter = styled.footer`
   border-top: 1px solid #ccc;
 `;
 const TextEditorDiv = styled.div`
-  height: 60%;
+  height: 40%;
 `;
 const TextDiv = styled.div`
   border: #dcdcdc solid 1px;
+`;
+
+const PaddedDiv = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const WideTextArea = styled.textarea`
+  width: 100%;
+`;
+
+const WideLabel = styled.label`
+  width: 100%;
+`;
+
+const FlexDiv = styled.div`
+  display: flex;
+  width: 100%;
+`;
+
+const ButtonDiv = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const UrlDiv = styled.div`
+  flex: 1;
+  margin-right: 1rem;
 `;
 
 function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
@@ -57,29 +74,22 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
-  const { getLayoutContext } = useContext(LayoutContext);
-  const { name, label, editable, accessGroups, notes } = getLayoutContext();
-  const { deleteDashboard, updateDashboard, copyCurrentDashboard } = useContext(
+  const { getDashboardMetadata, saveLayoutContext } = useContext(LayoutContext);
+  const { id, name, description, editable, accessGroups, notes } =
+    getDashboardMetadata();
+  const { deleteDashboard, copyDashboard } = useContext(
     AvailableDashboardsContext
   );
   const [localNotes, setLocalNotes] = useState(notes);
   const [localName, setLocalName] = useState(name);
-  const [localLabel, setLocalLabel] = useState(label);
-  const dashboardPublicUrl =
-    getTethysPortalHost() + APP_ROOT_URL + "dashboard/" + name;
-  const { setIsEditing } = useContext(EditingContext);
+  const [localDescription, setLocalDescription] = useState(description);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
+  const navigate = useNavigate();
 
   const sharingStatusOptions = [
     { label: "Public", value: "public" },
     { label: "Private", value: "private" },
   ];
-  const handleClose = () => {
-    setShowCanvas(false);
-    if (activeAppTour) {
-      setAppTourStep(16);
-    }
-  };
 
   useEffect(() => {
     if (accessGroups.includes("public")) {
@@ -95,11 +105,19 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   }
 
   const handleCopyURLClick = async () => {
+    const dashboardPublicUrl = getPublicUrl(name);
     try {
       await window.navigator.clipboard.writeText(dashboardPublicUrl);
       setCopyClipboardSuccess(true);
     } catch (err) {
       setCopyClipboardSuccess(false);
+    }
+  };
+
+  const handleClose = () => {
+    setShowCanvas(false);
+    if (activeAppTour) {
+      setAppTourStep(31);
     }
   };
 
@@ -110,19 +128,19 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
       accessGroups: selectedSharingStatus === "public" ? ["public"] : [],
       notes: localNotes,
       name: localName,
-      label: localLabel,
+      description: localDescription,
     };
-    updateDashboard(newProperties).then((response) => {
+    saveLayoutContext(newProperties).then((response) => {
       if (response["success"]) {
         setSuccessMessage("Successfully updated dashboard settings");
-      } else {
-        if ("message" in response) {
-          setErrorMessage(response["message"]);
-        } else {
-          setErrorMessage(
-            "Failed to update dashboard settings. Check server logs."
-          );
+        if (name !== localName) {
+          navigate("/dashboard/user/" + localName);
         }
+      } else {
+        setErrorMessage(
+          response["message"] ??
+            "Failed to update dashboard settings. Check server logs."
+        );
       }
     });
   }
@@ -130,41 +148,30 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   async function onDelete(e) {
     setSuccessMessage("");
     setErrorMessage("");
-    deleteDashboard().then((response) => {
-      if (response["success"]) {
-        setIsEditing(false);
-        handleClose();
-      } else {
-        if (!response["confirmExit"]) {
-          setErrorMessage("Failed to delete dashboard. Check server logs.");
-        }
-      }
-    });
-  }
-
-  async function onCopy(e) {
-    setSuccessMessage("");
-    setErrorMessage("");
     if (
       await confirm(
-        "Are your sure you want to copy the " + name + " dashboard?"
+        "Are you sure you want to delete the " + name + " dashboard?"
       )
     ) {
-      copyCurrentDashboard().then((response) => {
+      deleteDashboard(id).then((response) => {
         if (response["success"]) {
-          const newDashboard = response["new_dashboard"];
-          setLocalName(newDashboard.name);
-          setLocalLabel(newDashboard.label);
-          setSuccessMessage("Successfully copied dashboard");
+          navigate("/");
         } else {
-          if ("message" in response) {
-            setErrorMessage(response["message"]);
-          } else {
-            setErrorMessage("Failed to copy dashboard. Check server logs.");
-          }
+          setErrorMessage(response["message"] ?? "Failed to delete dashboard");
         }
       });
     }
+  }
+
+  function onCopy() {
+    setErrorMessage("");
+    copyDashboard(id, name).then((response) => {
+      if (response["success"]) {
+        navigate(`/dashboard/user/${response["new_dashboard"].name}`);
+      } else {
+        setErrorMessage(response["message"] ?? "Failed to copy dashboard");
+      }
+    });
   }
 
   function onNotesChange({ target: { value } }) {
@@ -175,7 +182,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     <StyledOffcanvas
       show={showCanvas}
       onHide={handleClose}
-      placement={"left"}
+      placement={"end"}
       className="dashboard-settings-editor"
     >
       <StyledHeader closeButton>
@@ -206,18 +213,29 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
         )}
         {editable ? (
           <>
-            <DataInput
-              objValue={{ label: "Name", type: "text", value: localName }}
-              onChange={(e) => {
-                setLocalName(e);
-              }}
-            />
-            <DataInput
-              objValue={{ label: "Label", type: "text", value: localLabel }}
-              onChange={(e) => {
-                setLocalLabel(e);
-              }}
-            />
+            <PaddedDiv>
+              <NormalInput
+                label={"Name"}
+                type={"text"}
+                value={localName}
+                onChange={(e) => {
+                  setLocalName(e.target.value);
+                }}
+              />
+            </PaddedDiv>
+            <PaddedDiv>
+              <WideLabel>
+                <b>Description</b>:
+                <div>
+                  <WideTextArea
+                    value={localDescription}
+                    rows={4}
+                    onChange={(e) => setLocalDescription(e.target.value)}
+                    aria-label="Description Input"
+                  />
+                </div>
+              </WideLabel>
+            </PaddedDiv>
             <DataRadioSelect
               label={"Sharing Status"}
               selectedRadio={selectedSharingStatus}
@@ -227,43 +245,42 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
           </>
         ) : (
           <>
-            <b>Name:</b>
-            <br></br>
+            <b>Name</b>:<br></br>
             <p>{name}</p>
-            <b>Label:</b>
-            <br></br>
-            <p>{label}</p>
+            <b>Description</b>:<br></br>
+            <p>{description}</p>
           </>
         )}
         {selectedSharingStatus === "public" && (
           <>
-            <StyledMarginDiv>
-              <b>Public URL:</b>
-              <br></br>
-              <p>{dashboardPublicUrl}</p>
-            </StyledMarginDiv>
-            <StyledDiv>
-              <TooltipButton
-                tooltipPlacement={"right"}
-                tooltipText={
-                  copyClipboardSuccess === null
-                    ? "Copy to clipboard"
-                    : copyClipboardSuccess
-                      ? "Copied"
-                      : "Failed to Copy"
-                }
-                variant={"warning"}
-                onClick={handleCopyURLClick}
-                aria-label={"Copy Clipboard Button"}
-              >
-                <BsClipboard />
-              </TooltipButton>
-            </StyledDiv>
+            <label>
+              <b>Public URL</b>:
+            </label>
+            <FlexDiv>
+              <ButtonDiv>
+                <TooltipButton
+                  tooltipPlacement={"right"}
+                  tooltipText={
+                    copyClipboardSuccess === null
+                      ? "Copy to clipboard"
+                      : copyClipboardSuccess
+                        ? "Copied"
+                        : "Failed to Copy"
+                  }
+                  variant={"warning"}
+                  onClick={handleCopyURLClick}
+                  aria-label={"Copy Clipboard Button"}
+                  style={{ display: "flex" }}
+                >
+                  <BsClipboard />
+                </TooltipButton>
+              </ButtonDiv>
+              <UrlDiv>{getPublicUrl(name)}</UrlDiv>
+            </FlexDiv>
           </>
         )}
         <TextEditorDiv>
-          <b>Notes:</b>
-          <br></br>
+          <b>Notes</b>:<br></br>
           {editable ? (
             <TextEditor textValue={localNotes} onChange={onNotesChange} />
           ) : (

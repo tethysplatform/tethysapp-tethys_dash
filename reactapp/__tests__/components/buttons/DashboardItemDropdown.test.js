@@ -16,7 +16,7 @@ test("DashboardItemDropdown for noneditable item and no fullscreen", () => {
           copyGridItem={jest.fn()}
         />
       ),
-      options: { initialDashboard: mockedDashboards.noneditable.name },
+      options: { initialDashboard: mockedDashboards.public[0] },
     })
   );
 
@@ -41,11 +41,13 @@ test("DashboardItemDropdown for noneditable item but has fullscreen", async () =
           copyGridItem={jest.fn()}
         />
       ),
-      options: { initialDashboard: mockedDashboards.noneditable.name },
+      options: {
+        initialDashboard: mockedDashboards.public[0],
+      },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
+  const dropdownToggle = await screen.findByRole("button");
   await userEvent.click(dropdownToggle);
 
   expect(await screen.findByText("Fullscreen")).toBeInTheDocument();
@@ -76,11 +78,14 @@ test("DashboardItemDropdown for editable item but already in edit mode", async (
           copyGridItem={mockCopyGridItem}
         />
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: {
+        initialDashboard: mockedDashboards.user[0],
+        editableDashboard: true,
+      },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
+  const dropdownToggle = await screen.findByRole("button");
   await userEvent.click(dropdownToggle);
 
   expect(await screen.findByText("Fullscreen")).toBeInTheDocument();
@@ -124,11 +129,14 @@ test("DashboardItemDropdown for editable item and not in edit mode", async () =>
           copyGridItem={mockCopyGridItem}
         />
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: {
+        initialDashboard: mockedDashboards.user[0],
+        editableDashboard: true,
+      },
     })
   );
 
-  const dropdownToggle = screen.getByRole("button");
+  const dropdownToggle = await screen.findByRole("button");
   await userEvent.click(dropdownToggle);
 
   expect(await screen.findByText("Fullscreen")).toBeInTheDocument();

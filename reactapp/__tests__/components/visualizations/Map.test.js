@@ -17,7 +17,7 @@ import Overlay from "ol/Overlay";
 import {
   mockedTextVariable,
   mockedDropdownVariable,
-  mockedDropdownVizArgs,
+  mockedDropdownVisualization,
   mockedDashboards,
 } from "__tests__/utilities/constants";
 
@@ -615,7 +615,7 @@ test("Map click attribute variables update text variable input", async () => {
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
   const handleChange = jest.fn();
-  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   dashboard.gridItems = [mockedTextVariable];
 
   const layers = [
@@ -657,7 +657,7 @@ test("Map click attribute variables update text variable input", async () => {
         />
       </>
     ),
-    options: { dashboards: { editable: dashboard } },
+    options: { dashboards: { user: [dashboard], public: [] } },
   });
   render(LoadedComponent);
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
@@ -704,7 +704,7 @@ test("Map click attribute variables update dropdown variable input", async () =>
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
   const handleChange = jest.fn();
-  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   dashboard.gridItems = [mockedDropdownVariable];
 
   const layers = [
@@ -747,8 +747,8 @@ test("Map click attribute variables update dropdown variable input", async () =>
       </>
     ),
     options: {
-      dashboards: { editable: dashboard },
-      visualizationArgs: mockedDropdownVizArgs,
+      dashboards: { user: [dashboard], public: [] },
+      visualizations: mockedDropdownVisualization,
     },
   });
   render(LoadedComponent);
@@ -1008,6 +1008,7 @@ test("Map bad GeoJSON", async () => {
   });
 
   mockedApplyStyle.mockResolvedValue(true);
+  jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
 
   const layers = [

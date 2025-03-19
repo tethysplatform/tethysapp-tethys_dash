@@ -152,7 +152,10 @@ const MapComponent = ({
       await Promise.all(
         customLayers.map(async (layerConfig) => {
           try {
-            const layerInstance = await moduleLoader(layerConfig);
+            const layerInstance = await moduleLoader(
+              layerConfig,
+              visualizationRef.current.getView().getProjection().getCode()
+            );
             visualizationRef.current.addLayer(layerInstance);
             if (layerConfig.style) {
               await applyStyle(

@@ -3,15 +3,9 @@ import RGL, { WidthProvider } from "react-grid-layout";
 import styled from "styled-components";
 import {
   LayoutContext,
-  AvailableDashboardsContext,
   EditingContext,
   DisabledEditingMovementContext,
 } from "components/contexts/Contexts";
-import {
-  useLayoutSuccessAlertContext,
-  useLayoutErrorAlertContext,
-} from "components/contexts/LayoutAlertContext";
-import Form from "react-bootstrap/Form";
 import DashboardItem from "components/dashboard/DashboardItem";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -28,14 +22,10 @@ const StyledDiv = styled.div`
 const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
-function DashboardLayout() {
-  const { setSuccessMessage, setShowSuccessMessage } =
-    useLayoutSuccessAlertContext();
-  const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
-  const { updateDashboard } = useContext(AvailableDashboardsContext);
-  const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
-  const { gridItems } = getLayoutContext();
-  const { isEditing, setIsEditing } = useContext(EditingContext);
+const DashboardLayout = () => {
+  const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
+  const { gridItems } = getDashboardMetadata();
+  const { isEditing } = useContext(EditingContext);
   const { disabledEditingMovement } = useContext(
     DisabledEditingMovementContext
   );
@@ -108,31 +98,9 @@ function DashboardLayout() {
         y: lay.y,
       });
     }
-    const layout = getLayoutContext();
-    layout["gridItems"] = updatedGridItems;
-    setLayoutContext(layout);
+
+    updateGridItems(updatedGridItems);
     updateGridEditing(updatedGridItems);
-  }
-
-  function handleSubmit(event) {
-    event.preventDefault();
-    setShowSuccessMessage(false);
-    setShowErrorMessage(false);
-
-    if (isEditing) {
-      updateDashboard({}).then((response) => {
-        if (response.success) {
-          setSuccessMessage("Change have been saved.");
-          setShowSuccessMessage(true);
-          setIsEditing(false);
-        } else {
-          setErrorMessage(
-            "Failed to save changes. Check server logs for more information."
-          );
-          setShowErrorMessage(true);
-        }
-      });
-    }
   }
 
   const handleResize = useCallback(
@@ -161,22 +129,20 @@ function DashboardLayout() {
   );
 
   return (
-    <Form id="gridUpdate" onSubmit={handleSubmit}>
-      <ReactGridLayout
-        className="complex-interface-layout"
-        layout={layout}
-        rowHeight={rowHeight}
-        cols={colCount}
-        onLayoutChange={(newLayout) => updateLayout(newLayout)}
-        isDraggable={false}
-        isResizable={false}
-        draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover"
-        onResize={handleResize}
-      >
-        {items}
-      </ReactGridLayout>
-    </Form>
+    <ReactGridLayout
+      className="complex-interface-layout"
+      layout={layout}
+      rowHeight={rowHeight}
+      cols={colCount}
+      onLayoutChange={(newLayout) => updateLayout(newLayout)}
+      isDraggable={false}
+      isResizable={false}
+      draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover"
+      onResize={handleResize}
+    >
+      {items}
+    </ReactGridLayout>
   );
-}
+};
 
 export default DashboardLayout;

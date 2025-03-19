@@ -1,9 +1,12 @@
 import Joyride, { ACTIONS, EVENTS, STATUS } from "react-joyride";
 import { useAppTourContext } from "components/contexts/AppTourContext";
+import { FaRegUserCircle } from "react-icons/fa";
+import { BsPeopleFill } from "react-icons/bs";
 
 const AppTour = () => {
   const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
     useAppTourContext();
+
   const handleCallback = (event) => {
     const { status, action, index, type, step } = event;
 
@@ -32,53 +35,261 @@ const AppTour = () => {
 
   const steps = [
     {
-      target: ".dashboard-selector", // 0
+      target: ".landing-page", // 0
       content: (
         <div>
-          Begin by clicking on the dropdown to select or create a dashboard.
+          All available user and public dashboards will be displayed on this
+          page.
         </div>
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      hideFooter: true,
-      spotlightClicks: true,
+      hideBackButton: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
     },
     {
-      target: ".dashboard-selector-prefix__menu", // 1
+      target: ".create-new-card", // 1
       content: (
         <div>
-          Select an existing dashboard to view or create a new dashboard with
-          the "Create a New Dashboard" option.
+          Dashboard can be created by clicking on the "Create a New Dashboard"
+          card.
+          <br />
+          <br />
+          Click on this card to create a new dashboard and continue with the App
+          tour.
         </div>
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      hideFooter: true,
       spotlightClicks: true,
+      hideFooter: true,
+      spotlightPadding: 5,
     },
     {
-      target: ".newdashboard-content", // 2
-      content: <div>Enter the dashboard name and select "Create".</div>,
-      disableBeacon: true,
-      disableOverlayClose: true,
-      hideFooter: true,
-      spotlightClicks: true,
-    },
-    {
-      target: ".newdashboard-content", // 3
+      target: ".modal-content", // 2
       content: (
         <div>
-          The dashboard name is already used. Try to update the dashboard name
-          and select "Create" again.
+          This is a modal for creating a new dashboard. Provide a name and a
+          description for your dashboard and then click on "Create".
         </div>
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      hideFooter: true,
       spotlightClicks: true,
+      hideFooter: true,
+      spotlightPadding: 5,
     },
     {
-      target: ".complex-interface-layout", // 4
+      target: ".landing-page > div > div:nth-child(2) > div", // 3
+      content: (
+        <div>
+          Each card in the landing page represents a dashboard and its
+          information.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      hideBackButton: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target:
+        ".landing-page > div > div:nth-child(2) > div > div.card-header > div.card-header-icons", // 4
+      content: (
+        <div>
+          Card icons will indicate ownership and public availability.
+          <br />
+          <br />
+          <FaRegUserCircle />: You are the owner of the dashboard.
+          <br />
+          <BsPeopleFill />: Dashboard is publicly available.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target:
+        ".landing-page > div > div:nth-child(2) > div > div.card-header > div.card-header-title", // 5
+      content: <div>Dashboard names are displayed in the card header.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".landing-page > div > div:nth-child(2) > div > div.card-body", // 6
+      content: (
+        <div>
+          Thumbnails provide an image representing the dashboard. Hover over the
+          card body to see the description of the dashboard.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target:
+        ".landing-page > div > div:nth-child(2) > div > div.card-header > div.card-header-menu", // 7
+      content: (
+        <div>
+          Additional dashboard options and interactions are available through
+          the card context menu.
+          <br />
+          <br />
+          Click on the context menu to see additional options.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      spotlightClicks: true,
+      hideFooter: true,
+      spotlightPadding: 5,
+    },
+    {
+      target: ".card-open-option", // 8
+      content: (
+        <div>
+          Open and view the dashboard. You can also double click on the card to
+          open the dashboard.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      hideBackButton: true,
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-rename-option", // 9
+      content: (
+        <div>
+          Rename the dashboard. This will also update any public urls tied to
+          this dashboard.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-update-description-option", // 10
+      content: <div>Update the description of the dashboard.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-update-thumbnail-option", // 11
+      content: <div>Update the thumbnail of the dashboard.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-share-option", // 12
+      content: (
+        <div>
+          Update the sharing status of the dashboard or copy the public link for
+          the dashboard if it is public.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-copy-option", // 13
+      content: (
+        <div>
+          Copy with the same settings and dashboard items. The new dashboard
+          will have the name with "_copy" at the end.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".card-delete-option", // 14
+      content: <div>Delete the dashboard. This action cannot be undone.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+    },
+    {
+      target: ".landing-page", // 15
+      content: (
+        <div>
+          For more information about TethysDash, visit the{" "}
+          <a
+            href="https://tethysdashdocs.readthedocs.io/en/latest/usage/settings_tab.html"
+            target="_black"
+            rel="noopener noreferrer"
+          >
+            TethysDash documentation
+          </a>
+          . Please follow instructions found in the{" "}
+          <a
+            href="https://tethysdashdocs.readthedocs.io/en/latest/feedback.html"
+            target="_black"
+            rel="noopener noreferrer"
+          >
+            feedback
+          </a>{" "}
+          sessions for reporting any bugs or issues.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      locale: { next: "End App Tour" },
+      showSkipButton: false,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { endAppTourStep: true },
+      placement: "center",
+    },
+    {},
+    {
+      target: ".complex-interface-layout", // 17
       content: (
         <div>
           This is the main layout of the dashboard where dashboards items will
@@ -94,7 +305,7 @@ const AppTour = () => {
       data: { callbackNext: true },
     },
     {
-      target: ".gridVisualization:first-child", // 5
+      target: ".gridVisualization:first-child", // 18
       content: (
         <div>
           Dashboards are composed of dashboard items. Each dashboard item can be
@@ -111,7 +322,7 @@ const AppTour = () => {
       data: { callbackNext: true },
     },
     {
-      target: ".editDashboardButton", // 6
+      target: ".editDashboardButton", // 19
       content: <div>Click on the edit button to turn on edit mode.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
@@ -120,7 +331,8 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: "#gridUpdate > div > div:nth-child(1) > span", // 7
+      target:
+        ".react-grid-layout.complex-interface-layout > div:nth-child(1) > span", // 20
       content: (
         <div>
           Once in edit mode, update the size of a dashboard item by dragging the
@@ -135,7 +347,7 @@ const AppTour = () => {
       data: { callbackNext: true },
     },
     {
-      target: ".dashboard-item-dropdown-toggle", // 8
+      target: ".dashboard-item-dropdown-toggle", // 21
       content: (
         <div>
           While in edit mode, update the visualization by clicking on the 3 dot
@@ -149,7 +361,7 @@ const AppTour = () => {
       hideFooter: true,
     },
     {
-      target: ".dashboard-item-dropdown-edit-visualization", // 9
+      target: ".dashboard-item-dropdown-edit-visualization", // 22
       content: (
         <div>
           Editing the visualization will change the dashboard visualization as
@@ -168,7 +380,7 @@ const AppTour = () => {
       spotlightPadding: -1,
     },
     {
-      target: ".dashboard-item-dropdown-create-copy", // 10
+      target: ".dashboard-item-dropdown-create-copy", // 23
       content: (
         <div>
           Create a copy of the existing dashboard item. This will copy the
@@ -184,7 +396,7 @@ const AppTour = () => {
       spotlightPadding: -1,
     },
     {
-      target: ".dashboard-item-dropdown-delete", // 11
+      target: ".dashboard-item-dropdown-delete", // 24
       content: (
         <div>
           Deleting the dashboard item will remove it from the dashboard layout.
@@ -199,11 +411,22 @@ const AppTour = () => {
       spotlightPadding: -1,
     },
     {
-      target: ".cancelChangesButton", // 12
+      target: ".dashboardExitButton", // 25
+      content: <div>Exit the dashboard and return to the landing page.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+      spotlightPadding: 5,
+    },
+    {
+      target: ".cancelChangesButton", // 26
       content: (
         <div>
-          Click on the revert changes button to cancel any changes made and
-          return the layout to the latest saved version.
+          Cancel any changes made and return the layout to the latest saved
+          version.
         </div>
       ),
       disableBeacon: true,
@@ -215,13 +438,8 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".saveChangesButton", // 13
-      content: (
-        <div>
-          Click on the save changes button to save any changes made and persist
-          for later sessions.
-        </div>
-      ),
+      target: ".saveChangesButton", // 27
+      content: <div>Save any changes made and persist for later sessions.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
       styles: {
@@ -231,13 +449,8 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".addGridItemsButton", // 14
-      content: (
-        <div>
-          Click on the add dashboard items button to add new dashboard items to
-          the layout.
-        </div>
-      ),
+      target: ".addGridItemsButton", // 28
+      content: <div>Add new dashboard items to the layout.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
       styles: {
@@ -247,16 +460,27 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".dashboardSettingButton", // 15
+      target: ".lockUnlocKMovementButton", // 29
+      content: <div>Lock grid item movement during editing.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+      spotlightPadding: 5,
+    },
+    {
+      target: ".dashboardSettingButton", // 30
       content: (
         <div>
-          Each dashboard has general settings like names, labels, sharing
+          Edit dashboard settings like names, descriptions, thumbnails, sharing
           status, and notes. These settings, as well as copying and deleting
           dashboard actions, can be found in this menu.
           <br />
           <br />
-          Click on the hamburger menu to learn more about dashboard settings or
-          continue the App Tour by clicking on "Next".
+          Click on the button to learn more about dashboard settings or continue
+          the App Tour by clicking on "Next".
         </div>
       ),
       disableBeacon: true,
@@ -266,7 +490,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".react-grid-layout", // 16
+      target: ".react-grid-layout", // 31
       content: (
         <div>
           For more information about TethysDash, visit the{" "}
@@ -300,7 +524,7 @@ const AppTour = () => {
     },
     // DATAVIEWER STEPS
     {
-      target: ".modal-content", // 17
+      target: ".modal-content", // 32
       content: (
         <div>
           This is a modal for configuring and previewing visualizations.
@@ -317,7 +541,7 @@ const AppTour = () => {
       data: { callbackNext: true },
     },
     {
-      target: "#visualization-tabs > li:nth-child(1)", // 18
+      target: "#visualization-tabs > li:nth-child(1)", // 33
       content: (
         <div>
           The visualization tab will show options for configuring the
@@ -331,7 +555,7 @@ const AppTour = () => {
       spotlightPadding: -1,
     },
     {
-      target: ".dataviewer-inputs", // 19
+      target: ".dataviewer-inputs", // 34
       content: (
         <div>
           Begin by selecting a "Visualization Type" to pick a visualization.
@@ -356,7 +580,7 @@ const AppTour = () => {
       placement: "right",
     },
     {
-      target: "#visualization-tabs > li:nth-child(2)", // 20
+      target: "#visualization-tabs > li:nth-child(2)", // 35
       content: (
         <div>
           The settings tab will show options for configuring any dashboard item
@@ -372,7 +596,7 @@ const AppTour = () => {
       spotlightPadding: -1,
     },
     {
-      target: ".dataviewer-inputs", // 21
+      target: ".dataviewer-inputs", // 36
       content: (
         <div>
           Once the visualization is loaded, available settings for the
@@ -395,7 +619,7 @@ const AppTour = () => {
       placement: "right",
     },
     {
-      target: ".dataviewer-save-button", // 22
+      target: ".dataviewer-save-button", // 37
       content: (
         <div>
           After the visualization is configured correctly, click on the "Save"
@@ -409,7 +633,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".dataviewer-close-button", // 23
+      target: ".dataviewer-close-button", // 38
       content: (
         <div>
           Click on the "Close" button to exit the data viewer and continue with
@@ -424,7 +648,7 @@ const AppTour = () => {
     },
     // DASHBOARD SETTINGS
     {
-      target: ".dashboard-settings-editor", // 24
+      target: ".dashboard-settings-editor", // 39
       content: (
         <div>
           General dashboard settings can be altered in this menu. General
@@ -433,13 +657,13 @@ const AppTour = () => {
           <br />
           <ul>
             <li>
-              <b>Name</b>: The name of dashboard. This will be the name in the
-              url of a public dashboard.
+              <b>Name</b>: The name of dashboard that will show in the url and
+              header.
             </li>
             <br />
             <li>
-              <b>Label</b>: The label for the dashboard that will show in the
-              Dashboard selection dropdown.
+              <b>Description</b>: The description of the dashboard that will
+              show in the landing page.
             </li>
             <br />
             <li>
@@ -461,8 +685,8 @@ const AppTour = () => {
       placement: "right",
     },
     {
-      target: ".save-dashboard-button", // 25
-      content: <div>Persist dashboard setting changes by saving them.</div>,
+      target: ".save-dashboard-button", // 40
+      content: <div>Save updated dashboard settings.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
       data: { callbackNext: true },
@@ -470,11 +694,20 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".delete-dashboard-button", // 26
+      target: ".delete-dashboard-button", // 41
+      content: <div>Delete the dashboard. This action cannot be undone.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      data: { callbackNext: true },
+      placement: "top",
+      spotlightPadding: 5,
+    },
+    {
+      target: ".copy-dashboard-button", // 42
       content: (
         <div>
-          Dashboards can be deleted. Once deleted, they can not be retrieved
-          again.
+          Copy with the same settings and dashboard items. The new dashboard
+          will have the name with "_copy" at the end.
         </div>
       ),
       disableBeacon: true,
@@ -484,21 +717,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".copy-dashboard-button", // 27
-      content: (
-        <div>
-          Dashboards can be copied with the same settings and dashboard items.
-          The new dashboard will have the name with "_copy" at the end.
-        </div>
-      ),
-      disableBeacon: true,
-      disableOverlayClose: true,
-      data: { callbackNext: true },
-      placement: "top",
-      spotlightPadding: 5,
-    },
-    {
-      target: ".cancel-dashboard-editor-button", // 28
+      target: ".cancel-dashboard-editor-button", // 43
       content: (
         <div>
           Click on the "Close" button to exit the settings editor and continue

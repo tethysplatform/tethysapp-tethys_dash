@@ -54,8 +54,7 @@ function DataViewerModal({
   const [vizInputsValues, setVizInputsValues] = useState([]);
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
-  const { setLayoutContext, getLayoutContext } = useContext(LayoutContext);
-  const { gridItems } = getLayoutContext();
+  const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
   const { variableInputValues, setVariableInputValues } = useContext(
@@ -70,6 +69,7 @@ function DataViewerModal({
   const [tabKey, setTabKey] = useState("visualization");
 
   function saveChanges(e) {
+    const { gridItems } = getDashboardMetadata();
     e.preventDefault();
     e.stopPropagation();
     setShowAlert(false);
@@ -137,9 +137,7 @@ function DataViewerModal({
           updatedGridItems = updateVariableInputs(vizArgs, updatedGridItems);
         }
 
-        const layout = getLayoutContext();
-        layout["gridItems"] = updatedGridItems;
-        setLayoutContext(layout);
+        updateGridItems(updatedGridItems);
         setShowGridItemMessage(true);
         handleModalClose();
       } else {
@@ -185,7 +183,7 @@ function DataViewerModal({
 
   function closeAndSetAppTour() {
     handleModalClose();
-    setAppTourStep(10);
+    setAppTourStep(23);
   }
 
   function emptyFunction() {}

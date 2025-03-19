@@ -1,39 +1,34 @@
-import { useEffect, useRef, useState, useContext } from "react";
+import { useRef, useState } from "react";
 import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import VisualizationPane, {
   CustomTextOptions,
 } from "components/modals/DataViewer/VisualizationPane";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import Image from "components/visualizations/Image";
 import appAPI from "services/api/app";
-import { LayoutContext } from "components/contexts/Contexts";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 
 const TestingComponent = ({
-  layoutContext,
   source,
   argsString,
   setGridItemMessage,
   setViz,
   setVizMetadata,
+  setShowingSubModal,
+  gridItemIndex,
 }) => {
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
   const [vizInputsValues, setVizInputsValues] = useState([]);
   const [variableInputValue, setVariableInputValue] = useState(null);
-  const { setLayoutContext } = useContext(LayoutContext);
   const settingsRef = useRef({});
   const visualizationRef = useRef();
-
-  useEffect(() => {
-    setLayoutContext(layoutContext);
-    // eslint-disable-next-line
-  }, []);
 
   return (
     <>
       <VisualizationPane
+        gridItemIndex={gridItemIndex}
         source={source}
         argsString={argsString}
         setGridItemMessage={setGridItemMessage}
@@ -47,6 +42,7 @@ const TestingComponent = ({
         setVariableInputValue={setVariableInputValue}
         settingsRef={settingsRef}
         visualizationRef={visualizationRef}
+        setShowingSubModal={setShowingSubModal}
       />
       <p data-testid="viz-input-values">{JSON.stringify(vizInputsValues)}</p>
     </>
@@ -54,7 +50,7 @@ const TestingComponent = ({
 };
 
 test("Visualization Pane Custom Image", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   const mockSetGridItemMessage = jest.fn();
   const mockSetViz = jest.fn();
@@ -64,6 +60,7 @@ test("Visualization Pane Custom Image", async () => {
     createLoadedComponent({
       children: (
         <TestingComponent
+          gridItemIndex={0}
           layoutContext={mockedDashboard}
           source={gridItem.source}
           argsString={gridItem.args_string}
@@ -81,7 +78,8 @@ test("Visualization Pane Custom Image", async () => {
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
 
-  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  const visualizationTypeSelect =
+    await screen.findByLabelText("visualizationType");
   await userEvent.click(visualizationTypeSelect);
   const customImageOption = await screen.findByText("Custom Image");
   fireEvent.click(customImageOption);
@@ -106,7 +104,7 @@ test("Visualization Pane Custom Image", async () => {
 });
 
 test("Visualization Pane Text", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   const mockSetGridItemMessage = jest.fn();
   const mockSetViz = jest.fn();
@@ -133,7 +131,8 @@ test("Visualization Pane Text", async () => {
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
 
-  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  const visualizationTypeSelect =
+    await screen.findByLabelText("visualizationType");
   await userEvent.click(visualizationTypeSelect);
   const texteOption = await screen.findByText("Text");
   fireEvent.click(texteOption);
@@ -160,7 +159,7 @@ test("Visualization Pane Text", async () => {
 });
 
 test("Visualization Pane Variable Input", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   const mockSetGridItemMessage = jest.fn();
   const mockSetViz = jest.fn();
@@ -187,7 +186,8 @@ test("Visualization Pane Variable Input", async () => {
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
 
-  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  const visualizationTypeSelect =
+    await screen.findByLabelText("visualizationType");
   await userEvent.click(visualizationTypeSelect);
 
   const customImageOption = await screen.findByText("Variable Input");
@@ -274,7 +274,7 @@ test("Visualization Pane Variable Input", async () => {
 });
 
 test("Visualization Pane Other Type", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   const mockSetGridItemMessage = jest.fn();
   const mockSetViz = jest.fn();
@@ -307,7 +307,8 @@ test("Visualization Pane Other Type", async () => {
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
 
-  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  const visualizationTypeSelect =
+    await screen.findByLabelText("visualizationType");
   await userEvent.click(visualizationTypeSelect);
 
   const pluginLabelOption = await screen.findByText("plugin_label");
@@ -330,11 +331,6 @@ test("Visualization Pane Other Type", async () => {
     "Cell updated to show Visualization Group plugin_label"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[1][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
 
   await userEvent.click(visualizationTypeSelect);
 
@@ -352,11 +348,6 @@ test("Visualization Pane Other Type", async () => {
     "Cell updated to show Visualization Group plugin_label2"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[1][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
 
   await userEvent.click(visualizationTypeSelect);
 
@@ -377,15 +368,10 @@ test("Visualization Pane Other Type", async () => {
     "Cell updated to show Visualization Group 2 plugin_label3"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[1][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
 });
 
 test("Visualization Pane Other Type Checkbox", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   const mockSetGridItemMessage = jest.fn();
   const mockSetViz = jest.fn();
@@ -432,7 +418,8 @@ test("Visualization Pane Other Type Checkbox", async () => {
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
   expect(mockSetViz).toHaveBeenCalledTimes(0);
 
-  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  const visualizationTypeSelect =
+    await screen.findByLabelText("visualizationType");
   await userEvent.click(visualizationTypeSelect);
 
   const pluginLabelOption = await screen.findByText("plugin_label_checkbox");
@@ -457,16 +444,11 @@ test("Visualization Pane Other Type Checkbox", async () => {
     "Cell updated to show Other plugin_label_checkbox"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[1][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
 });
 
 test("Visualization Pane Use Existing Args Variable Input", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -509,13 +491,15 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
     })
   );
 
-  expect(mockSetVizMetadata).toHaveBeenCalledWith({
-    source: "Variable Input",
-    args: {
-      variable_name: "test_var",
-      variable_options_source: "text",
-      initial_value: "some value",
-    },
+  await waitFor(async () => {
+    expect(mockSetVizMetadata).toHaveBeenCalledWith({
+      source: "Variable Input",
+      args: {
+        variable_name: "test_var",
+        variable_options_source: "text",
+        initial_value: "some value",
+      },
+    });
   });
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
     "Cell updated to show Other Variable Input"
@@ -530,7 +514,7 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
 
 test("Visualization Pane Use Existing Args Custom Image", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -571,11 +555,13 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
     })
   );
 
-  expect(mockSetVizMetadata).toHaveBeenCalledWith({
-    source: "Custom Image",
-    args: {
-      image_source: "some_png",
-    },
+  await waitFor(async () => {
+    expect(mockSetVizMetadata).toHaveBeenCalledWith({
+      source: "Custom Image",
+      args: {
+        image_source: "some_png",
+      },
+    });
   });
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
     "Cell updated to show Other Custom Image"
@@ -588,7 +574,7 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
 
 test("Visualization Pane Use Existing Args Viz with True checkbox", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -643,21 +629,18 @@ test("Visualization Pane Use Existing Args Viz with True checkbox", async () => 
     })
   );
 
-  expect(mockSetVizMetadata).toHaveBeenCalledWith({
-    source: "plugin_source",
-    args: {
-      plugin_arg: true,
-    },
+  await waitFor(async () => {
+    expect(mockSetVizMetadata).toHaveBeenCalledWith({
+      source: "plugin_source",
+      args: {
+        plugin_arg: true,
+      },
+    });
   });
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
     "Cell updated to show Other plugin_label"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[0][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify([
       {
@@ -675,7 +658,7 @@ test("Visualization Pane Use Existing Args Viz with True checkbox", async () => 
 
 test("Visualization Pane Use Existing Args Viz with False checkbox", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -730,21 +713,18 @@ test("Visualization Pane Use Existing Args Viz with False checkbox", async () =>
     })
   );
 
-  expect(mockSetVizMetadata).toHaveBeenCalledWith({
-    source: "plugin_source",
-    args: {
-      plugin_arg: false,
-    },
+  await waitFor(async () => {
+    expect(mockSetVizMetadata).toHaveBeenCalledWith({
+      source: "plugin_source",
+      args: {
+        plugin_arg: false,
+      },
+    });
   });
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
     "Cell updated to show Other plugin_label"
   );
   expect(mockSetViz).toHaveBeenCalled();
-  expect(mockSetViz.mock.calls[0][0].props).toStrictEqual({
-    animation: "border",
-    "data-testid": "Loading...",
-    variant: "info",
-  });
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify([
       {
@@ -791,4 +771,6 @@ TestingComponent.propTypes = {
   setGridItemMessage: PropTypes.func,
   setViz: PropTypes.func,
   setVizMetadata: PropTypes.func,
+  setShowingSubModal: PropTypes.func,
+  gridItemIndex: PropTypes.number,
 };

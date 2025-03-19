@@ -62,14 +62,14 @@ const LeftTriangle = styled(BsFillTriangleFill)`
 `;
 
 export const legendSymbols = {
-  square: <BsFillSquareFill />,
-  circle: <BsFillCircleFill />,
-  upTriangle: <BsFillTriangleFill />,
-  rightTriangle: <RightTriangle />,
-  downTriangle: <DownTriangle />,
-  leftTriangle: <LeftTriangle />,
-  rectangle: <RiRectangleFill />,
-  line: <IoAnalyticsOutline />,
+  square: () => <BsFillSquareFill />,
+  circle: () => <BsFillCircleFill />,
+  upTriangle: () => <BsFillTriangleFill />,
+  rightTriangle: () => <RightTriangle />,
+  downTriangle: () => <DownTriangle />,
+  leftTriangle: () => <LeftTriangle />,
+  rectangle: () => <RiRectangleFill />,
+  line: () => <IoAnalyticsOutline />,
 };
 
 export const getLegendSymbol = (symbol, color) => {

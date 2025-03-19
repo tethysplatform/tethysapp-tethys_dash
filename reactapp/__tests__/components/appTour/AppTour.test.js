@@ -1,15 +1,16 @@
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import Header from "components/layout/Header";
+import { DashboardHeader } from "components/layout/Header";
 import DashboardLayout from "components/dashboard/DashboardLayout";
-import AppTour from "components/dashboard/AppTour";
+import AppTour from "components/appTour/AppTour";
 import { MemoryRouter } from "react-router-dom";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import appAPI from "services/api/app";
-import { confirm } from "components/dashboard/DeleteConfirmation";
+import { confirm } from "components/inputs/DeleteConfirmation";
+import LandingPage from "views/LandingPage";
 
-jest.mock("components/dashboard/DeleteConfirmation", () => {
+jest.mock("components/inputs/DeleteConfirmation", () => {
   return {
     confirm: jest.fn(),
   };
@@ -39,7 +40,7 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-test("App Tour skip steps 3", async () => {
+test("Dashboard App Tour", async () => {
   let nextButton;
   let backButton;
   let endTourButton;
@@ -77,11 +78,12 @@ test("App Tour skip steps 3", async () => {
         <MemoryRouter initialEntries={["/"]}>
           <LayoutAlertContextProvider>
             <AppTour />
-            <Header />
+            <DashboardHeader />
             <DashboardLayout />
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
+      options: { editableDashboard: true },
     })
   );
 
@@ -93,74 +95,22 @@ test("App Tour skip steps 3", async () => {
   ////////////////////
   // App Info Modal //
   ////////////////////
-  expect(await screen.findByText("Welcome to TethysDash")).toBeInTheDocument();
+  expect(await screen.findByText("TethysDash Dashboards")).toBeInTheDocument();
   expect(
     await screen.findByText(
       /If you would like to take a tour of the application, click on the button below to begin./i
     )
   ).toBeInTheDocument();
-  const startTourButton = await screen.findByText("Start App Tour");
+  const startTourButton = await screen.findByText("Start Dashboard Tour");
   expect(startTourButton).toBeInTheDocument();
   userEvent.click(startTourButton);
   await waitFor(() => {
-    expect(screen.queryByText("Start App Tour")).not.toBeInTheDocument();
+    expect(screen.queryByText("Start Dashboard Tour")).not.toBeInTheDocument();
   });
 
-  ////////////
-  // STEP 0 //
-  ////////////
-  expect(
-    await screen.findByText(
-      "Begin by clicking on the dropdown to select or create a dashboard."
-    )
-  ).toBeInTheDocument();
-  // eslint-disable-next-line
-  expect(document.querySelector("#react-joyride-portal")).toBeInTheDocument();
-  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  const selector = await screen.findByRole("combobox");
-  expect(selector).toBeInTheDocument();
-  await userEvent.click(selector);
-
-  ////////////
-  // STEP 1 //
-  ////////////
-  expect(
-    await screen.findByText(
-      'Select an existing dashboard to view or create a new dashboard with the "Create a New Dashboard" option.'
-    )
-  ).toBeInTheDocument();
-  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  const newDashboardOption = await screen.findByText("Create a New Dashboard");
-  expect(newDashboardOption).toBeInTheDocument();
-  await userEvent.click(newDashboardOption);
-
-  ////////////
-  // STEP 2 //
-  ////////////
-  expect(
-    await screen.findByText('Enter the dashboard name and select "Create".')
-  ).toBeInTheDocument();
-  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  const dashboardNameInput = await screen.findByLabelText(
-    "Dashboard Name Input"
-  );
-  fireEvent.change(dashboardNameInput, { target: { value: "new_name" } });
-  const createDashboardInput = await screen.findByLabelText(
-    "Create Dashboard Button"
-  );
-  await userEvent.click(createDashboardInput);
-  await waitFor(() => {
-    expect(
-      screen.queryByLabelText("Create Dashboard Button")
-    ).not.toBeInTheDocument();
-  });
-
-  ////////////
-  // STEP 4 //
-  ////////////
+  /////////////
+  // STEP 17 //
+  /////////////
   expect(
     await screen.findByText(
       "This is the main layout of the dashboard where dashboards items will be shown."
@@ -170,9 +120,9 @@ test("App Tour skip steps 3", async () => {
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
   await userEvent.click(nextButton);
 
-  ////////////
-  // STEP 5 //
-  ////////////
+  /////////////
+  // STEP 18 //
+  /////////////
   expect(
     await screen.findByText(
       "Dashboards are composed of dashboard items. Each dashboard item can be customized to show visualizations and be changed in size to the users liking. Dashboards and items can only be changed by the dashboard owner and when the dashboard is in edit mode."
@@ -182,9 +132,9 @@ test("App Tour skip steps 3", async () => {
   backButton = await screen.findByLabelText("Back");
   await userEvent.click(backButton);
 
-  ////////////
-  // STEP 4 //
-  ////////////
+  /////////////
+  // STEP 17 //
+  /////////////
   expect(
     await screen.findByText(
       "This is the main layout of the dashboard where dashboards items will be shown."
@@ -194,9 +144,9 @@ test("App Tour skip steps 3", async () => {
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
   await userEvent.click(nextButton);
 
-  ////////////
-  // STEP 5 //
-  ////////////
+  /////////////
+  // STEP 18 //
+  /////////////
   expect(
     await screen.findByText(
       "Dashboards are composed of dashboard items. Each dashboard item can be customized to show visualizations and be changed in size to the users liking. Dashboards and items can only be changed by the dashboard owner and when the dashboard is in edit mode."
@@ -206,9 +156,9 @@ test("App Tour skip steps 3", async () => {
   backButton = await screen.findByLabelText("Back");
   await userEvent.click(nextButton);
 
-  ////////////
-  // STEP 6 //
-  ////////////
+  /////////////
+  // STEP 19 //
+  /////////////
   expect(
     await screen.findByText("Click on the edit button to turn on edit mode.")
   ).toBeInTheDocument();
@@ -217,9 +167,9 @@ test("App Tour skip steps 3", async () => {
   const dashboardEditButton = await screen.findByLabelText("editButton");
   await userEvent.click(dashboardEditButton);
 
-  ////////////
-  // STEP 7 //
-  ////////////
+  /////////////
+  // STEP 20 //
+  /////////////
   expect(
     await screen.findByText(
       "Once in edit mode, update the size of a dashboard item by dragging the resize handle."
@@ -229,9 +179,9 @@ test("App Tour skip steps 3", async () => {
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
   await userEvent.click(nextButton);
 
-  ////////////
-  // STEP 8 //
-  ////////////
+  /////////////
+  // STEP 21 //
+  /////////////
   expect(
     await screen.findByText(
       "While in edit mode, update the visualization by clicking on the 3 dot menu within the dashboard item."
@@ -244,9 +194,9 @@ test("App Tour skip steps 3", async () => {
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
-  ////////////
-  // STEP 9 //
-  ////////////
+  /////////////
+  // STEP 22 //
+  /////////////
   expect(
     await screen.findByText(
       /Editing the visualization will change the dashboard visualization as well as any dashboard item settings./i
@@ -263,7 +213,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(editGridItemButton);
 
   //////////////////////////
-  // STEP 17 - DATAVIEWER //
+  // STEP 32 - DATAVIEWER //
   //////////////////////////
   expect(
     await screen.findByText(
@@ -275,7 +225,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   //////////////////////////
-  // STEP 18 - DATAVIEWER //
+  // STEP 33 - DATAVIEWER //
   //////////////////////////
   expect(
     await screen.findByText(
@@ -287,7 +237,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   //////////////////////////
-  // STEP 19 - DATAVIEWER //
+  // STEP 34 - DATAVIEWER //
   //////////////////////////
   expect(
     await screen.findByText(
@@ -309,7 +259,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   //////////////////////////
-  // STEP 20 - DATAVIEWER //
+  // STEP 35 - DATAVIEWER //
   //////////////////////////
   expect(
     await screen.findByText(
@@ -321,7 +271,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   //////////////////////////
-  // STEP 21 - DATAVIEWER //
+  // STEP 36 - DATAVIEWER //
   //////////////////////////
   expect(
     await screen.findByText(
@@ -336,7 +286,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   //////////////////////////
-  // STEP 22 - DATAVIEWER //
+  // STEP 37 - DATAVIEWER //
   //////////////////////////
   expect(
     await screen.findByText(
@@ -348,7 +298,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   //////////////////////////
-  // STEP 23 - DATAVIEWER //
+  // STEP 38 - DATAVIEWER //
   //////////////////////////
   expect(
     await screen.findByText(
@@ -363,7 +313,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(closeDataviewer);
 
   /////////////
-  // STEP 10 //
+  // STEP 23 //
   /////////////
   expect(
     await screen.findByText(
@@ -374,9 +324,9 @@ test("App Tour skip steps 3", async () => {
   backButton = await screen.findByLabelText("Back");
   await userEvent.click(backButton);
 
-  ////////////
-  // STEP 9 //
-  ////////////
+  /////////////
+  // STEP 22 //
+  /////////////
   expect(
     await screen.findByText(
       /Editing the visualization will change the dashboard visualization as well as any dashboard item settings./i
@@ -392,7 +342,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   /////////////
-  // STEP 10 //
+  // STEP 23 //
   /////////////
   expect(
     await screen.findByText(
@@ -404,7 +354,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   /////////////
-  // STEP 11 //
+  // STEP 24 //
   /////////////
   expect(
     await screen.findByText(
@@ -416,11 +366,11 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   /////////////
-  // STEP 12 //
+  // STEP 25 //
   /////////////
   expect(
     await screen.findByText(
-      "Click on the revert changes button to cancel any changes made and return the layout to the latest saved version."
+      "Exit the dashboard and return to the landing page."
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -428,11 +378,11 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   /////////////
-  // STEP 13 //
+  // STEP 26 //
   /////////////
   expect(
     await screen.findByText(
-      "Click on the save changes button to save any changes made and persist for later sessions."
+      "Cancel any changes made and return the layout to the latest saved version."
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -440,11 +390,11 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   /////////////
-  // STEP 14 //
+  // STEP 27 //
   /////////////
   expect(
     await screen.findByText(
-      "Click on the add dashboard items button to add new dashboard items to the layout."
+      "Save any changes made and persist for later sessions."
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -452,16 +402,36 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   /////////////
-  // STEP 15 //
+  // STEP 28 //
+  /////////////
+  expect(
+    await screen.findByText("Add new dashboard items to the layout.")
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  backButton = await screen.findByLabelText("Back");
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 29 //
+  /////////////
+  expect(
+    await screen.findByText("Lock grid item movement during editing.")
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  backButton = await screen.findByLabelText("Back");
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 30 //
   /////////////
   expect(
     await screen.findByText(
-      /Each dashboard has general settings like names, labels, sharing status, and notes. These settings, as well as copying and deleting dashboard actions, can be found in this menu./i
+      /Edit dashboard settings like names, descriptions, thumbnails, sharing status, and notes. These settings, as well as copying and deleting dashboard actions, can be found in this menu./i
     )
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /Click on the hamburger menu to learn more about dashboard settings./i
+      /Click on the button to learn more about dashboard settings or continue the App Tour by clicking on "Next"./i
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -472,7 +442,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(dashboardSettingButton);
 
   ////////////////////////////////
-  // STEP 24 - DASHBOARD EDITOR //
+  // STEP 39 - DASHBOARD EDITOR //
   ////////////////////////////////
   await waitFor(async () => {
     expect(
@@ -483,12 +453,12 @@ test("App Tour skip steps 3", async () => {
   });
   expect(
     await screen.findByText(
-      /The name of dashboard. This will be the name in the url of a public dashboard./i
+      /The name of dashboard that will show in the url and header./i
     )
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /The label for the dashboard that will show in the Dashboard selection dropdown./i
+      /The description of the dashboard that will show in the landing page./i
     )
   ).toBeInTheDocument();
   expect(
@@ -506,21 +476,21 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   ////////////////////////////////
-  // STEP 25 - DASHBOARD EDITOR //
+  // STEP 40 - DASHBOARD EDITOR //
   ////////////////////////////////
   expect(
-    await screen.findByText("Persist dashboard setting changes by saving them.")
+    await screen.findByText("Save updated dashboard settings.")
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
   await userEvent.click(nextButton);
 
   ////////////////////////////////
-  // STEP 26 - DASHBOARD EDITOR //
+  // STEP 41 - DASHBOARD EDITOR //
   ////////////////////////////////
   expect(
     await screen.findByText(
-      "Dashboards can be deleted. Once deleted, they can not be retrieved again."
+      "Delete the dashboard. This action cannot be undone."
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -528,11 +498,11 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   ////////////////////////////////
-  // STEP 27 - DASHBOARD EDITOR //
+  // STEP 42 - DASHBOARD EDITOR //
   ////////////////////////////////
   expect(
     await screen.findByText(
-      'Dashboards can be copied with the same settings and dashboard items. The new dashboard will have the name with "_copy" at the end.'
+      'Copy with the same settings and dashboard items. The new dashboard will have the name with "_copy" at the end.'
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -540,7 +510,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   ////////////////////////////////
-  // STEP 28 - DASHBOARD EDITOR //
+  // STEP 43 - DASHBOARD EDITOR //
   ////////////////////////////////
   expect(
     await screen.findByText(
@@ -555,7 +525,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(cancelDashboardEditorButton);
 
   /////////////
-  // STEP 16 //
+  // STEP 31 //
   /////////////
   expect(
     await screen.findByText(/For more information about TethysDash, visit the/i)
@@ -576,16 +546,16 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(backButton);
 
   /////////////
-  // STEP 15 //
+  // STEP 30 //
   /////////////
   expect(
     await screen.findByText(
-      /Each dashboard has general settings like names, labels, sharing status, and notes. These settings, as well as copying and deleting dashboard actions, can be found in this menu./i
+      /Edit dashboard settings like names, descriptions, thumbnails, sharing status, and notes. These settings, as well as copying and deleting dashboard actions, can be found in this menu./i
     )
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /Click on the hamburger menu to learn more about dashboard settings./i
+      /Click on the button to learn more about dashboard settings or continue the App Tour by clicking on "Next"./i
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -593,7 +563,7 @@ test("App Tour skip steps 3", async () => {
   await userEvent.click(nextButton);
 
   /////////////
-  // STEP 16 //
+  // STEP 31 //
   /////////////
   expect(
     await screen.findByText(/For more information about TethysDash, visit the/i)
@@ -619,164 +589,7 @@ test("App Tour skip steps 3", async () => {
   ).not.toBeInTheDocument();
 }, 40000);
 
-test("App Tour skip to step 3", async () => {
-  let dashboardNameInput;
-  let createDashboardInput;
-  const mockAddDashboard = jest.fn();
-  appAPI.addDashboard = mockAddDashboard;
-  mockAddDashboard
-    .mockResolvedValueOnce({
-      success: false,
-    })
-    .mockResolvedValueOnce({
-      success: true,
-      new_dashboard: {
-        id: 1,
-        name: "new_name",
-        label: "New Name",
-        notes: "test_notes",
-        editable: true,
-        accessGroups: [],
-        gridItems: [
-          {
-            i: "1",
-            x: 0,
-            y: 0,
-            w: 20,
-            h: 20,
-            source: "",
-            args_string: "{}",
-            metadata_string: JSON.stringify({
-              refreshRate: 0,
-            }),
-          },
-        ],
-      },
-    });
-
-  render(
-    createLoadedComponent({
-      children: (
-        <MemoryRouter initialEntries={["/"]}>
-          <LayoutAlertContextProvider>
-            <AppTour />
-            <Header />
-            <DashboardLayout />
-          </LayoutAlertContextProvider>
-        </MemoryRouter>
-      ),
-    })
-  );
-
-  expect(
-    // eslint-disable-next-line
-    document.querySelector("#react-joyride-portal")
-  ).not.toBeInTheDocument();
-
-  ////////////////////
-  // App Info Modal //
-  ////////////////////
-  expect(await screen.findByText("Welcome to TethysDash")).toBeInTheDocument();
-  expect(
-    await screen.findByText(
-      /If you would like to take a tour of the application, click on the button below to begin./i
-    )
-  ).toBeInTheDocument();
-  const startTourButton = await screen.findByText("Start App Tour");
-  expect(startTourButton).toBeInTheDocument();
-  userEvent.click(startTourButton);
-  await waitFor(() => {
-    expect(screen.queryByText("Start App Tour")).not.toBeInTheDocument();
-  });
-
-  ////////////
-  // STEP 0 //
-  ////////////
-  expect(
-    await screen.findByText(
-      "Begin by clicking on the dropdown to select or create a dashboard."
-    )
-  ).toBeInTheDocument();
-  // eslint-disable-next-line
-  expect(document.querySelector("#react-joyride-portal")).toBeInTheDocument();
-  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  const selector = await screen.findByRole("combobox");
-  expect(selector).toBeInTheDocument();
-  await userEvent.click(selector);
-
-  ////////////
-  // STEP 1 //
-  ////////////
-  expect(
-    await screen.findByText(
-      'Select an existing dashboard to view or create a new dashboard with the "Create a New Dashboard" option.'
-    )
-  ).toBeInTheDocument();
-  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  const newDashboardOption = await screen.findByText("Create a New Dashboard");
-  expect(newDashboardOption).toBeInTheDocument();
-  await userEvent.click(newDashboardOption);
-
-  ////////////
-  // STEP 2 //
-  ////////////
-  expect(
-    await screen.findByText('Enter the dashboard name and select "Create".')
-  ).toBeInTheDocument();
-  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  dashboardNameInput = await screen.findByLabelText("Dashboard Name Input");
-  fireEvent.change(dashboardNameInput, { target: { value: "editable" } });
-  createDashboardInput = await screen.findByLabelText(
-    "Create Dashboard Button"
-  );
-  await userEvent.click(createDashboardInput);
-
-  ////////////
-  // STEP 3 //
-  ////////////
-  expect(
-    await screen.findByText(
-      'The dashboard name is already used. Try to update the dashboard name and select "Create" again.'
-    )
-  ).toBeInTheDocument();
-  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
-  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  dashboardNameInput = await screen.findByLabelText("Dashboard Name Input");
-  fireEvent.change(dashboardNameInput, { target: { value: "new_name" } });
-  createDashboardInput = await screen.findByLabelText(
-    "Create Dashboard Button"
-  );
-  await userEvent.click(createDashboardInput);
-  await waitFor(() => {
-    expect(
-      screen.queryByLabelText("Create Dashboard Button")
-    ).not.toBeInTheDocument();
-  });
-
-  ////////////
-  // STEP 4 //
-  ////////////
-  expect(
-    await screen.findByText(
-      "This is the main layout of the dashboard where dashboards items will be shown."
-    )
-  ).toBeInTheDocument();
-
-  const closeButton = await screen.findByLabelText("End App Tour");
-  await userEvent.click(closeButton);
-
-  expect(
-    // eslint-disable-next-line
-    document.querySelector("#react-joyride-portal")
-  ).not.toBeInTheDocument();
-}, 10000);
-
-test("App Tour from header and select existing dashboard", async () => {
-  let selector;
-  let existingDashboardOption;
+test("Dashboard App Tour while editing and then exit", async () => {
   const mockAddDashboard = jest.fn();
   appAPI.addDashboard = mockAddDashboard;
   mockAddDashboard.mockResolvedValue({
@@ -813,11 +626,113 @@ test("App Tour from header and select existing dashboard", async () => {
         <MemoryRouter initialEntries={["/"]}>
           <LayoutAlertContextProvider>
             <AppTour />
-            <Header />
+            <DashboardHeader />
             <DashboardLayout />
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
+      options: { editableDashboard: true, inEditing: true },
+    })
+  );
+
+  expect(
+    // eslint-disable-next-line
+    document.querySelector("#react-joyride-portal")
+  ).not.toBeInTheDocument();
+  expect(await screen.findByLabelText("cancelButton")).toBeInTheDocument();
+
+  ////////////////////
+  // App Info Modal //
+  ////////////////////
+  expect(await screen.findByText("TethysDash Dashboards")).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /If you would like to take a tour of the application, click on the button below to begin./i
+    )
+  ).toBeInTheDocument();
+  const startTourButton = await screen.findByText("Start Dashboard Tour");
+  expect(startTourButton).toBeInTheDocument();
+  userEvent.click(startTourButton);
+
+  /////////////////////////////////////
+  // False Confirmation when Editing //
+  /////////////////////////////////////
+  expect(await screen.findByText("Start Dashboard Tour")).toBeInTheDocument();
+  expect(
+    screen.queryByText(
+      "Begin by clicking on the dropdown to select or create a dashboard."
+    )
+  ).not.toBeInTheDocument();
+  await waitFor(async () => {
+    expect(mockedConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  //////////////////////////////////////////////
+  // Retry and True Confirmation when Editing //
+  //////////////////////////////////////////////
+  userEvent.click(startTourButton);
+  await waitFor(() => {
+    expect(screen.queryByText("Start Dashboard Tour")).not.toBeInTheDocument();
+  });
+  expect(mockedConfirm).toHaveBeenCalledTimes(2);
+
+  /////////////
+  // STEP 17 //
+  /////////////
+  expect(
+    await screen.findByText(
+      "This is the main layout of the dashboard where dashboards items will be shown."
+    )
+  ).toBeInTheDocument();
+  const closeButton = await screen.findByLabelText("End App Tour");
+  await userEvent.click(closeButton);
+
+  expect(
+    // eslint-disable-next-line
+    document.querySelector("#react-joyride-portal")
+  ).not.toBeInTheDocument();
+});
+
+test("Landing Page App Tour", async () => {
+  let nextButton;
+  let endTourButton;
+  const mockAddDashboard = jest.fn();
+  appAPI.addDashboard = mockAddDashboard;
+  mockAddDashboard.mockResolvedValue({
+    success: true,
+    new_dashboard: {
+      id: 1,
+      name: "new_name",
+      label: "New Name",
+      notes: "test_notes",
+      editable: true,
+      accessGroups: [],
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
+    },
+  });
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <AppTour />
+          <LandingPage />
+        </MemoryRouter>
+      ),
+      options: { editableDashboard: true },
     })
   );
 
@@ -829,70 +744,21 @@ test("App Tour from header and select existing dashboard", async () => {
   ////////////////////
   // App Info Modal //
   ////////////////////
-  expect(await screen.findByText("Welcome to TethysDash")).toBeInTheDocument();
+  expect(
+    await screen.findByText("TethysDash Landing Page")
+  ).toBeInTheDocument();
   expect(
     await screen.findByText(
       /If you would like to take a tour of the application, click on the button below to begin./i
     )
   ).toBeInTheDocument();
-  const closeButton = await screen.findByLabelText("Close");
-  await userEvent.click(closeButton);
-
-  //////////////////////
-  // Main Application //
-  //////////////////////
-  expect(
-    // eslint-disable-next-line
-    document.querySelector("#react-joyride-portal")
-  ).not.toBeInTheDocument();
-
-  ////////////////////////////////////////
-  // Select Existing Dashboard and Edit //
-  ////////////////////////////////////////
-  selector = await screen.findByRole("combobox");
-  expect(selector).toBeInTheDocument();
-  await userEvent.click(selector);
-  existingDashboardOption = await screen.findByText("test_label");
-  expect(existingDashboardOption).toBeInTheDocument();
-  await userEvent.click(existingDashboardOption);
-  const dashboardEditButton = await screen.findByLabelText("editButton");
-  await userEvent.click(dashboardEditButton);
-
-  /////////////////////////
-  // Open App Info Modal //
-  /////////////////////////
-  const appInfoButton = await screen.findByLabelText("appInfoButton");
-  await userEvent.click(appInfoButton);
-
-  ////////////////////
-  // App Info Modal //
-  ////////////////////
-  expect(await screen.findByText("Welcome to TethysDash")).toBeInTheDocument();
-  expect(
-    await screen.findByText(
-      /If you would like to take a tour of the application, click on the button below to begin./i
-    )
-  ).toBeInTheDocument();
-  const startTourButton = await screen.findByText("Start App Tour");
+  const startTourButton = await screen.findByText("Start Landing Page Tour");
   expect(startTourButton).toBeInTheDocument();
   userEvent.click(startTourButton);
-
-  /////////////////////////////////////
-  // False Confirmation when Editing //
-  /////////////////////////////////////
-  expect(await screen.findByText("Start App Tour")).toBeInTheDocument();
-  expect(
-    screen.queryByText(
-      "Begin by clicking on the dropdown to select or create a dashboard."
-    )
-  ).not.toBeInTheDocument();
-
-  //////////////////////////////////////////////
-  // Retry and True Confirmation when Editing //
-  //////////////////////////////////////////////
-  userEvent.click(startTourButton);
   await waitFor(() => {
-    expect(screen.queryByText("Start App Tour")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Start Landing Page Tour")
+    ).not.toBeInTheDocument();
   });
 
   ////////////
@@ -900,39 +766,251 @@ test("App Tour from header and select existing dashboard", async () => {
   ////////////
   expect(
     await screen.findByText(
-      "Begin by clicking on the dropdown to select or create a dashboard."
+      "All available user and public dashboards will be displayed on this page."
     )
   ).toBeInTheDocument();
-  // eslint-disable-next-line
-  expect(document.querySelector("#react-joyride-portal")).toBeInTheDocument();
-  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  selector = await screen.findByRole("combobox");
-  expect(selector).toBeInTheDocument();
-  await userEvent.click(selector);
+  await userEvent.click(nextButton);
 
   ////////////
   // STEP 1 //
   ////////////
   expect(
     await screen.findByText(
-      'Select an existing dashboard to view or create a new dashboard with the "Create a New Dashboard" option.'
+      /Dashboard can be created by clicking on the "Create a New Dashboard" card./i
+    )
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /Click on this card to create a new dashboard and continue with the App tour./i
     )
   ).toBeInTheDocument();
   expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  existingDashboardOption = await screen.findByText("test_label");
-  expect(existingDashboardOption).toBeInTheDocument();
-  await userEvent.click(existingDashboardOption);
+  const createNewCardButton = await screen.findByLabelText("Create New Card");
+  await userEvent.click(createNewCardButton);
+
+  ////////////
+  // STEP 2 //
+  ////////////
+  expect(
+    await screen.findByText(
+      /This is a modal for creating a new dashboard. Provide a name and a description for your dashboard and then click on "Create"./i
+    )
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+
+  const closeModalButton = screen.getByLabelText("Close Modal Button");
+  await userEvent.click(closeModalButton);
+
+  ////////////
+  // STEP 1 //
+  ////////////
+  expect(
+    await screen.findByText(
+      /Dashboard can be created by clicking on the "Create a New Dashboard" card./i
+    )
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /Click on this card to create a new dashboard and continue with the App tour./i
+    )
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  await userEvent.click(createNewCardButton);
+
+  ////////////
+  // STEP 2 //
+  ////////////
+  expect(
+    await screen.findByText(
+      /This is a modal for creating a new dashboard. Provide a name and a description for your dashboard and then click on "Create"./i
+    )
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+
+  const nameInput = screen.getByLabelText("Name Input");
+  const descriptionInput = screen.getByLabelText("Description Input");
+  fireEvent.change(nameInput, { target: { value: "Some New Name" } });
+  fireEvent.change(descriptionInput, {
+    target: { value: "Some new Description" },
+  });
+  const createDashboardButton = screen.getByLabelText(
+    "Create Dashboard Button"
+  );
+  await userEvent.click(createDashboardButton);
+
+  ////////////
+  // STEP 3 //
+  ////////////
+  expect(
+    await screen.findByText(
+      "Each card in the landing page represents a dashboard and its information."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  await userEvent.click(nextButton);
 
   ////////////
   // STEP 4 //
   ////////////
   expect(
     await screen.findByText(
-      "This is the main layout of the dashboard where dashboards items will be shown."
+      /Card icons will indicate ownership and public availability./i
     )
   ).toBeInTheDocument();
-  expect(await screen.findByLabelText("Next")).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  ////////////
+  // STEP 5 //
+  ////////////
+  expect(
+    await screen.findByText("Dashboard names are displayed in the card header.")
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  ////////////
+  // STEP 6 //
+  ////////////
+  expect(
+    await screen.findByText(
+      "Thumbnails provide an image representing the dashboard. Hover over the card body to see the description of the dashboard."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  ////////////
+  // STEP 7 //
+  ////////////
+  expect(
+    await screen.findByText(
+      /Additional dashboard options and interactions are available through the card context menu./i
+    )
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /Click on the context menu to see additional options./i
+    )
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-});
+  const contextMenuButton = await screen.findAllByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(contextMenuButton[0]);
+
+  ////////////
+  // STEP 8 //
+  ////////////
+  expect(
+    await screen.findByText(
+      "Open and view the dashboard. You can also double click on the card to open the dashboard."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  ////////////
+  // STEP 9 //
+  ////////////
+  expect(
+    await screen.findByText(
+      "Rename the dashboard. This will also update any public urls tied to this dashboard."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 10 //
+  /////////////
+  expect(
+    await screen.findByText("Update the description of the dashboard.")
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 11 //
+  /////////////
+  expect(
+    await screen.findByText("Update the thumbnail of the dashboard.")
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 12 //
+  /////////////
+  expect(
+    await screen.findByText(
+      "Update the sharing status of the dashboard or copy the public link for the dashboard if it is public."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 13 //
+  /////////////
+  expect(
+    await screen.findByText(
+      /Copy with the same settings and dashboard items. The new dashboard will have the name with "_copy" at the end./i
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(await screen.findByLabelText("Back")).toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 14 //
+  /////////////
+  expect(
+    await screen.findByText(
+      "Delete the dashboard. This action cannot be undone."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 15 //
+  /////////////
+  expect(
+    await screen.findByText(/For more information about TethysDash, visit the/i)
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(/TethysDash documentation/i)
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(/. Please follow instructions found in the/i)
+  ).toBeInTheDocument();
+  expect(await screen.findByText(/feedback/i)).toBeInTheDocument();
+  expect(
+    await screen.findByText(/sessions for reporting any bugs or issues./i)
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
+  endTourButton = await screen.findByLabelText("End App Tour");
+  await userEvent.click(endTourButton);
+
+  expect(
+    // eslint-disable-next-line
+    document.querySelector("#react-joyride-portal")
+  ).not.toBeInTheDocument();
+}, 40000);

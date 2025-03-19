@@ -23,6 +23,7 @@
     "dotenv": "^16.0.1",
     "file-loader": "^6.2.0",
     "html-react-parser": "^5.1.18",
+    "html2canvas": "^1.4.1",
     "ol": "10.4.0",
     "ol-mapbox-style": "^12.4.0",
     "plotly.js-strict-dist-min": "^2.35.2",

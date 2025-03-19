@@ -31,7 +31,7 @@ afterEach(() => {
 });
 
 test("Dashboard Viewer Modal Custom Image", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   const mockhandleModalClose = jest.fn();
   const mocksetGridItemMessage = jest.fn();
@@ -52,7 +52,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
           setShowGridItemMessage={mocksetShowGridItemMessage}
         />
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: { initialDashboard: mockedDashboards.user[0] },
     })
   );
 
@@ -88,7 +88,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
 });
 
 test("Dashboard Viewer Modal Variable Input", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   const mockhandleModalClose = jest.fn();
   const mocksetGridItemMessage = jest.fn();
@@ -109,7 +109,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
           setShowGridItemMessage={mocksetShowGridItemMessage}
         />
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: { initialDashboard: mockedDashboards.user[0] },
     })
   );
 
@@ -159,7 +159,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
 
 test("Dashboard Viewer Modal Variable Input already exists", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -211,7 +211,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
         />
       ),
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboard,
         dashboards: updatedMockedDashboards,
       },
     })
@@ -268,7 +268,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
 
 test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.editable;
+  const mockedDashboard = updatedMockedDashboards.user[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -340,20 +340,22 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
         </>
       ),
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboard,
         dashboards: updatedMockedDashboards,
         inDataViewerMode: true,
       },
     })
   );
 
-  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({
-      "Test Variable": "some value",
-    })
-  );
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({
+        "Test Variable": "some value",
+      })
+    );
+  });
 
-  const variableNameInput = screen.getByLabelText("Variable Name Input");
+  const variableNameInput = await screen.findByLabelText("Variable Name Input");
   fireEvent.change(variableNameInput, { target: { value: "Test Variable 2" } });
 
   const dataviewerSaveButton = await screen.findByLabelText(
@@ -370,7 +372,7 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
 });
 
 test("Dashboard Viewer Modal Switch tabs", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   const mockhandleModalClose = jest.fn();
   const mocksetGridItemMessage = jest.fn();
@@ -395,7 +397,7 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
         </>
       ),
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
         inDataViewerMode: true,
       },
     })
@@ -416,7 +418,7 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
 });
 
 test("Dashboard Viewer Modal selected visualization types modal", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   const mockhandleModalClose = jest.fn();
   const mocksetGridItemMessage = jest.fn();
@@ -441,7 +443,7 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
         </>
       ),
       options: {
-        initialDashboard: mockedDashboards.editable.name,
+        initialDashboard: mockedDashboards.user[0],
         inDataViewerMode: true,
       },
     })
@@ -472,7 +474,7 @@ test("Dashboard Viewer Modal selected visualization types modal", async () => {
 });
 
 test("Dashboard Viewer Modal Map False layer control", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.editable));
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
   const mockhandleModalClose = jest.fn();
   const mocksetGridItemMessage = jest.fn();
@@ -496,11 +498,12 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
           <ContextLayoutPComponent />
         </>
       ),
-      options: { initialDashboard: mockedDashboards.editable.name },
+      options: { initialDashboard: mockedDashboards.user[0] },
     })
   );
 
-  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  const visualizationTypeSelect =
+    await screen.findByLabelText("visualizationType");
   await userEvent.click(visualizationTypeSelect);
   const customImageOption = await screen.findByText("Map");
   fireEvent.click(customImageOption);
@@ -529,9 +532,8 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({
+      id: 1,
       name: "editable",
-      label: "test_label",
-      accessGroups: [],
       notes: "test_notes",
       gridItems: [
         {
@@ -554,7 +556,8 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
           metadata_string: "{}",
         },
       ],
-      editable: true,
+      accessGroups: [],
+      description: "test_description",
     })
   );
 });
