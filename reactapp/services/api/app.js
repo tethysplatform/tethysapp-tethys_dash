@@ -12,8 +12,18 @@ const appAPI = {
   getVisualizations: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/`);
   },
+  getDashboard: ({ id }) => {
+    return apiClient.get(`${APP_ROOT_URL}dashboards/get/`, {
+      params: { id },
+    });
+  },
   addDashboard: (data, csrf) => {
     return apiClient.post(`${APP_ROOT_URL}dashboards/add/`, data, {
+      headers: { "x-csrftoken": csrf },
+    });
+  },
+  copyDashboard: (data, csrf) => {
+    return apiClient.post(`${APP_ROOT_URL}dashboards/copy/`, data, {
       headers: { "x-csrftoken": csrf },
     });
   },

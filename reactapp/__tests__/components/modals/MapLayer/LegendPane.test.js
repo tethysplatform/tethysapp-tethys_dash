@@ -79,7 +79,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
   expect(within(symbolTooltip).getByText("Color")).toBeInTheDocument();
 
   // eslint-disable-next-line
-  const newSymbol = symbolTooltip.querySelectorAll(".col")[1];
+  const newSymbol = symbolTooltip.querySelectorAll(".col-auto")[1];
   fireEvent.click(newSymbol);
   expect(await screen.findByTestId("legend")).toHaveTextContent(
     JSON.stringify({

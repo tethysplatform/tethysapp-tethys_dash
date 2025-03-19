@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import selectEvent from "react-select-event";
 import DataInput from "components/inputs/DataInput";
@@ -30,7 +30,7 @@ describe("DataInput Component", () => {
       })
     );
 
-    const dropdown = screen.getByLabelText("Test Dropdown Input");
+    const dropdown = await screen.findByLabelText("Test Dropdown Input");
 
     // Verify dropdown rendering
     expect(dropdown).toBeInTheDocument();
@@ -66,7 +66,7 @@ describe("DataInput Component", () => {
       })
     );
 
-    const dropdown = screen.getByLabelText("Test Dropdown Input");
+    const dropdown = await screen.findByLabelText("Test Dropdown Input");
 
     // Open the dropdown
     await selectEvent.openMenu(dropdown);
@@ -84,7 +84,7 @@ describe("DataInput Component", () => {
       { label: "Option 2", value: "option2" },
     ];
     const dashboards = JSON.parse(JSON.stringify(mockedDashboards));
-    dashboards.editable.gridItems = [mockedTextVariable];
+    dashboards.user[0].gridItems = [mockedTextVariable];
 
     render(
       createLoadedComponent({
@@ -98,12 +98,12 @@ describe("DataInput Component", () => {
         options: {
           dashboards: dashboards,
           inDataViewerMode: true,
-          initialDashboard: dashboards.editable.name,
+          initialDashboard: dashboards.user[0],
         },
       })
     );
 
-    const dropdown = screen.getByLabelText("Test Dropdown Input");
+    const dropdown = await screen.findByLabelText("Test Dropdown Input");
 
     // Open the dropdown
     await selectEvent.openMenu(dropdown);
@@ -111,11 +111,13 @@ describe("DataInput Component", () => {
     // Check if the options are rendered
     expect(screen.getByText("Option 1")).toBeInTheDocument();
     expect(screen.getByText("Option 2")).toBeInTheDocument();
-    expect(screen.getByText("Variable Inputs")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Variable Inputs")).toBeInTheDocument();
+    });
     expect(screen.getByText("Test Variable")).toBeInTheDocument();
   });
 
-  test("renders checkbox and handles change", () => {
+  test("renders checkbox and handles change", async () => {
     render(
       createLoadedComponent({
         children: (
@@ -128,7 +130,7 @@ describe("DataInput Component", () => {
       })
     );
 
-    const checkbox = screen.getByLabelText("Test Checkbox Input");
+    const checkbox = await screen.findByLabelText("Test Checkbox Input");
 
     // Verify checkbox rendering
     expect(checkbox).toBeInTheDocument();
@@ -141,7 +143,7 @@ describe("DataInput Component", () => {
     expect(mockOnChange).toHaveBeenCalledWith(false, 0);
   });
 
-  test("renders radio buttons and handles selection", () => {
+  test("renders radio buttons and handles selection", async () => {
     const valueOptions = [
       { label: "Option 1", value: "option1" },
       { label: "Option 2", value: "option2" },
@@ -163,7 +165,7 @@ describe("DataInput Component", () => {
       })
     );
 
-    const option1 = screen.getByLabelText("Option 1");
+    const option1 = await screen.findByLabelText("Option 1");
     const option2 = screen.getByLabelText("Option 2");
 
     // Verify radio buttons rendering
@@ -195,7 +197,7 @@ describe("DataInput Component", () => {
       })
     );
 
-    const textInput = screen.getByLabelText("Test Text Input");
+    const textInput = await screen.findByLabelText("Test Text Input");
 
     // Verify text input rendering
     expect(textInput).toBeInTheDocument();
@@ -230,7 +232,7 @@ test("renders multiinput", async () => {
     })
   );
 
-  expect(screen.getByText("Test Multi Input")).toBeInTheDocument();
+  expect(await screen.findByText("Test Multi Input")).toBeInTheDocument();
 
   const textbox = screen.getByRole("textbox");
   await userEvent.type(textbox, "Some Input Value{enter}");
@@ -257,9 +259,9 @@ test("renders inputtable", async () => {
     })
   );
 
-  expect(screen.getByText("Test Input Table")).toBeInTheDocument();
+  expect(await screen.findByText("Test Input Table")).toBeInTheDocument();
 
-  const checkbox = screen.getByRole("checkbox");
+  const checkbox = await screen.findByRole("checkbox");
   expect(checkbox).toBeInTheDocument();
   fireEvent.click(checkbox);
   expect(checkbox).not.toBeChecked();
@@ -299,7 +301,7 @@ test("renders custom-AddMapLayer", async () => {
     })
   );
 
-  expect(screen.getByText("Test Add Map Layer")).toBeInTheDocument();
+  expect(await screen.findByText("Test Add Map Layer")).toBeInTheDocument();
 
   expect(screen.getByText("Add Layer")).toBeInTheDocument();
   expect(screen.getByText("Layer Name")).toBeInTheDocument();
