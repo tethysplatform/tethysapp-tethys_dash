@@ -5,7 +5,11 @@ import Modal from "react-bootstrap/Modal";
 import Form from "react-bootstrap/Form";
 import styled from "styled-components";
 import { useAppTourContext } from "components/contexts/AppTourContext";
-import { EditingContext, LayoutContext } from "components/contexts/Contexts";
+import {
+  EditingContext,
+  LayoutContext,
+  AppContext,
+} from "components/contexts/Contexts";
 import { confirm } from "components/inputs/DeleteConfirmation";
 
 const StyledCheck = styled(Form.Check)`
@@ -19,6 +23,7 @@ const StyledBody = styled(Modal.Body)`
 function AppInfoModal({ showModal, setShowModal, view }) {
   const layoutContext = useContext(LayoutContext);
   const editingContext = useContext(EditingContext);
+  const { user } = useContext(AppContext);
   const { setActiveAppTour, setAppTourStep } = useAppTourContext();
   const dontShowLandingPageInfoOnStart = localStorage.getItem(
     "dontShowLandingPageInfoOnStart"
@@ -116,17 +121,21 @@ function AppInfoModal({ showModal, setShowModal, view }) {
               .
             </>
           )}
-          <br />
-          <br />
-          If you would like to take a tour of the application, click on the
-          button below to begin.
-          <br />
-          <br />
-          <Button onClick={startAppTour} variant="info">
-            {view === "dashboard"
-              ? "Start Dashboard Tour"
-              : "Start Landing Page Tour"}
-          </Button>
+          {user?.username !== "public" && (
+            <>
+              <br />
+              <br />
+              If you would like to take a tour of the application, click on the
+              button below to begin.
+              <br />
+              <br />
+              <Button onClick={startAppTour} variant="info">
+                {view === "dashboard"
+                  ? "Start Dashboard Tour"
+                  : "Start Landing Page Tour"}
+              </Button>
+            </>
+          )}
         </StyledBody>
         <Modal.Footer>
           <StyledCheck

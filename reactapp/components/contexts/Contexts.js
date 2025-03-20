@@ -8,3 +8,4 @@ export const EditingContext = createContext();
 export const DisabledEditingMovementContext = createContext();
 export const DataViewerModeContext = createContext();
 export const MapContext = createContext();
+export const AppTourContext = createContext();

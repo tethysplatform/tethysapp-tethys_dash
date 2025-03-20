@@ -8,13 +8,15 @@ const OverflowBody = styled(Modal.Body)`
   overflow-x: auto;
 `;
 
-const Confirmation = ({
+export const Confirmation = ({
   okLabel = "OK",
   cancelLabel = "Cancel",
   title = "Confirmation",
   confirmation,
   show,
   proceed,
+  backdrop = true,
+  ...props
 }) => {
   return (
     <div className="static-modal">
@@ -22,8 +24,9 @@ const Confirmation = ({
         animation={false}
         show={show}
         onHide={() => proceed(false)}
-        backdrop={true}
+        backdrop={backdrop}
         keyboard={true}
+        {...props}
       >
         <Modal.Header>
           <Modal.Title>{title}</Modal.Title>
@@ -52,6 +55,7 @@ Confirmation.propTypes = {
   show: PropTypes.bool,
   proceed: PropTypes.func, // called when ok button is clicked.
   enableEscape: PropTypes.bool,
+  backdrop: PropTypes.oneOf([true, false, "static"]),
 };
 
 export function confirm(

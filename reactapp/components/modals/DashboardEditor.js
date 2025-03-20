@@ -6,6 +6,7 @@ import { useState, useEffect, useContext } from "react";
 import {
   LayoutContext,
   AvailableDashboardsContext,
+  AppContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import styled from "styled-components";
@@ -80,6 +81,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const { deleteDashboard, copyDashboard } = useContext(
     AvailableDashboardsContext
   );
+  const { user } = useContext(AppContext);
   const [localNotes, setLocalNotes] = useState(notes);
   const [localName, setLocalName] = useState(name);
   const [localDescription, setLocalDescription] = useState(description);
@@ -290,44 +292,46 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
           )}
         </TextEditorDiv>
       </Offcanvas.Body>
-      <StyledFooter>
-        <StyledButton
-          variant="secondary"
-          onClick={handleClose}
-          className="cancel-dashboard-editor-button"
-          aria-label="Cancel Dashboard Editor Button"
-        >
-          Close
-        </StyledButton>
-        <StyledButton
-          variant="info"
-          onClick={onCopy}
-          aria-label="Copy Dashboard Button"
-          className="copy-dashboard-button"
-        >
-          Copy dashboard
-        </StyledButton>
-        {editable && (
-          <>
-            <StyledButton
-              variant="danger"
-              onClick={onDelete}
-              aria-label="Delete Dashboard Button"
-              className="delete-dashboard-button"
-            >
-              Delete dashboard
-            </StyledButton>
-            <StyledButton
-              variant="success"
-              onClick={onSave}
-              aria-label="Save Dashboard Button"
-              className="save-dashboard-button"
-            >
-              Save changes
-            </StyledButton>
-          </>
-        )}
-      </StyledFooter>
+      {user?.username !== "public" && (
+        <StyledFooter>
+          <StyledButton
+            variant="secondary"
+            onClick={handleClose}
+            className="cancel-dashboard-editor-button"
+            aria-label="Cancel Dashboard Editor Button"
+          >
+            Close
+          </StyledButton>
+          <StyledButton
+            variant="info"
+            onClick={onCopy}
+            aria-label="Copy Dashboard Button"
+            className="copy-dashboard-button"
+          >
+            Copy dashboard
+          </StyledButton>
+          {editable && (
+            <>
+              <StyledButton
+                variant="danger"
+                onClick={onDelete}
+                aria-label="Delete Dashboard Button"
+                className="delete-dashboard-button"
+              >
+                Delete dashboard
+              </StyledButton>
+              <StyledButton
+                variant="success"
+                onClick={onSave}
+                aria-label="Save Dashboard Button"
+                className="save-dashboard-button"
+              >
+                Save changes
+              </StyledButton>
+            </>
+          )}
+        </StyledFooter>
+      )}
     </StyledOffcanvas>
   );
 }
