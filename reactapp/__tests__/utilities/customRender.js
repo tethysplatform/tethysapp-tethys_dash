@@ -48,7 +48,7 @@ const createLoadedComponent = ({ children, options = {} }) => {
         return res(
           ctx.status(200),
           ctx.json({
-            username: "jsmith",
+            username: options.user.username ?? "jsmith",
             firstName: "John",
             lastName: "Smith",
             email: "jsmith@tethys.org",

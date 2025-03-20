@@ -11,7 +11,7 @@ import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import appAPI from "services/api/app";
 import html2canvas from "html2canvas";
 import { useNavigate } from "react-router-dom";
-import { AppTourContext } from "components/contexts/AppTourContext";
+import { AppTourContext } from "components/contexts/Contexts";
 import { mockedDashboards } from "__tests__/utilities/constants";
 
 jest.mock("html2canvas");
@@ -72,7 +72,7 @@ test("LandingPageHeader, non staff user", async () => {
   expect(screen.getByLabelText("appExitButton")).toBeInTheDocument();
 });
 
-test("LandingPageHeader, show info", async () => {
+test("LandingPageHeader, public user and show info", async () => {
   render(
     createLoadedComponent({
       children: (
@@ -80,13 +80,20 @@ test("LandingPageHeader, show info", async () => {
           <LandingPageHeader />
         </MemoryRouter>
       ),
-      options: { user: { isAuthenticated: true, isStaff: false } },
+      options: {
+        user: { username: "public", isAuthenticated: true, isStaff: false },
+      },
     })
   );
 
-  const appInfoButton = await screen.findByLabelText("appInfoButton");
-  await userEvent.click(appInfoButton);
-  expect(screen.getByLabelText("App Info Modal")).toBeInTheDocument();
+  expect(await screen.findByLabelText("appExitButton")).toBeInTheDocument();
+  expect(screen.getByText("Available Dashboards")).toBeInTheDocument();
+  expect(screen.queryByLabelText("appSettingButton")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "dashboardLoginButton" })
+  ).toBeInTheDocument();
+  expect(screen.getByLabelText("appExitButton")).toBeInTheDocument();
 });
 
 test("DashboardHeader, show info", async () => {
