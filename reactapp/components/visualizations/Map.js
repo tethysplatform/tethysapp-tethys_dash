@@ -5,6 +5,7 @@ import {
   createHighlightLayer,
   createMarkerLayer,
   configurationPropType,
+  loadLayerJSONs,
 } from "components/map/utilities";
 import PropTypes from "prop-types";
 import { getBaseMapLayer } from "components/visualizations/utilities";
@@ -162,30 +163,7 @@ const MapVisualization = ({
         const newMapLegend = [];
         const newMapLayers = [];
         for (const layer of layers) {
-          if (layer.style) {
-            const styleJSONResponse = await appAPI.downloadJSON({
-              filename: layer.style,
-            });
-            if (styleJSONResponse.success) {
-              layer.configuration.style = styleJSONResponse.data;
-            } else {
-              delete layer.configuration.style;
-              console.error(
-                `Failed to load the style for ${layer.configuration.props.name} layer`
-              );
-            }
-          }
-
-          if (layer.configuration.props.source.type === "GeoJSON") {
-            const geoJSONResponse = await appAPI.downloadJSON({
-              filename: layer.configuration.props.source.geojson,
-            });
-            if (geoJSONResponse.success) {
-              layer.configuration.props.source.geojson = geoJSONResponse.data;
-            } else {
-              delete layer.configuration.props.source.geojson;
-            }
-          }
+          await loadLayerJSONs(layer);
 
           if (layer.legend) {
             newMapLegend.push(layer.legend);

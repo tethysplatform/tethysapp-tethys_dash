@@ -7,6 +7,8 @@ import VectorSource from "ol/source/Vector";
 import { LineString, MultiPolygon, Polygon, Point } from "ol/geom";
 import { Stroke, Style, Circle } from "ol/style";
 import Icon from "ol/style/Icon";
+import appAPI from "services/api/app";
+import { v4 as uuidv4 } from "uuid";
 
 export const sourcePropertiesOptions = {
   ImageArcGISRest: {
@@ -557,6 +559,66 @@ export function getMapAttributeVariables(mapLayers) {
     }
   }
   return mapAttributeVariables;
+}
+
+export async function loadLayerJSONs(mapLayer) {
+  if (mapLayer.configuration.style) {
+    const styleJSONResponse = await appAPI.downloadJSON({
+      filename: mapLayer.configuration.style,
+    });
+    if (styleJSONResponse.success) {
+      mapLayer.configuration.style = styleJSONResponse.data;
+    } else {
+      delete mapLayer.configuration.style;
+      return styleJSONResponse;
+    }
+  }
+
+  if (mapLayer.configuration.props.source.type === "GeoJSON") {
+    const geoJSONResponse = await appAPI.downloadJSON({
+      filename: mapLayer.configuration.props.source.geojson,
+    });
+    if (geoJSONResponse.success) {
+      mapLayer.configuration.props.source.geojson = geoJSONResponse.data;
+    } else {
+      delete mapLayer.configuration.props.source.geojson;
+      return geoJSONResponse;
+    }
+  }
+
+  return { success: true };
+}
+
+export async function saveLayerJSON({ stringJSON, csrf, check_crs }) {
+  let parsedJSON;
+  try {
+    parsedJSON = JSON.parse(stringJSON);
+  } catch (err) {
+    return {
+      success: false,
+      message:
+        "Invalid json is being used. Please alter the json and try again.",
+    };
+  }
+
+  if (check_crs) {
+    if (!parsedJSON?.crs?.properties?.name) {
+      return {
+        success: false,
+        message:
+          'GeoJSON must include a crs key with the structure {"properties": {"name": "EPSG:<CODE>"}}',
+      };
+    }
+  }
+
+  const JSONFilename = `${uuidv4()}.json`;
+  const JSONInfo = {
+    data: stringJSON,
+    filename: JSONFilename,
+  };
+  const apiResponse = await appAPI.uploadJSON(JSONInfo, csrf);
+
+  return apiResponse;
 }
 
 // layer attribute variable for the layer, structure is {layerName: {"field1": "Variable Name 1"}}

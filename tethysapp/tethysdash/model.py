@@ -482,9 +482,9 @@ def clean_up_jsons(user):
             in_use_jsons.append(json_files)
 
             stylejson_files = [
-                maps_grid_items_layer["style"]
+                maps_grid_items_layer["configuration"]["style"]
                 for maps_grid_items_layer in maps_grid_items_layers
-                if "style" in maps_grid_items_layer
+                if "style" in maps_grid_items_layer["configuration"]
             ]
             in_use_jsons.append(stylejson_files)
 

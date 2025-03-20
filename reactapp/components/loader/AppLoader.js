@@ -20,6 +20,7 @@ import LandingPage from "views/LandingPage";
 import AppTourContextProvider from "components/contexts/AppTourContext";
 import { Confirmation } from "components/inputs/DeleteConfirmation";
 import { getTethysPortalHost } from "services/utilities";
+import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -424,17 +425,6 @@ function Loader({ children }) {
     return apiResponse;
   }
 
-  async function importDashboard(dashboardContext) {
-    if (!("name" in dashboardContext)) {
-      return { success: false, message: "Dashboards must include a name" };
-    }
-    const newName = getUniqueDashboardName(dashboardContext.name);
-    dashboardContext.name = newName;
-
-    const apiResponse = await addDashboard(dashboardContext);
-    return apiResponse;
-  }
-
   async function deleteDashboard(id) {
     const apiResponse = await appAPI.deleteDashboard({ id }, appContext.csrf);
     if (apiResponse["success"]) {
@@ -444,14 +434,96 @@ function Loader({ children }) {
     return apiResponse;
   }
 
+  async function importDashboard(dashboardContext) {
+    if (!("name" in dashboardContext)) {
+      return { success: false, message: "Dashboards must include a name" };
+    }
+    const newName = getUniqueDashboardName(dashboardContext.name);
+    dashboardContext.name = newName;
+
+    if (dashboardContext.gridItems && dashboardContext.gridItems.length > 0) {
+      for (const gridItem of dashboardContext.gridItems) {
+        if (gridItem.source === "Map") {
+          if (
+            "additional_layers" in gridItem.args_string &&
+            gridItem.args_string["additional_layers"].length > 0
+          ) {
+            for (const mapLayer of gridItem.args_string["additional_layers"]) {
+              if (mapLayer.configuration.props.source.type === "GeoJSON") {
+                const apiResponse = await saveLayerJSON({
+                  stringJSON: JSON.stringify(
+                    mapLayer.configuration.props.source.geojson
+                  ),
+                  csrf: appContext.csrf,
+                  check_crs: true,
+                });
+
+                if (apiResponse.success) {
+                  mapLayer.configuration.props.source.geojson =
+                    apiResponse.filename;
+                } else {
+                  return apiResponse;
+                }
+              }
+
+              if (mapLayer.configuration.style) {
+                const apiResponse = await saveLayerJSON({
+                  stringJSON: JSON.stringify(mapLayer.configuration.style),
+                  csrf: appContext.csrf,
+                });
+
+                if (apiResponse.success) {
+                  mapLayer.configuration.style = apiResponse.filename;
+                } else {
+                  return apiResponse;
+                }
+              }
+            }
+          }
+        }
+        gridItem.args_string = JSON.stringify(gridItem.args_string);
+        gridItem.metadata_string = JSON.stringify(gridItem.metadata_string);
+      }
+    }
+
+    const apiResponse = await addDashboard(dashboardContext);
+    return apiResponse;
+  }
+
   async function exportDashboard(id) {
     const apiResponse = await appAPI.getDashboard({ id });
     if (apiResponse.success) {
       const { id, gridItems, uuid, ...dashboardProperties } =
         apiResponse.dashboard;
+
+      const updatedGridItems = [];
+      for (const gridItem of gridItems) {
+        const { id, ...gridItemProperties } = gridItem;
+        gridItemProperties.metadata_string = JSON.parse(
+          gridItemProperties.metadata_string
+        );
+        const gridItemArgs = JSON.parse(gridItemProperties.args_string);
+        gridItemProperties.args_string = gridItemArgs;
+
+        if (gridItemProperties.source === "Map") {
+          if (
+            "additional_layers" in gridItemArgs &&
+            gridItemArgs["additional_layers"].length > 0
+          ) {
+            for (const mapLayer of gridItemArgs["additional_layers"]) {
+              const apiResponse = await loadLayerJSONs(mapLayer);
+              if (!apiResponse.success) {
+                return apiResponse;
+              }
+            }
+          }
+        }
+        updatedGridItems.push(gridItemProperties);
+      }
+
       const exportedDashboard = {
         ...dashboardProperties,
-        gridItems: gridItems.map(({ id, ...rest }) => rest),
+        gridItems: updatedGridItems,
       };
 
       try {

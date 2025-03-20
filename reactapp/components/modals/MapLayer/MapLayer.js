@@ -20,13 +20,12 @@ import {
   attributeVariablesPropType,
   legendPropType,
   sourcePropType,
+  saveLayerJSON,
 } from "components/map/utilities";
-import { v4 as uuidv4 } from "uuid";
 import {
   removeEmptyValues,
   checkRequiredKeys,
 } from "components/modals/utilities";
-import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
 const StyledModalHeader = styled(Modal.Header)`
@@ -220,79 +219,34 @@ const MapLayerModal = ({
       mapConfiguration.legend = legend;
     }
 
-    let geoJSON;
     if (sourceProps.type === "GeoJSON") {
-      try {
-        geoJSON = JSON.parse(sourceProps.geojson);
-      } catch (err) {
-        setErrorMessage(
-          <>
-            <p>
-              Invalid GeoJSON is being used. Please alter the json and try
-              again.
-            </p>
-            <br />
-            <br />
-            {err.message}
-          </>
-        );
-        return;
-      }
-
-      if (!geoJSON?.crs?.properties?.name) {
-        setErrorMessage(
-          'GeoJSON must include a crs key with the structure {"properties": {"name": "EPSG:<CODE>"}}'
-        );
-        return;
-      }
-
-      const geoJSONFilename = `${uuidv4()}.json`;
-      const geoJSONInfo = {
-        data: sourceProps.geojson,
-        filename: geoJSONFilename,
-      };
-      const apiResponse = await appAPI.uploadJSON(geoJSONInfo, csrf);
+      const apiResponse = await saveLayerJSON({
+        stringJSON: sourceProps.geojson,
+        csrf,
+        check_crs: true,
+      });
       if (!apiResponse.success) {
         setErrorMessage(
-          "Failed to upload the json data. Check logs for more information."
+          apiResponse.message ??
+            "Failed to upload the json data. Check logs for more information."
         );
         return;
       }
       mapConfiguration.configuration.props.source.props = {};
-      mapConfiguration.configuration.props.source.geojson = geoJSONFilename;
+      mapConfiguration.configuration.props.source.geojson =
+        apiResponse.filename;
     }
 
     if (style && style !== "{}") {
-      try {
-        JSON.parse(style);
-      } catch (err) {
-        setErrorMessage(
-          <>
-            <p>
-              Invalid style json is being used. Please alter the json and try
-              again.
-            </p>
-            <br />
-            <br />
-            {err.message}
-          </>
-        );
-        return;
-      }
-
-      const styleJSONFilename = `${uuidv4()}.json`;
-      const styleJSONInfo = {
-        data: style,
-        filename: styleJSONFilename,
-      };
-      const apiResponse = await appAPI.uploadJSON(styleJSONInfo, csrf);
+      const apiResponse = await saveLayerJSON({ stringJSON: style, csrf });
       if (!apiResponse.success) {
         setErrorMessage(
-          "Failed to upload the json data. Check logs for more information."
+          apiResponse.message ??
+            "Failed to upload the json data. Check logs for more information."
         );
         return;
       }
-      mapConfiguration.style = styleJSONFilename;
+      mapConfiguration.configuration.style = apiResponse.filename;
     }
 
     addMapLayer(mapConfiguration);
