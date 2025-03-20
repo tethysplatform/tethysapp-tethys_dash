@@ -70,6 +70,7 @@ function DashboardThumbnailModal({
           variant="success"
           onClick={() => onUpdateThumbnail(imageSrc)}
           aria-label={"Update Thumbnail Button"}
+          disabled={!imageSrc}
         >
           Update
         </Button>

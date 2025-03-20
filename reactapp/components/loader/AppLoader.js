@@ -360,9 +360,12 @@ function Loader({ children }) {
 
   function getUniqueDashboardName(name) {
     const existingNames = availableDashboards.user.map((obj) => obj.name);
+    if (!existingNames.includes(name)) {
+      return name;
+    }
+
     let newName = `${name} - Copy`;
     let count = 2;
-
     while (existingNames.includes(newName)) {
       newName = `${name} - Copy (${count})`;
       count++;
@@ -421,12 +424,58 @@ function Loader({ children }) {
     return apiResponse;
   }
 
+  async function importDashboard(dashboardContext) {
+    if (!("name" in dashboardContext)) {
+      return { success: false, message: "Dashboards must include a name" };
+    }
+    const newName = getUniqueDashboardName(dashboardContext.name);
+    dashboardContext.name = newName;
+
+    const apiResponse = await addDashboard(dashboardContext);
+    return apiResponse;
+  }
+
   async function deleteDashboard(id) {
     const apiResponse = await appAPI.deleteDashboard({ id }, appContext.csrf);
     if (apiResponse["success"]) {
       const userDashboards = removeDashboardById({ id });
       setAvailableDashboards({ ...availableDashboards, user: userDashboards });
     }
+    return apiResponse;
+  }
+
+  async function exportDashboard(id) {
+    const apiResponse = await appAPI.getDashboard({ id });
+    if (apiResponse.success) {
+      const { id, gridItems, uuid, ...dashboardProperties } =
+        apiResponse.dashboard;
+      const exportedDashboard = {
+        ...dashboardProperties,
+        gridItems: gridItems.map(({ id, ...rest }) => rest),
+      };
+
+      try {
+        // Convert to JSON string
+        const jsonString = JSON.stringify(exportedDashboard, null, 2); // Pretty format
+
+        // Create a Blob and a download link
+        const blob = new Blob([jsonString], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${exportedDashboard.name}.json`; // File name
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // Revoke the URL to free memory
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        return { success: false, message: "Failed to export dashboard" };
+      }
+    }
+
     return apiResponse;
   }
 
@@ -494,6 +543,8 @@ function Loader({ children }) {
               deleteDashboard,
               copyDashboard,
               updateDashboard,
+              exportDashboard,
+              importDashboard,
             }}
           >
             <AppTourContextProvider>{children}</AppTourContextProvider>

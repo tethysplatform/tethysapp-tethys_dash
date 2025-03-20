@@ -41,6 +41,7 @@ const ContextMenu = ({
   setIsEditingDescription,
   onDelete,
   onCopy,
+  onExport,
   viewDashboard,
   onShare,
   onCopyPublicLink,
@@ -153,6 +154,9 @@ const ContextMenu = ({
         <Dropdown.Item onClick={onCopy} className="card-copy-option">
           Copy
         </Dropdown.Item>
+        <Dropdown.Item onClick={onExport} className="card-export-option">
+          Export
+        </Dropdown.Item>
         {editable && (
           <>
             <Dropdown.Item onClick={onDelete} className="card-delete-option">
@@ -172,6 +176,7 @@ ContextMenu.propTypes = {
   setShowThumbnailModal: PropTypes.func,
   onDelete: PropTypes.func,
   onCopy: PropTypes.func,
+  onExport: PropTypes.func,
   onShare: PropTypes.func,
   onCopyPublicLink: PropTypes.func,
   shared: PropTypes.bool,

@@ -4,6 +4,8 @@ import {
   AppContext,
   AvailableDashboardsContext,
 } from "components/contexts/Contexts";
+import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
+import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import DashboardCard, {
   NewDashboardCard,
   NoDashboardCard,
@@ -38,8 +40,9 @@ const LandingPage = () => {
   }, [availableDashboards]);
 
   return (
-    <>
+    <LayoutAlertContextProvider>
       <LandingPageHeader />
+      <DashboardLayoutAlerts />
       <StyledContainer fluid className="landing-page">
         <StyledRow>
           {user?.username !== "public" && (
@@ -64,7 +67,7 @@ const LandingPage = () => {
           )}
         </StyledRow>
       </StyledContainer>
-    </>
+    </LayoutAlertContextProvider>
   );
 };
 

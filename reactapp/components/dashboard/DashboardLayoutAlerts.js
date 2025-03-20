@@ -9,14 +9,14 @@ import Alert from "react-bootstrap/Alert";
 const StyledAbsDiv = styled.div`
   position: absolute;
   z-index: 1000;
-  left: 0;
-  right: 0;
+  left: 1rem;
+  right: 1rem;
 `;
 
 function DashboardLayoutAlerts() {
-  const {successMessage, showSuccessMessage} = useLayoutSuccessAlertContext();
-  const {errorMessage, showErrorMessage} = useLayoutErrorAlertContext();
-  const {warningMessage, showWarningMessage} = useLayoutWarningAlertContext();
+  const { successMessage, showSuccessMessage } = useLayoutSuccessAlertContext();
+  const { errorMessage, showErrorMessage } = useLayoutErrorAlertContext();
+  const { warningMessage, showWarningMessage } = useLayoutWarningAlertContext();
 
   return (
     <StyledAbsDiv>

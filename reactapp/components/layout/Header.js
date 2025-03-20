@@ -16,6 +16,7 @@ import {
 import TooltipButton from "components/buttons/TooltipButton";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import AppInfoModal from "components/modals/AppInfo";
+import DashboardImportModal from "components/modals/DashboardImport";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import {
   useLayoutSuccessAlertContext,
@@ -31,6 +32,7 @@ import {
   BsFloppy,
   BsPencilSquare,
   BsFillPersonFill,
+  BsUpload,
 } from "react-icons/bs";
 import { CiUndo } from "react-icons/ci";
 import { FaPlus } from "react-icons/fa6";
@@ -94,6 +96,7 @@ export const LandingPageHeader = () => {
   const [showInfoModal, setShowInfoModal] = useState(
     dontShowLandingPageInfoOnStart !== "true"
   );
+  const [showImportModal, setShowImportModal] = useState(false);
 
   return (
     <>
@@ -103,16 +106,6 @@ export const LandingPageHeader = () => {
             <WhiteTitle>Available Dashboards</WhiteTitle>
           </TitleDiv>
           <div>
-            {user.isStaff && (
-              <TooltipButton
-                href={tethysApp.settingsUrl}
-                tooltipPlacement="bottom"
-                tooltipText="App Settings"
-                aria-label={"appSettingButton"}
-              >
-                <BsGear size="1.5rem" />
-              </TooltipButton>
-            )}
             {user?.username === "public" ? (
               <TooltipButton
                 onClick={() => {
@@ -127,13 +120,33 @@ export const LandingPageHeader = () => {
                 <BsFillPersonFill size="1.5rem" />
               </TooltipButton>
             ) : (
+              <>
+                <TooltipButton
+                  onClick={() => setShowImportModal(true)}
+                  tooltipPlacement="bottom"
+                  tooltipText="Import Dashboard"
+                  aria-label="importDashboardButton"
+                >
+                  <BsUpload size="1.5rem" />
+                </TooltipButton>
+                <TooltipButton
+                  onClick={() => setShowInfoModal(true)}
+                  tooltipPlacement="bottom"
+                  tooltipText="App Info"
+                  aria-label="appInfoButton"
+                >
+                  <BsInfo size="1.5rem" />
+                </TooltipButton>
+              </>
+            )}
+            {user.isStaff && (
               <TooltipButton
-                onClick={() => setShowInfoModal(true)}
+                href={tethysApp.settingsUrl}
                 tooltipPlacement="bottom"
-                tooltipText="App Info"
-                aria-label="appInfoButton"
+                tooltipText="App Settings"
+                aria-label={"appSettingButton"}
               >
-                <BsInfo size="1.5rem" />
+                <BsGear size="1.5rem" />
               </TooltipButton>
             )}
             <TooltipButton
@@ -151,6 +164,12 @@ export const LandingPageHeader = () => {
         <AppInfoModal
           showModal={showInfoModal}
           setShowModal={setShowInfoModal}
+        />
+      )}
+      {showImportModal && (
+        <DashboardImportModal
+          showModal={showImportModal}
+          setShowModal={setShowImportModal}
         />
       )}
     </>

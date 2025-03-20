@@ -95,13 +95,18 @@ def add_dashboard(request, app_media):
     """API controller for the dashboards page."""
     dashboard_metadata = json.loads(request.body)
     name = dashboard_metadata["name"]
-    description = dashboard_metadata["description"]
+    description = dashboard_metadata.get("description", "")
+    notes = dashboard_metadata.get("notes", "")
+    access_groups = dashboard_metadata.get("accessGroups", [])
+    grid_items = dashboard_metadata.get("gridItems", [])
     owner = str(request.user)
     dashboard_uuid = str(uuid.uuid4())
     print(f"Creating a dashboard named {name}")
 
     try:
-        new_dashboard_id = add_new_dashboard(owner, dashboard_uuid, name, description)
+        new_dashboard_id = add_new_dashboard(
+            owner, dashboard_uuid, name, description, notes, access_groups, grid_items
+        )
 
         dashboard_image = os.path.join(
             os.path.dirname(__file__), "default_dashboard.png"

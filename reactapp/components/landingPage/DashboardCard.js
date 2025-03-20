@@ -164,9 +164,8 @@ const DashboardCard = ({
   image,
 }) => {
   const navigate = useNavigate();
-  const { deleteDashboard, copyDashboard, updateDashboard } = useContext(
-    AvailableDashboardsContext
-  );
+  const { deleteDashboard, copyDashboard, updateDashboard, exportDashboard } =
+    useContext(AvailableDashboardsContext);
   const [errorMessage, setErrorMessage] = useState(null);
   const [shared, setShared] = useState(accessGroups.includes("public"));
   const [showThumbnailModal, setShowThumbnailModal] = useState(false);
@@ -221,6 +220,13 @@ const DashboardCard = ({
         setErrorMessage("Failed to copy dashboard");
       }
     });
+  }
+
+  async function onExport() {
+    const apiResponse = await exportDashboard(id);
+    if (!apiResponse["success"]) {
+      setErrorMessage(apiResponse["message"] ?? "Failed to export dashboard");
+    }
   }
 
   async function onShare() {
@@ -356,6 +362,7 @@ const DashboardCard = ({
             setIsEditingDescription={setIsEditingDescription}
             onDelete={onDelete}
             onCopy={onCopy}
+            onExport={onExport}
             viewDashboard={viewDashboard}
             onShare={onShare}
             onCopyPublicLink={onCopyPublicLink}
