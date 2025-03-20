@@ -4,7 +4,7 @@ import Dropdown from "react-bootstrap/Dropdown";
 import { BsThreeDotsVertical, BsFillCaretRightFill } from "react-icons/bs";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import { useState, useRef, useEffect } from "react";
-import "components/buttons/itemDropdown.css";
+import "components/dashboard/itemDropdown.css";
 
 const StyledDropdownToggle = styled(Dropdown.Toggle)`
   background: transparent !important;

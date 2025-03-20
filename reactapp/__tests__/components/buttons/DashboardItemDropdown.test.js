@@ -1,6 +1,6 @@
 import { screen, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
+import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import { mockedDashboards } from "__tests__/utilities/constants";
 

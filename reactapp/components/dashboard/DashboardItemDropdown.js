@@ -5,7 +5,7 @@ import { BsThreeDotsVertical } from "react-icons/bs";
 import { useContext, useState } from "react";
 import { LayoutContext } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
-import "components/buttons/itemDropdown.css";
+import "components/dashboard/itemDropdown.css";
 
 const StyledDropdownToggle = styled(Dropdown.Toggle)`
   background: transparent !important;
@@ -18,6 +18,7 @@ const DashboardItemDropdown = ({
   showFullscreen,
   deleteGridItem,
   editGridItem,
+  exportGridItem,
   editSize,
   copyGridItem,
 }) => {
@@ -66,13 +67,21 @@ const DashboardItemDropdown = ({
             >
               Create Copy
             </Dropdown.Item>
-            <Dropdown.Item
-              onClick={deleteGridItem}
-              className="dashboard-item-dropdown-delete"
-            >
-              Delete
-            </Dropdown.Item>
           </>
+        )}
+        <Dropdown.Item
+          onClick={exportGridItem}
+          className="dashboard-item-dropdown-export"
+        >
+          Export
+        </Dropdown.Item>
+        {editable && (
+          <Dropdown.Item
+            onClick={deleteGridItem}
+            className="dashboard-item-dropdown-delete"
+          >
+            Delete
+          </Dropdown.Item>
         )}
       </Dropdown.Menu>
     </Dropdown>

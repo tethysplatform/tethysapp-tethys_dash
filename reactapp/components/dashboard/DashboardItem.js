@@ -10,7 +10,7 @@ import {
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
-import DashboardItemDropdown from "components/buttons/DashboardItemDropdown";
+import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import { getGridItem } from "components/visualizations/utilities";
@@ -75,6 +75,36 @@ const DashboardItem = ({
     }
   }
 
+  async function exportGridItem() {
+    const { gridItems } = getDashboardMetadata();
+    const exportedGridItem = gridItems[gridItemIndex];
+    exportedGridItem.args_string = JSON.parse(exportedGridItem.args_string);
+    exportedGridItem.metadata_string = JSON.parse(
+      exportedGridItem.metadata_string
+    );
+
+    try {
+      // Convert to JSON string
+      const jsonString = JSON.stringify(exportedGridItem, null, 2); // Pretty format
+
+      // Create a Blob and a download link
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `TethysDashGridItem.json`; // File name
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Revoke the URL to free memory
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      return { success: false, message: "Failed to export griditem" };
+    }
+  }
+
   function copyGridItem() {
     const { gridItems } = getDashboardMetadata();
     let maxGridItemI = gridItems.reduce((acc, value) => {
@@ -135,6 +165,7 @@ const DashboardItem = ({
             showFullscreen={gridItemSource ? onFullscreen : null}
             deleteGridItem={deleteGridItem}
             editGridItem={editGridItem}
+            exportGridItem={exportGridItem}
             editSize={isEditing ? null : editSize}
             copyGridItem={copyGridItem}
           />
