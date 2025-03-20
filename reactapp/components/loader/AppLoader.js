@@ -25,6 +25,18 @@ import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
 
+const minMapLayerStructure = `Map layers must have at minimum, the following structure:
+{
+    configuration: {
+        type: <Some Value>,
+        props: {
+            source: {
+                type: <Some Value>
+            }
+        }
+    }
+}`;
+
 function setupRoutes(dashboards) {
   const PATH_HOME = "/";
   const baseRoutes = [
@@ -443,13 +455,47 @@ function Loader({ children }) {
 
     if (dashboardContext.gridItems && dashboardContext.gridItems.length > 0) {
       for (const gridItem of dashboardContext.gridItems) {
+        const requiredGridItemKeys = [
+          "i",
+          "x",
+          "y",
+          "w",
+          "h",
+          "source",
+          "args_string",
+          "metadata_string",
+        ];
+        if (
+          !requiredGridItemKeys.every((key) =>
+            Object.prototype.hasOwnProperty.call(gridItem, key)
+          )
+        ) {
+          return {
+            success: false,
+            message: `Grid Items must include ${requiredGridItemKeys.join(", ")} keys`,
+          };
+        }
+
         if (gridItem.source === "Map") {
           if (
             "additional_layers" in gridItem.args_string &&
             gridItem.args_string["additional_layers"].length > 0
           ) {
             for (const mapLayer of gridItem.args_string["additional_layers"]) {
-              if (mapLayer.configuration.props.source.type === "GeoJSON") {
+              if (
+                !mapLayer?.configuration?.props?.source?.type ||
+                !mapLayer?.configuration?.type
+              ) {
+                return {
+                  success: false,
+                  message: minMapLayerStructure,
+                };
+              }
+
+              if (
+                mapLayer.configuration.props.source.type === "GeoJSON" &&
+                mapLayer.configuration.props.source.geojson
+              ) {
                 const apiResponse = await saveLayerJSON({
                   stringJSON: JSON.stringify(
                     mapLayer.configuration.props.source.geojson
