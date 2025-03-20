@@ -7,6 +7,7 @@ import {
   EditingContext,
   VariableInputsContext,
   DataViewerModeContext,
+  AppContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
@@ -15,6 +16,7 @@ import BaseVisualization from "components/visualizations/Base";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import { getGridItem } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
+import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
 
 const StyledContainer = styled(Container)`
   position: relative;
@@ -27,6 +29,43 @@ const StyledButtonDiv = styled.div`
   right: 0;
   z-index: 1;
 `;
+
+const minMapLayerStructure = `Map layers must have at minimum, the following structure:
+{
+    configuration: {
+        type: <Some Value>,
+        props: {
+            source: {
+                type: <Some Value>
+            }
+        }
+    }
+}`;
+
+export const handleGridItemExport = async (gridItem) => {
+  const { id, ...exportedGridItem } = gridItem;
+  exportedGridItem.metadata_string = JSON.parse(
+    exportedGridItem.metadata_string
+  );
+  const gridItemArgs = JSON.parse(exportedGridItem.args_string);
+  exportedGridItem.args_string = gridItemArgs;
+
+  if (exportedGridItem.source === "Map") {
+    if (
+      "additional_layers" in gridItemArgs &&
+      gridItemArgs["additional_layers"].length > 0
+    ) {
+      for (const mapLayer of gridItemArgs["additional_layers"]) {
+        const apiResponse = await loadLayerJSONs(mapLayer);
+        if (!apiResponse.success) {
+          return apiResponse;
+        }
+      }
+    }
+  }
+
+  return exportedGridItem;
+};
 
 const DashboardItem = ({
   gridItemSource,
@@ -77,11 +116,9 @@ const DashboardItem = ({
 
   async function exportGridItem() {
     const { gridItems } = getDashboardMetadata();
-    const exportedGridItem = gridItems[gridItemIndex];
-    exportedGridItem.args_string = JSON.parse(exportedGridItem.args_string);
-    exportedGridItem.metadata_string = JSON.parse(
-      exportedGridItem.metadata_string
-    );
+    const gridItem = JSON.parse(JSON.stringify(gridItems[gridItemIndex]));
+
+    const exportedGridItem = await handleGridItemExport(gridItem);
 
     try {
       // Convert to JSON string

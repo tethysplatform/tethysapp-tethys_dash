@@ -21,6 +21,7 @@ import AppTourContextProvider from "components/contexts/AppTourContext";
 import { Confirmation } from "components/inputs/DeleteConfirmation";
 import { getTethysPortalHost } from "services/utilities";
 import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
+import { handleGridItemExport } from "components/dashboard/DashboardItem";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -544,27 +545,8 @@ function Loader({ children }) {
 
       const updatedGridItems = [];
       for (const gridItem of gridItems) {
-        const { id, ...gridItemProperties } = gridItem;
-        gridItemProperties.metadata_string = JSON.parse(
-          gridItemProperties.metadata_string
-        );
-        const gridItemArgs = JSON.parse(gridItemProperties.args_string);
-        gridItemProperties.args_string = gridItemArgs;
-
-        if (gridItemProperties.source === "Map") {
-          if (
-            "additional_layers" in gridItemArgs &&
-            gridItemArgs["additional_layers"].length > 0
-          ) {
-            for (const mapLayer of gridItemArgs["additional_layers"]) {
-              const apiResponse = await loadLayerJSONs(mapLayer);
-              if (!apiResponse.success) {
-                return apiResponse;
-              }
-            }
-          }
-        }
-        updatedGridItems.push(gridItemProperties);
+        const exportedGridItem = await handleGridItemExport(gridItem);
+        updatedGridItems.push(exportedGridItem);
       }
 
       const exportedDashboard = {
