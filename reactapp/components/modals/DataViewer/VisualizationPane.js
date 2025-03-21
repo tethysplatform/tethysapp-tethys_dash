@@ -28,12 +28,18 @@ const StyledDiv = styled.div`
   padding-bottom: 1rem;
 `;
 
-const InLineInputDiv = styled.div`
-  display: inline-block;
-  width: calc(100% - 3.5em);
+const DropdownDiv = styled.div`
+  flex: 1;
+  margin-right: 1rem;
 `;
-const InLineButtonDiv = styled.div`
-  display: inline-block;
+
+const ButtonDiv = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const FlexDiv = styled.div`
+  display: flex;
+  width: 100%;
 `;
 
 const VisualizationArguments = ({
@@ -296,33 +302,39 @@ function VisualizationPane({
 
   return (
     <>
-      <InLineButtonDiv>
-        <TooltipButton
-          tooltipPlacement="bottom"
-          tooltipText="Visualization Settings"
-          aria-label={"visualizationSettingButton"}
-          onClick={
-            activeAppTour
-              ? () => {}
-              : () => {
-                  setShowVisualizationTypeSettingsModal(true);
-                  setShowingSubModal(true);
-                }
-          }
-        >
-          <CiFilter size="1.5rem" />
-        </TooltipButton>
-      </InLineButtonDiv>
-      <InLineInputDiv>
-        <DataSelect
-          label="Visualization Type"
-          selectedOption={selectedVizTypeOption}
-          onChange={onDataTypeChange}
-          options={activeAppTour ? [customImageOption] : vizOptions}
-          aria-label={"visualizationType"}
-          className={"visualizationTypeDropdown"}
-        />
-      </InLineInputDiv>
+      <label>
+        <b>Visualization Type</b>:
+      </label>
+      <FlexDiv>
+        <ButtonDiv>
+          <TooltipButton
+            tooltipPlacement="bottom"
+            tooltipText="Visualization Settings"
+            aria-label={"visualizationSettingButton"}
+            onClick={
+              activeAppTour
+                ? () => {}
+                : () => {
+                    setShowVisualizationTypeSettingsModal(true);
+                    setShowingSubModal(true);
+                  }
+            }
+            className={"filterButton"}
+            style={{ height: "100%" }}
+          >
+            <CiFilter size="1.5rem" />
+          </TooltipButton>
+        </ButtonDiv>
+        <DropdownDiv>
+          <DataSelect
+            selectedOption={selectedVizTypeOption}
+            onChange={onDataTypeChange}
+            options={activeAppTour ? [customImageOption] : vizOptions}
+            aria-label={"visualizationType"}
+            className={"visualizationTypeDropdown"}
+          />
+        </DropdownDiv>
+      </FlexDiv>
       <VisualizationArguments
         selectedVizTypeOption={selectedVizTypeOption}
         vizInputsValues={vizInputsValues}

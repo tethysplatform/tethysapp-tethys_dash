@@ -36,15 +36,11 @@ const StyledInput = styled.input`
   width: 100%;
 `;
 
-const InLineInputDiv = styled.div`
-  display: inline-block;
-  width: calc(100% - 1.5em);
+const InputDiv = styled.div`
   vertical-align: middle;
+  flex: 1;
 `;
 
-const InLineButtonDiv = styled.div`
-  display: inline-block;
-`;
 const AlignedDragHandle = styled(RxDragHandleHorizontal)`
   margin: auto;
 `;
@@ -56,6 +52,11 @@ const StyledPopoverBody = styled(Popover.Body)`
 
 const HoverDiv = styled.div`
   cursor: pointer;
+`;
+
+const FlexDiv = styled.div`
+  display: flex;
+  width: 100%;
 `;
 
 const LegendTemplate = ({
@@ -111,15 +112,15 @@ const LegendTemplate = ({
   return (
     <tr key={index} {...draggingProps}>
       <td>
-        <InLineButtonDiv>
+        <FlexDiv>
           <AlignedDragHandle size={"1rem"} />
-        </InLineButtonDiv>
-        <InLineInputDiv>
-          <StyledInput
-            value={localLabel}
-            onChange={onLabelChange}
-          ></StyledInput>
-        </InLineInputDiv>
+          <InputDiv>
+            <StyledInput
+              value={localLabel}
+              onChange={onLabelChange}
+            ></StyledInput>
+          </InputDiv>
+        </FlexDiv>
       </td>
       <td className="text-center">
         <div
