@@ -39,7 +39,9 @@ it("Creates a Text Input for a Variable Input", async () => {
     })
   );
 
-  const variableInput = await screen.findByLabelText("Test Variable Input");
+  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+  const variableInput = await screen.findByRole("textbox");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "Hello World");
 
@@ -81,7 +83,9 @@ it("Creates a Number Input for a Variable Input", async () => {
     })
   );
 
-  const variableInput = await screen.findByLabelText("Test Variable Input");
+  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+  const variableInput = await screen.findByRole("spinbutton");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "9");
 
@@ -245,7 +249,9 @@ describe("When inDataViewerMode", () => {
       })
     );
 
-    const variableInput = await screen.findByLabelText("Test Variable Input");
+    expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+    const variableInput = await screen.findByRole("textbox");
     expect(variableInput).toBeInTheDocument();
     await user.type(variableInput, "Hello World");
 
@@ -290,7 +296,9 @@ describe("When inDataViewerMode", () => {
       })
     );
 
-    const variableInput = await screen.findByLabelText("Test Variable Input");
+    expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+    const variableInput = await screen.findByRole("spinbutton");
     expect(variableInput).toBeInTheDocument();
     await user.type(variableInput, "9");
 

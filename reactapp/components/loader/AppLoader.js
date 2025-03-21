@@ -20,7 +20,6 @@ import LandingPage from "views/LandingPage";
 import AppTourContextProvider from "components/contexts/AppTourContext";
 import { Confirmation } from "components/inputs/DeleteConfirmation";
 import { getTethysPortalHost } from "services/utilities";
-import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
 import {
   handleGridItemExport,
   handleGridItemImport,
@@ -28,18 +27,6 @@ import {
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
-
-const minMapLayerStructure = `Map layers must have at minimum, the following structure:
-{
-    configuration: {
-        type: <Some Value>,
-        props: {
-            source: {
-                type: <Some Value>
-            }
-        }
-    }
-}`;
 
 function setupRoutes(dashboards) {
   const PATH_HOME = "/";

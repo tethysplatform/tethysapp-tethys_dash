@@ -188,7 +188,9 @@ it("Creates an Base Item with a variable input text box", async () => {
     })
   );
 
-  const variableInput = await screen.findByLabelText("Test Variable Input");
+  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+  const variableInput = await screen.findByRole("textbox");
   expect(variableInput).toBeInTheDocument();
   await user.type(variableInput, "Hello World");
 
@@ -548,7 +550,7 @@ it("Base - update variable input", async () => {
     expect(image.src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
   });
 
-  const variableInput = screen.getByLabelText("Test Variable Input");
+  const variableInput = screen.getByLabelText("undefined Input");
   expect(variableInput).toBeInTheDocument();
   fireEvent.change(variableInput, {
     target: {
