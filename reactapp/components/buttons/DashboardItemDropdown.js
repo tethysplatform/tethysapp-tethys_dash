@@ -43,7 +43,7 @@ const DashboardItemDropdown = ({
         <BsThreeDotsVertical />
       </StyledDropdownToggle>
 
-      <Dropdown.Menu align="end" show={showMenu}>
+      <Dropdown.Menu align="end" show={showMenu} container="body">
         {showFullscreen && (
           <Dropdown.Item onClick={showFullscreen}>Fullscreen</Dropdown.Item>
         )}

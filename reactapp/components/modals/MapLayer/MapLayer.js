@@ -14,7 +14,6 @@ import StylePane from "components/modals/MapLayer/StylePane";
 import { AppContext } from "components/contexts/Contexts";
 import {
   sourcePropertiesOptions,
-  getMapAttributeVariables,
   layerPropType,
   omittedPopupAttributesPropType,
   attributeVariablesPropType,
@@ -51,8 +50,6 @@ const MapLayerModal = ({
   handleModalClose,
   addMapLayer,
   layerInfo,
-  mapLayers,
-  existingLayerOriginalName,
 }) => {
   const [tabKey, setTabKey] = useState("layer");
   const [errorMessage, setErrorMessage] = useState(null);
@@ -98,45 +95,6 @@ const MapLayerModal = ({
       const pendingVariableInputs = Object.values(
         minAttributeVariables
       ).flatMap((value) => Object.values(value));
-
-      // get other variable inputs in the map
-      let otherMapLayers;
-      if (existingLayerOriginalName.current) {
-        // Get all the map layers except the one being edited
-        otherMapLayers = mapLayers.filter(
-          (t) =>
-            t.configuration.props.name !== existingLayerOriginalName.current
-        );
-      } else {
-        otherMapLayers = mapLayers;
-      }
-      const otherMapAttributeVariables =
-        getMapAttributeVariables(otherMapLayers);
-
-      // check to see if pending variable input names already exist in the other map layers
-      const alreadyExistingVariableInputsInMap = pendingVariableInputs.filter(
-        (pendingVariableInput) =>
-          otherMapAttributeVariables.includes(pendingVariableInput)
-      );
-      if (alreadyExistingVariableInputsInMap.length > 0) {
-        setErrorMessage(
-          <>
-            <p>The following variable inputs are already in use in the map:</p>
-            <ul>
-              {alreadyExistingVariableInputsInMap.map(
-                (alreadyExistingVariableInput, index) => (
-                  <li key={index}>{alreadyExistingVariableInput}</li>
-                )
-              )}
-            </ul>
-            <p>
-              Check the other map layers and change the Variable Input names in
-              the Attributes tab before trying again.
-            </p>
-          </>
-        );
-        return;
-      }
 
       // check for duplicate pending variable input names
       const duplicatePendingVariableInputs = pendingVariableInputs.filter(

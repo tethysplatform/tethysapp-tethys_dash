@@ -3,16 +3,21 @@ import Select from "react-select";
 import styled from "styled-components";
 
 const StyledDiv = styled.div`
-  padding-bottom: 1rem;
+  margin-bottom: 1rem;
 `;
 
 const DataSelect = ({ label, selectedOption, onChange, options, ...props }) => {
-  const id = label.toLowerCase().replace(" ", "");
+  let id;
+  if (label) {
+    id = label.toLowerCase().replace(" ", "");
+  }
   return (
     <StyledDiv>
-      <label htmlFor={id}>
-        <b>{label}</b>:
-      </label>
+      {label && (
+        <label htmlFor={id}>
+          <b>{label}</b>:
+        </label>
+      )}
       <Select
         options={options}
         value={selectedOption}
