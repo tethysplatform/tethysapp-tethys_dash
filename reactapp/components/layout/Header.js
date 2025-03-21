@@ -201,6 +201,7 @@ export const DashboardHeader = () => {
   const { setSuccessMessage, setShowSuccessMessage } =
     useLayoutSuccessAlertContext();
   const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
+  const [showImportModal, setShowImportModal] = useState(false);
   const navigate = useNavigate();
   const TETHYS_PORTAL_HOST = getTethysPortalHost();
 
@@ -220,25 +221,35 @@ export const DashboardHeader = () => {
     }, 100); // This ensures that the old overlay doesn't show after the new buttons appear
   }
 
-  function onAddGridItem() {
+  function onAddGridItem({ importedGridItem }) {
     const { gridItems } = getDashboardMetadata();
     let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
-    const newGridItem = {
-      i: `${parseInt(maxGridItemI) + 1}`,
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "",
-      args_string: "{}",
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
-    };
+
+    let newGridItem;
+    if (importedGridItem) {
+      newGridItem = importedGridItem;
+    } else {
+      newGridItem = {
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "",
+        args_string: "{}",
+        metadata_string: JSON.stringify({
+          refreshRate: 0,
+        }),
+      };
+    }
+    newGridItem.i = `${parseInt(maxGridItemI) + 1}`;
     const updatedGridItems = [...gridItems, newGridItem];
     updateGridItems(updatedGridItems);
+  }
+
+  function onImportGridItem(importedGridItem) {
+    onAddGridItem({ importedGridItem });
   }
 
   function onEdit() {
@@ -271,6 +282,7 @@ export const DashboardHeader = () => {
   }
 
   async function onSave() {
+    // delete item then save bring back old item
     setShowSuccessMessage(false);
     setShowErrorMessage(false);
     setIsSaving(true);
@@ -368,6 +380,14 @@ export const DashboardHeader = () => {
                     >
                       <LockedIcon locked={disabledEditingMovement} />
                     </TooltipButton>
+                    <TooltipButton
+                      onClick={() => setShowImportModal(true)}
+                      tooltipPlacement="bottom"
+                      tooltipText="Import Dashboard Item"
+                      aria-label="importDashboardItemButton"
+                    >
+                      <BsUpload size="1.5rem" />
+                    </TooltipButton>
                   </>
                 ) : (
                   <TooltipButton
@@ -429,6 +449,13 @@ export const DashboardHeader = () => {
           showModal={showInfoModal}
           setShowModal={setShowInfoModal}
           view="dashboard"
+        />
+      )}
+      {showImportModal && (
+        <DashboardImportModal
+          showModal={showImportModal}
+          setShowModal={setShowImportModal}
+          onImportGridItem={onImportGridItem}
         />
       )}
     </>

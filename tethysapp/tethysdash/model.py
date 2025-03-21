@@ -159,6 +159,7 @@ def delete_grid_item(session, dashboard_id, i):
         .first()
     )
     session.delete(db_grid_item)
+    session.commit()
 
     return
 

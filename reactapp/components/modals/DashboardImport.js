@@ -2,34 +2,48 @@ import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
 import { useState, useContext } from "react";
 import PropTypes from "prop-types";
-import { AvailableDashboardsContext } from "components/contexts/Contexts";
+import {
+  AvailableDashboardsContext,
+  AppContext,
+} from "components/contexts/Contexts";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
 import { useLayoutSuccessAlertContext } from "components/contexts/LayoutAlertContext";
+import { handleGridItemImport } from "components/dashboard/DashboardItem";
 
 const StyledAlert = styled(Alert)`
   margin-top: 0.5rem;
 `;
 
-function DashboardImportModal({ showModal, setShowModal }) {
+function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
   const [jsonContent, setJsonContent] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const { importDashboard } = useContext(AvailableDashboardsContext);
   const { setSuccessMessage, setShowSuccessMessage } =
     useLayoutSuccessAlertContext();
+  const { csrf } = useContext(AppContext);
 
-  const onImport = async (dashboardJSON) => {
+  const onImport = async (jsonContent) => {
     setErrorMessage("");
 
-    const apiResponse = await importDashboard(dashboardJSON);
+    let apiResponse;
+    if (onImportGridItem) {
+      apiResponse = await handleGridItemImport(jsonContent, csrf);
+    } else {
+      apiResponse = await importDashboard(jsonContent);
+    }
     if (apiResponse["success"]) {
-      const newDashboard = apiResponse["new_dashboard"];
-
       setShowModal(false);
-      setSuccessMessage(
-        `Successfully imported the dashboard as ${newDashboard.name}`
-      );
       setShowSuccessMessage(true);
+      if (onImportGridItem) {
+        setSuccessMessage(`Successfully imported dashboard item`);
+        onImportGridItem(apiResponse.importedGridItem);
+      } else {
+        const newDashboard = apiResponse["new_dashboard"];
+        setSuccessMessage(
+          `Successfully imported the dashboard as ${newDashboard.name}`
+        );
+      }
     } else {
       setErrorMessage(
         apiResponse["message"] ?? "Failed to import the dashboard"
@@ -67,7 +81,9 @@ function DashboardImportModal({ showModal, setShowModal }) {
       centered
     >
       <Modal.Header closeButton>
-        <Modal.Title>Import Dashboard</Modal.Title>
+        <Modal.Title>
+          {onImportGridItem ? "Import Dashboard Item" : "Import Dashboard"}
+        </Modal.Title>
       </Modal.Header>
       <Modal.Body>
         <input
@@ -111,6 +127,7 @@ function DashboardImportModal({ showModal, setShowModal }) {
 DashboardImportModal.propTypes = {
   showModal: PropTypes.bool,
   setShowModal: PropTypes.func,
+  onImportGridItem: PropTypes.func,
 };
 
 export default DashboardImportModal;

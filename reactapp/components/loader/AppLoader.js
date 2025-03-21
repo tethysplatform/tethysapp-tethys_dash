@@ -21,7 +21,10 @@ import AppTourContextProvider from "components/contexts/AppTourContext";
 import { Confirmation } from "components/inputs/DeleteConfirmation";
 import { getTethysPortalHost } from "services/utilities";
 import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
-import { handleGridItemExport } from "components/dashboard/DashboardItem";
+import {
+  handleGridItemExport,
+  handleGridItemImport,
+} from "components/dashboard/DashboardItem";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -455,82 +458,17 @@ function Loader({ children }) {
     dashboardContext.name = newName;
 
     if (dashboardContext.gridItems && dashboardContext.gridItems.length > 0) {
-      for (const gridItem of dashboardContext.gridItems) {
-        const requiredGridItemKeys = [
-          "i",
-          "x",
-          "y",
-          "w",
-          "h",
-          "source",
-          "args_string",
-          "metadata_string",
-        ];
-        if (
-          !requiredGridItemKeys.every((key) =>
-            Object.prototype.hasOwnProperty.call(gridItem, key)
-          )
-        ) {
-          return {
-            success: false,
-            message: `Grid Items must include ${requiredGridItemKeys.join(", ")} keys`,
-          };
+      const updatedGridItems = [];
+      for (let gridItem of dashboardContext.gridItems) {
+        const { success, message, importedGridItem } =
+          await handleGridItemImport(gridItem, appContext.csrf);
+        if (success) {
+          updatedGridItems.push(importedGridItem);
+        } else {
+          return { success, message };
         }
-
-        if (gridItem.source === "Map") {
-          if (
-            "additional_layers" in gridItem.args_string &&
-            gridItem.args_string["additional_layers"].length > 0
-          ) {
-            for (const mapLayer of gridItem.args_string["additional_layers"]) {
-              if (
-                !mapLayer?.configuration?.props?.source?.type ||
-                !mapLayer?.configuration?.type
-              ) {
-                return {
-                  success: false,
-                  message: minMapLayerStructure,
-                };
-              }
-
-              if (
-                mapLayer.configuration.props.source.type === "GeoJSON" &&
-                mapLayer.configuration.props.source.geojson
-              ) {
-                const apiResponse = await saveLayerJSON({
-                  stringJSON: JSON.stringify(
-                    mapLayer.configuration.props.source.geojson
-                  ),
-                  csrf: appContext.csrf,
-                  check_crs: true,
-                });
-
-                if (apiResponse.success) {
-                  mapLayer.configuration.props.source.geojson =
-                    apiResponse.filename;
-                } else {
-                  return apiResponse;
-                }
-              }
-
-              if (mapLayer.configuration.style) {
-                const apiResponse = await saveLayerJSON({
-                  stringJSON: JSON.stringify(mapLayer.configuration.style),
-                  csrf: appContext.csrf,
-                });
-
-                if (apiResponse.success) {
-                  mapLayer.configuration.style = apiResponse.filename;
-                } else {
-                  return apiResponse;
-                }
-              }
-            }
-          }
-        }
-        gridItem.args_string = JSON.stringify(gridItem.args_string);
-        gridItem.metadata_string = JSON.stringify(gridItem.metadata_string);
       }
+      dashboardContext.gridItems = updatedGridItems;
     }
 
     const apiResponse = await addDashboard(dashboardContext);

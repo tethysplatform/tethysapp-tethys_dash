@@ -42,6 +42,17 @@ const minMapLayerStructure = `Map layers must have at minimum, the following str
     }
 }`;
 
+const requiredGridItemKeys = [
+  "i",
+  "x",
+  "y",
+  "w",
+  "h",
+  "source",
+  "args_string",
+  "metadata_string",
+];
+
 export const handleGridItemExport = async (gridItem) => {
   const { id, ...exportedGridItem } = gridItem;
   exportedGridItem.metadata_string = JSON.parse(
@@ -65,6 +76,82 @@ export const handleGridItemExport = async (gridItem) => {
   }
 
   return exportedGridItem;
+};
+
+export const handleGridItemImport = async (gridItem, csrf) => {
+  const importedGridItem = JSON.parse(JSON.stringify(gridItem));
+  if (
+    !requiredGridItemKeys.every((key) =>
+      Object.prototype.hasOwnProperty.call(importedGridItem, key)
+    )
+  ) {
+    return {
+      success: false,
+      message: `Grid Items must include ${requiredGridItemKeys.join(", ")} keys`,
+    };
+  }
+
+  if (importedGridItem.source === "Map") {
+    if (
+      "additional_layers" in importedGridItem.args_string &&
+      importedGridItem.args_string["additional_layers"].length > 0
+    ) {
+      for (const mapLayer of importedGridItem.args_string[
+        "additional_layers"
+      ]) {
+        if (
+          !mapLayer?.configuration?.props?.source?.type ||
+          !mapLayer?.configuration?.type
+        ) {
+          return {
+            success: false,
+            message: minMapLayerStructure,
+          };
+        }
+
+        if (
+          mapLayer.configuration.props.source.type === "GeoJSON" &&
+          mapLayer.configuration.props.source.geojson
+        ) {
+          const apiResponse = await saveLayerJSON({
+            stringJSON: JSON.stringify(
+              mapLayer.configuration.props.source.geojson
+            ),
+            csrf,
+            check_crs: true,
+          });
+
+          if (apiResponse.success) {
+            mapLayer.configuration.props.source.geojson = apiResponse.filename;
+          } else {
+            return apiResponse;
+          }
+        }
+
+        if (mapLayer.configuration.style) {
+          const apiResponse = await saveLayerJSON({
+            stringJSON: JSON.stringify(mapLayer.configuration.style),
+            csrf,
+          });
+
+          if (apiResponse.success) {
+            mapLayer.configuration.style = apiResponse.filename;
+          } else {
+            return apiResponse;
+          }
+        }
+      }
+    }
+  }
+  importedGridItem.args_string = JSON.stringify(importedGridItem.args_string);
+  importedGridItem.metadata_string = JSON.stringify(
+    importedGridItem.metadata_string
+  );
+
+  return {
+    success: true,
+    importedGridItem,
+  };
 };
 
 const DashboardItem = ({
