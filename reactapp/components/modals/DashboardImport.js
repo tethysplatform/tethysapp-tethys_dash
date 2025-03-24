@@ -107,14 +107,14 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
         <Button
           variant="secondary"
           onClick={handleModalClose}
-          aria-label={"Close Thumbnail Modal Button"}
+          aria-label={"Close Import Modal Button"}
         >
           Close
         </Button>
         <Button
           variant="success"
           onClick={() => onImport(jsonContent)}
-          aria-label={"Update Thumbnail Button"}
+          aria-label={"Import Button"}
           disabled={!jsonContent}
         >
           Import

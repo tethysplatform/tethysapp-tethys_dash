@@ -225,7 +225,7 @@ const DashboardCard = ({
   async function onExport() {
     const apiResponse = await exportDashboard(id);
     if (!apiResponse["success"]) {
-      setErrorMessage(apiResponse["message"] ?? "Failed to export dashboard");
+      setErrorMessage("Failed to export dashboard");
     }
   }
 
@@ -272,18 +272,16 @@ const DashboardCard = ({
 
   const onUpdateThumbnail = async (newImage) => {
     setShowThumbnailModal(false);
-    if (newImage) {
-      const apiResponse = await updateDashboard({
-        id,
-        newProperties: {
-          image: newImage,
-        },
-      });
-      if (apiResponse["success"]) {
-        setDashboardImage(newImage);
-      } else {
-        setErrorMessage("Failed to update dashboard");
-      }
+    const apiResponse = await updateDashboard({
+      id,
+      newProperties: {
+        image: newImage,
+      },
+    });
+    if (apiResponse["success"]) {
+      setDashboardImage(newImage);
+    } else {
+      setErrorMessage("Failed to update dashboard");
     }
   };
 

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { LandingPageHeader, DashboardHeader } from "components/layout/Header";
 import { MemoryRouter } from "react-router-dom";
 import createLoadedComponent, {
@@ -12,7 +12,10 @@ import appAPI from "services/api/app";
 import html2canvas from "html2canvas";
 import { useNavigate } from "react-router-dom";
 import { AppTourContext } from "components/contexts/Contexts";
-import { mockedDashboards } from "__tests__/utilities/constants";
+import {
+  mockedDashboards,
+  mockedTextVariable,
+} from "__tests__/utilities/constants";
 
 jest.mock("html2canvas");
 
@@ -69,10 +72,81 @@ test("LandingPageHeader, non staff user", async () => {
   expect(screen.getByText("Available Dashboards")).toBeInTheDocument();
   expect(screen.queryByLabelText("appSettingButton")).not.toBeInTheDocument();
   expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
+  expect(screen.getByLabelText("importDashboardButton")).toBeInTheDocument();
   expect(screen.getByLabelText("appExitButton")).toBeInTheDocument();
 });
 
-test("LandingPageHeader, public user and show info", async () => {
+test("LandingPageHeader, signin", async () => {
+  delete window.location; // Remove existing location object
+  window.location = { assign: jest.fn() }; // Mock location.assign
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <LandingPageHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: {
+        user: { username: "public", isAuthenticated: true, isStaff: false },
+      },
+    })
+  );
+
+  const dashboardLoginButton = await screen.findByLabelText(
+    "dashboardLoginButton"
+  );
+  await userEvent.click(dashboardLoginButton);
+  expect(window.location.assign).toHaveBeenCalledWith(
+    "http://api.test/accounts/login?next=undefined"
+  );
+});
+
+test("LandingPageHeader, import dashboard", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <LandingPageHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: { user: { isAuthenticated: true, isStaff: true } },
+    })
+  );
+
+  const importDashboardButton = await screen.findByLabelText(
+    "importDashboardButton"
+  );
+  await userEvent.click(importDashboardButton);
+  expect(
+    await screen.findByLabelText("Dashboard Import Modal")
+  ).toBeInTheDocument();
+});
+
+test("LandingPageHeader, show info", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <LandingPageHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: { user: { isAuthenticated: true, isStaff: true } },
+    })
+  );
+
+  const appInfoButton = await screen.findByLabelText("appInfoButton");
+  await userEvent.click(appInfoButton);
+  expect(screen.getByLabelText("App Info Modal")).toBeInTheDocument();
+});
+
+test("LandingPageHeader, public user and not show info", async () => {
   render(
     createLoadedComponent({
       children: (
@@ -89,6 +163,9 @@ test("LandingPageHeader, public user and show info", async () => {
   expect(await screen.findByLabelText("appExitButton")).toBeInTheDocument();
   expect(screen.getByText("Available Dashboards")).toBeInTheDocument();
   expect(screen.queryByLabelText("appSettingButton")).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("importDashboardButton")
+  ).not.toBeInTheDocument();
   expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", { name: "dashboardLoginButton" })
@@ -116,6 +193,198 @@ test("DashboardHeader, show info", async () => {
   const appInfoButton = await screen.findByLabelText("appInfoButton");
   await userEvent.click(appInfoButton);
   expect(screen.getByLabelText("App Info Modal")).toBeInTheDocument();
+});
+
+test("DashboardHeader, import gridItem", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.user[0];
+  mockedDashboard.gridItems = [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ];
+
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
+    success: true,
+    updated_dashboard: {
+      id: 1,
+      name: "some dashboard updated",
+      description: "some description",
+      accessGroups: ["public"],
+      image: "some_image.png",
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+        mockedTextVariable,
+      ],
+    },
+  });
+  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest
+    .spyOn(Element.prototype, "getBoundingClientRect")
+    .mockImplementation(() => ({
+      width: 100,
+      height: 100,
+    }));
+
+  const mockCanvas = document.createElement("canvas");
+  mockCanvas.toDataURL = jest.fn(() => "data:image/png;base64,mocked-image");
+  html2canvas.mockResolvedValue(mockCanvas);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: {
+        user: { isAuthenticated: true, isStaff: false },
+        editableDashboard: true,
+        dashboards: updatedMockedDashboards,
+      },
+    })
+  );
+
+  const editButton = await screen.findByLabelText("editButton");
+  await userEvent.click(editButton);
+
+  const importDashboardItemButton = await screen.findByLabelText(
+    "importDashboardItemButton"
+  );
+  await userEvent.click(importDashboardItemButton);
+  expect(
+    await screen.findByLabelText("Dashboard Import Modal")
+  ).toBeInTheDocument();
+
+  const file = new File(
+    [
+      JSON.stringify({
+        i: "1",
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "Variable Input",
+        args_string: {
+          initial_value: "",
+          variable_name: "Test Variable",
+          variable_options_source: "text",
+          variable_input_type: "text",
+        },
+        metadata_string: {
+          refreshRate: 0,
+        },
+      }),
+    ],
+    "test-file.json",
+    {
+      type: "text/plain",
+    }
+  );
+  const fileInput = screen.getByTestId("file-input");
+  fireEvent.change(fileInput, { target: { files: [file] } });
+
+  const importButton = screen.getByLabelText("Import Button");
+  await waitFor(() => expect(importButton).not.toBeDisabled());
+  await userEvent.click(importButton);
+
+  const saveButton = await screen.findByLabelText("saveButton");
+  await userEvent.click(saveButton);
+
+  await waitFor(() => {
+    expect(mockUpdateDashboard).toHaveBeenCalledWith(
+      {
+        gridItems: [
+          {
+            i: "1",
+            x: 0,
+            y: 0,
+            w: 20,
+            h: 20,
+            source: "",
+            args_string: "{}",
+            metadata_string: JSON.stringify({
+              refreshRate: 0,
+            }),
+          },
+          {
+            i: "2",
+            x: 0,
+            y: 20,
+            w: 20,
+            h: 20,
+            source: "Variable Input",
+            args_string: JSON.stringify({
+              initial_value: "",
+              variable_name: "Test Variable",
+              variable_options_source: "text",
+              variable_input_type: "text",
+            }),
+            metadata_string: JSON.stringify({
+              refreshRate: 0,
+            }),
+          },
+        ],
+        id: 1,
+        image: "data:image/png;base64,mocked-image",
+      },
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    );
+  });
+});
+
+test("DashboardHeader, signin", async () => {
+  delete window.location; // Remove existing location object
+  window.location = { assign: jest.fn() }; // Mock location.assign
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: {
+        user: { username: "public", isAuthenticated: true, isStaff: false },
+        editableDashboard: true,
+      },
+    })
+  );
+
+  const dashboardLoginButton = await screen.findByLabelText(
+    "dashboardLoginButton"
+  );
+  await userEvent.click(dashboardLoginButton);
+  expect(window.location.assign).toHaveBeenCalledWith(
+    "http://api.test/accounts/login?next=undefined"
+  );
 });
 
 test("DashboardHeader, not editable, no show info", async () => {
@@ -467,10 +736,12 @@ test("DashboardHeader, editable, edit and save", async () => {
   });
   appAPI.updateDashboard = mockUpdateDashboard;
 
-  Element.prototype.getBoundingClientRect = jest.fn(() => ({
-    width: 100,
-    height: 100,
-  }));
+  jest
+    .spyOn(Element.prototype, "getBoundingClientRect")
+    .mockImplementation(() => ({
+      width: 100,
+      height: 100,
+    }));
 
   const mockCanvas = document.createElement("canvas");
   mockCanvas.toDataURL = jest.fn(() => "data:image/png;base64,mocked-image");
@@ -585,10 +856,12 @@ test("DashboardHeader, editable, edit, save and error", async () => {
   });
   appAPI.updateDashboard = mockUpdateDashboard;
 
-  Element.prototype.getBoundingClientRect = jest.fn(() => ({
-    width: 100,
-    height: 100,
-  }));
+  jest
+    .spyOn(Element.prototype, "getBoundingClientRect")
+    .mockImplementation(() => ({
+      width: 100,
+      height: 100,
+    }));
 
   const mockCanvas = document.createElement("canvas");
   mockCanvas.toDataURL = jest.fn(() => "data:image/png;base64,mocked-image");
