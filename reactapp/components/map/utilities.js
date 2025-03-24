@@ -570,7 +570,9 @@ export async function loadLayerJSONs(mapLayer) {
       mapLayer.configuration.style = styleJSONResponse.data;
     } else {
       delete mapLayer.configuration.style;
-      return styleJSONResponse;
+      console.error(
+        `Failed to load the style for ${mapLayer.configuration.props.name} layer`
+      );
     }
   }
 

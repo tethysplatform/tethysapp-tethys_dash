@@ -268,8 +268,8 @@ test("Map GeoJSON with legend and style", async () => {
             geojson: "some_file.json",
           },
         },
+        style: "some_style_file.json",
       },
-      style: "some_style_file.json",
       legend: {
         title: "Some Title",
         items: [{ label: "Some Label", color: "green", symbol: "square" }],
@@ -1087,8 +1087,8 @@ test("Map bad style", async () => {
             geojson: "some_file.json",
           },
         },
+        style: "some_style_file.json",
       },
-      style: "some_style_file.json",
     },
   ];
   const LoadedComponent = createLoadedComponent({

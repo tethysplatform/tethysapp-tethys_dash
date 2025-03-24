@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import appAPI from "services/api/app";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import AppTour from "components/appTour/AppTour";
+import { mockedDashboards } from "__tests__/utilities/constants";
 
 jest.mock("react-router-dom", () => ({
   ...jest.requireActual("react-router-dom"),
@@ -983,7 +984,7 @@ it("DashboardCard editable, copy", async () => {
         <MemoryRouter initialEntries={["/"]}>
           <DashboardCard
             id={1}
-            name="some dashboard"
+            name={mockedDashboards.user[0].name}
             editable={true}
             description="some description"
             accessGroups={["public"]}
@@ -1008,7 +1009,7 @@ it("DashboardCard editable, copy", async () => {
     expect(mockCopyDashboard).toHaveBeenCalledWith(
       {
         id: 1,
-        newName: "some dashboard - Copy",
+        newName: `${mockedDashboards.user[0].name} - Copy`,
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
     );
@@ -1028,7 +1029,7 @@ it("DashboardCard editable, copy fail", async () => {
         <MemoryRouter initialEntries={["/"]}>
           <DashboardCard
             id={1}
-            name="some dashboard"
+            name={mockedDashboards.user[0].name}
             editable={true}
             description="some description"
             accessGroups={["public"]}
@@ -1053,7 +1054,7 @@ it("DashboardCard editable, copy fail", async () => {
     expect(mockCopyDashboard).toHaveBeenCalledWith(
       {
         id: 1,
-        newName: "some dashboard - Copy",
+        newName: `${mockedDashboards.user[0].name} - Copy`,
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
     );
