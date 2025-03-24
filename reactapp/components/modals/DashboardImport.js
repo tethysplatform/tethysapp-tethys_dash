@@ -36,7 +36,7 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
       setShowModal(false);
       setShowSuccessMessage(true);
       if (onImportGridItem) {
-        setSuccessMessage(`Successfully imported dashboard item`);
+        setSuccessMessage("Successfully imported dashboard item");
         onImportGridItem(apiResponse.importedGridItem);
       } else {
         const newDashboard = apiResponse["new_dashboard"];
@@ -57,19 +57,16 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const parsedJson = JSON.parse(reader.result);
-          setJsonContent(parsedJson);
-        } catch (error) {
-          console.error("Invalid JSON file:", error);
-          setJsonContent({ error: "Invalid JSON file" });
-        }
-      };
-      reader.readAsText(file);
-    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsedJson = JSON.parse(reader.result);
+        setJsonContent(parsedJson);
+      } catch (error) {
+        setErrorMessage("Invalid JSON structure");
+      }
+    };
+    reader.readAsText(file);
   };
 
   return (

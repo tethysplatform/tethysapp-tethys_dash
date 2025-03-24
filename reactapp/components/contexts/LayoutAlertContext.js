@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import { useContext, createContext, useState, useEffect } from "react";
 
-const LayoutSuccessAlertContext = createContext();
+export const LayoutSuccessAlertContext = createContext();
 const LayoutErrorAlertContext = createContext();
 const LayoutWarningAlertContext = createContext();
 
