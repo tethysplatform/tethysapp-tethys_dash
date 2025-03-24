@@ -7,14 +7,16 @@ import {
   EditingContext,
   VariableInputsContext,
   DataViewerModeContext,
-  AppContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
 import { confirm } from "components/inputs/DeleteConfirmation";
-import { getGridItem } from "components/visualizations/utilities";
+import {
+  getGridItem,
+  downloadJSONFile,
+} from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
 import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
 
@@ -30,7 +32,7 @@ const StyledButtonDiv = styled.div`
   z-index: 1;
 `;
 
-const minMapLayerStructure = `Map layers must have at minimum, the following structure:
+export const minMapLayerStructure = `Map layers must have at minimum, the following structure:
 {
     configuration: {
         type: <Some Value>,
@@ -42,7 +44,7 @@ const minMapLayerStructure = `Map layers must have at minimum, the following str
     }
 }`;
 
-const requiredGridItemKeys = [
+export const requiredGridItemKeys = [
   "i",
   "x",
   "y",
@@ -166,6 +168,8 @@ const DashboardItem = ({
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
+  const [gridItemWarning, setGridItemWarning] = useState("");
+  const [showGridItemWarning, setShowGridItemWarning] = useState(false);
   const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
@@ -208,24 +212,10 @@ const DashboardItem = ({
     const exportedGridItem = await handleGridItemExport(gridItem);
 
     try {
-      // Convert to JSON string
-      const jsonString = JSON.stringify(exportedGridItem, null, 2); // Pretty format
-
-      // Create a Blob and a download link
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `TethysDashGridItem.json`; // File name
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      // Revoke the URL to free memory
-      URL.revokeObjectURL(url);
+      downloadJSONFile(exportedGridItem, "TethysDashGridItem.json");
     } catch (err) {
-      return { success: false, message: "Failed to export griditem" };
+      setShowGridItemWarning(true);
+      setGridItemWarning("Failed to export grid item.");
     }
   }
 
@@ -283,6 +273,12 @@ const DashboardItem = ({
           showAlert={showGridItemMessage}
           setShowAlert={setShowGridItemMessage}
           alertMessage={gridItemMessage}
+        />
+        <CustomAlert
+          alertType={"warning"}
+          showAlert={showGridItemWarning}
+          setShowAlert={setGridItemWarning}
+          alertMessage={gridItemWarning}
         />
         <StyledButtonDiv>
           <DashboardItemDropdown

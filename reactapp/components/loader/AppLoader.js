@@ -5,6 +5,7 @@ import { spaceAndCapitalize } from "components/modals/utilities";
 import {
   nonDropDownVariableInputTypes,
   baseMapLayers,
+  downloadJSONFile,
 } from "components/visualizations/utilities";
 import tethysAPI from "services/api/tethys";
 import appAPI from "services/api/app";
@@ -480,22 +481,7 @@ function Loader({ children }) {
       };
 
       try {
-        // Convert to JSON string
-        const jsonString = JSON.stringify(exportedDashboard, null, 2); // Pretty format
-
-        // Create a Blob and a download link
-        const blob = new Blob([jsonString], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${exportedDashboard.name}.json`; // File name
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        // Revoke the URL to free memory
-        URL.revokeObjectURL(url);
+        downloadJSONFile(exportedDashboard, `${exportedDashboard.name}.json`);
       } catch (err) {
         return { success: false, message: "Failed to export dashboard" };
       }

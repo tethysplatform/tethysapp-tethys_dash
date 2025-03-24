@@ -6,7 +6,12 @@ import {
   fireEvent,
   waitFor,
 } from "@testing-library/react";
-import DashboardItem from "components/dashboard/DashboardItem";
+import DashboardItem, {
+  handleGridItemExport,
+  handleGridItemImport,
+  requiredGridItemKeys,
+  minMapLayerStructure,
+} from "components/dashboard/DashboardItem";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import createLoadedComponent, {
@@ -15,19 +20,18 @@ import createLoadedComponent, {
   DataViewerPComponent,
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
+import appAPI from "services/api/app";
+import { layerConfigImageArcGISRest } from "__tests__/utilities/constants";
+import * as utils from "components/visualizations/utilities";
 
 // eslint-disable-next-line
-jest.mock("components/modals/DataViewer/VisualizationPane", () => (props) => (
-  <>
-    <div>Visualization Pane</div>
-  </>
+jest.mock("components/modals/DataViewer/VisualizationPane", () => () => (
+  <div>Visualization Pane</div>
 ));
 
 // eslint-disable-next-line
-jest.mock("components/modals/DataViewer/SettingsPane", () => (props) => (
-  <>
-    <div>Settings Pane</div>
-  </>
+jest.mock("components/modals/DataViewer/SettingsPane", () => () => (
+  <div>Settings Pane</div>
 ));
 
 jest.mock("components/inputs/DeleteConfirmation", () => {
@@ -36,6 +40,60 @@ jest.mock("components/inputs/DeleteConfirmation", () => {
   };
 });
 const mockedConfirm = jest.mocked(confirm);
+
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
+
+const exampleGeoJSON = {
+  type: "FeatureCollection",
+  crs: {
+    type: "name",
+    properties: {
+      name: "EPSG:3857",
+    },
+  },
+  features: [
+    {
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [0, 0],
+      },
+    },
+  ],
+};
+
+const exampleStyle = {
+  version: 8,
+  sprite:
+    "https://cdn.arcgis.com/sharing/rest/content/items/005b8960ddd04ae781df8d471b6726b3/resources/styles/../sprites/sprite",
+  glyphs:
+    "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/resources/fonts/{fontstack}/{range}.pbf",
+  sources: {
+    esri: {
+      type: "vector",
+      url: "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer",
+      tiles: [
+        "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf",
+      ],
+    },
+  },
+  layers: [
+    {
+      id: "Land/Ice",
+      type: "fill",
+      source: "esri",
+      "source-layer": "Land",
+      filter: ["==", "_symbol", 1],
+      layout: {},
+      paint: {
+        "fill-opacity": 0.8,
+        "fill-color": "#feffff",
+      },
+    },
+  ],
+};
 
 test("Dashboard Item delete grid item", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
@@ -702,4 +760,712 @@ test("Dashboard Item edit size", async () => {
   const editSizeButton = await screen.findByText("Edit Size/Location");
   await userEvent.click(editSizeButton);
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
+});
+
+test("Dashboard Item export", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.user[0];
+  const gridItem = mockedDashboard.gridItems[0];
+  gridItem.source = "Custom Image";
+  gridItem.args_string = JSON.stringify({
+    image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
+  });
+  const spyDownloadJSONFile = jest
+    .spyOn(utils, "downloadJSONFile")
+    .mockImplementation(jest.fn());
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={0}
+        />
+      ),
+      options: {
+        editableDashboard: true,
+        dashboards: updatedMockedDashboards,
+        initialDashboard: mockedDashboard,
+      },
+    })
+  );
+
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
+
+  const exportButton = await screen.findByText("Export");
+  await userEvent.click(exportButton);
+
+  expect(spyDownloadJSONFile).toHaveBeenCalledWith(
+    {
+      args_string: {
+        image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
+      },
+      h: 20,
+      i: "1",
+      metadata_string: {
+        refreshRate: 0,
+      },
+      source: "Custom Image",
+      w: 20,
+      x: 0,
+      y: 0,
+    },
+    "TethysDashGridItem.json"
+  );
+});
+
+test("Dashboard Item export fail", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.user[0];
+  const gridItem = mockedDashboard.gridItems[0];
+  gridItem.source = "Custom Image";
+  gridItem.args_string = JSON.stringify({
+    image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
+  });
+  const spyDownloadJSONFile = jest
+    .spyOn(utils, "downloadJSONFile")
+    .mockImplementation(() => {
+      throw new Error("Mocked download error");
+    });
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={0}
+        />
+      ),
+      options: {
+        editableDashboard: true,
+        dashboards: updatedMockedDashboards,
+        initialDashboard: mockedDashboard,
+      },
+    })
+  );
+
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
+
+  const exportButton = await screen.findByText("Export");
+  await userEvent.click(exportButton);
+
+  expect(spyDownloadJSONFile).toHaveBeenCalledWith(
+    {
+      args_string: {
+        image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
+      },
+      h: 20,
+      i: "1",
+      metadata_string: {
+        refreshRate: 0,
+      },
+      source: "Custom Image",
+      w: 20,
+      x: 0,
+      y: 0,
+    },
+    "TethysDashGridItem.json"
+  );
+  expect(
+    await screen.findByText("Failed to export grid item.")
+  ).toBeInTheDocument();
+});
+
+test("handleGridItemExport", async () => {
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "",
+    args_string: "{}",
+    metadata_string: JSON.stringify({
+      refreshRate: 0,
+    }),
+  };
+
+  const response = await handleGridItemExport(gridItem);
+
+  expect(response).toStrictEqual({
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "",
+    args_string: {},
+    metadata_string: {
+      refreshRate: 0,
+    },
+  });
+});
+
+test("handleGridItemExport with map and no layers", async () => {
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: JSON.stringify({ additional_layers: [] }),
+    metadata_string: JSON.stringify({
+      refreshRate: 0,
+    }),
+  };
+
+  const response = await handleGridItemExport(gridItem);
+
+  expect(response).toStrictEqual({
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: { additional_layers: [] },
+    metadata_string: {
+      refreshRate: 0,
+    },
+  });
+});
+
+test("handleGridItemExport with map and geojson layer", async () => {
+  const mockDownloadJSON = jest.fn();
+  appAPI.downloadJSON = mockDownloadJSON;
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: exampleStyle,
+  });
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: exampleGeoJSON,
+  });
+
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: JSON.stringify({
+      additional_layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "GeoJSON Layer",
+              source: {
+                type: "GeoJSON",
+                props: {},
+                geojson: "some_file.json",
+              },
+            },
+            style: "some_style_file.json",
+          },
+        },
+      ],
+    }),
+    metadata_string: JSON.stringify({
+      refreshRate: 0,
+    }),
+  };
+
+  const response = await handleGridItemExport(gridItem);
+
+  expect(response).toStrictEqual({
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: {
+      additional_layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "GeoJSON Layer",
+              source: {
+                type: "GeoJSON",
+                props: {},
+                geojson: exampleGeoJSON,
+              },
+            },
+            style: exampleStyle,
+          },
+        },
+      ],
+    },
+    metadata_string: {
+      refreshRate: 0,
+    },
+  });
+});
+
+test("handleGridItemExport bad load", async () => {
+  const mockDownloadJSON = jest.fn();
+  appAPI.downloadJSON = mockDownloadJSON;
+  const apiResponse = {
+    success: false,
+    message: "some error",
+  };
+  mockDownloadJSON.mockResolvedValueOnce(apiResponse);
+
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: JSON.stringify({
+      additional_layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "GeoJSON Layer",
+              source: {
+                type: "GeoJSON",
+                props: {},
+                geojson: "some_file.json",
+              },
+            },
+          },
+        },
+      ],
+    }),
+    metadata_string: JSON.stringify({
+      refreshRate: 0,
+    }),
+  };
+
+  const response = await handleGridItemExport(gridItem);
+
+  expect(response).toStrictEqual(apiResponse);
+});
+
+test("handleGridItemImport", async () => {
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "",
+    args_string: {},
+    metadata_string: {
+      refreshRate: 0,
+    },
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response).toStrictEqual({
+    success: true,
+    importedGridItem: {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  });
+});
+
+test("handleGridItemImport missing keys", async () => {
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    source: "",
+    args_string: {},
+    metadata_string: {
+      refreshRate: 0,
+    },
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response).toStrictEqual({
+    success: false,
+    message: `Grid Items must include ${requiredGridItemKeys.join(", ")} keys`,
+  });
+});
+
+test("handleGridItemImport with map and no layers", async () => {
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: { additional_layers: [] },
+    metadata_string: {
+      refreshRate: 0,
+    },
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response).toStrictEqual({
+    success: true,
+    importedGridItem: {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Map",
+      args_string: JSON.stringify({ additional_layers: [] }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  });
+});
+
+test("handleGridItemImport with map geojson layer and style", async () => {
+  const mockUploadJSON = jest.fn();
+  appAPI.uploadJSON = mockUploadJSON;
+  mockUploadJSON.mockResolvedValueOnce({
+    success: true,
+    filename: "geojson.json",
+  });
+  mockUploadJSON.mockResolvedValueOnce({
+    success: true,
+    filename: "style.json",
+  });
+
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: {
+      additional_layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "GeoJSON Layer",
+              source: {
+                type: "GeoJSON",
+                props: {},
+                geojson: exampleGeoJSON,
+              },
+            },
+            style: exampleStyle,
+          },
+        },
+      ],
+    },
+    metadata_string: {
+      refreshRate: 0,
+    },
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response).toStrictEqual({
+    success: true,
+    importedGridItem: {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Map",
+      args_string: JSON.stringify({
+        additional_layers: [
+          {
+            configuration: {
+              type: "VectorLayer",
+              props: {
+                name: "GeoJSON Layer",
+                source: {
+                  type: "GeoJSON",
+                  props: {},
+                  geojson: "geojson.json",
+                },
+              },
+              style: "style.json",
+            },
+          },
+        ],
+      }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  });
+});
+
+test("handleGridItemImport with map geojson layer and no style", async () => {
+  const mockUploadJSON = jest.fn();
+  appAPI.uploadJSON = mockUploadJSON;
+  mockUploadJSON.mockResolvedValueOnce({
+    success: true,
+    filename: "geojson.json",
+  });
+
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: {
+      additional_layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "GeoJSON Layer",
+              source: {
+                type: "GeoJSON",
+                props: {},
+                geojson: exampleGeoJSON,
+              },
+            },
+          },
+        },
+      ],
+    },
+    metadata_string: {
+      refreshRate: 0,
+    },
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response).toStrictEqual({
+    success: true,
+    importedGridItem: {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Map",
+      args_string: JSON.stringify({
+        additional_layers: [
+          {
+            configuration: {
+              type: "VectorLayer",
+              props: {
+                name: "GeoJSON Layer",
+                source: {
+                  type: "GeoJSON",
+                  props: {},
+                  geojson: "geojson.json",
+                },
+              },
+            },
+          },
+        ],
+      }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  });
+  expect(mockUploadJSON).toHaveBeenCalledTimes(1);
+});
+
+test("handleGridItemImport with map arcgis layer and no style", async () => {
+  const mockUploadJSON = jest.fn();
+  appAPI.uploadJSON = mockUploadJSON;
+
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: {
+      additional_layers: [layerConfigImageArcGISRest],
+    },
+    metadata_string: {
+      refreshRate: 0,
+    },
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response).toStrictEqual({
+    success: true,
+    importedGridItem: {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Map",
+      args_string: JSON.stringify({
+        additional_layers: [layerConfigImageArcGISRest],
+      }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  });
+  expect(mockUploadJSON).toHaveBeenCalledTimes(0);
+});
+
+test("handleGridItemImport with map geojson layer missing props", async () => {
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: {
+      additional_layers: [
+        {
+          configuration: {
+            props: {
+              name: "GeoJSON Layer",
+              source: {
+                type: "GeoJSON",
+                props: {},
+                geojson: exampleGeoJSON,
+              },
+            },
+            style: exampleStyle,
+          },
+        },
+      ],
+    },
+    metadata_string: {
+      refreshRate: 0,
+    },
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response).toStrictEqual({
+    success: false,
+    message: minMapLayerStructure,
+  });
+});
+
+test("handleGridItemImport bad geojson load", async () => {
+  const mockUploadJSON = jest.fn();
+  appAPI.uploadJSON = mockUploadJSON;
+  const apiResponse = {
+    success: false,
+    message: "some error",
+  };
+  mockUploadJSON.mockResolvedValueOnce(apiResponse);
+
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: {
+      additional_layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "GeoJSON Layer",
+              source: {
+                type: "GeoJSON",
+                props: {},
+                geojson: exampleGeoJSON,
+              },
+            },
+            style: exampleStyle,
+          },
+        },
+      ],
+    },
+    metadata_string: {
+      refreshRate: 0,
+    },
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response).toStrictEqual(apiResponse);
+});
+
+test("handleGridItemImport bad style load", async () => {
+  const mockUploadJSON = jest.fn();
+  appAPI.uploadJSON = mockUploadJSON;
+  mockUploadJSON.mockResolvedValueOnce({
+    success: true,
+    filename: "geojson.json",
+  });
+  const apiResponse = {
+    success: false,
+    message: "some error",
+  };
+  mockUploadJSON.mockResolvedValueOnce(apiResponse);
+
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Map",
+    args_string: {
+      additional_layers: [
+        {
+          configuration: {
+            type: "VectorLayer",
+            props: {
+              name: "GeoJSON Layer",
+              source: {
+                type: "GeoJSON",
+                props: {},
+                geojson: exampleGeoJSON,
+              },
+            },
+            style: exampleStyle,
+          },
+        },
+      ],
+    },
+    metadata_string: {
+      refreshRate: 0,
+    },
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response).toStrictEqual(apiResponse);
 });

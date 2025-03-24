@@ -936,221 +936,221 @@ test("MapLayerModal style", async () => {
   });
 });
 
-// test("MapLayerModal style api fail", async () => {
-//   const mockUploadJSON = jest.fn();
-//   appAPI.uploadJSON = mockUploadJSON;
-//   mockUploadJSON.mockResolvedValue({ success: false });
+test("MapLayerModal style api fail", async () => {
+  const mockUploadJSON = jest.fn();
+  appAPI.uploadJSON = mockUploadJSON;
+  mockUploadJSON.mockResolvedValue({ success: false });
 
-//   const handleModalClose = jest.fn();
-//   const addMapLayer = jest.fn();
-//   const layerInfo = {};
-//   const mapLayers = [];
-//   const existingLayerOriginalName = { current: null };
-//   render(
-//     <TestingComponent
-//       showModal={true}
-//       handleModalClose={handleModalClose}
-//       addMapLayer={addMapLayer}
-//       layerInfo={layerInfo}
-//       mapLayers={mapLayers}
-//       existingLayerOriginalName={existingLayerOriginalName}
-//     />
-//   );
+  const handleModalClose = jest.fn();
+  const addMapLayer = jest.fn();
+  const layerInfo = {};
+  const mapLayers = [];
+  const existingLayerOriginalName = { current: null };
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={handleModalClose}
+      addMapLayer={addMapLayer}
+      layerInfo={layerInfo}
+      mapLayers={mapLayers}
+      existingLayerOriginalName={existingLayerOriginalName}
+    />
+  );
 
-//   const nameInput = await screen.findByLabelText("Name Input");
-//   fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
+  const nameInput = await screen.findByLabelText("Name Input");
+  fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
 
-//   const sourceTab = screen.getByText("Source");
-//   fireEvent.click(sourceTab);
-//   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-//   const sourceDropdown = screen.getByRole("combobox");
+  const sourceTab = screen.getByText("Source");
+  fireEvent.click(sourceTab);
+  const sourceTabContent = screen.getByLabelText("layer-source-tab");
+  const sourceDropdown = screen.getByRole("combobox");
 
-//   selectEvent.openMenu(sourceDropdown);
-//   const sourceOption = await screen.findByText("ImageArcGISRest");
-//   fireEvent.click(sourceOption);
-//   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("ImageArcGISRest");
+  fireEvent.click(sourceOption);
+  expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
-//   const urlInput = within(sourceTabContent).getByLabelText("value Input 0");
-//   fireEvent.change(urlInput, { target: { value: "Some Url" } });
+  const urlInput = within(sourceTabContent).getByLabelText("value Input 0");
+  fireEvent.change(urlInput, { target: { value: "Some Url" } });
 
-//   const styleTab = screen.getByText("Style");
-//   fireEvent.click(styleTab);
+  const styleTab = screen.getByText("Style");
+  fireEvent.click(styleTab);
 
-//   expect(await screen.findByText("Upload style file")).toBeInTheDocument();
+  expect(await screen.findByText("Upload style file")).toBeInTheDocument();
 
-//   const exampleStyle = {
-//     version: 8,
-//     sprite:
-//       "https://cdn.arcgis.com/sharing/rest/content/items/005b8960ddd04ae781df8d471b6726b3/resources/styles/../sprites/sprite",
-//     glyphs:
-//       "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/resources/fonts/{fontstack}/{range}.pbf",
-//     sources: {
-//       esri: {
-//         type: "vector",
-//         url: "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer",
-//         tiles: [
-//           "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf",
-//         ],
-//       },
-//     },
-//     layers: [
-//       {
-//         id: "Land/Ice",
-//         type: "fill",
-//         source: "esri",
-//         "source-layer": "Land",
-//         filter: ["==", "_symbol", 1],
-//         layout: {},
-//         paint: {
-//           "fill-opacity": 0.8,
-//           "fill-color": "#feffff",
-//         },
-//       },
-//     ],
-//   };
+  const exampleStyle = {
+    version: 8,
+    sprite:
+      "https://cdn.arcgis.com/sharing/rest/content/items/005b8960ddd04ae781df8d471b6726b3/resources/styles/../sprites/sprite",
+    glyphs:
+      "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/resources/fonts/{fontstack}/{range}.pbf",
+    sources: {
+      esri: {
+        type: "vector",
+        url: "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer",
+        tiles: [
+          "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf",
+        ],
+      },
+    },
+    layers: [
+      {
+        id: "Land/Ice",
+        type: "fill",
+        source: "esri",
+        "source-layer": "Land",
+        filter: ["==", "_symbol", 1],
+        layout: {},
+        paint: {
+          "fill-opacity": 0.8,
+          "fill-color": "#feffff",
+        },
+      },
+    ],
+  };
 
-//   const textArea = screen.getByLabelText("style-text-area");
-//   fireEvent.change(textArea, {
-//     target: { value: JSON.stringify(exampleStyle) },
-//   });
+  const textArea = screen.getByLabelText("style-text-area");
+  fireEvent.change(textArea, {
+    target: { value: JSON.stringify(exampleStyle) },
+  });
 
-//   const createLayerButton = await screen.findByLabelText("Create Layer Button");
-//   fireEvent.click(createLayerButton);
+  const createLayerButton = await screen.findByLabelText("Create Layer Button");
+  fireEvent.click(createLayerButton);
 
-//   expect(
-//     await screen.findByText(
-//       "Failed to upload the json data. Check logs for more information."
-//     )
-//   ).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      "Failed to upload the json data. Check logs for more information."
+    )
+  ).toBeInTheDocument();
 
-//   const closeAlert = screen.getByLabelText("Close alert");
-//   fireEvent.click(closeAlert);
+  const closeAlert = screen.getByLabelText("Close alert");
+  fireEvent.click(closeAlert);
 
-//   expect(
-//     screen.queryByText(
-//       "Failed to upload the json data. Check logs for more information."
-//     )
-//   ).not.toBeInTheDocument();
+  expect(
+    screen.queryByText(
+      "Failed to upload the json data. Check logs for more information."
+    )
+  ).not.toBeInTheDocument();
 
-//   expect(addMapLayer).toHaveBeenCalledTimes(0);
-// });
+  expect(addMapLayer).toHaveBeenCalledTimes(0);
+});
 
-// test("MapLayerModal update ImageArcGISRest layer", async () => {
-//   mockedGetLayerAttributes.mockResolvedValue({
-//     "New Layer Name": [
-//       { name: "the_geom", alias: "the_geom" },
-//       { name: "STATE_NAME", alias: "STATE_NAME" },
-//     ],
-//   });
+test("MapLayerModal update ImageArcGISRest layer", async () => {
+  mockedGetLayerAttributes.mockResolvedValue({
+    "New Layer Name": [
+      { name: "the_geom", alias: "the_geom" },
+      { name: "STATE_NAME", alias: "STATE_NAME" },
+    ],
+  });
 
-//   const handleModalClose = jest.fn();
-//   const addMapLayer = jest.fn();
-//   const layerInfo = {
-//     layerProps: {
-//       name: "New Layer Name",
-//     },
-//     sourceProps: {
-//       props: {
-//         url: "Some Url",
-//       },
-//       type: "ImageArcGISRest",
-//     },
-//     attributeVariables: {
-//       "New Layer Name": {
-//         the_geom: "Some Variable",
-//       },
-//     },
-//   };
-//   const mapLayers = [
-//     {
-//       configuration: {
-//         props: {
-//           name: "New Layer Name",
-//           source: {
-//             props: {
-//               url: "Some Url",
-//             },
-//             type: "ImageArcGISRest",
-//           },
-//         },
-//         type: "ImageLayer",
-//       },
-//       attributeVariables: {
-//         "New Layer Name": {
-//           the_geom: "Some Variable",
-//         },
-//       },
-//     },
-//   ];
-//   const existingLayerOriginalName = { current: "New Layer Name" };
-//   render(
-//     <TestingComponent
-//       showModal={true}
-//       handleModalClose={handleModalClose}
-//       addMapLayer={addMapLayer}
-//       layerInfo={layerInfo}
-//       mapLayers={mapLayers}
-//       existingLayerOriginalName={existingLayerOriginalName}
-//     />
-//   );
+  const handleModalClose = jest.fn();
+  const addMapLayer = jest.fn();
+  const layerInfo = {
+    layerProps: {
+      name: "New Layer Name",
+    },
+    sourceProps: {
+      props: {
+        url: "Some Url",
+      },
+      type: "ImageArcGISRest",
+    },
+    attributeVariables: {
+      "New Layer Name": {
+        the_geom: "Some Variable",
+      },
+    },
+  };
+  const mapLayers = [
+    {
+      configuration: {
+        props: {
+          name: "New Layer Name",
+          source: {
+            props: {
+              url: "Some Url",
+            },
+            type: "ImageArcGISRest",
+          },
+        },
+        type: "ImageLayer",
+      },
+      attributeVariables: {
+        "New Layer Name": {
+          the_geom: "Some Variable",
+        },
+      },
+    },
+  ];
+  const existingLayerOriginalName = { current: "New Layer Name" };
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={handleModalClose}
+      addMapLayer={addMapLayer}
+      layerInfo={layerInfo}
+      mapLayers={mapLayers}
+      existingLayerOriginalName={existingLayerOriginalName}
+    />
+  );
 
-//   expect(await screen.findByRole("dialog")).toBeInTheDocument();
-//   expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
-//   expect(screen.getByText("Layer")).toBeInTheDocument();
-//   expect(screen.getByText("Source")).toBeInTheDocument();
-//   expect(screen.getByText("Style")).toBeInTheDocument();
-//   expect(screen.getByText("Legend")).toBeInTheDocument();
-//   expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
+  expect(screen.getByText("Layer")).toBeInTheDocument();
+  expect(screen.getByText("Source")).toBeInTheDocument();
+  expect(screen.getByText("Style")).toBeInTheDocument();
+  expect(screen.getByText("Legend")).toBeInTheDocument();
+  expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
 
-//   const nameInput = await screen.findByLabelText("Name Input");
-//   fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
+  const nameInput = await screen.findByLabelText("Name Input");
+  fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
 
-//   const sourceTab = screen.getByText("Source");
-//   fireEvent.click(sourceTab);
-//   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-//   const sourceDropdown = screen.getByRole("combobox");
+  const sourceTab = screen.getByText("Source");
+  fireEvent.click(sourceTab);
+  const sourceTabContent = screen.getByLabelText("layer-source-tab");
+  const sourceDropdown = screen.getByRole("combobox");
 
-//   selectEvent.openMenu(sourceDropdown);
-//   const sourceOption = await screen.findByText("ImageArcGISRest");
-//   fireEvent.click(sourceOption);
-//   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("ImageArcGISRest");
+  fireEvent.click(sourceOption);
+  expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
-//   const urlInput = within(sourceTabContent).getByLabelText("value Input 0");
-//   fireEvent.change(urlInput, { target: { value: "Some Url" } });
+  const urlInput = within(sourceTabContent).getByLabelText("value Input 0");
+  fireEvent.change(urlInput, { target: { value: "Some Url" } });
 
-//   const attributesTab = screen.getByText("Attributes/Popup");
-//   fireEvent.click(attributesTab);
+  const attributesTab = screen.getByText("Attributes/Popup");
+  fireEvent.click(attributesTab);
 
-//   expect(await screen.findByText("New Layer Name")).toBeInTheDocument();
-//   const attributesTabContent = screen.getByLabelText("layer-attributes-tab");
+  expect(await screen.findByText("New Layer Name")).toBeInTheDocument();
+  const attributesTabContent = screen.getByLabelText("layer-attributes-tab");
 
-//   const variableInput1 =
-//     within(attributesTabContent).getAllByRole("textbox")[0];
-//   fireEvent.change(variableInput1, { target: { value: "Some New Variable" } });
+  const variableInput1 =
+    within(attributesTabContent).getAllByRole("textbox")[0];
+  fireEvent.change(variableInput1, { target: { value: "Some New Variable" } });
 
-//   const createLayerButton = await screen.findByLabelText("Create Layer Button");
-//   fireEvent.click(createLayerButton);
+  const createLayerButton = await screen.findByLabelText("Create Layer Button");
+  fireEvent.click(createLayerButton);
 
-//   expect(addMapLayer).toHaveBeenCalledWith({
-//     configuration: {
-//       props: {
-//         name: "New Layer Name",
-//         source: {
-//           props: {
-//             url: "Some Url",
-//           },
-//           type: "ImageArcGISRest",
-//         },
-//       },
-//       type: "ImageLayer",
-//     },
-//     attributeVariables: {
-//       "New Layer Name": {
-//         the_geom: "Some New Variable",
-//       },
-//     },
-//   });
-// });
+  expect(addMapLayer).toHaveBeenCalledWith({
+    configuration: {
+      props: {
+        name: "New Layer Name",
+        source: {
+          props: {
+            url: "Some Url",
+          },
+          type: "ImageArcGISRest",
+        },
+      },
+      type: "ImageLayer",
+    },
+    attributeVariables: {
+      "New Layer Name": {
+        the_geom: "Some New Variable",
+      },
+    },
+  });
+});
 
 TestingComponent.propTypes = {
   showModal: PropTypes.bool,
