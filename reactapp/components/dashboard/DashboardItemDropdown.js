@@ -94,6 +94,7 @@ DashboardItemDropdown.propTypes = {
   editGridItem: PropTypes.func,
   editSize: PropTypes.func,
   copyGridItem: PropTypes.func,
+  exportGridItem: PropTypes.func,
 };
 
 export default DashboardItemDropdown;

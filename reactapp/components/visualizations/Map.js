@@ -16,7 +16,6 @@ import {
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import { valuesEqual } from "components/modals/utilities";
-import appAPI from "services/api/app";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import "swiper/css/pagination";

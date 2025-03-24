@@ -1,3 +1,4 @@
+import PropTypes from "prop-types";
 import { useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -354,3 +355,7 @@ test("DashboardImportModal Dashboard View close footer", async () => {
     expect(screen.queryByText("Import Dashboard Item")).not.toBeInTheDocument();
   });
 });
+
+TestingComponent.propTypes = {
+  onImportGridItem: PropTypes.func,
+};

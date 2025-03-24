@@ -11,7 +11,6 @@ import { confirm } from "components/inputs/DeleteConfirmation";
 import AppTour from "components/appTour/AppTour";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import * as utils from "components/visualizations/utilities";
-import * as dashboardUtils from "components/dashboard/DashboardItem";
 
 jest.mock("react-router-dom", () => ({
   ...jest.requireActual("react-router-dom"),

@@ -30,9 +30,11 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db):
     name = "added_dashboard"
     owner = "some_user"
     grid_items = []
+    notes = ""
+    access_groups = []
 
     # Create a new dashboard and Verify dashboard, rows, and columns were created
-    add_new_dashboard(owner, uuid, name, description)
+    add_new_dashboard(owner, uuid, name, description, notes, access_groups, grid_items)
 
     dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
     assert dashboard.description == description
@@ -90,6 +92,63 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db):
     grid_items = (
         db_session.query(GridItem).filter(GridItem.id == new_grid_item_id).all()
     )
+    assert len(grid_items) == 0
+
+
+@pytest.mark.django_db
+def test_add_and_delete_dashboard_with_grid_items(db_session, mock_app_get_ps_db):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    description = "added_dashboard"
+    uuid = "3ddc3d80-2593-468f-825a-425f816c892f"
+    name = "added_dashboard"
+    owner = "some_user"
+    grid_items = [
+        {
+            "i": "2",
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "source": "Text",
+            "args_string": json.dumps({"text": "Some text"}),
+            "metadata_string": json.dumps({}),
+        }
+    ]
+    notes = ""
+    access_groups = []
+
+    # Create a new dashboard and Verify dashboard, rows, and columns were created
+    add_new_dashboard(owner, uuid, name, description, notes, access_groups, grid_items)
+
+    dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
+    assert dashboard.description == description
+    assert dashboard.name == name
+    assert dashboard.notes == ""
+    assert dashboard.uuid == uuid
+    assert dashboard.owner == owner
+    assert dashboard.access_groups == []
+    dashboard_id = dashboard.id
+
+    assert len(dashboard.grid_items) == 1
+    assert dashboard.grid_items[0].x == 1
+    assert dashboard.grid_items[0].w == 1
+    assert dashboard.grid_items[0].source == "Text"
+    assert dashboard.grid_items[0].args_string == json.dumps({"text": "Some text"})
+    grid_item_i = dashboard.grid_items[0].i
+    grid_item_id = dashboard.grid_items[0].id
+
+    # Delete the new row
+    delete_grid_item(db_session, dashboard_id, grid_item_i)
+
+    new_grid_item = db_session.query(GridItem).filter(GridItem.id == grid_item_id).all()
+    assert len(new_grid_item) == 0
+
+    # Delete the dashboard and Verify dashboard, rows, and columns were deleted
+    delete_named_dashboard(owner, dashboard_id)
+
+    dashboard = db_session.query(Dashboard).filter(Dashboard.id == dashboard_id).all()
+    assert len(dashboard) == 0
+    grid_items = db_session.query(GridItem).filter(GridItem.id == grid_item_id).all()
     assert len(grid_items) == 0
 
 
@@ -531,9 +590,9 @@ def test_clean_up_jsons(dashboard, mock_app_get_ps_db, mocker, tmp_path):
                                         "type": "GeoJSON",
                                         "geojson": "used_geojson.geojson",
                                     }
-                                }
+                                },
+                                "style": "used_style.json",
                             },
-                            "style": "used_style.json",
                         }
                     ]
                 }

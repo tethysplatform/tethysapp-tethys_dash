@@ -287,6 +287,9 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker, tmp_path):
         "123e4567-e89b-12d3-a456-426614174000",
         itemData["name"],
         itemData["description"],
+        "",
+        [],
+        [],
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
@@ -321,6 +324,9 @@ def test_add_dashboard_failed_unknown_exception(
         "123e4567-e89b-12d3-a456-426614174000",
         itemData["name"],
         itemData["description"],
+        "",
+        [],
+        [],
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
