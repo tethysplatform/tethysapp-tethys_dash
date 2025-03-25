@@ -134,6 +134,8 @@ function Loader({ children }) {
       let tethysApp;
       let dashboards;
       let visualizations;
+      let allVisualizations = [];
+      let visualizationArgs = [];
 
       try {
         tethysSession = await tethysAPI.getSession();
@@ -146,104 +148,108 @@ function Loader({ children }) {
             setShowRedirectPublicUserModal(true);
           }
         } else {
-          throw new Error("Failed to get a valid tethys session");
+          handleError(error);
+          return;
         }
       }
 
-      if (tethysSession) {
-        [tethysApp, user, csrf, dashboards, visualizations] = await Promise.all(
-          [
-            tethysAPI.getAppData(APP_ID),
-            tethysAPI.getUserData(),
-            tethysAPI.getCSRF(),
-            appAPI.getDashboards(),
-            appAPI.getVisualizations(),
-          ]
-        );
-      } else {
-        [tethysApp, dashboards, visualizations] = await Promise.all([
-          tethysAPI.getAppData(APP_ID),
-          appAPI.getDashboards(),
-          appAPI.getVisualizations(),
-        ]);
-      }
+      try {
+        if (tethysSession) {
+          [tethysApp, user, csrf, dashboards, visualizations] =
+            await Promise.all([
+              tethysAPI.getAppData(APP_ID),
+              tethysAPI.getUserData(),
+              tethysAPI.getCSRF(),
+              appAPI.getDashboards(),
+              appAPI.getVisualizations(),
+            ]);
 
-      const allVisualizations = visualizations.visualizations;
-      const visualizationArgs = [
-        {
-          label: "Base Map Layers",
-          value: "Base Map Layers",
-          argOptions: baseMapLayers,
-        },
-      ];
+          allVisualizations = visualizations.visualizations;
+          visualizationArgs = [
+            {
+              label: "Base Map Layers",
+              value: "Base Map Layers",
+              argOptions: baseMapLayers,
+            },
+          ];
 
-      for (let optionGroup of allVisualizations) {
-        for (let option of optionGroup.options) {
-          let args = option.args;
-          for (let arg in args) {
-            visualizationArgs.push({
-              label:
-                optionGroup.label +
-                ": " +
-                option.label +
-                " - " +
-                spaceAndCapitalize(arg),
-              value:
-                optionGroup.label +
-                ": " +
-                option.label +
-                " - " +
-                spaceAndCapitalize(arg),
-              argOptions: args[arg],
-            });
+          for (let optionGroup of allVisualizations) {
+            for (let option of optionGroup.options) {
+              let args = option.args;
+              for (let arg in args) {
+                visualizationArgs.push({
+                  label:
+                    optionGroup.label +
+                    ": " +
+                    option.label +
+                    " - " +
+                    spaceAndCapitalize(arg),
+                  value:
+                    optionGroup.label +
+                    ": " +
+                    option.label +
+                    " - " +
+                    spaceAndCapitalize(arg),
+                  argOptions: args[arg],
+                });
+              }
+            }
           }
-        }
-      }
 
-      allVisualizations.push({
-        label: "Other",
-        options: [
-          {
-            source: "Map",
-            value: "Map",
-            label: "Map",
-            args: {
-              base_map: baseMapLayers,
-              additional_layers: "custom-AddMapLayer",
-              show_layer_controls: "checkbox",
-            },
-          },
-          {
-            source: "Custom Image",
-            value: "Custom Image",
-            label: "Custom Image",
-            args: { image_source: "text" },
-          },
-          {
-            source: "Text",
-            value: "Text",
-            label: "Text",
-            args: { text: "text" },
-          },
-          {
-            source: "Variable Input",
-            value: "Variable Input",
-            label: "Variable Input",
-            args: {
-              variable_name: "text",
-              variable_options_source: [
-                ...nonDropDownVariableInputTypes,
-                ...[
-                  {
-                    label: "Existing Visualization Inputs",
-                    options: visualizationArgs,
-                  },
-                ],
-              ],
-            },
-          },
-        ],
-      });
+          allVisualizations.push({
+            label: "Other",
+            options: [
+              {
+                source: "Map",
+                value: "Map",
+                label: "Map",
+                args: {
+                  base_map: baseMapLayers,
+                  additional_layers: "custom-AddMapLayer",
+                  show_layer_controls: "checkbox",
+                },
+              },
+              {
+                source: "Custom Image",
+                value: "Custom Image",
+                label: "Custom Image",
+                args: { image_source: "text" },
+              },
+              {
+                source: "Text",
+                value: "Text",
+                label: "Text",
+                args: { text: "text" },
+              },
+              {
+                source: "Variable Input",
+                value: "Variable Input",
+                label: "Variable Input",
+                args: {
+                  variable_name: "text",
+                  variable_options_source: [
+                    ...nonDropDownVariableInputTypes,
+                    ...[
+                      {
+                        label: "Existing Visualization Inputs",
+                        options: visualizationArgs,
+                      },
+                    ],
+                  ],
+                },
+              },
+            ],
+          });
+        } else {
+          [tethysApp, dashboards] = await Promise.all([
+            tethysAPI.getAppData(APP_ID),
+            appAPI.getDashboards(),
+          ]);
+        }
+      } catch (error) {
+        handleError(error);
+        return;
+      }
 
       setAppContext({
         tethysApp,
@@ -261,11 +267,7 @@ function Loader({ children }) {
       }, LOADER_DELAY);
     };
 
-    try {
-      loadAppData();
-    } catch (error) {
-      handleError(error);
-    }
+    loadAppData();
 
     // eslint-disable-next-line
   }, []);
@@ -390,7 +392,7 @@ function Loader({ children }) {
       try {
         downloadJSONFile(exportedDashboard, `${exportedDashboard.name}.json`);
       } catch (err) {
-        return { success: false, message: "Failed to export dashboard" };
+        return { success: false };
       }
     }
 

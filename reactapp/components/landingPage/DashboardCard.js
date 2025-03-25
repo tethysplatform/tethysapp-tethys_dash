@@ -225,7 +225,7 @@ const DashboardCard = ({
   async function onExport() {
     const apiResponse = await exportDashboard(id);
     if (!apiResponse["success"]) {
-      setErrorMessage("Failed to export dashboard");
+      setErrorMessage(apiResponse["message"] ?? "Failed to export dashboard");
     }
   }
 

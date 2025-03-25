@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import DashboardCard, {
   NewDashboardCard,
 } from "components/landingPage/DashboardCard";
@@ -11,6 +12,7 @@ import { confirm } from "components/inputs/DeleteConfirmation";
 import AppTour from "components/appTour/AppTour";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import * as utils from "components/visualizations/utilities";
+import { useContext } from "react";
 
 jest.mock("react-router-dom", () => ({
   ...jest.requireActual("react-router-dom"),
@@ -24,7 +26,20 @@ jest.mock("components/inputs/DeleteConfirmation", () => {
 });
 const mockedConfirm = jest.mocked(confirm);
 
-it("DashboardCard editable, open and edit name", async () => {
+const TestingComponent = ({ children }) => {
+  const { availableDashboards } = useContext(AvailableDashboardsContext);
+
+  return (
+    <>
+      {children}
+      <p data-testid="availableDashboards">
+        {JSON.stringify(availableDashboards)}
+      </p>
+    </>
+  );
+};
+
+test("DashboardCard editable, open and edit name", async () => {
   const navigateMock = jest.fn();
   useNavigate.mockReturnValue(navigateMock);
   const mockUpdateDashboard = jest.fn();
@@ -115,7 +130,7 @@ it("DashboardCard editable, open and edit name", async () => {
   );
 });
 
-it("DashboardCard editable, edit name with blur", async () => {
+test("DashboardCard editable, edit name with blur", async () => {
   const mockUpdateDashboard = jest.fn();
   mockUpdateDashboard.mockResolvedValue({
     success: true,
@@ -182,7 +197,7 @@ it("DashboardCard editable, edit name with blur", async () => {
   );
 });
 
-it("DashboardCard editable, edit name but cancel", async () => {
+test("DashboardCard editable, edit name but cancel", async () => {
   const mockUpdateDashboard = jest.fn();
   appAPI.updateDashboard = mockUpdateDashboard;
 
@@ -232,7 +247,7 @@ it("DashboardCard editable, edit name but cancel", async () => {
   expect(mockUpdateDashboard).toHaveBeenCalledTimes(0);
 });
 
-it("DashboardCard editable, edit name and no change", async () => {
+test("DashboardCard editable, edit name and no change", async () => {
   const mockUpdateDashboard = jest.fn();
   appAPI.updateDashboard = mockUpdateDashboard;
 
@@ -281,7 +296,7 @@ it("DashboardCard editable, edit name and no change", async () => {
   expect(mockUpdateDashboard).toHaveBeenCalledTimes(0);
 });
 
-it("DashboardCard not editable, open", async () => {
+test("DashboardCard not editable, open", async () => {
   const navigateMock = jest.fn();
   useNavigate.mockReturnValue(navigateMock);
 
@@ -333,7 +348,7 @@ it("DashboardCard not editable, open", async () => {
   expect(navigateMock).toHaveBeenCalledWith("/dashboard/public/some dashboard");
 });
 
-it("DashboardCard editable, dont open in app tour", async () => {
+test("DashboardCard editable, dont open in app tour", async () => {
   const navigateMock = jest.fn();
   useNavigate.mockReturnValue(navigateMock);
 
@@ -362,7 +377,7 @@ it("DashboardCard editable, dont open in app tour", async () => {
   expect(navigateMock).toHaveBeenCalledTimes(0);
 });
 
-it("DashboardCard editable, edit description", async () => {
+test("DashboardCard editable, edit description", async () => {
   const mockUpdateDashboard = jest.fn();
   const navigateMock = jest.fn();
   useNavigate.mockReturnValue(navigateMock);
@@ -434,7 +449,7 @@ it("DashboardCard editable, edit description", async () => {
   );
 });
 
-it("DashboardCard editable, edit description with blur", async () => {
+test("DashboardCard editable, edit description with blur", async () => {
   const mockUpdateDashboard = jest.fn();
   mockUpdateDashboard.mockResolvedValue({
     success: true,
@@ -502,7 +517,7 @@ it("DashboardCard editable, edit description with blur", async () => {
   );
 });
 
-it("DashboardCard editable, edit description new line", async () => {
+test("DashboardCard editable, edit description new line", async () => {
   const mockUpdateDashboard = jest.fn();
   const navigateMock = jest.fn();
   useNavigate.mockReturnValue(navigateMock);
@@ -577,7 +592,7 @@ it("DashboardCard editable, edit description new line", async () => {
   );
 });
 
-it("DashboardCard editable, edit description but cancel", async () => {
+test("DashboardCard editable, edit description but cancel", async () => {
   const mockUpdateDashboard = jest.fn();
   appAPI.updateDashboard = mockUpdateDashboard;
 
@@ -624,7 +639,7 @@ it("DashboardCard editable, edit description but cancel", async () => {
   expect(mockUpdateDashboard).toHaveBeenCalledTimes(0);
 });
 
-it("DashboardCard editable, edit description fail", async () => {
+test("DashboardCard editable, edit description fail", async () => {
   const mockUpdateDashboard = jest.fn();
   mockUpdateDashboard.mockResolvedValue({
     success: false,
@@ -692,7 +707,7 @@ it("DashboardCard editable, edit description fail", async () => {
   ).not.toBeInTheDocument();
 });
 
-it("DashboardCard editable, edit description fail with message", async () => {
+test("DashboardCard editable, edit description fail with message", async () => {
   const mockUpdateDashboard = jest.fn();
   mockUpdateDashboard.mockResolvedValue({
     success: false,
@@ -752,7 +767,7 @@ it("DashboardCard editable, edit description fail with message", async () => {
   expect(await screen.findByText("some failure message")).toBeInTheDocument();
 });
 
-it("DashboardCard editable, edit thumbnail and cancel", async () => {
+test("DashboardCard editable, edit thumbnail and cancel", async () => {
   const mockUpdateDashboard = jest.fn();
 
   mockUpdateDashboard.mockResolvedValue({
@@ -812,7 +827,7 @@ it("DashboardCard editable, edit thumbnail and cancel", async () => {
   expect(mockUpdateDashboard).toHaveBeenCalledTimes(0);
 });
 
-it("DashboardCard editable, edit thumbnail", async () => {
+test("DashboardCard editable, edit thumbnail", async () => {
   const mockUpdateDashboard = jest.fn();
 
   mockUpdateDashboard.mockResolvedValue({
@@ -890,7 +905,7 @@ it("DashboardCard editable, edit thumbnail", async () => {
   });
 });
 
-it("DashboardCard editable, edit thumbnail fail", async () => {
+test("DashboardCard editable, edit thumbnail fail", async () => {
   const mockUpdateDashboard = jest.fn();
   mockUpdateDashboard.mockResolvedValue({
     success: false,
@@ -964,7 +979,7 @@ it("DashboardCard editable, edit thumbnail fail", async () => {
   ).toBeInTheDocument();
 });
 
-it("DashboardCard editable, copy", async () => {
+test("DashboardCard editable, copy", async () => {
   const mockCopyDashboard = jest.fn();
 
   mockCopyDashboard.mockResolvedValue({
@@ -1017,7 +1032,70 @@ it("DashboardCard editable, copy", async () => {
   });
 });
 
-it("DashboardCard editable, copy fail", async () => {
+test("DashboardCard editable, copy (2)", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = JSON.parse(
+    JSON.stringify(updatedMockedDashboards.user[0])
+  );
+  updatedMockedDashboards.user.unshift(mockedDashboard);
+  updatedMockedDashboards.user[1].name = `${mockedDashboard.name} - Copy`;
+  const mockCopyDashboard = jest.fn();
+
+  mockCopyDashboard.mockResolvedValue({
+    success: true,
+    new_dashboard: {
+      id: 1,
+      name: "some dashboard_Copy",
+      description: "some description",
+      accessGroups: ["public"],
+      image: "some_image_updated.png",
+    },
+  });
+  appAPI.copyDashboard = mockCopyDashboard;
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardCard
+            id={1}
+            name={mockedDashboards.user[0].name}
+            editable={true}
+            description="some description"
+            accessGroups={["public"]}
+            image="some_image.png"
+          />
+        </MemoryRouter>
+      ),
+      options: {
+        dashboards: updatedMockedDashboards,
+        initialDashboard: mockedDashboard,
+      },
+    })
+  );
+
+  const contextMenuButton = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(contextMenuButton);
+
+  const copyOption = await screen.findByText("Copy");
+  expect(copyOption).toBeInTheDocument();
+
+  await userEvent.click(copyOption);
+
+  await waitFor(async () => {
+    expect(mockCopyDashboard).toHaveBeenCalledWith(
+      {
+        id: 1,
+        newName: `${mockedDashboards.user[0].name} - Copy (2)`,
+      },
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    );
+  });
+});
+
+test("DashboardCard editable, copy fail", async () => {
   const mockCopyDashboard = jest.fn();
   mockCopyDashboard.mockResolvedValue({
     success: false,
@@ -1066,7 +1144,7 @@ it("DashboardCard editable, copy fail", async () => {
   ).toBeInTheDocument();
 });
 
-it("DashboardCard editable, export", async () => {
+test("DashboardCard editable, export", async () => {
   const spyDownloadJSONFile = jest
     .spyOn(utils, "downloadJSONFile")
     .mockImplementation(jest.fn());
@@ -1124,7 +1202,51 @@ it("DashboardCard editable, export", async () => {
   );
 });
 
-it("DashboardCard editable, export fail", async () => {
+test("DashboardCard editable, export fail to get dashboard", async () => {
+  jest
+    .spyOn(appAPI, "getDashboard")
+    .mockResolvedValueOnce({
+      success: true,
+      dashboard: mockedDashboards.user[0],
+    })
+    .mockResolvedValueOnce({
+      success: false,
+      message: "Failed to get dashboard",
+    });
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardCard
+            id={1}
+            name={mockedDashboards.user[0].name}
+            editable={true}
+            description="some description"
+            accessGroups={["public"]}
+            image="some_image.png"
+          />
+        </MemoryRouter>
+      ),
+    })
+  );
+
+  const contextMenuButton = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(contextMenuButton);
+
+  const exportOption = await screen.findByText("Export");
+  expect(exportOption).toBeInTheDocument();
+
+  await userEvent.click(exportOption);
+
+  expect(
+    await screen.findByText("Failed to get dashboard")
+  ).toBeInTheDocument();
+});
+
+test("DashboardCard editable, export fail", async () => {
   const spyDownloadJSONFile = jest
     .spyOn(utils, "downloadJSONFile")
     .mockImplementation(() => {
@@ -1188,7 +1310,7 @@ it("DashboardCard editable, export fail", async () => {
   ).toBeInTheDocument();
 });
 
-it("DashboardCard editable, share", async () => {
+test("DashboardCard editable, share", async () => {
   const mockUpdateDashboard = jest.fn();
 
   mockUpdateDashboard.mockResolvedValue({
@@ -1248,7 +1370,7 @@ it("DashboardCard editable, share", async () => {
   expect(await screen.findByLabelText("Public Icon")).toBeInTheDocument();
 });
 
-it("DashboardCard editable, make private", async () => {
+test("DashboardCard editable, make private", async () => {
   const mockUpdateDashboard = jest.fn();
 
   mockUpdateDashboard.mockResolvedValue({
@@ -1308,7 +1430,7 @@ it("DashboardCard editable, make private", async () => {
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 });
 
-it("DashboardCard editable, share fail", async () => {
+test("DashboardCard editable, share fail", async () => {
   const mockUpdateDashboard = jest.fn();
   mockUpdateDashboard.mockResolvedValue({
     success: false,
@@ -1364,7 +1486,7 @@ it("DashboardCard editable, share fail", async () => {
   ).toBeInTheDocument();
 });
 
-it("DashboardCard editable, share fail with message", async () => {
+test("DashboardCard editable, share fail with message", async () => {
   const mockUpdateDashboard = jest.fn();
   mockUpdateDashboard.mockResolvedValue({
     success: false,
@@ -1419,7 +1541,7 @@ it("DashboardCard editable, share fail with message", async () => {
   expect(await screen.findByText("some failure message")).toBeInTheDocument();
 });
 
-it("DashboardCard editable, copy public link fail", async () => {
+test("DashboardCard editable, copy public link fail", async () => {
   render(
     createLoadedComponent({
       children: (
@@ -1454,7 +1576,7 @@ it("DashboardCard editable, copy public link fail", async () => {
   ).toBeInTheDocument();
 });
 
-it("DashboardCard editable, copy public link", async () => {
+test("DashboardCard editable, copy public link", async () => {
   const mockWriteText = jest.fn();
   Object.defineProperty(navigator, "clipboard", {
     value: {
@@ -1496,7 +1618,15 @@ it("DashboardCard editable, copy public link", async () => {
   );
 });
 
-it("DashboardCard editable, delete and confirm", async () => {
+test("DashboardCard editable, delete and confirm", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = JSON.parse(
+    JSON.stringify(updatedMockedDashboards.user[0])
+  );
+  updatedMockedDashboards.user.unshift(mockedDashboard);
+  updatedMockedDashboards.user[1].name = `${mockedDashboard.name} - Copy`;
+  updatedMockedDashboards.user[1].id = 2;
+
   const mockDeleteDashboard = jest.fn();
   mockedConfirm.mockResolvedValueOnce(true);
 
@@ -1509,16 +1639,22 @@ it("DashboardCard editable, delete and confirm", async () => {
     createLoadedComponent({
       children: (
         <MemoryRouter initialEntries={["/"]}>
-          <DashboardCard
-            id={1}
-            name="some dashboard"
-            editable={true}
-            description="some description"
-            accessGroups={[]}
-            image="some_image.png"
-          />
+          <TestingComponent>
+            <DashboardCard
+              id={2}
+              name="some dashboard"
+              editable={true}
+              description="some description"
+              accessGroups={[]}
+              image="some_image.png"
+            />
+          </TestingComponent>
         </MemoryRouter>
       ),
+      options: {
+        dashboards: updatedMockedDashboards,
+        initialDashboard: mockedDashboard,
+      },
     })
   );
   const contextMenuButton = await screen.findByLabelText(
@@ -1533,14 +1669,43 @@ it("DashboardCard editable, delete and confirm", async () => {
   await waitFor(async () => {
     expect(mockDeleteDashboard).toHaveBeenCalledWith(
       {
-        id: 1,
+        id: 2,
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
     );
   });
+
+  expect(await screen.findByTestId("availableDashboards")).toHaveTextContent(
+    JSON.stringify({
+      user: [mockedDashboard],
+      public: [
+        {
+          id: 2,
+          uuid: "acde070d-8c4c-4f0d-9d8a-162843c10333",
+          name: "noneditable",
+          description: "test_description2",
+          accessGroups: ["public"],
+          image: "public_image.png",
+          notes: "test_notes2",
+          gridItems: [
+            {
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "",
+              args_string: "{}",
+              metadata_string: '{"refreshRate":0}',
+            },
+          ],
+        },
+      ],
+    })
+  );
 });
 
-it("DashboardCard editable, delete and not confirm", async () => {
+test("DashboardCard editable, delete and not confirm", async () => {
   const mockDeleteDashboard = jest.fn();
   mockedConfirm.mockResolvedValueOnce(false);
   appAPI.deleteDashboard = mockDeleteDashboard;
@@ -1572,7 +1737,7 @@ it("DashboardCard editable, delete and not confirm", async () => {
   expect(mockDeleteDashboard).toHaveBeenCalledTimes(0);
 });
 
-it("DashboardCard editable, delete and fail", async () => {
+test("DashboardCard editable, delete and fail", async () => {
   const mockDeleteDashboard = jest.fn();
   mockDeleteDashboard.mockResolvedValue({ success: false });
   mockedConfirm.mockResolvedValueOnce(true);
@@ -1617,7 +1782,7 @@ it("DashboardCard editable, delete and fail", async () => {
   ).toBeInTheDocument();
 });
 
-it("NewDashboardCard", async () => {
+test("NewDashboardCard", async () => {
   render(
     createLoadedComponent({
       children: (

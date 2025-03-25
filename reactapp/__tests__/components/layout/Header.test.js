@@ -128,6 +128,25 @@ test("LandingPageHeader, signin", async () => {
 });
 
 test("LandingPageHeader, import dashboard", async () => {
+  const importedDashboard = {
+    name: "Test",
+    description: "this is a new description",
+  };
+  const mockAddDashboard = jest.fn();
+  appAPI.addDashboard = mockAddDashboard;
+  mockAddDashboard.mockResolvedValue({
+    success: true,
+    new_dashboard: {
+      id: 1,
+      name: "Test",
+      description: "this is a new description",
+      notes: "",
+      editable: true,
+      accessGroups: [],
+      gridItems: [],
+    },
+  });
+
   render(
     createLoadedComponent({
       children: (
@@ -150,6 +169,21 @@ test("LandingPageHeader, import dashboard", async () => {
   expect(
     await screen.findByLabelText("Dashboard Import Modal")
   ).toBeInTheDocument();
+
+  const file = new File([JSON.stringify(importedDashboard)], "test-file.json", {
+    type: "text/plain",
+  });
+  const fileInput = screen.getByTestId("file-input");
+  fireEvent.change(fileInput, { target: { files: [file] } });
+
+  const importButton = screen.getByLabelText("Import Button");
+  await waitFor(() => expect(importButton).not.toBeDisabled());
+  await userEvent.click(importButton);
+
+  expect(mockAddDashboard).toHaveBeenCalledWith(
+    importedDashboard,
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+  );
 });
 
 test("LandingPageHeader, show info", async () => {

@@ -40,6 +40,7 @@ afterEach(() => {
   jest.clearAllMocks();
   jest.restoreAllMocks();
 });
+
 afterAll(() => {
   server.close();
   console.error = originalError;
