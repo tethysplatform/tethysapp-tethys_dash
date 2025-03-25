@@ -106,20 +106,7 @@ export const LandingPageHeader = () => {
             <WhiteTitle>Available Dashboards</WhiteTitle>
           </TitleDiv>
           <div>
-            {user?.username === "public" ? (
-              <TooltipButton
-                onClick={() => {
-                  window.location.assign(
-                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
-                  );
-                }}
-                tooltipPlacement="bottom"
-                tooltipText="Login"
-                aria-label={"dashboardLoginButton"}
-              >
-                <BsFillPersonFill size="1.5rem" />
-              </TooltipButton>
-            ) : (
+            {user?.username ? (
               <>
                 <TooltipButton
                   onClick={() => setShowImportModal(true)}
@@ -138,6 +125,19 @@ export const LandingPageHeader = () => {
                   <BsInfo size="1.5rem" />
                 </TooltipButton>
               </>
+            ) : (
+              <TooltipButton
+                onClick={() => {
+                  window.location.assign(
+                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
+                  );
+                }}
+                tooltipPlacement="bottom"
+                tooltipText="Login"
+                aria-label={"dashboardLoginButton"}
+              >
+                <BsFillPersonFill size="1.5rem" />
+              </TooltipButton>
             )}
             {user.isStaff && (
               <TooltipButton
@@ -410,7 +410,7 @@ export const DashboardHeader = () => {
                 </TooltipButton>
               </>
             )}
-            {user?.username === "public" && (
+            {!user?.username && (
               <TooltipButton
                 onClick={() => {
                   window.location.assign(

@@ -3,7 +3,8 @@ import PropTypes from "prop-types";
 import Dropdown from "react-bootstrap/Dropdown";
 import { BsThreeDotsVertical, BsFillCaretRightFill } from "react-icons/bs";
 import { useAppTourContext } from "components/contexts/AppTourContext";
-import { useState, useRef, useEffect } from "react";
+import { AppContext } from "components/contexts/Contexts";
+import { useState, useRef, useEffect, useContext } from "react";
 import "components/dashboard/itemDropdown.css";
 
 const StyledDropdownToggle = styled(Dropdown.Toggle)`
@@ -48,6 +49,7 @@ const ContextMenu = ({
   shared,
   setShowThumbnailModal,
 }) => {
+  const { user } = useContext(AppContext);
   const [showMenu, setShowMenu] = useState(false);
   const submenuRef = useRef(null);
   const [submenuPosition, setSubmenuPosition] = useState("right");
@@ -151,9 +153,11 @@ const ContextMenu = ({
             )}
           </Submenu>
         </SubmenuWrapper>
-        <Dropdown.Item onClick={onCopy} className="card-copy-option">
-          Copy
-        </Dropdown.Item>
+        {user?.username && (
+          <Dropdown.Item onClick={onCopy} className="card-copy-option">
+            Copy
+          </Dropdown.Item>
+        )}
         <Dropdown.Item onClick={onExport} className="card-export-option">
           Export
         </Dropdown.Item>

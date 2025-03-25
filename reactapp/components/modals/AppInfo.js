@@ -121,7 +121,7 @@ function AppInfoModal({ showModal, setShowModal, view }) {
               .
             </>
           )}
-          {user?.username !== "public" && (
+          {user?.username && (
             <>
               <br />
               <br />

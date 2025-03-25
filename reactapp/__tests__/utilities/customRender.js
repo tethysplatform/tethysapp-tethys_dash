@@ -47,14 +47,7 @@ const createLoadedComponent = ({ children, options = {} }) => {
       rest.get("http://api.test/api/whoami/", (req, res, ctx) => {
         return res(
           ctx.status(200),
-          ctx.json({
-            username: options.user.username ?? "jsmith",
-            firstName: "John",
-            lastName: "Smith",
-            email: "jsmith@tethys.org",
-            isAuthenticated: options.user.isAuthenticated ?? true,
-            isStaff: options.user.isStaff ?? true,
-          }),
+          ctx.json(options.user),
           ctx.set("Content-Type", "application/json")
         );
       })

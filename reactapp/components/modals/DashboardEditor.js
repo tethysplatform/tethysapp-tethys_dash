@@ -292,7 +292,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
           )}
         </TextEditorDiv>
       </Offcanvas.Body>
-      {user?.username !== "public" && (
+      {user?.username && (
         <StyledFooter>
           <StyledButton
             variant="secondary"

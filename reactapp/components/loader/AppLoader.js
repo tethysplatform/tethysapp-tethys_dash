@@ -81,7 +81,6 @@ function Loader({ children }) {
   );
   const [error, setError] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [redirectPublicUser, setRedirectPublicUser] = useState(false);
   const [showRedirectPublicUserModal, setShowRedirectPublicUserModal] =
     useState(false);
   const [checked, setChecked] = useState(false);
@@ -96,7 +95,6 @@ function Loader({ children }) {
       );
       return;
     }
-    setRedirectPublicUser(false);
     setShowRedirectPublicUserModal(false);
   };
 
@@ -106,22 +104,9 @@ function Loader({ children }) {
   };
 
   const handleError = (error) => {
-    if (error.response.status === 401) {
-      setRedirectPublicUser(true);
-      if (
-        dontShowPublicLoginOnStart === "false" ||
-        !dontShowPublicLoginOnStart
-      ) {
-        setShowRedirectPublicUserModal(true);
-      }
-      setTimeout(() => {
-        setIsLoaded(true);
-      }, LOADER_DELAY);
-    } else {
-      setTimeout(() => {
-        setError(error);
-      }, LOADER_DELAY);
-    }
+    setTimeout(() => {
+      setError(error);
+    }, LOADER_DELAY);
   };
 
   useEffect(() => {
@@ -135,233 +120,155 @@ function Loader({ children }) {
   }, [availableDashboards]);
 
   useEffect(() => {
-    // Get the session first
-    tethysAPI
-      .getSession()
-      .then(() => {
-        // Then load all other app data
-        Promise.all([
+    const loadAppData = async () => {
+      let tethysSession;
+      let user = {
+        username: null,
+        firstName: null,
+        lastName: null,
+        email: null,
+        isAuthenticated: true,
+        isStaff: false,
+      };
+      let csrf = null;
+      let tethysApp;
+      let dashboards;
+      let visualizations;
+
+      try {
+        tethysSession = await tethysAPI.getSession();
+      } catch (error) {
+        if (error.response.status === 401) {
+          if (
+            dontShowPublicLoginOnStart === "false" ||
+            !dontShowPublicLoginOnStart
+          ) {
+            setShowRedirectPublicUserModal(true);
+          }
+        } else {
+          throw new Error("Failed to get a valid tethys session");
+        }
+      }
+
+      if (tethysSession) {
+        [tethysApp, user, csrf, dashboards, visualizations] = await Promise.all(
+          [
+            tethysAPI.getAppData(APP_ID),
+            tethysAPI.getUserData(),
+            tethysAPI.getCSRF(),
+            appAPI.getDashboards(),
+            appAPI.getVisualizations(),
+          ]
+        );
+      } else {
+        [tethysApp, dashboards, visualizations] = await Promise.all([
           tethysAPI.getAppData(APP_ID),
-          tethysAPI.getUserData(),
-          tethysAPI.getCSRF(),
           appAPI.getDashboards(),
           appAPI.getVisualizations(),
-        ])
-          .then(([tethysApp, user, csrf, dashboards, visualizations]) => {
-            const allVisualizations = visualizations.visualizations;
-            const visualizationArgs = [
-              {
-                label: "Base Map Layers",
-                value: "Base Map Layers",
-                argOptions: baseMapLayers,
-              },
-            ];
+        ]);
+      }
 
-            for (let optionGroup of allVisualizations) {
-              for (let option of optionGroup.options) {
-                let args = option.args;
-                for (let arg in args) {
-                  visualizationArgs.push({
-                    label:
-                      optionGroup.label +
-                      ": " +
-                      option.label +
-                      " - " +
-                      spaceAndCapitalize(arg),
-                    value:
-                      optionGroup.label +
-                      ": " +
-                      option.label +
-                      " - " +
-                      spaceAndCapitalize(arg),
-                    argOptions: args[arg],
-                  });
-                }
-              }
-            }
+      const allVisualizations = visualizations.visualizations;
+      const visualizationArgs = [
+        {
+          label: "Base Map Layers",
+          value: "Base Map Layers",
+          argOptions: baseMapLayers,
+        },
+      ];
 
-            allVisualizations.push({
-              label: "Other",
-              options: [
-                {
-                  source: "Map",
-                  value: "Map",
-                  label: "Map",
-                  args: {
-                    base_map: baseMapLayers,
-                    additional_layers: "custom-AddMapLayer",
-                    show_layer_controls: "checkbox",
+      for (let optionGroup of allVisualizations) {
+        for (let option of optionGroup.options) {
+          let args = option.args;
+          for (let arg in args) {
+            visualizationArgs.push({
+              label:
+                optionGroup.label +
+                ": " +
+                option.label +
+                " - " +
+                spaceAndCapitalize(arg),
+              value:
+                optionGroup.label +
+                ": " +
+                option.label +
+                " - " +
+                spaceAndCapitalize(arg),
+              argOptions: args[arg],
+            });
+          }
+        }
+      }
+
+      allVisualizations.push({
+        label: "Other",
+        options: [
+          {
+            source: "Map",
+            value: "Map",
+            label: "Map",
+            args: {
+              base_map: baseMapLayers,
+              additional_layers: "custom-AddMapLayer",
+              show_layer_controls: "checkbox",
+            },
+          },
+          {
+            source: "Custom Image",
+            value: "Custom Image",
+            label: "Custom Image",
+            args: { image_source: "text" },
+          },
+          {
+            source: "Text",
+            value: "Text",
+            label: "Text",
+            args: { text: "text" },
+          },
+          {
+            source: "Variable Input",
+            value: "Variable Input",
+            label: "Variable Input",
+            args: {
+              variable_name: "text",
+              variable_options_source: [
+                ...nonDropDownVariableInputTypes,
+                ...[
+                  {
+                    label: "Existing Visualization Inputs",
+                    options: visualizationArgs,
                   },
-                },
-                {
-                  source: "Custom Image",
-                  value: "Custom Image",
-                  label: "Custom Image",
-                  args: { image_source: "text" },
-                },
-                {
-                  source: "Text",
-                  value: "Text",
-                  label: "Text",
-                  args: { text: "text" },
-                },
-                {
-                  source: "Variable Input",
-                  value: "Variable Input",
-                  label: "Variable Input",
-                  args: {
-                    variable_name: "text",
-                    variable_options_source: [
-                      ...nonDropDownVariableInputTypes,
-                      ...[
-                        {
-                          label: "Existing Visualization Inputs",
-                          options: visualizationArgs,
-                        },
-                      ],
-                    ],
-                  },
-                },
+                ],
               ],
-            });
+            },
+          },
+        ],
+      });
 
-            // Update app context
-            setAppContext({
-              tethysApp,
-              user,
-              csrf,
-              routes: setupRoutes(dashboards),
-              visualizations: allVisualizations,
-              visualizationArgs,
-            });
-            setAvailableDashboards(dashboards);
+      setAppContext({
+        tethysApp,
+        user,
+        csrf,
+        routes: setupRoutes(dashboards),
+        visualizations: allVisualizations,
+        visualizationArgs,
+      });
+      setAvailableDashboards(dashboards);
 
-            // Allow for minimum delay to display loader
-            setTimeout(() => {
-              setIsLoaded(true);
-            }, LOADER_DELAY);
-          })
-          .catch(handleError);
-      })
-      .catch(handleError);
+      // Allow for minimum delay to display loader
+      setTimeout(() => {
+        setIsLoaded(true);
+      }, LOADER_DELAY);
+    };
+
+    try {
+      loadAppData();
+    } catch (error) {
+      handleError(error);
+    }
+
     // eslint-disable-next-line
   }, []);
-
-  useEffect(() => {
-    if (redirectPublicUser) {
-      Promise.all([
-        tethysAPI.getAppData(APP_ID),
-        appAPI.getDashboards(),
-        appAPI.getVisualizations(),
-      ])
-        .then(([tethysApp, dashboards, visualizations]) => {
-          const allVisualizations = visualizations.visualizations;
-          const visualizationArgs = [
-            {
-              label: "Base Map Layers",
-              value: "Base Map Layers",
-              argOptions: baseMapLayers,
-            },
-          ];
-
-          for (let optionGroup of allVisualizations) {
-            for (let option of optionGroup.options) {
-              let args = option.args;
-              for (let arg in args) {
-                visualizationArgs.push({
-                  label:
-                    optionGroup.label +
-                    ": " +
-                    option.label +
-                    " - " +
-                    spaceAndCapitalize(arg),
-                  value:
-                    optionGroup.label +
-                    ": " +
-                    option.label +
-                    " - " +
-                    spaceAndCapitalize(arg),
-                  argOptions: args[arg],
-                });
-              }
-            }
-          }
-
-          allVisualizations.push({
-            label: "Other",
-            options: [
-              {
-                source: "Map",
-                value: "Map",
-                label: "Map",
-                args: {
-                  base_map: baseMapLayers,
-                  additional_layers: "custom-AddMapLayer",
-                  show_layer_controls: "checkbox",
-                },
-              },
-              {
-                source: "Custom Image",
-                value: "Custom Image",
-                label: "Custom Image",
-                args: { image_source: "text" },
-              },
-              {
-                source: "Text",
-                value: "Text",
-                label: "Text",
-                args: { text: "text" },
-              },
-              {
-                source: "Variable Input",
-                value: "Variable Input",
-                label: "Variable Input",
-                args: {
-                  variable_name: "text",
-                  variable_options_source: [
-                    ...nonDropDownVariableInputTypes,
-                    ...[
-                      {
-                        label: "Existing Visualization Inputs",
-                        options: visualizationArgs,
-                      },
-                    ],
-                  ],
-                },
-              },
-            ],
-          });
-
-          // Update app context
-          setAppContext({
-            tethysApp,
-            user: {
-              username: "public",
-              firstName: "",
-              lastName: "",
-              email: "",
-              isAuthenticated: true,
-              isStaff: false,
-            },
-            csrf: null,
-            routes: setupRoutes(dashboards),
-            visualizations: allVisualizations,
-            visualizationArgs,
-          });
-          setAvailableDashboards(dashboards);
-
-          // Allow for minimum delay to display loader
-          setTimeout(() => {
-            setIsLoaded(true);
-          }, LOADER_DELAY);
-        })
-        .catch((err) => {
-          setTimeout(() => {
-            setError(err); // Use 'err' instead of 'error'
-          }, LOADER_DELAY);
-        });
-    }
-  }, [isLoaded, redirectPublicUser]);
 
   function getUniqueDashboardName(name) {
     const existingNames = availableDashboards.user.map((obj) => obj.name);

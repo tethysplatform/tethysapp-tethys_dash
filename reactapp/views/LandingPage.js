@@ -45,7 +45,7 @@ const LandingPage = () => {
       <DashboardLayoutAlerts />
       <StyledContainer fluid className="landing-page">
         <StyledRow>
-          {user?.username !== "public" && (
+          {user?.username && (
             <StyledCol>
               <NewDashboardCard />
             </StyledCol>
@@ -60,7 +60,7 @@ const LandingPage = () => {
               <DashboardCard editable={false} {...dashboardMetadata} />
             </StyledCol>
           ))}
-          {user?.username === "public" && publicDashboards.length === 0 && (
+          {!user?.username && publicDashboards.length === 0 && (
             <StyledCol key="no-content">
               <NoDashboardCard />
             </StyledCol>
