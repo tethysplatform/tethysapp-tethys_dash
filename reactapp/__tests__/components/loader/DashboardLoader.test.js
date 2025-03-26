@@ -1,10 +1,7 @@
 import DashboardLoader from "components/loader/DashboardLoader";
-import { screen, render, waitFor } from "@testing-library/react";
+import { screen, render } from "@testing-library/react";
 import { useContext } from "react";
-import {
-  AppContext,
-  AvailableDashboardsContext,
-} from "components/contexts/Contexts";
+import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import {
   mockedDashboards,
   mockedTextVariable,
@@ -12,8 +9,6 @@ import {
 } from "__tests__/utilities/constants";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
-import { baseMapLayers } from "components/visualizations/utilities";
-import ErrorBoundary from "components/error/ErrorBoundary";
 import userEvent from "@testing-library/user-event";
 import {
   ContextLayoutPComponent,
@@ -26,8 +21,8 @@ import {
   LayoutContext,
   EditingContext,
   DisabledEditingMovementContext,
-  DataViewerModeContext,
 } from "components/contexts/Contexts";
+import PropTypes from "prop-types";
 
 const TestingComponent = ({ updatedGridItems, newProperties }) => {
   const { isEditing, setIsEditing } = useContext(EditingContext);
@@ -679,3 +674,8 @@ test("DashboardLoader save layout with griditems", async () => {
     })
   );
 });
+
+TestingComponent.propTypes = {
+  updatedGridItems: PropTypes.object,
+  newProperties: PropTypes.object,
+};

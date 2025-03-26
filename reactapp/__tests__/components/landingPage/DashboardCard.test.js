@@ -13,6 +13,7 @@ import AppTour from "components/appTour/AppTour";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import * as utils from "components/visualizations/utilities";
 import { useContext } from "react";
+import PropTypes from "prop-types";
 
 jest.mock("react-router-dom", () => ({
   ...jest.requireActual("react-router-dom"),
@@ -1805,3 +1806,10 @@ test("NewDashboardCard", async () => {
   expect(await screen.findByRole("dialog")).toBeInTheDocument();
   expect(screen.getByText("Create a new dashboard")).toBeInTheDocument();
 });
+
+TestingComponent.propTypes = {
+  children: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.element),
+    PropTypes.element,
+  ]),
+};

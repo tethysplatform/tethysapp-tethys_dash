@@ -1,5 +1,5 @@
 import Loader from "components/loader/AppLoader";
-import { screen, render, waitFor } from "@testing-library/react";
+import { screen, render } from "@testing-library/react";
 import { useContext } from "react";
 import {
   AppContext,
@@ -11,14 +11,6 @@ import { rest } from "msw";
 import { baseMapLayers } from "components/visualizations/utilities";
 import ErrorBoundary from "components/error/ErrorBoundary";
 import userEvent from "@testing-library/user-event";
-// import { confirm } from "components/inputs/DeleteConfirmation";
-
-// jest.mock("components/inputs/DeleteConfirmation", () => {
-//   return {
-//     confirm: jest.fn(),
-//   };
-// });
-// const mockedConfirm = jest.mocked(confirm);
 
 const TestingComponent = () => {
   const { tethysApp, user, csrf, routes, visualizations, visualizationArgs } =
