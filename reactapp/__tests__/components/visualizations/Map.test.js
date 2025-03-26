@@ -660,8 +660,9 @@ test("Map click attribute variables update text variable input", async () => {
     options: { dashboards: { user: [dashboard], public: [] } },
   });
   render(LoadedComponent);
+
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({ "Test Variable": "" })
   );
 
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
@@ -1008,7 +1009,6 @@ test("Map bad GeoJSON", async () => {
   });
 
   mockedApplyStyle.mockResolvedValue(true);
-  jest.spyOn(Map.prototype, "renderSync").mockImplementation(() => {});
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
 
   const layers = [

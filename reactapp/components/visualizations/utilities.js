@@ -5,14 +5,14 @@ import Image from "components/visualizations/Image";
 import styled from "styled-components";
 import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/Map";
-import ModuleLoader from "./ModuleLoader";
+import ModuleLoader from "components/visualizations/ModuleLoader";
 import { spaceAndCapitalize } from "components/modals/utilities";
 
 const StyledH2 = styled.h2`
   text-align: center;
 `;
 
-export function setVisualization(setViz, itemData, visualizationRef) {
+export async function setVisualization(setViz, itemData, visualizationRef) {
   appAPI.getPlotData(itemData).then((response) => {
     if (response.success === true) {
       if (response["viz_type"] === "plotly") {

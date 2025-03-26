@@ -550,7 +550,7 @@ it("Base - update variable input", async () => {
     expect(image.src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
   });
 
-  const variableInput = screen.getByLabelText("undefined Input");
+  const variableInput = await screen.findByLabelText("undefined Input");
   expect(variableInput).toBeInTheDocument();
   fireEvent.change(variableInput, {
     target: {

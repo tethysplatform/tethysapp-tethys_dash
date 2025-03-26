@@ -34,17 +34,21 @@ const DashboardLoader = ({
 
   useEffect(() => {
     const fetchDashboard = async () => {
-      const response = await appAPI.getDashboard({ id });
-      if (response.success) {
-        updateGridItems(response.dashboard.gridItems);
-        originalGridItems.current = response.dashboard.gridItems;
-      } else {
+      try {
+        const response = await appAPI.getDashboard({ id });
+        if (response.success) {
+          updateGridItems(response.dashboard.gridItems);
+          originalGridItems.current = response.dashboard.gridItems;
+          setIsLoaded(true);
+        } else {
+          setLoadError(true);
+        }
+      } catch (error) {
         setLoadError(true);
       }
     };
 
     fetchDashboard();
-    setIsLoaded(true);
     // eslint-disable-next-line
   }, []);
 
@@ -127,7 +131,6 @@ const DashboardLoader = ({
         value={{
           variableInputValues,
           setVariableInputValues,
-          updateVariableInputValuesWithGridItems,
         }}
       >
         <LayoutContext.Provider
