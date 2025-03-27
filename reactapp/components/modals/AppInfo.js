@@ -108,9 +108,9 @@ function AppInfoModal({ showModal, setShowModal, view }) {
             <>
               Welcome to TethysDash, a customizable data viewer and dashboard
               application. The landing page provides a summary of all available
-              dashboards for the user, including publicly available dashboards.
-              For more information about the application and developing
-              visualizations, check the official{" "}
+              dashboards, including publicly available dashboards. For more
+              information about the application and developing visualizations,
+              check the official{" "}
               <a
                 target="_blank"
                 rel="noopener noreferrer"
