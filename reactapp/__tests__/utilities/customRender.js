@@ -43,15 +43,27 @@ const createLoadedComponent = ({ children, options = {} }) => {
   const initialDashboard = options.initialDashboard ?? dashboards.user[0];
 
   if (options.user) {
-    server.use(
-      rest.get("http://api.test/api/whoami/", (req, res, ctx) => {
-        return res(
-          ctx.status(200),
-          ctx.json(options.user),
-          ctx.set("Content-Type", "application/json")
-        );
-      })
-    );
+    if (options.user.username === null) {
+      server.use(
+        rest.get("http://api.test/api/session/", (req, res, ctx) => {
+          return res(
+            ctx.status(401),
+            ctx.json({ error: "Internal Server Error" }),
+            ctx.set("Content-Type", "application/json")
+          );
+        })
+      );
+    } else {
+      server.use(
+        rest.get("http://api.test/api/whoami/", (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json(options.user),
+            ctx.set("Content-Type", "application/json")
+          );
+        })
+      );
+    }
   }
 
   if (options.dashboards || options.initialDashboard) {

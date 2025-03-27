@@ -90,6 +90,11 @@ test("LandingPageHeader, no user", async () => {
     })
   );
 
+  const proceedWithoutSigningInButton = await screen.findByText(
+    "Proceed Without Signing in"
+  );
+  await userEvent.click(proceedWithoutSigningInButton);
+
   expect(await screen.findByLabelText("appExitButton")).toBeInTheDocument();
   expect(screen.getByText("Available Dashboards")).toBeInTheDocument();
   expect(screen.queryByLabelText("appSettingButton")).not.toBeInTheDocument();
@@ -117,6 +122,11 @@ test("LandingPageHeader, signin", async () => {
       },
     })
   );
+
+  const proceedWithoutSigningInButton = await screen.findByText(
+    "Proceed Without Signing in"
+  );
+  await userEvent.click(proceedWithoutSigningInButton);
 
   const dashboardLoginButton = await screen.findByLabelText(
     "dashboardLoginButton"
@@ -221,6 +231,11 @@ test("LandingPageHeader, public user and not show info", async () => {
     })
   );
 
+  const proceedWithoutSigningInButton = await screen.findByText(
+    "Proceed Without Signing in"
+  );
+  await userEvent.click(proceedWithoutSigningInButton);
+
   expect(await screen.findByLabelText("appExitButton")).toBeInTheDocument();
   expect(screen.getByText("Available Dashboards")).toBeInTheDocument();
   expect(screen.queryByLabelText("appSettingButton")).not.toBeInTheDocument();
@@ -303,6 +318,11 @@ test("DashboardHeader, no user", async () => {
       },
     })
   );
+
+  const proceedWithoutSigningInButton = await screen.findByText(
+    "Proceed Without Signing in"
+  );
+  await userEvent.click(proceedWithoutSigningInButton);
 
   expect(
     await screen.findByLabelText("dashboardExitButton")
@@ -517,6 +537,11 @@ test("DashboardHeader, signin", async () => {
       },
     })
   );
+
+  const proceedWithoutSigningInButton = await screen.findByText(
+    "Proceed Without Signing in"
+  );
+  await userEvent.click(proceedWithoutSigningInButton);
 
   const dashboardLoginButton = await screen.findByLabelText(
     "dashboardLoginButton"
