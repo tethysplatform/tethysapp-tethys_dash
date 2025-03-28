@@ -29,7 +29,6 @@ const StyledRow = styled(Row)`
 
 const StyledCol = styled(Col)`
   border-right: black solid 1px;
-  overflow: auto;
 `;
 
 const StyledVizCol = styled(Col)`

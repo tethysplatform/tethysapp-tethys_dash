@@ -32,6 +32,14 @@ const StyledButtonDiv = styled.div`
   z-index: 1;
 `;
 
+const StyledDiv = styled.div`
+  height: 100%;
+  width: 100%;
+  border: ${(props) => props.$isEditing && "#dcdcdc solid 1px"};
+  background: ${(props) => props.$isEditing && "whitesmoke"};
+  box-shadow: ${(props) => props.$isEditing && "0 4px 8px rgba(0, 0, 0, 0.1)"};
+`;
+
 export const minMapLayerStructure = `Map layers must have at minimum, the following structure:
 {
     configuration: {
@@ -262,11 +270,14 @@ const DashboardItem = ({
   }
 
   return (
-    <>
+    <StyledDiv $isEditing={isEditing}>
       <StyledContainer
         fluid
         className="h-100 gridVisualization"
         aria-label="gridItem"
+        onDoubleClick={() => {
+          setShowFullscreen(true);
+        }}
       >
         <CustomAlert
           alertType={"success"}
@@ -280,16 +291,18 @@ const DashboardItem = ({
           setShowAlert={setGridItemWarning}
           alertMessage={gridItemWarning}
         />
-        <StyledButtonDiv>
-          <DashboardItemDropdown
-            showFullscreen={gridItemSource ? onFullscreen : null}
-            deleteGridItem={deleteGridItem}
-            editGridItem={editGridItem}
-            exportGridItem={exportGridItem}
-            editSize={isEditing ? null : editSize}
-            copyGridItem={copyGridItem}
-          />
-        </StyledButtonDiv>
+        {isEditing && (
+          <StyledButtonDiv>
+            <DashboardItemDropdown
+              showFullscreen={gridItemSource ? onFullscreen : null}
+              deleteGridItem={deleteGridItem}
+              editGridItem={editGridItem}
+              exportGridItem={exportGridItem}
+              editSize={isEditing ? null : editSize}
+              copyGridItem={copyGridItem}
+            />
+          </StyledButtonDiv>
+        )}
         <BaseVisualization
           key={gridItemI}
           source={gridItemSource}
@@ -311,7 +324,7 @@ const DashboardItem = ({
           setShowGridItemMessage={setShowGridItemMessage}
         />
       )}
-    </>
+    </StyledDiv>
   );
 };
 

@@ -1,9 +1,9 @@
 import Form from "react-bootstrap/Form";
 import PropTypes from "prop-types";
 
-const NormalInput = ({ label, onChange, value, type }) => {
+const NormalInput = ({ label, onChange, value, type, divProps }) => {
   return (
-    <div>
+    <div {...divProps}>
       {label && (
         <Form.Label>
           <b>{label}</b>:
@@ -29,6 +29,7 @@ NormalInput.propTypes = {
   onChange: PropTypes.func, // callback function when the input changes
   value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // state for input value
   type: PropTypes.string, // type of input to use
+  divProps: PropTypes.object, // additional props to pass to the parent div
 };
 
 export default NormalInput;

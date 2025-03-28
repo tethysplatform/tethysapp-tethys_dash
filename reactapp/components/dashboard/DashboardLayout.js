@@ -14,9 +14,9 @@ import "components/dashboard/DashboardLayout.css";
 const ReactGridLayout = WidthProvider(RGL);
 
 const StyledDiv = styled.div`
-  border: #dcdcdc solid 1px;
-  background: whitesmoke;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border: ${(props) => props.$isEditing && "#dcdcdc solid 1px"};
+  background: ${(props) => props.$isEditing && "whitesmoke"};
+  box-shadow: ${(props) => props.$isEditing && "0 4px 8px rgba(0, 0, 0, 0.1)"};
 `;
 
 const colCount = 100;
@@ -47,7 +47,7 @@ const DashboardLayout = () => {
   function updateGridLayout() {
     setItems(
       gridItems.map((item, index) => (
-        <StyledDiv key={item.i}>
+        <div key={item.i}>
           <DashboardItem
             gridItemSource={item.source}
             gridItemI={item.i}
@@ -55,7 +55,7 @@ const DashboardLayout = () => {
             gridItemMetadataString={item.metadata_string}
             gridItemIndex={index}
           />
-        </StyledDiv>
+        </div>
       ))
     );
     updateGridEditing(gridItems);
@@ -65,11 +65,8 @@ const DashboardLayout = () => {
     const updatedGridItems = [];
     for (let griditem of griditems) {
       updatedGridItems.push({
-        args_string: griditem.args_string,
         h: griditem.h,
         i: griditem.i,
-        source: griditem.source,
-        metadata_string: griditem.metadata_string,
         w: griditem.w,
         x: griditem.x,
         y: griditem.y,

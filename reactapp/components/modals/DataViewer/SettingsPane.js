@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
-import DataInput from "components/inputs/DataInput";
+import NormalInput from "components/inputs/NormalInput";
+import CheckboxInput from "components/inputs/CheckboxInput";
+import BorderSettings from "components/modals/DataViewer/BorderSettings";
 import Alert from "react-bootstrap/Alert";
 import "components/modals/wideModal.css";
 
@@ -23,14 +25,14 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
   }, [viz]);
 
   function onRefreshRateChange(e) {
-    if (parseInt(e) >= 0) {
-      setGridItemRefreshRate(parseInt(e));
-      settingsRef.current.refreshRate = parseInt(e);
+    if (parseInt(e.target.value) >= 0) {
+      setGridItemRefreshRate(parseInt(e.target.value));
+      settingsRef.current.refreshRate = parseInt(e.target.value);
     }
   }
 
   function onEnforceAspectRatioChange(e) {
-    if (e === true) {
+    if (e.target.checked === true) {
       settingsRef.current.aspectRatio =
         visualizationRef.current.naturalWidth /
         visualizationRef.current.naturalHeight;
@@ -38,42 +40,35 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
     } else {
       delete settingsRef.current.enforceAspectRatio;
     }
-    setEnforceAspectRatio(e);
+    setEnforceAspectRatio(e.target.checked);
   }
 
   return (
     <>
-      {visualizationRef.current ? (
+      <NormalInput
+        label="Refresh Rate (Minutes)"
+        type="number"
+        value={gridItemRefreshRate}
+        onChange={onRefreshRateChange}
+        divProps={{ style: { "margin-bottom": "1rem" } }}
+      />
+      <BorderSettings />
+      {visualizationRef.current?.tagName ? (
         <>
-          <DataInput
-            objValue={{
-              label: "Refresh Rate (Minutes)",
-              type: "number",
-              value: gridItemRefreshRate,
-            }}
-            onChange={onRefreshRateChange}
-            index={0}
-          />
-          {visualizationRef.current.tagName && (
-            <>
-              {visualizationRef.current.tagName.toLowerCase() === "img" &&
-                visualizationRef.current.naturalWidth && (
-                  <DataInput
-                    objValue={{
-                      label: "Enforce Aspect Ratio",
-                      type: "checkbox",
-                      value: enforceAspectRatio,
-                    }}
-                    onChange={onEnforceAspectRatioChange}
-                    index={0}
-                  />
-                )}
-            </>
-          )}
+          {visualizationRef.current.tagName.toLowerCase() === "img" &&
+            visualizationRef.current.naturalWidth && (
+              <CheckboxInput
+                label="Enforce Aspect Ratio"
+                type="checkbox"
+                value={enforceAspectRatio}
+                onChange={onEnforceAspectRatioChange}
+                divProps={{ style: { "margin-bottom": "1rem" } }}
+              />
+            )}
         </>
       ) : (
         <Alert key={"warning"} variant={"warning"}>
-          Visualization must be loaded to change settings.
+          Visualization must be loaded to change additional settings.
         </Alert>
       )}
     </>
