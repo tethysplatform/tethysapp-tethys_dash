@@ -20,7 +20,7 @@ from tethysapp.tethysdash.visualizations import (
     get_visualization,
 )
 from pathlib import Path
-
+from .sessions import SessionSecurityMiddleware
 
 @controller(login_required=False)
 def home(request):
@@ -93,6 +93,13 @@ def get_dashboard(request):
 @controller(url="tethysdash/dashboards/add", login_required=True, app_media=True)
 def add_dashboard(request, app_media):
     """API controller for the dashboards page."""
+
+    print("Checking Session Security")
+    ### Check that user is actually logged in before checking any data
+    middleware = SessionSecurityMiddleware()
+    middleware.process_request(request)
+    print("Session Security is great!")
+
     dashboard_metadata = json.loads(request.body)
     name = dashboard_metadata["name"]
     description = dashboard_metadata.get("description", "")
@@ -134,6 +141,11 @@ def add_dashboard(request, app_media):
 @controller(url="tethysdash/dashboards/copy", login_required=True, app_media=True)
 def copy_dashboard(request, app_media):
     """API controller for the dashboards page."""
+
+    ### Check that user is actually logged in before checking any data
+    middleware = SessionSecurityMiddleware()
+    middleware.process_request(request)
+
     dashboard_metadata = json.loads(request.body)
     id = dashboard_metadata["id"]
     new_name = dashboard_metadata["newName"]
@@ -172,6 +184,11 @@ def copy_dashboard(request, app_media):
 @controller(url="tethysdash/dashboards/delete", login_required=True, app_media=True)
 def delete_dashboard(request, app_media):
     """API controller for the dashboards page."""
+
+    ### Check that user is actually logged in before checking any data
+    middleware = SessionSecurityMiddleware()
+    middleware.process_request(request)
+
     dashboard_metadata = json.loads(request.body)
     id = dashboard_metadata["id"]
     user = str(request.user)
@@ -199,6 +216,11 @@ def delete_dashboard(request, app_media):
 @controller(url="tethysdash/dashboards/update", login_required=True)
 def update_dashboard(request):
     """API controller for the dashboards page."""
+
+    ### Check that user is actually logged in before checking any data
+    middleware = SessionSecurityMiddleware()
+    middleware.process_request(request)
+
     dashboard_updates = json.loads(request.body)
     id = dashboard_updates.pop("id")
     user = str(request.user)
@@ -222,6 +244,11 @@ def update_dashboard(request):
 @controller(url="tethysdash/json/upload", login_required=True, app_workspace=True)
 def upload_json(request, app_workspace):
     """API controller for the dashboards page."""
+
+    ### Check that user is actually logged in before checking any data
+    middleware = SessionSecurityMiddleware()
+    middleware.process_request(request)
+
     json_data = json.loads(request.body)
     user = str(request.user)
 
