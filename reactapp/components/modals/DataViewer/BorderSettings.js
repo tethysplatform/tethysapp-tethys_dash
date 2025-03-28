@@ -154,9 +154,7 @@ const ButtonWithOverlay = ({
   );
 };
 
-const BorderSettings = () => {
-  const [border, setBorder] = useState({});
-
+const BorderSettings = ({ border, setBorder }) => {
   const onColorChange = (changedColor, side) => {
     if (side === "all") {
       setBorder((prevBorder) => {

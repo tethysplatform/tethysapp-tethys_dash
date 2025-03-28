@@ -13,6 +13,8 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
   const [enforceAspectRatio, setEnforceAspectRatio] = useState(
     settingsRef.current.enforceAspectRatio ? true : false
   );
+  const [border, setBorder] = useState({});
+  const [boxShadow, setBoxShadow] = useState({});
 
   useEffect(() => {
     setGridItemRefreshRate(
@@ -43,6 +45,10 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
     setEnforceAspectRatio(e.target.checked);
   }
 
+  function onBoxShadowChange(e) {
+    setBoxShadow(e.target.checked);
+  }
+
   return (
     <>
       <NormalInput
@@ -52,7 +58,14 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
         onChange={onRefreshRateChange}
         divProps={{ style: { "margin-bottom": "1rem" } }}
       />
-      <BorderSettings />
+      <BorderSettings border={border} setBorder={setBorder} />
+      <CheckboxInput
+        label="Use Box Shadow Styling"
+        type="checkbox"
+        value={boxShadow}
+        onChange={onBoxShadowChange}
+        divProps={{ style: { "margin-bottom": "1rem" } }}
+      />
       {visualizationRef.current?.tagName ? (
         <>
           {visualizationRef.current.tagName.toLowerCase() === "img" &&

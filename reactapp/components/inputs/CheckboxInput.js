@@ -8,6 +8,7 @@ const InlineLabel = styled.label`
 
 const InlineFormCheck = styled(Form.Check)`
   display: inline;
+  margin-left: 0.5rem;
 `;
 
 const CheckboxInput = ({
