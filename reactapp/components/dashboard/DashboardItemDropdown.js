@@ -15,11 +15,9 @@ const StyledDropdownToggle = styled(Dropdown.Toggle)`
 `;
 
 const DashboardItemDropdown = ({
-  showFullscreen,
   deleteGridItem,
   editGridItem,
   exportGridItem,
-  editSize,
   copyGridItem,
 }) => {
   const { getDashboardMetadata } = useContext(LayoutContext);
@@ -45,9 +43,6 @@ const DashboardItemDropdown = ({
       </StyledDropdownToggle>
 
       <Dropdown.Menu align="end" show={showMenu} container="body">
-        {showFullscreen && (
-          <Dropdown.Item onClick={showFullscreen}>Fullscreen</Dropdown.Item>
-        )}
         {editable && (
           <>
             <Dropdown.Item
@@ -56,11 +51,6 @@ const DashboardItemDropdown = ({
             >
               Edit Visualization
             </Dropdown.Item>
-            {editSize && (
-              <Dropdown.Item onClick={editSize}>
-                Edit Size/Location
-              </Dropdown.Item>
-            )}
             <Dropdown.Item
               onClick={copyGridItem}
               className="dashboard-item-dropdown-create-copy"

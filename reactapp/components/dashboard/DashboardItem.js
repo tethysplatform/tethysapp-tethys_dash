@@ -219,10 +219,6 @@ const DashboardItem = ({
     }
   }
 
-  function onFullscreen() {
-    setShowFullscreen(true);
-  }
-
   function hideFullscreen() {
     setShowFullscreen(false);
   }
@@ -283,10 +279,6 @@ const DashboardItem = ({
     setIsEditing(true);
   }
 
-  function editSize() {
-    setIsEditing(true);
-  }
-
   function hideDataViewerModal() {
     setShowDataViewerModal(false);
     setInDataViewerMode(false);
@@ -322,11 +314,9 @@ const DashboardItem = ({
         {isEditing && (
           <StyledButtonDiv>
             <DashboardItemDropdown
-              showFullscreen={gridItemSource ? onFullscreen : null}
               deleteGridItem={deleteGridItem}
               editGridItem={editGridItem}
               exportGridItem={exportGridItem}
-              editSize={isEditing ? null : editSize}
               copyGridItem={copyGridItem}
             />
           </StyledButtonDiv>

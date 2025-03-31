@@ -34,7 +34,9 @@ test("Settings Pane", async () => {
   );
 
   expect(
-    await screen.findByText("Visualization must be loaded to change settings.")
+    await screen.findByText(
+      "Visualization must be loaded to change additional settings."
+    )
   ).toBeInTheDocument();
 });
 
