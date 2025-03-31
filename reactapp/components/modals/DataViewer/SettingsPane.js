@@ -195,7 +195,7 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
         type="number"
         value={gridItemRefreshRate}
         onChange={onRefreshRateChange}
-        divProps={{ style: { "margin-bottom": "1rem" } }}
+        divProps={{ style: { marginBottom: "1rem" } }}
       />
       <BorderSettings border={border} setBorder={setBorder} />
       <BackgroundSettings
@@ -207,7 +207,7 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
         type="checkbox"
         value={boxShadow}
         onChange={onBoxShadowChange}
-        divProps={{ style: { "margin-bottom": "1rem" } }}
+        divProps={{ style: { marginBottom: "1rem" } }}
       />
       {visualizationRef.current?.tagName ? (
         <>
@@ -218,7 +218,7 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
                 type="checkbox"
                 value={enforceAspectRatio}
                 onChange={onEnforceAspectRatioChange}
-                divProps={{ style: { "margin-bottom": "1rem" } }}
+                divProps={{ style: { marginBottom: "1rem" } }}
               />
             )}
         </>

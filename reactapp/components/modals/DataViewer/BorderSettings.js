@@ -271,7 +271,11 @@ const BorderSettings = ({ border, setBorder }) => {
             >
               <CgBorderLeft
                 size="1.5rem"
-                color={border.left.style.value !== "none" && border.left.color}
+                color={
+                  border.left.style.value !== "none"
+                    ? border.left.color
+                    : undefined
+                }
               />
             </ButtonWithOverlay>
             <ButtonWithOverlay
@@ -283,7 +287,11 @@ const BorderSettings = ({ border, setBorder }) => {
             >
               <CgBorderTop
                 size="1.5rem"
-                color={border.top.style.value !== "none" && border.top?.color}
+                color={
+                  border.top.style.value !== "none"
+                    ? border.top?.color
+                    : undefined
+                }
               />
             </ButtonWithOverlay>
             <ButtonWithOverlay
@@ -296,7 +304,9 @@ const BorderSettings = ({ border, setBorder }) => {
               <CgBorderRight
                 size="1.5rem"
                 color={
-                  border.right.style.value !== "none" && border.right?.color
+                  border.right.style.value !== "none"
+                    ? border.right?.color
+                    : undefined
                 }
               />
             </ButtonWithOverlay>
@@ -310,7 +320,9 @@ const BorderSettings = ({ border, setBorder }) => {
               <CgBorderBottom
                 size="1.5rem"
                 color={
-                  border.bottom.style.value !== "none" && border.bottom?.color
+                  border.bottom.style.value !== "none"
+                    ? border.bottom?.color
+                    : undefined
                 }
               />
             </ButtonWithOverlay>
