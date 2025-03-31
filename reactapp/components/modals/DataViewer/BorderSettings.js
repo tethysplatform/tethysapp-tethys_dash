@@ -64,7 +64,6 @@ const borderStyles = [
   { value: "inset", label: "inset" },
   { value: "outset", label: "outset" },
 ];
-const defaultBorderStyle = { value: "none", label: "none" };
 
 const BorderOverlay = ({
   target,
@@ -91,7 +90,7 @@ const BorderOverlay = ({
             <Flex1Label>
               <b>Style</b>:{" "}
               <DataSelect
-                selectedOption={borderData?.style ?? defaultBorderStyle}
+                selectedOption={borderData.style}
                 onChange={(changedStyle) => onStyleChange(changedStyle, side)}
                 options={borderStyles}
               />
@@ -100,7 +99,7 @@ const BorderOverlay = ({
               <b>Width</b>:{" "}
               <NormalInput
                 onChange={(e) => onStyleWidth(e.target.value, side)}
-                value={borderData?.width ?? 10}
+                value={borderData.width}
                 type="number"
               />
             </WidthLabel>
@@ -109,7 +108,7 @@ const BorderOverlay = ({
             <b>Color</b>:{" "}
             <ColorPicker
               hideInput={["rgb", "hsv"]}
-              color={borderData?.color ?? "black"}
+              color={borderData.color}
               onChange={(changedColor) => onColorChange(changedColor, side)}
             />
           </StyledLabel>
@@ -136,7 +135,7 @@ const ButtonWithOverlay = ({
         variant="outline-secondary"
         ref={borderRef}
         onClick={() => setShowPopover(!showPopover)}
-        $Style={side !== "all" && borderData?.style}
+        $Style={side !== "all" && borderData.style}
       >
         {children}
       </BackgroundColorButton>
@@ -272,11 +271,7 @@ const BorderSettings = ({ border, setBorder }) => {
             >
               <CgBorderLeft
                 size="1.5rem"
-                color={
-                  border.left?.style &&
-                  border.left.style.value !== "none" &&
-                  border.left?.color
-                }
+                color={border.left.style.value !== "none" && border.left.color}
               />
             </ButtonWithOverlay>
             <ButtonWithOverlay
@@ -288,11 +283,7 @@ const BorderSettings = ({ border, setBorder }) => {
             >
               <CgBorderTop
                 size="1.5rem"
-                color={
-                  border.top?.style &&
-                  border.top.style.value !== "none" &&
-                  border.top?.color
-                }
+                color={border.top.style.value !== "none" && border.top?.color}
               />
             </ButtonWithOverlay>
             <ButtonWithOverlay
@@ -305,9 +296,7 @@ const BorderSettings = ({ border, setBorder }) => {
               <CgBorderRight
                 size="1.5rem"
                 color={
-                  border.right?.style &&
-                  border.right.style.value !== "none" &&
-                  border.right?.color
+                  border.right.style.value !== "none" && border.right?.color
                 }
               />
             </ButtonWithOverlay>
@@ -321,9 +310,7 @@ const BorderSettings = ({ border, setBorder }) => {
               <CgBorderBottom
                 size="1.5rem"
                 color={
-                  border.bottom?.style &&
-                  border.bottom.style.value !== "none" &&
-                  border.bottom?.color
+                  border.bottom.style.value !== "none" && border.bottom?.color
                 }
               />
             </ButtonWithOverlay>

@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
-import styled from "styled-components";
+import styled, { css } from "styled-components";
 import Container from "react-bootstrap/Container";
-import { memo, useState, useContext } from "react";
+import { memo, useState, useContext, useEffect } from "react";
 import {
   LayoutContext,
   EditingContext,
@@ -35,9 +35,24 @@ const StyledButtonDiv = styled.div`
 const StyledDiv = styled.div`
   height: 100%;
   width: 100%;
-  border: ${(props) => props.$isEditing && "#dcdcdc solid 1px"};
-  background: ${(props) => props.$isEditing && "whitesmoke"};
-  box-shadow: ${(props) => props.$isEditing && "0 4px 8px rgba(0, 0, 0, 0.1)"};
+  ${(props) =>
+    props.$borderProps
+      ? css(props.$borderProps)
+      : props.$isEditing
+        ? "#dcdcdc solid 1px"
+        : "none"};
+  background-color: ${(props) =>
+    props.$backgroundColorProps
+      ? props.$backgroundColorProps
+      : props.$isEditing
+        ? "whitesmoke"
+        : "transparent"};
+  box-shadow: ${(props) =>
+    props.$boxShadowProps
+      ? props.$boxShadowProps
+      : props.$isEditing
+        ? "0 4px 8px rgba(0, 0, 0, 0.1)"
+        : "none"};
 `;
 
 export const minMapLayerStructure = `Map layers must have at minimum, the following structure:
@@ -178,12 +193,20 @@ const DashboardItem = ({
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
   const [gridItemWarning, setGridItemWarning] = useState("");
   const [showGridItemWarning, setShowGridItemWarning] = useState(false);
+  const [gridItemStyling, setGridItemStyling] = useState(
+    JSON.parse(gridItemMetadataString)
+  );
   const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
+
+  useEffect(() => {
+    setGridItemStyling(JSON.parse(gridItemMetadataString));
+    // eslint-disable-next-line
+  }, [gridItemMetadataString]);
 
   async function deleteGridItem(e) {
     const { gridItems } = getDashboardMetadata();
@@ -270,7 +293,12 @@ const DashboardItem = ({
   }
 
   return (
-    <StyledDiv $isEditing={isEditing}>
+    <StyledDiv
+      $isEditing={isEditing}
+      $borderProps={gridItemStyling?.border}
+      $backgroundColorProps={gridItemStyling?.backgroundColor}
+      $boxShadowProps={gridItemStyling?.boxShadow}
+    >
       <StyledContainer
         fluid
         className="h-100 gridVisualization"
