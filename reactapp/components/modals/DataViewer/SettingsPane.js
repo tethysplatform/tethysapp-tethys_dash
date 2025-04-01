@@ -222,7 +222,9 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
   function onBoxShadowChange(e) {
     setBoxShadow(e.target.checked);
     if (e.target.checked) {
-      settingsRef.current.boxShadow = getShadowBox(settingsRef.current.border);
+      settingsRef.current.boxShadow = getShadowBox(
+        settingsRef.current.border ?? {}
+      );
     } else {
       delete settingsRef.current.boxShadow;
     }

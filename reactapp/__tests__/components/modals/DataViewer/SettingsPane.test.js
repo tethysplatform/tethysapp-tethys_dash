@@ -353,6 +353,36 @@ test("Settings with backgroundColor", async () => {
   });
 });
 
+test("Settings with box shadow", async () => {
+  const settingsRef = { current: null };
+
+  render(
+    createLoadedComponent({
+      children: <TestingComponent ref={settingsRef} currentSettings={{}} />,
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
+
+  const boxShadowCheckbox = await screen.findByRole("checkbox");
+  expect(boxShadowCheckbox).toBeInTheDocument();
+
+  await userEvent.click(boxShadowCheckbox);
+
+  await waitFor(() => {
+    expect(settingsRef.current).toEqual({
+      boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+    });
+  });
+
+  await userEvent.click(boxShadowCheckbox);
+
+  await waitFor(() => {
+    expect(settingsRef.current).toEqual({});
+  });
+});
+
 test("Settings with box shadow and border", async () => {
   const settingsRef = { current: null };
 
