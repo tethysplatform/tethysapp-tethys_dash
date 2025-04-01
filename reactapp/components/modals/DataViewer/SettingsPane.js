@@ -11,6 +11,30 @@ export const defaultBorderStyle = { value: "none", label: "none" };
 export const defaultBorderWidth = 1;
 export const defaultBorderColor = "black";
 
+function checkTransparency(color) {
+  // Handle HEX format
+  if (color.startsWith("#")) {
+    color = color.replace(/^#/, ""); // Remove the `#`
+
+    if (color.length === 8) {
+      // #RRGGBBAA format
+      let alpha = parseInt(color.slice(6, 8), 16); // Convert AA to decimal
+      return alpha === 0;
+    }
+
+    // #RRGGBB format (fully opaque)
+    return false;
+  }
+
+  // Handle RGB(A) format
+  const rgbaMatch = color.match(
+    /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(\d*\.?\d+)\s*)?\)$/
+  );
+
+  let alpha = rgbaMatch[4] !== undefined ? parseFloat(rgbaMatch[4]) : 1; // Default alpha = 1 (opaque)
+  return alpha === 0;
+}
+
 function getBorderStyle(borderConfig) {
   const sides = ["top", "bottom", "left", "right"];
 
@@ -96,6 +120,37 @@ function parseBorderStyles(styles) {
   return borderConfig;
 }
 
+function getShadowBox(borderSettings) {
+  if (borderSettings?.border) {
+    return `0 4px 8px ${borderSettings.border.split(" ")[2]}`;
+  } else if (Object.keys(borderSettings).length > 0) {
+    const boxShadows = [];
+    if ("border-right" in borderSettings) {
+      boxShadows.push(
+        `4px 0 8px ${borderSettings["border-right"].split(" ")[2]}`
+      );
+    }
+    if ("border-left" in borderSettings) {
+      boxShadows.push(
+        `-4px 0 8px ${borderSettings["border-left"].split(" ")[2]}`
+      );
+    }
+    if ("border-bottom" in borderSettings) {
+      boxShadows.push(
+        `0 4px 8px ${borderSettings["border-bottom"].split(" ")[2]}`
+      );
+    }
+    if ("border-top" in borderSettings) {
+      boxShadows.push(
+        `0 -4px 8px ${borderSettings["border-top"].split(" ")[2]}`
+      );
+    }
+    return boxShadows.join(",");
+  } else {
+    return "0 4px 8px rgba(0, 0, 0, 0.1)";
+  }
+}
+
 function SettingsPane({ settingsRef, viz, visualizationRef }) {
   const [gridItemRefreshRate, setGridItemRefreshRate] = useState(
     settingsRef.current.refreshRate ?? 0
@@ -110,7 +165,7 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
     settingsRef.current.boxShadow ? true : false
   );
   const [backgroundColor, setBackgroundColor] = useState(
-    settingsRef.current.backgroundColor ?? "transparent"
+    settingsRef.current.backgroundColor ?? "rgba(0, 0, 0, 0)"
   );
 
   useEffect(() => {
@@ -124,12 +179,24 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
   }, [viz]);
 
   useEffect(() => {
-    settingsRef.current.border = getBorderStyle(border);
+    const newBorder = getBorderStyle(border);
+    if (Object.keys(newBorder).length > 0) {
+      settingsRef.current.border = newBorder;
+    } else {
+      delete settingsRef.current.border;
+    }
+    if (boxShadow) {
+      settingsRef.current.boxShadow = getShadowBox(newBorder);
+    }
     // eslint-disable-next-line
   }, [border]);
 
   useEffect(() => {
-    settingsRef.current.backgroundColor = backgroundColor;
+    if (checkTransparency(backgroundColor)) {
+      delete settingsRef.current.backgroundColor;
+    } else {
+      settingsRef.current.backgroundColor = backgroundColor;
+    }
     // eslint-disable-next-line
   }, [backgroundColor]);
 
@@ -155,34 +222,7 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
   function onBoxShadowChange(e) {
     setBoxShadow(e.target.checked);
     if (e.target.checked) {
-      if (settingsRef.current.border?.border) {
-        settingsRef.current.boxShadow = `0 4px 8px ${settingsRef.current.border.border.split(" ")[2]}`;
-      } else if (Object.keys(settingsRef.current.border).length > 0) {
-        const boxShadows = [];
-        if ("border-right" in settingsRef.current.border) {
-          boxShadows.push(
-            `4px 0 8px ${settingsRef.current.border["border-right"].split(" ")[2]}`
-          );
-        }
-        if ("border-left" in settingsRef.current.border) {
-          boxShadows.push(
-            `-4px 0 8px ${settingsRef.current.border["border-left"].split(" ")[2]}`
-          );
-        }
-        if ("border-bottom" in settingsRef.current.border) {
-          boxShadows.push(
-            `0 4px 8px ${settingsRef.current.border["border-bottom"].split(" ")[2]}`
-          );
-        }
-        if ("border-top" in settingsRef.current.border) {
-          boxShadows.push(
-            `0 -4px 8px ${settingsRef.current.border["border-top"].split(" ")[2]}`
-          );
-        }
-        settingsRef.current.boxShadow = boxShadows.join(",");
-      } else {
-        settingsRef.current.boxShadow = "0 4px 8px rgba(0, 0, 0, 0.1)";
-      }
+      settingsRef.current.boxShadow = getShadowBox(settingsRef.current.border);
     } else {
       delete settingsRef.current.boxShadow;
     }
