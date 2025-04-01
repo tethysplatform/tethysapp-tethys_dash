@@ -38,9 +38,7 @@ const StyledDiv = styled.div`
   ${(props) =>
     props.$borderProps
       ? css(props.$borderProps)
-      : props.$isEditing
-        ? "#dcdcdc solid 1px"
-        : "none"};
+      : props.$isEditing && "border: 1px solid #dcdcdc"};
   background-color: ${(props) =>
     props.$backgroundColorProps
       ? props.$backgroundColorProps
@@ -290,6 +288,7 @@ const DashboardItem = ({
       $borderProps={gridItemStyling?.border}
       $backgroundColorProps={gridItemStyling?.backgroundColor}
       $boxShadowProps={gridItemStyling?.boxShadow}
+      aria-label="gridItemDiv"
     >
       <StyledContainer
         fluid

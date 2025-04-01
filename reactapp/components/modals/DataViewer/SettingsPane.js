@@ -7,9 +7,9 @@ import BackgroundSettings from "components/modals/DataViewer/BackgroundSettings"
 import Alert from "react-bootstrap/Alert";
 import "components/modals/wideModal.css";
 
-const defaultBorderStyle = { value: "none", label: "none" };
-const defaultBorderWidth = 1;
-const defaultBorderColor = "black";
+export const defaultBorderStyle = { value: "none", label: "none" };
+export const defaultBorderWidth = 1;
+export const defaultBorderColor = "black";
 
 function getBorderStyle(borderConfig) {
   const sides = ["top", "bottom", "left", "right"];

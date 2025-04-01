@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useContext } from "react";
 import RGL, { WidthProvider } from "react-grid-layout";
-import styled from "styled-components";
 import {
   LayoutContext,
   EditingContext,
@@ -12,12 +11,6 @@ import "react-resizable/css/styles.css";
 import "components/dashboard/DashboardLayout.css";
 
 const ReactGridLayout = WidthProvider(RGL);
-
-const StyledDiv = styled.div`
-  border: ${(props) => props.$isEditing && "#dcdcdc solid 1px"};
-  background: ${(props) => props.$isEditing && "whitesmoke"};
-  box-shadow: ${(props) => props.$isEditing && "0 4px 8px rgba(0, 0, 0, 0.1)"};
-`;
 
 const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;

@@ -24,7 +24,7 @@ const FlexLabel = styled.label`
   alignitems: center;
 `;
 
-const BorderOverlay = ({
+const BackgroundOverlay = ({
   target,
   show,
   setShow,
@@ -65,6 +65,7 @@ const ButtonWithOverlay = ({ backgroundColor, onColorChange }) => {
       <BorderedDiv
         ref={colorTarget}
         onClick={() => setShowPopover(!showPopover)}
+        aria-label="Background Color Selector"
       >
         <BsFillSquareFill
           color={backgroundColor}
@@ -72,7 +73,7 @@ const ButtonWithOverlay = ({ backgroundColor, onColorChange }) => {
           style={{ stroke: "black", strokeWidth: "2px" }}
         />
       </BorderedDiv>
-      <BorderOverlay
+      <BackgroundOverlay
         target={colorTarget.current}
         show={showPopover}
         setShow={setShowPopover}

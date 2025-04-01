@@ -136,6 +136,7 @@ const ButtonWithOverlay = ({
         ref={borderRef}
         onClick={() => setShowPopover(!showPopover)}
         $Style={side !== "all" && borderData.style}
+        aria-label={`${side} Border Button`}
       >
         {children}
       </BackgroundColorButton>
@@ -246,7 +247,7 @@ const BorderSettings = ({ border, setBorder }) => {
           <ButtonGroup className="me-2" aria-label="None or All Borders">
             <Button
               variant="outline-secondary"
-              aria-label="Remove Border"
+              aria-label="Remove Borders"
               onClick={removeBoundaries}
             >
               <CgBorderAll size="1.5rem" color="#d6d6d6" />

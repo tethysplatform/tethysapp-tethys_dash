@@ -48,4 +48,24 @@ afterAll(() => {
 
 // Mocks for tests involving plotly
 window.URL.createObjectURL = jest.fn();
-HTMLCanvasElement.prototype.getContext = jest.fn();
+HTMLCanvasElement.prototype.getContext = function () {
+  return {
+    fillRect: () => {},
+    clearRect: () => {},
+    getImageData: () => ({ data: [] }),
+    putImageData: () => {},
+    createImageData: () => [],
+    setTransform: () => {},
+    drawImage: () => {},
+    save: () => {},
+    restore: () => {},
+    beginPath: () => {},
+    moveTo: () => {},
+    lineTo: () => {},
+    closePath: () => {},
+    stroke: () => {},
+    fill: () => {},
+    arc: () => {},
+    clip: () => {},
+  };
+};
