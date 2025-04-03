@@ -1,4 +1,4 @@
-import PropTypes, { object } from "prop-types";
+import PropTypes from "prop-types";
 import { convertXML } from "simple-xml-to-json";
 import { transform } from "ol/proj";
 import Feature from "ol/Feature";

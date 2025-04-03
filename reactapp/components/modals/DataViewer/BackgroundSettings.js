@@ -1,4 +1,5 @@
 import styled from "styled-components";
+import PropTypes from "prop-types";
 import { BsFillSquareFill } from "react-icons/bs";
 import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";
@@ -94,6 +95,28 @@ const BackgroundSettings = ({ backgroundColor, setBackgroundColor }) => {
       />
     </FlexLabel>
   );
+};
+
+BackgroundOverlay.propTypes = {
+  target: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.node,
+  ]),
+  show: PropTypes.bool,
+  setShow: PropTypes.func,
+  backgroundColor: PropTypes.string,
+  onColorChange: PropTypes.func,
+};
+
+ButtonWithOverlay.propTypes = {
+  backgroundColor: PropTypes.string,
+  onColorChange: PropTypes.func,
+};
+
+BackgroundSettings.propTypes = {
+  backgroundColor: PropTypes.string,
+  setBackgroundColor: PropTypes.func,
 };
 
 export default BackgroundSettings;

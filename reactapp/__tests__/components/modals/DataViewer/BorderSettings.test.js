@@ -66,10 +66,15 @@ it("BorderSettings", async () => {
   const bottomBorderButton = screen.getByLabelText("bottom Border Button");
   expect(bottomBorderButton).toBeInTheDocument();
 
+  // eslint-disable-next-line
   expect(allBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(leftBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(topBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(rightBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(bottomBorderButton.querySelector("svg")).not.toHaveAttribute("color");
 
   // all border button will affect all sides
@@ -91,18 +96,22 @@ it("BorderSettings", async () => {
   await waitFor(() => {
     expect(hexInput).not.toBeInTheDocument();
   });
+  // eslint-disable-next-line
   expect(leftBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#0000ff"
   );
+  // eslint-disable-next-line
   expect(topBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#0000ff"
   );
+  // eslint-disable-next-line
   expect(rightBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#0000ff"
   );
+  // eslint-disable-next-line
   expect(bottomBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#0000ff"
@@ -156,22 +165,27 @@ it("BorderSettings", async () => {
   await waitFor(() => {
     expect(hexInput).not.toBeInTheDocument();
   });
+  // eslint-disable-next-line
   expect(leftBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#FF0000"
   );
+  // eslint-disable-next-line
   expect(topBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#0000ff"
   );
+  // eslint-disable-next-line
   expect(rightBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#0000ff"
   );
+  // eslint-disable-next-line
   expect(bottomBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#0000ff"
   );
+  // eslint-disable-next-line
   expect(await screen.findByTestId("border")).toHaveTextContent(
     JSON.stringify({
       left: {
@@ -205,9 +219,13 @@ it("BorderSettings", async () => {
   // remove border button will make all border style to none
   await userEvent.click(removeBordersButton);
 
+  // eslint-disable-next-line
   expect(leftBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(topBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(rightBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(bottomBorderButton.querySelector("svg")).not.toHaveAttribute("color");
 
   expect(await screen.findByTestId("border")).toHaveTextContent(

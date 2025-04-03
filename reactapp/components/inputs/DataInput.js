@@ -1,7 +1,6 @@
 import { useContext } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
-import Form from "react-bootstrap/Form";
 import DataSelect from "components/inputs/DataSelect";
 import {
   VariableInputsContext,

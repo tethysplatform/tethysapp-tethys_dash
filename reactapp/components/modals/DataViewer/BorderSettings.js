@@ -2,6 +2,7 @@ import Button from "react-bootstrap/Button";
 import ButtonGroup from "react-bootstrap/ButtonGroup";
 import ButtonToolbar from "react-bootstrap/ButtonToolbar";
 import styled from "styled-components";
+import PropTypes from "prop-types";
 import {
   CgBorderLeft,
   CgBorderTop,
@@ -332,6 +333,54 @@ const BorderSettings = ({ border, setBorder }) => {
       </StyledDiv>
     </>
   );
+};
+
+const sideProps = PropTypes.shape({
+  color: PropTypes.string,
+  width: PropTypes.number,
+  style: PropTypes.shape({
+    value: PropTypes.string,
+    label: PropTypes.string,
+  }),
+});
+
+BorderOverlay.propTypes = {
+  target: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.node,
+  ]),
+  show: PropTypes.bool,
+  setShow: PropTypes.func,
+  side: PropTypes.string,
+  borderData: sideProps,
+  onStyleChange: PropTypes.func,
+  onStyleWidth: PropTypes.func,
+  onColorChange: PropTypes.func,
+};
+
+ButtonWithOverlay.propTypes = {
+  children: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.node,
+  ]),
+  side: PropTypes.string,
+  borderData: sideProps,
+  onStyleChange: PropTypes.func,
+  onStyleWidth: PropTypes.func,
+  onColorChange: PropTypes.func,
+};
+
+BorderSettings.propTypes = {
+  border: PropTypes.shape({
+    all: sideProps,
+    top: sideProps,
+    bottom: sideProps,
+    left: sideProps,
+    right: sideProps,
+  }),
+  setBorder: PropTypes.func,
 };
 
 export default BorderSettings;

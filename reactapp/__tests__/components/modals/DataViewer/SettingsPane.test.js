@@ -195,10 +195,15 @@ test("Settings configure border", async () => {
   const allBorderButton = screen.getByLabelText("all Border Button");
   expect(allBorderButton).toBeInTheDocument();
 
+  // eslint-disable-next-line
   expect(allBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(leftBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(topBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(rightBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(bottomBorderButton.querySelector("svg")).not.toHaveAttribute("color");
 
   // all border button will affect all sides
@@ -271,18 +276,22 @@ test("Settings with border", async () => {
   const allBorderButton = screen.getByLabelText("all Border Button");
   expect(allBorderButton).toBeInTheDocument();
 
+  // eslint-disable-next-line
   expect(leftBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#ff6161"
   );
+  // eslint-disable-next-line
   expect(topBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#ff6161"
   );
+  // eslint-disable-next-line
   expect(rightBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#ff6161"
   );
+  // eslint-disable-next-line
   expect(bottomBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#ff6161"
@@ -352,12 +361,16 @@ test("Settings with top and bottom border", async () => {
   const bottomBorderButton = screen.getByLabelText("bottom Border Button");
   expect(bottomBorderButton).toBeInTheDocument();
 
+  // eslint-disable-next-line
   expect(leftBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(topBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#7fc066"
   );
+  // eslint-disable-next-line
   expect(rightBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  // eslint-disable-next-line
   expect(bottomBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#ff6161"
@@ -400,6 +413,7 @@ test("Settings with backgroundColor", async () => {
     "Background Color Selector"
   );
   expect(backgroundColorButton).toBeInTheDocument();
+  // eslint-disable-next-line
   expect(backgroundColorButton.querySelector("svg")).toHaveAttribute(
     "color",
     "#ff6161"

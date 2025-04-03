@@ -24,6 +24,7 @@ it("BackgroundSettings", async () => {
     "Background Color Selector"
   );
   expect(backgroundColorButton).toBeInTheDocument();
+  // eslint-disable-next-line
   expect(backgroundColorButton.querySelector("svg")).toHaveAttribute(
     "color",
     "black"
@@ -37,6 +38,7 @@ it("BackgroundSettings", async () => {
   fireEvent.change(hexInput, { target: { value: "#0000ff" } });
 
   await waitFor(() => {
+    // eslint-disable-next-line
     expect(backgroundColorButton.querySelector("svg")).toHaveAttribute(
       "color",
       "#0000ff"

@@ -215,7 +215,9 @@ const MapComponent = ({
       setLayerControlUpdate(!layerControlUpdate);
 
       // sync map with changes
-      visualizationRef.current.renderSync();
+      if (visualizationRef.current) {
+        visualizationRef.current.renderSync();
+      }
     };
 
     updateLayers();
