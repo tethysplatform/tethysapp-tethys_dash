@@ -23,6 +23,7 @@ const BorderedDiv = styled.div`
 const FlexLabel = styled.label`
   display: flex;
   alignitems: center;
+  margin-bottom: 0.5rem;
 `;
 
 const BackgroundOverlay = ({

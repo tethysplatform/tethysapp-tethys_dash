@@ -1,6 +1,6 @@
 import PropTypes from "prop-types";
 import styled from "styled-components";
-import { useEffect, useState, memo, useRef, useContext } from "react";
+import { useEffect, useState, memo, useRef, useContext, Fragment } from "react";
 import FullscreenPlotModal from "components/modals/FullscreenPlot";
 import Image from "components/visualizations/Image";
 import Text from "components/visualizations/Text";
@@ -37,8 +37,6 @@ const BaseVisualization = ({
   const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
   const { isEditing } = useContext(EditingContext);
-  const gridMetadata = JSON.parse(metadataString);
-  const refreshRate = gridMetadata.refreshRate;
   const visualizationRef = useRef();
 
   useEffect(() => {
@@ -65,23 +63,18 @@ const BaseVisualization = ({
   }, [variableInputValues]);
 
   useEffect(() => {
+    const gridMetadata = JSON.parse(metadataString);
+    const refreshRate = gridMetadata.refreshRate;
     if (
       refreshRate &&
       refreshRate > 0 &&
-      !["", "Text", "Variable Input", "Map"].includes(source)
+      !["", "Text", "Variable Input"].includes(source)
     ) {
-      const args = JSON.parse(argsString);
-      const itemData = { source: source, args: args };
-      const updatedGridItemArgs = updateGridItemArgsWithVariableInputs(
-        argsString,
-        variableInputValues
-      );
-      itemData.args = updatedGridItemArgs;
       const interval = setInterval(
         () => {
           if (!isEditing) {
             setRefreshCount(refreshCount + 1);
-            setVisualization(setViz, itemData, visualizationRef);
+            setVariableDependentVisualizations();
           }
         },
         parseInt(refreshRate) * 1000 * 60
@@ -89,15 +82,17 @@ const BaseVisualization = ({
       return () => clearInterval(interval);
     }
     // eslint-disable-next-line
-  }, [refreshRate, isEditing]);
+  }, [metadataString, isEditing]);
 
   function setVariableDependentVisualizations() {
     const args = JSON.parse(argsString);
+
     const itemData = { source: source, args: args };
     const updatedGridItemArgs = updateGridItemArgsWithVariableInputs(
       argsString,
       variableInputValues
     );
+
     if (
       !valuesEqual(gridItemArgsWithVariableInputs.current, updatedGridItemArgs)
     ) {
@@ -118,7 +113,14 @@ const BaseVisualization = ({
       } else if (source === "Text") {
         setViz(<Text textValue={updatedGridItemArgs["text"]} />);
       } else {
-        setVisualization(setViz, itemData, visualizationRef);
+        setVisualization({
+          setViz,
+          itemData,
+          visualizationRef,
+          metadataString,
+          argsString,
+          variableInputValues,
+        });
       }
     }
   }

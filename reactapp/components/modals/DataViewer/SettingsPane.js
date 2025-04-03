@@ -1,3 +1,4 @@
+import styled from "styled-components";
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
@@ -5,7 +6,13 @@ import CheckboxInput from "components/inputs/CheckboxInput";
 import BorderSettings from "components/modals/DataViewer/BorderSettings";
 import BackgroundSettings from "components/modals/DataViewer/BackgroundSettings";
 import Alert from "react-bootstrap/Alert";
+import CustomMessaging from "components/modals/DataViewer/CustomMessaging";
 import "components/modals/wideModal.css";
+
+const FlexLabel = styled.label`
+  display: flex;
+  align-items: center;
+`;
 
 export const defaultBorderStyle = { value: "none", label: "none" };
 export const defaultBorderWidth = 1;
@@ -147,7 +154,13 @@ function getShadowBox(borderSettings) {
   }
 }
 
-function SettingsPane({ settingsRef, viz, visualizationRef }) {
+function getValidMassaging(obj) {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([key, value]) => value.trim() !== "")
+  );
+}
+
+function SettingsPane({ settingsRef, viz, visualizationRef, vizInputsValues }) {
   const [gridItemRefreshRate, setGridItemRefreshRate] = useState(
     settingsRef.current.refreshRate ?? 0
   );
@@ -162,6 +175,9 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
   );
   const [backgroundColor, setBackgroundColor] = useState(
     settingsRef.current.backgroundColor ?? "rgba(0, 0, 0, 0)"
+  );
+  const [customMessaging, setCustomMessaging] = useState(
+    settingsRef.current.customMessaging ?? {}
   );
 
   useEffect(() => {
@@ -186,6 +202,16 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
     }
     // eslint-disable-next-line
   }, [border]);
+
+  useEffect(() => {
+    const customMessages = getValidMassaging(customMessaging);
+    if (Object.keys(customMessages).length > 0) {
+      settingsRef.current.customMessaging = customMessages;
+    } else {
+      delete settingsRef.current.customMessaging;
+    }
+    // eslint-disable-next-line
+  }, [customMessaging]);
 
   useEffect(() => {
     if (checkTransparency(backgroundColor)) {
@@ -233,7 +259,7 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
         type="number"
         value={gridItemRefreshRate}
         onChange={onRefreshRateChange}
-        divProps={{ style: { marginBottom: "1rem" } }}
+        divProps={{ style: { marginBottom: ".5rem" } }}
       />
       <BorderSettings border={border} setBorder={setBorder} />
       <BackgroundSettings
@@ -245,7 +271,12 @@ function SettingsPane({ settingsRef, viz, visualizationRef }) {
         type="checkbox"
         value={boxShadow}
         onChange={onBoxShadowChange}
-        divProps={{ style: { marginBottom: "1rem" } }}
+        divProps={{ style: { marginBottom: ".5rem" } }}
+      />
+      <CustomMessaging
+        vizInputsValues={vizInputsValues}
+        customMessaging={customMessaging}
+        setCustomMessaging={setCustomMessaging}
       />
       {visualizationRef.current?.tagName ? (
         <>

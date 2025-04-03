@@ -73,6 +73,7 @@ function VisualizationPane({
   gridItemIndex,
   source,
   argsString,
+  metadataString,
   setGridItemMessage,
   selectedVizTypeOption,
   setSelectVizTypeOption,
@@ -295,7 +296,14 @@ function VisualizationPane({
         );
       } else {
         itemData.args = updatedGridItemArgs;
-        setVisualization(setViz, itemData, visualizationRef);
+        setVisualization({
+          setViz,
+          itemData,
+          visualizationRef,
+          metadataString,
+          argsString,
+          variableInputValues,
+        });
       }
     }
   }

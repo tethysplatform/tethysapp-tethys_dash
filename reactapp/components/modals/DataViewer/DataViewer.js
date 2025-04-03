@@ -205,7 +205,7 @@ function DataViewerModal({
             <StyledRow>
               <StyledCol
                 className={
-                  "justify-content-center h-100 col-3 dataviewer-inputs"
+                  "justify-content-center h-100 col-4 dataviewer-inputs"
                 }
               >
                 <Tabs
@@ -224,6 +224,7 @@ function DataViewerModal({
                       gridItemIndex={gridItemIndex}
                       source={source}
                       argsString={argsString}
+                      metadataString={metadataString}
                       setGridItemMessage={setGridItemMessage}
                       selectedVizTypeOption={selectedVizTypeOption}
                       setSelectVizTypeOption={setSelectVizTypeOption}
@@ -248,11 +249,12 @@ function DataViewerModal({
                       settingsRef={settingsRef}
                       viz={viz}
                       visualizationRef={visualizationRef}
+                      vizInputsValues={vizInputsValues}
                     />
                   </Tab>
                 </Tabs>
               </StyledCol>
-              <StyledVizCol className={"justify-content-center h-100 col-9"}>
+              <StyledVizCol className={"justify-content-center h-100 col-8"}>
                 {viz}
               </StyledVizCol>
             </StyledRow>
