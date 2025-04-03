@@ -53,17 +53,15 @@ function getBorderStyle(borderConfig) {
     const isUniform = filteredSides.every((side) => {
       const border = borderConfig[side];
       return (
-        (border.color || defaultBorderColor) ===
-          (allBorder.color || defaultBorderColor) &&
+        border.color === allBorder.color &&
         border.style.value === allBorder.style.value &&
-        (border.width || defaultBorderWidth) ===
-          (allBorder.width || defaultBorderWidth)
+        border.width === allBorder.width
       );
     });
 
     if (isUniform) {
       return {
-        border: `${allBorder.width || defaultBorderWidth}px ${allBorder.style.value} ${allBorder.color || defaultBorderColor}`,
+        border: `${allBorder.width}px ${allBorder.style.value} ${allBorder.color}`,
       };
     }
   }
@@ -71,11 +69,9 @@ function getBorderStyle(borderConfig) {
   // If "all" is not in the object or the borders are different
   let borderStyles = {};
   filteredSides.forEach((side) => {
-    if (borderConfig[side]) {
-      const border = borderConfig[side];
-      borderStyles[`border-${side}`] =
-        `${border.width || defaultBorderWidth}px ${border.style.value} ${border.color || defaultBorderColor}`;
-    }
+    const border = borderConfig[side];
+    borderStyles[`border-${side}`] =
+      `${border.width}px ${border.style.value} ${border.color}`;
   });
 
   return borderStyles;
@@ -88,9 +84,9 @@ function parseBorderStyles(styles) {
   if (styles.border) {
     const [width, style, color] = styles.border.split(" ");
     const borderValue = {
-      color: color || defaultBorderColor,
-      style: { value: style || "none", label: style || "none" },
-      width: parseInt(width) || defaultBorderWidth,
+      color: color,
+      style: { value: style, label: style },
+      width: parseInt(width),
     };
     sides.forEach((side) => {
       borderConfig[side] = { ...borderValue };
@@ -102,9 +98,9 @@ function parseBorderStyles(styles) {
       if (styles[key]) {
         const [width, style, color] = styles[key].split(" ");
         borderConfig[side] = {
-          color: color || defaultBorderColor,
-          style: { value: style || "none", label: style || "none" },
-          width: parseInt(width) || defaultBorderWidth,
+          color: color,
+          style: { value: style, label: style },
+          width: parseInt(width),
         };
       } else {
         borderConfig[side] = {

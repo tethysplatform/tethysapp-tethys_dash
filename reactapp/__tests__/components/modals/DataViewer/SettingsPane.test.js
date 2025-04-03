@@ -1,8 +1,12 @@
 import { useRef, forwardRef, useEffect } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import SettingsPane from "components/modals/DataViewer/SettingsPane";
+import SettingsPane, {
+  defaultBorderWidth,
+  defaultBorderColor,
+} from "components/modals/DataViewer/SettingsPane";
 import createLoadedComponent from "__tests__/utilities/customRender";
+import selectEvent from "react-select-event";
 import PropTypes from "prop-types";
 
 global.ResizeObserver = require("resize-observer-polyfill");
@@ -162,6 +166,75 @@ test("Settings Pane with visualizationRef Image Element but no natural width", a
   });
 });
 
+test("Settings configure border", async () => {
+  const settingsRef = { current: null };
+
+  render(
+    createLoadedComponent({
+      children: <TestingComponent ref={settingsRef} currentSettings={{}} />,
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
+
+  await waitFor(() => {
+    expect(settingsRef.current).toEqual({});
+  });
+
+  const leftBorderButton = await screen.findByLabelText("left Border Button");
+  expect(leftBorderButton).toBeInTheDocument();
+  const topBorderButton = screen.getByLabelText("top Border Button");
+  expect(topBorderButton).toBeInTheDocument();
+  const rightBorderButton = screen.getByLabelText("right Border Button");
+  expect(rightBorderButton).toBeInTheDocument();
+  const bottomBorderButton = screen.getByLabelText("bottom Border Button");
+  expect(bottomBorderButton).toBeInTheDocument();
+  const removeBordersButton = screen.getByLabelText("Remove Borders");
+  expect(removeBordersButton).toBeInTheDocument();
+  const allBorderButton = screen.getByLabelText("all Border Button");
+  expect(allBorderButton).toBeInTheDocument();
+
+  expect(allBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  expect(leftBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  expect(topBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  expect(rightBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+  expect(bottomBorderButton.querySelector("svg")).not.toHaveAttribute("color");
+
+  // all border button will affect all sides
+  await userEvent.click(allBorderButton);
+
+  let styleSelect = await screen.findByRole("combobox");
+  await selectEvent.select(styleSelect, "solid");
+
+  await userEvent.click(allBorderButton);
+
+  await waitFor(() => {
+    expect(settingsRef.current).toEqual({
+      border: { border: `${defaultBorderWidth}px solid ${defaultBorderColor}` },
+    });
+  });
+
+  // left border button will update existing
+  await userEvent.click(leftBorderButton);
+
+  styleSelect = await screen.findByRole("combobox");
+  await selectEvent.select(styleSelect, "dashed");
+
+  await userEvent.click(leftBorderButton);
+
+  await waitFor(() => {
+    expect(settingsRef.current).toEqual({
+      border: {
+        "border-bottom": "1px solid black",
+        "border-left": "1px dashed black",
+        "border-right": "1px solid black",
+        "border-top": "1px solid black",
+      },
+    });
+  });
+});
+
 test("Settings with border", async () => {
   const settingsRef = { current: null };
 
@@ -195,6 +268,8 @@ test("Settings with border", async () => {
   expect(bottomBorderButton).toBeInTheDocument();
   const removeBordersButton = screen.getByLabelText("Remove Borders");
   expect(removeBordersButton).toBeInTheDocument();
+  const allBorderButton = screen.getByLabelText("all Border Button");
+  expect(allBorderButton).toBeInTheDocument();
 
   expect(leftBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
@@ -216,6 +291,26 @@ test("Settings with border", async () => {
   await waitFor(() => {
     expect(settingsRef.current).toEqual({
       border: { border: "4px solid #ff6161" },
+    });
+  });
+
+  // all border button will affect all sides
+  await userEvent.click(allBorderButton);
+
+  let hexInput = await screen.findByLabelText(/hex/i);
+  expect(hexInput.value).toBe("#ff6161");
+  fireEvent.change(hexInput, { target: { value: "#0000ff" } });
+
+  let styleSelect = await screen.findByRole("combobox");
+  await selectEvent.select(styleSelect, "dashed");
+
+  let widthInput = await screen.findAllByRole("spinbutton");
+  expect(widthInput[1].value).toBe("4");
+  fireEvent.change(widthInput[1], { target: { value: 20 } });
+
+  await waitFor(() => {
+    expect(settingsRef.current).toEqual({
+      border: { border: "20px dashed #0000ff" },
     });
   });
 
