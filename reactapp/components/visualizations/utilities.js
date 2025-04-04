@@ -44,7 +44,7 @@ function checkForEmptyVariableInputs({
       if (!variableInputValues[dependentVariableInput]) {
         warnings.push(
           metadata.customMessaging?.[dependentVariableInput] ??
-            `${dependentVariableInput} Variable is empty`
+            `${dependentVariableInput} variable is empty`
         );
       }
     }

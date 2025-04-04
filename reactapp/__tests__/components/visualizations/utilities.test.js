@@ -53,6 +53,39 @@ test("setVisualization bad response", async () => {
   ).toBeInTheDocument();
 });
 
+test("setVisualization bad response with custom messaging", async () => {
+  appAPI.getPlotData = () => {
+    return Promise.resolve({
+      success: false,
+    });
+  };
+
+  const setViz = jest.fn();
+  const visualizationRef = jest.fn();
+  await setVisualization({
+    setViz,
+    itemData: {},
+    visualizationRef,
+    metadataString: JSON.stringify({
+      customMessaging: {
+        error: "custom error message",
+      },
+    }),
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
+    "Loading..."
+  );
+
+  // Render the element passed to setViz to check the text content
+  render(setViz.mock.calls[1][0]);
+
+  // Check if the rendered content contains the error message
+  expect(await screen.findByText("custom error message")).toBeInTheDocument();
+});
+
 test("setVisualization bad type", async () => {
   appAPI.getPlotData = () => {
     return Promise.resolve({
@@ -157,6 +190,79 @@ test("setVisualization image", async () => {
       current: null,
     },
   });
+});
+
+test("setVisualization, empty variable and no custom messaging", async () => {
+  appAPI.getPlotData = () => {
+    return Promise.resolve({
+      success: true,
+      viz_type: "image",
+      data: "some_path",
+    });
+  };
+
+  const setViz = jest.fn();
+  const visualizationRef = { current: null };
+  await setVisualization({
+    setViz,
+    itemData: { source: "some_source" },
+    visualizationRef,
+    metadataString: JSON.stringify({}),
+    argsString: JSON.stringify({ gauge_location: "${Location} ${Time}" }),
+    variableInputValues: {},
+  });
+
+  expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
+    "Loading..."
+  );
+
+  // Render the element passed to setViz to check the text content
+  render(setViz.mock.calls[1][0]);
+
+  // Check if the rendered content contains the error message
+  expect(
+    await screen.findByText(/Location variable is empty/i)
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(/Time variable is empty/i)
+  ).toBeInTheDocument();
+});
+
+test("setVisualization, empty variable and custom messaging", async () => {
+  appAPI.getPlotData = () => {
+    return Promise.resolve({
+      success: true,
+      viz_type: "image",
+      data: "some_path",
+    });
+  };
+
+  const setViz = jest.fn();
+  const visualizationRef = { current: null };
+  await setVisualization({
+    setViz,
+    itemData: { source: "some_source" },
+    visualizationRef,
+    metadataString: JSON.stringify({
+      customMessaging: {
+        Location: "custom location message",
+      },
+    }),
+    argsString: JSON.stringify({ gauge_location: "${Location} ${Time}" }),
+    variableInputValues: { Time: "some value" },
+  });
+
+  expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
+    "Loading..."
+  );
+
+  // Render the element passed to setViz to check the text content
+  render(setViz.mock.calls[1][0]);
+
+  // Check if the rendered content contains the error message
+  expect(
+    await screen.findByText("custom location message")
+  ).toBeInTheDocument();
 });
 
 test("setVisualization table", async () => {
