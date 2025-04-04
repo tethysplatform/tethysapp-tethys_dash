@@ -717,4 +717,5 @@ test("Settings with custom messaging", async () => {
 TestingComponent.propTypes = {
   visualizationRefElement: PropTypes.object,
   currentSettings: PropTypes.object,
+  vizInputsValues: PropTypes.arrayOf(PropTypes.object),
 };

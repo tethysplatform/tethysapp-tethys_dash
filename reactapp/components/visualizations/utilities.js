@@ -7,7 +7,7 @@ import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/Map";
 import ModuleLoader from "components/visualizations/ModuleLoader";
 import { spaceAndCapitalize } from "components/modals/utilities";
-import { useEffect, useState, memo, useRef, useContext, Fragment } from "react";
+import { Fragment } from "react";
 import Spinner from "react-bootstrap/Spinner";
 
 const StyledSpinner = styled(Spinner)`

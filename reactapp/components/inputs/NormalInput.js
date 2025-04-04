@@ -25,6 +25,7 @@ const NormalInput = ({ label, onChange, value, type, ariaLabel, divProps }) => {
 };
 
 NormalInput.propTypes = {
+  ariaLabel: PropTypes.string,
   label: PropTypes.string, // label for the input
   onChange: PropTypes.func, // callback function when the input changes
   value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // state for input value

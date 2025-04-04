@@ -40,6 +40,7 @@ test("setVisualization bad response", async () => {
     variableInputValues: [],
   });
 
+  // eslint-disable-next-line
   expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
     "Loading..."
   );
@@ -75,6 +76,7 @@ test("setVisualization bad response with custom messaging", async () => {
     variableInputValues: [],
   });
 
+  // eslint-disable-next-line
   expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
     "Loading..."
   );
@@ -105,6 +107,7 @@ test("setVisualization bad type", async () => {
     variableInputValues: [],
   });
 
+  // eslint-disable-next-line
   expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
     "Loading..."
   );
@@ -141,6 +144,7 @@ test("setVisualization plotly", async () => {
     variableInputValues: [],
   });
 
+  // eslint-disable-next-line
   expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
     "Loading..."
   );
@@ -177,6 +181,7 @@ test("setVisualization image", async () => {
     variableInputValues: [],
   });
 
+  // eslint-disable-next-line
   expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
     "Loading..."
   );
@@ -208,10 +213,12 @@ test("setVisualization, empty variable and no custom messaging", async () => {
     itemData: { source: "some_source" },
     visualizationRef,
     metadataString: JSON.stringify({}),
+    // eslint-disable-next-line
     argsString: JSON.stringify({ gauge_location: "${Location} ${Time}" }),
     variableInputValues: {},
   });
 
+  // eslint-disable-next-line
   expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
     "Loading..."
   );
@@ -248,10 +255,12 @@ test("setVisualization, empty variable and custom messaging", async () => {
         Location: "custom location message",
       },
     }),
+    // eslint-disable-next-line
     argsString: JSON.stringify({ gauge_location: "${Location} ${Time}" }),
     variableInputValues: { Time: "some value" },
   });
 
+  // eslint-disable-next-line
   expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
     "Loading..."
   );
@@ -286,6 +295,7 @@ test("setVisualization table", async () => {
     variableInputValues: [],
   });
 
+  // eslint-disable-next-line
   expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
     "Loading..."
   );
@@ -325,6 +335,7 @@ test("setVisualization card", async () => {
     variableInputValues: [],
   });
 
+  // eslint-disable-next-line
   expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
     "Loading..."
   );
@@ -366,6 +377,7 @@ test("setVisualization map", async () => {
     variableInputValues: [],
   });
 
+  // eslint-disable-next-line
   expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
     "Loading..."
   );
@@ -408,6 +420,7 @@ test("setVisualization custom", async () => {
     variableInputValues: [],
   });
 
+  // eslint-disable-next-line
   expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
     "Loading..."
   );

@@ -1,6 +1,5 @@
 import { useState } from "react";
-import userEvent from "@testing-library/user-event";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import CustomMessaging from "components/modals/DataViewer/CustomMessaging";
 import PropTypes from "prop-types";
 
@@ -85,6 +84,7 @@ it("CustomMessaging with dependent variable inputs", async () => {
           label: "Text",
           name: "text",
           type: "text",
+          // eslint-disable-next-line
           value: "${Location} ${Time}",
         },
         {
@@ -102,6 +102,7 @@ it("CustomMessaging with dependent variable inputs", async () => {
           ],
           value: {
             label: "Checkbox",
+            // eslint-disable-next-line
             value: "${Checkbox}",
           },
         },
@@ -153,6 +154,6 @@ it("CustomMessaging with dependent variable inputs", async () => {
 });
 
 TestingComponent.propTypes = {
-  visualizationRefElement: PropTypes.object,
-  currentSettings: PropTypes.object,
+  vizInputsValues: PropTypes.arrayOf(PropTypes.object),
+  initialCustomMessaging: PropTypes.object,
 };

@@ -1,4 +1,3 @@
-import styled from "styled-components";
 import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
@@ -8,11 +7,6 @@ import BackgroundSettings from "components/modals/DataViewer/BackgroundSettings"
 import Alert from "react-bootstrap/Alert";
 import CustomMessaging from "components/modals/DataViewer/CustomMessaging";
 import "components/modals/wideModal.css";
-
-const FlexLabel = styled.label`
-  display: flex;
-  align-items: center;
-`;
 
 export const defaultBorderStyle = { value: "none", label: "none" };
 export const defaultBorderWidth = 1;
@@ -306,6 +300,7 @@ SettingsPane.propTypes = {
     PropTypes.shape({ current: PropTypes.any }),
   ]),
   viz: PropTypes.object,
+  vizInputsValues: PropTypes.arrayOf(PropTypes.object),
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),

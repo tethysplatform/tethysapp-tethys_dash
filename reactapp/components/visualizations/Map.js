@@ -4,7 +4,6 @@ import {
   queryLayerFeatures,
   createHighlightLayer,
   createMarkerLayer,
-  createSpinningIconLayer,
   configurationPropType,
   loadLayerJSONs,
 } from "components/map/utilities";

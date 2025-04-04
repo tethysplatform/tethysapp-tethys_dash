@@ -47,6 +47,7 @@ Image.propTypes = {
   source: PropTypes.string,
   alt: PropTypes.string,
   onError: PropTypes.func,
+  imageError: PropTypes.string,
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),

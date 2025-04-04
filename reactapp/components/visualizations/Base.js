@@ -1,6 +1,5 @@
 import PropTypes from "prop-types";
-import styled from "styled-components";
-import { useEffect, useState, memo, useRef, useContext, Fragment } from "react";
+import { useEffect, useState, memo, useRef, useContext } from "react";
 import FullscreenPlotModal from "components/modals/FullscreenPlot";
 import Image from "components/visualizations/Image";
 import Text from "components/visualizations/Text";

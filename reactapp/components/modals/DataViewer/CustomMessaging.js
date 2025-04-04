@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import styled from "styled-components";
+import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
 
 const WideLabel = styled.label`
@@ -83,6 +84,12 @@ const CustomMessaging = ({
       </div>
     </WideLabel>
   );
+};
+
+CustomMessaging.propTypes = {
+  vizInputsValues: PropTypes.arrayOf(PropTypes.object),
+  customMessaging: PropTypes.objectOf(PropTypes.string),
+  setCustomMessaging: PropTypes.func,
 };
 
 export default CustomMessaging;
