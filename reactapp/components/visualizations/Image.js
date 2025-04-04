@@ -14,7 +14,7 @@ const StyledDiv = styled.div`
   height: 100%;
 `;
 
-const Image = ({ source, alt, visualizationRef }) => {
+const Image = ({ source, alt, visualizationRef, imageError }) => {
   const [imageWarning, setImageWarning] = useState(false);
 
   useEffect(() => {
@@ -29,7 +29,7 @@ const Image = ({ source, alt, visualizationRef }) => {
     <>
       {imageWarning ? (
         <StyledDiv>
-          <h2>Failed to get image.</h2>
+          <h2>{imageError ?? "Failed to get image."}</h2>
         </StyledDiv>
       ) : (
         <StyledImg

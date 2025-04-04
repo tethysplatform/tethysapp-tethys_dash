@@ -100,6 +100,7 @@ export async function setVisualization({
             source={response.data}
             alt={itemData.source}
             visualizationRef={visualizationRef}
+            imageError={metadata.customMessaging?.error}
           />
         );
       } else if (response["viz_type"] === "table") {

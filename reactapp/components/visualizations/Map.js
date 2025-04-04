@@ -4,6 +4,7 @@ import {
   queryLayerFeatures,
   createHighlightLayer,
   createMarkerLayer,
+  createSpinningIconLayer,
   configurationPropType,
   loadLayerJSONs,
 } from "components/map/utilities";
@@ -21,6 +22,7 @@ import "swiper/css";
 import "swiper/css/pagination";
 import "swiper/css/navigation";
 import { Pagination, Navigation } from "swiper/modules";
+import Overlay from "ol/Overlay";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;
@@ -195,6 +197,22 @@ const MapVisualization = ({
     // get coordinates and add pointer marker where the click occurred
     const coordinate = evt.coordinate;
     const pixel = evt.pixel;
+
+    // Create spinner element
+    const spinnerElement = document.createElement("div");
+    spinnerElement.innerHTML = `<div class="spinner-overlay">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>`;
+
+    // Create OpenLayers overlay for the spinner
+    const spinnerOverlay = new Overlay({
+      element: spinnerElement,
+      positioning: "center-center",
+    });
+
+    map.addOverlay(spinnerOverlay);
+    spinnerOverlay.setPosition(coordinate);
+
     const newMarkerLayer = createMarkerLayer(coordinate);
     if (markerLayer.current) {
       map.removeLayer(markerLayer.current);
@@ -296,6 +314,9 @@ const MapVisualization = ({
         })
     );
     const queryLayerFeaturesResults = await Promise.all(queryCalls);
+
+    // Remove spinner overlay once queries are done
+    map.removeOverlay(spinnerOverlay);
 
     const nonEmptyLayers = queryLayerFeaturesResults.filter(
       (arr) => arr && arr.length > 0
