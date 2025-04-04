@@ -1,6 +1,7 @@
 import PropTypes from "prop-types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Form from "react-bootstrap/Form";
+import { useIdleTimer } from "react-idle-timer";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import {
   nonDropDownVariableInputTypes,
@@ -86,7 +87,95 @@ function Loader({ children }) {
   const [checked, setChecked] = useState(false);
   const [appContext, setAppContext] = useState(null);
   const [availableDashboards, setAvailableDashboards] = useState(null);
+  const [state, setState] = useState('Active');
+  const [count, setCount] = useState(0);
+  const [remaining, setRemaining] = useState(1000 * 10); // 10 seconds
+  const [showActivePrompt, setShowActivePrompt] = useState(false);
+  const lastCountRef = useRef(0);
   const TETHYS_PORTAL_HOST = getTethysPortalHost();
+
+  const onAction = (event) => {
+    setCount((prevCount) => {
+      return prevCount + 1;
+    });
+  };
+
+  const onIdle = () => {
+    setState('Idle');
+    // TODO Figure out how to forcefully log out
+    window.location.assign(
+      `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
+    );
+    setShowActivePrompt(false);
+  };
+
+  const onActive = () => {
+    setState('Active');
+    setShowActivePrompt(false);
+  };
+
+  const onPrompt = () => {
+    setState('Prompted');
+    setCount(0);
+    setShowActivePrompt(true);
+  };
+
+  const { getRemainingTime, activate } = useIdleTimer({
+    onActive,
+    onAction,
+    onIdle,
+    onPrompt,
+    timeout: 1000 * 10, // 10 seconds
+    throttle: 1000 * 0.5, // Half a second
+    promptBeforeIdle: 1000 * 5, // 5 Seconds
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRemaining(Math.ceil(getRemainingTime() / 1000))
+    }, 500)
+
+    return () => {
+      clearInterval(interval)
+    }
+  })
+
+  useEffect(() => {
+    if (state === "Active" || (state === "Active" && count > lastCountRef.current)) {
+      lastCountRef.current = count
+      // Simulate API call
+      const callAPI = async () => {
+        try {
+          const idleFor = 0;
+          const response = await appAPI.getActivityData({ idleFor })
+
+          if (response.status === -1) {
+            // The user has been signed out
+            window.location.assign(
+              `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
+            );
+          }
+        } catch (error) {
+          console.error('API call failed:', error)
+        }
+      };
+
+      callAPI();
+    }
+  }, [TETHYS_PORTAL_HOST, state, count]);
+
+  const handleStillHere = (active) => {
+    if (active) {
+      onActive();
+      activate();
+    } else {
+      // TODO Figure out how to forcefully log out
+      // Unless we don't want a force log out?
+      window.location.assign(
+        `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
+      );  
+    }
+  };
 
   const handlePublicUser = (confirmation) => {
     if (!confirmation) {
@@ -468,7 +557,24 @@ function Loader({ children }) {
               importDashboard,
             }}
           >
-            <AppTourContextProvider>{children}</AppTourContextProvider>
+            <AppTourContextProvider>
+              {children}
+              <Confirmation
+                show={showActivePrompt}
+                okLabel="Stay Signed In"
+                cancelLabel="Sign out"
+                title="Are you still here?"
+                confirmation={
+                  <>
+                    <div style={{ marginTop: ".75rem" }}>
+                      Logging out in {remaining} seconds.
+                    </div>
+                  </>
+                }
+                proceed={handleStillHere}
+                backdrop={"static"}
+              />
+            </AppTourContextProvider>
           </AvailableDashboardsContext.Provider>
         </AppContext.Provider>
       </>

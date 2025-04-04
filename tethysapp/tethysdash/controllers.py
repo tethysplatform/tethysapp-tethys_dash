@@ -5,6 +5,9 @@ import shutil
 import nh3
 from rest_framework.decorators import api_view
 import uuid
+from datetime import datetime
+
+from django.contrib.sessions.backends.db import SessionStore
 from tethys_sdk.routing import controller
 from tethysapp.tethysdash.app import App
 from tethysapp.tethysdash.model import (
@@ -27,6 +30,38 @@ def home(request):
     """Controller for the app home page."""
     # The index.html template loads the React frontend
     return App.render(request, "index.html")
+
+
+@api_view(["GET"])
+@controller(login_required=False)
+def ping(request):
+    """
+    Controller for the app activity
+    Returns -1 if the user is logged out
+    If the user isn't logged out, it checks if there's new inputs to update the last activity
+    If there isn't any activity, it sends the log out warning and log out execution
+    """
+    session_id = request.COOKIES.get('sessionid', None)
+
+    if not session_id:
+        return JsonResponse({"status": -1})  # User is logged out (session missing)
+
+    session = SessionStore(session_key=session_id)
+    session_security = session.get("_session_security", None)
+
+    if not session_security:
+        return JsonResponse({"status": -1})  # User is logged out (session missing)
+
+    setattr(request, "session", session)
+
+    middleware = SessionSecurityMiddleware()
+    is_user_logged_out = middleware.is_user_session_expired(request)
+    if is_user_logged_out:
+        return JsonResponse({"status": -1})
+    elif 'idleFor' in request.GET:
+        now = datetime.now()
+        middleware.update_last_activity(request, now)
+    return JsonResponse({"status": 1})
 
 
 @api_view(["GET"])
@@ -94,12 +129,6 @@ def get_dashboard(request):
 def add_dashboard(request, app_media):
     """API controller for the dashboards page."""
 
-    print("Checking Session Security")
-    ### Check that user is actually logged in before checking any data
-    middleware = SessionSecurityMiddleware()
-    middleware.process_request(request)
-    print("Session Security is great!")
-
     dashboard_metadata = json.loads(request.body)
     name = dashboard_metadata["name"]
     description = dashboard_metadata.get("description", "")
@@ -142,10 +171,6 @@ def add_dashboard(request, app_media):
 def copy_dashboard(request, app_media):
     """API controller for the dashboards page."""
 
-    ### Check that user is actually logged in before checking any data
-    middleware = SessionSecurityMiddleware()
-    middleware.process_request(request)
-
     dashboard_metadata = json.loads(request.body)
     id = dashboard_metadata["id"]
     new_name = dashboard_metadata["newName"]
@@ -185,10 +210,6 @@ def copy_dashboard(request, app_media):
 def delete_dashboard(request, app_media):
     """API controller for the dashboards page."""
 
-    ### Check that user is actually logged in before checking any data
-    middleware = SessionSecurityMiddleware()
-    middleware.process_request(request)
-
     dashboard_metadata = json.loads(request.body)
     id = dashboard_metadata["id"]
     user = str(request.user)
@@ -217,10 +238,6 @@ def delete_dashboard(request, app_media):
 def update_dashboard(request):
     """API controller for the dashboards page."""
 
-    ### Check that user is actually logged in before checking any data
-    middleware = SessionSecurityMiddleware()
-    middleware.process_request(request)
-
     dashboard_updates = json.loads(request.body)
     id = dashboard_updates.pop("id")
     user = str(request.user)
@@ -244,10 +261,6 @@ def update_dashboard(request):
 @controller(url="tethysdash/json/upload", login_required=True, app_workspace=True)
 def upload_json(request, app_workspace):
     """API controller for the dashboards page."""
-
-    ### Check that user is actually logged in before checking any data
-    middleware = SessionSecurityMiddleware()
-    middleware.process_request(request)
 
     json_data = json.loads(request.body)
     user = str(request.user)
