@@ -15,12 +15,6 @@ import {
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import { valuesEqual } from "components/modals/utilities";
-import Spinner from "react-bootstrap/Spinner";
-
-const StyledSpinner = styled(Spinner)`
-  margin: auto;
-  display: block;
-`;
 
 const BaseVisualization = ({
   source,
@@ -29,9 +23,7 @@ const BaseVisualization = ({
   showFullscreen,
   hideFullscreen,
 }) => {
-  const [viz, setViz] = useState(
-    <StyledSpinner data-testid="Loading..." animation="border" variant="info" />
-  );
+  const [viz, setViz] = useState(null);
   const { variableInputValues } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemSource = useRef(0);

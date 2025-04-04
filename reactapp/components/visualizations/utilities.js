@@ -8,6 +8,20 @@ import MapVisualization from "components/visualizations/Map";
 import ModuleLoader from "components/visualizations/ModuleLoader";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import { useEffect, useState, memo, useRef, useContext, Fragment } from "react";
+import Spinner from "react-bootstrap/Spinner";
+
+const StyledSpinner = styled(Spinner)`
+  margin: auto;
+  display: block;
+`;
+
+const SpinnerContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+`;
 
 const StyledH2 = styled.h2`
   display: flex;
@@ -72,6 +86,15 @@ export async function setVisualization({
   variableInputValues,
 }) {
   const metadata = JSON.parse(metadataString);
+  setViz(
+    <SpinnerContainer>
+      <StyledSpinner
+        data-testid="Loading..."
+        animation="border"
+        variant="info"
+      />
+    </SpinnerContainer>
+  );
 
   if (
     checkForEmptyVariableInputs({

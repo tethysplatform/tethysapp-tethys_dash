@@ -38,6 +38,29 @@ const StyledVizCol = styled(Col)`
   user-select: none;
 `;
 
+export const parseVizInputValues = ({
+  vizInputsValues,
+  visualizationRef,
+  selectedVizTypeOption,
+}) => {
+  let vizArgs = {};
+  for (const vizArg of vizInputsValues) {
+    vizArgs[vizArg.name] =
+      vizArg.value?.value === false
+        ? false
+        : vizArg.value.value || vizArg.value; // can be a basic value or an object (like when a checkbox is a dropdown in the dataviewer)
+  }
+
+  if (selectedVizTypeOption.source === "Map" && visualizationRef.current) {
+    vizArgs["initial_view"] = {
+      center: visualizationRef.current.getView().getCenter(),
+      zoom: visualizationRef.current.getView().getZoom(),
+    };
+  }
+
+  return vizArgs;
+};
+
 function DataViewerModal({
   gridItemIndex,
   source,
@@ -109,23 +132,11 @@ function DataViewerModal({
         let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
         updatedGridItems[gridItemIndex].source = vizMetdata.source;
 
-        let vizArgs = {};
-        for (const vizArg of vizInputsValues) {
-          vizArgs[vizArg.name] =
-            vizArg.value?.value === false
-              ? false
-              : vizArg.value.value || vizArg.value; // can be a basic value or an object (like when a checkbox is a dropdown in the dataviewer)
-        }
-
-        if (
-          selectedVizTypeOption.source === "Map" &&
-          visualizationRef.current
-        ) {
-          vizArgs["initial_view"] = {
-            center: visualizationRef.current.getView().getCenter(),
-            zoom: visualizationRef.current.getView().getZoom(),
-          };
-        }
+        let vizArgs = parseVizInputValues({
+          vizInputsValues,
+          visualizationRef,
+          selectedVizTypeOption,
+        });
         updatedGridItems[gridItemIndex].args_string = JSON.stringify(vizArgs);
 
         updatedGridItems[gridItemIndex].metadata_string = JSON.stringify(
