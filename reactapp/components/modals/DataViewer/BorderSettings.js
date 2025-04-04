@@ -102,6 +102,7 @@ const BorderOverlay = ({
                 onChange={(e) => onStyleWidth(e.target.value, side)}
                 value={borderData.width}
                 type="number"
+                ariaLabel="Width Input"
               />
             </WidthLabel>
           </FlexDiv>

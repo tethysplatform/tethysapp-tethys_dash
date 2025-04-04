@@ -1,7 +1,7 @@
 import Form from "react-bootstrap/Form";
 import PropTypes from "prop-types";
 
-const NormalInput = ({ label, onChange, value, type, divProps }) => {
+const NormalInput = ({ label, onChange, value, type, ariaLabel, divProps }) => {
   return (
     <div {...divProps}>
       {label && (
@@ -10,7 +10,7 @@ const NormalInput = ({ label, onChange, value, type, divProps }) => {
         </Form.Label>
       )}
       <Form.Control
-        aria-label={label + " Input"}
+        aria-label={ariaLabel || label + " Input"}
         type={type}
         onChange={onChange}
         onKeyDown={(e) => {

@@ -949,7 +949,7 @@ test("DashboardHeader, editable, edit and save", async () => {
   await userEvent.click(addGridItemButton);
   userEvent.click(saveButton);
 
-  expect(screen.getByTestId("Loading...")).toBeInTheDocument();
+  expect(await screen.findByTestId("Loading...")).toBeInTheDocument();
 
   await waitFor(() => {
     expect(mockUpdateDashboard).toHaveBeenCalledWith(

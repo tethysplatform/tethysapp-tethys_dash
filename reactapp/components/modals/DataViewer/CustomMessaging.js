@@ -61,6 +61,7 @@ const CustomMessaging = ({
               type="text"
               value={customMessaging.error ?? ""}
               onChange={(e) => onCustomMessageChange("error", e.target.value)}
+              ariaLabel={"error Custom Message Input"}
             />
           </Flex1Div>
         </FlexLabel>
@@ -74,6 +75,7 @@ const CustomMessaging = ({
                 onChange={(e) =>
                   onCustomMessageChange(dependentVariableInput, e.target.value)
                 }
+                ariaLabel={`${dependentVariableInput} Custom Message Input`}
               />
             </Flex1Div>
           </FlexLabel>

@@ -42,14 +42,14 @@ const BaseVisualization = ({
     } else if (source === "Variable Input") {
       setViz(<VariableInput args={args} onChange={(e) => e} />);
     } else {
-      setVariableDependentVisualizations();
+      setVariableDependentVisualizations({});
     }
     // eslint-disable-next-line
   }, [source, argsString]);
 
   useEffect(() => {
     if (!["", "Custom Image", "Variable Input"].includes(source)) {
-      setVariableDependentVisualizations();
+      setVariableDependentVisualizations({});
     }
     // eslint-disable-next-line
   }, [variableInputValues]);
@@ -66,7 +66,7 @@ const BaseVisualization = ({
         () => {
           if (!isEditing) {
             setRefreshCount(refreshCount + 1);
-            setVariableDependentVisualizations();
+            setVariableDependentVisualizations({ refresh: true });
           }
         },
         parseInt(refreshRate) * 1000 * 60
@@ -76,7 +76,7 @@ const BaseVisualization = ({
     // eslint-disable-next-line
   }, [metadataString, isEditing]);
 
-  function setVariableDependentVisualizations() {
+  function setVariableDependentVisualizations({ refresh }) {
     const args = JSON.parse(argsString);
 
     const itemData = { source: source, args: args };
@@ -86,6 +86,7 @@ const BaseVisualization = ({
     );
 
     if (
+      refresh ||
       !valuesEqual(gridItemArgsWithVariableInputs.current, updatedGridItemArgs)
     ) {
       itemData.args = updatedGridItemArgs;

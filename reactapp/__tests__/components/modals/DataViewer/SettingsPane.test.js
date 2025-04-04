@@ -12,7 +12,10 @@ import PropTypes from "prop-types";
 global.ResizeObserver = require("resize-observer-polyfill");
 
 const TestingComponent = forwardRef(
-  ({ visualizationRefElement, currentSettings = {} }, ref) => {
+  (
+    { visualizationRefElement, vizInputsValues = [], currentSettings = {} },
+    ref
+  ) => {
     const settingsRef = useRef(currentSettings);
     const visualizationRef = useRef(visualizationRefElement);
 
@@ -29,6 +32,7 @@ const TestingComponent = forwardRef(
           settingsRef={settingsRef}
           viz={null}
           visualizationRef={visualizationRef}
+          vizInputsValues={vizInputsValues}
         />
       </>
     );

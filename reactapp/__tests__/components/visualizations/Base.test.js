@@ -480,9 +480,6 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
     })
   );
 
-  const spinner = await screen.findByTestId("Loading...");
-  expect(spinner).toBeInTheDocument();
-
   const message = await screen.findByText("Failed to retrieve data");
   expect(message).toBeInTheDocument();
 });

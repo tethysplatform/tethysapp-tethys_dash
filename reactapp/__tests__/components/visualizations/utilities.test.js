@@ -31,10 +31,21 @@ test("setVisualization bad response", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = jest.fn();
-  await setVisualization(setViz, {}, visualizationRef);
+  await setVisualization({
+    setViz,
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
+    "Loading..."
+  );
 
   // Render the element passed to setViz to check the text content
-  render(setViz.mock.calls[0][0]);
+  render(setViz.mock.calls[1][0]);
 
   // Check if the rendered content contains the error message
   expect(
@@ -52,10 +63,21 @@ test("setVisualization bad type", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = jest.fn();
-  await setVisualization(setViz, {}, visualizationRef);
+  await setVisualization({
+    setViz,
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
+    "Loading..."
+  );
 
   // Render the element passed to setViz to check the text content
-  render(setViz.mock.calls[0][0]);
+  render(setViz.mock.calls[1][0]);
 
   // Check if the rendered content contains the error message
   expect(
@@ -77,10 +99,21 @@ test("setVisualization plotly", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization(setViz, {}, visualizationRef);
+  await setVisualization({
+    setViz,
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
 
-  expect(setViz.mock.calls[0][0].type.type.name).toBe("BasePlot");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
+  expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
+    "Loading..."
+  );
+
+  expect(setViz.mock.calls[1][0].type.type.name).toBe("BasePlot");
+  expect(setViz.mock.calls[1][0].props).toStrictEqual({
     plotData: {
       data: {},
       layout: {},
@@ -102,12 +135,24 @@ test("setVisualization image", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization(setViz, { source: "some_source" }, visualizationRef);
+  await setVisualization({
+    setViz,
+    itemData: { source: "some_source" },
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
 
-  expect(setViz.mock.calls[0][0].type.type.name).toBe("Image");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
+  expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
+    "Loading..."
+  );
+
+  expect(setViz.mock.calls[1][0].type.type.name).toBe("Image");
+  expect(setViz.mock.calls[1][0].props).toStrictEqual({
     source: "some_path",
     alt: "some_source",
+    imageError: undefined,
     visualizationRef: {
       current: null,
     },
@@ -126,10 +171,21 @@ test("setVisualization table", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization(setViz, {}, visualizationRef);
+  await setVisualization({
+    setViz,
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
 
-  expect(setViz.mock.calls[0][0].type.type.name).toBe("DataTable");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
+  expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
+    "Loading..."
+  );
+
+  expect(setViz.mock.calls[1][0].type.type.name).toBe("DataTable");
+  expect(setViz.mock.calls[1][0].props).toStrictEqual({
     data: [],
     title: "Some Title",
     visualizationRef: {
@@ -154,10 +210,21 @@ test("setVisualization card", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization(setViz, {}, visualizationRef);
+  await setVisualization({
+    setViz,
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
 
-  expect(setViz.mock.calls[0][0].type.name).toBe("Card");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
+  expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
+    "Loading..."
+  );
+
+  expect(setViz.mock.calls[1][0].type.name).toBe("Card");
+  expect(setViz.mock.calls[1][0].props).toStrictEqual({
     data: [],
     title: "Some Title",
     description: "Some Description",
@@ -184,10 +251,21 @@ test("setVisualization map", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization(setViz, {}, visualizationRef);
+  await setVisualization({
+    setViz,
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
 
-  expect(setViz.mock.calls[0][0].type.name).toBe("MockMapVisualization");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
+  expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
+    "Loading..."
+  );
+
+  expect(setViz.mock.calls[1][0].type.name).toBe("MockMapVisualization");
+  expect(setViz.mock.calls[1][0].props).toStrictEqual({
     layers: [],
     legend: [],
     mapConfig: {},
@@ -215,10 +293,21 @@ test("setVisualization custom", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization(setViz, {}, visualizationRef);
+  await setVisualization({
+    setViz,
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
 
-  expect(setViz.mock.calls[0][0].type.name).toBe("MockModuleLoader");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
+  expect(setViz.mock.calls[0][0].props.children.props["data-testid"]).toBe(
+    "Loading..."
+  );
+
+  expect(setViz.mock.calls[1][0].type.name).toBe("MockModuleLoader");
+  expect(setViz.mock.calls[1][0].props).toStrictEqual({
     url: "url",
     scope: "scope",
     module: "module",
