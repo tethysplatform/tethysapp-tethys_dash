@@ -60,11 +60,17 @@ it("Initializes a Base Item with an empty div", async () => {
 
 it("Initializes a Base Item with an empty div and updates it with an image", async () => {
   appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-      viz_type: "image",
-    });
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            success: true,
+            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+            viz_type: "image",
+          }),
+        50
+      )
+    );
   };
 
   render(
@@ -221,7 +227,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
             data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
             viz_type: "image",
           }),
-        2000
+        500
       )
     );
   };
@@ -283,7 +289,7 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
             data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
             viz_type: "image",
           }),
-        2000
+        500
       )
     );
   };
@@ -337,11 +343,17 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
 
 it("Creates an Base Item with a plot obtained from the api", async () => {
   appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: mockedPlotData,
-      viz_type: "plotly",
-    });
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            success: true,
+            data: mockedPlotData,
+            viz_type: "plotly",
+          }),
+        50
+      )
+    );
   };
 
   render(
@@ -367,11 +379,17 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
 
 it("Creates an Base Item with a table obtained from the api", async () => {
   appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: mockedTableData,
-      viz_type: "table",
-    });
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            success: true,
+            data: mockedTableData,
+            viz_type: "table",
+          }),
+        50
+      )
+    );
   };
 
   render(
@@ -397,11 +415,17 @@ it("Creates an Base Item with a table obtained from the api", async () => {
 
 it("Creates an Base Item with a card obtained from the api", async () => {
   appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: mockedCardData,
-      viz_type: "card",
-    });
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            success: true,
+            data: mockedCardData,
+            viz_type: "card",
+          }),
+        50
+      )
+    );
   };
 
   render(
@@ -427,11 +451,17 @@ it("Creates an Base Item with a card obtained from the api", async () => {
 
 it("Gives the user an error message if an unknown viz type is obtained from the api", async () => {
   appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: {},
-      viz_type: "random_viz_type",
-    });
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            success: true,
+            data: {},
+            viz_type: "random_viz_type",
+          }),
+        50
+      )
+    );
   };
 
   render(
@@ -459,11 +489,17 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
 
 it("Gives the user an error message if the api couldn't retrieve data", async () => {
   appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: false,
-      data: {},
-      viz_type: "",
-    });
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            success: false,
+            data: {},
+            viz_type: "",
+          }),
+        50
+      )
+    );
   };
 
   render(
@@ -511,11 +547,17 @@ it("Base - update variable input", async () => {
   const dashboards = { user: [mockedDashboard], public: [] };
 
   appAPI.getPlotData = (props) => {
-    return Promise.resolve({
-      success: true,
-      data: props.args.url,
-      viz_type: "image",
-    });
+    return new Promise((resolve) =>
+      setTimeout(
+        () =>
+          resolve({
+            success: true,
+            data: props.args.url,
+            viz_type: "image",
+          }),
+        50
+      )
+    );
   };
 
   render(
@@ -542,7 +584,7 @@ it("Base - update variable input", async () => {
     })
   );
 
-  const image = await screen.findByAltText(mockedApiImageBase.source);
+  let image = await screen.findByAltText(mockedApiImageBase.source);
   await waitFor(async () => {
     expect(image.src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
   });
@@ -559,6 +601,7 @@ it("Base - update variable input", async () => {
   expect(refreshButton).toBeInTheDocument();
   await user.click(refreshButton);
 
+  image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );
