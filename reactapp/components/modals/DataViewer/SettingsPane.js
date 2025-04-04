@@ -154,7 +154,7 @@ function getShadowBox(borderSettings) {
   }
 }
 
-function getValidMassaging(obj) {
+function getValidMessaging(obj) {
   return Object.fromEntries(
     Object.entries(obj).filter(([key, value]) => value.trim() !== "")
   );
@@ -204,7 +204,7 @@ function SettingsPane({ settingsRef, viz, visualizationRef, vizInputsValues }) {
   }, [border]);
 
   useEffect(() => {
-    const customMessages = getValidMassaging(customMessaging);
+    const customMessages = getValidMessaging(customMessaging);
     if (Object.keys(customMessages).length > 0) {
       settingsRef.current.customMessaging = customMessages;
     } else {

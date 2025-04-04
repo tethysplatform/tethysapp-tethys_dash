@@ -666,6 +666,54 @@ test("Settings with box shadow and change border", async () => {
   });
 });
 
+test("Settings with custom messaging", async () => {
+  const settingsRef = { current: null };
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          ref={settingsRef}
+          currentSettings={{
+            customMessaging: { error: "some custom error message" },
+          }}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
+
+  await waitFor(() => {
+    expect(settingsRef.current).toEqual({
+      customMessaging: { error: "some custom error message" },
+    });
+  });
+
+  const errorMessageInput = screen.getByLabelText("error Custom Message Input");
+  expect(errorMessageInput).toBeInTheDocument();
+  expect(errorMessageInput.value).toBe("some custom error message");
+
+  fireEvent.change(errorMessageInput, {
+    target: { value: "a new custom message" },
+  });
+
+  await waitFor(() => {
+    expect(settingsRef.current).toEqual({
+      customMessaging: { error: "a new custom message" },
+    });
+  });
+
+  fireEvent.change(errorMessageInput, {
+    target: { value: "" },
+  });
+
+  await waitFor(() => {
+    expect(settingsRef.current).toEqual({});
+  });
+});
+
 TestingComponent.propTypes = {
   visualizationRefElement: PropTypes.object,
   currentSettings: PropTypes.object,
