@@ -87,6 +87,67 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   expect(mocksetShowGridItemMessage).toHaveBeenCalledTimes(1);
 });
 
+test("Dashboard Viewer Modal Text", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockhandleModalClose = jest.fn();
+  const mocksetGridItemMessage = jest.fn();
+  const mocksetShowGridItemMessage = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataViewerModal
+          gridItemIndex={0}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          metadataString={gridItem.metadata_string}
+          gridItemI={gridItem.i}
+          showModal={true}
+          handleModalClose={mockhandleModalClose}
+          setGridItemMessage={mocksetGridItemMessage}
+          setShowGridItemMessage={mocksetShowGridItemMessage}
+        />
+      ),
+      options: { initialDashboard: mockedDashboards.user[0] },
+    })
+  );
+
+  expect(await screen.findByText("Select Cell Data")).toBeInTheDocument();
+  expect(await screen.findByText("Visualization")).toBeInTheDocument();
+  expect(await screen.findByText("Settings")).toBeInTheDocument();
+
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button"
+  );
+  fireEvent.click(dataviewerSaveButton);
+  expect(
+    await screen.findByText("A visualization must be chosen before saving")
+  ).toBeInTheDocument();
+
+  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  await userEvent.click(visualizationTypeSelect);
+  const textOption = await screen.findByText("Text");
+  fireEvent.click(textOption);
+
+  const textInput = await screen.findByLabelText("textEditor");
+  expect(textInput).toBeInTheDocument();
+
+  fireEvent.click(dataviewerSaveButton);
+  expect(
+    await screen.findByText("All arguments must be filled out before saving")
+  ).toBeInTheDocument();
+
+  await userEvent.click(textInput);
+  await userEvent.keyboard("some text");
+  expect(await screen.findByText("some text")).toBeInTheDocument();
+
+  fireEvent.click(dataviewerSaveButton);
+
+  expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
+  expect(mocksetShowGridItemMessage).toHaveBeenCalledTimes(1);
+});
+
 test("Dashboard Viewer Modal Variable Input", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
