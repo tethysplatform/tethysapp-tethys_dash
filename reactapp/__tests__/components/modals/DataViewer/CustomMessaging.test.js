@@ -6,7 +6,7 @@ import PropTypes from "prop-types";
 global.ResizeObserver = require("resize-observer-polyfill");
 
 const TestingComponent = ({
-  vizInputsValues = [],
+  vizInputsValues = {},
   initialCustomMessaging = {},
 }) => {
   const [customMessaging, setCustomMessaging] = useState(
@@ -79,34 +79,15 @@ it("CustomMessaging with no dependent variable inputs", async () => {
 it("CustomMessaging with dependent variable inputs", async () => {
   render(
     <TestingComponent
-      vizInputsValues={[
-        {
-          label: "Text",
-          name: "text",
-          type: "text",
+      vizInputsValues={{
+        // eslint-disable-next-line
+        text: "${Location} ${Time}",
+        include_rain_melt_plot: {
+          label: "Checkbox",
           // eslint-disable-next-line
-          value: "${Location} ${Time}",
+          value: "${Checkbox}",
         },
-        {
-          label: "Include Rain Melt Plot",
-          name: "include_rain_melt_plot",
-          type: [
-            {
-              label: "True",
-              value: true,
-            },
-            {
-              label: "False",
-              value: false,
-            },
-          ],
-          value: {
-            label: "Checkbox",
-            // eslint-disable-next-line
-            value: "${Checkbox}",
-          },
-        },
-      ]}
+      }}
     />
   );
 
@@ -154,6 +135,6 @@ it("CustomMessaging with dependent variable inputs", async () => {
 });
 
 TestingComponent.propTypes = {
-  vizInputsValues: PropTypes.arrayOf(PropTypes.object),
+  vizInputsValues: PropTypes.object,
   initialCustomMessaging: PropTypes.object,
 };

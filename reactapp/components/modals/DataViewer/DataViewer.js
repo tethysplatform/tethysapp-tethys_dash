@@ -120,8 +120,14 @@ function DataViewerModal({
           };
         }
 
-        updatedGridItems[gridItemIndex].args_string =
-          JSON.stringify(vizInputsValues);
+        updatedGridItems[gridItemIndex].args_string = JSON.stringify(
+          Object.fromEntries(
+            Object.entries(vizInputsValues).map(([key, val]) => [
+              key,
+              val.value ?? val,
+            ])
+          )
+        );
 
         updatedGridItems[gridItemIndex].metadata_string = JSON.stringify(
           settingsRef.current
@@ -172,7 +178,7 @@ function DataViewerModal({
       }
     }
     variableInputValues[vizArgs.variable_name] =
-      variableInputValue.value || variableInputValue;
+      variableInputValue.value ?? variableInputValue;
     setVariableInputValues(variableInputValues);
 
     return updatedGridItems;

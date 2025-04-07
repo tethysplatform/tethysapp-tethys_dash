@@ -13,7 +13,7 @@ global.ResizeObserver = require("resize-observer-polyfill");
 
 const TestingComponent = forwardRef(
   (
-    { visualizationRefElement, vizInputsValues = [], currentSettings = {} },
+    { visualizationRefElement, vizInputsValues = {}, currentSettings = {} },
     ref
   ) => {
     const settingsRef = useRef(currentSettings);

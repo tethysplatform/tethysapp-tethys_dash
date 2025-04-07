@@ -20,7 +20,7 @@ const TestingComponent = ({
   gridItemIndex,
 }) => {
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
-  const [vizInputsValues, setVizInputsValues] = useState([]);
+  const [vizInputsValues, setVizInputsValues] = useState({});
   const [variableInputValue, setVariableInputValue] = useState(null);
   const settingsRef = useRef({});
   const visualizationRef = useRef();
@@ -101,61 +101,6 @@ test("Visualization Pane Custom Image", async () => {
   expect(mockSetViz).toHaveBeenCalledWith(
     <Image source={"some_png"} visualizationRef={{ current: null }} />
   );
-});
-
-test("Visualization Pane Text", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
-  const gridItem = mockedDashboard.gridItems[0];
-  const mockSetGridItemMessage = jest.fn();
-  const mockSetViz = jest.fn();
-  const mockSetVizMetadata = jest.fn();
-
-  render(
-    createLoadedComponent({
-      children: (
-        <TestingComponent
-          layoutContext={mockedDashboard}
-          source={gridItem.source}
-          argsString={gridItem.args_string}
-          setGridItemMessage={mockSetGridItemMessage}
-          setViz={mockSetViz}
-          setVizMetadata={mockSetVizMetadata}
-        />
-      ),
-      options: {
-        inDataViewerMode: true,
-      },
-    })
-  );
-
-  expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
-  expect(mockSetViz).toHaveBeenCalledTimes(0);
-
-  const visualizationTypeSelect =
-    await screen.findByLabelText("visualizationType");
-  await userEvent.click(visualizationTypeSelect);
-  const texteOption = await screen.findByText("Text");
-  fireEvent.click(texteOption);
-
-  expect(mockSetVizMetadata).toHaveBeenCalledWith(null);
-  expect(mockSetViz).toHaveBeenCalledWith(null);
-
-  expect(mockSetVizMetadata).toHaveBeenCalledWith({
-    source: "Text",
-    args: { text: "" },
-  });
-  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
-    "Cell updated to show Other Text"
-  );
-
-  expect(mockSetViz.mock.calls[1][0].type.name).toBe("CustomTextOptions");
-  expect(mockSetViz.mock.calls[1][0].props.index).toBe(0);
-  expect(mockSetViz.mock.calls[1][0].props.objValue).toStrictEqual({
-    label: "Text",
-    name: "text",
-    type: "text",
-    value: "",
-  });
 });
 
 test("Visualization Pane Variable Input", async () => {
@@ -642,17 +587,7 @@ test("Visualization Pane Use Existing Args Viz with True checkbox", async () => 
   );
   expect(mockSetViz).toHaveBeenCalled();
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
-    JSON.stringify([
-      {
-        label: "Plugin Arg",
-        name: "plugin_arg",
-        type: [
-          { label: "True", value: true },
-          { label: "False", value: false },
-        ],
-        value: { label: "True", value: true },
-      },
-    ])
+    JSON.stringify({ plugin_arg: { label: "True", value: true } })
   );
 });
 
@@ -726,42 +661,8 @@ test("Visualization Pane Use Existing Args Viz with False checkbox", async () =>
   );
   expect(mockSetViz).toHaveBeenCalled();
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
-    JSON.stringify([
-      {
-        label: "Plugin Arg",
-        name: "plugin_arg",
-        type: [
-          { label: "True", value: true },
-          { label: "False", value: false },
-        ],
-        value: { label: "False", value: false },
-      },
-    ])
+    JSON.stringify({ plugin_arg: { label: "False", value: false } })
   );
-});
-
-test("CustomTextOptions", async () => {
-  function onChange(new_value, index) {}
-  render(
-    <CustomTextOptions
-      index={0}
-      objValue={{
-        label: "Text",
-        name: "Text",
-        type: "Text",
-        value: "Here is some text",
-      }}
-      onChange={onChange}
-    />
-  );
-
-  expect(await screen.findByText("Here is some text")).toBeInTheDocument();
-  const textArea = await screen.findByLabelText("textEditor");
-  await userEvent.click(textArea);
-  await userEvent.keyboard(" and some more text.");
-  expect(
-    await screen.findByText("Here is some text and some more text.")
-  ).toBeInTheDocument();
 });
 
 TestingComponent.propTypes = {

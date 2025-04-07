@@ -22,9 +22,10 @@ describe("DataInput Component", () => {
       createLoadedComponent({
         children: (
           <DataInput
-            objValue={{ label: "Test Dropdown", type: options, value: "" }}
+            label={"Test Dropdown"}
+            type={options}
+            value={""}
             onChange={mockOnChange}
-            index={0}
           />
         ),
       })
@@ -39,10 +40,10 @@ describe("DataInput Component", () => {
     await selectEvent.select(dropdown, "Option 1");
 
     // Ensure onChange is triggered with the correct value
-    expect(mockOnChange).toHaveBeenCalledWith(
-      { label: "Option 1", value: "option1" },
-      0
-    );
+    expect(mockOnChange).toHaveBeenCalledWith({
+      label: "Option 1",
+      value: "option1",
+    });
   });
 
   test("renders DataSelect dropdown in dataviewer mode and no variable inputs as options", async () => {
@@ -55,9 +56,10 @@ describe("DataInput Component", () => {
       createLoadedComponent({
         children: (
           <DataInput
-            objValue={{ label: "Test Dropdown", type: options, value: "" }}
+            label={"Test Dropdown"}
+            type={options}
+            value={""}
             onChange={mockOnChange}
-            index={0}
           />
         ),
         options: {
@@ -90,9 +92,10 @@ describe("DataInput Component", () => {
       createLoadedComponent({
         children: (
           <DataInput
-            objValue={{ label: "Test Dropdown", type: options, value: "" }}
+            label={"Test Dropdown"}
+            type={options}
+            value={""}
             onChange={mockOnChange}
-            index={0}
           />
         ),
         options: {
@@ -122,9 +125,10 @@ describe("DataInput Component", () => {
       createLoadedComponent({
         children: (
           <DataInput
-            objValue={{ label: "Test Checkbox", type: "checkbox", value: true }}
+            label={"Test Checkbox"}
+            type={"checkbox"}
+            value={true}
             onChange={mockOnChange}
-            index={0}
           />
         ),
       })
@@ -140,7 +144,7 @@ describe("DataInput Component", () => {
     fireEvent.click(checkbox);
 
     // Ensure onChange is triggered with the correct value
-    expect(mockOnChange).toHaveBeenCalledWith(false, 0);
+    expect(mockOnChange).toHaveBeenCalledWith(false);
   });
 
   test("renders radio buttons and handles selection", async () => {
@@ -152,14 +156,11 @@ describe("DataInput Component", () => {
       createLoadedComponent({
         children: (
           <DataInput
-            objValue={{
-              label: "Test Radio",
-              type: "radio",
-              value: "option1",
-              valueOptions,
-            }}
+            label={"Test Radio"}
+            type={"radio"}
+            value={"option1"}
+            valueOptions={valueOptions}
             onChange={mockOnChange}
-            index={0}
           />
         ),
       })
@@ -176,7 +177,7 @@ describe("DataInput Component", () => {
     fireEvent.click(option2);
 
     // Ensure onChange is triggered with the correct value
-    expect(mockOnChange).toHaveBeenCalledWith("option2", 0);
+    expect(mockOnChange).toHaveBeenCalledWith("option2");
   });
 
   test("renders text input and handles typing. make sure enter does not submit form", async () => {
@@ -188,9 +189,10 @@ describe("DataInput Component", () => {
         children: (
           <form onSubmit={mockHandleSubmit}>
             <DataInput
-              objValue={{ label: "Test Text", type: "text", value: "initial" }}
+              label={"Test Text"}
+              type={"text"}
+              value={"initial"}
               onChange={mockOnChange}
-              index={0}
             />
           </form>
         ),
@@ -205,7 +207,7 @@ describe("DataInput Component", () => {
     await user.type(textInput, "M");
 
     // Ensure onChange is triggered with the correct value
-    expect(mockOnChange).toHaveBeenCalledWith("initialM", 0);
+    expect(mockOnChange).toHaveBeenCalledWith("initialM");
 
     // Ensure Enter does not submit a form
     await userEvent.keyboard("{Enter}");
@@ -220,13 +222,10 @@ test("renders multiinput", async () => {
     createLoadedComponent({
       children: (
         <DataInput
-          objValue={{
-            label: "Test Multi Input",
-            type: "multiinput",
-            value: [],
-          }}
+          label={"Test Multi Input"}
+          type={"multiinput"}
+          value={[]}
           onChange={mockOnChange}
-          index={0}
         />
       ),
     })
@@ -237,7 +236,7 @@ test("renders multiinput", async () => {
   const textbox = screen.getByRole("textbox");
   await userEvent.type(textbox, "Some Input Value{enter}");
 
-  expect(mockOnChange).toHaveBeenCalledWith(["Some Input Value"], 0);
+  expect(mockOnChange).toHaveBeenCalledWith(["Some Input Value"]);
 });
 
 test("renders inputtable", async () => {
@@ -247,13 +246,10 @@ test("renders inputtable", async () => {
     createLoadedComponent({
       children: (
         <DataInput
-          objValue={{
-            label: "Test Input Table",
-            type: "inputtable",
-            value: [{ "field 1": true, "field 2": "" }],
-          }}
+          label={"Test Input Table"}
+          type={"inputtable"}
+          value={[{ "field 1": true, "field 2": "" }]}
           onChange={mockOnChange}
-          index={0}
         />
       ),
     })
@@ -266,18 +262,20 @@ test("renders inputtable", async () => {
   fireEvent.click(checkbox);
   expect(checkbox).not.toBeChecked();
 
-  expect(mockOnChange).toHaveBeenCalledWith(
-    { field: "field 1", newValue: false, rowIndex: 0 },
-    0
-  );
+  expect(mockOnChange).toHaveBeenCalledWith({
+    field: "field 1",
+    newValue: false,
+    rowIndex: 0,
+  });
 
   const textbox = screen.getByRole("textbox");
   fireEvent.change(textbox, { target: { value: "Some Input Value" } });
 
-  expect(mockOnChange).toHaveBeenCalledWith(
-    { field: "field 2", newValue: "Some Input Value", rowIndex: 0 },
-    0
-  );
+  expect(mockOnChange).toHaveBeenCalledWith({
+    field: "field 2",
+    newValue: "Some Input Value",
+    rowIndex: 0,
+  });
 });
 
 test("renders custom-AddMapLayer", async () => {
@@ -288,13 +286,10 @@ test("renders custom-AddMapLayer", async () => {
     createLoadedComponent({
       children: (
         <DataInput
-          objValue={{
-            label: "Test Add Map Layer",
-            type: "custom-AddMapLayer",
-            value: [layerConfigImageArcGISRest],
-          }}
+          label={"Test Add Map Layer"}
+          type={"custom-AddMapLayer"}
+          value={[layerConfigImageArcGISRest]}
           onChange={mockOnChange}
-          index={0}
           inputProps={{ setShowingSubModal }}
         />
       ),
@@ -321,24 +316,21 @@ test("renders custom-AddMapLayer", async () => {
   const createLayerButton = await screen.findByLabelText("Create Layer Button");
   fireEvent.click(createLayerButton);
 
-  expect(mockOnChange).toHaveBeenCalledWith(
-    [
-      {
-        configuration: {
-          props: {
-            name: "New Layer Name",
-            source: {
-              props: {
-                url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
-              },
-              type: "ImageArcGISRest",
+  expect(mockOnChange).toHaveBeenCalledWith([
+    {
+      configuration: {
+        props: {
+          name: "New Layer Name",
+          source: {
+            props: {
+              url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
             },
-            zIndex: 1,
+            type: "ImageArcGISRest",
           },
-          type: "ImageLayer",
+          zIndex: 1,
         },
+        type: "ImageLayer",
       },
-    ],
-    0
-  );
+    },
+  ]);
 });

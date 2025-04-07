@@ -167,7 +167,7 @@ function VisualizationPane({
   function handleInputChange(new_value, key) {
     setVizInputsValues((prevVizInputsValues) => ({
       ...prevVizInputsValues,
-      [key]: new_value.value || new_value,
+      [key]: new_value,
     }));
   }
 
@@ -202,7 +202,7 @@ function VisualizationPane({
       }
       let inputValue;
       if (existing.length) {
-        inputValue = existing[0].value;
+        inputValue = vizInputsValues[arg];
       } else {
         inputValue = getInitialInputValue(e.args[arg]);
       }
@@ -222,10 +222,7 @@ function VisualizationPane({
   }
 
   function checkAllInputs() {
-    if (
-      selectedVizTypeOption !== null &&
-      !["Text"].includes(selectedVizTypeOption.value)
-    ) {
+    if (selectedVizTypeOption !== null) {
       if (
         Object.values(vizInputsValues).every(
           (value) => !["", null].includes(value)
@@ -246,7 +243,9 @@ function VisualizationPane({
 
     const itemData = {
       source: selectedVizTypeOption["source"],
-      args,
+      args: Object.fromEntries(
+        Object.entries(args).map(([key, val]) => [key, val.value ?? val])
+      ),
     };
 
     setVizMetadata(itemData);
@@ -256,7 +255,9 @@ function VisualizationPane({
         " " +
         selectedVizTypeOption["label"]
     );
-    if (selectedVizTypeOption["value"] === "Custom Image") {
+    if (selectedVizTypeOption["value"] === "Text") {
+      return;
+    } else if (selectedVizTypeOption["value"] === "Custom Image") {
       setViz(
         <Image
           source={vizInputsValues.image_source}

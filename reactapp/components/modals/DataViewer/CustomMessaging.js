@@ -25,7 +25,7 @@ function getDependentVariableInputs(inputs) {
 
   Object.values(inputs).forEach((item) => {
     let match;
-    while ((match = regex.exec(item)) !== null) {
+    while ((match = regex.exec(item?.value ?? item)) !== null) {
       uniqueValues.add(match[1]); // Extract the variable name
     }
   });
