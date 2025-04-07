@@ -50,19 +50,53 @@ const VisualizationArguments = ({
     return null;
   }
 
-  const VizArgs = [];
-  vizArguments.forEach((obj, index) => {
-    VizArgs.push(
-      <DataInput
-        key={index}
-        label={obj.label}
-        type={obj.type}
-        value={vizInputsValues?.[obj.name] ?? getInitialInputValue(obj.type)}
-        onChange={(newValue) => handleInputChange(newValue, obj.name)}
-        inputProps={{ gridItemIndex, setShowingSubModal }}
-      />
-    );
-  });
+  const renderInput = (obj, key) => (
+    <DataInput
+      key={key}
+      label={spaceAndCapitalize(obj.label)}
+      type={obj.type}
+      value={vizInputsValues?.[key] ?? getInitialInputValue(obj.type)}
+      onChange={(newValue) => handleInputChange(newValue, key)}
+      inputProps={{ gridItemIndex, setShowingSubModal }}
+    />
+  );
+
+  const renderArgs = (obj) => {
+    const inputs = [];
+    const baseKey = obj.name;
+
+    // Main input
+    inputs.push(renderInput(obj, baseKey));
+
+    // Check if the current value matches any option that has sub_args
+    if (Array.isArray(obj.type)) {
+      const selectedValue = vizInputsValues?.[obj.name];
+
+      if (selectedValue?.sub_args) {
+        for (const [subName, subOptions] of Object.entries(
+          selectedValue.sub_args
+        )) {
+          const subKey = `${obj.name}.${subName}`;
+          inputs.push(
+            <DataInput
+              key={subKey}
+              label={spaceAndCapitalize(subName)}
+              type={subOptions}
+              value={
+                vizInputsValues?.[subKey] ?? getInitialInputValue(subOptions)
+              }
+              onChange={(newValue) => handleInputChange(newValue, subKey)}
+              inputProps={{ gridItemIndex, setShowingSubModal }}
+            />
+          );
+        }
+      }
+    }
+
+    return inputs;
+  };
+
+  const VizArgs = vizArguments.flatMap(renderArgs);
 
   return VizArgs;
 };
@@ -142,7 +176,7 @@ function VisualizationPane({
                   : { label: "False", value: false };
               }
               updatedVizArguments.push({
-                label: spaceAndCapitalize(arg),
+                label: arg,
                 name: arg,
                 type: vizArgType,
                 value: existingArg,
@@ -164,12 +198,38 @@ function VisualizationPane({
     // eslint-disable-next-line
   }, [vizInputsValues]);
 
-  function handleInputChange(new_value, key) {
-    setVizInputsValues((prevVizInputsValues) => ({
-      ...prevVizInputsValues,
-      [key]: new_value,
-    }));
-  }
+  const handleInputChange = (newValue, key) => {
+    setVizInputsValues((prev) => {
+      const updated = { ...prev, [key]: newValue };
+
+      const prefix = `${key}.`;
+
+      // Remove sub-args if newValue has sub_args defined
+      if (newValue?.sub_args) {
+        const validSubArgs = Object.keys(newValue.sub_args);
+
+        for (const k in updated) {
+          if (k.startsWith(prefix)) {
+            const subKey = k.slice(prefix.length);
+            if (!validSubArgs.includes(subKey)) {
+              delete updated[k];
+            }
+          }
+        }
+      }
+
+      // If the value doesn't have sub_args at all, remove all sub_args for that key
+      if (!newValue?.sub_args) {
+        for (const k in updated) {
+          if (k.startsWith(prefix)) {
+            delete updated[k];
+          }
+        }
+      }
+
+      return updated;
+    });
+  };
 
   function onDataTypeChange(e) {
     visualizationRef.current = null;
@@ -208,7 +268,7 @@ function VisualizationPane({
       }
 
       updatedVizArguments.push({
-        label: spaceAndCapitalize(arg),
+        label: arg,
         name: arg,
         type: e.args[arg],
         value: inputValue,
