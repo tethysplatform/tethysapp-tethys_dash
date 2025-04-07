@@ -61,34 +61,27 @@ const VisualizationArguments = ({
     />
   );
 
-  const renderArgs = (obj) => {
+  const renderArgs = (obj, parentKey = "") => {
     const inputs = [];
-    const baseKey = obj.name;
+    const baseKey = parentKey ? `${parentKey}.${obj.name}` : obj.name;
 
     // Main input
     inputs.push(renderInput(obj, baseKey));
 
-    // Check if the current value matches any option that has sub_args
+    // If this input has options (i.e., dropdown), check for sub_args
     if (Array.isArray(obj.type)) {
-      const selectedValue = vizInputsValues?.[obj.name];
+      const selectedValue = vizInputsValues?.[baseKey];
 
       if (selectedValue?.sub_args) {
         for (const [subName, subOptions] of Object.entries(
           selectedValue.sub_args
         )) {
-          const subKey = `${obj.name}.${subName}`;
-          inputs.push(
-            <DataInput
-              key={subKey}
-              label={spaceAndCapitalize(subName)}
-              type={subOptions}
-              value={
-                vizInputsValues?.[subKey] ?? getInitialInputValue(subOptions)
-              }
-              onChange={(newValue) => handleInputChange(newValue, subKey)}
-              inputProps={{ gridItemIndex, setShowingSubModal }}
-            />
-          );
+          const subArgObj = {
+            name: subName,
+            label: subName,
+            type: subOptions,
+          };
+          inputs.push(...renderArgs(subArgObj, baseKey)); // recursive call
         }
       }
     }
@@ -202,28 +195,39 @@ function VisualizationPane({
     setVizInputsValues((prev) => {
       const updated = { ...prev, [key]: newValue };
 
-      const prefix = `${key}.`;
+      // Helper to recursively collect valid nested keys from sub_args
+      const collectValidKeys = (subArgs, baseKey) => {
+        let validKeys = [];
+        for (const [subName, subOptions] of Object.entries(subArgs)) {
+          const fullKey = `${baseKey}.${subName}`;
+          validKeys.push(fullKey);
 
-      // Remove sub-args if newValue has sub_args defined
-      if (newValue?.sub_args) {
-        const validSubArgs = Object.keys(newValue.sub_args);
-
-        for (const k in updated) {
-          if (k.startsWith(prefix)) {
-            const subKey = k.slice(prefix.length);
-            if (!validSubArgs.includes(subKey)) {
-              delete updated[k];
-            }
+          // Check if subOptions is an array of options with possible sub_args
+          const selectedSubValue = updated[fullKey];
+          if (Array.isArray(subOptions) && selectedSubValue?.sub_args) {
+            validKeys = validKeys.concat(
+              collectValidKeys(selectedSubValue.sub_args, fullKey)
+            );
           }
         }
-      }
+        return validKeys;
+      };
 
-      // If the value doesn't have sub_args at all, remove all sub_args for that key
-      if (!newValue?.sub_args) {
-        for (const k in updated) {
-          if (k.startsWith(prefix)) {
-            delete updated[k];
-          }
+      // Clean up all nested keys that start with this key and are no longer valid
+      const prefix = `${key}.`;
+
+      // Get all valid nested keys based on the new value
+      const validKeys = newValue?.sub_args
+        ? collectValidKeys(newValue.sub_args, key)
+        : [];
+
+      // Remove invalid nested keys
+      for (const existingKey in updated) {
+        if (
+          existingKey.startsWith(prefix) &&
+          !validKeys.includes(existingKey)
+        ) {
+          delete updated[existingKey];
         }
       }
 
