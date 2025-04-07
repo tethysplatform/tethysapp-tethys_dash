@@ -130,7 +130,9 @@ const VariableInput = ({ args, onChange }) => {
     return (
       <StyledDiv>
         <DataInput
-          objValue={{ label, type, value }}
+          label={label}
+          type={type}
+          value={value}
           onChange={handleInputChange}
         />
       </StyledDiv>
@@ -143,10 +145,7 @@ const VariableInput = ({ args, onChange }) => {
         </label>
         <FlexDiv>
           <InputDiv>
-            <DataInput
-              objValue={{ type, value }}
-              onChange={handleInputChange}
-            />
+            <DataInput type={type} value={value} onChange={handleInputChange} />
           </InputDiv>
           <ButtonDiv>
             <TooltipButton

@@ -4,7 +4,6 @@ import DataSelect from "components/inputs/DataSelect";
 import styled from "styled-components";
 import Image from "components/visualizations/Image";
 import DataInput from "components/inputs/DataInput";
-import TextEditor from "components/inputs/TextEditor";
 import MapVisualization from "components/visualizations/Map";
 import { setVisualization } from "components/visualizations/utilities";
 import { parseVizInputValues } from "components/modals/DataViewer/DataViewer";
@@ -25,10 +24,6 @@ import SelectedVisualizationTypesModal from "components/modals/SelectedVisualiza
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import "components/modals/wideModal.css";
 
-const StyledDiv = styled.div`
-  padding-bottom: 1rem;
-`;
-
 const DropdownDiv = styled.div`
   flex: 1;
   margin-right: 1rem;
@@ -45,6 +40,7 @@ const FlexDiv = styled.div`
 
 const VisualizationArguments = ({
   selectedVizTypeOption,
+  vizArguments,
   vizInputsValues,
   handleInputChange,
   setShowingSubModal,
@@ -55,13 +51,14 @@ const VisualizationArguments = ({
   }
 
   const VizArgs = [];
-  vizInputsValues.forEach((obj, index) => {
+  vizArguments.forEach((obj, index) => {
     VizArgs.push(
       <DataInput
         key={index}
-        objValue={obj}
-        onChange={handleInputChange}
-        index={index}
+        label={obj.label}
+        type={obj.type}
+        value={vizInputsValues?.[obj.name] ?? getInitialInputValue(obj.type)}
+        onChange={(newValue) => handleInputChange(newValue, obj.name)}
         inputProps={{ gridItemIndex, setShowingSubModal }}
       />
     );
@@ -91,6 +88,7 @@ function VisualizationPane({
     localStorage.getItem("deselected_visualizations")?.split(",") || []
   );
   const [vizOptions, setVizOptions] = useState([]);
+  const [vizArguments, setVizArguments] = useState([]);
   const [selectedGroupName, setSelectedGroupName] = useState(null);
   const [
     showVisualizationTypeSettingsModal,
@@ -122,7 +120,10 @@ function VisualizationPane({
           if (vizOptionGroupOption.source === source) {
             setSelectedGroupName(vizOptionGroup.label);
             setSelectVizTypeOption(vizOptionGroupOption);
-            let userInputsValues = [];
+
+            let updatedVizArguments = [];
+            const updatedVizInputsValues = {};
+
             const existingArgs = JSON.parse(argsString);
             if (source === "Variable Input") {
               setVariableInputValue(existingArgs.initial_value);
@@ -140,16 +141,16 @@ function VisualizationPane({
                   ? { label: "True", value: true }
                   : { label: "False", value: false };
               }
-
-              const userInputsValue = {
+              updatedVizArguments.push({
                 label: spaceAndCapitalize(arg),
                 name: arg,
                 type: vizArgType,
                 value: existingArg,
-              };
-              userInputsValues.push(userInputsValue);
+              });
+              updatedVizInputsValues[arg] = existingArg;
             }
-            setVizInputsValues(userInputsValues);
+            setVizArguments(updatedVizArguments);
+            setVizInputsValues(updatedVizInputsValues);
             break;
           }
         }
@@ -163,10 +164,11 @@ function VisualizationPane({
     // eslint-disable-next-line
   }, [vizInputsValues]);
 
-  function handleInputChange(new_value, index) {
-    const values = [...vizInputsValues];
-    values[index].value = new_value;
-    setVizInputsValues(values);
+  function handleInputChange(new_value, key) {
+    setVizInputsValues((prevVizInputsValues) => ({
+      ...prevVizInputsValues,
+      [key]: new_value.value || new_value,
+    }));
   }
 
   function onDataTypeChange(e) {
@@ -182,9 +184,10 @@ function VisualizationPane({
     }
     setSelectVizTypeOption(e);
 
-    let userInputsValues = [];
+    let updatedVizArguments = [];
+    const updatedVizInputsValues = {};
     for (let arg in e.args) {
-      let existing = vizInputsValues.filter((obj) => {
+      let existing = vizArguments.filter((obj) => {
         if (obj.name !== arg) {
           return false;
         }
@@ -204,24 +207,29 @@ function VisualizationPane({
         inputValue = getInitialInputValue(e.args[arg]);
       }
 
-      userInputsValues.push({
+      updatedVizArguments.push({
         label: spaceAndCapitalize(arg),
         name: arg,
         type: e.args[arg],
         value: inputValue,
       });
+      updatedVizInputsValues[arg] = inputValue;
     }
-    setVizInputsValues(userInputsValues);
+    setVizInputsValues(updatedVizInputsValues);
+    setVizArguments(updatedVizArguments);
     setViz(null);
     setVizMetadata(null);
   }
 
   function checkAllInputs() {
-    if (selectedVizTypeOption !== null) {
-      let inputValues = vizInputsValues.map((value) => value.value);
+    if (
+      selectedVizTypeOption !== null &&
+      !["Text"].includes(selectedVizTypeOption.value)
+    ) {
       if (
-        inputValues.every((value) => !["", null].includes(value)) ||
-        (selectedVizTypeOption["value"] === "Text" && inputValues[0] === "")
+        Object.values(vizInputsValues).every(
+          (value) => !["", null].includes(value)
+        )
       ) {
         previewVisualization();
       }
@@ -229,19 +237,18 @@ function VisualizationPane({
   }
 
   function previewVisualization() {
+    const initialArgs = JSON.parse(argsString);
+
+    const args =
+      selectedVizTypeOption.source === "Map" && "initial_view" in initialArgs
+        ? { ...vizInputsValues, initial_view: initialArgs.initial_view }
+        : vizInputsValues;
+
     const itemData = {
       source: selectedVizTypeOption["source"],
-      args: JSON.parse(argsString), // initialize with initial values for some vizualization like Map where additional args are used that dont have options
+      args,
     };
 
-    // Loop through each visualization input and overwrite initial values
-    vizInputsValues.forEach((arg) => {
-      if (typeof arg.value.value !== "undefined") {
-        itemData["args"][arg.name] = arg.value.value;
-      } else {
-        itemData["args"][arg.name] = arg.value;
-      }
-    });
     setVizMetadata(itemData);
     setGridItemMessage(
       "Cell updated to show " +
@@ -252,16 +259,8 @@ function VisualizationPane({
     if (selectedVizTypeOption["value"] === "Custom Image") {
       setViz(
         <Image
-          source={vizInputsValues[0].value}
+          source={vizInputsValues.image_source}
           visualizationRef={visualizationRef}
-        />
-      );
-    } else if (selectedVizTypeOption["value"] === "Text") {
-      setViz(
-        <CustomTextOptions
-          objValue={vizInputsValues[0]}
-          onChange={handleInputChange}
-          index={0}
         />
       );
     } else if (selectedVizTypeOption["value"] === "Variable Input") {
@@ -301,11 +300,7 @@ function VisualizationPane({
           itemData,
           visualizationRef,
           metadataString: JSON.stringify(settingsRef.current),
-          argsString: parseVizInputValues({
-            vizInputsValues,
-            visualizationRef,
-            selectedVizTypeOption,
-          }),
+          argsString: vizInputsValues,
           variableInputValues,
         });
       }
@@ -349,6 +344,7 @@ function VisualizationPane({
       </FlexDiv>
       <VisualizationArguments
         selectedVizTypeOption={selectedVizTypeOption}
+        vizArguments={vizArguments}
         vizInputsValues={vizInputsValues}
         handleInputChange={handleInputChange}
         setShowingSubModal={setShowingSubModal}
@@ -368,25 +364,6 @@ function VisualizationPane({
     </>
   );
 }
-
-export function CustomTextOptions({ objValue, onChange, index }) {
-  const textValue = objValue.value;
-
-  return (
-    <StyledDiv>
-      <TextEditor
-        textValue={textValue}
-        onChange={(e) => onChange(e.target.value, index)}
-      />
-    </StyledDiv>
-  );
-}
-
-CustomTextOptions.propTypes = {
-  objValue: PropTypes.object,
-  onChange: PropTypes.func,
-  index: PropTypes.number,
-};
 
 VisualizationArguments.propTypes = {
   selectedVizTypeOption: PropTypes.object,

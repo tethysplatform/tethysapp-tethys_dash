@@ -18,15 +18,7 @@ const StyledDiv = styled.div`
   margin-right: 1rem;
 `;
 
-const Input = ({
-  label,
-  type,
-  onChange,
-  value,
-  index,
-  valueOptions,
-  inputProps,
-}) => {
+const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
   const { variableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
@@ -67,7 +59,7 @@ const Input = ({
         label={label}
         aria-label={label + " Input"}
         selectedOption={inputValue}
-        onChange={(e) => onChange(e, index)}
+        onChange={(e) => onChange(e)}
         options={options}
         {...inputProps}
       />
@@ -76,7 +68,7 @@ const Input = ({
     return (
       <CheckboxInput
         label={label}
-        onChange={(e) => onChange(e.target.checked, index)}
+        onChange={(e) => onChange(e.target.checked)}
         value={value}
         type={type}
         inputProps={inputProps}
@@ -90,7 +82,7 @@ const Input = ({
         selectedRadio={value}
         radioOptions={valueOptions}
         onChange={(e) => {
-          onChange(e.target.value, index);
+          onChange(e.target.value);
         }}
         {...inputProps}
       />
@@ -101,7 +93,7 @@ const Input = ({
         label={label}
         aria-label={label + " Input"}
         onChange={(values) => {
-          onChange(values, index);
+          onChange(values);
         }}
         values={value}
         {...inputProps}
@@ -113,7 +105,7 @@ const Input = ({
         label={label}
         aria-label={label + " Input"}
         onChange={(values) => {
-          onChange(values, index);
+          onChange(values);
         }}
         values={value}
         {...inputProps}
@@ -127,7 +119,7 @@ const Input = ({
         label={label}
         aria-label={label + " Input"}
         onChange={(values) => {
-          onChange(values, index);
+          onChange(values);
         }}
         values={value}
         {...inputProps}
@@ -137,7 +129,7 @@ const Input = ({
     return (
       <NormalInput
         label={label}
-        onChange={(e) => onChange(e.target.value, index)}
+        onChange={(e) => onChange(e.target.value)}
         value={value}
         type={type}
       />
@@ -145,9 +137,14 @@ const Input = ({
   }
 };
 
-const DataInput = ({ objValue, onChange, index, inputProps }) => {
-  const { label, type, value, valueOptions } = objValue;
-
+const DataInput = ({
+  label,
+  type,
+  value,
+  valueOptions,
+  onChange,
+  inputProps,
+}) => {
   return (
     <>
       {type && (
@@ -158,7 +155,6 @@ const DataInput = ({ objValue, onChange, index, inputProps }) => {
             onChange={onChange}
             value={value}
             valueOptions={valueOptions}
-            index={index}
             inputProps={inputProps}
           />
         </StyledDiv>
@@ -170,7 +166,6 @@ const DataInput = ({ objValue, onChange, index, inputProps }) => {
 DataInput.propTypes = {
   objValue: PropTypes.object,
   onChange: PropTypes.func,
-  index: PropTypes.number,
   inputProps: PropTypes.object, // additional props to pass to the input
 };
 
@@ -186,7 +181,6 @@ Input.propTypes = {
     PropTypes.array,
   ]),
   valueOptions: PropTypes.array,
-  index: PropTypes.number,
   inputProps: PropTypes.object, // additional props to pass to the input
 };
 

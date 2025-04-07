@@ -1,4 +1,5 @@
 import intake
+import inspect
 
 
 def get_available_visualizations():
@@ -47,6 +48,10 @@ def get_available_visualizations():
 
 def get_visualization(viz_source, viz_args):
     plugin = getattr(intake, f"open_{viz_source}")
-    data = plugin(**viz_args).read()
+    sig = inspect.signature(plugin.__init__)
+
+    args = {name: viz_args[name] for name in sig.parameters if name in viz_args}
+
+    data = plugin(**args).read()
 
     return plugin.visualization_type, data

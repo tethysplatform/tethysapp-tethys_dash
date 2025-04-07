@@ -16,7 +16,12 @@ import VisualizationPane from "components/modals/DataViewer/VisualizationPane";
 import SettingsPane from "components/modals/DataViewer/SettingsPane";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
+import TextEditor from "components/inputs/TextEditor";
 import "components/modals/wideModal.css";
+
+const PaddedBottomDiv = styled.div`
+  padding-bottom: 1rem;
+`;
 
 const StyledContainer = styled(Container)`
   height: 75vh;
@@ -38,29 +43,6 @@ const StyledVizCol = styled(Col)`
   user-select: none;
 `;
 
-export const parseVizInputValues = ({
-  vizInputsValues,
-  visualizationRef,
-  selectedVizTypeOption,
-}) => {
-  let vizArgs = {};
-  for (const vizArg of vizInputsValues) {
-    vizArgs[vizArg.name] =
-      vizArg.value?.value === false
-        ? false
-        : vizArg.value.value || vizArg.value; // can be a basic value or an object (like when a checkbox is a dropdown in the dataviewer)
-  }
-
-  if (selectedVizTypeOption.source === "Map" && visualizationRef.current) {
-    vizArgs["initial_view"] = {
-      center: visualizationRef.current.getView().getCenter(),
-      zoom: visualizationRef.current.getView().getZoom(),
-    };
-  }
-
-  return vizArgs;
-};
-
 function DataViewerModal({
   gridItemIndex,
   source,
@@ -73,7 +55,9 @@ function DataViewerModal({
 }) {
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
   const [viz, setViz] = useState(null);
-  const [vizInputsValues, setVizInputsValues] = useState([]);
+  const [vizInputsValues, setVizInputsValues] = useState(
+    JSON.parse(argsString)
+  );
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
   const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
@@ -96,15 +80,9 @@ function DataViewerModal({
     e.stopPropagation();
     setShowAlert(false);
     if (selectedVizTypeOption !== null) {
-      let inputValues = vizInputsValues.map((value) => value.value);
-
       if (selectedVizTypeOption.source === "Variable Input") {
-        var variableInputName = vizInputsValues.find((obj) => {
-          return obj.name === "variable_name";
-        }).value;
-        var variableInputSource = vizInputsValues.find((obj) => {
-          return obj.name === "variable_options_source";
-        }).value;
+        var variableInputName = vizInputsValues.variable_name;
+        var variableInputSource = vizInputsValues.variable_options_source;
 
         if (
           variableInputName in variableInputValues &&
@@ -120,31 +98,40 @@ function DataViewerModal({
           setShowAlert(true);
           return;
         } else {
-          vizInputsValues.push({
-            label: "Initial Value",
-            name: "initial_value",
-            value: variableInputValue,
-          });
+          vizInputsValues.initial_value = variableInputValue;
         }
       }
 
-      if (inputValues.every((value) => ![null, ""].includes(value))) {
+      if (
+        Object.values(vizInputsValues).every(
+          (value) => ![null, ""].includes(value)
+        )
+      ) {
         let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
         updatedGridItems[gridItemIndex].source = vizMetdata.source;
 
-        let vizArgs = parseVizInputValues({
-          vizInputsValues,
-          visualizationRef,
-          selectedVizTypeOption,
-        });
-        updatedGridItems[gridItemIndex].args_string = JSON.stringify(vizArgs);
+        if (
+          selectedVizTypeOption.source === "Map" &&
+          visualizationRef.current
+        ) {
+          vizInputsValues["initial_view"] = {
+            center: visualizationRef.current.getView().getCenter(),
+            zoom: visualizationRef.current.getView().getZoom(),
+          };
+        }
+
+        updatedGridItems[gridItemIndex].args_string =
+          JSON.stringify(vizInputsValues);
 
         updatedGridItems[gridItemIndex].metadata_string = JSON.stringify(
           settingsRef.current
         );
 
         if (selectedVizTypeOption.source === "Variable Input") {
-          updatedGridItems = updateVariableInputs(vizArgs, updatedGridItems);
+          updatedGridItems = updateVariableInputs(
+            vizInputsValues,
+            updatedGridItems
+          );
         }
 
         updateGridItems(updatedGridItems);
@@ -266,7 +253,18 @@ function DataViewerModal({
                 </Tabs>
               </StyledCol>
               <StyledVizCol className={"justify-content-center h-100 col-8"}>
-                {viz}
+                {selectedVizTypeOption?.value === "Text" ? (
+                  <PaddedBottomDiv>
+                    <TextEditor
+                      textValue={vizInputsValues.text}
+                      onChange={(e) =>
+                        setVizInputsValues({ text: e.target.value })
+                      }
+                    />
+                  </PaddedBottomDiv>
+                ) : (
+                  viz
+                )}
               </StyledVizCol>
             </StyledRow>
           </StyledContainer>
