@@ -5,7 +5,10 @@ import styled from "styled-components";
 import Image from "components/visualizations/Image";
 import DataInput from "components/inputs/DataInput";
 import MapVisualization from "components/visualizations/Map";
-import { setVisualization } from "components/visualizations/utilities";
+import {
+  setVisualization,
+  findSelectOptionByValue,
+} from "components/visualizations/utilities";
 import { parseVizInputValues } from "components/modals/DataViewer/DataViewer";
 import {
   AppContext,
@@ -70,7 +73,10 @@ const VisualizationArguments = ({
 
     // If this input has options (i.e., dropdown), check for sub_args
     if (Array.isArray(obj.type)) {
-      const selectedValue = vizInputsValues?.[baseKey];
+      let selectedValue = vizInputsValues?.[baseKey];
+      if (typeof selectedValue === "string") {
+        selectedValue = findSelectOptionByValue(obj.type, selectedValue);
+      }
 
       if (selectedValue?.sub_args) {
         for (const [subName, subOptions] of Object.entries(
@@ -132,6 +138,59 @@ function VisualizationPane({
   });
 
   useEffect(() => {
+    if (source) {
+      let selectedVizOptionGroup = null;
+      let selectedVizOptionGroupOption = null;
+      for (let vizOptionGroup of visualizations) {
+        for (let vizOptionGroupOption of vizOptionGroup.options) {
+          if (vizOptionGroupOption.source === source) {
+            selectedVizOptionGroup = vizOptionGroup;
+            selectedVizOptionGroupOption = vizOptionGroupOption;
+            break;
+          }
+        }
+      }
+
+      if (selectedVizOptionGroupOption) {
+        setSelectedGroupName(selectedVizOptionGroup.label);
+        setSelectVizTypeOption(selectedVizOptionGroupOption);
+
+        let updatedVizArguments = [];
+        const updatedVizInputsValues = {};
+
+        const existingArgs = JSON.parse(argsString);
+        if (source === "Variable Input") {
+          setVariableInputValue(existingArgs.initial_value);
+        }
+
+        for (let arg in selectedVizOptionGroupOption.args) {
+          let vizArgType = selectedVizOptionGroupOption.args[arg];
+          let existingArg = existingArgs[arg];
+          if (vizArgType === "checkbox") {
+            vizArgType = [
+              { label: "True", value: true },
+              { label: "False", value: false },
+            ];
+            existingArg = existingArg
+              ? { label: "True", value: true }
+              : { label: "False", value: false };
+          }
+          updatedVizArguments.push({
+            label: arg,
+            name: arg,
+            type: vizArgType,
+            value: existingArg,
+          });
+          updatedVizInputsValues[arg] = existingArg;
+        }
+        setVizArguments(updatedVizArguments);
+        setVizInputsValues(updatedVizInputsValues);
+      }
+    }
+    // eslint-disable-next-line
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem("deselected_visualizations", deselectedVisualizations);
     let vizTypeOptions = JSON.parse(JSON.stringify(visualizations));
     for (let vizOptionGroup of vizTypeOptions) {
@@ -140,49 +199,6 @@ function VisualizationPane({
       });
     }
     setVizOptions(vizTypeOptions);
-
-    if (source) {
-      for (let vizOptionGroup of visualizations) {
-        for (let vizOptionGroupOption of vizOptionGroup.options) {
-          if (vizOptionGroupOption.source === source) {
-            setSelectedGroupName(vizOptionGroup.label);
-            setSelectVizTypeOption(vizOptionGroupOption);
-
-            let updatedVizArguments = [];
-            const updatedVizInputsValues = {};
-
-            const existingArgs = JSON.parse(argsString);
-            if (source === "Variable Input") {
-              setVariableInputValue(existingArgs.initial_value);
-            }
-
-            for (let arg in vizOptionGroupOption.args) {
-              let vizArgType = vizOptionGroupOption.args[arg];
-              let existingArg = existingArgs[arg];
-              if (vizArgType === "checkbox") {
-                vizArgType = [
-                  { label: "True", value: true },
-                  { label: "False", value: false },
-                ];
-                existingArg = existingArg
-                  ? { label: "True", value: true }
-                  : { label: "False", value: false };
-              }
-              updatedVizArguments.push({
-                label: arg,
-                name: arg,
-                type: vizArgType,
-                value: existingArg,
-              });
-              updatedVizInputsValues[arg] = existingArg;
-            }
-            setVizArguments(updatedVizArguments);
-            setVizInputsValues(updatedVizInputsValues);
-            break;
-          }
-        }
-      }
-    }
     // eslint-disable-next-line
   }, [deselectedVisualizations]);
 
