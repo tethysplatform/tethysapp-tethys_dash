@@ -53,16 +53,31 @@ const VisualizationArguments = ({
     return null;
   }
 
-  const renderInput = (obj, key) => (
-    <DataInput
-      key={key}
-      label={spaceAndCapitalize(obj.label)}
-      type={obj.type}
-      value={vizInputsValues?.[key] ?? getInitialInputValue(obj.type)}
-      onChange={(newValue) => handleInputChange(newValue, key)}
-      inputProps={{ gridItemIndex, setShowingSubModal }}
-    />
-  );
+  const renderInput = (obj, key) => {
+    let vizArgType = obj.type;
+    let value = vizInputsValues?.[key] ?? getInitialInputValue(vizArgType);
+    if (vizArgType === "checkbox") {
+      vizArgType = [
+        { label: "True", value: true },
+        { label: "False", value: false },
+      ];
+      if (typeof value !== "object") {
+        value = value
+          ? { label: "True", value: true }
+          : { label: "False", value: false };
+      }
+    }
+    return (
+      <DataInput
+        key={key}
+        label={spaceAndCapitalize(obj.label)}
+        type={vizArgType}
+        value={value}
+        onChange={(newValue) => handleInputChange(newValue, key)}
+        inputProps={{ gridItemIndex, setShowingSubModal }}
+      />
+    );
+  };
 
   const renderArgs = (obj, parentKey = "") => {
     const inputs = [];
@@ -156,7 +171,6 @@ function VisualizationPane({
         setSelectVizTypeOption(selectedVizOptionGroupOption);
 
         let updatedVizArguments = [];
-        const updatedVizInputsValues = {};
 
         const existingArgs = JSON.parse(argsString);
         if (source === "Variable Input") {
@@ -166,25 +180,15 @@ function VisualizationPane({
         for (let arg in selectedVizOptionGroupOption.args) {
           let vizArgType = selectedVizOptionGroupOption.args[arg];
           let existingArg = existingArgs[arg];
-          if (vizArgType === "checkbox") {
-            vizArgType = [
-              { label: "True", value: true },
-              { label: "False", value: false },
-            ];
-            existingArg = existingArg
-              ? { label: "True", value: true }
-              : { label: "False", value: false };
-          }
           updatedVizArguments.push({
             label: arg,
             name: arg,
             type: vizArgType,
             value: existingArg,
           });
-          updatedVizInputsValues[arg] = existingArg;
         }
         setVizArguments(updatedVizArguments);
-        setVizInputsValues(updatedVizInputsValues);
+        setVizInputsValues(existingArgs);
       }
     }
     // eslint-disable-next-line
@@ -274,12 +278,6 @@ function VisualizationPane({
         return valuesEqual(obj.type, e.args[arg]);
       });
 
-      if (e.args[arg] === "checkbox") {
-        e.args[arg] = [
-          { label: "True", value: true },
-          { label: "False", value: false },
-        ];
-      }
       let inputValue;
       if (existing.length) {
         inputValue = vizInputsValues[arg];

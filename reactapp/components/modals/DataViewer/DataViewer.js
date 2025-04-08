@@ -55,9 +55,7 @@ function DataViewerModal({
 }) {
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
   const [viz, setViz] = useState(null);
-  const [vizInputsValues, setVizInputsValues] = useState(
-    JSON.parse(argsString)
-  );
+  const [vizInputsValues, setVizInputsValues] = useState({});
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
   const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);

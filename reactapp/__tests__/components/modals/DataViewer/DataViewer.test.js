@@ -580,9 +580,9 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
 
   const showLayersDropdown = comboboxes[2];
   await selectEvent.openMenu(showLayersDropdown);
-  const showLayersOption = screen.getByText("False");
-  expect(showLayersOption).toBeInTheDocument();
-  fireEvent.click(showLayersOption);
+  const showLayersOption = await screen.findAllByText("False");
+  expect(showLayersOption[1]).toBeInTheDocument();
+  fireEvent.click(showLayersOption[1]);
 
   const dataviewerSaveButton = await screen.findByLabelText(
     "dataviewer-save-button"

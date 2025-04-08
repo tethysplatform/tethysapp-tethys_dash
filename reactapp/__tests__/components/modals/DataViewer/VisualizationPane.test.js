@@ -20,7 +20,9 @@ const TestingComponent = ({
   gridItemIndex,
 }) => {
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
-  const [vizInputsValues, setVizInputsValues] = useState({});
+  const [vizInputsValues, setVizInputsValues] = useState(
+    JSON.parse(argsString)
+  );
   const [variableInputValue, setVariableInputValue] = useState(null);
   const settingsRef = useRef({});
   const visualizationRef = useRef();
@@ -587,7 +589,7 @@ test("Visualization Pane Use Existing Args Viz with True checkbox", async () => 
   );
   expect(mockSetViz).toHaveBeenCalled();
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
-    JSON.stringify({ plugin_arg: { label: "True", value: true } })
+    JSON.stringify({ plugin_arg: true })
   );
 });
 
@@ -661,7 +663,130 @@ test("Visualization Pane Use Existing Args Viz with False checkbox", async () =>
   );
   expect(mockSetViz).toHaveBeenCalled();
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
-    JSON.stringify({ plugin_arg: { label: "False", value: false } })
+    JSON.stringify({ plugin_arg: false })
+  );
+});
+
+test("Visualization Pane Use Existing Subs Args", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.user[0];
+  mockedDashboard.gridItems = [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "plugin_source",
+      args_string: JSON.stringify({
+        plugin_arg: "arg1",
+        "plugin_arg.sub_arg1a": "sub_arg1a",
+        "plugin_arg.sub_arg1a.sub_arg1aa": false,
+        plugin_arg2: "arg3",
+        "plugin_arg2.sub_arg3a": "some value",
+      }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ];
+  const mockedVisualizations = [
+    {
+      label: "Other",
+      options: [
+        {
+          source: "plugin_source",
+          value: "plugin_value",
+          label: "plugin_label",
+          args: {
+            plugin_arg: [
+              {
+                value: "arg1",
+                label: "Arg 1",
+                sub_args: {
+                  sub_arg1a: [
+                    {
+                      value: "sub_arg1a",
+                      label: "Sub Arg 1A",
+                      sub_args: {
+                        sub_arg1aa: "checkbox",
+                      },
+                    },
+                    {
+                      value: "sub_arg1b",
+                      label: "Sub Arg 1B",
+                    },
+                  ],
+                },
+              },
+              {
+                value: "arg2",
+                label: "Arg 2",
+              },
+            ],
+            plugin_arg2: [
+              {
+                value: "arg3",
+                label: "Arg 3",
+                sub_args: {
+                  sub_arg3a: "text",
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  ];
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetViz = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+        visualizations: mockedVisualizations,
+      },
+    })
+  );
+
+  await waitFor(async () => {
+    expect(mockSetVizMetadata).toHaveBeenCalledWith({
+      source: "plugin_source",
+      args: {
+        plugin_arg: "arg1",
+        "plugin_arg.sub_arg1a": "sub_arg1a",
+        "plugin_arg.sub_arg1a.sub_arg1aa": false,
+        plugin_arg2: "arg3",
+        "plugin_arg2.sub_arg3a": "some value",
+      },
+    });
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show Other plugin_label"
+  );
+  expect(mockSetViz).toHaveBeenCalled();
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify({
+      plugin_arg: "arg1",
+      "plugin_arg.sub_arg1a": "sub_arg1a",
+      "plugin_arg.sub_arg1a.sub_arg1aa": false,
+      plugin_arg2: "arg3",
+      "plugin_arg2.sub_arg3a": "some value",
+    })
   );
 });
 
