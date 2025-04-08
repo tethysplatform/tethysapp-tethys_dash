@@ -89,7 +89,7 @@ const VisualizationArguments = ({
     return inputs;
   };
 
-  const VizArgs = vizArguments.flatMap(renderArgs);
+  const VizArgs = vizArguments.flatMap((arg) => renderArgs(arg));
 
   return VizArgs;
 };
