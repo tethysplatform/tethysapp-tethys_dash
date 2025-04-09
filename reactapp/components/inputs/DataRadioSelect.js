@@ -9,6 +9,7 @@ const StyledDiv = styled.div`
 
 const DataRadioSelect = ({ label, selectedRadio, radioOptions, onChange }) => {
   let RadioButtons = [];
+  const groupName = label.replace(" ", "-");
   for (let i = 0; i < radioOptions.length; i++) {
     RadioButtons.push(
       <Form.Check
@@ -16,7 +17,7 @@ const DataRadioSelect = ({ label, selectedRadio, radioOptions, onChange }) => {
         key={i}
         label={radioOptions[i]["label"]}
         aria-label={radioOptions[i]["label"]}
-        name="group1"
+        name={groupName}
         type="radio"
         onChange={onChange}
         value={radioOptions[i]["value"]}

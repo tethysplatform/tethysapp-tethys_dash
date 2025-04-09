@@ -17,7 +17,7 @@ const rowHeight = window.innerWidth / colCount - 10;
 
 const DashboardLayout = () => {
   const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
-  const { gridItems } = getDashboardMetadata();
+  const { gridItems, restrictedMovement } = getDashboardMetadata();
   const { isEditing } = useContext(EditingContext);
   const { disabledEditingMovement } = useContext(
     DisabledEditingMovementContext
@@ -129,6 +129,7 @@ const DashboardLayout = () => {
       isResizable={false}
       draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover"
       onResize={handleResize}
+      allowOverlap={!restrictedMovement}
     >
       {items}
     </ReactGridLayout>

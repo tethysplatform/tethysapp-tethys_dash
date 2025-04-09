@@ -4,6 +4,7 @@ from sqlalchemy import (
     Integer,
     String,
     DateTime,
+    Boolean,
     ARRAY,
     ForeignKey,
     UniqueConstraint,
@@ -36,6 +37,7 @@ class Dashboard(Base):
     notes = Column(String)
     owner = Column(String)
     access_groups = Column(ARRAY(String))
+    restricted_movement = Column(Boolean)
     grid_items = relationship("GridItem", cascade="delete")
     last_updated = Column(DateTime, default=datetime.now(timezone.utc))
 
@@ -61,7 +63,16 @@ class GridItem(Base):
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
-def add_new_dashboard(owner, uuid, name, description, notes, access_groups, grid_items):
+def add_new_dashboard(
+    owner,
+    uuid,
+    name,
+    description,
+    notes,
+    access_groups,
+    restricted_movement,
+    grid_items,
+):
     # Get connection/session to database
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -75,6 +86,7 @@ def add_new_dashboard(owner, uuid, name, description, notes, access_groups, grid
             notes=notes,
             owner=owner,
             access_groups=access_groups,
+            restricted_movement=restricted_movement,
         )
 
         session.add(new_dashboard)
@@ -180,6 +192,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             notes=original_dashboard.notes,
             owner=user,
             access_groups=[],
+            restricted_movement=original_dashboard.restricted_movement,
         )
 
         # Add and flush to generate new ID
@@ -280,6 +293,9 @@ def update_named_dashboard(user, id, dashboard_updates):
                 check_existing_public_dashboards(session, db_name)
             db_dashboard.access_groups = dashboard_updates["accessGroups"]
 
+        if "restrictedMovement" in dashboard_updates:
+            db_dashboard.restricted_movement = dashboard_updates["restrictedMovement"]
+
         if "gridItems" in dashboard_updates:
             updated_grid_items = dashboard_updates["gridItems"]
             existing_db_grid_items_ids = [
@@ -379,6 +395,7 @@ def parse_db_dashboard(dashboards, dashboard_view):
             "name": dashboard.name,
             "description": dashboard.description,
             "accessGroups": (["public"] if "public" in dashboard.access_groups else []),
+            "restrictedMovement": dashboard.restricted_movement,
             "image": dashboard_image,
         }
 

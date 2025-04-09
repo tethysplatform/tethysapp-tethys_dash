@@ -71,13 +71,22 @@ const UrlDiv = styled.div`
 `;
 
 function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
-  const [selectedSharingStatus, setSelectedSharingStatus] = useState(false);
+  const [selectedSharingStatus, setSelectedSharingStatus] = useState("private");
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
   const { getDashboardMetadata, saveLayoutContext } = useContext(LayoutContext);
-  const { id, name, description, editable, accessGroups, notes } =
-    getDashboardMetadata();
+  const {
+    id,
+    name,
+    description,
+    editable,
+    accessGroups,
+    restrictedMovement,
+    notes,
+  } = getDashboardMetadata();
+  const [selectedRestrictedMovement, setSelectedRestrictedMovement] =
+    useState(restrictedMovement);
   const { deleteDashboard, copyDashboard } = useContext(
     AvailableDashboardsContext
   );
@@ -93,6 +102,11 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     { label: "Private", value: "private" },
   ];
 
+  const restrictedMovementOptions = [
+    { label: "On", value: true },
+    { label: "Off", value: false },
+  ];
+
   useEffect(() => {
     if (accessGroups.includes("public")) {
       setSelectedSharingStatus("public");
@@ -104,6 +118,10 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
 
   function onSharingChange(e) {
     setSelectedSharingStatus(e.target.value);
+  }
+
+  function onRestrictedMovementChange(e) {
+    setSelectedRestrictedMovement(e.target.value === "true");
   }
 
   const handleCopyURLClick = async () => {
@@ -131,6 +149,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
       notes: localNotes,
       name: localName,
       description: localDescription,
+      restrictedMovement: selectedRestrictedMovement,
     };
     saveLayoutContext(newProperties).then((response) => {
       if (response["success"]) {
@@ -243,6 +262,12 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
               selectedRadio={selectedSharingStatus}
               radioOptions={sharingStatusOptions}
               onChange={onSharingChange}
+            />
+            <DataRadioSelect
+              label={"Restrict Grid Item Movement"}
+              selectedRadio={selectedRestrictedMovement}
+              radioOptions={restrictedMovementOptions}
+              onChange={onRestrictedMovementChange}
             />
           </>
         ) : (

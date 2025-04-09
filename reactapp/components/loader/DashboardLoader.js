@@ -20,6 +20,7 @@ const DashboardLoader = ({
   notes,
   editable,
   accessGroups,
+  restrictedMovement,
   description,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -96,6 +97,7 @@ const DashboardLoader = ({
       gridItems,
       editable,
       accessGroups,
+      restrictedMovement,
       description,
     };
   }
