@@ -1078,7 +1078,7 @@ test("Visualization Pane Subs Args", async () => {
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
     "Cell updated to show Other plugin_label"
   );
-  expect(mockSetViz).toHaveBeenCalled();
+  expect(mockSetViz).toHaveBeenCalledTimes(3);
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({
       plugin_arg: "arg1",
@@ -1107,7 +1107,7 @@ test("Visualization Pane Subs Args", async () => {
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
     "Cell updated to show Other plugin_label"
   );
-  expect(mockSetViz).toHaveBeenCalled();
+  expect(mockSetViz).toHaveBeenCalledTimes(5);
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({
       plugin_arg: "arg1",
@@ -1116,6 +1116,13 @@ test("Visualization Pane Subs Args", async () => {
       "plugin_arg2.sub_arg3a": "some new value",
     })
   );
+
+  await userEvent.click(subArg1ADropdown);
+  const newSubArg1AOption = await screen.findByText("Sub Arg 1A");
+  fireEvent.click(newSubArg1AOption);
+
+  // not called again because there are now missing values in the second sub arg
+  expect(mockSetViz).toHaveBeenCalledTimes(5);
 });
 
 TestingComponent.propTypes = {

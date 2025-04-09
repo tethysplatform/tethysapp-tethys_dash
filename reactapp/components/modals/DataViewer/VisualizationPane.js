@@ -86,7 +86,7 @@ const VisualizationArguments = ({
     // If this input has options (i.e., dropdown), check for sub_args
     if (Array.isArray(obj.type)) {
       let selectedValue = vizInputsValues?.[baseKey];
-      if (typeof selectedValue === "string") {
+      if (typeof selectedValue !== "object") {
         selectedValue = findSelectOptionByValue(obj.type, selectedValue);
       }
 
@@ -119,6 +119,7 @@ function VisualizationPane({
   setGridItemMessage,
   selectedVizTypeOption,
   setSelectVizTypeOption,
+  viz,
   setViz,
   setVizMetadata,
   vizInputsValues,
@@ -229,6 +230,11 @@ function VisualizationPane({
       const validKeys = newValue?.sub_args
         ? collectValidKeys(newValue.sub_args, key)
         : [];
+      if (validKeys.length > 0) {
+        validKeys.forEach((key) => {
+          updated[key] = updated[key] ?? null;
+        });
+      }
 
       // Remove invalid nested keys
       for (const existingKey in updated) {
@@ -296,6 +302,8 @@ function VisualizationPane({
         )
       ) {
         previewVisualization();
+      } else if (viz) {
+        setViz(null);
       }
     }
   }
@@ -449,6 +457,13 @@ VisualizationPane.propTypes = {
   setGridItemMessage: PropTypes.func,
   selectedVizTypeOption: PropTypes.object,
   setSelectVizTypeOption: PropTypes.func,
+  viz: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.node,
+    PropTypes.object,
+    PropTypes.instanceOf(Element),
+  ]),
   setViz: PropTypes.func,
   setVizMetadata: PropTypes.func,
   vizInputsValues: PropTypes.object,

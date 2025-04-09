@@ -231,6 +231,7 @@ function DataViewerModal({
                       selectedVizTypeOption={selectedVizTypeOption}
                       setSelectVizTypeOption={setSelectVizTypeOption}
                       setViz={setViz}
+                      viz={viz}
                       setVizMetadata={setVizMetadata}
                       vizInputsValues={vizInputsValues}
                       setVizInputsValues={setVizInputsValues}
