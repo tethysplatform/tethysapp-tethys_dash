@@ -1,9 +1,7 @@
 import { useRef, useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import VisualizationPane, {
-  CustomTextOptions,
-} from "components/modals/DataViewer/VisualizationPane";
+import VisualizationPane from "components/modals/DataViewer/VisualizationPane";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import Image from "components/visualizations/Image";
 import appAPI from "services/api/app";

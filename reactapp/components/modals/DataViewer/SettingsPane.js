@@ -300,7 +300,7 @@ SettingsPane.propTypes = {
     PropTypes.shape({ current: PropTypes.any }),
   ]),
   viz: PropTypes.object,
-  vizInputsValues: PropTypes.arrayOf(PropTypes.object),
+  vizInputsValues: PropTypes.object,
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),

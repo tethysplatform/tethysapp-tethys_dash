@@ -9,7 +9,6 @@ import {
   setVisualization,
   findSelectOptionByValue,
 } from "components/visualizations/utilities";
-import { parseVizInputValues } from "components/modals/DataViewer/DataViewer";
 import {
   AppContext,
   VariableInputsContext,
@@ -49,7 +48,7 @@ const VisualizationArguments = ({
   setShowingSubModal,
   gridItemIndex,
 }) => {
-  if (!selectedVizTypeOption || selectedVizTypeOption["value"] === "Text") {
+  if (!selectedVizTypeOption || selectedVizTypeOption.value === "Text") {
     return null;
   }
 
@@ -323,16 +322,16 @@ function VisualizationPane({
         " " +
         selectedVizTypeOption["label"]
     );
-    if (selectedVizTypeOption["value"] === "Text") {
+    if (selectedVizTypeOption.value === "Text") {
       return;
-    } else if (selectedVizTypeOption["value"] === "Custom Image") {
+    } else if (selectedVizTypeOption.value === "Custom Image") {
       setViz(
         <Image
           source={vizInputsValues.image_source}
           visualizationRef={visualizationRef}
         />
       );
-    } else if (selectedVizTypeOption["value"] === "Variable Input") {
+    } else if (selectedVizTypeOption.value === "Variable Input") {
       itemData.args.initial_value = variableInputValue;
       if (itemData.args.initial_value === null) {
         if (itemData.args.variable_options_source === "text") {
@@ -352,7 +351,7 @@ function VisualizationPane({
         JSON.stringify(itemData.args),
         variableInputValues
       );
-      if (selectedVizTypeOption["value"] === "Map") {
+      if (selectedVizTypeOption.value === "Map") {
         setViz(
           <MapVisualization
             visualizationRef={visualizationRef}
@@ -436,7 +435,8 @@ function VisualizationPane({
 
 VisualizationArguments.propTypes = {
   selectedVizTypeOption: PropTypes.object,
-  vizInputsValues: PropTypes.array,
+  vizArguments: PropTypes.arrayOf(PropTypes.object),
+  vizInputsValues: PropTypes.object,
   handleInputChange: PropTypes.func,
   setShowingSubModal: PropTypes.func,
   gridItemIndex: PropTypes.number,
@@ -451,7 +451,7 @@ VisualizationPane.propTypes = {
   setSelectVizTypeOption: PropTypes.func,
   setViz: PropTypes.func,
   setVizMetadata: PropTypes.func,
-  vizInputsValues: PropTypes.array,
+  vizInputsValues: PropTypes.object,
   setVizInputsValues: PropTypes.func,
   variableInputValue: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
   setVariableInputValue: PropTypes.func,

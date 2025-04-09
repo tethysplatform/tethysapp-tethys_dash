@@ -87,7 +87,7 @@ const CustomMessaging = ({
 };
 
 CustomMessaging.propTypes = {
-  vizInputsValues: PropTypes.arrayOf(PropTypes.object),
+  vizInputsValues: PropTypes.object,
   customMessaging: PropTypes.objectOf(PropTypes.string),
   setCustomMessaging: PropTypes.func,
 };

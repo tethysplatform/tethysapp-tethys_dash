@@ -103,6 +103,8 @@ BackgroundOverlay.propTypes = {
     PropTypes.arrayOf(PropTypes.node),
     PropTypes.arrayOf(PropTypes.object),
     PropTypes.node,
+    PropTypes.object,
+    PropTypes.instanceOf(Element),
   ]),
   show: PropTypes.bool,
   setShow: PropTypes.func,

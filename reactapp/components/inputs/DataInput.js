@@ -164,8 +164,17 @@ const DataInput = ({
 };
 
 DataInput.propTypes = {
-  objValue: PropTypes.object,
+  label: PropTypes.string,
+  type: PropTypes.oneOfType([PropTypes.string, PropTypes.array]),
   onChange: PropTypes.func,
+  value: PropTypes.oneOfType([
+    PropTypes.number,
+    PropTypes.string,
+    PropTypes.bool,
+    PropTypes.object,
+    PropTypes.array,
+  ]),
+  valueOptions: PropTypes.array,
   inputProps: PropTypes.object, // additional props to pass to the input
 };
 
