@@ -21,7 +21,10 @@ import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
 import appAPI from "services/api/app";
-import { layerConfigImageArcGISRest } from "__tests__/utilities/constants";
+import {
+  layerConfigImageArcGISRest,
+  exampleStyle,
+} from "__tests__/utilities/constants";
 import * as utils from "components/visualizations/utilities";
 
 // eslint-disable-next-line
@@ -59,37 +62,6 @@ const exampleGeoJSON = {
       geometry: {
         type: "Point",
         coordinates: [0, 0],
-      },
-    },
-  ],
-};
-
-const exampleStyle = {
-  version: 8,
-  sprite:
-    "https://cdn.arcgis.com/sharing/rest/content/items/005b8960ddd04ae781df8d471b6726b3/resources/styles/../sprites/sprite",
-  glyphs:
-    "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/resources/fonts/{fontstack}/{range}.pbf",
-  sources: {
-    esri: {
-      type: "vector",
-      url: "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer",
-      tiles: [
-        "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf",
-      ],
-    },
-  },
-  layers: [
-    {
-      id: "Land/Ice",
-      type: "fill",
-      source: "esri",
-      "source-layer": "Land",
-      filter: ["==", "_symbol", 1],
-      layout: {},
-      paint: {
-        "fill-opacity": 0.8,
-        "fill-color": "#feffff",
       },
     },
   ],

@@ -9,14 +9,34 @@ import { AddMapLayer } from "components/inputs/custom/AddMapLayer";
 import {
   layerConfigImageArcGISRest,
   layerConfigImageWMS,
+  exampleStyle,
 } from "__tests__/utilities/constants";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import selectEvent from "react-select-event";
+import appAPI from "services/api/app";
+
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
 
 it("AddMapLayer update existing", async () => {
+  const mockDownloadJSON = jest.fn();
+  appAPI.downloadJSON = mockDownloadJSON;
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: exampleStyle,
+  });
+  const mockUploadJSON = jest.fn();
+  appAPI.uploadJSON = mockUploadJSON;
+  mockUploadJSON.mockResolvedValueOnce({
+    success: true,
+    filename: "geojson.json",
+  });
+
   const layerConfiguration = JSON.parse(
     JSON.stringify(layerConfigImageArcGISRest)
   );
+  layerConfiguration.configuration.style = "some_json.json";
   layerConfiguration.legend = {
     title: "Legend Title",
     items: [{ color: "red", label: "legend label", symbol: "square" }],
@@ -62,7 +82,6 @@ it("AddMapLayer update existing", async () => {
   const createLayerButton = await screen.findByLabelText("Create Layer Button");
   fireEvent.click(createLayerButton);
 
-  expect(screen.queryByText("ImageArcGISRest Layer")).not.toBeInTheDocument();
   expect(await screen.findByText("New Layer Name")).toBeInTheDocument();
   expect(screen.queryByText("ImageArcGISRest Layer")).not.toBeInTheDocument();
 
@@ -88,6 +107,7 @@ it("AddMapLayer update existing", async () => {
           },
           zIndex: 1,
         },
+        style: "geojson.json",
         type: "ImageLayer",
       },
       legend: {

@@ -81,7 +81,7 @@ const MapLayerTemplate = ({
         )
       ),
       legend: existingMapLayer.legend,
-      style: existingMapLayer.style,
+      style: existingMapLayer.configuration.style,
       attributeVariables: existingMapLayer.attributeVariables ?? {}, // {layerName: {"field1": "Variable Name 1"}}
       omittedPopupAttributes: existingMapLayer.omittedPopupAttributes ?? {}, // {layerName: ["field1", "field2"]}
     });
