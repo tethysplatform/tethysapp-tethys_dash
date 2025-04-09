@@ -391,6 +391,151 @@ test("Visualization Pane Other Type Checkbox", async () => {
     "Cell updated to show Other plugin_label_checkbox"
   );
   expect(mockSetViz).toHaveBeenCalled();
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify({
+      plugin_arg: true,
+    })
+  );
+
+  await userEvent.click(pluginArgSelect);
+  const falseOption = await screen.findByText("False");
+  await userEvent.click(falseOption);
+
+  expect(mockSetVizMetadata).toHaveBeenCalledWith({
+    source: "plugin_source_checkbox",
+    args: {
+      plugin_arg: false,
+    },
+  });
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify({
+      plugin_arg: false,
+    })
+  );
+});
+
+test("Visualization Pane Use Existing Bad Type", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.user[0];
+  mockedDashboard.gridItems = [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Some bad type",
+      args_string: JSON.stringify({
+        image_source: "some_png",
+      }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ];
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetViz = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+      },
+    })
+  );
+
+  expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
+  expect(mockSetGridItemMessage).toHaveBeenCalledTimes(0);
+  expect(mockSetViz).toHaveBeenCalledTimes(0);
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify({ image_source: "some_png" })
+  );
+});
+
+test("Visualization Pane Use Existing Args Map", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.user[0];
+  mockedDashboard.gridItems = [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "Map",
+      args_string: JSON.stringify({
+        base_map:
+          "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+        additional_layers: [],
+        show_layer_controls: true,
+        initial_view: {
+          center: [-13149708.122672563, 5192159.850904623],
+          zoom: 6.900403428857136,
+        },
+      }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ];
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetViz = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+  const mockSetShowingSubModal = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+          setShowingSubModal={mockSetShowingSubModal}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+      },
+    })
+  );
+
+  await waitFor(async () => {
+    expect(mockSetVizMetadata).toHaveBeenCalledWith({
+      args: {
+        additional_layers: [],
+        base_map:
+          "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+        initial_view: {
+          center: [-13149708.122672563, 5192159.850904623],
+          zoom: 6.900403428857136,
+        },
+        show_layer_controls: true,
+      },
+      source: "Map",
+    });
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show Other Map"
+  );
+  expect(mockSetViz).toHaveBeenCalled();
 });
 
 test("Visualization Pane Use Existing Args Variable Input", async () => {
@@ -786,6 +931,191 @@ test("Visualization Pane Use Existing Subs Args", async () => {
       "plugin_arg.sub_arg1a.sub_arg1aa": false,
       plugin_arg2: "arg3",
       "plugin_arg2.sub_arg3a": "some value",
+    })
+  );
+});
+
+test("Visualization Pane Subs Args", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.user[0];
+  mockedDashboard.gridItems = [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: JSON.stringify({}),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ];
+  const mockedVisualizations = [
+    {
+      label: "Other",
+      options: [
+        {
+          source: "plugin_source",
+          value: "plugin_value",
+          label: "plugin_label",
+          args: {
+            plugin_arg: [
+              {
+                value: "arg1",
+                label: "Arg 1",
+                sub_args: {
+                  sub_arg1a: [
+                    {
+                      value: "sub_arg1a",
+                      label: "Sub Arg 1A",
+                      sub_args: {
+                        sub_arg1aa: "checkbox",
+                      },
+                    },
+                    {
+                      value: "sub_arg1b",
+                      label: "Sub Arg 1B",
+                    },
+                  ],
+                },
+              },
+              {
+                value: "arg2",
+                label: "Arg 2",
+              },
+            ],
+            plugin_arg2: [
+              {
+                value: "arg3",
+                label: "Arg 3",
+                sub_args: {
+                  sub_arg3a: "text",
+                },
+              },
+            ],
+          },
+        },
+      ],
+    },
+  ];
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetViz = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          setViz={mockSetViz}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+        visualizations: mockedVisualizations,
+      },
+    })
+  );
+
+  const visualizationTypeSelect =
+    await screen.findByLabelText("visualizationType");
+  await userEvent.click(visualizationTypeSelect);
+  const pluginOption = await screen.findByText("plugin_label");
+  fireEvent.click(pluginOption);
+
+  expect(await screen.findByText("Plugin Arg")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg2")).toBeInTheDocument();
+
+  let comboboxes = await screen.findAllByRole("combobox");
+  const pluginArgDropdown = comboboxes[1];
+  await userEvent.click(pluginArgDropdown);
+  const arg1Option = await screen.findByText("Arg 1");
+  fireEvent.click(arg1Option);
+
+  expect(await screen.findByText("Sub Arg1a")).toBeInTheDocument();
+
+  comboboxes = await screen.findAllByRole("combobox");
+  const subArg1ADropdown = comboboxes[2];
+  await userEvent.click(subArg1ADropdown);
+  const subArg1AOption = await screen.findByText("Sub Arg 1A");
+  fireEvent.click(subArg1AOption);
+
+  expect(await screen.findByText("Sub Arg1aa")).toBeInTheDocument();
+
+  comboboxes = await screen.findAllByRole("combobox");
+  const subArg1AADropdown = comboboxes[3];
+  await userEvent.click(subArg1AADropdown);
+  const trueOption = await screen.findByText("True");
+  fireEvent.click(trueOption);
+
+  comboboxes = await screen.findAllByRole("combobox");
+  const pluginArg2Dropdown = comboboxes[4];
+  await userEvent.click(pluginArg2Dropdown);
+  const arg3Option = await screen.findByText("Arg 3");
+  fireEvent.click(arg3Option);
+
+  const arg3Textbox = await screen.findByRole("textbox");
+  fireEvent.change(arg3Textbox, { target: { value: "some new value" } });
+
+  await waitFor(async () => {
+    expect(mockSetVizMetadata).toHaveBeenCalledWith({
+      source: "plugin_source",
+      args: {
+        plugin_arg: "arg1",
+        "plugin_arg.sub_arg1a": "sub_arg1a",
+        "plugin_arg.sub_arg1a.sub_arg1aa": true,
+        plugin_arg2: "arg3",
+        "plugin_arg2.sub_arg3a": "some new value",
+      },
+    });
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show Other plugin_label"
+  );
+  expect(mockSetViz).toHaveBeenCalled();
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify({
+      plugin_arg: "arg1",
+      plugin_arg2: "arg3",
+      "plugin_arg.sub_arg1a": "sub_arg1a",
+      "plugin_arg.sub_arg1a.sub_arg1aa": true,
+      "plugin_arg2.sub_arg3a": "some new value",
+    })
+  );
+
+  await userEvent.click(subArg1ADropdown);
+  const subArg1BOption = await screen.findByText("Sub Arg 1B");
+  fireEvent.click(subArg1BOption);
+
+  await waitFor(async () => {
+    expect(mockSetVizMetadata).toHaveBeenCalledWith({
+      source: "plugin_source",
+      args: {
+        plugin_arg: "arg1",
+        "plugin_arg.sub_arg1a": "sub_arg1b",
+        plugin_arg2: "arg3",
+        "plugin_arg2.sub_arg3a": "some new value",
+      },
+    });
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show Other plugin_label"
+  );
+  expect(mockSetViz).toHaveBeenCalled();
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify({
+      plugin_arg: "arg1",
+      plugin_arg2: "arg3",
+      "plugin_arg.sub_arg1a": "sub_arg1b",
+      "plugin_arg2.sub_arg3a": "some new value",
     })
   );
 });

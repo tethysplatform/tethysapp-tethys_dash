@@ -620,3 +620,48 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
     })
   );
 });
+
+test("Dashboard Viewer Modal Text Options", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockhandleModalClose = jest.fn();
+  const mocksetGridItemMessage = jest.fn();
+  const mocksetShowGridItemMessage = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DataViewerModal
+            gridItemIndex={1}
+            source={gridItem.source}
+            argsString={gridItem.args_string}
+            metadataString={gridItem.metadata_string}
+            gridItemI={gridItem.i}
+            showModal={true}
+            handleModalClose={mockhandleModalClose}
+            setGridItemMessage={mocksetGridItemMessage}
+            setShowGridItemMessage={mocksetShowGridItemMessage}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboards.user[0],
+        inDataViewerMode: true,
+      },
+    })
+  );
+
+  const visualizationTypeSelect =
+    await screen.findByLabelText("visualizationType");
+  await userEvent.click(visualizationTypeSelect);
+  const textOption = await screen.findByText("Text");
+  fireEvent.click(textOption);
+
+  const textEditor = await screen.findByLabelText("textEditor");
+  expect(textEditor).toBeInTheDocument();
+
+  userEvent.type(textEditor, "some new text");
+  expect(await screen.findByText("some new text")).toBeInTheDocument();
+});

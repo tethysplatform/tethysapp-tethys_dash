@@ -61,11 +61,9 @@ const VisualizationArguments = ({
         { label: "True", value: true },
         { label: "False", value: false },
       ];
-      if (typeof value !== "object") {
-        value = value
-          ? { label: "True", value: true }
-          : { label: "False", value: false };
-      }
+      value = value
+        ? { label: "True", value: true }
+        : { label: "False", value: false };
     }
     return (
       <DataInput
@@ -213,22 +211,14 @@ function VisualizationPane({
 
   const handleInputChange = (newValue, key) => {
     setVizInputsValues((prev) => {
-      const updated = { ...prev, [key]: newValue };
+      const updated = { ...prev, [key]: newValue.value ?? newValue };
 
       // Helper to recursively collect valid nested keys from sub_args
       const collectValidKeys = (subArgs, baseKey) => {
         let validKeys = [];
-        for (const [subName, subOptions] of Object.entries(subArgs)) {
+        for (const [subName] of Object.entries(subArgs)) {
           const fullKey = `${baseKey}.${subName}`;
           validKeys.push(fullKey);
-
-          // Check if subOptions is an array of options with possible sub_args
-          const selectedSubValue = updated[fullKey];
-          if (Array.isArray(subOptions) && selectedSubValue?.sub_args) {
-            validKeys = validKeys.concat(
-              collectValidKeys(selectedSubValue.sub_args, fullKey)
-            );
-          }
         }
         return validKeys;
       };
