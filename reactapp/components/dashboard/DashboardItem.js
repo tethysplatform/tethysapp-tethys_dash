@@ -29,7 +29,6 @@ const StyledButtonDiv = styled.div`
   position: absolute;
   margin: 0.5rem;
   right: 0;
-  z-index: 1;
 `;
 
 const StyledDiv = styled.div`
