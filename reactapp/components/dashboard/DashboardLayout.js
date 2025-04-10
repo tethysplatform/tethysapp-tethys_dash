@@ -58,7 +58,7 @@ const DashboardLayout = () => {
     for (let griditem of griditems) {
       updatedGridItems.push({
         h: griditem.h,
-        i: griditem.i,
+        i: String(griditem.i),
         w: griditem.w,
         x: griditem.x,
         y: griditem.y,
@@ -73,7 +73,7 @@ const DashboardLayout = () => {
     const updatedGridItems = [];
     for (let lay of newLayout) {
       var result = gridItems.find((obj) => {
-        return obj.i === lay.i;
+        return obj.i === parseInt(lay.i);
       });
 
       updatedGridItems.push({
@@ -95,7 +95,7 @@ const DashboardLayout = () => {
   const handleResize = useCallback(
     (l, oldLayoutItem, layoutItem, placeholder) => {
       var result = gridItemsUpdated.current.find((obj) => {
-        return obj.i === layoutItem.i;
+        return obj.i === parseInt(layoutItem.i);
       });
       const metadata = JSON.parse(result.metadata_string);
       const enforceAspectRatio = metadata.enforceAspectRatio;
@@ -130,6 +130,7 @@ const DashboardLayout = () => {
       draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover"
       onResize={handleResize}
       allowOverlap={unrestrictedMovement}
+      useCSSTransforms={false}
     >
       {items}
     </ReactGridLayout>

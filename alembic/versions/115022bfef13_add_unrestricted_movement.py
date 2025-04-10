@@ -25,7 +25,9 @@ def upgrade() -> None:
         "dashboards", sa.Column("unrestricted_movement", sa.Boolean(), nullable=True)
     )
     op.execute("UPDATE dashboards SET unrestricted_movement = FALSE")
+    op.execute("ALTER TABLE griditems ALTER COLUMN i TYPE INTEGER USING i::INTEGER")
 
 
 def downgrade() -> None:
     op.drop_column("dashboards", "unrestricted_movement")
+    op.execute("ALTER TABLE griditems ALTER COLUMN i TYPE VARCHAR USING i::VARCHAR")

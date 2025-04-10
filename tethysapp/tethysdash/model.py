@@ -38,7 +38,7 @@ class Dashboard(Base):
     owner = Column(String)
     access_groups = Column(ARRAY(String))
     unrestricted_movement = Column(Boolean)
-    grid_items = relationship("GridItem", cascade="delete")
+    grid_items = relationship("GridItem", cascade="delete", order_by="GridItem.i")
     last_updated = Column(DateTime, default=datetime.now(timezone.utc))
 
 
@@ -52,7 +52,7 @@ class GridItem(Base):
     # Columns
     id = Column(Integer, primary_key=True)
     dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
-    i = Column(String, nullable=False)
+    i = Column(Integer, nullable=False)
     x = Column(Integer, nullable=False)
     y = Column(Integer, nullable=False)
     w = Column(Integer, nullable=False)
