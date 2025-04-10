@@ -29,6 +29,7 @@ const StyledButtonDiv = styled.div`
   position: absolute;
   margin: 0.5rem;
   right: 0;
+  top: 0;
 `;
 
 const StyledDiv = styled.div`
@@ -279,65 +280,67 @@ const DashboardItem = ({
   }
 
   return (
-    <StyledDiv
-      $isEditing={isEditing}
-      $borderProps={gridItemStyling?.border}
-      $backgroundColorProps={gridItemStyling?.backgroundColor}
-      $boxShadowProps={gridItemStyling?.boxShadow}
-      aria-label="gridItemDiv"
-    >
-      <StyledContainer
-        fluid
-        className="h-100 gridVisualization"
-        aria-label="gridItem"
-        onDoubleClick={() => {
-          setShowFullscreen(true);
-        }}
+    <>
+      <StyledDiv
+        $isEditing={isEditing}
+        $borderProps={gridItemStyling?.border}
+        $backgroundColorProps={gridItemStyling?.backgroundColor}
+        $boxShadowProps={gridItemStyling?.boxShadow}
+        aria-label="gridItemDiv"
       >
-        <CustomAlert
-          alertType={"success"}
-          showAlert={showGridItemMessage}
-          setShowAlert={setShowGridItemMessage}
-          alertMessage={gridItemMessage}
-        />
-        <CustomAlert
-          alertType={"warning"}
-          showAlert={showGridItemWarning}
-          setShowAlert={setGridItemWarning}
-          alertMessage={gridItemWarning}
-        />
-        {isEditing && (
-          <StyledButtonDiv>
-            <DashboardItemDropdown
-              deleteGridItem={deleteGridItem}
-              editGridItem={editGridItem}
-              exportGridItem={exportGridItem}
-              copyGridItem={copyGridItem}
-            />
-          </StyledButtonDiv>
+        <StyledContainer
+          fluid
+          className="h-100 gridVisualization"
+          aria-label="gridItem"
+          onDoubleClick={() => {
+            setShowFullscreen(true);
+          }}
+        >
+          <CustomAlert
+            alertType={"success"}
+            showAlert={showGridItemMessage}
+            setShowAlert={setShowGridItemMessage}
+            alertMessage={gridItemMessage}
+          />
+          <CustomAlert
+            alertType={"warning"}
+            showAlert={showGridItemWarning}
+            setShowAlert={setGridItemWarning}
+            alertMessage={gridItemWarning}
+          />
+          <BaseVisualization
+            key={gridItemI}
+            source={gridItemSource}
+            argsString={gridItemArgsString}
+            metadataString={gridItemMetadataString}
+            showFullscreen={showFullscreen}
+            hideFullscreen={hideFullscreen}
+          />
+        </StyledContainer>
+        {showDataViewerModal && (
+          <DataViewerModal
+            gridItemIndex={gridItemIndex}
+            source={gridItemSource}
+            argsString={gridItemArgsString}
+            metadataString={gridItemMetadataString}
+            showModal={showDataViewerModal}
+            handleModalClose={hideDataViewerModal}
+            setGridItemMessage={setGridItemMessage}
+            setShowGridItemMessage={setShowGridItemMessage}
+          />
         )}
-        <BaseVisualization
-          key={gridItemI}
-          source={gridItemSource}
-          argsString={gridItemArgsString}
-          metadataString={gridItemMetadataString}
-          showFullscreen={showFullscreen}
-          hideFullscreen={hideFullscreen}
-        />
-      </StyledContainer>
-      {showDataViewerModal && (
-        <DataViewerModal
-          gridItemIndex={gridItemIndex}
-          source={gridItemSource}
-          argsString={gridItemArgsString}
-          metadataString={gridItemMetadataString}
-          showModal={showDataViewerModal}
-          handleModalClose={hideDataViewerModal}
-          setGridItemMessage={setGridItemMessage}
-          setShowGridItemMessage={setShowGridItemMessage}
-        />
+      </StyledDiv>
+      {isEditing && (
+        <StyledButtonDiv>
+          <DashboardItemDropdown
+            deleteGridItem={deleteGridItem}
+            editGridItem={editGridItem}
+            exportGridItem={exportGridItem}
+            copyGridItem={copyGridItem}
+          />
+        </StyledButtonDiv>
       )}
-    </StyledDiv>
+    </>
   );
 };
 
