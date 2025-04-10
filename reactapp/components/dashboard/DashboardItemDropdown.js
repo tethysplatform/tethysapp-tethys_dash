@@ -58,11 +58,6 @@ const DashboardItemDropdown = ({
     }
   };
 
-  const onMenuMouseLeave = () => {
-    console.log("onBringtoFront");
-    setShowMenu(false);
-  };
-
   const onSubMenuMouseEnter = () => {
     setSubmenuVisible(true);
   };
@@ -76,11 +71,7 @@ const DashboardItemDropdown = ({
   };
 
   return (
-    <Dropdown
-      autoClose={!activeAppTour}
-      onToggle={onToggle}
-      onMouseLeave={onMenuMouseLeave}
-    >
+    <Dropdown autoClose={!activeAppTour} onToggle={onToggle}>
       <StyledDropdownToggle
         id="dropdown-basic"
         className="dashboard-item-dropdown-toggle"
@@ -89,7 +80,12 @@ const DashboardItemDropdown = ({
         <BsThreeDotsVertical />
       </StyledDropdownToggle>
 
-      <Dropdown.Menu align="end" show={showMenu} container="body">
+      <Dropdown.Menu
+        align="end"
+        show={showMenu}
+        container="body"
+        rootCloseEvent={"mousedown"}
+      >
         {editable && (
           <>
             <Dropdown.Item
