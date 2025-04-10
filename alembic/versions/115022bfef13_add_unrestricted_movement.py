@@ -1,4 +1,4 @@
-"""add restricted movement
+"""add unrestricted_movement
 
 Revision ID: 115022bfef13
 Revises: 663c69fd7709
@@ -22,10 +22,10 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # Add columns with correct types
     op.add_column(
-        "dashboards", sa.Column("restricted_movement", sa.Boolean(), nullable=True)
+        "dashboards", sa.Column("unrestricted_movement", sa.Boolean(), nullable=True)
     )
-    op.execute("UPDATE dashboards SET restricted_movement = TRUE")
+    op.execute("UPDATE dashboards SET unrestricted_movement = FALSE")
 
 
 def downgrade() -> None:
-    op.drop_column("dashboards", "restricted_movement")
+    op.drop_column("dashboards", "unrestricted_movement")

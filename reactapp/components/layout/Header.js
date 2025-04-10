@@ -186,12 +186,13 @@ export const DashboardHeader = () => {
   );
   const { user } = useContext(AppContext);
   const {
-    getDashboardMetadata,
+    name,
+    editable,
+    gridItems,
     updateGridItems,
     resetGridItems,
     saveLayoutContext,
   } = useContext(LayoutContext);
-  const { name, editable } = getDashboardMetadata();
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [isSaving, setIsSaving] = useState(false);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
@@ -222,7 +223,6 @@ export const DashboardHeader = () => {
   }
 
   function onAddGridItem({ importedGridItem }) {
-    const { gridItems } = getDashboardMetadata();
     let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
@@ -288,7 +288,6 @@ export const DashboardHeader = () => {
     setIsSaving(true);
 
     const image = await captureScreenshot();
-    const { gridItems } = getDashboardMetadata();
     saveLayoutContext({ gridItems, image }).then((response) => {
       if (response.success) {
         setSuccessMessage("Change have been saved.");

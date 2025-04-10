@@ -75,18 +75,18 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
-  const { getDashboardMetadata, saveLayoutContext } = useContext(LayoutContext);
   const {
     id,
     name,
     description,
     editable,
     accessGroups,
-    restrictedMovement,
+    unrestrictedMovement,
     notes,
-  } = getDashboardMetadata();
-  const [selectedRestrictedMovement, setSelectedRestrictedMovement] =
-    useState(restrictedMovement);
+    saveLayoutContext,
+  } = useContext(LayoutContext);
+  const [selectedUnrestrictedMovement, setSelectedUnrestrictedMovement] =
+    useState(unrestrictedMovement);
   const { deleteDashboard, copyDashboard } = useContext(
     AvailableDashboardsContext
   );
@@ -102,7 +102,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     { label: "Private", value: "private" },
   ];
 
-  const restrictedMovementOptions = [
+  const unrestrictedMovementOptions = [
     { label: "On", value: true },
     { label: "Off", value: false },
   ];
@@ -120,8 +120,8 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     setSelectedSharingStatus(e.target.value);
   }
 
-  function onRestrictedMovementChange(e) {
-    setSelectedRestrictedMovement(e.target.value === "true");
+  function onUnrestrictedMovementChange(e) {
+    setSelectedUnrestrictedMovement(e.target.value === "true");
   }
 
   const handleCopyURLClick = async () => {
@@ -149,7 +149,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
       notes: localNotes,
       name: localName,
       description: localDescription,
-      restrictedMovement: selectedRestrictedMovement,
+      unrestrictedMovement: selectedUnrestrictedMovement,
     };
     saveLayoutContext(newProperties).then((response) => {
       if (response["success"]) {
@@ -264,10 +264,10 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
               onChange={onSharingChange}
             />
             <DataRadioSelect
-              label={"Restrict Grid Item Movement"}
-              selectedRadio={selectedRestrictedMovement}
-              radioOptions={restrictedMovementOptions}
-              onChange={onRestrictedMovementChange}
+              label={"Unrestricted Grid Item Movement"}
+              selectedRadio={selectedUnrestrictedMovement}
+              radioOptions={unrestrictedMovementOptions}
+              onChange={onUnrestrictedMovementChange}
             />
           </>
         ) : (

@@ -9,6 +9,7 @@ import {
   DisabledEditingMovementContext,
   DataViewerModeContext,
   AvailableDashboardsContext,
+  UnrestrictedMovementContext,
 } from "components/contexts/Contexts";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
@@ -20,7 +21,7 @@ const DashboardLoader = ({
   notes,
   editable,
   accessGroups,
-  restrictedMovement,
+  unrestrictedMovement,
   description,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -89,19 +90,6 @@ const DashboardLoader = ({
     updateVariableInputValuesWithGridItems(updatedGridItems);
   }
 
-  function getDashboardMetadata() {
-    return {
-      id,
-      name,
-      notes,
-      gridItems,
-      editable,
-      accessGroups,
-      restrictedMovement,
-      description,
-    };
-  }
-
   function resetGridItems() {
     setGridItems(originalGridItems.current);
     updateVariableInputValuesWithGridItems(originalGridItems.current);
@@ -138,9 +126,16 @@ const DashboardLoader = ({
         <LayoutContext.Provider
           value={{
             updateGridItems,
-            getDashboardMetadata,
             resetGridItems,
             saveLayoutContext,
+            id,
+            name,
+            notes,
+            gridItems,
+            editable,
+            accessGroups,
+            unrestrictedMovement,
+            description,
           }}
         >
           <EditingContext.Provider value={{ isEditing, setIsEditing }}>

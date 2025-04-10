@@ -124,10 +124,21 @@ const createLoadedComponent = ({ children, options = {} }) => {
 };
 
 export const ContextLayoutPComponent = () => {
-  const { getDashboardMetadata } = useContext(LayoutContext);
+  const { id, name, notes, gridItems, editable, accessGroups, description } =
+    useContext(LayoutContext);
 
   return (
-    <p data-testid="layout-context">{JSON.stringify(getDashboardMetadata())}</p>
+    <p data-testid="layout-context">
+      {JSON.stringify({
+        id,
+        name,
+        notes,
+        gridItems,
+        editable,
+        accessGroups,
+        description,
+      })}
+    </p>
   );
 };
 

@@ -8,7 +8,6 @@ import {
 import DashboardItem from "components/dashboard/DashboardItem";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
-import "components/dashboard/DashboardLayout.css";
 
 const ReactGridLayout = WidthProvider(RGL);
 
@@ -16,8 +15,8 @@ const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
 const DashboardLayout = () => {
-  const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
-  const { gridItems, restrictedMovement } = getDashboardMetadata();
+  const { updateGridItems, gridItems, unrestrictedMovement } =
+    useContext(LayoutContext);
   const { isEditing } = useContext(EditingContext);
   const { disabledEditingMovement } = useContext(
     DisabledEditingMovementContext
@@ -120,6 +119,7 @@ const DashboardLayout = () => {
 
   return (
     <ReactGridLayout
+      key={`layout-${unrestrictedMovement}`}
       className="complex-interface-layout"
       layout={layout}
       rowHeight={rowHeight}
@@ -129,7 +129,7 @@ const DashboardLayout = () => {
       isResizable={false}
       draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover"
       onResize={handleResize}
-      allowOverlap={!restrictedMovement}
+      allowOverlap={unrestrictedMovement}
     >
       {items}
     </ReactGridLayout>

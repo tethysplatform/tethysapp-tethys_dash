@@ -58,7 +58,7 @@ function DataViewerModal({
   const [vizInputsValues, setVizInputsValues] = useState({});
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
-  const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
+  const { updateGridItems, gridItems } = useContext(LayoutContext);
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
   const { variableInputValues, setVariableInputValues } = useContext(
@@ -73,7 +73,6 @@ function DataViewerModal({
   const [tabKey, setTabKey] = useState("visualization");
 
   function saveChanges(e) {
-    const { gridItems } = getDashboardMetadata();
     e.preventDefault();
     e.stopPropagation();
     setShowAlert(false);
