@@ -58,7 +58,7 @@ const DashboardLayout = () => {
     for (let griditem of griditems) {
       updatedGridItems.push({
         h: griditem.h,
-        i: String(griditem.i),
+        i: griditem.i,
         w: griditem.w,
         x: griditem.x,
         y: griditem.y,
@@ -73,7 +73,7 @@ const DashboardLayout = () => {
     const updatedGridItems = [];
     for (let lay of newLayout) {
       var result = gridItems.find((obj) => {
-        return obj.i === parseInt(lay.i);
+        return obj.i === lay.i;
       });
 
       updatedGridItems.push({
@@ -95,7 +95,7 @@ const DashboardLayout = () => {
   const handleResize = useCallback(
     (l, oldLayoutItem, layoutItem, placeholder) => {
       var result = gridItemsUpdated.current.find((obj) => {
-        return obj.i === parseInt(layoutItem.i);
+        return obj.i === layoutItem.i;
       });
       const metadata = JSON.parse(result.metadata_string);
       const enforceAspectRatio = metadata.enforceAspectRatio;

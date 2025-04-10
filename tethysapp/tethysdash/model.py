@@ -38,7 +38,7 @@ class Dashboard(Base):
     owner = Column(String)
     access_groups = Column(ARRAY(String))
     unrestricted_movement = Column(Boolean)
-    grid_items = relationship("GridItem", cascade="delete", order_by="GridItem.i")
+    grid_items = relationship("GridItem", cascade="delete", order_by="GridItem.order")
     last_updated = Column(DateTime, default=datetime.now(timezone.utc))
 
 
@@ -52,7 +52,7 @@ class GridItem(Base):
     # Columns
     id = Column(Integer, primary_key=True)
     dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
-    i = Column(Integer, nullable=False)
+    i = Column(String, nullable=False)
     x = Column(Integer, nullable=False)
     y = Column(Integer, nullable=False)
     w = Column(Integer, nullable=False)
@@ -60,6 +60,7 @@ class GridItem(Base):
     source = Column(String)
     args_string = Column(String)
     metadata_string = Column(String)
+    order = Column(Integer)
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
@@ -95,7 +96,7 @@ def add_new_dashboard(
         new_dashboard_id = new_dashboard.id
 
         if grid_items:
-            for grid_item in grid_items:
+            for index, grid_item in enumerate(grid_items):
                 grid_item_i = grid_item["i"]
                 grid_item_x = int(grid_item["x"])
                 grid_item_y = int(grid_item["y"])
@@ -119,10 +120,11 @@ def add_new_dashboard(
                     grid_item_source,
                     grid_item_args_string,
                     grid_item_metadata_string,
+                    index,
                 )
         else:
             add_new_grid_item(
-                session, new_dashboard_id, "1", 0, 0, 20, 20, "", "{}", "{}"
+                session, new_dashboard_id, "1", 0, 0, 20, 20, "", "{}", "{}", 0
             )
 
         # Commit the session and close the connection
@@ -144,6 +146,7 @@ def add_new_grid_item(
     grid_item_source,
     grid_item_args_string,
     grid_item_metadata_string,
+    grid_item_order,
 ):
     new_grid_item = GridItem(
         dashboard_id=dashboard_id,
@@ -155,6 +158,7 @@ def add_new_grid_item(
         source=grid_item_source,
         args_string=grid_item_args_string,
         metadata_string=grid_item_metadata_string,
+        order=grid_item_order,
     )
     session.add(new_grid_item)
     session.commit()
@@ -316,7 +320,7 @@ def update_named_dashboard(user, id, dashboard_updates):
             for grid_item_id in grid_items_to_delete:
                 delete_grid_item(session, db_dashboard.id, grid_item_id)
 
-            for grid_item in updated_grid_items:
+            for index, grid_item in enumerate(updated_grid_items):
                 grid_item_i = grid_item["i"]
                 grid_item_x = int(grid_item["x"])
                 grid_item_y = int(grid_item["y"])
@@ -341,6 +345,7 @@ def update_named_dashboard(user, id, dashboard_updates):
                         grid_item_source,
                         grid_item_args_string,
                         grid_item_metadata_string,
+                        index,
                     )
                 else:
                     db_grid_item = (
@@ -357,6 +362,7 @@ def update_named_dashboard(user, id, dashboard_updates):
                     db_grid_item.source = grid_item_source
                     db_grid_item.args_string = grid_item_args_string
                     db_grid_item.metadata_string = grid_item_metadata_string
+                    db_grid_item.order = index
 
         db_dashboard.last_updated = datetime.now(timezone.utc)
 
@@ -370,10 +376,10 @@ def update_named_dashboard(user, id, dashboard_updates):
             with open(file_path, "wb") as file:
                 file.write(base64.b64decode(imgstr))
 
-        parsed_dashboard = parse_db_dashboard([db_dashboard], dashboard_view=True)[0]
-
         # Commit the session and close the connection
         session.commit()
+
+        parsed_dashboard = parse_db_dashboard([db_dashboard], dashboard_view=True)[0]
     finally:
         session.close()
 

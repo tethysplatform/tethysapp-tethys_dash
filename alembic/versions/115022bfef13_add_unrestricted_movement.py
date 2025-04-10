@@ -25,9 +25,27 @@ def upgrade() -> None:
         "dashboards", sa.Column("unrestricted_movement", sa.Boolean(), nullable=True)
     )
     op.execute("UPDATE dashboards SET unrestricted_movement = FALSE")
-    op.execute("ALTER TABLE griditems ALTER COLUMN i TYPE INTEGER USING i::INTEGER")
+
+    op.add_column("griditems", sa.Column("order", sa.Integer(), nullable=True))
+
+    # Populate 'order' using row_number() grouped by dashboard_id
+    op.execute(
+        """
+        WITH numbered AS (
+            SELECT id, ROW_NUMBER() OVER (PARTITION BY dashboard_id ORDER BY id) AS rn
+            FROM griditems
+        )
+        UPDATE griditems
+        SET "order" = numbered.rn
+        FROM numbered
+        WHERE griditems.id = numbered.id
+    """
+    )
+
+    # Make 'order' column non-nullable
+    op.alter_column("griditems", "order", nullable=False)
 
 
 def downgrade() -> None:
+    op.drop_column("griditems", "order")
     op.drop_column("dashboards", "unrestricted_movement")
-    op.execute("ALTER TABLE griditems ALTER COLUMN i TYPE VARCHAR USING i::VARCHAR")

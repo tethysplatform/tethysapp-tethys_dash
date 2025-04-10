@@ -229,6 +229,33 @@ const DashboardItem = ({
     }
   }
 
+  function updateGridItemOrder(newIndex) {
+    const updatedGridItems = [...gridItems];
+    const [movingGridItem] = updatedGridItems.splice(gridItemIndex, 1);
+    updatedGridItems.splice(newIndex, 0, movingGridItem);
+    updateGridItems(updatedGridItems);
+  }
+
+  function bringGridItemtoFront() {
+    const newIndex = gridItems.length - 1;
+    updateGridItemOrder(newIndex);
+  }
+
+  function bringGridItemForward() {
+    const newIndex = gridItemIndex + 1;
+    updateGridItemOrder(newIndex);
+  }
+
+  function sendGridItemtoBack() {
+    const newIndex = 0;
+    updateGridItemOrder(newIndex);
+  }
+
+  function sendGridItembackward() {
+    const newIndex = gridItemIndex - 1;
+    updateGridItemOrder(newIndex);
+  }
+
   async function exportGridItem() {
     const gridItem = JSON.parse(JSON.stringify(gridItems[gridItemIndex]));
 
@@ -333,10 +360,15 @@ const DashboardItem = ({
       {isEditing && (
         <StyledButtonDiv>
           <DashboardItemDropdown
+            gridItemIndex={gridItemIndex}
             deleteGridItem={deleteGridItem}
             editGridItem={editGridItem}
             exportGridItem={exportGridItem}
             copyGridItem={copyGridItem}
+            bringGridItemtoFront={bringGridItemtoFront}
+            bringGridItemForward={bringGridItemForward}
+            sendGridItemtoBack={sendGridItemtoBack}
+            sendGridItembackward={sendGridItembackward}
           />
         </StyledButtonDiv>
       )}

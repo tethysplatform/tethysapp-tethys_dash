@@ -31,12 +31,18 @@ const Submenu = styled.div`
 `;
 
 const DashboardItemDropdown = ({
+  gridItemIndex,
   deleteGridItem,
   editGridItem,
   exportGridItem,
   copyGridItem,
+  bringGridItemtoFront,
+  bringGridItemForward,
+  sendGridItemtoBack,
+  sendGridItembackward,
 }) => {
-  const { editable, unrestrictedMovement } = useContext(LayoutContext);
+  const { editable, unrestrictedMovement, gridItems } =
+    useContext(LayoutContext);
   const [showMenu, setShowMenu] = useState(false);
   const submenuRef = useRef(null);
   const [submenuPosition, setSubmenuPosition] = useState("right");
@@ -64,10 +70,6 @@ const DashboardItemDropdown = ({
 
   const onSubMenuMouseLeave = () => {
     setSubmenuVisible(false);
-  };
-
-  const onBringtoFront = () => {
-    console.log("onBringtoFront");
   };
 
   return (
@@ -123,8 +125,29 @@ const DashboardItemDropdown = ({
                   onMouseEnter={onSubMenuMouseEnter}
                   onMouseLeave={onSubMenuMouseLeave}
                 >
-                  <Dropdown.Item onClick={onBringtoFront}>
+                  <Dropdown.Item
+                    onClick={bringGridItemtoFront}
+                    disabled={gridItemIndex === gridItems.length - 1}
+                  >
                     Bring to Front
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    onClick={bringGridItemForward}
+                    disabled={gridItemIndex === gridItems.length - 1}
+                  >
+                    Bring Forward
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    onClick={sendGridItembackward}
+                    disabled={gridItemIndex === 0}
+                  >
+                    Send Backward
+                  </Dropdown.Item>
+                  <Dropdown.Item
+                    onClick={sendGridItemtoBack}
+                    disabled={gridItemIndex === 0}
+                  >
+                    Send to Back
                   </Dropdown.Item>
                 </Submenu>
               </SubmenuWrapper>
