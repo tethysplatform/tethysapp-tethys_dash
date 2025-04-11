@@ -88,71 +88,67 @@ const DashboardItemDropdown = ({
         container="body"
         rootCloseEvent={"mousedown"}
       >
-        {editable && (
-          <>
+        <Dropdown.Item
+          onClick={editGridItem}
+          className="dashboard-item-dropdown-edit-visualization"
+        >
+          Edit
+        </Dropdown.Item>
+        <Dropdown.Item
+          onClick={copyGridItem}
+          className="dashboard-item-dropdown-create-copy"
+        >
+          Copy
+        </Dropdown.Item>
+        {unrestrictedMovement && (
+          <SubmenuWrapper>
             <Dropdown.Item
-              onClick={editGridItem}
-              className="dashboard-item-dropdown-edit-visualization"
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+              className="card-share-option"
+              onMouseEnter={onSubMenuMouseEnter}
+              onMouseLeave={onSubMenuMouseLeave}
             >
-              Edit
+              Order <BsFillCaretRightFill style={{ marginLeft: "auto" }} />
             </Dropdown.Item>
-            <Dropdown.Item
-              onClick={copyGridItem}
-              className="dashboard-item-dropdown-create-copy"
+            <Submenu
+              className="submenu"
+              aria-label="Context Menu Submenu"
+              position={submenuPosition}
+              isVisible={submenuVisible}
+              ref={submenuRef}
+              onMouseEnter={onSubMenuMouseEnter}
+              onMouseLeave={onSubMenuMouseLeave}
             >
-              Copy
-            </Dropdown.Item>
-            {unrestrictedMovement && (
-              <SubmenuWrapper>
-                <Dropdown.Item
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                  className="card-share-option"
-                  onMouseEnter={onSubMenuMouseEnter}
-                  onMouseLeave={onSubMenuMouseLeave}
-                >
-                  Order <BsFillCaretRightFill style={{ marginLeft: "auto" }} />
-                </Dropdown.Item>
-                <Submenu
-                  className="submenu"
-                  aria-label="Context Menu Submenu"
-                  position={submenuPosition}
-                  isVisible={submenuVisible}
-                  ref={submenuRef}
-                  onMouseEnter={onSubMenuMouseEnter}
-                  onMouseLeave={onSubMenuMouseLeave}
-                >
-                  <Dropdown.Item
-                    onClick={bringGridItemtoFront}
-                    disabled={gridItemIndex === gridItems.length - 1}
-                  >
-                    Bring to Front
-                  </Dropdown.Item>
-                  <Dropdown.Item
-                    onClick={bringGridItemForward}
-                    disabled={gridItemIndex === gridItems.length - 1}
-                  >
-                    Bring Forward
-                  </Dropdown.Item>
-                  <Dropdown.Item
-                    onClick={sendGridItembackward}
-                    disabled={gridItemIndex === 0}
-                  >
-                    Send Backward
-                  </Dropdown.Item>
-                  <Dropdown.Item
-                    onClick={sendGridItemtoBack}
-                    disabled={gridItemIndex === 0}
-                  >
-                    Send to Back
-                  </Dropdown.Item>
-                </Submenu>
-              </SubmenuWrapper>
-            )}
-          </>
+              <Dropdown.Item
+                onClick={bringGridItemtoFront}
+                disabled={gridItemIndex === gridItems.length - 1}
+              >
+                Bring to Front
+              </Dropdown.Item>
+              <Dropdown.Item
+                onClick={bringGridItemForward}
+                disabled={gridItemIndex === gridItems.length - 1}
+              >
+                Bring Forward
+              </Dropdown.Item>
+              <Dropdown.Item
+                onClick={sendGridItembackward}
+                disabled={gridItemIndex === 0}
+              >
+                Send Backward
+              </Dropdown.Item>
+              <Dropdown.Item
+                onClick={sendGridItemtoBack}
+                disabled={gridItemIndex === 0}
+              >
+                Send to Back
+              </Dropdown.Item>
+            </Submenu>
+          </SubmenuWrapper>
         )}
         <Dropdown.Item
           onClick={exportGridItem}
@@ -160,14 +156,12 @@ const DashboardItemDropdown = ({
         >
           Export
         </Dropdown.Item>
-        {editable && (
-          <Dropdown.Item
-            onClick={deleteGridItem}
-            className="dashboard-item-dropdown-delete"
-          >
-            Delete
-          </Dropdown.Item>
-        )}
+        <Dropdown.Item
+          onClick={deleteGridItem}
+          className="dashboard-item-dropdown-delete"
+        >
+          Delete
+        </Dropdown.Item>
       </Dropdown.Menu>
     </Dropdown>
   );
