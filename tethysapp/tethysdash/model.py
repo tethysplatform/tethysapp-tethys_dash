@@ -19,7 +19,8 @@ from django.conf import settings
 from tethys_sdk.paths import get_app_media, get_app_workspace
 import base64
 from alembic.config import Config
-from alembic import command
+from alembic import command, script
+from sqlalchemy.exc import ProgrammingError, OperationalError
 from pathlib import Path
 
 Base = declarative_base()
@@ -552,6 +553,22 @@ def init_primary_db(engine, first_time):
     alembic_cfg.set_main_option(
         "script_location", str(tethysdash_directory / "alembic")
     )
+    script_directory = script.ScriptDirectory.from_config(alembic_cfg)
 
-    # Run the upgrade
-    command.upgrade(alembic_cfg, "head")
+    # Iterate over revisions in order
+    revisions = list(script_directory.walk_revisions(base="base", head="head"))
+    revisions.reverse()  # walk_revisions returns in reverse order (head -> base)
+
+    for rev in revisions:
+        try:
+            print(f"Attempting to upgrade to revision {rev.revision}")
+            command.upgrade(alembic_cfg, rev.revision)
+            print(f"Successfully upgraded to revision {rev.revision}")
+        except (ProgrammingError, OperationalError) as e:
+            if "already exists" in str(e):
+                command.stamp(alembic_cfg, rev.revision)
+                print(
+                    f"Stamped and Skipped revision {rev.revision} (column/table already exists)"
+                )
+            else:
+                raise  # Unknown error — don't skip
