@@ -41,8 +41,7 @@ const DashboardItemDropdown = ({
   sendGridItemtoBack,
   sendGridItembackward,
 }) => {
-  const { editable, unrestrictedMovement, gridItems } =
-    useContext(LayoutContext);
+  const { unrestrictedMovement, gridItems } = useContext(LayoutContext);
   const [showMenu, setShowMenu] = useState(false);
   const submenuRef = useRef(null);
   const [submenuPosition, setSubmenuPosition] = useState("right");
@@ -168,12 +167,17 @@ const DashboardItemDropdown = ({
 };
 
 DashboardItemDropdown.propTypes = {
+  gridItemIndex: PropTypes.number,
   showFullscreen: PropTypes.func,
   deleteGridItem: PropTypes.func,
   editGridItem: PropTypes.func,
   editSize: PropTypes.func,
   copyGridItem: PropTypes.func,
   exportGridItem: PropTypes.func,
+  bringGridItemtoFront: PropTypes.func,
+  bringGridItemForward: PropTypes.func,
+  sendGridItemtoBack: PropTypes.func,
+  sendGridItembackward: PropTypes.func,
 };
 
 export default DashboardItemDropdown;

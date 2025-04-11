@@ -32,9 +32,19 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db):
     grid_items = []
     notes = ""
     access_groups = []
+    unrestricted_movement = False
 
     # Create a new dashboard and Verify dashboard, rows, and columns were created
-    add_new_dashboard(owner, uuid, name, description, notes, access_groups, grid_items)
+    add_new_dashboard(
+        owner,
+        uuid,
+        name,
+        description,
+        notes,
+        access_groups,
+        unrestricted_movement,
+        grid_items,
+    )
 
     dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
     assert dashboard.description == description
@@ -43,6 +53,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db):
     assert dashboard.uuid == uuid
     assert dashboard.owner == owner
     assert dashboard.access_groups == []
+    assert not dashboard.unrestricted_movement
     dashboard_id = dashboard.id
 
     assert len(dashboard.grid_items) == 1
@@ -56,6 +67,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db):
     grid_item_source = "Custom Image"
     grid_item_args_string = json.dumps({"uri": "some_path"})
     grid_item_refreshRate = 0
+    grid_item_order = 0
     new_grid_item = add_new_grid_item(
         db_session,
         dashboard_id,
@@ -67,6 +79,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db):
         grid_item_source,
         grid_item_args_string,
         grid_item_refreshRate,
+        grid_item_order,
     )
 
     new_grid_item = (
@@ -116,9 +129,19 @@ def test_add_and_delete_dashboard_with_grid_items(db_session, mock_app_get_ps_db
     ]
     notes = ""
     access_groups = []
+    unrestricted_movement = True
 
     # Create a new dashboard and Verify dashboard, rows, and columns were created
-    add_new_dashboard(owner, uuid, name, description, notes, access_groups, grid_items)
+    add_new_dashboard(
+        owner,
+        uuid,
+        name,
+        description,
+        notes,
+        access_groups,
+        unrestricted_movement,
+        grid_items,
+    )
 
     dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
     assert dashboard.description == description
@@ -127,6 +150,7 @@ def test_add_and_delete_dashboard_with_grid_items(db_session, mock_app_get_ps_db
     assert dashboard.uuid == uuid
     assert dashboard.owner == owner
     assert dashboard.access_groups == []
+    assert dashboard.unrestricted_movement
     dashboard_id = dashboard.id
 
     assert len(dashboard.grid_items) == 1
@@ -228,6 +252,7 @@ def test_update_named_dashboard(
             "notes": updated_notes,
             "accessGroups": updated_access_groups,
             "gridItems": grid_items,
+            "unrestrictedMovement": True,
         },
     )
 
@@ -238,6 +263,7 @@ def test_update_named_dashboard(
     assert dashboard.grid_items[0].args_string == json.dumps({"uri": "some_path"})
     assert dashboard.grid_items[0].metadata_string == json.dumps({"refreshRate": 0})
     assert dashboard.access_groups == updated_access_groups
+    assert dashboard.unrestricted_movement
 
     grid_item1 = dashboard.grid_items[0]
 
@@ -368,6 +394,7 @@ def test_get_dashboards_all(
                 "accessGroups": [],
                 "image": "/static/tethysdash/images/tethys_dash.png",
                 "uuid": "some_user_dashboard_uuid",
+                "unrestrictedMovement": False,
             }
         ],
         "public": [
@@ -378,6 +405,7 @@ def test_get_dashboards_all(
                 "accessGroups": ["public"],
                 "image": "/static/tethysdash/images/tethys_dash.png",
                 "uuid": "some_public_dashboard_uuid",
+                "unrestrictedMovement": False,
             }
         ],
     }
@@ -403,6 +431,7 @@ def test_get_dashboards_specific_dashboard_view(
         "gridItems": [],
         "image": "/static/tethysdash/images/tethys_dash.png",
         "uuid": "some_user_dashboard_uuid",
+        "unrestrictedMovement": False,
     }
 
 
@@ -422,6 +451,7 @@ def test_get_dashboards_specific_landing_page_view(
         "accessGroups": [],
         "image": "/static/tethysdash/images/tethys_dash.png",
         "uuid": "some_user_dashboard_uuid",
+        "unrestrictedMovement": False,
     }
 
 
@@ -536,6 +566,7 @@ def test_parse_db_dashboard_landing_page_view(
         "description": dashboard.description,
         "accessGroups": [],
         "image": "/static/tethysdash/images/tethys_dash.png",
+        "unrestrictedMovement": False,
     }
 
 
@@ -557,6 +588,7 @@ def test_parse_db_dashboard_dashboard_view(
         "image": "/static/tethysdash/images/tethys_dash.png",
         "notes": dashboard.notes,
         "gridItems": [],
+        "unrestrictedMovement": False,
     }
 
 

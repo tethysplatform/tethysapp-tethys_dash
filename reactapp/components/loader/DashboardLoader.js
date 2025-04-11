@@ -9,7 +9,6 @@ import {
   DisabledEditingMovementContext,
   DataViewerModeContext,
   AvailableDashboardsContext,
-  UnrestrictedMovementContext,
 } from "components/contexts/Contexts";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
@@ -173,6 +172,7 @@ DashboardLoader.propTypes = {
   editable: PropTypes.bool,
   accessGroups: PropTypes.arrayOf(PropTypes.string),
   description: PropTypes.string,
+  unrestrictedMovement: PropTypes.bool,
 };
 
 export default DashboardLoader;
