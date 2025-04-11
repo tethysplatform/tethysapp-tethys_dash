@@ -120,7 +120,7 @@ function Loader({ children }) {
     setShowActivePrompt(true);
   };
 
-  const { getRemainingTime, activate } = useIdleTimer({
+  const { getRemainingTime, activate, pause } = useIdleTimer({
     onActive,
     onAction,
     onIdle,
@@ -138,7 +138,7 @@ function Loader({ children }) {
     return () => {
       clearInterval(interval)
     }
-  })
+  });
 
   useEffect(() => {
     if (state === "Active" || (state === "Active" && count > lastCountRef.current)) {
@@ -147,13 +147,16 @@ function Loader({ children }) {
       const callAPI = async () => {
         try {
           const idleFor = 0;
-          const response = await appAPI.getActivityData({ idleFor })
+          const response = await appAPI.getActivityData({ idleFor });
 
-          if (response.status === -1) {
+          if (response.status === -1 || response.status === -2) {
             // The user has been signed out
             window.location.assign(
               `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
             );
+          } else if (response.status === 2) {
+            // Pause the IdleTimer as it's not going to do anything for a public user
+            pause();
           }
         } catch (error) {
           console.error('API call failed:', error)
@@ -162,18 +165,12 @@ function Loader({ children }) {
 
       callAPI();
     }
-  }, [TETHYS_PORTAL_HOST, state, count]);
+  }, [TETHYS_PORTAL_HOST, state, count, pause]);
 
   const handleStillHere = (active) => {
     if (active) {
       onActive();
       activate();
-    } else {
-      // TODO Figure out how to forcefully log out
-      // Unless we don't want a force log out?
-      window.location.assign(
-        `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
-      );  
     }
   };
 
@@ -573,6 +570,7 @@ function Loader({ children }) {
                 }
                 proceed={handleStillHere}
                 backdrop={"static"}
+                noCancel
               />
             </AppTourContextProvider>
           </AvailableDashboardsContext.Provider>

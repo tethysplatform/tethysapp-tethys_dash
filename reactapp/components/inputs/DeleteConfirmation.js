@@ -16,6 +16,7 @@ export const Confirmation = ({
   show,
   proceed,
   backdrop = true,
+  noCancel = false,
   ...props
 }) => {
   return (
@@ -33,7 +34,9 @@ export const Confirmation = ({
         </Modal.Header>
         <OverflowBody>{confirmation}</OverflowBody>
         <Modal.Footer>
-          <Button onClick={() => proceed(false)}>{cancelLabel}</Button>
+          {!noCancel && (
+            <Button onClick={() => proceed(false)}>{cancelLabel}</Button>
+          )}
           <Button
             className="button-l"
             variant="primary"
@@ -56,6 +59,7 @@ Confirmation.propTypes = {
   proceed: PropTypes.func, // called when ok button is clicked.
   enableEscape: PropTypes.bool,
   backdrop: PropTypes.oneOf([true, false, "static"]),
+  noCancel: PropTypes.bool, // This is for not rendering the cancel button
 };
 
 export function confirm(

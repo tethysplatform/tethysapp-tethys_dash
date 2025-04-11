@@ -37,14 +37,18 @@ def home(request):
 def ping(request):
     """
     Controller for the app activity
-    Returns -1 if the user is logged out
+    Returns -1 if a session doesn't have session_security set up.
+    Returns -2 if the user is logged out
+    Returns 1 if the user is logged in
+    Returns 2 if this is a public login
     If the user isn't logged out, it checks if there's new inputs to update the last activity
     If there isn't any activity, it sends the log out warning and log out execution
     """
     session_id = request.COOKIES.get('sessionid', None)
 
     if not session_id:
-        return JsonResponse({"status": -1})  # User is logged out (session missing)
+        # Session is missing meaning this is a public login
+        return JsonResponse({"status": 2})
 
     session = SessionStore(session_key=session_id)
     session_security = session.get("_session_security", None)
@@ -57,7 +61,7 @@ def ping(request):
     middleware = SessionSecurityMiddleware()
     is_user_logged_out = middleware.is_user_session_expired(request)
     if is_user_logged_out:
-        return JsonResponse({"status": -1})
+        return JsonResponse({"status": -2})
     elif 'idleFor' in request.GET:
         now = datetime.now()
         middleware.update_last_activity(request, now)
