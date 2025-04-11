@@ -210,7 +210,7 @@ export const DashboardHeader = () => {
     setShowEditCanvas(true);
     if (activeAppTour) {
       setTimeout(() => {
-        setAppTourStep(39);
+        setAppTourStep(41);
       }, 400);
     }
   };
@@ -384,6 +384,7 @@ export const DashboardHeader = () => {
                       tooltipPlacement="bottom"
                       tooltipText="Import Dashboard Item"
                       aria-label="importDashboardItemButton"
+                      className="importDashboardItemButton"
                     >
                       <BsUpload size="1.5rem" />
                     </TooltipButton>

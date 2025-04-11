@@ -28,15 +28,15 @@ test("DashboardItemDropdown for editable item but already in edit mode", async (
   const dropdownToggle = await screen.findByRole("button");
   await userEvent.click(dropdownToggle);
 
-  expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
-  expect(await screen.findByText("Create Copy")).toBeInTheDocument();
+  expect(await screen.findByText("Edit")).toBeInTheDocument();
+  expect(await screen.findByText("Copy")).toBeInTheDocument();
   expect(await screen.findByText("Delete")).toBeInTheDocument();
 
-  const editGridItemButton = await screen.findByText("Edit Visualization");
+  const editGridItemButton = await screen.findByText("Edit");
   await userEvent.click(editGridItemButton);
   expect(mockEditGridItem.mock.calls).toHaveLength(1);
 
-  const copyGridItemButton = await screen.findByText("Create Copy");
+  const copyGridItemButton = await screen.findByText("Copy");
   await userEvent.click(copyGridItemButton);
   expect(mockCopyGridItem.mock.calls).toHaveLength(1);
 
@@ -69,15 +69,15 @@ test("DashboardItemDropdown for editable item and not in edit mode", async () =>
   const dropdownToggle = await screen.findByRole("button");
   await userEvent.click(dropdownToggle);
 
-  expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
-  expect(await screen.findByText("Create Copy")).toBeInTheDocument();
+  expect(await screen.findByText("Edit")).toBeInTheDocument();
+  expect(await screen.findByText("Copy")).toBeInTheDocument();
   expect(await screen.findByText("Delete")).toBeInTheDocument();
 
-  const editGridItemButton = await screen.findByText("Edit Visualization");
+  const editGridItemButton = await screen.findByText("Edit");
   await userEvent.click(editGridItemButton);
   expect(mockEditGridItem.mock.calls).toHaveLength(1);
 
-  const copyGridItemButton = await screen.findByText("Create Copy");
+  const copyGridItemButton = await screen.findByText("Copy");
   await userEvent.click(copyGridItemButton);
   expect(mockCopyGridItem.mock.calls).toHaveLength(1);
 

@@ -438,7 +438,7 @@ test("Dashboard Item edit item", async () => {
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
-  const editGridItemButton = await screen.findByText("Edit Visualization");
+  const editGridItemButton = await screen.findByText("Edit");
   await userEvent.click(editGridItemButton);
   const dataViewerModal = await screen.findByRole("dialog");
   expect(dataViewerModal).toBeInTheDocument();
@@ -529,7 +529,7 @@ test("Dashboard Item copy item", async () => {
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
-  const createCopyButton = await screen.findByText("Create Copy");
+  const createCopyButton = await screen.findByText("Copy");
   await userEvent.click(createCopyButton);
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
@@ -648,7 +648,7 @@ test("Dashboard Item copy item variable input", async () => {
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
-  const createCopyButton = await screen.findByText("Create Copy");
+  const createCopyButton = await screen.findByText("Copy");
   await userEvent.click(createCopyButton);
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
@@ -773,7 +773,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
-  const createCopyButton = await screen.findByText("Create Copy");
+  const createCopyButton = await screen.findByText("Copy");
   await userEvent.click(createCopyButton);
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(

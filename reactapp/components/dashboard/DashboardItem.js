@@ -225,7 +225,7 @@ const DashboardItem = ({
     setIsEditing(true);
     setInDataViewerMode(true);
     if (activeAppTour) {
-      setAppTourStep(32);
+      setAppTourStep(34);
     }
   }
 

@@ -634,7 +634,7 @@ test("DashboardHeader, show settings in App Tour", async () => {
   await userEvent.click(dashboardSettingButton);
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
   await waitFor(() => {
-    expect(mockSetAppTourStep).toHaveBeenCalledWith(39);
+    expect(mockSetAppTourStep).toHaveBeenCalledWith(41);
   });
 });
 

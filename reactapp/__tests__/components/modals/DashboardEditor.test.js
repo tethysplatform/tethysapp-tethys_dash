@@ -660,5 +660,5 @@ test("Dashboard Editor Canvas close in app tour", async () => {
     expect(screen.queryByText("Dashboard Settings")).not.toBeInTheDocument();
   });
 
-  expect(mockSetAppTourStep).toHaveBeenCalledWith(31);
+  expect(mockSetAppTourStep).toHaveBeenCalledWith(33);
 });

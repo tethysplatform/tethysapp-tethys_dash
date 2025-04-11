@@ -137,7 +137,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const handleClose = () => {
     setShowCanvas(false);
     if (activeAppTour) {
-      setAppTourStep(31);
+      setAppTourStep(33);
     }
   };
 
