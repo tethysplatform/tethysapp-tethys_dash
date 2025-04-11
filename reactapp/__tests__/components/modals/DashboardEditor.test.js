@@ -255,6 +255,7 @@ test("Dashboard Editor Canvas edit and save", async () => {
       description: "New Description",
       id: 1,
       notes: "test_notes. Here are some notes",
+      unrestrictedMovement: false,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
@@ -314,6 +315,7 @@ test("Dashboard Editor Canvas edit desription only and save", async () => {
       description: "New Description",
       id: 1,
       notes: "test_notes. Here are some notes",
+      unrestrictedMovement: false,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
@@ -358,6 +360,7 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
       description: "New Description",
       id: 1,
       notes: "test_notes",
+      unrestrictedMovement: false,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
@@ -399,6 +402,7 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
       description: "New Description",
       id: 1,
       notes: "test_notes",
+      unrestrictedMovement: false,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
