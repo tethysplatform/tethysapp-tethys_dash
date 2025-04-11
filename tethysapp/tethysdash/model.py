@@ -18,6 +18,9 @@ from datetime import datetime, timezone
 from django.conf import settings
 from tethys_sdk.paths import get_app_media, get_app_workspace
 import base64
+from alembic.config import Config
+from alembic import command
+from pathlib import Path
 
 Base = declarative_base()
 
@@ -543,5 +546,12 @@ def init_primary_db(engine, first_time):
     """
     Initializer for the primary database.
     """
-    # Create all the tables
-    Base.metadata.create_all(engine)
+    # Load Alembic configuration
+    tethysdash_directory = Path(__file__).resolve().parent
+    alembic_cfg = Config(tethysdash_directory / "alembic.ini")
+    alembic_cfg.set_main_option(
+        "script_location", str(tethysdash_directory / "alembic")
+    )
+
+    # Run the upgrade
+    command.upgrade(alembic_cfg, "head")
