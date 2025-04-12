@@ -29,6 +29,8 @@ import {
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
+const SESSION_SECURITY_WARN_AFTER = process.env.REACT_SESSION_SECURITY_WARN_AFTER
+const SESSION_SECURITY_EXPIRE_AFTER = process.env.REACT_SESSION_SECURITY_EXPIRE_AFTER
 
 function setupRoutes(dashboards) {
   const PATH_HOME = "/";
@@ -89,7 +91,7 @@ function Loader({ children }) {
   const [availableDashboards, setAvailableDashboards] = useState(null);
   const [state, setState] = useState('Active');
   const [count, setCount] = useState(0);
-  const [remaining, setRemaining] = useState(1000 * 10); // 10 seconds
+  const [remaining, setRemaining] = useState(1000 * SESSION_SECURITY_EXPIRE_AFTER);
   const [showActivePrompt, setShowActivePrompt] = useState(false);
   const lastCountRef = useRef(0);
   const TETHYS_PORTAL_HOST = getTethysPortalHost();
@@ -125,9 +127,9 @@ function Loader({ children }) {
     onAction,
     onIdle,
     onPrompt,
-    timeout: 1000 * 10, // 10 seconds
+    timeout: 1000 * SESSION_SECURITY_EXPIRE_AFTER,
     throttle: 1000 * 0.5, // Half a second
-    promptBeforeIdle: 1000 * 5, // 5 Seconds
+    promptBeforeIdle: 1000 * SESSION_SECURITY_WARN_AFTER,
   });
 
   useEffect(() => {
