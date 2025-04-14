@@ -20,7 +20,7 @@ const DashboardLoader = ({
   notes,
   editable,
   accessGroups,
-  unrestrictedMovement,
+  unrestrictedPlacement,
   description,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -133,7 +133,7 @@ const DashboardLoader = ({
             gridItems,
             editable,
             accessGroups,
-            unrestrictedMovement,
+            unrestrictedPlacement,
             description,
           }}
         >
@@ -172,7 +172,7 @@ DashboardLoader.propTypes = {
   editable: PropTypes.bool,
   accessGroups: PropTypes.arrayOf(PropTypes.string),
   description: PropTypes.string,
-  unrestrictedMovement: PropTypes.bool,
+  unrestrictedPlacement: PropTypes.bool,
 };
 
 export default DashboardLoader;

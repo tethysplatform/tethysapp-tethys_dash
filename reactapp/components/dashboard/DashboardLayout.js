@@ -15,7 +15,7 @@ const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
 const DashboardLayout = () => {
-  const { updateGridItems, gridItems, unrestrictedMovement } =
+  const { updateGridItems, gridItems, unrestrictedPlacement } =
     useContext(LayoutContext);
   const { isEditing } = useContext(EditingContext);
   const { disabledEditingMovement } = useContext(
@@ -119,7 +119,7 @@ const DashboardLayout = () => {
 
   return (
     <ReactGridLayout
-      key={`layout-${unrestrictedMovement}`}
+      key={`layout-${unrestrictedPlacement}`}
       className="complex-interface-layout"
       layout={layout}
       rowHeight={rowHeight}
@@ -129,7 +129,7 @@ const DashboardLayout = () => {
       isResizable={false}
       draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover"
       onResize={handleResize}
-      allowOverlap={unrestrictedMovement}
+      allowOverlap={unrestrictedPlacement}
       useCSSTransforms={false}
     >
       {items}

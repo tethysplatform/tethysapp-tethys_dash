@@ -849,7 +849,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
 test("Dashboard Item order options disabled for single grid item", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.user[0];
-  mockedDashboard.unrestrictedMovement = true;
+  mockedDashboard.unrestrictedPlacement = true;
   const gridItem = mockedDashboard.gridItems[0];
   gridItem.source = "Custom Image";
   gridItem.args_string = JSON.stringify({
@@ -905,7 +905,7 @@ test("Dashboard Item order options disabled for single grid item", async () => {
 test("Dashboard Item order forward", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.user[0];
-  mockedDashboard.unrestrictedMovement = true;
+  mockedDashboard.unrestrictedPlacement = true;
   const greenGridItem = {
     i: "3",
     x: 1,
@@ -1053,7 +1053,7 @@ test("Dashboard Item order forward", async () => {
 test("Dashboard Item order backward", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.user[0];
-  mockedDashboard.unrestrictedMovement = true;
+  mockedDashboard.unrestrictedPlacement = true;
   const greenGridItem = {
     i: "3",
     x: 1,

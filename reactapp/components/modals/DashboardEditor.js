@@ -81,12 +81,12 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     description,
     editable,
     accessGroups,
-    unrestrictedMovement,
+    unrestrictedPlacement,
     notes,
     saveLayoutContext,
   } = useContext(LayoutContext);
-  const [selectedUnrestrictedMovement, setSelectedUnrestrictedMovement] =
-    useState(unrestrictedMovement);
+  const [selectedUnrestrictedPlacement, setSelectedUnrestrictedPlacement] =
+    useState(unrestrictedPlacement);
   const { deleteDashboard, copyDashboard } = useContext(
     AvailableDashboardsContext
   );
@@ -102,7 +102,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     { label: "Private", value: "private" },
   ];
 
-  const unrestrictedMovementOptions = [
+  const unrestrictedPlacementOptions = [
     { label: "On", value: true },
     { label: "Off", value: false },
   ];
@@ -120,8 +120,8 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     setSelectedSharingStatus(e.target.value);
   }
 
-  function onUnrestrictedMovementChange(e) {
-    setSelectedUnrestrictedMovement(e.target.value === "true");
+  function onUnrestrictedPlacementChange(e) {
+    setSelectedUnrestrictedPlacement(e.target.value === "true");
   }
 
   const handleCopyURLClick = async () => {
@@ -149,7 +149,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
       notes: localNotes,
       name: localName,
       description: localDescription,
-      unrestrictedMovement: selectedUnrestrictedMovement,
+      unrestrictedPlacement: selectedUnrestrictedPlacement,
     };
     saveLayoutContext(newProperties).then((response) => {
       if (response["success"]) {
@@ -264,10 +264,10 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
               onChange={onSharingChange}
             />
             <DataRadioSelect
-              label={"Unrestricted Grid Item Movement"}
-              selectedRadio={selectedUnrestrictedMovement}
-              radioOptions={unrestrictedMovementOptions}
-              onChange={onUnrestrictedMovementChange}
+              label={"Unrestricted Grid Item Placement"}
+              selectedRadio={selectedUnrestrictedPlacement}
+              radioOptions={unrestrictedPlacementOptions}
+              onChange={onUnrestrictedPlacementChange}
             />
           </>
         ) : (

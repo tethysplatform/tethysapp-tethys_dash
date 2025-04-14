@@ -77,7 +77,7 @@ def dashboard_data():
         "notes": "some notes",
         "owner": "admin",
         "access_groups": [],
-        "unrestricted_movement": False,
+        "unrestricted_placement": False,
     }
 
 
@@ -90,7 +90,7 @@ def public_dashboard_data():
         "notes": "some notes",
         "owner": "public_user",
         "access_groups": ["public"],
-        "unrestricted_movement": False,
+        "unrestricted_placement": False,
     }
 
 

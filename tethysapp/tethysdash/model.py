@@ -42,7 +42,7 @@ class Dashboard(Base):
     notes = Column(String)
     owner = Column(String)
     access_groups = Column(ARRAY(String))
-    unrestricted_movement = Column(Boolean)
+    unrestricted_placement = Column(Boolean)
     grid_items = relationship("GridItem", cascade="delete", order_by="GridItem.order")
     last_updated = Column(DateTime, default=datetime.now(timezone.utc))
 
@@ -76,7 +76,7 @@ def add_new_dashboard(
     description,
     notes,
     access_groups,
-    unrestricted_movement,
+    unrestricted_placement,
     grid_items,
 ):
     # Get connection/session to database
@@ -92,7 +92,7 @@ def add_new_dashboard(
             notes=notes,
             owner=owner,
             access_groups=access_groups,
-            unrestricted_movement=unrestricted_movement,
+            unrestricted_placement=unrestricted_placement,
         )
 
         session.add(new_dashboard)
@@ -201,7 +201,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             notes=original_dashboard.notes,
             owner=user,
             access_groups=[],
-            unrestricted_movement=original_dashboard.unrestricted_movement,
+            unrestricted_placement=original_dashboard.unrestricted_placement,
         )
 
         # Add and flush to generate new ID
@@ -211,7 +211,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
 
         # Copy GridItems and explicitly add them to the session
         new_grid_items = []
-        for grid_item in original_dashboard.grid_items:
+        for index, grid_item in enumerate(original_dashboard.grid_items):
             new_item = GridItem(
                 i=grid_item.i,
                 x=grid_item.x,
@@ -222,6 +222,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
                 args_string=grid_item.args_string,
                 metadata_string=grid_item.metadata_string,
                 dashboard_id=new_dashboard.id,  # Explicitly link to new dashboard
+                order=index,
             )
             session.add(new_item)  # Explicitly add to session
             new_grid_items.append(new_item)
@@ -302,9 +303,9 @@ def update_named_dashboard(user, id, dashboard_updates):
                 check_existing_public_dashboards(session, db_name)
             db_dashboard.access_groups = dashboard_updates["accessGroups"]
 
-        if "unrestrictedMovement" in dashboard_updates:
-            db_dashboard.unrestricted_movement = dashboard_updates[
-                "unrestrictedMovement"
+        if "unrestrictedPlacement" in dashboard_updates:
+            db_dashboard.unrestricted_placement = dashboard_updates[
+                "unrestrictedPlacement"
             ]
 
         if "gridItems" in dashboard_updates:
@@ -408,7 +409,7 @@ def parse_db_dashboard(dashboards, dashboard_view):
             "name": dashboard.name,
             "description": dashboard.description,
             "accessGroups": (["public"] if "public" in dashboard.access_groups else []),
-            "unrestrictedMovement": dashboard.unrestricted_movement,
+            "unrestrictedPlacement": dashboard.unrestricted_placement,
             "image": dashboard_image,
         }
 
@@ -563,7 +564,7 @@ def init_primary_db(engine, first_time):
     current_revision = result.stdout.split(" ")[0]
 
     if current_revision:
-        print(f"Upgrading to head")
+        print("Upgrading to head")
         command.upgrade(alembic_cfg, "head")
     else:
         # Iterate over revisions in order

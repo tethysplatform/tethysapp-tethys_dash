@@ -233,8 +233,8 @@ test("Dashboard Editor Canvas edit and save", async () => {
   const publicRadioButton = await screen.findByLabelText("Public");
   fireEvent.click(publicRadioButton);
 
-  const unrestrictedMovement = await screen.findByLabelText("On");
-  fireEvent.click(unrestrictedMovement);
+  const unrestrictedPlacement = await screen.findByLabelText("On");
+  fireEvent.click(unrestrictedPlacement);
 
   const descriptionInput = await screen.findByLabelText("Description Input");
   fireEvent.change(descriptionInput, { target: { value: "New Description" } });
@@ -258,7 +258,7 @@ test("Dashboard Editor Canvas edit and save", async () => {
       description: "New Description",
       id: 1,
       notes: "test_notes. Here are some notes",
-      unrestrictedMovement: true,
+      unrestrictedPlacement: true,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
@@ -318,7 +318,7 @@ test("Dashboard Editor Canvas edit desription only and save", async () => {
       description: "New Description",
       id: 1,
       notes: "test_notes. Here are some notes",
-      unrestrictedMovement: false,
+      unrestrictedPlacement: false,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
@@ -363,7 +363,7 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
       description: "New Description",
       id: 1,
       notes: "test_notes",
-      unrestrictedMovement: false,
+      unrestrictedPlacement: false,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
@@ -405,7 +405,7 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
       description: "New Description",
       id: 1,
       notes: "test_notes",
-      unrestrictedMovement: false,
+      unrestrictedPlacement: false,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );

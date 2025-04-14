@@ -98,7 +98,7 @@ def add_dashboard(request, app_media):
     description = dashboard_metadata.get("description", "")
     notes = dashboard_metadata.get("notes", "")
     access_groups = dashboard_metadata.get("accessGroups", [])
-    unrestricted_movement = dashboard_metadata.get("unrestrictedMovement", False)
+    unrestricted_placement = dashboard_metadata.get("unrestrictedPlacement", False)
     grid_items = dashboard_metadata.get("gridItems", [])
     owner = str(request.user)
     dashboard_uuid = str(uuid.uuid4())
@@ -112,7 +112,7 @@ def add_dashboard(request, app_media):
             description,
             notes,
             access_groups,
-            unrestricted_movement,
+            unrestricted_placement,
             grid_items,
         )
 

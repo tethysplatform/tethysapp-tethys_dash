@@ -41,7 +41,7 @@ const DashboardItemDropdown = ({
   sendGridItemtoBack,
   sendGridItembackward,
 }) => {
-  const { unrestrictedMovement, gridItems } = useContext(LayoutContext);
+  const { unrestrictedPlacement, gridItems } = useContext(LayoutContext);
   const [showMenu, setShowMenu] = useState(false);
   const submenuRef = useRef(null);
   const [submenuPosition, setSubmenuPosition] = useState("right");
@@ -99,7 +99,7 @@ const DashboardItemDropdown = ({
         >
           Copy
         </Dropdown.Item>
-        {unrestrictedMovement && (
+        {unrestrictedPlacement && (
           <SubmenuWrapper>
             <Dropdown.Item
               style={{

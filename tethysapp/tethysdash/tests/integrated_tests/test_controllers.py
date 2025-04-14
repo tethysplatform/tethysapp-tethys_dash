@@ -119,7 +119,7 @@ def test_dashboards(
                 "name": dashboard.name,
                 "uuid": dashboard.uuid,
                 "image": "/static/tethysdash/images/tethys_dash.png",
-                "unrestrictedMovement": False,
+                "unrestrictedPlacement": False,
             }
         ],
         "public": [],
@@ -154,7 +154,7 @@ def test_get_dashboard(
             "uuid": dashboard.uuid,
             "notes": "some notes",
             "image": "/static/tethysdash/images/tethys_dash.png",
-            "unrestrictedMovement": False,
+            "unrestrictedPlacement": False,
         },
         "success": True,
     }
@@ -254,7 +254,7 @@ def test_add_dashboard(
         "name": "some_new_dashboard_name",
         "image": "/media/app_root/app/123e4567-e89b-12d3-a456-426614174000.png",
         "uuid": "123e4567-e89b-12d3-a456-426614174000",
-        "unrestrictedMovement": False,
+        "unrestrictedPlacement": False,
     }
     assert response.json()["new_dashboard"] == expected_result
 
@@ -502,7 +502,7 @@ def test_update_dashboard(
         "notes": dashboard.notes,
         "image": "/static/tethysdash/images/tethys_dash.png",
         "uuid": "some_user_dashboard_uuid",
-        "unrestrictedMovement": False,
+        "unrestrictedPlacement": False,
     }
 
     assert response.status_code == 200
@@ -610,7 +610,7 @@ def test_copy_dashboard(
         "name": "some_new_dashboard_name",
         "image": "/static/tethysdash/images/tethys_dash.png",
         "uuid": "123e4567-e89b-12d3-a456-426614174000",
-        "unrestrictedMovement": False,
+        "unrestrictedPlacement": False,
     }
     assert response.json()["new_dashboard"] == expected_result
 
@@ -669,7 +669,7 @@ def test_copy_dashboard_with_thumbnail(
         "name": "some_new_dashboard_name",
         "image": "/media/app_root/app/123e4567-e89b-12d3-a456-426614174001.png",
         "uuid": "123e4567-e89b-12d3-a456-426614174001",
-        "unrestrictedMovement": False,
+        "unrestrictedPlacement": False,
     }
     assert response.json()["new_dashboard"] == expected_result
 

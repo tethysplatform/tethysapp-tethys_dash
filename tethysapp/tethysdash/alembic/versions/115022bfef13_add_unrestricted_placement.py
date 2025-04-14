@@ -1,4 +1,4 @@
-"""add unrestricted_movement
+"""add unrestricted_placement
 
 Revision ID: 115022bfef13
 Revises: 663c69fd7709
@@ -22,9 +22,9 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     # Add columns with correct types
     op.add_column(
-        "dashboards", sa.Column("unrestricted_movement", sa.Boolean(), nullable=True)
+        "dashboards", sa.Column("unrestricted_placement", sa.Boolean(), nullable=True)
     )
-    op.execute("UPDATE dashboards SET unrestricted_movement = FALSE")
+    op.execute("UPDATE dashboards SET unrestricted_placement = FALSE")
 
     op.add_column("griditems", sa.Column("order", sa.Integer(), nullable=True))
 
@@ -48,4 +48,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_column("griditems", "order")
-    op.drop_column("dashboards", "unrestricted_movement")
+    op.drop_column("dashboards", "unrestricted_placement")

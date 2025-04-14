@@ -63,7 +63,7 @@ it("DashboardItemDropdown", async () => {
 it("DashboardItemDropdown order not overflowing submenu", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.user[0];
-  mockedDashboard.unrestrictedMovement = true;
+  mockedDashboard.unrestrictedPlacement = true;
 
   const deleteGridItem = jest.fn();
   const editGridItem = jest.fn();
@@ -118,7 +118,7 @@ it("DashboardItemDropdown order not overflowing submenu", async () => {
 it("ContextMenu overflowing submenu", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.user[0];
-  mockedDashboard.unrestrictedMovement = true;
+  mockedDashboard.unrestrictedPlacement = true;
 
   const deleteGridItem = jest.fn();
   const editGridItem = jest.fn();
