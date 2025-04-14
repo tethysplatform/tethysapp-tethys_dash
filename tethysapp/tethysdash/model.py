@@ -568,7 +568,7 @@ def init_primary_db(engine, first_time):
             if "already exists" in str(e):
                 command.stamp(alembic_cfg, rev.revision)
                 print(
-                    f"Stamped and Skipped revision {rev.revision} (column/table already exists)"
+                    f"Stamped and Skipped revision {rev.revision} (column/table already exists)"  # noqa: E501
                 )
             else:
                 raise  # Unknown error — don't skip
