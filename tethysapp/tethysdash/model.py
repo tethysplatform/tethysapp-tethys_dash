@@ -22,6 +22,7 @@ from alembic.config import Config
 from alembic import command, script
 from sqlalchemy.exc import ProgrammingError, OperationalError
 from pathlib import Path
+import subprocess
 
 Base = declarative_base()
 
@@ -549,26 +550,36 @@ def init_primary_db(engine, first_time):
     """
     # Load Alembic configuration
     tethysdash_directory = Path(__file__).resolve().parent
+    alembic_directory = str(tethysdash_directory / "alembic")
     alembic_cfg = Config(tethysdash_directory / "alembic.ini")
-    alembic_cfg.set_main_option(
-        "script_location", str(tethysdash_directory / "alembic")
-    )
+    alembic_cfg.set_main_option("script_location", alembic_directory)
     script_directory = script.ScriptDirectory.from_config(alembic_cfg)
 
-    # Iterate over revisions in order
-    revisions = list(script_directory.walk_revisions(base="base", head="head"))
-    revisions.reverse()  # walk_revisions returns in reverse order (head -> base)
+    command.ensure_version(alembic_cfg)
 
-    for rev in revisions:
-        try:
-            print(f"Attempting to upgrade to revision {rev.revision}")
-            command.upgrade(alembic_cfg, rev.revision)
-            print(f"Successfully upgraded to revision {rev.revision}")
-        except (ProgrammingError, OperationalError) as e:
-            if "already exists" in str(e):
-                command.stamp(alembic_cfg, rev.revision)
-                print(
-                    f"Stamped and Skipped revision {rev.revision} (column/table already exists)"  # noqa: E501
-                )
-            else:
-                raise  # Unknown error — don't skip
+    result = subprocess.run(
+        ["alembic", "current"], capture_output=True, text=True, cwd=tethysdash_directory
+    )
+    current_revision = result.stdout.split(" ")[0]
+
+    if current_revision:
+        print(f"Upgrading to head")
+        command.upgrade(alembic_cfg, "head")
+    else:
+        # Iterate over revisions in order
+        revisions = list(script_directory.walk_revisions(base="base", head="head"))
+        revisions.reverse()  # walk_revisions returns in reverse order (head -> base)
+
+        for rev in revisions:
+            try:
+                print(f"Attempting to upgrade to revision {rev.revision}")
+                command.upgrade(alembic_cfg, rev.revision)
+                print(f"Successfully upgraded to revision {rev.revision}")
+            except (ProgrammingError, OperationalError) as e:
+                if "already exists" in str(e):
+                    command.stamp(alembic_cfg, rev.revision)
+                    print(
+                        f"Stamped and Skipped revision {rev.revision} (column/table already exists)"  # noqa: E501
+                    )
+                else:
+                    raise  # Unknown error — don't skip
