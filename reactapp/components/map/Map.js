@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { memo, useEffect, useState, useRef } from "react";
 import ReactDOM from "react-dom";
 import { valuesEqual } from "components/modals/utilities";
 import { MapContext } from "components/contexts/Contexts";
@@ -106,19 +106,24 @@ const MapComponent = ({
 
   useEffect(() => {
     // Set up an initial map and set it to state/ref
-    const initialMap = new Map({
-      target: mapDivRef.current,
-      view: new View(defaultViewConfig),
-      layers: [],
-      controls: [],
-      overlays: [],
-    });
+    if (mapDivRef.current) {
+      const initialMap = new Map({
+        target: mapDivRef.current,
+        view: new View(defaultViewConfig),
+        layers: [],
+        controls: [],
+        overlays: [],
+      });
 
-    setMap(initialMap);
-    visualizationRef.current = initialMap;
+      setMap(initialMap);
+      visualizationRef.current = initialMap;
+    }
 
     return () => {
-      initialMap.setTarget(undefined);
+      if (visualizationRef.current) {
+        visualizationRef.current.setTarget(undefined);
+        visualizationRef.current = null;
+      }
     };
     // eslint-disable-next-line
   }, []);
@@ -287,4 +292,4 @@ MapComponent.propTypes = {
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
 };
 
-export default MapComponent;
+export default memo(MapComponent);

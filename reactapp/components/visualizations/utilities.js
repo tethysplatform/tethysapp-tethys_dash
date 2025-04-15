@@ -1,10 +1,11 @@
 import appAPI from "services/api/app";
-import BasePlot from "components/visualizations/BasePlot";
 import DataTable from "components/visualizations/DataTable";
 import Image from "components/visualizations/Image";
 import styled from "styled-components";
 import Card from "components/visualizations/Card";
 import MapVisualization from "components/visualizations/Map";
+import Text from "components/visualizations/Text";
+import VariableInput from "components/visualizations/VariableInput";
 import ModuleLoader from "components/visualizations/ModuleLoader";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import { Fragment } from "react";
@@ -31,7 +32,6 @@ const StyledH2 = styled.h2`
 `;
 
 function checkForEmptyVariableInputs({
-  setViz,
   metadata,
   argsString,
   variableInputValues,
@@ -48,21 +48,10 @@ function checkForEmptyVariableInputs({
         );
       }
     }
-
-    setViz(
-      <StyledH2>
-        {warnings.map((warning, index) => (
-          <Fragment key={index}>
-            {warning}
-            <br />
-          </Fragment>
-        ))}
-      </StyledH2>
-    );
-    return true;
+    return warnings;
   }
 
-  return false;
+  return null;
 }
 
 function getDependentVariableInputs(args) {
@@ -77,105 +66,111 @@ function getDependentVariableInputs(args) {
   return [...uniqueValues];
 }
 
-export async function setVisualization({
-  setViz,
+export async function getVisualization({
   itemData,
-  visualizationRef,
   metadataString,
   argsString,
   variableInputValues,
 }) {
   const metadata = JSON.parse(metadataString);
-  setViz(
-    <SpinnerContainer>
-      <StyledSpinner
-        data-testid="Loading..."
-        animation="border"
-        variant="info"
-      />
-    </SpinnerContainer>
-  );
-
-  if (
-    checkForEmptyVariableInputs({
-      setViz,
-      metadata,
-      argsString,
-      variableInputValues,
-    })
-  ) {
-    return;
+  const emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadata,
+    argsString,
+    variableInputValues,
+  });
+  if (emptyVariableWarnings) {
+    return {
+      vizType: "vizWarning",
+      warnings: emptyVariableWarnings,
+    };
   }
 
-  appAPI.getPlotData(itemData).then((response) => {
-    if (response.success === true) {
-      if (response["viz_type"] === "plotly") {
-        const plotData = {
-          data: response.data.data,
-          layout: response.data.layout,
-        };
-        setViz(
-          <BasePlot plotData={plotData} visualizationRef={visualizationRef} />
-        );
-      } else if (response["viz_type"] === "image") {
-        setViz(
-          <Image
-            source={response.data}
-            alt={itemData.source}
-            visualizationRef={visualizationRef}
-            imageError={metadata.customMessaging?.error}
-          />
-        );
-      } else if (response["viz_type"] === "table") {
-        setViz(
-          <DataTable
-            data={response.data.data}
-            title={response.data.title}
-            visualizationRef={visualizationRef}
-          />
-        );
-      } else if (response["viz_type"] === "card") {
-        setViz(
-          <Card
-            data={response.data.data}
-            title={response.data.title}
-            description={response.data.description}
-            visualizationRef={visualizationRef}
-          />
-        );
-      } else if (response["viz_type"] === "map") {
-        setViz(
-          <MapVisualization
-            viewConfig={response.data.viewConfig}
-            layers={response.data.layers}
-            mapConfig={response.data.mapConfig}
-            legend={response.data.legend}
-            visualizationRef={visualizationRef}
-          />
-        );
-      } else if (response["viz_type"] === "custom") {
-        setViz(
-          <ModuleLoader
-            url={response.data.url}
-            scope={response.data.scope}
-            module={response.data.module}
-            props={response.data.props}
-            visualizationRef={visualizationRef}
-          />
-        );
-      } else {
-        let message =
-          response["viz_type"] + " visualizations still need to be configured";
-        setViz(<StyledH2>{message}</StyledH2>);
-      }
-    } else {
-      setViz(
-        <StyledH2>
-          {metadata.customMessaging?.error ?? "Failed to retrieve data"}
-        </StyledH2>
-      );
+  const apiResponse = await appAPI.getPlotData(itemData);
+  if (apiResponse.success === true) {
+    let responseData = JSON.parse(JSON.stringify(apiResponse.data));
+    if (typeof apiResponse.data === "string") {
+      responseData = { value: apiResponse.data };
     }
-  });
+
+    let updatedResponseData = updateObjectWithVariableInputs(
+      responseData,
+      variableInputValues
+    );
+
+    if (typeof apiResponse.data === "string") {
+      updatedResponseData = updatedResponseData.value;
+    }
+
+    if (apiResponse.viz_type === "plotly") {
+      return {
+        vizType: "plotly",
+        data: updatedResponseData.data,
+        layout: updatedResponseData.layout,
+        config: updatedResponseData.config,
+      };
+    } else if (apiResponse.viz_type === "card") {
+      return {
+        vizType: "card",
+        data: updatedResponseData.data,
+        title: updatedResponseData.title,
+        description: updatedResponseData.description,
+      };
+    } else if (apiResponse.viz_type === "table") {
+      return {
+        vizType: "table",
+        data: updatedResponseData.data,
+        title: updatedResponseData.title,
+      };
+    } else if (apiResponse.viz_type === "image") {
+      return {
+        vizType: "image",
+        source: updatedResponseData,
+        alt: itemData.source,
+        imageError: metadata.customMessaging?.error,
+      };
+    } else if (apiResponse.viz_type === "map") {
+      return {
+        vizType: "map",
+        mapConfig: updatedResponseData.mapConfig,
+        viewConfig: updatedResponseData.viewConfig,
+        layers: updatedResponseData.layers,
+        baseMap: updatedResponseData.baseMap,
+        layerControl: updatedResponseData.layerControl,
+      };
+    } else if (apiResponse.viz_type === "custom") {
+      return {
+        vizType: "custom",
+        url: updatedResponseData.url,
+        scope: updatedResponseData.scope,
+        module: updatedResponseData.module,
+        props: updatedResponseData.props,
+      };
+    } else if (apiResponse.viz_type === "text") {
+      return {
+        vizType: "text",
+        text: updatedResponseData.text,
+      };
+    } else if (apiResponse.viz_type === "variable_input") {
+      return {
+        vizType: "variableInput",
+        variable_name: updatedResponseData.variable_name,
+        initial_value: updatedResponseData.initial_value,
+        variable_options_source: updatedResponseData.variable_options_source,
+      };
+    } else {
+      return {
+        vizType: "vizWarning",
+        warnings: [
+          `${apiResponse.viz_type} visualizations still need to be configured`,
+        ],
+      };
+    }
+  } else {
+    return {
+      vizType: "vizError",
+      error: metadata.customMessaging?.error ?? "Failed to retrieve data",
+    };
+  }
 }
 
 export function getGridItem(gridItems, gridItemI) {
@@ -186,11 +181,11 @@ export function getGridItem(gridItems, gridItemI) {
   return result;
 }
 
-export function updateGridItemArgsWithVariableInputs(
-  argsString,
-  variableInputs
-) {
-  const gridItemsArgs = JSON.parse(argsString);
+export function updateObjectWithVariableInputs(argsString, variableInputs) {
+  let gridItemsArgs = argsString;
+  if (typeof gridItemsArgs === "string") {
+    gridItemsArgs = JSON.parse(argsString);
+  }
   for (let gridItemsArg in gridItemsArgs) {
     const value = gridItemsArgs[gridItemsArg];
     const stringifiedValue = JSON.stringify(value);

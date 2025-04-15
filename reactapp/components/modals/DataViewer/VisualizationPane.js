@@ -6,7 +6,7 @@ import Image from "components/visualizations/Image";
 import DataInput from "components/inputs/DataInput";
 import MapVisualization from "components/visualizations/Map";
 import {
-  setVisualization,
+  getVisualization,
   findSelectOptionByValue,
 } from "components/visualizations/utilities";
 import {
@@ -18,7 +18,7 @@ import {
   spaceAndCapitalize,
   valuesEqual,
 } from "components/modals/utilities";
-import { updateGridItemArgsWithVariableInputs } from "components/visualizations/utilities";
+import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
 import VariableInput from "components/visualizations/VariableInput";
 import TooltipButton from "components/buttons/TooltipButton";
 import { CiFilter } from "react-icons/ci";
@@ -350,12 +350,14 @@ function VisualizationPane({
       }
       setViz(
         <VariableInput
-          args={itemData.args}
+          variable_name={itemData.args.variable_name}
+          initial_value={itemData.args.initial_value}
+          variable_options_source={itemData.args.variable_options_source}
           onChange={(e) => setVariableInputValue(e)}
         />
       );
     } else {
-      const updatedGridItemArgs = updateGridItemArgsWithVariableInputs(
+      const updatedGridItemArgs = updateObjectWithVariableInputs(
         JSON.stringify(itemData.args),
         variableInputValues
       );
@@ -371,7 +373,7 @@ function VisualizationPane({
         );
       } else {
         itemData.args = updatedGridItemArgs;
-        setVisualization({
+        getVisualization({
           setViz,
           itemData,
           visualizationRef,

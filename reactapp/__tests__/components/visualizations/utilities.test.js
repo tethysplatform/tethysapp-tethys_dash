@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import {
-  setVisualization,
+  getVisualization,
   getGridItem,
-  updateGridItemArgsWithVariableInputs,
+  updateObjectWithVariableInputs,
   getBaseMapLayer,
   findSelectOptionByValue,
   baseMapLayers,
@@ -22,7 +22,7 @@ jest.mock("components/visualizations/ModuleLoader", () => {
   return MockModuleLoader;
 });
 
-test("setVisualization bad response", async () => {
+test("getVisualization bad response", async () => {
   appAPI.getPlotData = () => {
     return Promise.resolve({
       success: false,
@@ -31,7 +31,7 @@ test("setVisualization bad response", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = jest.fn();
-  await setVisualization({
+  await getVisualization({
     setViz,
     itemData: {},
     visualizationRef,
@@ -54,7 +54,7 @@ test("setVisualization bad response", async () => {
   ).toBeInTheDocument();
 });
 
-test("setVisualization bad response with custom messaging", async () => {
+test("getVisualization bad response with custom messaging", async () => {
   appAPI.getPlotData = () => {
     return Promise.resolve({
       success: false,
@@ -63,7 +63,7 @@ test("setVisualization bad response with custom messaging", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = jest.fn();
-  await setVisualization({
+  await getVisualization({
     setViz,
     itemData: {},
     visualizationRef,
@@ -88,7 +88,7 @@ test("setVisualization bad response with custom messaging", async () => {
   expect(await screen.findByText("custom error message")).toBeInTheDocument();
 });
 
-test("setVisualization bad type", async () => {
+test("getVisualization bad type", async () => {
   appAPI.getPlotData = () => {
     return Promise.resolve({
       success: true,
@@ -98,7 +98,7 @@ test("setVisualization bad type", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = jest.fn();
-  await setVisualization({
+  await getVisualization({
     setViz,
     itemData: {},
     visualizationRef,
@@ -123,7 +123,7 @@ test("setVisualization bad type", async () => {
   ).toBeInTheDocument();
 });
 
-test("setVisualization plotly", async () => {
+test("getVisualization plotly", async () => {
   const plotData = { data: {}, layout: {} };
   appAPI.getPlotData = () => {
     return Promise.resolve({
@@ -135,7 +135,7 @@ test("setVisualization plotly", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization({
+  await getVisualization({
     setViz,
     itemData: {},
     visualizationRef,
@@ -161,7 +161,7 @@ test("setVisualization plotly", async () => {
   });
 });
 
-test("setVisualization image", async () => {
+test("getVisualization image", async () => {
   appAPI.getPlotData = () => {
     return Promise.resolve({
       success: true,
@@ -172,7 +172,7 @@ test("setVisualization image", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization({
+  await getVisualization({
     setViz,
     itemData: { source: "some_source" },
     visualizationRef,
@@ -197,7 +197,7 @@ test("setVisualization image", async () => {
   });
 });
 
-test("setVisualization, empty variable and no custom messaging", async () => {
+test("getVisualization, empty variable and no custom messaging", async () => {
   appAPI.getPlotData = () => {
     return Promise.resolve({
       success: true,
@@ -208,7 +208,7 @@ test("setVisualization, empty variable and no custom messaging", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization({
+  await getVisualization({
     setViz,
     itemData: { source: "some_source" },
     visualizationRef,
@@ -235,7 +235,7 @@ test("setVisualization, empty variable and no custom messaging", async () => {
   ).toBeInTheDocument();
 });
 
-test("setVisualization, empty variable and custom messaging", async () => {
+test("getVisualization, empty variable and custom messaging", async () => {
   appAPI.getPlotData = () => {
     return Promise.resolve({
       success: true,
@@ -246,7 +246,7 @@ test("setVisualization, empty variable and custom messaging", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization({
+  await getVisualization({
     setViz,
     itemData: { source: "some_source" },
     visualizationRef,
@@ -274,7 +274,7 @@ test("setVisualization, empty variable and custom messaging", async () => {
   ).toBeInTheDocument();
 });
 
-test("setVisualization table", async () => {
+test("getVisualization table", async () => {
   const tableData = { data: [], title: "Some Title" };
   appAPI.getPlotData = () => {
     return Promise.resolve({
@@ -286,7 +286,7 @@ test("setVisualization table", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization({
+  await getVisualization({
     setViz,
     itemData: {},
     visualizationRef,
@@ -310,7 +310,7 @@ test("setVisualization table", async () => {
   });
 });
 
-test("setVisualization card", async () => {
+test("getVisualization card", async () => {
   const cardData = {
     data: [],
     title: "Some Title",
@@ -326,7 +326,7 @@ test("setVisualization card", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization({
+  await getVisualization({
     setViz,
     itemData: {},
     visualizationRef,
@@ -351,7 +351,7 @@ test("setVisualization card", async () => {
   });
 });
 
-test("setVisualization map", async () => {
+test("getVisualization map", async () => {
   const mapData = {
     viewConfig: {},
     layers: [],
@@ -368,7 +368,7 @@ test("setVisualization map", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization({
+  await getVisualization({
     setViz,
     itemData: {},
     visualizationRef,
@@ -394,7 +394,7 @@ test("setVisualization map", async () => {
   });
 });
 
-test("setVisualization custom", async () => {
+test("getVisualization custom", async () => {
   const customData = {
     url: "url",
     scope: "scope",
@@ -411,7 +411,7 @@ test("setVisualization custom", async () => {
 
   const setViz = jest.fn();
   const visualizationRef = { current: null };
-  await setVisualization({
+  await getVisualization({
     setViz,
     itemData: {},
     visualizationRef,
@@ -448,7 +448,7 @@ test("getGridItem", async () => {
   expect(result).toStrictEqual({ i: 2, data: "2" });
 });
 
-test("updateGridItemArgsWithVariableInputs", async () => {
+test("updateObjectWithVariableInputs", async () => {
   const argsString = JSON.stringify({
     // eslint-disable-next-line
     location: "${Some Variable}",
@@ -457,16 +457,13 @@ test("updateGridItemArgsWithVariableInputs", async () => {
   });
   const variableInputs = { "Some Variable": "Test" };
 
-  const result = updateGridItemArgsWithVariableInputs(
-    argsString,
-    variableInputs
-  );
+  const result = updateObjectWithVariableInputs(argsString, variableInputs);
   expect(result).toStrictEqual({
     location: "Test",
     text: "Here is some text with the a variable Test",
   });
 
-  const newResult = updateGridItemArgsWithVariableInputs(argsString, {});
+  const newResult = updateObjectWithVariableInputs(argsString, {});
   expect(newResult).toStrictEqual({
     location: "",
     text: "Here is some text with the a variable ",

@@ -216,7 +216,7 @@ it("Creates an Base Item with a variable input text box", async () => {
 
 it("Creates an Base Item with an image obtained from the api, 1 min refresh rate", async () => {
   jest.useFakeTimers();
-  jest.spyOn(utilities, "setVisualization");
+  jest.spyOn(utilities, "getVisualization");
 
   appAPI.getPlotData = () => {
     return new Promise((resolve) =>
@@ -262,9 +262,9 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );
-  expect(utilities.setVisualization).toHaveBeenCalledTimes(2);
+  expect(utilities.getVisualization).toHaveBeenCalledTimes(2);
 
-  // go past refresh rate so setVisualization is called again
+  // go past refresh rate so getVisualization is called again
   act(() => {
     jest.advanceTimersByTime(90000);
   });
@@ -272,7 +272,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );
-  expect(utilities.setVisualization).toHaveBeenCalledTimes(3);
+  expect(utilities.getVisualization).toHaveBeenCalledTimes(3);
 
   jest.useRealTimers();
 });
