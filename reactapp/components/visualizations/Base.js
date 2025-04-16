@@ -50,13 +50,13 @@ const BaseVisualization = ({
 }) => {
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
-  const [viz, setViz] = useState(null);
   const { variableInputValues } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
   const { isEditing } = useContext(EditingContext);
-  const visualizationRef = useRef();
+  const dashboardVizRef = useRef();
+  const modalVizRef = useRef();
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -140,114 +140,127 @@ const BaseVisualization = ({
         setVizType("text");
         setVizData({ text: updatedGridItemArgs.text });
       } else {
-        const { vizType, ...vizMetadata } = await getVisualization({
+        await getVisualization({
+          setVizType,
+          setVizData,
           itemData,
-          visualizationRef,
           metadataString,
           argsString,
           variableInputValues,
         });
-        setVizType(vizType);
-        setVizData(vizMetadata);
       }
     }
   }
 
+  const renderViz = ({ vizRef }) => {
+    switch (vizType) {
+      case "loader":
+        return (
+          <SpinnerContainer>
+            <StyledSpinner
+              data-testid="Loading..."
+              animation="border"
+              variant="info"
+            />
+          </SpinnerContainer>
+        );
+      case "unknown":
+        return <div data-testid="Source_Unknown" />;
+      case "image":
+        return (
+          <Image
+            source={vizData.source}
+            alt={vizData.alt}
+            imageError={vizData.imageError}
+          />
+        );
+      case "text":
+        return <Text textValue={vizData.text} />;
+      case "variableInput":
+        return (
+          <VariableInput
+            variable_name={vizData.variable_name}
+            initial_value={vizData.initial_value}
+            variable_options_source={vizData.variable_options_source}
+            onChange={(e) => e}
+          />
+        );
+      case "map":
+        return (
+          <MapVisualization
+            visualizationRef={vizRef}
+            baseMap={vizData.baseMap}
+            layers={vizData.layers}
+            layerControl={vizData.layerControl}
+            viewConfig={vizData.viewConfig}
+            mapConfig={vizData.mapConfig}
+          />
+        );
+      case "plotly":
+        return (
+          <BasePlot
+            data={vizData.data}
+            layout={vizData.layout}
+            config={vizData.config}
+            visualizationRef={vizRef}
+          />
+        );
+      case "card":
+        return (
+          <Card
+            title={vizData.title}
+            description={vizData.description}
+            data={vizData.data}
+            visualizationRef={vizRef}
+          />
+        );
+      case "table":
+        return (
+          <DataTable
+            data={vizData.data}
+            title={vizData.title}
+            visualizationRef={vizRef}
+          />
+        );
+      case "custom":
+        return (
+          <ModuleLoader
+            url={vizData.url}
+            scope={vizData.scope}
+            module={vizData.module}
+            props={vizData.props}
+          />
+        );
+      case "vizWarning":
+        return (
+          <StyledH2>
+            {vizData.warnings.map((warning, index) => (
+              <Fragment key={index}>
+                {warning}
+                <br />
+              </Fragment>
+            ))}
+          </StyledH2>
+        );
+      case "vizError":
+        return <StyledH2>{vizData.error}</StyledH2>;
+      default:
+        return null;
+    }
+  };
+
   return (
     <>
-      {vizType === "loader" && (
-        <SpinnerContainer>
-          <StyledSpinner
-            data-testid="Loading..."
-            animation="border"
-            variant="info"
-          />
-        </SpinnerContainer>
-      )}
-      {vizType === "unknown" && <div data-testid="Source_Unknown"></div>}
-      {vizType === "image" && (
-        <Image
-          source={vizData.source}
-          alt={vizData.alt}
-          imageError={vizData.imageError}
-        />
-      )}
-      {vizType === "text" && <Text textValue={vizData.text} />}
-      {vizType === "variableInput" && (
-        <VariableInput
-          variable_name={vizData.variable_name}
-          initial_value={vizData.initial_value}
-          variable_options_source={vizData.variable_options_source}
-          onChange={(e) => e}
-        />
-      )}
-      {vizType === "variableInput" && (
-        <VariableInput
-          variable_name={vizData.variable_name}
-          initial_value={vizData.initial_value}
-          variable_options_source={vizData.variable_options_source}
-          onChange={(e) => e}
-        />
-      )}
-      {vizType === "map" && (
-        <MapVisualization
-          visualizationRef={visualizationRef}
-          baseMap={vizData.baseMap}
-          layers={vizData.layers}
-          layerControl={vizData.layerControl}
-          viewConfig={vizData.viewConfig}
-          mapConfig={vizData.mapConfig}
-        />
-      )}
-      {vizType === "plotly" && (
-        <BasePlot
-          data={vizData.data}
-          layout={vizData.layout}
-          config={vizData.config}
-          visualizationRef={visualizationRef}
-        />
-      )}
-      {vizType === "card" && (
-        <Card
-          title={vizData.title}
-          description={vizData.description}
-          data={vizData.data}
-          visualizationRef={visualizationRef}
-        />
-      )}
-      {vizType === "table" && (
-        <DataTable
-          data={vizData.data}
-          title={vizData.title}
-          visualizationRef={visualizationRef}
-        />
-      )}
-      {vizType === "custom" && (
-        <ModuleLoader
-          url={vizData.url}
-          scope={vizData.scope}
-          module={vizData.module}
-          props={vizData.props}
-        />
-      )}
-      {vizType === "vizWarning" && (
-        <StyledH2>
-          {vizData.warnings.map((warning, index) => (
-            <Fragment key={index}>
-              {warning}
-              <br />
-            </Fragment>
-          ))}
-        </StyledH2>
-      )}
-      {vizType === "vizError" && <StyledH2>{vizData.error}</StyledH2>}
+      {renderViz({ vizRef: dashboardVizRef })}
 
-      {/* <FullscreenPlotModal
-        showModal={showFullscreen}
-        handleModalClose={hideFullscreen}
-      >
-        {viz}
-      </FullscreenPlotModal> */}
+      {
+        <FullscreenPlotModal
+          showModal={showFullscreen}
+          handleModalClose={hideFullscreen}
+        >
+          {renderViz({ vizRef: modalVizRef })}
+        </FullscreenPlotModal>
+      }
     </>
   );
 };

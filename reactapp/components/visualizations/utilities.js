@@ -67,6 +67,8 @@ function getDependentVariableInputs(args) {
 }
 
 export async function getVisualization({
+  setVizType,
+  setVizData,
   itemData,
   metadataString,
   argsString,
@@ -79,10 +81,10 @@ export async function getVisualization({
     variableInputValues,
   });
   if (emptyVariableWarnings) {
-    return {
-      vizType: "vizWarning",
+    setVizType("vizWarning");
+    setVizData({
       warnings: emptyVariableWarnings,
-    };
+    });
   }
 
   const apiResponse = await appAPI.getPlotData(itemData);
@@ -102,74 +104,74 @@ export async function getVisualization({
     }
 
     if (apiResponse.viz_type === "plotly") {
-      return {
-        vizType: "plotly",
+      setVizType("plotly");
+      setVizData({
         data: updatedResponseData.data,
         layout: updatedResponseData.layout,
         config: updatedResponseData.config,
-      };
+      });
     } else if (apiResponse.viz_type === "card") {
-      return {
-        vizType: "card",
+      setVizType("card");
+      setVizData({
         data: updatedResponseData.data,
         title: updatedResponseData.title,
         description: updatedResponseData.description,
-      };
+      });
     } else if (apiResponse.viz_type === "table") {
-      return {
-        vizType: "table",
+      setVizType("table");
+      setVizData({
         data: updatedResponseData.data,
         title: updatedResponseData.title,
-      };
+      });
     } else if (apiResponse.viz_type === "image") {
-      return {
-        vizType: "image",
+      setVizType("image");
+      setVizData({
         source: updatedResponseData,
         alt: itemData.source,
         imageError: metadata.customMessaging?.error,
-      };
+      });
     } else if (apiResponse.viz_type === "map") {
-      return {
-        vizType: "map",
+      setVizType("map");
+      setVizData({
         mapConfig: updatedResponseData.mapConfig,
         viewConfig: updatedResponseData.viewConfig,
         layers: updatedResponseData.layers,
         baseMap: updatedResponseData.baseMap,
         layerControl: updatedResponseData.layerControl,
-      };
+      });
     } else if (apiResponse.viz_type === "custom") {
-      return {
-        vizType: "custom",
+      setVizType("custom");
+      setVizData({
         url: updatedResponseData.url,
         scope: updatedResponseData.scope,
         module: updatedResponseData.module,
         props: updatedResponseData.props,
-      };
+      });
     } else if (apiResponse.viz_type === "text") {
-      return {
-        vizType: "text",
+      setVizType("text");
+      setVizData({
         text: updatedResponseData.text,
-      };
+      });
     } else if (apiResponse.viz_type === "variable_input") {
-      return {
-        vizType: "variableInput",
+      setVizType("variableInput");
+      setVizData({
         variable_name: updatedResponseData.variable_name,
         initial_value: updatedResponseData.initial_value,
         variable_options_source: updatedResponseData.variable_options_source,
-      };
+      });
     } else {
-      return {
-        vizType: "vizWarning",
+      setVizType("vizWarning");
+      setVizData({
         warnings: [
           `${apiResponse.viz_type} visualizations still need to be configured`,
         ],
-      };
+      });
     }
   } else {
-    return {
-      vizType: "vizError",
+    setVizType("vizError");
+    setVizData({
       error: metadata.customMessaging?.error ?? "Failed to retrieve data",
-    };
+    });
   }
 }
 
