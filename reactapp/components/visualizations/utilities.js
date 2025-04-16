@@ -73,6 +73,7 @@ export async function getVisualization({
   metadataString,
   argsString,
   variableInputValues,
+  dashboardView,
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -94,70 +95,72 @@ export async function getVisualization({
       responseData = { value: apiResponse.data };
     }
 
-    let updatedResponseData = updateObjectWithVariableInputs(
-      responseData,
-      variableInputValues
-    );
+    if (dashboardView) {
+      responseData = updateObjectWithVariableInputs(
+        responseData,
+        variableInputValues
+      );
+    }
 
     if (typeof apiResponse.data === "string") {
-      updatedResponseData = updatedResponseData.value;
+      responseData = responseData.value;
     }
 
     if (apiResponse.viz_type === "plotly") {
       setVizType("plotly");
       setVizData({
-        data: updatedResponseData.data,
-        layout: updatedResponseData.layout,
-        config: updatedResponseData.config,
+        data: responseData.data,
+        layout: responseData.layout,
+        config: responseData.config,
       });
     } else if (apiResponse.viz_type === "card") {
       setVizType("card");
       setVizData({
-        data: updatedResponseData.data,
-        title: updatedResponseData.title,
-        description: updatedResponseData.description,
+        data: responseData.data,
+        title: responseData.title,
+        description: responseData.description,
       });
     } else if (apiResponse.viz_type === "table") {
       setVizType("table");
       setVizData({
-        data: updatedResponseData.data,
-        title: updatedResponseData.title,
+        data: responseData.data,
+        title: responseData.title,
       });
     } else if (apiResponse.viz_type === "image") {
       setVizType("image");
       setVizData({
-        source: updatedResponseData,
+        source: responseData,
         alt: itemData.source,
         imageError: metadata.customMessaging?.error,
       });
     } else if (apiResponse.viz_type === "map") {
       setVizType("map");
       setVizData({
-        mapConfig: updatedResponseData.mapConfig,
-        viewConfig: updatedResponseData.viewConfig,
-        layers: updatedResponseData.layers,
-        baseMap: updatedResponseData.baseMap,
-        layerControl: updatedResponseData.layerControl,
+        mapConfig: responseData.mapConfig,
+        viewConfig: responseData.viewConfig,
+        layers: responseData.layers,
+        baseMap: responseData.baseMap,
+        layerControl: responseData.layerControl,
       });
     } else if (apiResponse.viz_type === "custom") {
       setVizType("custom");
       setVizData({
-        url: updatedResponseData.url,
-        scope: updatedResponseData.scope,
-        module: updatedResponseData.module,
-        props: updatedResponseData.props,
+        url: responseData.url,
+        scope: responseData.scope,
+        module: responseData.module,
+        props: responseData.props,
       });
     } else if (apiResponse.viz_type === "text") {
       setVizType("text");
       setVizData({
-        text: updatedResponseData.text,
+        text: responseData.text,
       });
     } else if (apiResponse.viz_type === "variable_input") {
       setVizType("variableInput");
       setVizData({
-        variable_name: updatedResponseData.variable_name,
-        initial_value: updatedResponseData.initial_value,
-        variable_options_source: updatedResponseData.variable_options_source,
+        variable_name: responseData.variable_name,
+        initial_value: responseData.initial_value,
+        variable_options_source: responseData.variable_options_source,
       });
     } else {
       setVizType("vizWarning");

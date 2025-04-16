@@ -353,6 +353,7 @@ function VisualizationPane({
         variable_name: itemData.args.variable_name,
         initial_value: itemData.args.initial_value,
         variable_options_source: itemData.args.variable_options_source,
+        onChange: (e) => setVariableInputValue(e),
       });
     } else {
       const updatedGridItemArgs = updateObjectWithVariableInputs(

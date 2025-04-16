@@ -71,7 +71,7 @@ export const Visualization = ({ vizRef, vizType, vizData }) => {
           variable_name={vizData.variable_name}
           initial_value={vizData.initial_value}
           variable_options_source={vizData.variable_options_source}
-          onChange={(e) => e}
+          onChange={vizData.onChange ?? (() => {})}
         />
       );
     case "map":
@@ -244,6 +244,7 @@ const BaseVisualization = ({
           metadataString,
           argsString,
           variableInputValues,
+          dashboardView: true,
         });
       }
     }
