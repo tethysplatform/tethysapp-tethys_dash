@@ -17,6 +17,7 @@ import SettingsPane from "components/modals/DataViewer/SettingsPane";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import TextEditor from "components/inputs/TextEditor";
+import { Visualization } from "components/visualizations/Base";
 import "components/modals/wideModal.css";
 import "components/modals/DataViewer/DataViewer.css";
 
@@ -61,7 +62,8 @@ function DataViewerModal({
   setShowGridItemMessage,
 }) {
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
-  const [viz, setViz] = useState(null);
+  const [vizType, setVizType] = useState("loader");
+  const [vizData, setVizData] = useState({});
   const [vizInputsValues, setVizInputsValues] = useState({});
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
@@ -75,7 +77,7 @@ function DataViewerModal({
   const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   const gridMetadata = JSON.parse(metadataString);
-  const visualizationRef = useRef({});
+  const visualizationRef = useRef();
   const settingsRef = useRef(gridMetadata);
   const [tabKey, setTabKey] = useState("visualization");
 
@@ -237,8 +239,9 @@ function DataViewerModal({
                         setGridItemMessage={setGridItemMessage}
                         selectedVizTypeOption={selectedVizTypeOption}
                         setSelectVizTypeOption={setSelectVizTypeOption}
-                        setViz={setViz}
-                        viz={viz}
+                        vizType={vizType}
+                        setVizType={setVizType}
+                        setVizData={setVizData}
                         setVizMetadata={setVizMetadata}
                         vizInputsValues={vizInputsValues}
                         setVizInputsValues={setVizInputsValues}
@@ -257,7 +260,7 @@ function DataViewerModal({
                     >
                       <SettingsPane
                         settingsRef={settingsRef}
-                        viz={viz}
+                        vizType={vizType}
                         visualizationRef={visualizationRef}
                         vizInputsValues={vizInputsValues}
                       />
@@ -276,7 +279,11 @@ function DataViewerModal({
                     />
                   </PaddedBottomDiv>
                 ) : (
-                  viz
+                  <Visualization
+                    vizRef={visualizationRef}
+                    vizType={vizType}
+                    vizData={vizData}
+                  />
                 )}
               </StyledVizCol>
             </StyledRow>

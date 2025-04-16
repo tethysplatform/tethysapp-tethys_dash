@@ -1,7 +1,6 @@
 import { memo, useEffect, useState, useRef } from "react";
 import ReactDOM from "react-dom";
 import { valuesEqual } from "components/modals/utilities";
-import { MapContext } from "components/contexts/Contexts";
 import { Map, View } from "ol";
 import Overlay from "ol/Overlay";
 import moduleLoader from "components/map/ModuleLoader";
@@ -82,7 +81,6 @@ const MapComponent = ({
   onMapClick,
   visualizationRef,
 }) => {
-  const [map, setMap] = useState();
   const [errorMessage, setErrorMessage] = useState("");
   const [layerControlUpdate, setLayerControlUpdate] = useState();
   const viewRef = useRef();
@@ -115,7 +113,6 @@ const MapComponent = ({
         overlays: [],
       });
 
-      setMap(initialMap);
       visualizationRef.current = initialMap;
     }
 
@@ -231,49 +228,52 @@ const MapComponent = ({
 
   return (
     <>
-      <MapContext.Provider value={{ map }}>
-        <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
-          {errorMessage && (
-            <StyledAlert
-              key="failure"
-              variant="danger"
-              dismissible={true}
-              onClose={() => setErrorMessage("")}
-            >
-              {errorMessage}
-            </StyledAlert>
-          )}
-          <div>
-            {layerControl && <LayersControl updater={layerControlUpdate} />}
-            {legend && legend.length > 0 && (
-              <LegendControl legendItems={legend} />
-            )}
-          </div>
-        </div>
-        <OverLayContentWrapper
-          aria-label="Map Popup"
-          id="map-popup"
-          className="map-popup"
-          ref={popupRef}
-        >
-          <StyledCloser
-            href="#"
-            id="popup-closer"
-            className="ol-popup-closer"
-            aria-label="Popup Closer"
-            onClick={() => {
-              popupCurrent.current.setPosition(undefined);
-              setPopupContent(null);
-            }}
+      <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
+        {errorMessage && (
+          <StyledAlert
+            key="failure"
+            variant="danger"
+            dismissible={true}
+            onClose={() => setErrorMessage("")}
           >
-            <FaTimes />
-          </StyledCloser>
-          <StyledContent aria-label="Map Popup Content" id="popup-content">
-            {popupContent &&
-              ReactDOM.createPortal(popupContent, popupRef.current)}
-          </StyledContent>
-        </OverLayContentWrapper>
-      </MapContext.Provider>
+            {errorMessage}
+          </StyledAlert>
+        )}
+        <div>
+          {layerControl && (
+            <LayersControl
+              visualizationRef={visualizationRef}
+              updater={layerControlUpdate}
+            />
+          )}
+          {legend && legend.length > 0 && (
+            <LegendControl legendItems={legend} />
+          )}
+        </div>
+      </div>
+      <OverLayContentWrapper
+        aria-label="Map Popup"
+        id="map-popup"
+        className="map-popup"
+        ref={popupRef}
+      >
+        <StyledCloser
+          href="#"
+          id="popup-closer"
+          className="ol-popup-closer"
+          aria-label="Popup Closer"
+          onClick={() => {
+            popupCurrent.current.setPosition(undefined);
+            setPopupContent(null);
+          }}
+        >
+          <FaTimes />
+        </StyledCloser>
+        <StyledContent aria-label="Map Popup Content" id="popup-content">
+          {popupContent &&
+            ReactDOM.createPortal(popupContent, popupRef.current)}
+        </StyledContent>
+      </OverLayContentWrapper>
     </>
   );
 };

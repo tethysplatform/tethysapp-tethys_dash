@@ -41,6 +41,103 @@ const StyledH2 = styled.h2`
   height: 100%;
 `;
 
+export const Visualization = ({ vizRef, vizType, vizData }) => {
+  switch (vizType) {
+    case "loader":
+      return (
+        <SpinnerContainer>
+          <StyledSpinner
+            data-testid="Loading..."
+            animation="border"
+            variant="info"
+          />
+        </SpinnerContainer>
+      );
+    case "unknown":
+      return <div data-testid="Source_Unknown" />;
+    case "image":
+      return (
+        <Image
+          source={vizData.source}
+          alt={vizData.alt}
+          imageError={vizData.imageError}
+        />
+      );
+    case "text":
+      return <Text textValue={vizData.text} />;
+    case "variableInput":
+      return (
+        <VariableInput
+          variable_name={vizData.variable_name}
+          initial_value={vizData.initial_value}
+          variable_options_source={vizData.variable_options_source}
+          onChange={(e) => e}
+        />
+      );
+    case "map":
+      return (
+        <MapVisualization
+          visualizationRef={vizRef}
+          baseMap={vizData.baseMap}
+          layers={vizData.layers}
+          layerControl={vizData.layerControl}
+          viewConfig={vizData.viewConfig}
+          mapConfig={vizData.mapConfig}
+        />
+      );
+    case "plotly":
+      return (
+        <BasePlot
+          data={vizData.data}
+          layout={vizData.layout}
+          config={vizData.config}
+          visualizationRef={vizRef}
+        />
+      );
+    case "card":
+      return (
+        <Card
+          title={vizData.title}
+          description={vizData.description}
+          data={vizData.data}
+          visualizationRef={vizRef}
+        />
+      );
+    case "table":
+      return (
+        <DataTable
+          data={vizData.data}
+          title={vizData.title}
+          visualizationRef={vizRef}
+        />
+      );
+    case "custom":
+      return (
+        <ModuleLoader
+          url={vizData.url}
+          scope={vizData.scope}
+          module={vizData.module}
+          props={vizData.props}
+        />
+      );
+    case "vizWarning":
+      return (
+        <StyledH2>
+          {vizData.warnings.map((warning, index) => (
+            <Fragment key={index}>
+              {warning}
+              <br />
+            </Fragment>
+          ))}
+        </StyledH2>
+      );
+    case "vizError":
+      return <StyledH2>{vizData.error}</StyledH2>;
+    default:
+      return null;
+  }
+};
+
 const BaseVisualization = ({
   source,
   argsString,
@@ -152,113 +249,23 @@ const BaseVisualization = ({
     }
   }
 
-  const renderViz = ({ vizRef }) => {
-    switch (vizType) {
-      case "loader":
-        return (
-          <SpinnerContainer>
-            <StyledSpinner
-              data-testid="Loading..."
-              animation="border"
-              variant="info"
-            />
-          </SpinnerContainer>
-        );
-      case "unknown":
-        return <div data-testid="Source_Unknown" />;
-      case "image":
-        return (
-          <Image
-            source={vizData.source}
-            alt={vizData.alt}
-            imageError={vizData.imageError}
-          />
-        );
-      case "text":
-        return <Text textValue={vizData.text} />;
-      case "variableInput":
-        return (
-          <VariableInput
-            variable_name={vizData.variable_name}
-            initial_value={vizData.initial_value}
-            variable_options_source={vizData.variable_options_source}
-            onChange={(e) => e}
-          />
-        );
-      case "map":
-        return (
-          <MapVisualization
-            visualizationRef={vizRef}
-            baseMap={vizData.baseMap}
-            layers={vizData.layers}
-            layerControl={vizData.layerControl}
-            viewConfig={vizData.viewConfig}
-            mapConfig={vizData.mapConfig}
-          />
-        );
-      case "plotly":
-        return (
-          <BasePlot
-            data={vizData.data}
-            layout={vizData.layout}
-            config={vizData.config}
-            visualizationRef={vizRef}
-          />
-        );
-      case "card":
-        return (
-          <Card
-            title={vizData.title}
-            description={vizData.description}
-            data={vizData.data}
-            visualizationRef={vizRef}
-          />
-        );
-      case "table":
-        return (
-          <DataTable
-            data={vizData.data}
-            title={vizData.title}
-            visualizationRef={vizRef}
-          />
-        );
-      case "custom":
-        return (
-          <ModuleLoader
-            url={vizData.url}
-            scope={vizData.scope}
-            module={vizData.module}
-            props={vizData.props}
-          />
-        );
-      case "vizWarning":
-        return (
-          <StyledH2>
-            {vizData.warnings.map((warning, index) => (
-              <Fragment key={index}>
-                {warning}
-                <br />
-              </Fragment>
-            ))}
-          </StyledH2>
-        );
-      case "vizError":
-        return <StyledH2>{vizData.error}</StyledH2>;
-      default:
-        return null;
-    }
-  };
-
   return (
     <>
-      {renderViz({ vizRef: dashboardVizRef })}
-
+      <Visualization
+        vizRef={dashboardVizRef}
+        vizType={vizType}
+        vizData={vizData}
+      />
       {
         <FullscreenPlotModal
           showModal={showFullscreen}
           handleModalClose={hideFullscreen}
         >
-          {renderViz({ vizRef: modalVizRef })}
+          <Visualization
+            vizRef={modalVizRef}
+            vizType={vizType}
+            vizData={vizData}
+          />
         </FullscreenPlotModal>
       }
     </>

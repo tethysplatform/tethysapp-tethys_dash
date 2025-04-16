@@ -154,7 +154,12 @@ function getValidMessaging(obj) {
   );
 }
 
-function SettingsPane({ settingsRef, viz, visualizationRef, vizInputsValues }) {
+function SettingsPane({
+  settingsRef,
+  vizType,
+  visualizationRef,
+  vizInputsValues,
+}) {
   const [gridItemRefreshRate, setGridItemRefreshRate] = useState(
     settingsRef.current.refreshRate ?? 0
   );
@@ -182,7 +187,7 @@ function SettingsPane({ settingsRef, viz, visualizationRef, vizInputsValues }) {
       settingsRef.current.enforceAspectRatio ? true : false
     );
     // eslint-disable-next-line
-  }, [viz]);
+  }, [vizType]);
 
   useEffect(() => {
     const newBorder = getBorderStyle(border);
@@ -299,7 +304,7 @@ SettingsPane.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
-  viz: PropTypes.object,
+  vizType: PropTypes.string,
   vizInputsValues: PropTypes.object,
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
