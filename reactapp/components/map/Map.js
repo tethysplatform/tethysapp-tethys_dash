@@ -1,8 +1,6 @@
 import { memo, useEffect, useState, useRef } from "react";
-import ReactDOM from "react-dom";
 import { valuesEqual } from "components/modals/utilities";
 import { Map, View } from "ol";
-import Overlay from "ol/Overlay";
 import moduleLoader from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
 import LegendControl from "components/map/LegendControl";
@@ -13,7 +11,6 @@ import {
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
 import { applyStyle } from "ol-mapbox-style";
-import { FaTimes } from "react-icons/fa";
 import PropTypes from "prop-types";
 
 const StyledAlert = styled(Alert)`
@@ -22,54 +19,6 @@ const StyledAlert = styled(Alert)`
   left: 1rem;
   right: 1rem;
   z-index: 1000;
-`;
-
-const OverLayContentWrapper = styled.div`
-  position: absolute;
-  background-color: white;
-  padding: 15px;
-  border-radius: 10px;
-  border: 1px solid #ccc;
-  max-width: 30vw;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-  transform: translate(-50%, -100%);
-
-  &:after,
-  &:before {
-    bottom: -20px;
-    border: solid transparent;
-    content: "";
-    height: 0;
-    width: 0;
-    position: absolute;
-    pointer-events: none;
-  }
-
-  &:after {
-    border-top-color: white;
-    border-width: 10px;
-    left: 50%;
-    margin-left: -10px;
-  }
-
-  &:before {
-    border-top-color: #ccc;
-    border-width: 11px;
-    left: 50%;
-    margin-left: -11px;
-  }
-`;
-
-const StyledCloser = styled.a`
-  text-decoration: none;
-  position: absolute;
-  top: 2px;
-  right: 8px;
-  color: black;
-`;
-
-const StyledContent = styled.div`
-  padding-top: 1rem;
 `;
 
 const MapComponent = ({
@@ -85,10 +34,7 @@ const MapComponent = ({
   const [layerControlUpdate, setLayerControlUpdate] = useState();
   const viewRef = useRef();
   const mapDivRef = useRef();
-  const popupRef = useRef(null);
   const onMapClickCurrent = useRef();
-  const popupCurrent = useRef();
-  const [popupContent, setPopupContent] = useState(null);
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -182,34 +128,13 @@ const MapComponent = ({
         );
       }
 
-      // setup popup with new layers. This is done so that the variable
-      // and states in the passed popup are updated and not stale
-      const popup = new Overlay({
-        element: popupRef.current,
-        autoPan: true,
-        autoPanAnimation: {
-          duration: 250,
-        },
-        autoPanMargin: 20,
-      });
-      if (popupCurrent.current) {
-        visualizationRef.current.removeOverlay(popupCurrent.current);
-      }
-      popupCurrent.current = popup;
-      visualizationRef.current.addOverlay(popup);
-
       // setup click event with new layers. This is done so that the variable
       // and states in the passed function are updated and not stale
       if (onMapClickCurrent.current) {
         visualizationRef.current.un("singleclick", onMapClickCurrent.current);
       }
       onMapClickCurrent.current = async function (evt) {
-        onMapClick(
-          visualizationRef.current,
-          evt,
-          setPopupContent,
-          popupCurrent.current
-        );
+        onMapClick(visualizationRef.current, evt);
       };
       visualizationRef.current.on("singleclick", onMapClickCurrent.current);
 
@@ -251,29 +176,6 @@ const MapComponent = ({
           )}
         </div>
       </div>
-      <OverLayContentWrapper
-        aria-label="Map Popup"
-        id="map-popup"
-        className="map-popup"
-        ref={popupRef}
-      >
-        <StyledCloser
-          href="#"
-          id="popup-closer"
-          className="ol-popup-closer"
-          aria-label="Popup Closer"
-          onClick={() => {
-            popupCurrent.current.setPosition(undefined);
-            setPopupContent(null);
-          }}
-        >
-          <FaTimes />
-        </StyledCloser>
-        <StyledContent aria-label="Map Popup Content" id="popup-content">
-          {popupContent &&
-            ReactDOM.createPortal(popupContent, popupRef.current)}
-        </StyledContent>
-      </OverLayContentWrapper>
     </>
   );
 };

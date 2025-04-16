@@ -1,4 +1,5 @@
 import { memo, useRef, useEffect, useState, useContext } from "react";
+import ReactDOM from "react-dom";
 import MapComponent from "components/map/Map";
 import {
   queryLayerFeatures,
@@ -22,11 +23,13 @@ import "swiper/css/pagination";
 import "swiper/css/navigation";
 import { Pagination, Navigation } from "swiper/modules";
 import Overlay from "ol/Overlay";
+import { FaTimes } from "react-icons/fa";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;
   font-size: small;
 `;
+
 const OverflowTD = styled.td`
   overflow-x: auto;
 `;
@@ -77,63 +80,70 @@ const StyledSwiper = styled(Swiper)`
   width: 20vw;
 `;
 
-const Popup = ({ layerAttributes }) => {
-  return (
-    <>
-      <StyledSwiper
-        modules={[Pagination, Navigation]}
-        navigation={{
-          nextEl: ".custom-next",
-          prevEl: ".custom-prev",
-        }}
-        pagination={{
-          el: ".custom-pagination",
-          type: "fraction",
-        }}
-        className="mySwiper"
-      >
-        {layerAttributes.map((selectedFeature, index) => (
-          <MarginSwiperSlide key={index}>
-            <PopupDiv>
-              <div>
-                <p>
-                  <b>{selectedFeature.layerName}</b>:
-                </p>
-                <FixedTable striped bordered hover size="sm">
-                  <thead>
-                    <tr>
-                      <th className="text-center" style={{ width: "33%" }}>
-                        Field
-                      </th>
-                      <th className="text-center" style={{ width: "33%" }}>
-                        Value
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.keys(selectedFeature.attributes).map((field) => (
-                      <tr key={field}>
-                        <OverflowTD>{field}</OverflowTD>
-                        <OverflowTD>
-                          {selectedFeature.attributes[field]}
-                        </OverflowTD>
-                      </tr>
-                    ))}
-                  </tbody>
-                </FixedTable>
-              </div>
-            </PopupDiv>
-          </MarginSwiperSlide>
-        ))}
-        <SwiperControls>
-          <SwiperArrows className="custom-prev">❮</SwiperArrows>
-          <SwiperPagination className="custom-pagination"></SwiperPagination>
-          <SwiperArrows className="custom-next">❯</SwiperArrows>
-        </SwiperControls>
-      </StyledSwiper>
-    </>
-  );
-};
+const OverlayContentWrapper = styled.div`
+  position: relative;
+  background-color: white;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+`;
+
+const StyledCloser = styled.a`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  cursor: pointer;
+`;
+
+const StyledContent = styled.div`
+  margin-top: 1rem;
+`;
+
+const Popup = ({ layerAttributes }) => (
+  <StyledSwiper
+    modules={[Pagination, Navigation]}
+    navigation={{ nextEl: ".custom-next", prevEl: ".custom-prev" }}
+    pagination={{ el: ".custom-pagination", type: "fraction" }}
+    className="mySwiper"
+  >
+    {layerAttributes.map((selectedFeature, index) => (
+      <MarginSwiperSlide key={index}>
+        <PopupDiv>
+          <div>
+            <p>
+              <b>{selectedFeature.layerName}</b>:
+            </p>
+            <FixedTable striped bordered hover size="sm">
+              <thead>
+                <tr>
+                  <th className="text-center" style={{ width: "33%" }}>
+                    Field
+                  </th>
+                  <th className="text-center" style={{ width: "33%" }}>
+                    Value
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.keys(selectedFeature.attributes).map((field) => (
+                  <tr key={field}>
+                    <OverflowTD>{field}</OverflowTD>
+                    <OverflowTD>{selectedFeature.attributes[field]}</OverflowTD>
+                  </tr>
+                ))}
+              </tbody>
+            </FixedTable>
+          </div>
+        </PopupDiv>
+      </MarginSwiperSlide>
+    ))}
+    <SwiperControls>
+      <SwiperArrows className="custom-prev">❮</SwiperArrows>
+      <SwiperPagination className="custom-pagination"></SwiperPagination>
+      <SwiperArrows className="custom-next">❯</SwiperArrows>
+    </SwiperControls>
+  </StyledSwiper>
+);
 
 const MapVisualization = ({
   mapConfig,
@@ -145,12 +155,77 @@ const MapVisualization = ({
 }) => {
   const [mapLegend, setMapLegend] = useState();
   const [mapLayers, setMapLayers] = useState();
+  const [popupContent, setPopupContent] = useState(null);
   const markerLayer = useRef();
   const highlightLayer = useRef([]);
   const currentLayers = useRef([]);
   const currentBaseMap = useRef();
   const { setVariableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
+
+  const spinnerOverlayRef = useRef(null);
+  const popupOverlayRef = useRef(null);
+  const popupContainerRef = useRef(document.createElement("div"));
+  const popupRootRef = useRef(null);
+
+  // Mount the React popup inside the container div
+  useEffect(() => {
+    popupRootRef.current = ReactDOM.createRoot(popupContainerRef.current);
+    const popupOverlay = new Overlay({
+      element: popupContainerRef.current,
+      autoPan: true,
+      autoPanAnimation: { duration: 250 },
+    });
+
+    spinnerOverlayRef.current = new Overlay({
+      element: document.createElement("div"),
+      positioning: "center-center",
+    });
+
+    if (visualizationRef?.current) {
+      visualizationRef.current.addOverlay(spinnerOverlayRef.current);
+      visualizationRef.current.addOverlay(popupOverlay);
+      popupOverlayRef.current = popupOverlay;
+    }
+
+    return () => {
+      if (visualizationRef?.current) {
+        if (spinnerOverlayRef.current) {
+          visualizationRef.current.removeOverlay(spinnerOverlayRef.current);
+        }
+        if (popupOverlayRef.current) {
+          visualizationRef.current.removeOverlay(popupOverlayRef.current);
+        }
+      }
+    };
+  }, [visualizationRef]);
+
+  useEffect(() => {
+    if (popupRootRef.current) {
+      popupRootRef.current.render(
+        popupContent ? (
+          <OverlayContentWrapper aria-label="Map Popup" id="map-popup">
+            <StyledCloser
+              href="#"
+              id="popup-closer"
+              className="ol-popup-closer"
+              aria-label="Popup Closer"
+              onClick={(e) => {
+                e.preventDefault();
+                popupOverlayRef.current.setPosition(undefined);
+                setPopupContent(null);
+              }}
+            >
+              <FaTimes />
+            </StyledCloser>
+            <StyledContent aria-label="Map Popup Content" id="popup-content">
+              {popupContent}
+            </StyledContent>
+          </OverlayContentWrapper>
+        ) : null
+      );
+    }
+  }, [popupContent]);
 
   useEffect(() => {
     const updateLayers = async () => {
@@ -162,19 +237,17 @@ const MapVisualization = ({
         currentLayers.current = JSON.parse(JSON.stringify(layers));
         const newMapLegend = [];
         const newMapLayers = [];
+
         for (const layer of layers) {
           await loadLayerJSONs(layer);
-
-          if (layer.legend) {
-            newMapLegend.push(layer.legend);
-          }
+          if (layer.legend) newMapLegend.push(layer.legend);
           newMapLayers.push(layer.configuration);
         }
 
         if (baseMap) {
           const baseMapLayer = getBaseMapLayer(baseMap);
           if (baseMapLayer) {
-            newMapLayers.splice(0, 0, baseMapLayer);
+            newMapLayers.unshift(baseMapLayer);
           } else {
             console.error(`${baseMap} is not a valid basemap`);
           }
@@ -192,25 +265,13 @@ const MapVisualization = ({
     updateLayers();
   }, [layers, baseMap]);
 
-  const onMapClick = async (map, evt, setPopupContent, popup) => {
-    // get coordinates and add pointer marker where the click occurred
+  const onMapClick = async (map, evt) => {
     const coordinate = evt.coordinate;
     const pixel = evt.pixel;
 
-    // Create spinner element
-    const spinnerElement = document.createElement("div");
-    spinnerElement.innerHTML = `<div class="spinner-overlay">
-        <div class="spinner-border text-primary" role="status"></div>
-    </div>`;
-
-    // Create OpenLayers overlay for the spinner
-    const spinnerOverlay = new Overlay({
-      element: spinnerElement,
-      positioning: "center-center",
-    });
-
-    map.addOverlay(spinnerOverlay);
-    spinnerOverlay.setPosition(coordinate);
+    if (spinnerOverlayRef.current) {
+      spinnerOverlayRef.current.setPosition(coordinate);
+    }
 
     const newMarkerLayer = createMarkerLayer(coordinate);
     if (markerLayer.current) {
@@ -315,7 +376,9 @@ const MapVisualization = ({
     const queryLayerFeaturesResults = await Promise.all(queryCalls);
 
     // Remove spinner overlay once queries are done
-    map.removeOverlay(spinnerOverlay);
+    if (spinnerOverlayRef.current) {
+      spinnerOverlayRef.current.setPosition(null);
+    }
 
     const nonEmptyLayers = queryLayerFeaturesResults.filter(
       (arr) => arr && arr.length > 0
@@ -337,7 +400,7 @@ const MapVisualization = ({
       popupCoordinate = coordinate;
     }
     setPopupContent(PopupContent);
-    popup.setPosition(popupCoordinate);
+    popupOverlayRef.current?.setPosition(popupCoordinate);
   };
 
   return (
