@@ -109,24 +109,3 @@ export const checkRequiredKeys = (
 
   return missingKeys;
 };
-
-//  extract variableInputs from map layer attributes
-export const extractVariableInputNames = (attributes) => {
-  const result = {};
-
-  // check each layer for attributes
-  Object.keys(attributes).forEach((layerName) => {
-    const mappings = attributes[layerName].reduce((acc, item) => {
-      if (item["variableInput"]) {
-        acc[item.alias] = item["variableInput"];
-      }
-      return acc;
-    }, {});
-
-    if (Object.keys(mappings).length > 0) {
-      result[layerName] = mappings;
-    }
-  });
-
-  return result;
-};

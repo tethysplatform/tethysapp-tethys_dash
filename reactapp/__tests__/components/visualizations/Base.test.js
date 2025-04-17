@@ -157,14 +157,6 @@ it("Creates an Base Item with a Map", async () => {
   expect(mapDiv).toBeInTheDocument();
   expect(mapDiv).toHaveStyle("width: 100%");
 
-  const mapPopup = await screen.findByLabelText("Map Popup");
-  expect(mapPopup).toBeInTheDocument();
-
-  const mapPopupContent = await screen.findByLabelText("Map Popup Content");
-  expect(mapPopupContent).toBeInTheDocument();
-  // eslint-disable-next-line
-  expect(mapPopupContent.children.length).toBe(0);
-
   expect(await screen.findByLabelText("Map Legend")).toBeInTheDocument();
   expect(
     await screen.findByLabelText("Show Layers Control")

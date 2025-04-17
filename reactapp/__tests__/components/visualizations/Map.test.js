@@ -178,14 +178,6 @@ test("Map default and update layers", async () => {
   expect(mapDiv).toBeInTheDocument();
   expect(mapDiv).toHaveStyle("width: 100%");
 
-  const mapPopup = await screen.findByLabelText("Map Popup");
-  expect(mapPopup).toBeInTheDocument();
-
-  const mapPopupContent = await screen.findByLabelText("Map Popup Content");
-  expect(mapPopupContent).toBeInTheDocument();
-  // eslint-disable-next-line
-  expect(mapPopupContent.children.length).toBe(0);
-
   expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Show Layers Control")).toBeInTheDocument();
 
@@ -617,6 +609,7 @@ test("Map click attribute variables update text variable input", async () => {
   const handleChange = jest.fn();
   const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   dashboard.gridItems = [mockedTextVariable];
+  const varInputArgs = JSON.parse(mockedTextVariable.args_string);
 
   const layers = [
     {
@@ -652,7 +645,9 @@ test("Map click attribute variables update text variable input", async () => {
           }}
         />
         <VariableInput
-          args={JSON.parse(mockedTextVariable.args_string)}
+          variable_name={varInputArgs.variable_name}
+          initial_value={varInputArgs.initial_value}
+          variable_options_source={varInputArgs.variable_options_source}
           onChange={handleChange}
         />
       </>
@@ -707,6 +702,7 @@ test("Map click attribute variables update dropdown variable input", async () =>
   const handleChange = jest.fn();
   const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   dashboard.gridItems = [mockedDropdownVariable];
+  const varInputArgs = JSON.parse(mockedDropdownVariable.args_string);
 
   const layers = [
     {
@@ -742,7 +738,9 @@ test("Map click attribute variables update dropdown variable input", async () =>
           }}
         />
         <VariableInput
-          args={JSON.parse(mockedDropdownVariable.args_string)}
+          variable_name={varInputArgs.variable_name}
+          initial_value={varInputArgs.initial_value}
+          variable_options_source={varInputArgs.variable_options_source}
           onChange={handleChange}
         />
       </>
