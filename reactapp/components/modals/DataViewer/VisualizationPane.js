@@ -314,8 +314,8 @@ function VisualizationPane({
     const initialArgs = JSON.parse(argsString);
 
     const args =
-      selectedVizTypeOption.source === "Map" && "initial_view" in initialArgs
-        ? { ...vizInputsValues, initial_view: initialArgs.initial_view }
+      selectedVizTypeOption.source === "Map" && "viewConfig" in initialArgs
+        ? { ...vizInputsValues, viewConfig: initialArgs.viewConfig }
         : vizInputsValues;
 
     const itemData = {
@@ -363,10 +363,10 @@ function VisualizationPane({
       if (selectedVizTypeOption.value === "Map") {
         setVizType("map");
         setVizData({
-          viewConfig: updatedGridItemArgs.initial_view,
-          layers: updatedGridItemArgs.additional_layers,
-          baseMap: updatedGridItemArgs.base_map,
-          layerControl: updatedGridItemArgs.show_layer_controls,
+          viewConfig: updatedGridItemArgs.viewConfig,
+          layers: updatedGridItemArgs.layers,
+          baseMap: updatedGridItemArgs.baseMap,
+          layerControl: updatedGridItemArgs.layerControl,
         });
       } else {
         itemData.args = updatedGridItemArgs;

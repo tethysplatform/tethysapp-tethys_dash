@@ -86,7 +86,10 @@ export async function getVisualization({
     setVizData({
       warnings: emptyVariableWarnings,
     });
+    return;
   }
+
+  setVizType("loader");
 
   const apiResponse = await appAPI.getPlotData(itemData);
   if (apiResponse.success === true) {

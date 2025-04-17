@@ -1,5 +1,5 @@
 import { memo, useRef, useEffect, useState, useContext } from "react";
-import ReactDOM from "react-dom";
+import { createRoot } from "react-dom/client";
 import MapComponent from "components/map/Map";
 import {
   queryLayerFeatures,
@@ -170,7 +170,7 @@ const MapVisualization = ({
 
   // Mount the React popup inside the container div
   useEffect(() => {
-    popupRootRef.current = ReactDOM.createRoot(popupContainerRef.current);
+    popupRootRef.current = createRoot(popupContainerRef.current);
     const popupOverlay = new Overlay({
       element: popupContainerRef.current,
       autoPan: true,

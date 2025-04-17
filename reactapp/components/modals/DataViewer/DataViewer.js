@@ -120,7 +120,7 @@ function DataViewerModal({
           selectedVizTypeOption.source === "Map" &&
           visualizationRef.current
         ) {
-          vizInputsValues["initial_view"] = {
+          vizInputsValues.viewConfig = {
             center: visualizationRef.current.getView().getCenter(),
             zoom: visualizationRef.current.getView().getZoom(),
           };

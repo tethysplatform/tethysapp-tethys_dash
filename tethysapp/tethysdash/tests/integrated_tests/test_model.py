@@ -614,7 +614,7 @@ def test_clean_up_jsons(dashboard, mock_app_get_ps_db, mocker, tmp_path):
             "source": "Map",
             "args_string": json.dumps(
                 {
-                    "additional_layers": [
+                    "layers": [
                         {
                             "configuration": {
                                 "props": {

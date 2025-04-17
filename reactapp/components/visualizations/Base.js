@@ -41,7 +41,7 @@ const StyledH2 = styled.h2`
   height: 100%;
 `;
 
-export const Visualization = ({ vizRef, vizType, vizData }) => {
+export const Visualization = memo(({ vizRef, vizType, vizData }) => {
   switch (vizType) {
     case "loader":
       return (
@@ -136,7 +136,7 @@ export const Visualization = ({ vizRef, vizType, vizData }) => {
     default:
       return null;
   }
-};
+});
 
 const BaseVisualization = ({
   source,
@@ -228,10 +228,11 @@ const BaseVisualization = ({
       if (source === "Map") {
         setVizType("map");
         setVizData({
-          baseMap: updatedGridItemArgs.variable_name,
-          layers: updatedGridItemArgs.initial_value,
-          layerControl: updatedGridItemArgs.variable_options_source,
-          viewConfig: updatedGridItemArgs.variable_options_source,
+          baseMap: updatedGridItemArgs.baseMap,
+          layers: updatedGridItemArgs.layers,
+          layerControl: updatedGridItemArgs.layerControl,
+          viewConfig: updatedGridItemArgs.viewConfig,
+          mapConfig: updatedGridItemArgs.mapConfig,
         });
       } else if (source === "Text") {
         setVizType("text");
@@ -280,4 +281,6 @@ BaseVisualization.propTypes = {
   showFullscreen: PropTypes.bool,
   hideFullscreen: PropTypes.func,
 };
+
 export default memo(BaseVisualization);
+Visualization.displayName = "Visualization";

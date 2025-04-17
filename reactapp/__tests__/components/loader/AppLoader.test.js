@@ -129,9 +129,9 @@ test("AppLoader", async () => {
             value: "Map",
             label: "Map",
             args: {
-              base_map: baseMapLayers,
-              additional_layers: "custom-AddMapLayer",
-              show_layer_controls: "checkbox",
+              baseMap: baseMapLayers,
+              layers: "custom-AddMapLayer",
+              layerControl: "checkbox",
             },
           },
           {

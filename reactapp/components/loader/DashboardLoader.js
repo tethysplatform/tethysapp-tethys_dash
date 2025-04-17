@@ -60,16 +60,14 @@ const DashboardLoader = ({
   }, [isEditing]);
 
   function updateVariableInputValuesWithGridItems(updatedGridItems) {
-    const updatedVariableInputValues = {};
+    const updatedVariableInputValues = JSON.parse(
+      JSON.stringify(variableInputValues)
+    );
     for (let gridItem of updatedGridItems) {
       const args = JSON.parse(gridItem.args_string);
 
       if (gridItem.source === "Variable Input") {
-        if (args.variable_name in variableInputValues) {
-          // Keep current selected value for dependent visualizations
-          updatedVariableInputValues[args.variable_name] =
-            variableInputValues[args.variable_name];
-        } else {
+        if (!(args.variable_name in variableInputValues)) {
           let initialValue = args.initial_value;
           if (
             args.variable_options_source === "checkbox" &&

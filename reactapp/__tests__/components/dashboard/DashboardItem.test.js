@@ -1359,7 +1359,7 @@ test("handleGridItemExport with map and no layers", async () => {
     w: 20,
     h: 20,
     source: "Map",
-    args_string: JSON.stringify({ additional_layers: [] }),
+    args_string: JSON.stringify({ layers: [] }),
     metadata_string: JSON.stringify({
       refreshRate: 0,
     }),
@@ -1374,7 +1374,7 @@ test("handleGridItemExport with map and no layers", async () => {
     w: 20,
     h: 20,
     source: "Map",
-    args_string: { additional_layers: [] },
+    args_string: { layers: [] },
     metadata_string: {
       refreshRate: 0,
     },
@@ -1401,7 +1401,7 @@ test("handleGridItemExport with map and geojson layer", async () => {
     h: 20,
     source: "Map",
     args_string: JSON.stringify({
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -1433,7 +1433,7 @@ test("handleGridItemExport with map and geojson layer", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -1473,7 +1473,7 @@ test("handleGridItemExport bad load", async () => {
     h: 20,
     source: "Map",
     args_string: JSON.stringify({
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -1561,7 +1561,7 @@ test("handleGridItemImport with map and no layers", async () => {
     w: 20,
     h: 20,
     source: "Map",
-    args_string: { additional_layers: [] },
+    args_string: { layers: [] },
     metadata_string: {
       refreshRate: 0,
     },
@@ -1578,7 +1578,7 @@ test("handleGridItemImport with map and no layers", async () => {
       w: 20,
       h: 20,
       source: "Map",
-      args_string: JSON.stringify({ additional_layers: [] }),
+      args_string: JSON.stringify({ layers: [] }),
       metadata_string: JSON.stringify({
         refreshRate: 0,
       }),
@@ -1606,7 +1606,7 @@ test("handleGridItemImport with map geojson layer and style", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -1640,7 +1640,7 @@ test("handleGridItemImport with map geojson layer and style", async () => {
       h: 20,
       source: "Map",
       args_string: JSON.stringify({
-        additional_layers: [
+        layers: [
           {
             configuration: {
               type: "VectorLayer",
@@ -1680,7 +1680,7 @@ test("handleGridItemImport with map geojson layer and no style", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -1713,7 +1713,7 @@ test("handleGridItemImport with map geojson layer and no style", async () => {
       h: 20,
       source: "Map",
       args_string: JSON.stringify({
-        additional_layers: [
+        layers: [
           {
             configuration: {
               type: "VectorLayer",
@@ -1749,7 +1749,7 @@ test("handleGridItemImport with map arcgis layer and no style", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [layerConfigImageArcGISRest],
+      layers: [layerConfigImageArcGISRest],
     },
     metadata_string: {
       refreshRate: 0,
@@ -1768,7 +1768,7 @@ test("handleGridItemImport with map arcgis layer and no style", async () => {
       h: 20,
       source: "Map",
       args_string: JSON.stringify({
-        additional_layers: [layerConfigImageArcGISRest],
+        layers: [layerConfigImageArcGISRest],
       }),
       metadata_string: JSON.stringify({
         refreshRate: 0,
@@ -1787,7 +1787,7 @@ test("handleGridItemImport with map geojson layer missing props", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             props: {
@@ -1833,7 +1833,7 @@ test("handleGridItemImport bad geojson load", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -1881,7 +1881,7 @@ test("handleGridItemImport bad style load", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",

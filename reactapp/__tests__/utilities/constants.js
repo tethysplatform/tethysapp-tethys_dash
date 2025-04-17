@@ -167,7 +167,7 @@ export const mockedVisualizationsWithDefaults = [
         value: "Map",
         label: "Map",
         args: {
-          base_map: [
+          baseMap: [
             {
               label: "ArcGIS Map Service Base Maps",
               options: [
@@ -179,8 +179,8 @@ export const mockedVisualizationsWithDefaults = [
               ],
             },
           ],
-          additional_layers: "custom-AddMapLayer",
-          show_layer_controls: "checkbox",
+          layers: "custom-AddMapLayer",
+          layerControl: "checkbox",
         },
       },
       {
@@ -426,9 +426,9 @@ export const mockedMapBase = {
   h: 20,
   source: "Map",
   args_string: JSON.stringify({
-    base_map:
+    baseMap:
       "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
-    additional_layers: [
+    layers: [
       {
         configuration: {
           type: "ImageLayer",
@@ -456,8 +456,8 @@ export const mockedMapBase = {
         },
       },
     ],
-    show_layer_controls: true,
-    initial_view: {
+    layerControl: true,
+    viewConfig: {
       center: [-9974138.670265444, 4049495.619645755],
       zoom: 7.253038543654934,
     },

@@ -85,11 +85,8 @@ export const handleGridItemExport = async (gridItem) => {
   exportedGridItem.args_string = gridItemArgs;
 
   if (exportedGridItem.source === "Map") {
-    if (
-      "additional_layers" in gridItemArgs &&
-      gridItemArgs["additional_layers"].length > 0
-    ) {
-      for (const mapLayer of gridItemArgs["additional_layers"]) {
+    if ("layers" in gridItemArgs && gridItemArgs["layers"].length > 0) {
+      for (const mapLayer of gridItemArgs["layers"]) {
         const apiResponse = await loadLayerJSONs(mapLayer);
         if (!apiResponse.success) {
           return apiResponse;
@@ -116,12 +113,10 @@ export const handleGridItemImport = async (gridItem, csrf) => {
 
   if (importedGridItem.source === "Map") {
     if (
-      "additional_layers" in importedGridItem.args_string &&
-      importedGridItem.args_string["additional_layers"].length > 0
+      "layers" in importedGridItem.args_string &&
+      importedGridItem.args_string["layers"].length > 0
     ) {
-      for (const mapLayer of importedGridItem.args_string[
-        "additional_layers"
-      ]) {
+      for (const mapLayer of importedGridItem.args_string["layers"]) {
         if (
           !mapLayer?.configuration?.props?.source?.type ||
           !mapLayer?.configuration?.type

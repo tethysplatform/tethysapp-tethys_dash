@@ -475,11 +475,11 @@ test("Visualization Pane Use Existing Args Map", async () => {
       h: 20,
       source: "Map",
       args_string: JSON.stringify({
-        base_map:
+        baseMap:
           "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
-        additional_layers: [],
-        show_layer_controls: true,
-        initial_view: {
+        layers: [],
+        layerControl: true,
+        viewConfig: {
           center: [-13149708.122672563, 5192159.850904623],
           zoom: 6.900403428857136,
         },
@@ -518,14 +518,14 @@ test("Visualization Pane Use Existing Args Map", async () => {
   await waitFor(async () => {
     expect(mockSetVizMetadata).toHaveBeenCalledWith({
       args: {
-        additional_layers: [],
-        base_map:
+        layers: [],
+        baseMap:
           "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
-        initial_view: {
+        viewConfig: {
           center: [-13149708.122672563, 5192159.850904623],
           zoom: 6.900403428857136,
         },
-        show_layer_controls: true,
+        layerControl: true,
       },
       source: "Map",
     });
