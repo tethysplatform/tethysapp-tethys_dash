@@ -12,8 +12,10 @@ import ModuleLoader from "components/visualizations/ModuleLoader";
 import {
   getVisualization,
   updateObjectWithVariableInputs,
+  findSelectOptionByValue,
 } from "components/visualizations/utilities";
 import {
+  AppContext,
   EditingContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
@@ -147,6 +149,7 @@ const BaseVisualization = ({
 }) => {
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
+  const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemSource = useRef(0);
@@ -209,6 +212,11 @@ const BaseVisualization = ({
 
   async function setVariableDependentVisualizations({ refresh }) {
     const args = JSON.parse(argsString);
+    const sourceType = findSelectOptionByValue(
+      visualizations,
+      source,
+      "source"
+    ).type;
 
     const itemData = { source: source, args: args };
     const updatedGridItemArgs = updateObjectWithVariableInputs(
@@ -241,6 +249,7 @@ const BaseVisualization = ({
         await getVisualization({
           setVizType,
           setVizData,
+          sourceType,
           itemData,
           metadataString,
           argsString,

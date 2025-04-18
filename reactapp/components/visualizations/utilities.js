@@ -69,6 +69,7 @@ function getDependentVariableInputs(args) {
 export async function getVisualization({
   setVizType,
   setVizData,
+  sourceType,
   itemData,
   metadataString,
   argsString,
@@ -89,7 +90,9 @@ export async function getVisualization({
     return;
   }
 
-  setVizType("loader");
+  if (sourceType !== "map") {
+    setVizType("loader");
+  }
 
   const apiResponse = await appAPI.getPlotData(itemData);
   if (apiResponse.success === true) {
@@ -328,13 +331,21 @@ export function getBaseMapLayer(baseMapURL) {
   return layer_dict;
 }
 
-export function findSelectOptionByValue(data, searchValue) {
+export function findSelectOptionByValue(
+  data,
+  searchValue,
+  searchKey = "value"
+) {
   for (const element of data) {
-    if (element.value === searchValue) {
+    if (element[searchKey] === searchValue) {
       return element; // Return the matching element
     }
     if (element.options && Array.isArray(element.options)) {
-      const found = findSelectOptionByValue(element.options, searchValue); // Recursively search in options
+      const found = findSelectOptionByValue(
+        element.options,
+        searchValue,
+        searchKey
+      ); // Recursively search in options
       if (found) {
         return found; // Return the matching element from nested options
       }

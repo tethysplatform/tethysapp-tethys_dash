@@ -310,7 +310,7 @@ function VisualizationPane({
     }
   }
 
-  function previewVisualization() {
+  async function previewVisualization() {
     const initialArgs = JSON.parse(argsString);
 
     const args =
@@ -324,6 +324,7 @@ function VisualizationPane({
         Object.entries(args).map(([key, val]) => [key, val.value ?? val])
       ),
     };
+    const sourceType = selectedVizTypeOption.type;
 
     setVizMetadata(itemData);
     setGridItemMessage(
@@ -370,9 +371,10 @@ function VisualizationPane({
         });
       } else {
         itemData.args = updatedGridItemArgs;
-        getVisualization({
+        await getVisualization({
           setVizType,
           setVizData,
+          sourceType,
           itemData,
           metadataString: JSON.stringify(settingsRef.current),
           argsString: vizInputsValues,

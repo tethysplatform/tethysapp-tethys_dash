@@ -214,6 +214,7 @@ function Loader({ children }) {
             source: "Map",
             value: "Map",
             label: "Map",
+            type: "map",
             args: {
               baseMap: baseMapLayers,
               layers: "custom-AddMapLayer",
@@ -224,18 +225,21 @@ function Loader({ children }) {
             source: "Custom Image",
             value: "Custom Image",
             label: "Custom Image",
+            type: "image",
             args: { image_source: "text" },
           },
           {
             source: "Text",
             value: "Text",
             label: "Text",
+            type: "text",
             args: { text: "text" },
           },
           {
             source: "Variable Input",
             value: "Variable Input",
             label: "Variable Input",
+            type: "variableInput",
             args: {
               variable_name: "text",
               variable_options_source: [
