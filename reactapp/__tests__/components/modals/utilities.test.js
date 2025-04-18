@@ -4,7 +4,6 @@ import {
   valuesEqual,
   removeEmptyValues,
   checkRequiredKeys,
-  extractVariableInputNames,
 } from "components/modals/utilities";
 
 test("getInitialInputValue", async () => {

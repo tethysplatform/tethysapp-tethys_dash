@@ -1,5 +1,4 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { MapContext } from "components/contexts/Contexts";
 import LayersControl from "components/map/LayersControl";
 
 test("LayersControl update layers", async () => {

@@ -17,7 +17,6 @@ import {
   mockedMapBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization from "components/visualizations/Base";
-import appAPI from "services/api/app";
 import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
@@ -58,9 +57,6 @@ it("Initializes a Base Item with an empty div", async () => {
   );
 
   expect(await screen.findByTestId("Source_Unknown")).toBeInTheDocument();
-  expect(
-    await screen.findByText("Invalid Visualization Type")
-  ).toBeInTheDocument();
 });
 
 it("Initializes a Base Item with an empty div and updates it with an image", async () => {
@@ -547,6 +543,7 @@ it("Base - update variable input", async () => {
         ctx.status(200),
         ctx.json({
           success: true,
+          // eslint-disable-next-line
           data: "${Test Variable}",
           viz_type: "image",
         }),

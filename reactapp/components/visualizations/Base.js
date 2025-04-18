@@ -56,11 +56,7 @@ export const Visualization = memo(({ vizRef, vizType, vizData }) => {
         </SpinnerContainer>
       );
     case "unknown":
-      return (
-        <div data-testid="Source_Unknown">
-          <StyledH2>Invalid Visualization Type</StyledH2>
-        </div>
-      );
+      return <div data-testid="Source_Unknown" />;
     case "image":
       return (
         <Image
@@ -293,6 +289,15 @@ BaseVisualization.propTypes = {
   metadataString: PropTypes.string,
   showFullscreen: PropTypes.bool,
   hideFullscreen: PropTypes.func,
+};
+
+Visualization.propTypes = {
+  vizRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
+  vizType: PropTypes.string, // determines the type of visualization to be displayed
+  vizData: PropTypes.object, // contains information for the various visualization args
 };
 
 export default memo(BaseVisualization);

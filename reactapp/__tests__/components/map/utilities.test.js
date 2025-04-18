@@ -11,7 +11,6 @@ import {
   layerConfigGeoJSON,
   layerConfigImageArcGISRest,
   layerConfigImageWMS,
-  layerAttributeVariables,
 } from "__tests__/utilities/constants";
 
 test("createMarkerLayer", async () => {

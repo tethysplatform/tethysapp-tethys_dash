@@ -2,9 +2,7 @@ import { useState, useEffect, useContext } from "react";
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
 import styled from "styled-components";
-import Image from "components/visualizations/Image";
 import DataInput from "components/inputs/DataInput";
-import MapVisualization from "components/visualizations/Map";
 import {
   getVisualization,
   findSelectOptionByValue,
@@ -19,7 +17,6 @@ import {
   valuesEqual,
 } from "components/modals/utilities";
 import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
-import VariableInput from "components/visualizations/VariableInput";
 import TooltipButton from "components/buttons/TooltipButton";
 import { CiFilter } from "react-icons/ci";
 import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
@@ -458,6 +455,9 @@ VisualizationPane.propTypes = {
   setGridItemMessage: PropTypes.func,
   selectedVizTypeOption: PropTypes.object,
   setSelectVizTypeOption: PropTypes.func,
+  vizType: PropTypes.string,
+  setVizType: PropTypes.func,
+  setVizData: PropTypes.func,
   setVizMetadata: PropTypes.func,
   vizInputsValues: PropTypes.object,
   setVizInputsValues: PropTypes.func,

@@ -1,35 +1,5 @@
 import appAPI from "services/api/app";
-import DataTable from "components/visualizations/DataTable";
-import Image from "components/visualizations/Image";
-import styled from "styled-components";
-import Card from "components/visualizations/Card";
-import MapVisualization from "components/visualizations/Map";
-import Text from "components/visualizations/Text";
-import VariableInput from "components/visualizations/VariableInput";
-import ModuleLoader from "components/visualizations/ModuleLoader";
 import { spaceAndCapitalize } from "components/modals/utilities";
-import { Fragment } from "react";
-import Spinner from "react-bootstrap/Spinner";
-
-const StyledSpinner = styled(Spinner)`
-  margin: auto;
-  display: block;
-`;
-
-const SpinnerContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  width: 100%;
-`;
-
-const StyledH2 = styled.h2`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-`;
 
 function checkForEmptyVariableInputs({
   metadata,

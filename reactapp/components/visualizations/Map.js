@@ -194,6 +194,7 @@ const MapVisualization = ({
           visualizationRef.current.removeOverlay(spinnerOverlayRef.current);
         }
         if (popupOverlayRef.current) {
+          // eslint-disable-next-line
           visualizationRef.current.removeOverlay(popupOverlayRef.current);
         }
       }

@@ -56,6 +56,7 @@ const LayersControl = ({ updater, visualizationRef }) => {
       // Update state tracking the checkbox
       setLayerVisibility(formatVisibility(mapLayers));
     }
+    // eslint-disable-next-line
   }, [isexpanded, updater]);
 
   function formatVisibility(mapLayers) {
@@ -139,6 +140,10 @@ const LayersControl = ({ updater, visualizationRef }) => {
 
 LayersControl.propTypes = {
   updater: PropTypes.bool, // a boolean that switches when layers are updated
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default LayersControl;

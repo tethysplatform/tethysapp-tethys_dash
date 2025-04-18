@@ -1,4 +1,3 @@
-import { render, screen } from "@testing-library/react";
 import {
   getVisualization,
   getGridItem,
@@ -8,7 +7,6 @@ import {
   baseMapLayers,
   downloadJSONFile,
 } from "components/visualizations/utilities";
-import appAPI from "services/api/app";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 
