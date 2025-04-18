@@ -58,6 +58,9 @@ it("Initializes a Base Item with an empty div", async () => {
   );
 
   expect(await screen.findByTestId("Source_Unknown")).toBeInTheDocument();
+  expect(
+    await screen.findByText("Invalid Visualization Type")
+  ).toBeInTheDocument();
 });
 
 it("Initializes a Base Item with an empty div and updates it with an image", async () => {

@@ -128,8 +128,100 @@ test("AppLoader", async () => {
             source: "Map",
             value: "Map",
             label: "Map",
+            type: "map",
             args: {
-              baseMap: baseMapLayers,
+              baseMap: [
+                {
+                  label: "ArcGIS Map Service Base Maps",
+                  options: [
+                    {
+                      label: "World Light Gray Base",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+                    },
+                    {
+                      label: "World Dark Gray Base",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer",
+                    },
+                    {
+                      label: "World Topo Map",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer",
+                    },
+                    {
+                      label: "World Imagery",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer",
+                    },
+                    {
+                      label: "World Terrain Base",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/World_Terrain_Base/MapServer",
+                    },
+                    {
+                      label: "World Street Map",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/World_Street_Map/MapServer",
+                    },
+                    {
+                      label: "World Physical Map",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/World_Physical_Map/MapServer",
+                    },
+                    {
+                      label: "World Shaded Relief",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/World_Shaded_Relief/MapServer",
+                    },
+                    {
+                      label: "World Terrain Reference",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/World_Terrain_Reference/MapServer",
+                    },
+                    {
+                      label: "World Hillshade Dark",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade_Dark/MapServer",
+                    },
+                    {
+                      label: "World Hillshade",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer",
+                    },
+                    {
+                      label: "World Boundaries and Places Alternate",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Boundaries_and_Places_Alternate/MapServer",
+                    },
+                    {
+                      label: "World Boundaries and Places",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Boundaries_and_Places/MapServer",
+                    },
+                    {
+                      label: "World Reference Overlay",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Reference_Overlay/MapServer",
+                    },
+                    {
+                      label: "World Transportation",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Transportation/MapServer",
+                    },
+                    {
+                      label: "World Ocean Base ",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer",
+                    },
+                    {
+                      label: "World Ocean Reference",
+                      value:
+                        "https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Reference/MapServer",
+                    },
+                  ],
+                },
+              ],
               layers: "custom-AddMapLayer",
               layerControl: "checkbox",
             },
@@ -138,18 +230,21 @@ test("AppLoader", async () => {
             source: "Custom Image",
             value: "Custom Image",
             label: "Custom Image",
+            type: "image",
             args: { image_source: "text" },
           },
           {
             source: "Text",
             value: "Text",
             label: "Text",
+            type: "text",
             args: { text: "text" },
           },
           {
             source: "Variable Input",
             value: "Variable Input",
             label: "Variable Input",
+            type: "variableInput",
             args: {
               variable_name: "text",
               variable_options_source: [
@@ -162,7 +257,98 @@ test("AppLoader", async () => {
                     {
                       label: "Base Map Layers",
                       value: "Base Map Layers",
-                      argOptions: baseMapLayers,
+                      argOptions: [
+                        {
+                          label: "ArcGIS Map Service Base Maps",
+                          options: [
+                            {
+                              label: "World Light Gray Base",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+                            },
+                            {
+                              label: "World Dark Gray Base",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer",
+                            },
+                            {
+                              label: "World Topo Map",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer",
+                            },
+                            {
+                              label: "World Imagery",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer",
+                            },
+                            {
+                              label: "World Terrain Base",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/World_Terrain_Base/MapServer",
+                            },
+                            {
+                              label: "World Street Map",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/World_Street_Map/MapServer",
+                            },
+                            {
+                              label: "World Physical Map",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/World_Physical_Map/MapServer",
+                            },
+                            {
+                              label: "World Shaded Relief",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/World_Shaded_Relief/MapServer",
+                            },
+                            {
+                              label: "World Terrain Reference",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/World_Terrain_Reference/MapServer",
+                            },
+                            {
+                              label: "World Hillshade Dark",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade_Dark/MapServer",
+                            },
+                            {
+                              label: "World Hillshade",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/Elevation/World_Hillshade/MapServer",
+                            },
+                            {
+                              label: "World Boundaries and Places Alternate",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Boundaries_and_Places_Alternate/MapServer",
+                            },
+                            {
+                              label: "World Boundaries and Places",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Boundaries_and_Places/MapServer",
+                            },
+                            {
+                              label: "World Reference Overlay",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Reference_Overlay/MapServer",
+                            },
+                            {
+                              label: "World Transportation",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/Reference/World_Transportation/MapServer",
+                            },
+                            {
+                              label: "World Ocean Base ",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer",
+                            },
+                            {
+                              label: "World Ocean Reference",
+                              value:
+                                "https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Reference/MapServer",
+                            },
+                          ],
+                        },
+                      ],
                     },
                     {
                       label: "Other: plugin_label_checkbox - Plugin Arg",

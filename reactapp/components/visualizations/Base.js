@@ -56,7 +56,11 @@ export const Visualization = memo(({ vizRef, vizType, vizData }) => {
         </SpinnerContainer>
       );
     case "unknown":
-      return <div data-testid="Source_Unknown" />;
+      return (
+        <div data-testid="Source_Unknown">
+          <StyledH2>Invalid Visualization Type</StyledH2>
+        </div>
+      );
     case "image":
       return (
         <Image
@@ -216,7 +220,7 @@ const BaseVisualization = ({
       visualizations,
       source,
       "source"
-    ).type;
+    )?.type;
 
     const itemData = { source: source, args: args };
     const updatedGridItemArgs = updateObjectWithVariableInputs(

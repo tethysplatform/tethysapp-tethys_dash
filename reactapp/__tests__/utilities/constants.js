@@ -132,12 +132,14 @@ export const mockedVisualizationsWithDefaults = [
         source: "plugin_source",
         value: "plugin_value",
         label: "plugin_label",
+        type: "image",
         args: { plugin_arg: "text" },
       },
       {
         source: "plugin_source2",
         value: "plugin_value2",
         label: "plugin_label2",
+        type: "plotly",
         args: { plugin_arg: "text" },
       },
     ],
@@ -149,6 +151,7 @@ export const mockedVisualizationsWithDefaults = [
         source: "plugin_source3",
         value: "plugin_value3",
         label: "plugin_label3",
+        type: "plotly",
         args: { plugin_arg3: "text" },
       },
     ],
@@ -160,12 +163,14 @@ export const mockedVisualizationsWithDefaults = [
         source: "Custom Image",
         value: "Custom Image",
         label: "Custom Image",
+        type: "image",
         args: { image_source: "text" },
       },
       {
         source: "Map",
         value: "Map",
         label: "Map",
+        type: "map",
         args: {
           baseMap: [
             {
@@ -187,12 +192,14 @@ export const mockedVisualizationsWithDefaults = [
         source: "Text",
         value: "Text",
         label: "Text",
+        type: "text",
         args: { text: "text" },
       },
       {
         source: "Variable Input",
         value: "Variable Input",
         label: "Variable Input",
+        type: "variableInput",
         args: {
           variable_name: "text",
           variable_options_source: [
@@ -288,9 +295,9 @@ export const mockedApiImageBase = {
   y: 0,
   w: 20,
   h: 20,
-  source: "cnrfc_5day_streamflow_volume_exceedance",
+  source: "plugin_source",
   args_string: JSON.stringify({
-    gauge_location: "CREC1",
+    plugin_arg: "CREC1",
   }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
@@ -303,8 +310,10 @@ export const mockedPlotBase = {
   y: 0,
   w: 20,
   h: 20,
-  source: "plot_api",
-  args_string: "{}",
+  source: "plugin_source",
+  args_string: JSON.stringify({
+    plugin_arg: "CREC1",
+  }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
   }),
@@ -353,8 +362,10 @@ export const mockedTableBase = {
   y: 0,
   w: 20,
   h: 20,
-  source: "table_api",
-  args_string: "{}",
+  source: "plugin_source",
+  args_string: JSON.stringify({
+    plugin_arg: "CREC1",
+  }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
   }),
@@ -387,8 +398,10 @@ export const mockedCardBase = {
   y: 0,
   w: 20,
   h: 20,
-  source: "card_api",
-  args_string: "{}",
+  source: "plugin_source",
+  args_string: JSON.stringify({
+    plugin_arg: "CREC1",
+  }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
   }),
