@@ -94,14 +94,6 @@ test("Default Map", async () => {
     })
   );
 
-  const mapPopup = await screen.findByLabelText("Map Popup");
-  expect(mapPopup).toBeInTheDocument();
-
-  const mapPopupContent = await screen.findByLabelText("Map Popup Content");
-  expect(mapPopupContent).toBeInTheDocument();
-  // eslint-disable-next-line
-  expect(mapPopupContent.children.length).toBe(0);
-
   expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
   expect(
     screen.queryByLabelText("Show Layers Control")
@@ -254,9 +246,7 @@ test("Bad Map Layers", async () => {
     },
   ];
 
-  const mockMapClick = jest.fn((map, evt, setPopupContent, popup) => {
-    setPopupContent("The map was clicked");
-  });
+  const mockMapClick = jest.fn();
   rerender(
     <TestingComponent
       expectedLayerCount={1}
@@ -281,11 +271,6 @@ test("Bad Map Layers", async () => {
   await waitFor(() => {
     expect(mockMapClick).toHaveBeenCalled();
   });
-  expect(await screen.findByText("The map was clicked")).toBeInTheDocument();
-
-  const popupCloser = await screen.findByLabelText("Popup Closer");
-  fireEvent.click(popupCloser);
-  expect(screen.queryByText("The map was clicked")).not.toBeInTheDocument();
 
   updatedLayers = [
     {

@@ -23,6 +23,8 @@ import createLoadedComponent, {
 } from "__tests__/utilities/customRender";
 import { Map } from "ol";
 import * as utilities from "components/visualizations/utilities";
+import { server } from "__tests__/utilities/server";
+import { rest } from "msw";
 
 const { ResizeObserver } = window;
 
@@ -59,19 +61,20 @@ it("Initializes a Base Item with an empty div", async () => {
 });
 
 it("Initializes a Base Item with an empty div and updates it with an image", async () => {
-  appAPI.getPlotData = () => {
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            success: true,
-            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-            viz_type: "image",
-          }),
-        50
-      )
-    );
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+          viz_type: "image",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -209,20 +212,20 @@ it("Creates an Base Item with a variable input text box", async () => {
 it("Creates an Base Item with an image obtained from the api, 1 min refresh rate", async () => {
   jest.useFakeTimers();
   jest.spyOn(utilities, "getVisualization");
-
-  appAPI.getPlotData = () => {
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            success: true,
-            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-            viz_type: "image",
-          }),
-        500
-      )
-    );
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+          viz_type: "image",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
   apiImageBase.metadata_string = JSON.stringify({
@@ -271,20 +274,19 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
 
 it("Creates an Base Item with an image obtained from the api, no refresh when editing", async () => {
   jest.useFakeTimers();
-
-  appAPI.getPlotData = () => {
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            success: true,
-            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-            viz_type: "image",
-          }),
-        500
-      )
-    );
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+          viz_type: "image",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
   apiImageBase.metadata_string = JSON.stringify({
@@ -305,13 +307,6 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
       options: { inEditing: true },
     })
   );
-
-  const spinner = await screen.findByTestId("Loading...");
-  expect(spinner).toBeInTheDocument();
-
-  act(() => {
-    jest.runOnlyPendingTimers();
-  });
 
   const image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
@@ -334,19 +329,20 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
 });
 
 it("Creates an Base Item with a plot obtained from the api", async () => {
-  appAPI.getPlotData = () => {
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            success: true,
-            data: mockedPlotData,
-            viz_type: "plotly",
-          }),
-        50
-      )
-    );
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: mockedPlotData,
+          viz_type: "plotly",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -370,19 +366,20 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
 });
 
 it("Creates an Base Item with a table obtained from the api", async () => {
-  appAPI.getPlotData = () => {
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            success: true,
-            data: mockedTableData,
-            viz_type: "table",
-          }),
-        50
-      )
-    );
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: mockedTableData,
+          viz_type: "table",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -406,19 +403,20 @@ it("Creates an Base Item with a table obtained from the api", async () => {
 });
 
 it("Creates an Base Item with a card obtained from the api", async () => {
-  appAPI.getPlotData = () => {
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            success: true,
-            data: mockedCardData,
-            viz_type: "card",
-          }),
-        50
-      )
-    );
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: mockedCardData,
+          viz_type: "card",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -442,19 +440,20 @@ it("Creates an Base Item with a card obtained from the api", async () => {
 });
 
 it("Gives the user an error message if an unknown viz type is obtained from the api", async () => {
-  appAPI.getPlotData = () => {
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            success: true,
-            data: {},
-            viz_type: "random_viz_type",
-          }),
-        50
-      )
-    );
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: {},
+          viz_type: "random_viz_type",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -480,19 +479,19 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
 });
 
 it("Gives the user an error message if the api couldn't retrieve data", async () => {
-  appAPI.getPlotData = () => {
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            success: false,
-            data: {},
-            viz_type: "",
-          }),
-        50
-      )
-    );
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: false,
+          data: {},
+          viz_type: "",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -538,19 +537,20 @@ it("Base - update variable input", async () => {
   };
   const dashboards = { user: [mockedDashboard], public: [] };
 
-  appAPI.getPlotData = (props) => {
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            success: true,
-            data: props.args.url,
-            viz_type: "image",
-          }),
-        50
-      )
-    );
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: "${Test Variable}",
+          viz_type: "image",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -592,6 +592,9 @@ it("Base - update variable input", async () => {
   const refreshButton = screen.getByRole("button");
   expect(refreshButton).toBeInTheDocument();
   await user.click(refreshButton);
+
+  const spinner = await screen.findByTestId("Loading...");
+  expect(spinner).toBeInTheDocument();
 
   image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
