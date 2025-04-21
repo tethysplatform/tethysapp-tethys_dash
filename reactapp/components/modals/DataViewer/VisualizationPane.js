@@ -301,8 +301,6 @@ function VisualizationPane({
         )
       ) {
         previewVisualization();
-      } else if (vizType !== "loader") {
-        setVizType("loader");
       }
     }
   }

@@ -11,6 +11,7 @@ import {
   mockedTableBase,
   mockedTableData,
   mockedTextBase,
+  mockedCustomData,
   mockedTextVariable,
   mockedUnknownBase,
   mockedDashboards,
@@ -24,6 +25,12 @@ import { Map } from "ol";
 import * as utilities from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
+
+jest.mock("components/visualizations/ModuleLoader", () => {
+  const MockModuleLoader = () => <div>ModuleLoader Mock</div>;
+  MockModuleLoader.displayName = "ModuleLoader"; // Set the display name to resolve the linting warning
+  return MockModuleLoader;
+});
 
 const { ResizeObserver } = window;
 
@@ -362,6 +369,43 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
 
   const plot = await screen.findByText("bar chart example");
   expect(plot).toBeInTheDocument();
+});
+
+it("Creates an Base Item with a custom module obtained from the api", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: mockedCustomData,
+          viz_type: "custom",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedTableBase.source}
+          argsString={mockedTableBase.args_string}
+          metadataString={mockedTableBase.metadata_string}
+          showFullscreen={false}
+          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
+
+  const spinner = await screen.findByTestId("Loading...");
+  expect(spinner).toBeInTheDocument();
+
+  const customModule = await screen.findByText("ModuleLoader Mock");
+  expect(customModule).toBeInTheDocument();
 });
 
 it("Creates an Base Item with a table obtained from the api", async () => {

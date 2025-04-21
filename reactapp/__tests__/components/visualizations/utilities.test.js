@@ -16,12 +16,6 @@ jest.mock("components/visualizations/Map", () => {
   return MockMapVisualization;
 });
 
-jest.mock("components/visualizations/ModuleLoader", () => {
-  const MockModuleLoader = () => <div>ModuleLoader Mock</div>;
-  MockModuleLoader.displayName = "ModuleLoader"; // Set the display name to resolve the linting warning
-  return MockModuleLoader;
-});
-
 test("getVisualization bad response", async () => {
   server.use(
     rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
@@ -41,6 +35,7 @@ test("getVisualization bad response", async () => {
   await getVisualization({
     setVizType: mockSetVizType,
     setVizData: mockSetVizData,
+    sourceType: "",
     itemData: {},
     visualizationRef,
     metadataString: "{}",
@@ -74,6 +69,7 @@ test("getVisualization bad response with custom messaging", async () => {
   await getVisualization({
     setVizType: mockSetVizType,
     setVizData: mockSetVizData,
+    sourceType: "",
     itemData: {},
     visualizationRef,
     metadataString: JSON.stringify({
@@ -113,6 +109,7 @@ test("getVisualization bad type", async () => {
   await getVisualization({
     setVizType: mockSetVizType,
     setVizData: mockSetVizData,
+    sourceType: "sdfsd",
     itemData: {},
     visualizationRef,
     metadataString: "{}",
@@ -149,6 +146,7 @@ test("getVisualization plotly", async () => {
   await getVisualization({
     setVizType: mockSetVizType,
     setVizData: mockSetVizData,
+    sourceType: "plotly",
     itemData: {},
     visualizationRef,
     metadataString: "{}",
@@ -186,6 +184,7 @@ test("getVisualization image", async () => {
   await getVisualization({
     setVizType: mockSetVizType,
     setVizData: mockSetVizData,
+    sourceType: "image",
     itemData: { source: "some_source" },
     visualizationRef,
     metadataString: "{}",
@@ -223,6 +222,7 @@ test("getVisualization, empty variable and no custom messaging", async () => {
   await getVisualization({
     setVizType: mockSetVizType,
     setVizData: mockSetVizData,
+    sourceType: "image",
     itemData: { source: "some_source" },
     visualizationRef,
     metadataString: JSON.stringify({}),
@@ -258,6 +258,7 @@ test("getVisualization, empty variable and custom messaging", async () => {
   await getVisualization({
     setVizType: mockSetVizType,
     setVizData: mockSetVizData,
+    sourceType: "image",
     itemData: { source: "some_source" },
     visualizationRef,
     metadataString: JSON.stringify({
@@ -298,6 +299,7 @@ test("getVisualization table", async () => {
   await getVisualization({
     setVizType: mockSetVizType,
     setVizData: mockSetVizData,
+    sourceType: "table",
     itemData: {},
     visualizationRef,
     metadataString: "{}",
@@ -339,6 +341,7 @@ test("getVisualization card", async () => {
   await getVisualization({
     setVizType: mockSetVizType,
     setVizData: mockSetVizData,
+    sourceType: "card",
     itemData: {},
     visualizationRef,
     metadataString: "{}",
@@ -382,6 +385,7 @@ test("getVisualization map", async () => {
   await getVisualization({
     setVizType: mockSetVizType,
     setVizData: mockSetVizData,
+    sourceType: "map",
     itemData: {},
     visualizationRef,
     metadataString: "{}",
@@ -389,8 +393,7 @@ test("getVisualization map", async () => {
     variableInputValues: [],
   });
 
-  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
-  expect(mockSetVizType.mock.calls[1][0]).toBe("map");
+  expect(mockSetVizType.mock.calls[0][0]).toBe("map");
   expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
     baseMap: undefined,
     layerControl: undefined,
@@ -427,6 +430,7 @@ test("getVisualization custom", async () => {
   await getVisualization({
     setVizType: mockSetVizType,
     setVizData: mockSetVizData,
+    sourceType: "custom",
     itemData: {},
     visualizationRef,
     metadataString: "{}",
@@ -441,6 +445,84 @@ test("getVisualization custom", async () => {
     scope: "scope",
     module: "module",
     props: {},
+  });
+});
+
+test("getVisualization text", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: { text: "some text" },
+          viz_type: "text",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "text",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("text");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    text: "some text",
+  });
+});
+
+test("getVisualization variable input", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: {
+            variable_name: "some variable_name",
+            initial_value: "some initial_value",
+            variable_options_source: "some variable_options_source",
+          },
+          viz_type: "variable_input",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "variableInput",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("variableInput");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    variable_name: "some variable_name",
+    initial_value: "some initial_value",
+    variable_options_source: "some variable_options_source",
   });
 });
 

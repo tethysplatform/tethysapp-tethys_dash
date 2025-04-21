@@ -65,6 +65,9 @@ test("valuesEqual", async () => {
 
   equal = valuesEqual(null, null);
   expect(equal).toBe(true);
+
+  equal = valuesEqual({}, {});
+  expect(equal).toBe(true);
 });
 
 test("removeEmptyStringsFromObject", async () => {

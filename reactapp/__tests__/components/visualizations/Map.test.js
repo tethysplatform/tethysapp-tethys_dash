@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import MapVisualization from "components/visualizations/Map";
 import createLoadedComponent, {
   InputVariablePComponent,
@@ -534,6 +534,10 @@ test("Map click no attributes found", async () => {
   );
   expect(popSetPosition).toHaveBeenLastCalledWith(clickCoordinates);
   expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+
+  const popupCloser = await screen.findByLabelText("Popup Closer");
+  fireEvent.click(popupCloser);
+  expect(screen.queryByText("No Attributes Found")).not.toBeInTheDocument();
 });
 
 test("Map click all attributes omitted", async () => {

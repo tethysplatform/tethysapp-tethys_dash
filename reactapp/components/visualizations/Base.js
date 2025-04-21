@@ -45,16 +45,6 @@ const StyledH2 = styled.h2`
 
 export const Visualization = memo(({ vizRef, vizType, vizData }) => {
   switch (vizType) {
-    case "loader":
-      return (
-        <SpinnerContainer>
-          <StyledSpinner
-            data-testid="Loading..."
-            animation="border"
-            variant="info"
-          />
-        </SpinnerContainer>
-      );
     case "unknown":
       return <div data-testid="Source_Unknown" />;
     case "image":
@@ -136,7 +126,15 @@ export const Visualization = memo(({ vizRef, vizType, vizData }) => {
     case "vizError":
       return <StyledH2>{vizData.error}</StyledH2>;
     default:
-      return null;
+      return (
+        <SpinnerContainer>
+          <StyledSpinner
+            data-testid="Loading..."
+            animation="border"
+            variant="info"
+          />
+        </SpinnerContainer>
+      );
   }
 });
 
