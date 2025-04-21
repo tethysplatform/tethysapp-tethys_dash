@@ -243,7 +243,7 @@ test("AppLoader, public session and continue", async () => {
   const continueButton = screen.getAllByRole("button")[1];
   await userEvent.click(continueButton);
 
-  expect(window.location.assign).toHaveBeenCalledTimes(0);
+  expect(window.location.assign).toHaveBeenCalledTimes(2);
 
   expect(await screen.findByTestId("tethysApp")).toHaveTextContent(
     JSON.stringify({

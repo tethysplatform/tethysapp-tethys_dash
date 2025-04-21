@@ -20,7 +20,7 @@ import NotFound from "components/error/NotFound";
 import DashboardView from "views/Dashboard";
 import LandingPage from "views/LandingPage";
 import AppTourContextProvider from "components/contexts/AppTourContext";
-import { Confirmation } from "components/inputs/DeleteConfirmation";
+import { Confirmation } from "components/inputs/Confirmation";
 import { getTethysPortalHost } from "services/utilities";
 import {
   handleGridItemExport,
@@ -29,8 +29,8 @@ import {
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
-const SESSION_SECURITY_WARN_AFTER = process.env.REACT_SESSION_SECURITY_WARN_AFTER
-const SESSION_SECURITY_EXPIRE_AFTER = process.env.REACT_SESSION_SECURITY_EXPIRE_AFTER
+const SESSION_SECURITY_WARN_AFTER = process.env.REACT_SESSION_SECURITY_WARN_AFTER;
+const SESSION_SECURITY_EXPIRE_AFTER = process.env.REACT_SESSION_SECURITY_EXPIRE_AFTER;
 
 function setupRoutes(dashboards) {
   const PATH_HOME = "/";

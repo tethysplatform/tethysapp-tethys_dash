@@ -8,6 +8,7 @@ import { server } from "./utilities/server.js";
 
 // Mock `window.location` with Jest spies and extend expect
 import "jest-location-mock";
+import { createMocks } from "react-idle-timer";
 
 // Make .env files accessible to tests (path relative to project root)
 require("dotenv").config({ path: "./reactapp/__tests__/test.env" });
@@ -29,6 +30,7 @@ beforeAll(() => {
       originalError(...args);
     }
   };
+  createMocks();
 });
 // if you need to add a handler after calling setupServer for some specific test
 // this will remove that handler for the rest of them
@@ -44,6 +46,7 @@ afterEach(() => {
 afterAll(() => {
   server.close();
   console.error = originalError;
+  cleanup();
 });
 
 // Mocks for tests involving plotly

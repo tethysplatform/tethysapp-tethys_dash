@@ -48,7 +48,7 @@ test("landing page app info modal and close", async () => {
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /Welcome to TethysDash, a customizable data viewer and dashboard application. The landing page provides a summary of all available dashboards for the user, including publicly available dashboards. For more information about the application and developing visualizations, check the official/i
+      /Welcome to TethysDash, a customizable data viewer and dashboard application. The landing page provides a summary of all available dashboards, including publicly available dashboards. For more information about the application and developing visualizations, check the official/i
     )
   ).toBeInTheDocument();
 

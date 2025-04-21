@@ -561,7 +561,7 @@ test("AttributesPane bad GeoJSON", async () => {
 
   expect(
     await screen.findByText(
-      "Expected property name or '}' in JSON at position 1"
+      "Expected property name or '}' in JSON at position 1 (line 1 column 2)"
     )
   ).toBeInTheDocument();
 });
