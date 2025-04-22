@@ -246,10 +246,11 @@ test("AppLoader, public session and continue", async () => {
     )
   ).toBeInTheDocument();
 
-  const continueButton = screen.getAllByRole("button")[1];
+  const continueButton = screen.getByRole("button", { name: "Proceed Without Signing in" });
   await userEvent.click(continueButton);
 
-  expect(window.location.assign).toHaveBeenCalledTimes(2);
+  // This component should only redirect when the user clicks the "Sign In" button
+  expect(window.location.assign).toHaveBeenCalledTimes(0);
 
   expect(await screen.findByTestId("tethysApp")).toHaveTextContent(
     JSON.stringify({
@@ -359,7 +360,7 @@ test("AppLoader, public session and sign in", async () => {
   expect(dontShowOnStartupInput).toBeChecked();
   expect(localStorage.getItem("dontShowPublicLoginOnStart")).toEqual("true");
 
-  const signInButton = screen.getAllByRole("button")[0];
+  const signInButton = screen.getByRole("button", { name: "Sign in" });
   await userEvent.click(signInButton);
 
   expect(window.location.assign).toHaveBeenCalledWith(
