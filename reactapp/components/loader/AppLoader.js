@@ -32,6 +32,9 @@ const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
 const SESSION_SECURITY_WARN_AFTER = process.env.REACT_SESSION_SECURITY_WARN_AFTER;
 const SESSION_SECURITY_EXPIRE_AFTER = process.env.REACT_SESSION_SECURITY_EXPIRE_AFTER;
 
+// This controls how often the API is called for activity
+const SESSION_PING_FREQUENCY = process.env.REACT_SESSION_PING_FREQUENCY;
+
 function setupRoutes(dashboards) {
   const PATH_HOME = "/";
   const baseRoutes = [
@@ -128,7 +131,7 @@ function Loader({ children }) {
     onIdle,
     onPrompt,
     timeout: 1000 * SESSION_SECURITY_EXPIRE_AFTER,
-    throttle: 1000 * 0.5, // Half a second
+    throttle: 1000 * SESSION_PING_FREQUENCY, // This controls how often the API is called for activity
     promptBeforeIdle: 1000 * SESSION_SECURITY_WARN_AFTER,
   });
 
