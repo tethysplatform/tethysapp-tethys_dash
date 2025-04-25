@@ -19,7 +19,7 @@ import {
 import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
 import { CiFilter } from "react-icons/ci";
-import SelectedVisualizationTypesModal from "components/modals/SelectedVisualizationTypes";
+import VisualizationSelector from "components/modals/DataViewer/VisualizationSelector";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import "components/modals/wideModal.css";
 
@@ -431,7 +431,7 @@ function VisualizationPane({
         gridItemIndex={gridItemIndex}
       />
       {showVisualizationTypeSettingsModal && (
-        <SelectedVisualizationTypesModal
+        <VisualizationSelector
           showModal={showVisualizationTypeSettingsModal}
           handleModalClose={() => {
             setShowVisualizationTypeSettingsModal(false);
