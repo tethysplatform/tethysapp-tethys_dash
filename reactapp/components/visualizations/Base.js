@@ -100,6 +100,7 @@ export const Visualization = memo(({ vizRef, vizType, vizData }) => {
         <DataTable
           data={vizData.data}
           title={vizData.title}
+          subtitle={vizData.subtitle}
           visualizationRef={vizRef}
         />
       );

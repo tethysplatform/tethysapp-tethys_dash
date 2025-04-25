@@ -9,7 +9,7 @@ const StyledDiv = styled.div`
   text-align: center;
 `;
 
-const DataTable = ({ data, title, visualizationRef }) => {
+const DataTable = ({ data, title, subtitle, visualizationRef }) => {
   if (data.length === 0) {
     return (
       <StyledDiv>
@@ -48,6 +48,7 @@ const DataTable = ({ data, title, visualizationRef }) => {
   return (
     <StyledDiv>
       <h2>{title}</h2>
+      {subtitle && <h4>{subtitle}</h4>}
       <Table striped bordered hover ref={visualizationRef}>
         <TableHead />
         <TableBody />

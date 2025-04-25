@@ -101,6 +101,7 @@ export async function getVisualization({
       setVizData({
         data: responseData.data,
         title: responseData.title,
+        subtitle: responseData.subtitle,
       });
     } else if (apiResponse.viz_type === "image") {
       setVizType("image");
