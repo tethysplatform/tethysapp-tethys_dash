@@ -4,6 +4,7 @@ import Card from "react-bootstrap/Card";
 import styled from "styled-components";
 import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";
+import { spaceAndCapitalize } from "components/modals/utilities";
 
 const CustomCard = styled(Card)`
   -webkit-user-select: none;
@@ -54,7 +55,15 @@ const CardTitle = styled.p`
   width: 100%;
 `;
 
-const VisualizationCard = ({ source, value, label, args, type }) => {
+const VisualizationCard = ({
+  source,
+  value,
+  label,
+  args,
+  type,
+  description,
+  tags,
+}) => {
   const cardRef = useRef();
   const [showPopover, setShowPopover] = useState(false);
 
@@ -91,7 +100,26 @@ const VisualizationCard = ({ source, value, label, args, type }) => {
         onHide={() => setShowPopover(false)}
       >
         <Popover className="color-picker-popover">
-          <Popover.Body>Hello World</Popover.Body>
+          <Popover.Body>
+            <h4>{label}</h4>
+            <p>
+              <b>Description</b>: {description}
+            </p>
+            <p>
+              <b>Tags</b>: {tags.join(", ")}
+            </p>
+            <p>
+              <b>Parameters</b>:{" "}
+              <ul>
+                {Object.keys(args).map((arg, index) => (
+                  <li key={index}>{spaceAndCapitalize(arg)}</li>
+                ))}
+              </ul>
+            </p>
+            <p>
+              <b>Type</b>: {type}
+            </p>
+          </Popover.Body>
         </Popover>
       </Overlay>
     </>
