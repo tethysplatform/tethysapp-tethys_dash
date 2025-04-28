@@ -51,6 +51,11 @@
   margin-right: auto;
 }
 
+.seventyWideModalDialog {
+  max-width: 70% !important;
+  width: 70% !important;
+}
+
 .mapLayerContent {
   height: 85vh;
 }

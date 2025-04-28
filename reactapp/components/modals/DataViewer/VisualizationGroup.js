@@ -1,13 +1,11 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import styled from "styled-components";
+import Row from "react-bootstrap/Row";
 
 const Section = styled.div`
-  border: 1px solid #ccc;
-  border-radius: 12px;
-  padding: 16px;
+  padding-left: 16px;
+  padding-right: 16px;
   margin: 10px 0;
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 `;
 
 const Header = styled.div`
@@ -25,11 +23,21 @@ const Title = styled.h2`
 const Arrow = styled.div`
   font-size: 20px;
   transition: transform 0.2s ease;
-  transform: ${({ isOpen }) => (isOpen ? "rotate(180deg)" : "rotate(0deg)")};
+  transform: ${({ isOpen }) => (isOpen ? "rotate(0deg)" : "rotate(-90deg)")};
 `;
 
 const Body = styled.div`
   margin-top: 12px;
+`;
+
+const FlexDiv = styled.div`
+  display: flex;
+`;
+
+const FlexTitle = styled.div`
+  flex-grow: 1;
+  margin: auto;
+  margin-left: 0.5rem;
 `;
 
 export default function VisualizationGroup({ title, children }) {
@@ -38,10 +46,18 @@ export default function VisualizationGroup({ title, children }) {
   return (
     <Section>
       <Header onClick={() => setIsOpen(!isOpen)}>
-        <Title>{title}</Title>
-        <Arrow isOpen={isOpen}>&#9660;</Arrow>
+        <FlexDiv>
+          <Arrow isOpen={isOpen}>&#9660;</Arrow>
+          <FlexTitle>
+            <Title>{title}</Title>
+          </FlexTitle>
+        </FlexDiv>
       </Header>
-      {isOpen && <Body>{children}</Body>}
+      {isOpen && (
+        <Body>
+          <Row>{children}</Row>
+        </Body>
+      )}
     </Section>
   );
 }

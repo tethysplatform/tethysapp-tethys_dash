@@ -1,7 +1,15 @@
 import Form from "react-bootstrap/Form";
 import PropTypes from "prop-types";
 
-const NormalInput = ({ label, onChange, value, type, ariaLabel, divProps }) => {
+const NormalInput = ({
+  label,
+  onChange,
+  value,
+  type,
+  ariaLabel,
+  placeholder,
+  divProps,
+}) => {
   return (
     <div {...divProps}>
       {label && (
@@ -19,6 +27,7 @@ const NormalInput = ({ label, onChange, value, type, ariaLabel, divProps }) => {
           }
         }}
         value={value}
+        placeholder={placeholder}
       />
     </div>
   );

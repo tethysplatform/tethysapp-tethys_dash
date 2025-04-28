@@ -1,35 +1,26 @@
 import PropTypes from "prop-types";
-import { memo } from "react";
+import { memo, useRef, useState } from "react";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
+import Overlay from "react-bootstrap/Overlay";
+import Popover from "react-bootstrap/Popover";
 
-const CustomCard = styled(Card).withConfig({
-  shouldForwardProp: (prop) => prop !== "newCard", // Prevent `newCard` from being passed to the DOM
-})`
+const CustomCard = styled(Card)`
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
-  width: 20rem;
-  height: 15rem;
+  width: 12rem;
+  height: 12rem;
+  margin-left: 0.5rem;
+  margin-bottom: 0.5rem;
   display: flex;
-  margin-bottom: 1.5rem;
   background-color: rgb(238, 238, 238);
-  border: ${(props) => props?.newCard && "#dcdcdc dashed 1px"};
 `;
 
 const CardBody = styled(Card.Body)`
   position: relative; /* Ensure content is layered properly */
   overflow-y: auto;
-
-  &:hover {
-    background-color: rgba(
-      169,
-      169,
-      169,
-      0.5
-    ); /* Light gray background on hover */
-  }
 `;
 
 const CardImage = styled(Card.Img)`
@@ -37,18 +28,15 @@ const CardImage = styled(Card.Img)`
   opacity: 1; /* Default visibility */
   width: 100%;
   height: 100%;
-
-  ${CardBody}:hover & {
-    opacity: 0.5; /* Dim the image on hover */
-  }
 `;
 
 const CardHeader = styled(Card.Header)`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  min-height: 3rem;
-  max-height: 4.5rem;
+  max-height: 4rem;
+  padding: 0;
+  background-color: transparent;
 `;
 
 const CardTitleDiv = styled.div`
@@ -56,23 +44,29 @@ const CardTitleDiv = styled.div`
   overflow-y: auto;
   margin: 0.1rem;
   display: flex;
-  align-items: center;
   width: 100%;
   position: relative;
   text-align: center;
 `;
 
-const CardTitle = styled.h5`
+const CardTitle = styled.p`
   margin: 0;
   width: 100%;
 `;
 
 const VisualizationCard = ({ source, value, label, args, type }) => {
+  const cardRef = useRef();
+  const [showPopover, setShowPopover] = useState(false);
+
   return (
     <>
       <CustomCard
         className={"visualizationCard"}
         aria-label="Visualization Card"
+        ref={cardRef}
+        onMouseEnter={() => setShowPopover(true)}
+        onMouseLeave={() => setShowPopover(false)}
+        style={{ cursor: "pointer" }}
       >
         <CardHeader>
           <CardTitleDiv className="card-header-title">
@@ -89,6 +83,17 @@ const VisualizationCard = ({ source, value, label, args, type }) => {
           />
         </CardBody>
       </CustomCard>
+      <Overlay
+        target={cardRef.current}
+        show={showPopover}
+        placement="left"
+        rootClose={true}
+        onHide={() => setShowPopover(false)}
+      >
+        <Popover className="color-picker-popover">
+          <Popover.Body>Hello World</Popover.Body>
+        </Popover>
+      </Overlay>
     </>
   );
 };
