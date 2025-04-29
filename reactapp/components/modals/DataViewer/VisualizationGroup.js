@@ -40,20 +40,35 @@ const FlexTitle = styled.div`
   margin-left: 0.5rem;
 `;
 
-export default function VisualizationGroup({ title, children }) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function VisualizationGroup({
+  title,
+  children,
+  sectionsOpened,
+  setSectionsOpened,
+}) {
+  const handleOpenAndClose = () => {
+    setSectionsOpened((previousSectionsOpened) => {
+      const isOpen = previousSectionsOpened.includes(title);
+
+      if (isOpen) {
+        return previousSectionsOpened.filter((t) => t !== title);
+      } else {
+        return [...previousSectionsOpened, title];
+      }
+    });
+  };
 
   return (
     <Section>
-      <Header onClick={() => setIsOpen(!isOpen)}>
+      <Header onClick={handleOpenAndClose}>
         <FlexDiv>
-          <Arrow isOpen={isOpen}>&#9660;</Arrow>
+          <Arrow isOpen={sectionsOpened.includes(title)}>&#9660;</Arrow>
           <FlexTitle>
             <Title>{title}</Title>
           </FlexTitle>
         </FlexDiv>
       </Header>
-      {isOpen && (
+      {sectionsOpened.includes(title) && (
         <Body>
           <Row>{children}</Row>
         </Body>
