@@ -114,7 +114,7 @@ const VisualizationCard = ({
                 <b>Type</b>: {type}
               </InfoItem>
               <InfoItem>
-                <b>Tags</b>: {tags.join(", ")}
+                <b>Tags</b>: {tags && tags.join(", ")}
               </InfoItem>
               <InfoItem>
                 <b>Parameters</b>: <NestedList data={args} />

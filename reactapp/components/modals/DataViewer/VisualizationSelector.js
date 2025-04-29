@@ -40,6 +40,29 @@ function VisualizationSelector({ showModal, handleModalClose }) {
   const onSearch = (e) => {
     setSearch(e.target.value);
     console.log(visualizationItems);
+    const lowerQuery = e.target.value.toLowerCase();
+    setVisualizationItems(
+      visualizations
+        .map((group) => {
+          const filteredOptions = group.options.filter((option) => {
+            const labelMatch = option.label.toLowerCase().includes(lowerQuery);
+            const tagMatch = (option.tags || []).some((tag) =>
+              tag.toLowerCase().includes(lowerQuery)
+            );
+            return labelMatch || tagMatch;
+          });
+
+          if (filteredOptions.length > 0) {
+            return {
+              label: group.label,
+              options: filteredOptions,
+            };
+          }
+
+          return null;
+        })
+        .filter((group) => group !== null)
+    );
   };
 
   return (
