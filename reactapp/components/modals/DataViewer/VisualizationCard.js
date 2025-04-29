@@ -55,6 +55,10 @@ const CardTitle = styled.p`
   width: 100%;
 `;
 
+const InfoItem = styled.div`
+  margin-bottom: 0.5rem;
+`;
+
 const VisualizationCard = ({
   source,
   value,
@@ -101,19 +105,21 @@ const VisualizationCard = ({
       >
         <Popover className="color-picker-popover">
           <Popover.Body>
-            <h4>{label}</h4>
-            <p>
-              <b>Description</b>: {description}
-            </p>
-            <p>
-              <b>Tags</b>: {tags.join(", ")}
-            </p>
-            <p>
-              <b>Parameters</b>: <NestedList data={args} />
-            </p>
-            <p>
-              <b>Type</b>: {type}
-            </p>
+            <div>
+              <h4>{label}</h4>
+              <InfoItem>
+                <b>Description</b>: {description}
+              </InfoItem>
+              <InfoItem>
+                <b>Type</b>: {type}
+              </InfoItem>
+              <InfoItem>
+                <b>Tags</b>: {tags.join(", ")}
+              </InfoItem>
+              <InfoItem>
+                <b>Parameters</b>: <NestedList data={args} />
+              </InfoItem>
+            </div>
           </Popover.Body>
         </Popover>
       </Overlay>
@@ -124,7 +130,7 @@ const VisualizationCard = ({
 const NestedList = ({ data }) => {
   const renderList = (item) => {
     if (typeof item === "string" || typeof item === "number") {
-      return <li key={item}>{item}</li>;
+      return <li key={item}>{spaceAndCapitalize(item)}</li>;
     }
 
     if (Array.isArray(item)) {
@@ -157,7 +163,7 @@ const NestedList = ({ data }) => {
     <ul>
       {Object.entries(data).map(([key, value]) => (
         <li key={key}>
-          {key}
+          {spaceAndCapitalize(key)}
           {renderList(value)}
         </li>
       ))}

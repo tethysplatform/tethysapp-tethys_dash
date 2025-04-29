@@ -61,7 +61,7 @@ function VisualizationSelector({ showModal, handleModalClose }) {
                 onChange={onSearch}
                 value={search}
                 type="text"
-                ariaLabel="Visualization Search Input"
+                aria-label="Visualization Search Input"
                 placeholder="Search by Name or Tags"
               />
               <InputGroup.Text>
