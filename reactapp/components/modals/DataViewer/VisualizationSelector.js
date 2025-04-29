@@ -35,9 +35,11 @@ function VisualizationSelector({ showModal, handleModalClose }) {
   const { visualizations } = useContext(AppContext);
   const [search, setSearch] = useState("");
   const [visualizationStyle, setVisualizationStyle] = useState("icon");
+  const [visualizationItems, setVisualizationItems] = useState(visualizations);
 
   const onSearch = (e) => {
     setSearch(e.target.value);
+    console.log(visualizationItems);
   };
 
   return (
@@ -81,7 +83,7 @@ function VisualizationSelector({ showModal, handleModalClose }) {
               </Button>
             </FlexButtonGroup>
           </FlexDiv>
-          {visualizations.map(({ label, options }, index) => (
+          {visualizationItems.map(({ label, options }, index) => (
             <VisualizationGroup key={index} title={label}>
               <>
                 {options.map((metadata, index) => {

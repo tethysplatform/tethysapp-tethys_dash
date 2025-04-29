@@ -1,6 +1,34 @@
 import intake
 
 
+def extract_argument_structure(d):
+    result = {}
+
+    def collect_subargs(sub_args):
+        collected = []
+        for key, value in sub_args.items():
+            nested_keys = []
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict) and "sub_args" in item:
+                        nested_result = collect_subargs(item["sub_args"])
+                        nested_keys.extend(nested_result)
+            if nested_keys:
+                collected.append({key: nested_keys})
+            else:
+                collected.append(key)
+        return collected
+
+    for main_key, items in d.items():
+        result[main_key] = []
+        if isinstance(items, list):
+            for item in items:
+                if isinstance(item, dict) and "sub_args" in item:
+                    result[main_key].extend(collect_subargs(item["sub_args"]))
+
+    return result
+
+
 def get_available_visualizations():
     default_intake_sources = [
         "csv",
@@ -28,7 +56,7 @@ def get_available_visualizations():
             "source": intake_source,
             "value": plugin.visualization_label,
             "label": plugin.visualization_label,
-            "args": plugin.visualization_args,
+            "args": extract_argument_structure(plugin.visualization_args),
             "type": plugin.visualization_type,
             "tags": getattr(plugin, "visualization_tags", []),
             "description": getattr(plugin, "visualization_description", ""),

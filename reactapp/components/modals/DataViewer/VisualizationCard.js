@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { memo, useRef, useState } from "react";
+import { memo, useRef, useState, Fragment } from "react";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
 import Overlay from "react-bootstrap/Overlay";
@@ -109,12 +109,7 @@ const VisualizationCard = ({
               <b>Tags</b>: {tags.join(", ")}
             </p>
             <p>
-              <b>Parameters</b>:{" "}
-              <ul>
-                {Object.keys(args).map((arg, index) => (
-                  <li key={index}>{spaceAndCapitalize(arg)}</li>
-                ))}
-              </ul>
+              <b>Parameters</b>: <NestedList data={args} />
             </p>
             <p>
               <b>Type</b>: {type}
@@ -123,6 +118,50 @@ const VisualizationCard = ({
         </Popover>
       </Overlay>
     </>
+  );
+};
+
+const NestedList = ({ data }) => {
+  const renderList = (item) => {
+    if (typeof item === "string" || typeof item === "number") {
+      return <li key={item}>{item}</li>;
+    }
+
+    if (Array.isArray(item)) {
+      return (
+        <ul>
+          {item.map((child, idx) => (
+            <Fragment key={idx}>{renderList(child)}</Fragment>
+          ))}
+        </ul>
+      );
+    }
+
+    if (typeof item === "object" && item !== null) {
+      return (
+        <ul>
+          {Object.entries(item).map(([key, value]) => (
+            <li key={key}>
+              {key}
+              {renderList(value)}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <ul>
+      {Object.entries(data).map(([key, value]) => (
+        <li key={key}>
+          {key}
+          {renderList(value)}
+        </li>
+      ))}
+    </ul>
   );
 };
 
