@@ -9,6 +9,7 @@ import styled from "styled-components";
 import {
   LayoutContext,
   VariableInputsContext,
+  AppContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import CustomAlert from "components/dashboard/CustomAlert";
@@ -51,6 +52,17 @@ const StyledVizCol = styled(Col)`
   user-select: none;
 `;
 
+function findBySource(data, targetSource) {
+  for (const group of data) {
+    for (const option of group.options || []) {
+      if (option.source === targetSource) {
+        return option;
+      }
+    }
+  }
+  return null;
+}
+
 function DataViewerModal({
   gridItemIndex,
   source,
@@ -61,8 +73,11 @@ function DataViewerModal({
   setGridItemMessage,
   setShowGridItemMessage,
 }) {
-  const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
-  const [vizType, setVizType] = useState("loader");
+  const { visualizations } = useContext(AppContext);
+  const [selectedVizTypeOption, setSelectVizTypeOption] = useState(
+    findBySource(visualizations, source)
+  );
+  const [vizType, setVizType] = useState("unknown");
   const [vizData, setVizData] = useState({});
   const [vizInputsValues, setVizInputsValues] = useState({});
   const [variableInputValue, setVariableInputValue] = useState(null);
@@ -208,7 +223,7 @@ function DataViewerModal({
         aria-label={"DataViewer Modal"}
       >
         <Modal.Header closeButton>
-          <Modal.Title>Select Cell Data</Modal.Title>
+          <Modal.Title>Edit Visualization</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <StyledContainer>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useRef } from "react";
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
 import styled from "styled-components";
@@ -21,7 +21,9 @@ import TooltipButton from "components/buttons/TooltipButton";
 import { CiFilter } from "react-icons/ci";
 import VisualizationSelector from "components/modals/DataViewer/VisualizationSelector";
 import { useAppTourContext } from "components/contexts/AppTourContext";
+import { Button } from "react-bootstrap";
 import "components/modals/wideModal.css";
+import appAPI from "services/api/app";
 
 const DropdownDiv = styled.div`
   flex: 1;
@@ -35,6 +37,17 @@ const ButtonDiv = styled.div`
 const FlexDiv = styled.div`
   display: flex;
   width: 100%;
+`;
+
+const TitleDiv = styled.div`
+  text-align: center;
+  margin-top: 0.5rem;
+`;
+
+const CenteredDiv = styled.div`
+  align-items: center;
+  justify-content: center;
+  display: flex;
 `;
 
 const VisualizationArguments = ({
@@ -136,12 +149,9 @@ function VisualizationPane({
   visualizationRef,
   setShowingSubModal,
 }) {
-  const [deselectedVisualizations, setDeselectedVisualizations] = useState(
-    localStorage.getItem("deselected_visualizations")?.split(",") || []
-  );
+  const [loadingArgs, setLoadingArgs] = useState(false);
   const [vizOptions, setVizOptions] = useState([]);
   const [vizArguments, setVizArguments] = useState([]);
-  const [selectedGroupName, setSelectedGroupName] = useState(null);
   const [
     showVisualizationTypeSettingsModal,
     setShowVisualizationTypeSettingsModal,
@@ -155,34 +165,24 @@ function VisualizationPane({
   const customImageOption = otherVisualizationOptions.options.find((obj) => {
     return obj.value === "Custom Image";
   });
+  const currentSelectedVizTypeOption = useRef(selectedVizTypeOption);
 
-  useEffect(() => {
-    if (source) {
-      let selectedVizOptionGroup = null;
-      let selectedVizOptionGroupOption = null;
-      for (let vizOptionGroup of visualizations) {
-        for (let vizOptionGroupOption of vizOptionGroup.options) {
-          if (vizOptionGroupOption.source === source) {
-            selectedVizOptionGroup = vizOptionGroup;
-            selectedVizOptionGroupOption = vizOptionGroupOption;
-            break;
+  const loadVizArgs = async ({ onLoad }) => {
+    const apiResponse = await appAPI.getVisualizationArgs({
+      vizSource: selectedVizTypeOption.source,
+    });
+    if (apiResponse.success) {
+      let updatedVizArguments = [];
+      const updatedVizInputsValues = {};
+
+      for (let arg in apiResponse.args) {
+        if (onLoad) {
+          const existingArgs = JSON.parse(argsString);
+          if (source === "Variable Input") {
+            setVariableInputValue(existingArgs.initial_value);
           }
-        }
-      }
 
-      if (selectedVizOptionGroupOption) {
-        setSelectedGroupName(selectedVizOptionGroup.label);
-        setSelectVizTypeOption(selectedVizOptionGroupOption);
-
-        let updatedVizArguments = [];
-
-        const existingArgs = JSON.parse(argsString);
-        if (source === "Variable Input") {
-          setVariableInputValue(existingArgs.initial_value);
-        }
-
-        for (let arg in selectedVizOptionGroupOption.args) {
-          let vizArgType = selectedVizOptionGroupOption.args[arg];
+          let vizArgType = apiResponse.args[arg];
           let existingArg = existingArgs[arg];
           updatedVizArguments.push({
             label: arg,
@@ -190,30 +190,98 @@ function VisualizationPane({
             type: vizArgType,
             value: existingArg,
           });
+        } else {
+          let existing = vizArguments.filter((obj) => {
+            if (obj.name !== arg) {
+              return false;
+            }
+            return valuesEqual(obj.type, apiResponse.args[arg]);
+          });
+
+          let inputValue;
+          if (existing.length) {
+            inputValue = vizInputsValues[arg];
+          } else {
+            inputValue = getInitialInputValue(apiResponse.args[arg]);
+          }
+
+          updatedVizArguments.push({
+            label: arg,
+            name: arg,
+            type: apiResponse.args[arg],
+            value: inputValue,
+          });
+          updatedVizInputsValues[arg] = inputValue;
         }
-        setVizArguments(updatedVizArguments);
-        setVizInputsValues(existingArgs);
       }
+      setVizInputsValues(updatedVizInputsValues);
+      setVizArguments(updatedVizArguments);
+      setVizType("unknown");
+      setVizData({});
+      setVizMetadata(null);
+      setLoadingArgs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedVizTypeOption) {
+      loadVizArgs({ onLoad: true });
     }
     // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("deselected_visualizations", deselectedVisualizations);
-    let vizTypeOptions = JSON.parse(JSON.stringify(visualizations));
-    for (let vizOptionGroup of vizTypeOptions) {
-      vizOptionGroup.options = vizOptionGroup.options.filter(function (item) {
-        return !deselectedVisualizations.includes(item.label);
-      });
-    }
-    setVizOptions(vizTypeOptions);
-    // eslint-disable-next-line
-  }, [deselectedVisualizations]);
-
-  useEffect(() => {
     checkAllInputs();
     // eslint-disable-next-line
   }, [vizInputsValues]);
+
+  useEffect(() => {
+    if (currentSelectedVizTypeOption.current !== selectedVizTypeOption) {
+      setLoadingArgs(true);
+      visualizationRef.current = null;
+      settingsRef.current = {};
+
+      loadVizArgs();
+
+      // const [visualizationGroup, visualizationLabel] = splitFirstHyphen(
+      //   selectedVizTypeOption
+      // );
+      // setSelectVizTypeOption(e);
+
+      // let updatedVizArguments = [];
+      // const updatedVizInputsValues = {};
+      // for (let arg in e.args) {
+      //   let existing = vizArguments.filter((obj) => {
+      //     if (obj.name !== arg) {
+      //       return false;
+      //     }
+      //     return valuesEqual(obj.type, e.args[arg]);
+      //   });
+
+      //   let inputValue;
+      //   if (existing.length) {
+      //     inputValue = vizInputsValues[arg];
+      //   } else {
+      //     inputValue = getInitialInputValue(e.args[arg]);
+      //   }
+
+      //   updatedVizArguments.push({
+      //     label: arg,
+      //     name: arg,
+      //     type: e.args[arg],
+      //     value: inputValue,
+      //   });
+      //   updatedVizInputsValues[arg] = inputValue;
+      // }
+      // setVizInputsValues(updatedVizInputsValues);
+      // setVizArguments(updatedVizArguments);
+      // setVizType("loader");
+      // setVizData({});
+      // setVizMetadata(null);
+      currentSelectedVizTypeOption.current = selectedVizTypeOption;
+    }
+    // eslint-disable-next-line
+  }, [selectedVizTypeOption]);
 
   const handleInputChange = (newValue, key) => {
     setVizInputsValues((prev) => {
@@ -256,51 +324,6 @@ function VisualizationPane({
     });
   };
 
-  function onDataTypeChange(e) {
-    visualizationRef.current = null;
-    settingsRef.current = {};
-    for (let p of vizOptions) {
-      for (let i of p.options) {
-        if (i === e) {
-          setSelectedGroupName(p.label);
-          break;
-        }
-      }
-    }
-    setSelectVizTypeOption(e);
-
-    let updatedVizArguments = [];
-    const updatedVizInputsValues = {};
-    for (let arg in e.args) {
-      let existing = vizArguments.filter((obj) => {
-        if (obj.name !== arg) {
-          return false;
-        }
-        return valuesEqual(obj.type, e.args[arg]);
-      });
-
-      let inputValue;
-      if (existing.length) {
-        inputValue = vizInputsValues[arg];
-      } else {
-        inputValue = getInitialInputValue(e.args[arg]);
-      }
-
-      updatedVizArguments.push({
-        label: arg,
-        name: arg,
-        type: e.args[arg],
-        value: inputValue,
-      });
-      updatedVizInputsValues[arg] = inputValue;
-    }
-    setVizInputsValues(updatedVizInputsValues);
-    setVizArguments(updatedVizArguments);
-    setVizType("loader");
-    setVizData({});
-    setVizMetadata(null);
-  }
-
   function checkAllInputs() {
     if (selectedVizTypeOption !== null) {
       if (
@@ -331,10 +354,7 @@ function VisualizationPane({
 
     setVizMetadata(itemData);
     setGridItemMessage(
-      "Cell updated to show " +
-        selectedGroupName +
-        " " +
-        selectedVizTypeOption["label"]
+      "Cell updated to show " + selectedVizTypeOption["label"]
     );
     if (selectedVizTypeOption.value === "Text") {
       return;
@@ -389,47 +409,38 @@ function VisualizationPane({
 
   return (
     <>
-      <label>
-        <b>Visualization Type</b>:
-      </label>
-      <FlexDiv>
-        <ButtonDiv>
-          <TooltipButton
-            tooltipPlacement="bottom"
-            tooltipText="Visualization Settings"
-            aria-label={"visualizationSettingButton"}
-            onClick={
-              activeAppTour
-                ? () => {}
-                : () => {
-                    setShowVisualizationTypeSettingsModal(true);
-                    setShowingSubModal(true);
-                  }
-            }
-            className={"filterButton"}
-            style={{ height: "100%" }}
-          >
-            <CiFilter size="1.5rem" />
-          </TooltipButton>
-        </ButtonDiv>
-        <DropdownDiv>
-          <DataSelect
-            selectedOption={selectedVizTypeOption}
-            onChange={onDataTypeChange}
-            options={activeAppTour ? [customImageOption] : vizOptions}
-            aria-label={"visualizationType"}
-            className={"visualizationTypeDropdown"}
-          />
-        </DropdownDiv>
-      </FlexDiv>
-      <VisualizationArguments
-        selectedVizTypeOption={selectedVizTypeOption}
-        vizArguments={vizArguments}
-        vizInputsValues={vizInputsValues}
-        handleInputChange={handleInputChange}
-        setShowingSubModal={setShowingSubModal}
-        gridItemIndex={gridItemIndex}
-      />
+      <CenteredDiv>
+        <Button
+          variant="info"
+          onClick={
+            activeAppTour
+              ? () => {}
+              : () => {
+                  setShowVisualizationTypeSettingsModal(true);
+                  setShowingSubModal(true);
+                }
+          }
+        >
+          Select Visualization Type
+        </Button>
+      </CenteredDiv>
+      <TitleDiv>
+        <h3>{selectedVizTypeOption?.label}</h3>
+      </TitleDiv>
+
+      {loadingArgs ? (
+        <div>Loading Args</div>
+      ) : (
+        <VisualizationArguments
+          selectedVizTypeOption={selectedVizTypeOption}
+          vizArguments={vizArguments}
+          vizInputsValues={vizInputsValues}
+          handleInputChange={handleInputChange}
+          setShowingSubModal={setShowingSubModal}
+          gridItemIndex={gridItemIndex}
+        />
+      )}
+
       {showVisualizationTypeSettingsModal && (
         <VisualizationSelector
           showModal={showVisualizationTypeSettingsModal}
@@ -437,8 +448,7 @@ function VisualizationPane({
             setShowVisualizationTypeSettingsModal(false);
             setShowingSubModal(false);
           }}
-          deselectedVisualizations={deselectedVisualizations}
-          setDeselectedVisualizations={setDeselectedVisualizations}
+          setSelectVizTypeOption={setSelectVizTypeOption}
         />
       )}
     </>

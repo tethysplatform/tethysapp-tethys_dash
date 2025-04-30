@@ -31,7 +31,11 @@ const ListItem = styled.div`
   border-bottom: 1px solid black;
 `;
 
-function VisualizationSelector({ showModal, handleModalClose }) {
+function VisualizationSelector({
+  showModal,
+  handleModalClose,
+  setSelectVizTypeOption,
+}) {
   const { visualizations } = useContext(AppContext);
   const [search, setSearch] = useState("");
   const [visualizationStyle, setVisualizationStyle] = useState("icon");
@@ -64,6 +68,11 @@ function VisualizationSelector({ showModal, handleModalClose }) {
         })
         .filter((group) => group !== null)
     );
+  };
+
+  const handleOnClick = (metadata) => {
+    setSelectVizTypeOption(metadata);
+    handleModalClose();
   };
 
   return (
@@ -117,9 +126,22 @@ function VisualizationSelector({ showModal, handleModalClose }) {
               <>
                 {options.map((metadata, index) => {
                   if (visualizationStyle === "icon") {
-                    return <VisualizationCard key={index} {...metadata} />;
+                    return (
+                      <VisualizationCard
+                        key={index}
+                        onClick={() => handleOnClick(metadata)}
+                        {...metadata}
+                      />
+                    );
                   } else {
-                    return <ListItem key={index}>{metadata.label}</ListItem>;
+                    return (
+                      <ListItem
+                        key={index}
+                        onClick={() => handleOnClick(metadata)}
+                      >
+                        {metadata.label}
+                      </ListItem>
+                    );
                   }
                 })}
               </>

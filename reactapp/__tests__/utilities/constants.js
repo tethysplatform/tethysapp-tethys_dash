@@ -770,10 +770,6 @@ export const mockedDropdownVisualization = [
   },
 ];
 
-export const mockedUserSetting = {
-  deselected_visualizations: [],
-};
-
 export const legendItems = {
   title: "Some Title",
   items: [

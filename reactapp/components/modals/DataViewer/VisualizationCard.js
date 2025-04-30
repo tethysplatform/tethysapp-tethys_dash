@@ -67,6 +67,7 @@ const VisualizationCard = ({
   type,
   description,
   tags,
+  onClick,
 }) => {
   const cardRef = useRef();
   const [showPopover, setShowPopover] = useState(false);
@@ -80,6 +81,7 @@ const VisualizationCard = ({
         onMouseEnter={() => setShowPopover(true)}
         onMouseLeave={() => setShowPopover(false)}
         style={{ cursor: "pointer" }}
+        onClick={onClick}
       >
         <CardHeader>
           <CardTitleDiv className="card-header-title">
@@ -116,58 +118,11 @@ const VisualizationCard = ({
               <InfoItem>
                 <b>Tags</b>: {tags && tags.join(", ")}
               </InfoItem>
-              <InfoItem>
-                <b>Parameters</b>: <NestedList data={args} />
-              </InfoItem>
             </div>
           </Popover.Body>
         </Popover>
       </Overlay>
     </>
-  );
-};
-
-const NestedList = ({ data }) => {
-  const renderList = (item) => {
-    if (typeof item === "string" || typeof item === "number") {
-      return <li key={item}>{spaceAndCapitalize(item)}</li>;
-    }
-
-    if (Array.isArray(item)) {
-      return (
-        <ul>
-          {item.map((child, idx) => (
-            <Fragment key={idx}>{renderList(child)}</Fragment>
-          ))}
-        </ul>
-      );
-    }
-
-    if (typeof item === "object" && item !== null) {
-      return (
-        <ul>
-          {Object.entries(item).map(([key, value]) => (
-            <li key={key}>
-              {key}
-              {renderList(value)}
-            </li>
-          ))}
-        </ul>
-      );
-    }
-
-    return null;
-  };
-
-  return (
-    <ul>
-      {Object.entries(data).map(([key, value]) => (
-        <li key={key}>
-          {spaceAndCapitalize(key)}
-          {renderList(value)}
-        </li>
-      ))}
-    </ul>
   );
 };
 

@@ -1,32 +1,24 @@
 import intake
 
 
-def extract_argument_structure(d):
-    result = {}
+def evaluate_visualization_args(args_dict):
+    evaluated = {}
 
-    def collect_subargs(sub_args):
-        collected = []
-        for key, value in sub_args.items():
-            nested_keys = []
-            if isinstance(value, list):
-                for item in value:
-                    if isinstance(item, dict) and "sub_args" in item:
-                        nested_result = collect_subargs(item["sub_args"])
-                        nested_keys.extend(nested_result)
-            if nested_keys:
-                collected.append({key: nested_keys})
-            else:
-                collected.append(key)
-        return collected
+    for key, func in args_dict.items():
+        if callable(func):
+            result = func()
+            # Check for 'subargs' in the returned structure
+            if isinstance(result, list):
+                for item in result:
+                    subargs = item.get("subargs")
+                    if isinstance(subargs, dict):
+                        # Recursively evaluate subargs
+                        item["subargs"] = evaluate_visualization_args(subargs)
+            evaluated[key] = result
+        else:
+            evaluated[key] = func  # not callable, just copy it over
 
-    for main_key, items in d.items():
-        result[main_key] = []
-        if isinstance(items, list):
-            for item in items:
-                if isinstance(item, dict) and "sub_args" in item:
-                    result[main_key].extend(collect_subargs(item["sub_args"]))
-
-    return result
+    return evaluated
 
 
 def get_available_visualizations():
@@ -50,13 +42,11 @@ def get_available_visualizations():
 
     available_visualizations = []
     for intake_source in valid_intake_sources:
-        plugin = getattr(intake, f"open_{intake_source}")
+        plugin = intake.source.registry[intake_source]
 
         plugin_metadata = {
             "source": intake_source,
-            "value": plugin.visualization_label,
             "label": plugin.visualization_label,
-            "args": extract_argument_structure(plugin.visualization_args),
             "type": plugin.visualization_type,
             "tags": getattr(plugin, "visualization_tags", []),
             "description": getattr(plugin, "visualization_description", ""),
@@ -75,6 +65,12 @@ def get_available_visualizations():
             )
 
     return {"visualizations": available_visualizations}
+
+
+def get_visualization_args(viz_source):
+    plugin = getattr(intake, f"open_{viz_source}")
+
+    return {"args": evaluate_visualization_args(plugin.visualization_args)}
 
 
 def get_visualization(viz_source, viz_args):
