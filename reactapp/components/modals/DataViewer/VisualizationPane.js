@@ -168,59 +168,72 @@ function VisualizationPane({
   const currentSelectedVizTypeOption = useRef(selectedVizTypeOption);
 
   const loadVizArgs = async ({ onLoad }) => {
-    const apiResponse = await appAPI.getVisualizationArgs({
-      vizSource: selectedVizTypeOption.source,
-    });
-    if (apiResponse.success) {
-      let updatedVizArguments = [];
-      const updatedVizInputsValues = {};
+    let VizArgs = selectedVizTypeOption.args;
 
-      for (let arg in apiResponse.args) {
-        if (onLoad) {
-          const existingArgs = JSON.parse(argsString);
-          if (source === "Variable Input") {
-            setVariableInputValue(existingArgs.initial_value);
-          }
-
-          let vizArgType = apiResponse.args[arg];
-          let existingArg = existingArgs[arg];
-          updatedVizArguments.push({
-            label: arg,
-            name: arg,
-            type: vizArgType,
-            value: existingArg,
-          });
-        } else {
-          let existing = vizArguments.filter((obj) => {
-            if (obj.name !== arg) {
-              return false;
-            }
-            return valuesEqual(obj.type, apiResponse.args[arg]);
-          });
-
-          let inputValue;
-          if (existing.length) {
-            inputValue = vizInputsValues[arg];
-          } else {
-            inputValue = getInitialInputValue(apiResponse.args[arg]);
-          }
-
-          updatedVizArguments.push({
-            label: arg,
-            name: arg,
-            type: apiResponse.args[arg],
-            value: inputValue,
-          });
-          updatedVizInputsValues[arg] = inputValue;
-        }
+    if (
+      !["Text", "Custom Image", "Map", "Variable Input"].includes(
+        selectedVizTypeOption.source
+      )
+    ) {
+      const apiResponse = await appAPI.getVisualizationArgs({
+        vizSource: selectedVizTypeOption.source,
+      });
+      if (!apiResponse.success) {
+        throw Error("Failed to get args");
+        return;
       }
-      setVizInputsValues(updatedVizInputsValues);
-      setVizArguments(updatedVizArguments);
-      setVizType("unknown");
-      setVizData({});
-      setVizMetadata(null);
-      setLoadingArgs(false);
+      VizArgs = apiResponse.args;
     }
+
+    let updatedVizArguments = [];
+    const updatedVizInputsValues = {};
+
+    for (let arg in VizArgs) {
+      if (onLoad) {
+        const existingArgs = JSON.parse(argsString);
+        if (source === "Variable Input") {
+          setVariableInputValue(existingArgs.initial_value);
+        }
+
+        let vizArgType = VizArgs[arg];
+        let existingArg = existingArgs[arg];
+        updatedVizArguments.push({
+          label: arg,
+          name: arg,
+          type: vizArgType,
+          value: existingArg,
+        });
+        updatedVizInputsValues[arg] = existingArg;
+      } else {
+        let existing = vizArguments.filter((obj) => {
+          if (obj.name !== arg) {
+            return false;
+          }
+          return valuesEqual(obj.type, VizArgs[arg]);
+        });
+
+        let inputValue;
+        if (existing.length) {
+          inputValue = vizInputsValues[arg];
+        } else {
+          inputValue = getInitialInputValue(VizArgs[arg]);
+        }
+
+        updatedVizArguments.push({
+          label: arg,
+          name: arg,
+          type: VizArgs[arg],
+          value: inputValue,
+        });
+        updatedVizInputsValues[arg] = inputValue;
+      }
+    }
+    setVizInputsValues(updatedVizInputsValues);
+    setVizArguments(updatedVizArguments);
+    setVizType("unknown");
+    setVizData({});
+    setVizMetadata(null);
+    setLoadingArgs(false);
   };
 
   useEffect(() => {
@@ -241,7 +254,7 @@ function VisualizationPane({
       visualizationRef.current = null;
       settingsRef.current = {};
 
-      loadVizArgs();
+      loadVizArgs({});
 
       // const [visualizationGroup, visualizationLabel] = splitFirstHyphen(
       //   selectedVizTypeOption
