@@ -12,11 +12,6 @@ const appAPI = {
   getVisualizations: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/`);
   },
-  getVisualizationArgs: ({ vizSource }) => {
-    return apiClient.get(`${APP_ROOT_URL}visualizations/get/`, {
-      params: { viz_source: vizSource },
-    });
-  },
   getDashboard: ({ id }) => {
     return apiClient.get(`${APP_ROOT_URL}dashboards/get/`, {
       params: { id },

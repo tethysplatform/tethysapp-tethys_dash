@@ -1,26 +1,6 @@
 import intake
 
 
-def evaluate_visualization_args(args_dict):
-    evaluated = {}
-
-    for key, func in args_dict.items():
-        if callable(func):
-            result = func()
-            # Check for 'subargs' in the returned structure
-            if isinstance(result, list):
-                for item in result:
-                    subargs = item.get("subargs")
-                    if isinstance(subargs, dict):
-                        # Recursively evaluate subargs
-                        item["subargs"] = evaluate_visualization_args(subargs)
-            evaluated[key] = result
-        else:
-            evaluated[key] = func  # not callable, just copy it over
-
-    return evaluated
-
-
 def get_available_visualizations():
     default_intake_sources = [
         "csv",
@@ -47,6 +27,7 @@ def get_available_visualizations():
         plugin_metadata = {
             "source": intake_source,
             "label": plugin.visualization_label,
+            "args": plugin.visualization_args,
             "type": plugin.visualization_type,
             "tags": getattr(plugin, "visualization_tags", []),
             "description": getattr(plugin, "visualization_description", ""),
@@ -65,12 +46,6 @@ def get_available_visualizations():
             )
 
     return {"visualizations": available_visualizations}
-
-
-def get_visualization_args(viz_source):
-    plugin = getattr(intake, f"open_{viz_source}")
-
-    return {"args": evaluate_visualization_args(plugin.visualization_args)}
 
 
 def get_visualization(viz_source, viz_args):

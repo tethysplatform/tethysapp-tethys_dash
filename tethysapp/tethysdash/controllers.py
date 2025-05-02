@@ -18,7 +18,6 @@ from tethysapp.tethysdash.model import (
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
     get_visualization,
-    get_visualization_args,
 )
 from pathlib import Path
 
@@ -68,27 +67,6 @@ def visualizations(request):
     visualizations = get_available_visualizations()
 
     return JsonResponse(visualizations)
-
-
-@api_view(["GET"])
-@controller(url="tethysdash/visualizations/get", login_requiredlogin_required=False)
-def visualization_args(request):
-    """API controller for the visualizations page."""
-    viz_source = request.GET["viz_source"]
-
-    try:
-        visualization = get_visualization_args(viz_source)
-        return JsonResponse({"success": True, "args": visualization["args"]})
-    except Exception as e:
-        print(e)
-        try:
-            message = e.args[0]
-        except Exception:
-            message = (
-                "Failed to get the visualization arguments. Check server for logs."
-            )
-
-        return JsonResponse({"success": False, "message": message})
 
 
 @api_view(["GET"])

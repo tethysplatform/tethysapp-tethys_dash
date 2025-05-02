@@ -149,8 +149,6 @@ function VisualizationPane({
   visualizationRef,
   setShowingSubModal,
 }) {
-  const [loadingArgs, setLoadingArgs] = useState(false);
-  const [vizOptions, setVizOptions] = useState([]);
   const [vizArguments, setVizArguments] = useState([]);
   const [
     showVisualizationTypeSettingsModal,
@@ -167,134 +165,90 @@ function VisualizationPane({
   });
   const currentSelectedVizTypeOption = useRef(selectedVizTypeOption);
 
-  const loadVizArgs = async ({ onLoad }) => {
-    let VizArgs = selectedVizTypeOption.args;
-
-    if (
-      !["Text", "Custom Image", "Map", "Variable Input"].includes(
-        selectedVizTypeOption.source
-      )
-    ) {
-      const apiResponse = await appAPI.getVisualizationArgs({
-        vizSource: selectedVizTypeOption.source,
-      });
-      if (!apiResponse.success) {
-        throw Error("Failed to get args");
-        return;
+  useEffect(() => {
+    if (source) {
+      let selectedVizOptionGroupOption = null;
+      for (let vizOptionGroup of visualizations) {
+        for (let vizOptionGroupOption of vizOptionGroup.options) {
+          if (vizOptionGroupOption.source === source) {
+            selectedVizOptionGroupOption = vizOptionGroupOption;
+            break;
+          }
+        }
       }
-      VizArgs = apiResponse.args;
-    }
 
-    let updatedVizArguments = [];
-    const updatedVizInputsValues = {};
+      if (selectedVizOptionGroupOption) {
+        setSelectVizTypeOption(selectedVizOptionGroupOption);
 
-    for (let arg in VizArgs) {
-      if (onLoad) {
+        let updatedVizArguments = [];
+
         const existingArgs = JSON.parse(argsString);
         if (source === "Variable Input") {
           setVariableInputValue(existingArgs.initial_value);
         }
 
-        let vizArgType = VizArgs[arg];
-        let existingArg = existingArgs[arg];
-        updatedVizArguments.push({
-          label: arg,
-          name: arg,
-          type: vizArgType,
-          value: existingArg,
-        });
-        updatedVizInputsValues[arg] = existingArg;
-      } else {
+        for (let arg in selectedVizOptionGroupOption.args) {
+          let vizArgType = selectedVizOptionGroupOption.args[arg];
+          let existingArg = existingArgs[arg];
+          updatedVizArguments.push({
+            label: arg,
+            name: arg,
+            type: vizArgType,
+            value: existingArg,
+          });
+        }
+        setVizArguments(updatedVizArguments);
+        setVizInputsValues(existingArgs);
+      }
+    }
+    // eslint-disable-next-line
+  }, []);
+
+  useEffect(() => {
+    if (
+      !valuesEqual(currentSelectedVizTypeOption.current, selectedVizTypeOption)
+    ) {
+      visualizationRef.current = null;
+      settingsRef.current = {};
+
+      let updatedVizArguments = [];
+      const updatedVizInputsValues = {};
+      for (let arg in selectedVizTypeOption.args) {
         let existing = vizArguments.filter((obj) => {
           if (obj.name !== arg) {
             return false;
           }
-          return valuesEqual(obj.type, VizArgs[arg]);
+          return valuesEqual(obj.type, selectedVizTypeOption.args[arg]);
         });
 
         let inputValue;
         if (existing.length) {
           inputValue = vizInputsValues[arg];
         } else {
-          inputValue = getInitialInputValue(VizArgs[arg]);
+          inputValue = getInitialInputValue(selectedVizTypeOption.args[arg]);
         }
 
         updatedVizArguments.push({
           label: arg,
           name: arg,
-          type: VizArgs[arg],
+          type: selectedVizTypeOption.args[arg],
           value: inputValue,
         });
         updatedVizInputsValues[arg] = inputValue;
       }
-    }
-    setVizInputsValues(updatedVizInputsValues);
-    setVizArguments(updatedVizArguments);
-    setVizType("unknown");
-    setVizData({});
-    setVizMetadata(null);
-    setLoadingArgs(false);
-  };
-
-  useEffect(() => {
-    if (selectedVizTypeOption) {
-      loadVizArgs({ onLoad: true });
+      setVizInputsValues(updatedVizInputsValues);
+      setVizArguments(updatedVizArguments);
+      setVizType("unknown");
+      setVizData({});
+      setVizMetadata(null);
     }
     // eslint-disable-next-line
-  }, []);
+  }, [selectedVizTypeOption]);
 
   useEffect(() => {
     checkAllInputs();
     // eslint-disable-next-line
   }, [vizInputsValues]);
-
-  useEffect(() => {
-    if (currentSelectedVizTypeOption.current !== selectedVizTypeOption) {
-      setLoadingArgs(true);
-      visualizationRef.current = null;
-      settingsRef.current = {};
-
-      loadVizArgs({});
-
-      // const [visualizationGroup, visualizationLabel] = splitFirstHyphen(
-      //   selectedVizTypeOption
-      // );
-      // setSelectVizTypeOption(e);
-
-      // let updatedVizArguments = [];
-      // const updatedVizInputsValues = {};
-      // for (let arg in e.args) {
-      //   let existing = vizArguments.filter((obj) => {
-      //     if (obj.name !== arg) {
-      //       return false;
-      //     }
-      //     return valuesEqual(obj.type, e.args[arg]);
-      //   });
-
-      //   let inputValue;
-      //   if (existing.length) {
-      //     inputValue = vizInputsValues[arg];
-      //   } else {
-      //     inputValue = getInitialInputValue(e.args[arg]);
-      //   }
-
-      //   updatedVizArguments.push({
-      //     label: arg,
-      //     name: arg,
-      //     type: e.args[arg],
-      //     value: inputValue,
-      //   });
-      //   updatedVizInputsValues[arg] = inputValue;
-      // }
-      // setVizInputsValues(updatedVizInputsValues);
-      // setVizArguments(updatedVizArguments);
-      // setVizType("loader");
-      // setVizData({});
-      // setVizMetadata(null);
-      currentSelectedVizTypeOption.current = selectedVizTypeOption;
-    }
-    // eslint-disable-next-line
-  }, [selectedVizTypeOption]);
 
   const handleInputChange = (newValue, key) => {
     setVizInputsValues((prev) => {
@@ -441,18 +395,14 @@ function VisualizationPane({
         <h3>{selectedVizTypeOption?.label}</h3>
       </TitleDiv>
 
-      {loadingArgs ? (
-        <div>Loading Args</div>
-      ) : (
-        <VisualizationArguments
-          selectedVizTypeOption={selectedVizTypeOption}
-          vizArguments={vizArguments}
-          vizInputsValues={vizInputsValues}
-          handleInputChange={handleInputChange}
-          setShowingSubModal={setShowingSubModal}
-          gridItemIndex={gridItemIndex}
-        />
-      )}
+      <VisualizationArguments
+        selectedVizTypeOption={selectedVizTypeOption}
+        vizArguments={vizArguments}
+        vizInputsValues={vizInputsValues}
+        handleInputChange={handleInputChange}
+        setShowingSubModal={setShowingSubModal}
+        gridItemIndex={gridItemIndex}
+      />
 
       {showVisualizationTypeSettingsModal && (
         <VisualizationSelector
