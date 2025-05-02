@@ -157,12 +157,6 @@ function VisualizationPane({
   const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useContext(VariableInputsContext);
   const { activeAppTour } = useAppTourContext();
-  const otherVisualizationOptions = visualizations.find((obj) => {
-    return obj.label === "Other";
-  });
-  const customImageOption = otherVisualizationOptions.options.find((obj) => {
-    return obj.value === "Custom Image";
-  });
   const currentSelectedVizTypeOption = useRef(selectedVizTypeOption);
 
   useEffect(() => {
@@ -207,6 +201,7 @@ function VisualizationPane({
 
   useEffect(() => {
     if (
+      selectedVizTypeOption &&
       !valuesEqual(currentSelectedVizTypeOption.current, selectedVizTypeOption)
     ) {
       visualizationRef.current = null;
@@ -306,72 +301,74 @@ function VisualizationPane({
   }
 
   async function previewVisualization() {
-    const initialArgs = JSON.parse(argsString);
+    if (selectedVizTypeOption) {
+      const initialArgs = JSON.parse(argsString);
 
-    const args =
-      selectedVizTypeOption.source === "Map" && "viewConfig" in initialArgs
-        ? { ...vizInputsValues, viewConfig: initialArgs.viewConfig }
-        : vizInputsValues;
+      const args =
+        selectedVizTypeOption.source === "Map" && "viewConfig" in initialArgs
+          ? { ...vizInputsValues, viewConfig: initialArgs.viewConfig }
+          : vizInputsValues;
 
-    const itemData = {
-      source: selectedVizTypeOption["source"],
-      args: Object.fromEntries(
-        Object.entries(args).map(([key, val]) => [key, val.value ?? val])
-      ),
-    };
-    const sourceType = selectedVizTypeOption.type;
+      const itemData = {
+        source: selectedVizTypeOption["source"],
+        args: Object.fromEntries(
+          Object.entries(args).map(([key, val]) => [key, val.value ?? val])
+        ),
+      };
+      const sourceType = selectedVizTypeOption.type;
 
-    setVizMetadata(itemData);
-    setGridItemMessage(
-      "Cell updated to show " + selectedVizTypeOption["label"]
-    );
-    if (selectedVizTypeOption.value === "Text") {
-      return;
-    } else if (selectedVizTypeOption.value === "Custom Image") {
-      setVizType("image");
-      setVizData({
-        source: vizInputsValues.image_source,
-      });
-    } else if (selectedVizTypeOption.value === "Variable Input") {
-      itemData.args.initial_value = variableInputValue;
-      if (itemData.args.initial_value === null) {
-        if (itemData.args.variable_options_source === "text") {
-          itemData.args.initial_value = "";
-        } else if (itemData.args.variable_options_source === "number") {
-          itemData.args.initial_value = "0";
-        }
-      }
-      setVizType("variableInput");
-      setVizData({
-        variable_name: itemData.args.variable_name,
-        initial_value: itemData.args.initial_value,
-        variable_options_source: itemData.args.variable_options_source,
-        onChange: (e) => setVariableInputValue(e),
-      });
-    } else {
-      const updatedGridItemArgs = updateObjectWithVariableInputs(
-        JSON.stringify(itemData.args),
-        variableInputValues
+      setVizMetadata(itemData);
+      setGridItemMessage(
+        "Cell updated to show " + selectedVizTypeOption["label"]
       );
-      if (selectedVizTypeOption.value === "Map") {
-        setVizType("map");
+      if (selectedVizTypeOption.value === "Text") {
+        return;
+      } else if (selectedVizTypeOption.value === "Custom Image") {
+        setVizType("image");
         setVizData({
-          viewConfig: updatedGridItemArgs.viewConfig,
-          layers: updatedGridItemArgs.layers,
-          baseMap: updatedGridItemArgs.baseMap,
-          layerControl: updatedGridItemArgs.layerControl,
+          source: vizInputsValues.image_source,
+        });
+      } else if (selectedVizTypeOption.value === "Variable Input") {
+        itemData.args.initial_value = variableInputValue;
+        if (itemData.args.initial_value === null) {
+          if (itemData.args.variable_options_source === "text") {
+            itemData.args.initial_value = "";
+          } else if (itemData.args.variable_options_source === "number") {
+            itemData.args.initial_value = "0";
+          }
+        }
+        setVizType("variableInput");
+        setVizData({
+          variable_name: itemData.args.variable_name,
+          initial_value: itemData.args.initial_value,
+          variable_options_source: itemData.args.variable_options_source,
+          onChange: (e) => setVariableInputValue(e),
         });
       } else {
-        itemData.args = updatedGridItemArgs;
-        await getVisualization({
-          setVizType,
-          setVizData,
-          sourceType,
-          itemData,
-          metadataString: JSON.stringify(settingsRef.current),
-          argsString: vizInputsValues,
-          variableInputValues,
-        });
+        const updatedGridItemArgs = updateObjectWithVariableInputs(
+          JSON.stringify(itemData.args),
+          variableInputValues
+        );
+        if (selectedVizTypeOption.value === "Map") {
+          setVizType("map");
+          setVizData({
+            viewConfig: updatedGridItemArgs.viewConfig,
+            layers: updatedGridItemArgs.layers,
+            baseMap: updatedGridItemArgs.baseMap,
+            layerControl: updatedGridItemArgs.layerControl,
+          });
+        } else {
+          itemData.args = updatedGridItemArgs;
+          await getVisualization({
+            setVizType,
+            setVizData,
+            sourceType,
+            itemData,
+            metadataString: JSON.stringify(settingsRef.current),
+            argsString: vizInputsValues,
+            variableInputValues,
+          });
+        }
       }
     }
   }
@@ -389,6 +386,7 @@ function VisualizationPane({
                   setShowingSubModal(true);
                 }
           }
+          aria-label="Select Visualization Type Button"
         >
           Select Visualization Type
         </Button>

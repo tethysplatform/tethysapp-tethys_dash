@@ -223,7 +223,7 @@ function DataViewerModal({
         aria-label={"DataViewer Modal"}
       >
         <Modal.Header closeButton>
-          <Modal.Title>Edit Visualization</Modal.Title>
+          <Modal.Title className="no-caret">Edit Visualization</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <StyledContainer>

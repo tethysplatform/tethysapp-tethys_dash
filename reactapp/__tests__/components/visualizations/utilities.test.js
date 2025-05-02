@@ -278,7 +278,11 @@ test("getVisualization, empty variable and custom messaging", async () => {
 });
 
 test("getVisualization table", async () => {
-  const tableData = { data: [], title: "Some Title" };
+  const tableData = {
+    data: [],
+    title: "Some Title",
+    subtitle: "Some Subtitle",
+  };
   server.use(
     rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
       return res(
@@ -312,6 +316,7 @@ test("getVisualization table", async () => {
   expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
     data: [],
     title: "Some Title",
+    subtitle: "Some Subtitle",
   });
 });
 

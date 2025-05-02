@@ -60,41 +60,43 @@ const VariableInput = ({
   );
 
   useEffect(() => {
-    let initialVariableValue = initial_value;
-    let variableValue = initialVariableValue;
+    if (variable_options_source) {
+      let initialVariableValue = initial_value;
+      let variableValue = initialVariableValue;
 
-    // Sets the type to the variable_options_source if not a dropdown
-    if (nonDropDownVariableInputTypes.includes(variable_options_source)) {
-      setType(variable_options_source);
-    } else {
-      var selectedArg = visualizationArgs.find((obj) => {
-        return obj.label === variable_options_source;
-      });
-      setType(selectedArg.argOptions);
-      initialVariableValue = findSelectOptionByValue(
-        selectedArg.argOptions,
-        initialVariableValue
-      );
-    }
+      // Sets the type to the variable_options_source if not a dropdown
+      if (nonDropDownVariableInputTypes.includes(variable_options_source)) {
+        setType(variable_options_source);
+      } else {
+        var selectedArg = visualizationArgs.find((obj) => {
+          return obj.label === variable_options_source;
+        });
+        setType(selectedArg.argOptions);
+        initialVariableValue = findSelectOptionByValue(
+          selectedArg.argOptions,
+          initialVariableValue
+        );
+      }
 
-    if (variable_options_source === "number") {
-      // If the variable_options_source is a number, it parses the int value from initial_value
-      initialVariableValue = parseInt(initial_value);
-      variableValue = initialVariableValue;
-    } else if (
-      variable_options_source === "checkbox" &&
-      initial_value === null
-    ) {
-      // This sets to false because null isn't a valid value for a checkbox
-      // But I've never been able to get this to fire.
-      initialVariableValue = false;
-      variableValue = initialVariableValue;
-    }
-    setValue(initialVariableValue);
-    setLabel(variable_name);
+      if (variable_options_source === "number") {
+        // If the variable_options_source is a number, it parses the int value from initial_value
+        initialVariableValue = parseInt(initial_value);
+        variableValue = initialVariableValue;
+      } else if (
+        variable_options_source === "checkbox" &&
+        initial_value === null
+      ) {
+        // This sets to false because null isn't a valid value for a checkbox
+        // But I've never been able to get this to fire.
+        initialVariableValue = false;
+        variableValue = initialVariableValue;
+      }
+      setValue(initialVariableValue);
+      setLabel(variable_name);
 
-    if (!inDataViewerMode) {
-      updateVariableInputs(variableValue);
+      if (!inDataViewerMode) {
+        updateVariableInputs(variableValue);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variable_name, initial_value, variable_options_source]);

@@ -208,7 +208,7 @@ function Loader({ children }) {
       }
 
       allVisualizations.push({
-        label: "Other",
+        label: "Default",
         options: [
           {
             source: "Map",

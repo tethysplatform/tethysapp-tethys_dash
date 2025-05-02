@@ -122,7 +122,7 @@ test("AppLoader", async () => {
         ],
       },
       {
-        label: "Other",
+        label: "Default",
         options: [
           {
             source: "Map",

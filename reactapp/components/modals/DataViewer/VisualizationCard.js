@@ -76,7 +76,7 @@ const VisualizationCard = ({
     <>
       <CustomCard
         className={"visualizationCard"}
-        aria-label="Visualization Card"
+        aria-label={`${label} Visualization Card`}
         ref={cardRef}
         onMouseEnter={() => setShowPopover(true)}
         onMouseLeave={() => setShowPopover(false)}
