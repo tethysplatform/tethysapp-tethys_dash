@@ -21,7 +21,7 @@ const Image = ({ source, alt, visualizationRef, imageError }) => {
     setImageWarning(false);
   }, [source]);
 
-  function onImageError({ currentTarget }) {
+  function onImageError() {
     setImageWarning(true);
   }
 

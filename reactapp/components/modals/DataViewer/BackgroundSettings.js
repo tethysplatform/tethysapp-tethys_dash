@@ -88,7 +88,7 @@ const ButtonWithOverlay = ({ backgroundColor, onColorChange }) => {
 
 const BackgroundSettings = ({ backgroundColor, setBackgroundColor }) => {
   return (
-    <FlexLabel>
+    <FlexLabel className="no-caret">
       <b>Background Color</b>:
       <ButtonWithOverlay
         backgroundColor={backgroundColor}

@@ -13,7 +13,7 @@ const NormalInput = ({
   return (
     <div {...divProps}>
       {label && (
-        <Form.Label>
+        <Form.Label className="no-caret">
           <b>{label}</b>:
         </Form.Label>
       )}

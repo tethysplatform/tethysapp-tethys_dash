@@ -53,7 +53,7 @@ const CustomMessaging = ({
 
   return (
     <WideLabel>
-      <b>Custom Messaging</b>:
+      <b className="no-caret">Custom Messaging</b>:
       <div>
         <FlexLabel>
           Error -

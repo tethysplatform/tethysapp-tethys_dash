@@ -53,6 +53,7 @@ export const Visualization = memo(({ vizRef, vizType, vizData }) => {
           source={vizData.source}
           alt={vizData.alt}
           imageError={vizData.imageError}
+          visualizationRef={vizRef}
         />
       );
     case "text":

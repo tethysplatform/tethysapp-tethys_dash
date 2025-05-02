@@ -15,6 +15,11 @@ body {
   padding-top: var(--ts-header-height);
 }
 
+.no-caret {
+  caret-color: transparent;
+  user-select: text; /* Ensures text can be selected */
+}
+
 /* Scrollbar width */
 ::-webkit-scrollbar {
   width: 8px; /* Adjust width */

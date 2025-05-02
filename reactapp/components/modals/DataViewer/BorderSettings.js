@@ -241,7 +241,7 @@ const BorderSettings = ({ border, setBorder }) => {
 
   return (
     <>
-      <label>
+      <label className="no-caret">
         <b>Border</b>:
       </label>
       <StyledDiv>

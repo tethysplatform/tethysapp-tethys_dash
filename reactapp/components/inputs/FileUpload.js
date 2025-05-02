@@ -45,7 +45,7 @@ const FileUpload = ({ label, onFileUpload, extensionsAllowed }) => {
         </Alert>
       )}
       <Form.Group controlId="formFile">
-        <Form.Label>
+        <Form.Label className="no-caret">
           <b>{label}</b>
         </Form.Label>
         <Form.Control

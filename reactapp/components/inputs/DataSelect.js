@@ -14,7 +14,7 @@ const DataSelect = ({ label, selectedOption, onChange, options, ...props }) => {
   return (
     <StyledDiv>
       {label && (
-        <label htmlFor={id}>
+        <label htmlFor={id} className="no-caret">
           <b>{label}</b>:
         </label>
       )}

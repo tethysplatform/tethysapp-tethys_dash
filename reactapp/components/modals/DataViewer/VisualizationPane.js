@@ -392,7 +392,7 @@ function VisualizationPane({
         </Button>
       </CenteredDiv>
       <TitleDiv>
-        <h3>{selectedVizTypeOption?.label}</h3>
+        <h3 className="no-caret">{selectedVizTypeOption?.label}</h3>
       </TitleDiv>
 
       <VisualizationArguments

@@ -22,7 +22,7 @@ const CheckboxInput = ({
   return (
     <div {...divProps}>
       {label && (
-        <InlineLabel>
+        <InlineLabel className="no-caret">
           <b>{label}</b>:
         </InlineLabel>
       )}

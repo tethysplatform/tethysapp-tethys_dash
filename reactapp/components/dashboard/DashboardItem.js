@@ -309,6 +309,7 @@ const DashboardItem = ({
         $backgroundColorProps={gridItemStyling?.backgroundColor}
         $boxShadowProps={gridItemStyling?.boxShadow}
         aria-label="gridItemDiv"
+        className="no-caret"
       >
         <StyledContainer
           fluid
