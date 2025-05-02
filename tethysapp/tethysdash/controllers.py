@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 
 from django.contrib.sessions.backends.db import SessionStore
+from django.conf import settings
 from tethys_sdk.routing import controller
 from tethysapp.tethysdash.app import App
 from tethysapp.tethysdash.model import (
@@ -23,7 +24,6 @@ from tethysapp.tethysdash.visualizations import (
     get_visualization,
 )
 from pathlib import Path
-from .sessions import SessionSecurityMiddleware
 
 @controller(login_required=False)
 def home(request):
@@ -48,24 +48,49 @@ def ping(request):
 
     if not session_id:
         # Session is missing meaning this is a public login
-        return JsonResponse({"status": 2})
+        return JsonResponse({
+            "status": 2,
+            "EXPIRE_AFTER": 0,
+            "WARN_AFTER": 0
+        })
 
     session = SessionStore(session_key=session_id)
     session_security = session.get("_session_security", None)
 
     if not session_security:
-        return JsonResponse({"status": -1})  # User is logged out (session missing)
+        # User is logged out (session missing)
+        # This could also mean that the django-session-security package isn't installed
+        return JsonResponse({
+            "status": -1,
+            "EXPIRE_AFTER": 0,
+            "WARN_AFTER": 0
+        })
 
+    EXPIRE_AFTER = getattr(settings, 'SESSION_SECURITY_EXPIRE_AFTER', 600) # 10 minutes
+    WARN_AFTER = getattr(settings, 'SESSION_SECURITY_WARN_AFTER', 540) # 9 minutes
     setattr(request, "session", session)
 
-    middleware = SessionSecurityMiddleware()
-    is_user_logged_out = middleware.is_user_session_expired(request)
-    if is_user_logged_out:
-        return JsonResponse({"status": -2})
-    elif 'idleFor' in request.GET:
-        now = datetime.now()
-        middleware.update_last_activity(request, now)
-    return JsonResponse({"status": 1})
+    try:
+        from .sessions import SessionSecurityMiddleware
+
+        middleware = SessionSecurityMiddleware()
+        is_user_logged_out = middleware.is_user_session_expired(request)
+        if is_user_logged_out:
+            return JsonResponse({
+                "status": -2,
+                "EXPIRE_AFTER": 0,
+                "WARN_AFTER": 0
+            })
+        elif 'idleFor' in request.GET:
+            now = datetime.now()
+            middleware.update_last_activity(request, now)
+            return JsonResponse({
+                "status": 1,
+                "EXPIRE_AFTER": EXPIRE_AFTER,
+                "WARN_AFTER": WARN_AFTER
+            })
+    except ImportError as error:
+        raise ImportError("If this is called, there's something really wrong.", error)
 
 
 @api_view(["GET"])

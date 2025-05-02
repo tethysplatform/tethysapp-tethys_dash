@@ -19,9 +19,11 @@ from datetime import datetime, timedelta
 import django
 from django.urls import reverse, resolve, Resolver404
 
-from session_security.utils import get_last_activity, set_last_activity
-from session_security.settings import EXPIRE_AFTER, PASSIVE_URLS, PASSIVE_URL_NAMES
-
+try:
+    from session_security.utils import get_last_activity, set_last_activity
+    from session_security.settings import EXPIRE_AFTER, PASSIVE_URLS, PASSIVE_URL_NAMES
+except ImportError as error:
+    print("Not importing session_security", error)
 
 class SessionSecurityMiddleware():
     """
