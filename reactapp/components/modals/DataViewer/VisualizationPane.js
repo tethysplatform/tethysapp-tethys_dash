@@ -199,6 +199,7 @@ function VisualizationPane({
         }
         setVizArguments(updatedVizArguments);
         setVizInputsValues(existingArgs);
+        currentSelectedVizTypeOption.current = selectedVizOptionGroupOption;
       }
     }
     // eslint-disable-next-line
@@ -241,6 +242,7 @@ function VisualizationPane({
       setVizType("unknown");
       setVizData({});
       setVizMetadata(null);
+      currentSelectedVizTypeOption.current = selectedVizTypeOption;
     }
     // eslint-disable-next-line
   }, [selectedVizTypeOption]);
