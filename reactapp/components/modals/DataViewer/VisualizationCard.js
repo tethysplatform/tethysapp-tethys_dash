@@ -1,10 +1,9 @@
 import PropTypes from "prop-types";
-import { memo, useRef, useState, Fragment } from "react";
+import { memo, useRef, useState } from "react";
 import Card from "react-bootstrap/Card";
 import styled from "styled-components";
 import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";
-import { spaceAndCapitalize } from "components/modals/utilities";
 
 const CustomCard = styled(Card)`
   -webkit-user-select: none;
@@ -59,16 +58,7 @@ const InfoItem = styled.div`
   margin-bottom: 0.5rem;
 `;
 
-const VisualizationCard = ({
-  source,
-  value,
-  label,
-  args,
-  type,
-  description,
-  tags,
-  onClick,
-}) => {
+const VisualizationCard = ({ label, type, description, tags, onClick }) => {
   const cardRef = useRef();
   const [showPopover, setShowPopover] = useState(false);
 
@@ -116,7 +106,7 @@ const VisualizationCard = ({
                 <b>Type</b>: {type}
               </InfoItem>
               <InfoItem>
-                <b>Tags</b>: {tags && tags.join(", ")}
+                <b>Tags</b>: {tags.join(", ")}
               </InfoItem>
             </div>
           </Popover.Body>
@@ -127,12 +117,11 @@ const VisualizationCard = ({
 };
 
 VisualizationCard.propTypes = {
-  id: PropTypes.number,
-  name: PropTypes.string,
-  editable: PropTypes.bool,
+  label: PropTypes.string,
+  type: PropTypes.string,
   description: PropTypes.string,
-  accessGroups: PropTypes.arrayOf(PropTypes.string),
-  image: PropTypes.string,
+  tags: PropTypes.arrayOf(PropTypes.string),
+  onClick: PropTypes.func,
 };
 
 export default memo(VisualizationCard);

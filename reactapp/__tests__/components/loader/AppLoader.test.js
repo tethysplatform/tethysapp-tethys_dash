@@ -44,6 +44,9 @@ test("AppLoader", async () => {
           value: "plugin_value_checkbox",
           label: "plugin_label_checkbox",
           args: { plugin_arg: "checkbox" },
+          type: "some type",
+          tags: [],
+          description: "",
         },
       ],
     },
@@ -118,6 +121,9 @@ test("AppLoader", async () => {
             value: "plugin_value_checkbox",
             label: "plugin_label_checkbox",
             args: { plugin_arg: "checkbox" },
+            type: "some type",
+            tags: [],
+            description: "",
           },
         ],
       },
@@ -134,6 +140,9 @@ test("AppLoader", async () => {
               layers: "custom-AddMapLayer",
               layerControl: "checkbox",
             },
+            tags: ["map", "default"],
+            description:
+              "A configurable map that allows users to add a basemap and custom layers from a variety of sources.",
           },
           {
             source: "Custom Image",
@@ -141,6 +150,9 @@ test("AppLoader", async () => {
             label: "Custom Image",
             type: "image",
             args: { image_source: "text" },
+            tags: ["image", "default", "custom"],
+            description:
+              "Any publicly available image using the corresponding URL.",
           },
           {
             source: "Text",
@@ -148,6 +160,8 @@ test("AppLoader", async () => {
             label: "Text",
             type: "text",
             args: { text: "text" },
+            tags: ["text", "default"],
+            description: "A block of formattable text.",
           },
           {
             source: "Variable Input",
@@ -177,6 +191,9 @@ test("AppLoader", async () => {
                 },
               ],
             },
+            tags: ["variable", "default", "dynamic"],
+            description:
+              "An input that acts as a dashboard variable. This variable can be referenced in other visualizations to allow for dynamic updating.",
           },
         ],
       },

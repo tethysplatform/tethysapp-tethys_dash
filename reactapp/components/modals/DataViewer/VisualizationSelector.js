@@ -6,29 +6,13 @@ import { AppContext } from "components/contexts/Contexts";
 import VisualizationCard from "components/modals/DataViewer/VisualizationCard";
 import VisualizationGroup from "components/modals/DataViewer/VisualizationGroup";
 import { InputGroup, FormControl } from "react-bootstrap";
-import Button from "react-bootstrap/Button";
-import ButtonGroup from "react-bootstrap/ButtonGroup";
-import { BsSearch, BsList, BsGrid } from "react-icons/bs";
+import { BsSearch } from "react-icons/bs";
 import "components/modals/wideModal.css";
 
 const StyledModalBody = styled(Modal.Body)`
   height: 75vh;
   max-height: 75vh;
   overflow-y: auto;
-`;
-
-const FlexDiv = styled.div`
-  display: flex;
-`;
-
-const FlexButtonGroup = styled(ButtonGroup)`
-  flex-grow: 1;
-  margin-left: 1rem;
-`;
-
-const ListItem = styled.div`
-  margin-left: 1rem;
-  border-bottom: 1px solid black;
 `;
 
 function VisualizationSelector({
@@ -38,13 +22,11 @@ function VisualizationSelector({
 }) {
   const { visualizations } = useContext(AppContext);
   const [search, setSearch] = useState("");
-  const [visualizationStyle, setVisualizationStyle] = useState("icon");
   const [visualizationItems, setVisualizationItems] = useState(visualizations);
   const [sectionsOpened, setSectionsOpened] = useState([]);
 
   const onSearch = (e) => {
     setSearch(e.target.value);
-    console.log(visualizationItems);
     const lowerQuery = e.target.value.toLowerCase();
     setVisualizationItems(
       visualizations
@@ -88,7 +70,7 @@ function VisualizationSelector({
           <Modal.Title>Available Visualizations</Modal.Title>
         </Modal.Header>
         <StyledModalBody>
-          <FlexDiv>
+          <div>
             <InputGroup>
               <FormControl
                 onChange={onSearch}
@@ -101,21 +83,7 @@ function VisualizationSelector({
                 <BsSearch />
               </InputGroup.Text>
             </InputGroup>
-            <FlexButtonGroup aria-label="Basic example">
-              <Button
-                variant={visualizationStyle === "list" ? "info" : "secondary"}
-                onClick={() => setVisualizationStyle("list")}
-              >
-                <BsList />
-              </Button>
-              <Button
-                variant={visualizationStyle === "icon" ? "info" : "secondary"}
-                onClick={() => setVisualizationStyle("icon")}
-              >
-                <BsGrid />
-              </Button>
-            </FlexButtonGroup>
-          </FlexDiv>
+          </div>
           {visualizationItems.map(({ label, options }, index) => (
             <VisualizationGroup
               key={index}
@@ -124,26 +92,13 @@ function VisualizationSelector({
               setSectionsOpened={setSectionsOpened}
             >
               <>
-                {options.map((metadata, index) => {
-                  if (visualizationStyle === "icon") {
-                    return (
-                      <VisualizationCard
-                        key={index}
-                        onClick={() => handleOnClick(metadata)}
-                        {...metadata}
-                      />
-                    );
-                  } else {
-                    return (
-                      <ListItem
-                        key={index}
-                        onClick={() => handleOnClick(metadata)}
-                      >
-                        {metadata.label}
-                      </ListItem>
-                    );
-                  }
-                })}
+                {options.map((metadata, index) => (
+                  <VisualizationCard
+                    key={index}
+                    onClick={() => handleOnClick(metadata)}
+                    {...metadata}
+                  />
+                ))}
               </>
             </VisualizationGroup>
           ))}
@@ -156,8 +111,7 @@ function VisualizationSelector({
 VisualizationSelector.propTypes = {
   showModal: PropTypes.bool,
   handleModalClose: PropTypes.func,
-  deselectedVisualizations: PropTypes.arrayOf(PropTypes.string),
-  setDeselectedVisualizations: PropTypes.func,
+  setSelectVizTypeOption: PropTypes.func,
 };
 
 export default VisualizationSelector;

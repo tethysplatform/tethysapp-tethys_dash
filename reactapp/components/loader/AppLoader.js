@@ -220,6 +220,9 @@ function Loader({ children }) {
               layers: "custom-AddMapLayer",
               layerControl: "checkbox",
             },
+            tags: ["map", "default"],
+            description:
+              "A configurable map that allows users to add a basemap and custom layers from a variety of sources.",
           },
           {
             source: "Custom Image",
@@ -227,6 +230,9 @@ function Loader({ children }) {
             label: "Custom Image",
             type: "image",
             args: { image_source: "text" },
+            tags: ["image", "default", "custom"],
+            description:
+              "Any publicly available image using the corresponding URL.",
           },
           {
             source: "Text",
@@ -234,6 +240,8 @@ function Loader({ children }) {
             label: "Text",
             type: "text",
             args: { text: "text" },
+            tags: ["text", "default"],
+            description: "A block of formattable text.",
           },
           {
             source: "Variable Input",
@@ -252,6 +260,9 @@ function Loader({ children }) {
                 ],
               ],
             },
+            tags: ["variable", "default", "dynamic"],
+            description:
+              "An input that acts as a dashboard variable. This variable can be referenced in other visualizations to allow for dynamic updating.",
           },
         ],
       });

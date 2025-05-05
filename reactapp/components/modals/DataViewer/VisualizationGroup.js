@@ -1,6 +1,6 @@
-import { useState } from "react";
 import styled from "styled-components";
 import Row from "react-bootstrap/Row";
+import PropTypes from "prop-types";
 
 const Section = styled.div`
   padding-left: 16px;
@@ -62,7 +62,12 @@ export default function VisualizationGroup({
     <Section>
       <Header onClick={handleOpenAndClose}>
         <FlexDiv>
-          <Arrow isOpen={sectionsOpened.includes(title)}>&#9660;</Arrow>
+          <Arrow
+            isOpen={sectionsOpened.includes(title)}
+            aria-label="Section Arrow"
+          >
+            &#9660;
+          </Arrow>
           <FlexTitle>
             <Title>{title}</Title>
           </FlexTitle>
@@ -76,3 +81,15 @@ export default function VisualizationGroup({
     </Section>
   );
 }
+
+VisualizationGroup.propTypes = {
+  title: PropTypes.string,
+  children: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.node,
+    PropTypes.element,
+    PropTypes.object,
+  ]),
+  sectionsOpened: PropTypes.arrayOf(PropTypes.string),
+  setSectionsOpened: PropTypes.func,
+};
