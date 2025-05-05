@@ -412,7 +412,7 @@ function VisualizationPane({
           <TooltipButton
             tooltipPlacement="bottom"
             tooltipText="Search Visualizations"
-            aria-label={"searchVisualizationsButton"}
+            aria-label={"Search Visualization Type Button"}
             onClick={
               activeAppTour
                 ? () => {}

@@ -69,7 +69,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Select Visualization Type Button"
+    "Search Visualization Type Button"
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
@@ -134,7 +134,7 @@ test("Dashboard Viewer Modal Text", async () => {
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Select Visualization Type Button"
+    "Search Visualization Type Button"
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
@@ -202,7 +202,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Select Visualization Type Button"
+    "Search Visualization Type Button"
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
@@ -314,7 +314,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Select Visualization Type Button"
+    "Search Visualization Type Button"
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
@@ -538,7 +538,7 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
   );
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Select Visualization Type Button"
+    "Search Visualization Type Button"
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
@@ -554,13 +554,13 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
   const comboboxes = await within(visualizationTabContent).findAllByRole(
     "combobox"
   );
-  const baseMapDropdown = comboboxes[0];
+  const baseMapDropdown = comboboxes[1];
   await selectEvent.openMenu(baseMapDropdown);
-  const baseMapOption = screen.getByText("World Light Gray Base");
+  const baseMapOption = await screen.findByText("World Light Gray Base");
   expect(baseMapOption).toBeInTheDocument();
   fireEvent.click(baseMapOption);
 
-  const showLayersDropdown = comboboxes[1];
+  const showLayersDropdown = comboboxes[2];
   await selectEvent.openMenu(showLayersDropdown);
   const showLayersOption = await screen.findAllByText("False");
   expect(showLayersOption[1]).toBeInTheDocument();
@@ -636,7 +636,7 @@ test("Dashboard Viewer Modal Text Options", async () => {
   );
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Select Visualization Type Button"
+    "Search Visualization Type Button"
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");

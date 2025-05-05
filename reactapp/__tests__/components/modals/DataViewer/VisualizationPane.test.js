@@ -93,7 +93,7 @@ test("Visualization Pane Custom Image", async () => {
   expect(mockSetVizData).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Select Visualization Type Button"
+    "Search Visualization Type Button"
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
@@ -102,6 +102,66 @@ test("Visualization Pane Custom Image", async () => {
   const visualizationOption = await screen.findByLabelText(
     "Custom Image Visualization Card"
   );
+  fireEvent.click(visualizationOption);
+  expect(await screen.findByText("Image Source")).toBeInTheDocument();
+
+  expect(mockSetVizMetadata).toHaveBeenCalledWith(null);
+  expect(mockSetVizType).toHaveBeenCalledWith("unknown");
+  expect(mockSetVizData).toHaveBeenCalledWith({});
+
+  const imageSourceInput = screen.getByLabelText("Image Source Input");
+  fireEvent.change(imageSourceInput, { target: { value: "some_png" } });
+
+  expect(mockSetVizMetadata).toHaveBeenCalledWith({
+    source: "Custom Image",
+    args: { image_source: "some_png" },
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show Custom Image"
+  );
+  expect(mockSetVizType).toHaveBeenCalledWith("image");
+  expect(mockSetVizData).toHaveBeenCalledWith({ source: "some_png" });
+});
+
+test("Visualization Pane Custom Image through Dropdown", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+  const mockSetShowingSubModal = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          gridItemIndex={0}
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          vizType={"loader"}
+          setVizType={mockSetVizType}
+          setVizData={mockSetVizData}
+          setVizMetadata={mockSetVizMetadata}
+          setShowingSubModal={mockSetShowingSubModal}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
+
+  expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
+  expect(mockSetVizType).toHaveBeenCalledTimes(0);
+  expect(mockSetVizData).toHaveBeenCalledTimes(0);
+
+  const comboboxes = await screen.findAllByRole("combobox");
+  const visualizationTypeSelect = comboboxes[0];
+  await userEvent.click(visualizationTypeSelect);
+  const visualizationOption = await screen.findByText("Custom Image");
   fireEvent.click(visualizationOption);
   expect(await screen.findByText("Image Source")).toBeInTheDocument();
 
@@ -158,7 +218,7 @@ test("Visualization Pane Variable Input", async () => {
   expect(mockSetVizData).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Select Visualization Type Button"
+    "Search Visualization Type Button"
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
@@ -299,7 +359,7 @@ test("Visualization Pane Other Type", async () => {
   expect(mockSetVizData).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Select Visualization Type Button"
+    "Search Visualization Type Button"
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Visualization Group");
@@ -457,7 +517,7 @@ test("Visualization Pane Other Type Checkbox", async () => {
   expect(mockSetVizData).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Select Visualization Type Button"
+    "Search Visualization Type Button"
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Other");
@@ -1217,7 +1277,7 @@ test("Visualization Pane Subs Args", async () => {
   );
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Select Visualization Type Button"
+    "Search Visualization Type Button"
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Other");
@@ -1232,7 +1292,7 @@ test("Visualization Pane Subs Args", async () => {
   expect(await screen.findByText("Plugin Arg2")).toBeInTheDocument();
 
   let comboboxes = await screen.findAllByRole("combobox");
-  const pluginArgDropdown = comboboxes[0];
+  const pluginArgDropdown = comboboxes[1];
   await userEvent.click(pluginArgDropdown);
   const arg1Option = await screen.findByText("Arg 1");
   fireEvent.click(arg1Option);
@@ -1240,7 +1300,7 @@ test("Visualization Pane Subs Args", async () => {
   expect(await screen.findByText("Sub Arg1a")).toBeInTheDocument();
 
   comboboxes = await screen.findAllByRole("combobox");
-  const subArg1ADropdown = comboboxes[1];
+  const subArg1ADropdown = comboboxes[2];
   await userEvent.click(subArg1ADropdown);
   const subArg1AOption = await screen.findByText("Sub Arg 1A");
   fireEvent.click(subArg1AOption);
@@ -1248,13 +1308,13 @@ test("Visualization Pane Subs Args", async () => {
   expect(await screen.findByText("Sub Arg1aa")).toBeInTheDocument();
 
   comboboxes = await screen.findAllByRole("combobox");
-  const subArg1AADropdown = comboboxes[2];
+  const subArg1AADropdown = comboboxes[3];
   await userEvent.click(subArg1AADropdown);
   const trueOption = await screen.findByText("True");
   fireEvent.click(trueOption);
 
   comboboxes = await screen.findAllByRole("combobox");
-  const pluginArg2Dropdown = comboboxes[3];
+  const pluginArg2Dropdown = comboboxes[4];
   await userEvent.click(pluginArg2Dropdown);
   const arg3Option = await screen.findByText("Arg 3");
   fireEvent.click(arg3Option);
