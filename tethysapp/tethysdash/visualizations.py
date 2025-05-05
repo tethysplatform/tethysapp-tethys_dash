@@ -26,6 +26,7 @@ def get_available_visualizations():
 
         plugin_metadata = {
             "source": intake_source,
+            "value": plugin.visualization_label,
             "label": plugin.visualization_label,
             "args": plugin.visualization_args,
             "type": plugin.visualization_type,

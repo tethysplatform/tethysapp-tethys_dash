@@ -18,12 +18,10 @@ import {
 } from "components/modals/utilities";
 import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
-import { CiFilter } from "react-icons/ci";
+import { BsSearch } from "react-icons/bs";
 import VisualizationSelector from "components/modals/DataViewer/VisualizationSelector";
 import { useAppTourContext } from "components/contexts/AppTourContext";
-import { Button } from "react-bootstrap";
 import "components/modals/wideModal.css";
-import appAPI from "services/api/app";
 
 const DropdownDiv = styled.div`
   flex: 1;
@@ -37,17 +35,6 @@ const ButtonDiv = styled.div`
 const FlexDiv = styled.div`
   display: flex;
   width: 100%;
-`;
-
-const TitleDiv = styled.div`
-  text-align: center;
-  margin-top: 0.5rem;
-`;
-
-const CenteredDiv = styled.div`
-  align-items: center;
-  justify-content: center;
-  display: flex;
 `;
 
 const VisualizationArguments = ({
@@ -150,14 +137,19 @@ function VisualizationPane({
   setShowingSubModal,
 }) {
   const [vizArguments, setVizArguments] = useState([]);
-  const [
-    showVisualizationTypeSettingsModal,
-    setShowVisualizationTypeSettingsModal,
-  ] = useState(false);
+  const [showVisualizationSelectorModal, setShowVisualizationSelectorModal] =
+    useState(false);
   const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useContext(VariableInputsContext);
   const { activeAppTour } = useAppTourContext();
   const currentSelectedVizTypeOption = useRef(selectedVizTypeOption);
+
+  const defaultVisualizationOptions = visualizations.find((obj) => {
+    return obj.label === "Default";
+  });
+  const customImageOption = defaultVisualizationOptions.options.find((obj) => {
+    return obj.value === "Custom Image";
+  });
 
   useEffect(() => {
     if (source) {
@@ -246,6 +238,43 @@ function VisualizationPane({
     checkAllInputs();
     // eslint-disable-next-line
   }, [vizInputsValues]);
+
+  function onDataTypeChange(e) {
+    visualizationRef.current = null;
+    settingsRef.current = {};
+    setSelectVizTypeOption(e);
+
+    let updatedVizArguments = [];
+    const updatedVizInputsValues = {};
+    for (let arg in e.args) {
+      let existing = vizArguments.filter((obj) => {
+        if (obj.name !== arg) {
+          return false;
+        }
+        return valuesEqual(obj.type, e.args[arg]);
+      });
+
+      let inputValue;
+      if (existing.length) {
+        inputValue = vizInputsValues[arg];
+      } else {
+        inputValue = getInitialInputValue(e.args[arg]);
+      }
+
+      updatedVizArguments.push({
+        label: arg,
+        name: arg,
+        type: e.args[arg],
+        value: inputValue,
+      });
+      updatedVizInputsValues[arg] = inputValue;
+    }
+    setVizInputsValues(updatedVizInputsValues);
+    setVizArguments(updatedVizArguments);
+    setVizType("unknown");
+    setVizData({});
+    setVizMetadata(null);
+  }
 
   const handleInputChange = (newValue, key) => {
     setVizInputsValues((prev) => {
@@ -375,26 +404,38 @@ function VisualizationPane({
 
   return (
     <>
-      <CenteredDiv>
-        <Button
-          variant="info"
-          onClick={
-            activeAppTour
-              ? () => {}
-              : () => {
-                  setShowVisualizationTypeSettingsModal(true);
-                  setShowingSubModal(true);
-                }
-          }
-          aria-label="Select Visualization Type Button"
-        >
-          Select Visualization Type
-        </Button>
-      </CenteredDiv>
-      <TitleDiv>
-        <h3 className="no-caret">{selectedVizTypeOption?.label}</h3>
-      </TitleDiv>
-
+      <label>
+        <b>Visualization Type</b>:
+      </label>
+      <FlexDiv>
+        <ButtonDiv>
+          <TooltipButton
+            tooltipPlacement="bottom"
+            tooltipText="Search Visualizations"
+            aria-label={"searchVisualizationsButton"}
+            onClick={
+              activeAppTour
+                ? () => {}
+                : () => {
+                    setShowVisualizationSelectorModal(true);
+                    setShowingSubModal(true);
+                  }
+            }
+            style={{ height: "100%" }}
+          >
+            <BsSearch />
+          </TooltipButton>
+        </ButtonDiv>
+        <DropdownDiv>
+          <DataSelect
+            selectedOption={selectedVizTypeOption}
+            onChange={onDataTypeChange}
+            options={activeAppTour ? [customImageOption] : visualizations}
+            aria-label={"visualizationType"}
+            className={"visualizationTypeDropdown"}
+          />
+        </DropdownDiv>
+      </FlexDiv>
       <VisualizationArguments
         selectedVizTypeOption={selectedVizTypeOption}
         vizArguments={vizArguments}
@@ -404,11 +445,11 @@ function VisualizationPane({
         gridItemIndex={gridItemIndex}
       />
 
-      {showVisualizationTypeSettingsModal && (
+      {showVisualizationSelectorModal && (
         <VisualizationSelector
-          showModal={showVisualizationTypeSettingsModal}
+          showModal={showVisualizationSelectorModal}
           handleModalClose={() => {
-            setShowVisualizationTypeSettingsModal(false);
+            setShowVisualizationSelectorModal(false);
             setShowingSubModal(false);
           }}
           setSelectVizTypeOption={setSelectVizTypeOption}
