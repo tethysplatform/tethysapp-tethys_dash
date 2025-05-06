@@ -226,7 +226,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
       map,
       pixel
     );
-  } else if (sourceType === "GeoJSON") {
+  } else if (sourceType === "GeoJSON" || sourceType === "ArcGISFeatureService") {
     features = await getGeoJSONLayerFeatures(map, pixel, coordinate);
   } else {
     throw Error(`${sourceType} is not currently configured to be queried`);
@@ -416,6 +416,7 @@ export async function getLayerAttributes(sourceProps, layerName) {
   const sourceParams = sourceProperties?.params ?? {};
   const sourceUrl = sourceProperties?.url ?? "";
   const sourceGeoJSON = sourceProps?.geojson ?? {};
+  const layerNumber = sourceProperties?.layer;
 
   // make the appropriate request based on the source type
   if (sourceType === "ImageArcGISRest") {
@@ -424,6 +425,8 @@ export async function getLayerAttributes(sourceProps, layerName) {
     attributes = await getImageWMSLayerAttributes(sourceUrl, sourceParams);
   } else if (sourceType === "GeoJSON") {
     attributes = await getGeoJSONLayerAttributes(sourceGeoJSON, layerName);
+  } else if (sourceType === "ArcGISFeatureService") {
+    attributes = await getArcGISFeatureServiceLayerAttributes(sourceUrl, layerNumber);
   } else {
     throw Error(`${sourceType} is not currently configured to be queried`);
   }
@@ -463,6 +466,33 @@ async function getESRILayerAttributes(sourceUrl) {
     sourceAttributes[layerName] = specificLayerFieds;
   }
 
+  return sourceAttributes;
+}
+
+async function getArcGISFeatureServiceLayerAttributes(sourceUrl, layerNumber) {
+  if (sourceUrl[sourceUrl - 1] == '/') {
+    sourceUrl += layerNumber;
+  } else {
+    sourceUrl += `/${layerNumber}`;
+  }
+
+  // setup fetch request with params
+  const sourceURLParams = new URLSearchParams({
+    f: "json",
+  });
+  const sourceInfoUrl = `${sourceUrl}?${sourceURLParams.toString()}`;
+
+  // Fetch data and parse json
+  const sourceInfoResponse = await fetch(sourceInfoUrl);
+  const sourceInfoJSON = await sourceInfoResponse.json();
+
+  // setup constants, get an array of layer names
+  let layerName = sourceInfoJSON.name;
+  let layerFields = [];
+  for (const field of sourceInfoJSON.fields) {
+    layerFields.push({ name: field.name, alias: field.alias });
+  }
+  const sourceAttributes = {[layerName]: layerFields};
   return sourceAttributes;
 }
 
