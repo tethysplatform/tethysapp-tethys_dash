@@ -230,7 +230,7 @@ async function getESRILayerFeatures(sourceUrl, map, coordinate) {
     tolerance: 10, // Pixel tolerance
     returnGeometry: true,
     geometryType: "esriGeometryPoint",
-    sr: map.getView().getProjection().getCode(),
+    sr: map.getView().getProjection().getCode().split(":")[1],
     geometry: coordinate.join(","),
     mapExtent: map.getView().calculateExtent().join(","),
     returnFieldName: true,
