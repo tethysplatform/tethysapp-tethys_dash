@@ -72,6 +72,10 @@ const InfoItem = styled.div`
   margin-bottom: 0.5rem;
 `;
 
+const CenteredDiv = styled.div`
+  text-align: center;
+`;
+
 const VisualizationCard = ({
   source,
   label,
@@ -119,7 +123,9 @@ const VisualizationCard = ({
         <Popover className="color-picker-popover">
           <Popover.Body>
             <div>
-              <h4>{label}</h4>
+              <CenteredDiv>
+                <h5>{label}</h5>
+              </CenteredDiv>
               <InfoItem>
                 <b>Description</b>: {description}
               </InfoItem>
@@ -138,6 +144,7 @@ const VisualizationCard = ({
 };
 
 VisualizationCard.propTypes = {
+  source: PropTypes.string,
   label: PropTypes.string,
   type: PropTypes.string,
   description: PropTypes.string,
