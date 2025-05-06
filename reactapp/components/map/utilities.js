@@ -63,6 +63,19 @@ export const sourcePropertiesOptions = {
       projection: "EPSG:<Code>",
     },
   },
+  ArcGISFeatureService: {
+    required: {
+      url: "ArcGIS Feature Service URL",
+      layer: "the integer for the layer index",
+    },
+    optional: {
+      attributions: "Attributions",
+      params: {
+        TIME: "<startTime>, <endTime> or <timeInstant>",
+        WHERE: "WHERE clause for the query filter",
+      },
+    },
+  }
 };
 
 export const layerPropertiesOptions = {
