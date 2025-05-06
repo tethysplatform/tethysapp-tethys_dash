@@ -10,31 +10,42 @@ const CustomCard = styled(Card)`
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
-  width: 12rem;
-  height: 12rem;
-  margin-left: 0.5rem;
-  margin-bottom: 0.5rem;
+  width: 12.5rem;
+  height: 11rem;
+  margin-left: 0.6rem;
+  margin-bottom: 0.6rem;
   display: flex;
   background-color: rgb(238, 238, 238);
 `;
 
 const CardBody = styled(Card.Body)`
-  position: relative; /* Ensure content is layered properly */
-  overflow-y: auto;
+  padding: 0.3rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 9.5rem;
+`;
+
+const ImageWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%; /* Fill the body */
+  overflow: hidden;
 `;
 
 const CardImage = styled(Card.Img)`
-  transition: opacity 0.3s ease; /* Smooth transition for opacity change */
-  opacity: 1; /* Default visibility */
-  width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 `;
 
 const CardHeader = styled(Card.Header)`
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-height: 4rem;
+  height: 1.5rem;
   padding: 0;
   background-color: transparent;
 `;
@@ -51,6 +62,9 @@ const CardTitleDiv = styled.div`
 
 const CardTitle = styled.p`
   margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   width: 100%;
 `;
 
@@ -58,7 +72,14 @@ const InfoItem = styled.div`
   margin-bottom: 0.5rem;
 `;
 
-const VisualizationCard = ({ label, type, description, tags, onClick }) => {
+const VisualizationCard = ({
+  source,
+  label,
+  type,
+  description,
+  tags,
+  onClick,
+}) => {
   const cardRef = useRef();
   const [showPopover, setShowPopover] = useState(false);
 
@@ -79,13 +100,13 @@ const VisualizationCard = ({ label, type, description, tags, onClick }) => {
           </CardTitleDiv>
         </CardHeader>
         <CardBody>
-          <CardImage
-            variant="top"
-            src={
-              "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Aptenodytes_forsteri_-Snow_Hill_Island%2C_Antarctica_-adults_and_juvenile-8.jpg/640px-Aptenodytes_forsteri_-Snow_Hill_Island%2C_Antarctica_-adults_and_juvenile-8.jpg"
-            }
-            aria-label="Dashboard Card Image"
-          />
+          <ImageWrapper>
+            <CardImage
+              variant="top"
+              src={`/static/tethysdash/images/plugins/${source}.png`}
+              aria-label="Dashboard Card Image"
+            />
+          </ImageWrapper>
         </CardBody>
       </CustomCard>
       <Overlay
