@@ -470,11 +470,7 @@ async function getESRILayerAttributes(sourceUrl) {
 }
 
 async function getArcGISFeatureServiceLayerAttributes(sourceUrl, layerNumber) {
-  if (sourceUrl[sourceUrl - 1] == '/') {
-    sourceUrl += layerNumber;
-  } else {
-    sourceUrl += `/${layerNumber}`;
-  }
+  sourceUrl += sourceUrl.endsWith('/') ? layerNumber : `/${layerNumber}`;
 
   // setup fetch request with params
   const sourceURLParams = new URLSearchParams({

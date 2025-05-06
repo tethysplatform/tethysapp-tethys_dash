@@ -175,11 +175,7 @@ const loadESRIJSON = (config) => {
         .pop();
   
       let serviceUrl = config.props.url;
-      if (serviceUrl[serviceUrl.length - 1] == '/') {
-        serviceUrl += config.props.layer;
-      } else {
-        serviceUrl += `/${config.props.layer}`;
-      }
+      serviceUrl += serviceUrl.endsWith('/') ? config.props.layer : `/${config.props.layer}`;
 
       let url =
         serviceUrl +
@@ -203,15 +199,15 @@ const loadESRIJSON = (config) => {
         '&outFields=*' +
         '&outSR=' +
         srid;
-      
-      if (config.props.params.WHERE) {
+
+      if (config.props.params?.WHERE) {
         url += "&where=" + config.props.params.WHERE;
       }
 
-      if (config.props.params.TIME) {
+      if (config.props.params?.TIME) {
         url += "&time=" + config.props.params.TIME;
       }
-  
+
       return url;
     },
 
