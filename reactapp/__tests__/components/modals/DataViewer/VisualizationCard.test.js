@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import VisualizationCard from "components/modals/DataViewer/VisualizationCard";
 
 it("VisualizationCard", async () => {
+  const source = "some_source";
   const label = "some label";
   const type = "some type";
   const description = "some description";
@@ -11,6 +12,7 @@ it("VisualizationCard", async () => {
 
   render(
     <VisualizationCard
+      source={source}
       label={label}
       type={type}
       description={description}
@@ -23,7 +25,7 @@ it("VisualizationCard", async () => {
   const thumbnail = screen.getByRole("img");
   expect(thumbnail).toBeInTheDocument();
   expect(thumbnail.src).toBe(
-    "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Aptenodytes_forsteri_-Snow_Hill_Island%2C_Antarctica_-adults_and_juvenile-8.jpg/640px-Aptenodytes_forsteri_-Snow_Hill_Island%2C_Antarctica_-adults_and_juvenile-8.jpg"
+    "http://localhost/static/tethysdash/images/plugins/some_source.png"
   );
 
   fireEvent.mouseEnter(thumbnail);
