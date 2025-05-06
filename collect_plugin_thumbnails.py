@@ -4,6 +4,7 @@ import importlib
 from pathlib import Path
 from importlib.metadata import entry_points
 import subprocess
+import intake
 
 
 def get_intake_plugin_modules():
@@ -12,9 +13,9 @@ def get_intake_plugin_modules():
     return {ep.name: ep.module for ep in intake_eps}
 
 
-def discover_plugin_images(plugin_modules):
-    image_paths = []
+def copy_plugin_images(plugin_modules, static_plugin_images):
     for source, module in plugin_modules.items():
+        found = False
         try:
             mod = importlib.import_module(module)
             mod_path = Path(mod.__file__).resolve()
@@ -27,29 +28,54 @@ def discover_plugin_images(plugin_modules):
             for ext in [".png", ".jpeg", ".jpg"]:
                 image_path = static_dir / f"{source}{ext}"
                 if image_path.exists():
-                    image_paths.append(str(image_path))
+                    found = True
                     break  # Stop at the first match
+
+            if not found:
+                try:
+                    visualization_type = intake.source.registry[
+                        source
+                    ].visualization_type
+                except:
+                    print(f"--> {source} is not a tethysdash plugin")
+                if visualization_type == "image":
+                    image_path = "tethysapp/tethysdash/default_image.png"
+                elif visualization_type == "text":
+                    image_path = "tethysapp/tethysdash/default_text.png"
+                elif visualization_type == "variableInput":
+                    image_path = "tethysapp/tethysdash/default_variable_input.png"
+                elif visualization_type == "map":
+                    image_path = "tethysapp/tethysdash/default_map.png"
+                elif visualization_type == "plotly":
+                    image_path = "tethysapp/tethysdash/default_chart.png"
+                elif visualization_type == "card":
+                    image_path = "tethysapp/tethysdash/default_card.png"
+                elif visualization_type == "table":
+                    image_path = "tethysapp/tethysdash/default_table.png"
+                elif visualization_type == "custom":
+                    image_path = "tethysapp/tethysdash/default_custom.png"
+                else:
+                    print(f"--> PNG thumbnail not available for {source}")
+
+            print(f"Adding to static folder - {source}")
+            static_file = os.path.join(static_plugin_images, f"{source}.png")
+            shutil.copyfile(image_path, static_file)
 
         except ModuleNotFoundError:
             continue
-    return image_paths
 
 
 def main():
+    static_plugin_images = "./tethysapp/tethysdash/public/images/plugins"
+    if not os.path.exists(static_plugin_images):
+        print("Creating static plugin folder")
+        os.makedirs(static_plugin_images)
+
     print("Getting installed intake drivers")
     plugins = get_intake_plugin_modules()
 
     print("Checking for plugin thumbnails")
-    plugin_images = discover_plugin_images(plugins)
-
-    print("Copying plugin thumbnails to static folder")
-    static_plugin_images = "./tethysapp/tethysdash/public/images/plugins"
-    if not os.path.exists(static_plugin_images):
-        os.makedirs(static_plugin_images)
-
-    for plugin_image in plugin_images:
-        static_file = os.path.join(static_plugin_images, os.path.basename(plugin_image))
-        shutil.copyfile(plugin_image, static_file)
+    copy_plugin_images(plugins, static_plugin_images)
 
     print("Running collect static")
     # Run a simple command and get the output
