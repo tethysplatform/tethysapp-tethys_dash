@@ -70,6 +70,7 @@ function capitalizePhrase(phrase) {
 DataTable.propTypes = {
   data: PropTypes.array,
   title: PropTypes.string,
+  subtitle: PropTypes.string,
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),

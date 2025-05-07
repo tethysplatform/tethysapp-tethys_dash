@@ -22,7 +22,7 @@ def get_available_visualizations():
 
     available_visualizations = []
     for intake_source in valid_intake_sources:
-        plugin = intake.source.registry[intake_source]
+        plugin = getattr(intake, f"open_{intake_source}")
 
         plugin_metadata = {
             "source": intake_source,

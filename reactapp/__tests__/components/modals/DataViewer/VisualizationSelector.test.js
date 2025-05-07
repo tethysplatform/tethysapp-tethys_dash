@@ -1,8 +1,6 @@
-import { useState } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import VisualizationSelector from "components/modals/DataViewer/VisualizationSelector";
 import createLoadedComponent from "__tests__/utilities/customRender";
-import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
 
 it("VisualizationSelector", async () => {

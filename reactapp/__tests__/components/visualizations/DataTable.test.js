@@ -13,6 +13,7 @@ function initAndRender(props) {
       <DataTable
         title={props.title}
         data={props.data}
+        subtitle={props.subtitle}
       />
     );
   };
@@ -21,6 +22,7 @@ function initAndRender(props) {
     title: PropTypes.string,
     description: PropTypes.string,
     data: PropTypes.string,
+    subtitle: PropTypes.string,
   };
 
   const { rerender } = render(DataTableRender(props));
@@ -28,7 +30,7 @@ function initAndRender(props) {
   return {
     user,
     DataTableRender,
-    rerender
+    rerender,
   };
 }
 
@@ -36,6 +38,42 @@ it("Creates a Data Table with the provided data", () => {
   initAndRender(mockedTableData);
 
   expect(screen.getByText("User Information")).toBeInTheDocument();
+
+  const header1 = screen.getByText("Name");
+  const header2 = screen.getByText("Age");
+  const header3 = screen.getByText("Occupation");
+  expect(header1).toBeInTheDocument();
+  expect(header2).toBeInTheDocument();
+  expect(header3).toBeInTheDocument();
+
+  const nameData1 = screen.getByText("Alice Johnson");
+  const nameData2 = screen.getByText("Bob Smith");
+  const nameData3 = screen.getByText("Charlie Brown");
+  expect(nameData1).toBeInTheDocument();
+  expect(nameData2).toBeInTheDocument();
+  expect(nameData3).toBeInTheDocument();
+
+  const ageData1 = screen.getByText("28");
+  const ageData2 = screen.getByText("34");
+  const ageData3 = screen.getByText("22");
+  expect(ageData1).toBeInTheDocument();
+  expect(ageData2).toBeInTheDocument();
+  expect(ageData3).toBeInTheDocument();
+
+  const occupationData1 = screen.getByText("Engineer");
+  const occupationData2 = screen.getByText("Designer");
+  const occupationData3 = screen.getByText("Teacher");
+  expect(occupationData1).toBeInTheDocument();
+  expect(occupationData2).toBeInTheDocument();
+  expect(occupationData3).toBeInTheDocument();
+});
+
+it("Creates a Data Table with subtitle with the provided data", () => {
+  mockedTableData.subtitle = "some subtitle";
+  initAndRender(mockedTableData);
+
+  expect(screen.getByText("User Information")).toBeInTheDocument();
+  expect(screen.getByText("some subtitle")).toBeInTheDocument();
 
   const header1 = screen.getByText("Name");
   const header2 = screen.getByText("Age");

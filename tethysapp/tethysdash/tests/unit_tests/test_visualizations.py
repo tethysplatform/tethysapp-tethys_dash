@@ -21,6 +21,8 @@ def test_get_available_visualizations2(
     mock_intake.source.registry = [mock_plugin.name, mock_plugin2.name]
     mock_intake.open_package_name = mock_plugin
     mock_intake.open_package_name2 = mock_plugin2
+    mock_intake.open_package_name2.visualization_tags = []
+    mock_intake.open_package_name2.visualization_description = ""
 
     available_visualizations = get_available_visualizations()
 

@@ -54,7 +54,7 @@ const StyledVizCol = styled(Col)`
 
 function findBySource(data, targetSource) {
   for (const group of data) {
-    for (const option of group.options || []) {
+    for (const option of group.options) {
       if (option.source === targetSource) {
         return option;
       }

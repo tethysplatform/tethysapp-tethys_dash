@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import VisualizationGroup from "components/modals/DataViewer/VisualizationGroup";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
@@ -39,6 +39,13 @@ it("VisualizationGroup", async () => {
   expect(sectionArrow).toHaveStyle("transform: rotate(0deg)");
   expect(await screen.findByTestId("sectionsOpened")).toHaveTextContent(
     JSON.stringify([title])
+  );
+
+  await userEvent.click(sectionTitle);
+
+  expect(sectionArrow).toHaveStyle("transform: rotate(-90deg)");
+  expect(await screen.findByTestId("sectionsOpened")).toHaveTextContent(
+    JSON.stringify([])
   );
 });
 

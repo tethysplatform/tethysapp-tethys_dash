@@ -33,7 +33,7 @@ function VisualizationSelector({
         .map((group) => {
           const filteredOptions = group.options.filter((option) => {
             const labelMatch = option.label.toLowerCase().includes(lowerQuery);
-            const tagMatch = (option.tags || []).some((tag) =>
+            const tagMatch = option.tags.some((tag) =>
               tag.toLowerCase().includes(lowerQuery)
             );
             return labelMatch || tagMatch;

@@ -34,6 +34,7 @@ const NormalInput = ({
 };
 
 NormalInput.propTypes = {
+  placeholder: PropTypes.string,
   ariaLabel: PropTypes.string,
   label: PropTypes.string, // label for the input
   onChange: PropTypes.func, // callback function when the input changes

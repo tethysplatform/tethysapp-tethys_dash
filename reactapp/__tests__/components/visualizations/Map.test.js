@@ -673,7 +673,9 @@ test("Map click attribute variables update text variable input", async () => {
     { timeout: 2000 }
   );
   // popup
-  expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+  });
 
   expect(await screen.findByText("Some Layer")).toBeInTheDocument();
   expect(await screen.findByText("Field")).toBeInTheDocument();

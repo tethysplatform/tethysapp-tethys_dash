@@ -7,7 +7,6 @@ import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
-import { Table } from "react-bootstrap";
 
 const TestingComponent = ({
   source,
@@ -1391,6 +1390,118 @@ test("Visualization Pane Subs Args", async () => {
   expect(mockSetShowingSubModal).toHaveBeenCalledWith(false);
 });
 
+test("Visualization Pane Use Existing Args and switch type with same arg", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.user[0];
+  mockedDashboard.gridItems = [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "plugin_source",
+      args_string: JSON.stringify({
+        plugin_arg: "some text value",
+      }),
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ];
+  const mockedVisualizations = [
+    {
+      label: "Other",
+      options: [
+        {
+          source: "plugin_source",
+          value: "plugin_value",
+          label: "plugin_label",
+          args: { plugin_arg: "text" },
+          type: "some type",
+          tags: [],
+          description: "",
+        },
+        {
+          source: "plugin_source2",
+          value: "plugin_value2",
+          label: "plugin_label2",
+          args: { plugin_arg: "text", plugin_arg2: "text" },
+          type: "some type",
+          tags: [],
+          description: "",
+        },
+      ],
+    },
+  ];
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          vizType={"loader"}
+          setVizType={mockSetVizType}
+          setVizData={mockSetVizData}
+          setVizMetadata={mockSetVizMetadata}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+        dashboards: updatedMockedDashboards,
+        visualizations: mockedVisualizations,
+      },
+    })
+  );
+
+  expect(await screen.findByText("plugin_label")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg")).toBeInTheDocument();
+  const pluginArg = screen.getByRole("textbox");
+  expect(pluginArg.value).toBe("some text value");
+
+  await waitFor(async () => {
+    expect(mockSetVizMetadata).toHaveBeenCalledWith({
+      source: "plugin_source",
+      args: {
+        plugin_arg: "some text value",
+      },
+    });
+  });
+  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+    "Cell updated to show plugin_label"
+  );
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify({ plugin_arg: "some text value" })
+  );
+
+  const comboboxes = await screen.findAllByRole("combobox");
+  const visualizationTypeSelect = comboboxes[0];
+  await userEvent.click(visualizationTypeSelect);
+  const visualizationOption = await screen.findByText("plugin_label2");
+  fireEvent.click(visualizationOption);
+
+  expect(await screen.findByText("plugin_label2")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg")).toBeInTheDocument();
+  expect(await screen.findByText("Plugin Arg2")).toBeInTheDocument();
+  const pluginArgs = screen.getAllByRole("textbox");
+  expect(pluginArgs[0].value).toBe("some text value");
+  expect(pluginArgs[1].value).toBe("");
+
+  expect(mockSetVizType).toHaveBeenCalledWith("unknown");
+  expect(mockSetVizData).toHaveBeenCalledWith({});
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify({ plugin_arg: "some text value", plugin_arg2: "" })
+  );
+});
+
 TestingComponent.propTypes = {
   layoutContext: PropTypes.object,
   source: PropTypes.string,
@@ -1403,4 +1514,5 @@ TestingComponent.propTypes = {
   vizType: PropTypes.string,
   setVizType: PropTypes.func,
   setVizData: PropTypes.func,
+  initialSelectedVizTypeOption: PropTypes.object,
 };
