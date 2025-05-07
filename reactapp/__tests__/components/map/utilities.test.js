@@ -629,7 +629,7 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
     tolerance: 10, // Pixel tolerance
     returnGeometry: true,
     geometryType: "esriGeometryPoint",
-    sr: "EPSG:4326",
+    sr: "4326",
     geometry: "0,0",
     mapExtent: "1,2,3,4",
     returnFieldName: true,
@@ -698,7 +698,7 @@ test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
     tolerance: 10, // Pixel tolerance
     returnGeometry: true,
     geometryType: "esriGeometryPoint",
-    sr: "EPSG:4326",
+    sr: "4326",
     geometry: "0,0",
     mapExtent: "1,2,3,4",
     returnFieldName: true,
