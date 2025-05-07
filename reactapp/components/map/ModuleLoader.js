@@ -129,6 +129,7 @@ const getModuleImporter = (type) => {
     Fill: "ol/style/Fill.js",
     InvalidForTesting: "DontUseThis",
     // Add other mappings as needed
+    ArcGISImageService: "ol/source/ImageArcGISRest.js"
   };
 
   const modulePath = typeMapping[type];

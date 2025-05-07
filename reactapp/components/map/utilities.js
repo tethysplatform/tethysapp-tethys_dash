@@ -63,6 +63,16 @@ export const sourcePropertiesOptions = {
       projection: "EPSG:<Code>",
     },
   },
+  ArcGISImageService: {
+    required: {
+      url: "ArcGIS Image Service URL"
+    },
+    optional: {
+      params: {
+        mosaicRule: "Specifies how images should be mosaicked"
+      }
+    }
+  }
 };
 
 export const layerPropertiesOptions = {
