@@ -573,7 +573,7 @@ test("getBaseMapLayer", async () => {
             'Tiles © <a href="https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer">ArcGIS</a>',
           url: "https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}",
         },
-        type: "ImageTile",
+        type: "Image Tile",
       },
     },
     type: "WebGLTile",

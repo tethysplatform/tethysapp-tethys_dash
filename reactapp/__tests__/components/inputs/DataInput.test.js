@@ -325,7 +325,7 @@ test("renders custom-AddMapLayer", async () => {
             props: {
               url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
             },
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
           },
           zIndex: 1,
         },

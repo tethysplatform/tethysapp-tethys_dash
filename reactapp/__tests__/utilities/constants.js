@@ -455,7 +455,7 @@ export const mockedMapBase = {
           props: {
             name: "NWC",
             source: {
-              type: "ImageArcGISRest",
+              type: "ESRI Image and Map Service",
               props: {
                 url: "some_url",
               },
@@ -504,7 +504,7 @@ export const mockedMapData = {
       type: "WebGLTile",
       props: {
         source: {
-          type: "ImageTile",
+          type: "Image Tile",
           props: {
             url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
             attributions:
@@ -519,7 +519,7 @@ export const mockedMapData = {
       type: "ImageLayer",
       props: {
         source: {
-          type: "ImageArcGISRest",
+          type: "ESRI Image and Map Service",
           props: {
             url: "https://mapservices.weather.noaa.gov/eventdriven/rest/services/water/riv_gauges/MapServer",
             params: {
@@ -836,7 +836,7 @@ export const layerConfig = {
     props: {
       name: "Some Layer",
       source: {
-        type: "ImageArcGISRest",
+        type: "ESRI Image and Map Service",
         props: {
           url: "Some Url",
         },
@@ -861,7 +861,7 @@ export const layerConfigArcGISFeatureService = {
     props: {
       name: "Some ArcGISFeatureService Layer",
       source: {
-        type: "ArcGISFeatureService",
+        type: "ESRI Feature Service",
         props: {
           url: "Some Url",
           layer: 0,
@@ -911,7 +911,7 @@ export const layerConfigImageArcGISRest = {
     props: {
       name: "ImageArcGISRest Layer",
       source: {
-        type: "ImageArcGISRest",
+        type: "ESRI Image and Map Service",
         props: {
           url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
         },
@@ -925,9 +925,9 @@ export const layerConfigImageWMS = {
   configuration: {
     type: "ImageLayer",
     props: {
-      name: "Image WMS",
+      name: "WMS",
       source: {
-        type: "ImageWMS",
+        type: "WMS",
         props: {
           url: "https://ahocevar.com/geoserver/wms",
           params: { LAYERS: "topp:states" },
@@ -943,7 +943,7 @@ export const layerConfigVectorTile = {
     type: "VectorTileLayer",
     props: {
       source: {
-        type: "VectorTile",
+        type: "Vector Tile",
         props: {
           urls: [
             "https://ahocevar.com/geoserver/gwc/service/tms/1.0.0/ne:ne_10m_admin_0_countries@EPSG%3A900913@pbf/{z}/{x}/{-y}.pbf",
@@ -963,7 +963,7 @@ export const layerConfigWebGLTile = {
     type: "WebGLTile",
     props: {
       source: {
-        type: "ImageTile",
+        type: "Image Tile",
         props: {
           url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
         },

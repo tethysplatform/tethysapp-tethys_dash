@@ -197,7 +197,7 @@ test("Map default and update layers", async () => {
         props: {
           name: "NWC",
           source: {
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
             props: {
               url: "some_url",
             },
@@ -341,7 +341,7 @@ test("Map click", async () => {
         props: {
           name: "NWC",
           source: {
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
             props: {
               url: "some_url",
             },
@@ -496,7 +496,7 @@ test("Map click no attributes found", async () => {
         props: {
           name: "NWC",
           source: {
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
             props: {
               url: "some_url",
             },
@@ -559,7 +559,7 @@ test("Map click all attributes omitted", async () => {
         props: {
           name: "NWC",
           source: {
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
             props: {
               url: "some_url",
             },
@@ -622,7 +622,7 @@ test("Map click attribute variables update text variable input", async () => {
         props: {
           name: "NWC",
           source: {
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
             props: {
               url: "some_url",
             },
@@ -715,7 +715,7 @@ test("Map click attribute variables update dropdown variable input", async () =>
         props: {
           name: "NWC",
           source: {
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
             props: {
               url: "some_url",
             },
@@ -804,7 +804,7 @@ test("Map click attribute variables Null values", async () => {
         props: {
           name: "NWC",
           source: {
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
             props: {
               url: "some_url",
             },
@@ -871,7 +871,7 @@ test("Map click query error", async () => {
         props: {
           name: "NWC",
           source: {
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
             props: {
               url: "some_url",
             },
@@ -921,7 +921,7 @@ test("Map click not happen in dataviewer mode", async () => {
         props: {
           name: "NWC",
           source: {
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
             props: {
               url: "some_url",
             },

@@ -72,11 +72,11 @@ test("SourcePane ImageArcGISRest", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageArcGISRest");
+  const sourceOption = await screen.findByText("ESRI Image and Map Service");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
   expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
-    JSON.stringify({ type: "ImageArcGISRest", props: {} })
+    JSON.stringify({ type: "ESRI Image and Map Service", props: {} })
   );
 
   expect(screen.getByText("url")).toBeInTheDocument();
@@ -84,16 +84,20 @@ test("SourcePane ImageArcGISRest", async () => {
   expect(screen.getByText("params - LAYERS")).toBeInTheDocument();
   expect(screen.getByText("params - TIME")).toBeInTheDocument();
   expect(screen.getByText("params - LAYERDEFS")).toBeInTheDocument();
+  expect(screen.getByText("params - mosaicRule")).toBeInTheDocument();
   expect(screen.getByText("projection")).toBeInTheDocument();
 
   const inputs = screen.getAllByRole("textbox");
-  expect(inputs.length).toBe(6);
+  expect(inputs.length).toBe(7);
 
   const urlInput = inputs[0];
   expect(urlInput.placeholder).toBe("ArcGIS Rest service URL");
   fireEvent.change(urlInput, { target: { value: "Some Url" } });
   expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
-    JSON.stringify({ type: "ImageArcGISRest", props: { url: "Some Url" } })
+    JSON.stringify({
+      type: "ESRI Image and Map Service",
+      props: { url: "Some Url" },
+    })
   );
 
   const layerdefsInput = inputs[4];
@@ -105,17 +109,17 @@ test("SourcePane ImageArcGISRest", async () => {
   });
   expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
     JSON.stringify({
-      type: "ImageArcGISRest",
+      type: "ESRI Image and Map Service",
       props: { url: "Some Url", params: { LAYERDEFS: "Some layerDef" } },
     })
   );
 
   selectEvent.openMenu(sourceDropdown);
-  const newSourceOption = await screen.findByText("ImageWMS");
+  const newSourceOption = await screen.findByText("WMS");
   fireEvent.click(newSourceOption);
   expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
     JSON.stringify({
-      type: "ImageWMS",
+      type: "WMS",
       props: { url: "Some Url" },
     })
   );
@@ -224,7 +228,7 @@ test("SourcePane Updating Existing VectorTiles", async () => {
   render(
     <TestingComponent
       initialSourceProps={{
-        type: "VectorTile",
+        type: "Vector Tile",
         props: {
           urls: ["some_url", "some_other_url"],
         },
@@ -235,7 +239,7 @@ test("SourcePane Updating Existing VectorTiles", async () => {
   expect(await screen.findByText("Source Type")).toBeInTheDocument();
   expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
     JSON.stringify({
-      type: "VectorTile",
+      type: "Vector Tile",
       props: {
         urls: ["some_url", "some_other_url"],
       },

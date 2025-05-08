@@ -248,7 +248,7 @@ layers = [
     'type': 'ImageLayer',
     'props': {
       'source': {
-        'type': 'ImageArcGISRest',
+        'type': 'ESRI Image and Map Service',
         'props': {
           'url': 'https://mapservices.weather.noaa.gov/eventdriven/rest/services/water/riv_gauges/MapServer',
           'params': {
@@ -345,7 +345,7 @@ Please use the following react component: [mfe-ol](https://github.com/Aquaveo/mf
 
 To test the plugin, simply run python in a command prompt or jupyter notebook, initialize the created class, and run the read method. As shown below, you can supply various arguments and run the desired workflows.
 
-![](docs/plugin_example.png 'Title')
+![](docs/plugin_example.png "Title")
 
 ### Installing
 

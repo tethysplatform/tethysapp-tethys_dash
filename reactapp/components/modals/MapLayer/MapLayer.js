@@ -132,7 +132,8 @@ const MapLayerModal = ({
             ? "VectorTileLayer"
             : sourceProps.type.includes("Tile")
               ? "TileLayer"
-              : sourceProps.type.includes("Image")
+              : sourceProps.type.includes("Image") ||
+                  sourceProps.type.includes("WMS")
                 ? "ImageLayer"
                 : "VectorLayer",
         props: {

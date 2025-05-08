@@ -94,7 +94,7 @@ test("MapLayerModal new ImageArcGISRest layer", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageArcGISRest");
+  const sourceOption = await screen.findByText("ESRI Image and Map Service");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -112,7 +112,7 @@ test("MapLayerModal new ImageArcGISRest layer", async () => {
           props: {
             url: "Some Url",
           },
-          type: "ImageArcGISRest",
+          type: "ESRI Image and Map Service",
         },
       },
       type: "ImageLayer",
@@ -154,7 +154,7 @@ test("MapLayerModal new ImageWMS layer", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageWMS");
+  const sourceOption = await screen.findByText("WMS");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -178,7 +178,7 @@ test("MapLayerModal new ImageWMS layer", async () => {
             url: "Some Url",
             params: { LAYERS: "some:layer,some:layer2" },
           },
-          type: "ImageWMS",
+          type: "WMS",
         },
       },
       type: "ImageLayer",
@@ -346,7 +346,7 @@ test("MapLayerModal new ImageTile layer", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageTile");
+  const sourceOption = await screen.findByText("Image Tile");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -366,7 +366,7 @@ test("MapLayerModal new ImageTile layer", async () => {
           props: {
             url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
           },
-          type: "ImageTile",
+          type: "Image Tile",
         },
       },
       type: "TileLayer",
@@ -408,7 +408,7 @@ test("MapLayerModal new VectorTile layer", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("VectorTile");
+  const sourceOption = await screen.findByText("Vector Tile");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -426,7 +426,7 @@ test("MapLayerModal new VectorTile layer", async () => {
           props: {
             urls: ["some_url", "some_other_url"],
           },
-          type: "VectorTile",
+          type: "Vector Tile",
         },
       },
       type: "VectorTileLayer",
@@ -487,7 +487,7 @@ test("MapLayerModal missing required properties", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageWMS");
+  const sourceOption = await screen.findByText("WMS");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -537,7 +537,7 @@ test("MapLayerModal attribute variables and omitted popups", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageArcGISRest");
+  const sourceOption = await screen.findByText("ESRI Image and Map Service");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -574,7 +574,7 @@ test("MapLayerModal attribute variables and omitted popups", async () => {
           props: {
             url: "Some Url",
           },
-          type: "ImageArcGISRest",
+          type: "ESRI Image and Map Service",
         },
       },
       type: "ImageLayer",
@@ -615,7 +615,7 @@ test("MapLayerModal duplicate variable in same map layer", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageArcGISRest");
+  const sourceOption = await screen.findByText("ESRI Image and Map Service");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -683,7 +683,7 @@ test("MapLayerModal legend", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageArcGISRest");
+  const sourceOption = await screen.findByText("ESRI Image and Map Service");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -734,7 +734,7 @@ test("MapLayerModal legend", async () => {
           props: {
             url: "Some Url",
           },
-          type: "ImageArcGISRest",
+          type: "ESRI Image and Map Service",
         },
       },
       type: "ImageLayer",
@@ -854,7 +854,7 @@ test("MapLayerModal style", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageArcGISRest");
+  const sourceOption = await screen.findByText("ESRI Image and Map Service");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -926,7 +926,7 @@ test("MapLayerModal style", async () => {
             props: {
               url: "Some Url",
             },
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
           },
         },
         type: "ImageLayer",
@@ -966,7 +966,7 @@ test("MapLayerModal style api fail", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageArcGISRest");
+  const sourceOption = await screen.findByText("ESRI Image and Map Service");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -1053,7 +1053,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
       props: {
         url: "Some Url",
       },
-      type: "ImageArcGISRest",
+      type: "ESRI Image and Map Service",
     },
     attributeVariables: {
       "New Layer Name": {
@@ -1070,7 +1070,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
             props: {
               url: "Some Url",
             },
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
           },
         },
         type: "ImageLayer",
@@ -1111,7 +1111,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageArcGISRest");
+  const sourceOption = await screen.findByText("ESRI Image and Map Service");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -1139,7 +1139,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
           props: {
             url: "Some Url",
           },
-          type: "ImageArcGISRest",
+          type: "ESRI Image and Map Service",
         },
       },
       type: "ImageLayer",

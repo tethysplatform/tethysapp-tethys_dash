@@ -220,7 +220,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   // make the appropriate request based on the source type
   if (sourceType === "ESRI Image and Map Service") {
     features = await getESRILayerFeatures(sourceUrl, map, coordinate);
-  } else if (sourceType === "ImageWMS") {
+  } else if (sourceType === "WMS") {
     features = await getImageWMSLayerFeatures(
       sourceUrl,
       sourceParams,
@@ -425,7 +425,7 @@ export async function getLayerAttributes(sourceProps, layerName) {
   // make the appropriate request based on the source type
   if (sourceType === "ESRI Image and Map Service") {
     attributes = await getImageArcGISRestLayerAttributes(sourceUrl);
-  } else if (sourceType === "ImageWMS") {
+  } else if (sourceType === "WMS") {
     attributes = await getImageWMSLayerAttributes(sourceUrl, sourceParams);
   } else if (sourceType === "GeoJSON") {
     attributes = await getGeoJSONLayerAttributes(sourceGeoJSON, layerName);

@@ -53,7 +53,7 @@ test("AttributesPane successful query no attributes", async () => {
   mockedGetLayerAttributes.mockResolvedValue({});
 
   const sourceProps = {
-    type: "ImageWMS",
+    type: "WMS",
     props: {
       url: "http://localhost:8081/geoserver/wms",
       params: {
@@ -90,7 +90,7 @@ test("AttributesPane successful query no initial variables or popups", async () 
   });
 
   const sourceProps = {
-    type: "ImageArcGISRest",
+    type: "ESRI Image and Map Service",
     props: {
       url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
     },
@@ -134,7 +134,7 @@ test("AttributesPane successful query with initial variables or popups", async (
   });
 
   const sourceProps = {
-    type: "ImageWMS",
+    type: "WMS",
     props: {
       url: "http://localhost:8081/geoserver/wms",
       params: {
@@ -182,7 +182,7 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
   mockedGetLayerAttributes.mockRejectedValue({ message: "Something happened" });
 
   const sourceProps = {
-    type: "ImageWMS",
+    type: "WMS",
     props: {
       url: "http://localhost:8081/geoserver/wms",
       params: {
@@ -276,7 +276,7 @@ test("AttributesPane unsuccessful query with initial variables or popups", async
   mockedGetLayerAttributes.mockRejectedValue({ message: "Something happened" });
 
   const sourceProps = {
-    type: "ImageArcGISRest",
+    type: "ESRI Image and Map Service",
     props: {
       url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
     },
@@ -328,7 +328,7 @@ test("AttributesPane popups header and body change", async () => {
   });
 
   const sourceProps = {
-    type: "ImageWMS",
+    type: "WMS",
     props: {
       url: "http://localhost:8081/geoserver/wms",
       params: {
@@ -393,7 +393,7 @@ test("AttributesPane popups initial values", async () => {
   });
 
   const sourceProps = {
-    type: "ImageWMS",
+    type: "WMS",
     props: {
       url: "http://localhost:8081/geoserver/wms",
       params: {
@@ -439,7 +439,7 @@ test("AttributesPane attributes change", async () => {
   });
 
   const sourceProps = {
-    type: "ImageWMS",
+    type: "WMS",
     props: {
       url: "http://localhost:8081/geoserver/wms",
       params: {
@@ -508,7 +508,7 @@ test("AttributesPane source missing type", async () => {
 
 test("AttributesPane missin required params", async () => {
   const sourceProps = {
-    type: "ImageWMS",
+    type: "WMS",
     props: {
       url: "http://localhost:8081/geoserver/wms",
     },

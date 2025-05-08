@@ -66,7 +66,7 @@ test("Non Existing OL Import", async () => {
     props: {
       name: "ImageWMS Layer",
       source: {
-        type: "ImageWMS",
+        type: "WMS",
         props: {
           url: "https://ahocevar.com/geoserver/wms",
           params: { LAYERS: "topp:states" },
@@ -86,7 +86,7 @@ test("Missing Import in Mapper", async () => {
     props: {
       name: "ImageWMS Layer",
       source: {
-        type: "ImageWMS",
+        type: "WMS",
         props: {
           url: "https://ahocevar.com/geoserver/wms",
           params: { LAYERS: "topp:states" },
@@ -105,7 +105,7 @@ test("Null Props", async () => {
     type: "WebGLTile",
     props: {
       source: {
-        type: "ImageTile",
+        type: "Image Tile",
         props: null,
       },
       name: "World Light Gray Base",
