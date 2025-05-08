@@ -15,11 +15,11 @@ const moduleLoader = async (config, mapProjection) => {
     if (moduleCache[type]) {
       if (type === "GeoJSON") {
         return loadGeoJSON(config, mapProjection);
-      } else if (type === "ArcGISFeatureService") {
+      } else if (type === "ESRI Feature Service") {
         return loadESRIJSON(config);
       } else {
         const resolvedProps = await resolveProps(props, mapProjection);
-        if (type === "VectorTile") {
+        if (type === "Vector Tile") {
           resolvedProps.format = new MVT();
         }
         return new moduleCache[type](resolvedProps);
@@ -37,13 +37,13 @@ const moduleLoader = async (config, mapProjection) => {
     moduleCache[type] = ModuleConstructor;
 
     const resolvedProps = await resolveProps(props, mapProjection);
-    if (type === "VectorTile") {
+    if (type === "Vector Tile") {
       resolvedProps.format = new MVT();
     }
 
     if (type === "GeoJSON") {
       return loadGeoJSON(config, mapProjection);
-    } else if (type === "ArcGISFeatureService") {
+    } else if (type === "ESRI Feature Service") {
       return loadESRIJSON(config);
     } else {
       return new ModuleConstructor(resolvedProps);
@@ -124,20 +124,19 @@ const getModuleImporter = (type) => {
     VectorLayer: "ol/layer/Vector.js",
     VectorTileLayer: "ol/layer/VectorTile.js",
     TileLayer: "ol/layer/Tile.js",
-    ImageTile: "ol/source/ImageTile.js",
-    VectorTile: "ol/source/VectorTile.js",
-    ImageArcGISRest: "ol/source/ImageArcGISRest.js",
+    "Image Tile": "ol/source/ImageTile.js",
+    "Vector Tile": "ol/source/VectorTile.js",
+    "ESRI Image and Map Service": "ol/source/ImageArcGISRest.js",
     Vector: "ol/source/Vector.js",
-    ImageWMS: "ol/source/ImageWMS.js",
+    WMS: "ol/source/ImageWMS.js",
     Raster: "ol/source/Raster.js",
     GeoJSON: "ol/format/GeoJSON.js",
     Style: "ol/style/Style.js",
     Stroke: "ol/style/Stroke.js",
     Fill: "ol/style/Fill.js",
+    "ESRI Feature Service": "ol/format/EsriJSON.js",
     InvalidForTesting: "DontUseThis",
     // Add other mappings as needed
-    ArcGISImageService: "ol/source/ImageArcGISRest.js",
-    ArcGISFeatureService: "ol/format/EsriJSON.js",
   };
 
   const modulePath = typeMapping[type];

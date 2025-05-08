@@ -11,7 +11,7 @@ import appAPI from "services/api/app";
 import { v4 as uuidv4 } from "uuid";
 
 export const sourcePropertiesOptions = {
-  ImageArcGISRest: {
+  "ESRI Image and Map Service": {
     required: {
       url: "ArcGIS Rest service URL",
     },
@@ -21,11 +21,12 @@ export const sourcePropertiesOptions = {
         LAYERS: "[show|hide|include|exclude]:layerId1,layerId2",
         TIME: "<startTime>, <endTime> or <timeInstant>",
         LAYERDEFS: "Allows you to filter the features of individual layers",
+        mosaicRule: "Specifies how image service should handle mosaics",
       },
       projection: "EPSG:<Code>",
     },
   },
-  ImageWMS: {
+  WMS: {
     required: {
       url: "WMS service URL",
       params: {
@@ -41,7 +42,7 @@ export const sourcePropertiesOptions = {
       projection: "EPSG:<Code>",
     },
   },
-  ImageTile: {
+  "Image Tile": {
     required: {
       url: "Image Tile URL",
     },
@@ -54,7 +55,7 @@ export const sourcePropertiesOptions = {
     required: {},
     optional: {},
   },
-  VectorTile: {
+  "Vector Tile": {
     required: {
       urls: "An comma separated list of URL templates. Must include {x}, {y} or {-y}, and {z} placeholders. A {?-?} template pattern, for example subdomain{a-f}.domain.com, may be used instead of defining each one separately in the urls option.",
     },
@@ -63,17 +64,7 @@ export const sourcePropertiesOptions = {
       projection: "EPSG:<Code>",
     },
   },
-  ArcGISImageService: {
-    required: {
-      url: "ArcGIS Image Service URL",
-    },
-    optional: {
-      params: {
-        mosaicRule: "Specifies how image service should handle mosaics",
-      },
-    },
-  },
-  ArcGISFeatureService: {
+  "ESRI Feature Service": {
     required: {
       url: "ArcGIS Feature Service URL",
       layer: "the integer for the layer index",
@@ -227,7 +218,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   const sourceType = layerInfo.configuration.props.source.type;
 
   // make the appropriate request based on the source type
-  if (sourceType === "ImageArcGISRest") {
+  if (sourceType === "ESRI Image and Map Service") {
     features = await getESRILayerFeatures(sourceUrl, map, coordinate);
   } else if (sourceType === "ImageWMS") {
     features = await getImageWMSLayerFeatures(
@@ -238,7 +229,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
     );
   } else if (
     sourceType === "GeoJSON" ||
-    sourceType === "ArcGISFeatureService"
+    sourceType === "ESRI Feature Service"
   ) {
     features = await getGeoJSONLayerFeatures(map, pixel, coordinate);
   } else {
@@ -432,13 +423,13 @@ export async function getLayerAttributes(sourceProps, layerName) {
   const layerNumber = sourceProperties?.layer;
 
   // make the appropriate request based on the source type
-  if (sourceType === "ImageArcGISRest") {
+  if (sourceType === "ESRI Image and Map Service") {
     attributes = await getImageArcGISRestLayerAttributes(sourceUrl);
   } else if (sourceType === "ImageWMS") {
     attributes = await getImageWMSLayerAttributes(sourceUrl, sourceParams);
   } else if (sourceType === "GeoJSON") {
     attributes = await getGeoJSONLayerAttributes(sourceGeoJSON, layerName);
-  } else if (sourceType === "ArcGISFeatureService") {
+  } else if (sourceType === "ESRI Feature Service") {
     attributes = await getArcGISFeatureServiceLayerAttributes(
       sourceUrl,
       layerNumber,
