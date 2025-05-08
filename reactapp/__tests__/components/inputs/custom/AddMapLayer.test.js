@@ -103,7 +103,7 @@ it("AddMapLayer update existing", async () => {
             props: {
               url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
             },
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
           },
           zIndex: 1,
         },
@@ -161,7 +161,7 @@ it("AddMapLayer add new", async () => {
   const sourceDropdown = screen.getByRole("combobox");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageArcGISRest");
+  const sourceOption = await screen.findByText("ESRI Image and Map Service");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -184,7 +184,7 @@ it("AddMapLayer add new", async () => {
             props: {
               url: "Some Url",
             },
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
           },
         },
         type: "ImageLayer",
@@ -232,7 +232,7 @@ it("AddMapLayer rerender", async () => {
   rerender(NewLoadedComponent);
 
   expect(screen.queryByText("ImageArcGISRest Layer")).not.toBeInTheDocument();
-  expect(screen.getByText("Image WMS")).toBeInTheDocument();
+  expect(screen.getByText("WMS")).toBeInTheDocument();
 });
 
 it("AddMapLayer reorder", async () => {
@@ -254,14 +254,14 @@ it("AddMapLayer reorder", async () => {
     })
   );
 
-  const wmsLayer = await screen.findByText("Image WMS");
+  const wmsLayer = await screen.findByText("WMS");
   const imageArcGISRestLayer = screen.getByText("ImageArcGISRest Layer");
   expect(wmsLayer).toBeInTheDocument();
   expect(imageArcGISRestLayer).toBeInTheDocument();
 
   const tabelCells = screen.getAllByRole("cell");
   expect(tabelCells[1]).toHaveTextContent("ImageArcGISRest Layer");
-  expect(tabelCells[5]).toHaveTextContent("Image WMS");
+  expect(tabelCells[5]).toHaveTextContent("WMS");
 
   fireEvent.dragStart(tabelCells[1], {
     dataTransfer: {
@@ -273,7 +273,7 @@ it("AddMapLayer reorder", async () => {
   fireEvent.drop(tabelCells[5]);
 
   await waitFor(() => {
-    expect(tabelCells[1]).toHaveTextContent("Image WMS");
+    expect(tabelCells[1]).toHaveTextContent("WMS");
   });
   await waitFor(() => {
     expect(tabelCells[5]).toHaveTextContent("ImageArcGISRest Layer");
@@ -283,13 +283,13 @@ it("AddMapLayer reorder", async () => {
     {
       configuration: {
         props: {
-          name: "Image WMS",
+          name: "WMS",
           source: {
             props: {
               params: { LAYERS: "topp:states" },
               url: "https://ahocevar.com/geoserver/wms",
             },
-            type: "ImageWMS",
+            type: "WMS",
           },
           zIndex: 1,
         },
@@ -304,7 +304,7 @@ it("AddMapLayer reorder", async () => {
             props: {
               url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
             },
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
           },
           zIndex: 1,
         },

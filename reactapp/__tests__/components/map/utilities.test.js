@@ -11,6 +11,7 @@ import {
   layerConfigGeoJSON,
   layerConfigImageArcGISRest,
   layerConfigImageWMS,
+  layerConfigArcGISFeatureService,
 } from "__tests__/utilities/constants";
 
 test("createMarkerLayer", async () => {
@@ -980,7 +981,7 @@ test("queryLayerFeatures SourceType Not Configured", async () => {
   ).rejects.toThrow("sdfsdfsdf is not currently configured to be queried");
 });
 
-test("getLayerAttributes ESRI", async () => {
+test("getLayerAttributes ImageArcGISRest", async () => {
   const mockServiceResults = {
     layers: [
       {
@@ -1036,6 +1037,132 @@ test("getLayerAttributes ESRI", async () => {
       { name: "producer", alias: "RFC" },
     ],
   });
+});
+
+test("getLayerAttributes ArcGISFeatureService", async () => {
+  const mockServiceResults = {
+    id: 0,
+    name: "Max Status - Forecast Trend",
+    parentLayerId: -1,
+    defaultVisibility: true,
+    subLayerIds: null,
+    minScale: 0,
+    maxScale: 0,
+    type: "Feature Layer",
+    geometryType: "esriGeometryPoint",
+    supportsDynamicLegends: true,
+    fields: [
+      {
+        name: "nws_name",
+        type: "esriFieldTypeString",
+        alias: "Name",
+        length: 60000,
+        domain: null,
+      },
+      {
+        name: "producer",
+        type: "esriFieldTypeString",
+        alias: "RFC",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    })
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+
+  const sourceProps =
+    layerConfigArcGISFeatureService.configuration.props.source;
+  const layerName = layerConfigArcGISFeatureService.configuration.props.name;
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "Some ArcGISFeatureService Layer": [
+      { name: "nws_name", alias: "Name" },
+      { name: "producer", alias: "RFC" },
+    ],
+  });
+
+  const params = new URLSearchParams({
+    f: "json",
+  });
+
+  const featureQueryUrl =
+    layerConfigArcGISFeatureService.configuration.props.source.props.url +
+    "/" +
+    layerConfigArcGISFeatureService.configuration.props.source.props.layer;
+  expect(global.fetch).toHaveBeenCalledWith(
+    `${featureQueryUrl}?${params.toString()}`
+  );
+});
+
+test("getLayerAttributes ArcGISFeatureService with slash", async () => {
+  const mockServiceResults = {
+    id: 0,
+    name: "Max Status - Forecast Trend",
+    parentLayerId: -1,
+    defaultVisibility: true,
+    subLayerIds: null,
+    minScale: 0,
+    maxScale: 0,
+    type: "Feature Layer",
+    geometryType: "esriGeometryPoint",
+    supportsDynamicLegends: true,
+    fields: [
+      {
+        name: "nws_name",
+        type: "esriFieldTypeString",
+        alias: "Name",
+        length: 60000,
+        domain: null,
+      },
+      {
+        name: "producer",
+        type: "esriFieldTypeString",
+        alias: "RFC",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    })
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+
+  layerConfigArcGISFeatureService.configuration.props.source.props.url += "/";
+  const sourceProps =
+    layerConfigArcGISFeatureService.configuration.props.source;
+  const layerName = layerConfigArcGISFeatureService.configuration.props.name;
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "Some ArcGISFeatureService Layer": [
+      { name: "nws_name", alias: "Name" },
+      { name: "producer", alias: "RFC" },
+    ],
+  });
+
+  const params = new URLSearchParams({
+    f: "json",
+  });
+
+  const featureQueryUrl =
+    layerConfigArcGISFeatureService.configuration.props.source.props.url +
+    layerConfigArcGISFeatureService.configuration.props.source.props.layer;
+  expect(global.fetch).toHaveBeenCalledWith(
+    `${featureQueryUrl}?${params.toString()}`
+  );
 });
 
 test("getLayerAttributes ImageWMS", async () => {

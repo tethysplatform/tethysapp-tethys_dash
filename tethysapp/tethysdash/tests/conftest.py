@@ -212,7 +212,7 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "value": mock_plugin2.visualization_label,
                 "label": mock_plugin2.visualization_label,
                 "args": mock_plugin2.visualization_args,
-                "type": mock_plugin.visualization_type,
+                "type": mock_plugin2.visualization_type,
                 "tags": [],
                 "description": "",
             },

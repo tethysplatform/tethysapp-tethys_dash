@@ -7,6 +7,7 @@ import {
   layerConfigWebGLTile,
   layerConfigImageWMS,
   layerConfigVectorTile,
+  layerConfigArcGISFeatureService,
 } from "__tests__/utilities/constants";
 
 test("WebGLTile Instance", async () => {
@@ -40,6 +41,18 @@ test("GeoJSON Instance", async () => {
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
 });
 
+test("ArcGIS Feature Service Instance", async () => {
+  const layerInstance = await moduleLoader(
+    layerConfigArcGISFeatureService.configuration
+  );
+  expect(layerInstance instanceof VectorLayer).toBe(true);
+
+  const cachedLayerInstance = await moduleLoader(
+    layerConfigArcGISFeatureService.configuration
+  );
+  expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
+});
+
 test("Non Constructor Error", async () => {
   jest.mock("ol/layer/Image.js", () => "non function");
   await expect(moduleLoader(layerConfigImageWMS.configuration)).rejects.toThrow(
@@ -53,7 +66,7 @@ test("Non Existing OL Import", async () => {
     props: {
       name: "ImageWMS Layer",
       source: {
-        type: "ImageWMS",
+        type: "WMS",
         props: {
           url: "https://ahocevar.com/geoserver/wms",
           params: { LAYERS: "topp:states" },
@@ -73,7 +86,7 @@ test("Missing Import in Mapper", async () => {
     props: {
       name: "ImageWMS Layer",
       source: {
-        type: "ImageWMS",
+        type: "WMS",
         props: {
           url: "https://ahocevar.com/geoserver/wms",
           params: { LAYERS: "topp:states" },
@@ -92,7 +105,7 @@ test("Null Props", async () => {
     type: "WebGLTile",
     props: {
       source: {
-        type: "ImageTile",
+        type: "Image Tile",
         props: null,
       },
       name: "World Light Gray Base",

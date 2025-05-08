@@ -152,7 +152,7 @@ test("Map Layers and Updated Layers", async () => {
       type: "WebGLTile",
       props: {
         source: {
-          type: "ImageTile",
+          type: "Image Tile",
           props: {
             url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
           },
@@ -166,7 +166,7 @@ test("Map Layers and Updated Layers", async () => {
       props: {
         name: "esri",
         source: {
-          type: "ImageArcGISRest",
+          type: "ESRI Image and Map Service",
           props: {
             url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
           },
@@ -194,7 +194,7 @@ test("Bad Map Layers", async () => {
       type: "WeTile",
       props: {
         source: {
-          type: "ImageTile",
+          type: "Image Tile",
           props: {
             url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
           },
@@ -208,7 +208,7 @@ test("Bad Map Layers", async () => {
       props: {
         name: "Image Layer",
         source: {
-          type: "ImageArcGISRest",
+          type: "ESRI Image and Map Service",
           props: {
             url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
           },
@@ -235,7 +235,7 @@ test("Bad Map Layers", async () => {
       type: "WebGLTile",
       props: {
         source: {
-          type: "ImageTile",
+          type: "Image Tile",
           props: {
             url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
           },
@@ -278,7 +278,7 @@ test("Bad Map Layers", async () => {
       props: {
         name: "esri",
         source: {
-          type: "ImageArcGISRest",
+          type: "ESRI Image and Map Service",
           props: {
             url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
           },
@@ -315,7 +315,7 @@ test("Map Layer Styles", async () => {
       type: "WebGLTile",
       props: {
         source: {
-          type: "ImageTile",
+          type: "Image Tile",
           props: {
             url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
           },

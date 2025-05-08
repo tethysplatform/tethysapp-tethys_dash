@@ -121,18 +121,19 @@ const MapLayerModal = ({
       }
     }
 
-    if (sourceProps.type === "VectorTile") {
+    if (sourceProps.type === "Vector Tile") {
       validSourceProps.urls = validSourceProps.urls.split(",");
     }
 
     const mapConfiguration = {
       configuration: {
         type:
-          sourceProps.type === "VectorTile"
+          sourceProps.type === "Vector Tile"
             ? "VectorTileLayer"
             : sourceProps.type.includes("Tile")
               ? "TileLayer"
-              : sourceProps.type.includes("Image")
+              : sourceProps.type.includes("Image") ||
+                  sourceProps.type.includes("WMS")
                 ? "ImageLayer"
                 : "VectorLayer",
         props: {

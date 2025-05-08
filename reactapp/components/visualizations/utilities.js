@@ -289,7 +289,7 @@ export function getBaseMapLayer(baseMapURL) {
     type: "WebGLTile",
     props: {
       source: {
-        type: "ImageTile",
+        type: "Image Tile",
         props: {
           url: baseMapURL + "/tile/{z}/{y}/{x}",
           attributions: 'Tiles © <a href="' + baseMapURL + '">ArcGIS</a>',

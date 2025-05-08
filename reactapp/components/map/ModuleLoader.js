@@ -2,6 +2,9 @@ import { moduleMap } from "components/map/moduleMap";
 import { Vector as VectorSource } from "ol/source.js";
 import MVT from "ol/format/MVT.js";
 import GeoJSON from "ol/format/GeoJSON.js";
+import EsriJSON from "ol/format/EsriJSON";
+import { tile as tileStrategy } from "ol/loadingstrategy.js";
+import { createXYZ } from "ol/tilegrid.js";
 
 const moduleCache = {};
 
@@ -12,9 +15,11 @@ const moduleLoader = async (config, mapProjection) => {
     if (moduleCache[type]) {
       if (type === "GeoJSON") {
         return loadGeoJSON(config, mapProjection);
+      } else if (type === "ESRI Feature Service") {
+        return loadESRIJSON(config);
       } else {
         const resolvedProps = await resolveProps(props, mapProjection);
-        if (type === "VectorTile") {
+        if (type === "Vector Tile") {
           resolvedProps.format = new MVT();
         }
         return new moduleCache[type](resolvedProps);
@@ -32,12 +37,14 @@ const moduleLoader = async (config, mapProjection) => {
     moduleCache[type] = ModuleConstructor;
 
     const resolvedProps = await resolveProps(props, mapProjection);
-    if (type === "VectorTile") {
+    if (type === "Vector Tile") {
       resolvedProps.format = new MVT();
     }
 
     if (type === "GeoJSON") {
       return loadGeoJSON(config, mapProjection);
+    } else if (type === "ESRI Feature Service") {
+      return loadESRIJSON(config);
     } else {
       return new ModuleConstructor(resolvedProps);
     }
@@ -117,16 +124,17 @@ const getModuleImporter = (type) => {
     VectorLayer: "ol/layer/Vector.js",
     VectorTileLayer: "ol/layer/VectorTile.js",
     TileLayer: "ol/layer/Tile.js",
-    ImageTile: "ol/source/ImageTile.js",
-    VectorTile: "ol/source/VectorTile.js",
-    ImageArcGISRest: "ol/source/ImageArcGISRest.js",
+    "Image Tile": "ol/source/ImageTile.js",
+    "Vector Tile": "ol/source/VectorTile.js",
+    "ESRI Image and Map Service": "ol/source/ImageArcGISRest.js",
     Vector: "ol/source/Vector.js",
-    ImageWMS: "ol/source/ImageWMS.js",
+    WMS: "ol/source/ImageWMS.js",
     Raster: "ol/source/Raster.js",
     GeoJSON: "ol/format/GeoJSON.js",
     Style: "ol/style/Style.js",
     Stroke: "ol/style/Stroke.js",
     Fill: "ol/style/Fill.js",
+    "ESRI Feature Service": "ol/format/EsriJSON.js",
     InvalidForTesting: "DontUseThis",
     // Add other mappings as needed
   };
@@ -152,6 +160,65 @@ const loadGeoJSON = (config, mapProjection) => {
       dataProjection: config.geojson.crs.properties.name, // CRS of the GeoJSON data
       featureProjection: mapProjection, // CRS of the map
     }),
+  });
+  return vectorSource;
+};
+
+const loadESRIJSON = (config) => {
+  const vectorSource = new VectorSource({
+    format: new EsriJSON(),
+    url: function (extent, resolution, projection) {
+      // ArcGIS Server only wants the numeric portion of the projection ID.
+      const srid = projection
+        .getCode()
+        .split(/:(?=\d+$)/)
+        .pop();
+
+      let serviceUrl = config.props.url;
+      serviceUrl += serviceUrl.endsWith("/")
+        ? config.props.layer
+        : `/${config.props.layer}`;
+
+      let url =
+        serviceUrl +
+        "/query/?f=json&" +
+        "returnGeometry=true&spatialRel=esriSpatialRelIntersects&geometry=" +
+        encodeURIComponent(
+          '{"xmin":' +
+            extent[0] +
+            ',"ymin":' +
+            extent[1] +
+            ',"xmax":' +
+            extent[2] +
+            ',"ymax":' +
+            extent[3] +
+            ',"spatialReference":{"wkid":' +
+            srid +
+            "}}"
+        ) +
+        "&geometryType=esriGeometryEnvelope&inSR=" +
+        srid +
+        "&outFields=*" +
+        "&outSR=" +
+        srid;
+
+      if (config.props.params?.WHERE) {
+        url += "&where=" + config.props.params.WHERE;
+      }
+
+      if (config.props.params?.TIME) {
+        url += "&time=" + config.props.params.TIME;
+      }
+
+      return url;
+    },
+
+    strategy: tileStrategy(
+      createXYZ({
+        tileSize: 512,
+      })
+    ),
+    attributions: config.props.attributions,
   });
   return vectorSource;
 };
