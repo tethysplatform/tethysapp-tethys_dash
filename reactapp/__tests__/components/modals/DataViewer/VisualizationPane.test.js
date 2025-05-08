@@ -7,7 +7,6 @@ import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
-import { Table } from "react-bootstrap";
 
 const TestingComponent = ({
   source,

@@ -855,6 +855,22 @@ export const layerOmittedPopupAttributes = {
   "Some Layer": ["attribute 2"],
 };
 
+export const layerConfigArcGISFeatureService = {
+  configuration: {
+    type: "VectorLayer",
+    props: {
+      name: "Some ArcGISFeatureService Layer",
+      source: {
+        type: "ArcGISFeatureService",
+        props: {
+          url: "Some Url",
+          layer: 0,
+        },
+      },
+    },
+  },
+};
+
 export const layerConfigGeoJSON = {
   configuration: {
     type: "VectorLayer",

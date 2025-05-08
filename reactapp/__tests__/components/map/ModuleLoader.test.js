@@ -7,6 +7,7 @@ import {
   layerConfigWebGLTile,
   layerConfigImageWMS,
   layerConfigVectorTile,
+  layerConfigArcGISFeatureService,
 } from "__tests__/utilities/constants";
 
 test("WebGLTile Instance", async () => {
@@ -36,6 +37,18 @@ test("GeoJSON Instance", async () => {
 
   const cachedLayerInstance = await moduleLoader(
     layerConfigGeoJSON.configuration
+  );
+  expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
+});
+
+test("ArcGIS Feature Service Instance", async () => {
+  const layerInstance = await moduleLoader(
+    layerConfigArcGISFeatureService.configuration
+  );
+  expect(layerInstance instanceof VectorLayer).toBe(true);
+
+  const cachedLayerInstance = await moduleLoader(
+    layerConfigArcGISFeatureService.configuration
   );
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
 });

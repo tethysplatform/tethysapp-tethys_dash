@@ -423,7 +423,7 @@ export async function getLayerAttributes(sourceProps, layerName) {
 
   // make the appropriate request based on the source type
   if (sourceType === "ImageArcGISRest") {
-    attributes = await getESRILayerAttributes(sourceUrl);
+    attributes = await getImageArcGISRestLayerAttributes(sourceUrl);
   } else if (sourceType === "ImageWMS") {
     attributes = await getImageWMSLayerAttributes(sourceUrl, sourceParams);
   } else if (sourceType === "GeoJSON") {
@@ -441,7 +441,7 @@ export async function getLayerAttributes(sourceProps, layerName) {
   return attributes;
 }
 
-async function getESRILayerAttributes(sourceUrl) {
+async function getImageArcGISRestLayerAttributes(sourceUrl) {
   // setup fetch request with params
   const sourceURLParams = new URLSearchParams({
     f: "json",

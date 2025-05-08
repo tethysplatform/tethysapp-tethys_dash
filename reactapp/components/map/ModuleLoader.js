@@ -3,8 +3,8 @@ import { Vector as VectorSource } from "ol/source.js";
 import MVT from "ol/format/MVT.js";
 import GeoJSON from "ol/format/GeoJSON.js";
 import EsriJSON from "ol/format/EsriJSON";
-import {tile as tileStrategy} from 'ol/loadingstrategy.js';
-import {createXYZ} from 'ol/tilegrid.js';
+import { tile as tileStrategy } from "ol/loadingstrategy.js";
+import { createXYZ } from "ol/tilegrid.js";
 
 const moduleCache = {};
 
@@ -15,7 +15,7 @@ const moduleLoader = async (config, mapProjection) => {
     if (moduleCache[type]) {
       if (type === "GeoJSON") {
         return loadGeoJSON(config, mapProjection);
-      } else if (type == "ArcGISFeatureService") {
+      } else if (type === "ArcGISFeatureService") {
         return loadESRIJSON(config);
       } else {
         const resolvedProps = await resolveProps(props, mapProjection);
@@ -43,7 +43,7 @@ const moduleLoader = async (config, mapProjection) => {
 
     if (type === "GeoJSON") {
       return loadGeoJSON(config, mapProjection);
-    } else if (type == "ArcGISFeatureService") {
+    } else if (type === "ArcGISFeatureService") {
       return loadESRIJSON(config);
     } else {
       return new ModuleConstructor(resolvedProps);
@@ -136,7 +136,7 @@ const getModuleImporter = (type) => {
     Fill: "ol/style/Fill.js",
     InvalidForTesting: "DontUseThis",
     // Add other mappings as needed
-    ArcGISFeatureService: "ol/format/EsriJSON.js"
+    ArcGISFeatureService: "ol/format/EsriJSON.js",
   };
 
   const modulePath = typeMapping[type];
@@ -173,14 +173,16 @@ const loadESRIJSON = (config) => {
         .getCode()
         .split(/:(?=\d+$)/)
         .pop();
-  
+
       let serviceUrl = config.props.url;
-      serviceUrl += serviceUrl.endsWith('/') ? config.props.layer : `/${config.props.layer}`;
+      serviceUrl += serviceUrl.endsWith("/")
+        ? config.props.layer
+        : `/${config.props.layer}`;
 
       let url =
         serviceUrl +
-        '/query/?f=json&' +
-        'returnGeometry=true&spatialRel=esriSpatialRelIntersects&geometry=' +
+        "/query/?f=json&" +
+        "returnGeometry=true&spatialRel=esriSpatialRelIntersects&geometry=" +
         encodeURIComponent(
           '{"xmin":' +
             extent[0] +
@@ -192,12 +194,12 @@ const loadESRIJSON = (config) => {
             extent[3] +
             ',"spatialReference":{"wkid":' +
             srid +
-            '}}',
+            "}}"
         ) +
-        '&geometryType=esriGeometryEnvelope&inSR=' +
+        "&geometryType=esriGeometryEnvelope&inSR=" +
         srid +
-        '&outFields=*' +
-        '&outSR=' +
+        "&outFields=*" +
+        "&outSR=" +
         srid;
 
       if (config.props.params?.WHERE) {
@@ -214,7 +216,7 @@ const loadESRIJSON = (config) => {
     strategy: tileStrategy(
       createXYZ({
         tileSize: 512,
-      }),
+      })
     ),
     attributions: config.props.attributions,
   });
