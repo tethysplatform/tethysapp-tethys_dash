@@ -65,14 +65,27 @@ export const sourcePropertiesOptions = {
   },
   ArcGISImageService: {
     required: {
-      url: "ArcGIS Image Service URL"
+      url: "ArcGIS Image Service URL",
     },
     optional: {
       params: {
-        mosaicRule: "Specifies how images should be mosaicked"
-      }
-    }
-  }
+        mosaicRule: "Specifies how image service should handle mosaics",
+      },
+    },
+  },
+  ArcGISFeatureService: {
+    required: {
+      url: "ArcGIS Feature Service URL",
+      layer: "the integer for the layer index",
+    },
+    optional: {
+      attributions: "Attributions",
+      params: {
+        TIME: "<startTime>, <endTime> or <timeInstant>",
+        WHERE: "WHERE clause for the query filter",
+      },
+    },
+  },
 };
 
 export const layerPropertiesOptions = {
@@ -223,7 +236,10 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
       map,
       pixel
     );
-  } else if (sourceType === "GeoJSON") {
+  } else if (
+    sourceType === "GeoJSON" ||
+    sourceType === "ArcGISFeatureService"
+  ) {
     features = await getGeoJSONLayerFeatures(map, pixel, coordinate);
   } else {
     throw Error(`${sourceType} is not currently configured to be queried`);
@@ -240,7 +256,7 @@ async function getESRILayerFeatures(sourceUrl, map, coordinate) {
     tolerance: 10, // Pixel tolerance
     returnGeometry: true,
     geometryType: "esriGeometryPoint",
-    sr: map.getView().getProjection().getCode(),
+    sr: map.getView().getProjection().getCode().split(":")[1],
     geometry: coordinate.join(","),
     mapExtent: map.getView().calculateExtent().join(","),
     returnFieldName: true,
@@ -413,14 +429,21 @@ export async function getLayerAttributes(sourceProps, layerName) {
   const sourceParams = sourceProperties?.params ?? {};
   const sourceUrl = sourceProperties?.url ?? "";
   const sourceGeoJSON = sourceProps?.geojson ?? {};
+  const layerNumber = sourceProperties?.layer;
 
   // make the appropriate request based on the source type
   if (sourceType === "ImageArcGISRest") {
-    attributes = await getESRILayerAttributes(sourceUrl);
+    attributes = await getImageArcGISRestLayerAttributes(sourceUrl);
   } else if (sourceType === "ImageWMS") {
     attributes = await getImageWMSLayerAttributes(sourceUrl, sourceParams);
   } else if (sourceType === "GeoJSON") {
     attributes = await getGeoJSONLayerAttributes(sourceGeoJSON, layerName);
+  } else if (sourceType === "ArcGISFeatureService") {
+    attributes = await getArcGISFeatureServiceLayerAttributes(
+      sourceUrl,
+      layerNumber,
+      layerName
+    );
   } else {
     throw Error(`${sourceType} is not currently configured to be queried`);
   }
@@ -428,7 +451,7 @@ export async function getLayerAttributes(sourceProps, layerName) {
   return attributes;
 }
 
-async function getESRILayerAttributes(sourceUrl) {
+async function getImageArcGISRestLayerAttributes(sourceUrl) {
   // setup fetch request with params
   const sourceURLParams = new URLSearchParams({
     f: "json",
@@ -460,6 +483,32 @@ async function getESRILayerAttributes(sourceUrl) {
     sourceAttributes[layerName] = specificLayerFieds;
   }
 
+  return sourceAttributes;
+}
+
+async function getArcGISFeatureServiceLayerAttributes(
+  sourceUrl,
+  layerNumber,
+  layerName
+) {
+  sourceUrl += sourceUrl.endsWith("/") ? layerNumber : `/${layerNumber}`;
+
+  // setup fetch request with params
+  const sourceURLParams = new URLSearchParams({
+    f: "json",
+  });
+  const sourceInfoUrl = `${sourceUrl}?${sourceURLParams.toString()}`;
+
+  // Fetch data and parse json
+  const sourceInfoResponse = await fetch(sourceInfoUrl);
+  const sourceInfoJSON = await sourceInfoResponse.json();
+
+  // setup constants, get an array of layer names
+  let layerFields = [];
+  for (const field of sourceInfoJSON.fields) {
+    layerFields.push({ name: field.name, alias: field.alias });
+  }
+  const sourceAttributes = { [layerName]: layerFields };
   return sourceAttributes;
 }
 

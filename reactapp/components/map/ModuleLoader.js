@@ -2,6 +2,9 @@ import { moduleMap } from "components/map/moduleMap";
 import { Vector as VectorSource } from "ol/source.js";
 import MVT from "ol/format/MVT.js";
 import GeoJSON from "ol/format/GeoJSON.js";
+import EsriJSON from "ol/format/EsriJSON";
+import { tile as tileStrategy } from "ol/loadingstrategy.js";
+import { createXYZ } from "ol/tilegrid.js";
 
 const moduleCache = {};
 
@@ -12,6 +15,8 @@ const moduleLoader = async (config, mapProjection) => {
     if (moduleCache[type]) {
       if (type === "GeoJSON") {
         return loadGeoJSON(config, mapProjection);
+      } else if (type === "ArcGISFeatureService") {
+        return loadESRIJSON(config);
       } else {
         const resolvedProps = await resolveProps(props, mapProjection);
         if (type === "VectorTile") {
@@ -38,6 +43,8 @@ const moduleLoader = async (config, mapProjection) => {
 
     if (type === "GeoJSON") {
       return loadGeoJSON(config, mapProjection);
+    } else if (type === "ArcGISFeatureService") {
+      return loadESRIJSON(config);
     } else {
       return new ModuleConstructor(resolvedProps);
     }
@@ -129,7 +136,8 @@ const getModuleImporter = (type) => {
     Fill: "ol/style/Fill.js",
     InvalidForTesting: "DontUseThis",
     // Add other mappings as needed
-    ArcGISImageService: "ol/source/ImageArcGISRest.js"
+    ArcGISImageService: "ol/source/ImageArcGISRest.js",
+    ArcGISFeatureService: "ol/format/EsriJSON.js",
   };
 
   const modulePath = typeMapping[type];
@@ -153,6 +161,65 @@ const loadGeoJSON = (config, mapProjection) => {
       dataProjection: config.geojson.crs.properties.name, // CRS of the GeoJSON data
       featureProjection: mapProjection, // CRS of the map
     }),
+  });
+  return vectorSource;
+};
+
+const loadESRIJSON = (config) => {
+  const vectorSource = new VectorSource({
+    format: new EsriJSON(),
+    url: function (extent, resolution, projection) {
+      // ArcGIS Server only wants the numeric portion of the projection ID.
+      const srid = projection
+        .getCode()
+        .split(/:(?=\d+$)/)
+        .pop();
+
+      let serviceUrl = config.props.url;
+      serviceUrl += serviceUrl.endsWith("/")
+        ? config.props.layer
+        : `/${config.props.layer}`;
+
+      let url =
+        serviceUrl +
+        "/query/?f=json&" +
+        "returnGeometry=true&spatialRel=esriSpatialRelIntersects&geometry=" +
+        encodeURIComponent(
+          '{"xmin":' +
+            extent[0] +
+            ',"ymin":' +
+            extent[1] +
+            ',"xmax":' +
+            extent[2] +
+            ',"ymax":' +
+            extent[3] +
+            ',"spatialReference":{"wkid":' +
+            srid +
+            "}}"
+        ) +
+        "&geometryType=esriGeometryEnvelope&inSR=" +
+        srid +
+        "&outFields=*" +
+        "&outSR=" +
+        srid;
+
+      if (config.props.params?.WHERE) {
+        url += "&where=" + config.props.params.WHERE;
+      }
+
+      if (config.props.params?.TIME) {
+        url += "&time=" + config.props.params.TIME;
+      }
+
+      return url;
+    },
+
+    strategy: tileStrategy(
+      createXYZ({
+        tileSize: 512,
+      })
+    ),
+    attributions: config.props.attributions,
   });
   return vectorSource;
 };
