@@ -2,6 +2,36 @@ import apiClient from "services/api/client";
 
 const APP_ROOT_URL = process.env.TETHYS_APP_ROOT_URL;
 
+function replaceHtmlEntitiesInExpressions(obj) {
+  const replacements = {
+    "&gt;": ">",
+    "&lt;": "<",
+    "&gt;=": ">=",
+    "&lt;=": "<=",
+    "&eq;": "==",
+    "&ne;": "!=",
+    "&amp;": "&", // just in case
+  };
+
+  if (typeof obj === "string") {
+    return replacements[obj] || obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(replaceHtmlEntitiesInExpressions);
+  }
+
+  if (typeof obj === "object" && obj !== null) {
+    const newObj = {};
+    for (const key in obj) {
+      newObj[key] = replaceHtmlEntitiesInExpressions(obj[key]);
+    }
+    return newObj;
+  }
+
+  return obj;
+}
+
 const appAPI = {
   getPlotData: (itemData) => {
     return apiClient.get(`${APP_ROOT_URL}data/`, { params: itemData });
@@ -42,10 +72,15 @@ const appAPI = {
       headers: { "x-csrftoken": csrf },
     });
   },
-  downloadJSON: (data) => {
-    return apiClient.get(`${APP_ROOT_URL}json/download/`, {
+  downloadJSON: async (data) => {
+    let jsonData = await apiClient.get(`${APP_ROOT_URL}json/download/`, {
       params: data,
     });
+
+    if (jsonData.success) {
+      jsonData.data = replaceHtmlEntitiesInExpressions(jsonData.data);
+    }
+    return jsonData;
   },
 };
 
