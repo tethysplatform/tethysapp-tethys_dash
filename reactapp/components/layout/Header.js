@@ -192,6 +192,7 @@ export const DashboardHeader = () => {
     updateGridItems,
     resetGridItems,
     saveLayoutContext,
+    unrestrictedPlacement,
   } = useContext(LayoutContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [isSaving, setIsSaving] = useState(false);
@@ -244,7 +245,12 @@ export const DashboardHeader = () => {
       };
     }
     newGridItem.i = `${parseInt(maxGridItemI) + 1}`;
-    const updatedGridItems = [...gridItems, newGridItem];
+    let updatedGridItems;
+    if (unrestrictedPlacement) {
+      updatedGridItems = [...gridItems, newGridItem];
+    } else {
+      updatedGridItems = [newGridItem, ...gridItems];
+    }
     updateGridItems(updatedGridItems);
   }
 
