@@ -5,6 +5,8 @@ import NewDashboardModal from "components/modals/NewDashboard";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import appAPI from "services/api/app";
 import { AppTourContext } from "components/contexts/Contexts";
+import { server } from "__tests__/utilities/server";
+import { rest } from "msw";
 
 const TestingComponent = () => {
   const [showModal, setShowModal] = useState(true);
@@ -15,33 +17,43 @@ const TestingComponent = () => {
 };
 
 test("New Dashboard Modal add dashboard success", async () => {
-  const mockAddDashboard = jest.fn();
-  appAPI.addDashboard = mockAddDashboard;
-  mockAddDashboard.mockResolvedValue({
-    success: true,
-    new_dashboard: {
-      id: 1,
-      name: "editable_copy",
-      label: "test_label Copy",
-      notes: "test_notes",
-      editable: true,
-      accessGroups: [],
-      gridItems: [
-        {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
+  server.use(
+    rest.post(
+      "http://api.test/apps/tethysdash/dashboards/add/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(500),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            new_dashboard: {
+              id: 1,
+              name: "editable_copy",
+              label: "test_label Copy",
+              notes: "test_notes",
+              editable: true,
+              accessGroups: [],
+              gridItems: [
+                {
+                  i: "1",
+                  x: 0,
+                  y: 0,
+                  w: 20,
+                  h: 20,
+                  source: "",
+                  args_string: "{}",
+                  metadata_string: JSON.stringify({
+                    refreshRate: 0,
+                  }),
+                },
+              ],
+            },
           }),
-        },
-      ],
-    },
-  });
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
 
   render(
     createLoadedComponent({
@@ -58,7 +70,9 @@ test("New Dashboard Modal add dashboard success", async () => {
   const createDashboardInput = await screen.findByLabelText(
     "Create Dashboard Button"
   );
+  expect(screen.getByText("Create")).toBeInTheDocument();
   await userEvent.click(createDashboardInput);
+
   expect(
     await screen.findByText(
       "All inputs must be filled out for creating a dashboard."
@@ -67,7 +81,13 @@ test("New Dashboard Modal add dashboard success", async () => {
 
   const descriptionInput = await screen.findByLabelText("Description Input");
   fireEvent.change(descriptionInput, { target: { value: "some description" } });
+  expect(createDashboardInput).not.toBeDisabled();
   await userEvent.click(createDashboardInput);
+
+  await waitFor(() => {
+    expect(screen.getByText("Creating...")).toBeInTheDocument();
+  });
+  expect(createDashboardInput).toBeDisabled();
 
   await waitFor(() => {
     expect(
