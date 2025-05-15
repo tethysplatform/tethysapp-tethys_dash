@@ -481,21 +481,9 @@ test("DashboardHeader, import gridItem", async () => {
       {
         gridItems: [
           {
-            i: "1",
-            x: 0,
-            y: 0,
-            w: 20,
-            h: 20,
-            source: "",
-            args_string: "{}",
-            metadata_string: JSON.stringify({
-              refreshRate: 0,
-            }),
-          },
-          {
             i: "2",
             x: 0,
-            y: 20,
+            y: 0,
             w: 20,
             h: 20,
             source: "Variable Input",
@@ -505,6 +493,18 @@ test("DashboardHeader, import gridItem", async () => {
               variable_options_source: "text",
               variable_input_type: "text",
             }),
+            metadata_string: JSON.stringify({
+              refreshRate: 0,
+            }),
+          },
+          {
+            i: "1",
+            x: 0,
+            y: 20,
+            w: 20,
+            h: 20,
+            source: "",
+            args_string: "{}",
             metadata_string: JSON.stringify({
               refreshRate: 0,
             }),
@@ -849,6 +849,18 @@ test("DashboardHeader, editable, edit and save", async () => {
       image: "some_image.png",
       gridItems: [
         {
+          i: "4",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+        {
           i: "1",
           x: 0,
           y: 0,
@@ -874,18 +886,6 @@ test("DashboardHeader, editable, edit and save", async () => {
         },
         {
           i: "2",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
-        },
-        {
-          i: "4",
           x: 0,
           y: 0,
           w: 20,
@@ -956,9 +956,21 @@ test("DashboardHeader, editable, edit and save", async () => {
       {
         gridItems: [
           {
-            i: "1",
+            i: "4",
             x: 0,
             y: 0,
+            w: 20,
+            h: 20,
+            source: "",
+            args_string: "{}",
+            metadata_string: JSON.stringify({
+              refreshRate: 0,
+            }),
+          },
+          {
+            i: "1",
+            x: 0,
+            y: 20,
             w: 20,
             h: 20,
             source: "",
@@ -983,18 +995,6 @@ test("DashboardHeader, editable, edit and save", async () => {
             i: "2",
             x: 0,
             y: 60,
-            w: 20,
-            h: 20,
-            source: "",
-            args_string: "{}",
-            metadata_string: JSON.stringify({
-              refreshRate: 0,
-            }),
-          },
-          {
-            i: "4",
-            x: 0,
-            y: 20,
             w: 20,
             h: 20,
             source: "",
@@ -1076,6 +1076,101 @@ test("DashboardHeader, editable, edit, save and error", async () => {
         {
           args_string: "{}",
           h: 20,
+          i: "2",
+          metadata_string: '{"refreshRate":0}',
+          source: "",
+          w: 20,
+          x: 0,
+          y: 0,
+        },
+        {
+          args_string: "{}",
+          h: 20,
+          i: "1",
+          metadata_string: '{"refreshRate":0}',
+          source: "",
+          w: 20,
+          x: 0,
+          y: 20,
+        },
+      ],
+      id: 1,
+      image: "data:image/png;base64,mocked-image",
+    },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+  );
+
+  expect(
+    await screen.findByText(
+      "Failed to save changes. Check server logs for more information."
+    )
+  ).toBeInTheDocument();
+});
+
+test("DashboardHeader, editable, edit, save and error with unrestricted movement", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
+    success: false,
+  });
+  appAPI.updateDashboard = mockUpdateDashboard;
+  updatedMockedDashboards.user[0].unrestrictedPlacement = true;
+
+  jest
+    .spyOn(Element.prototype, "getBoundingClientRect")
+    .mockImplementation(() => ({
+      width: 100,
+      height: 100,
+    }));
+
+  const mockCanvas = document.createElement("canvas");
+  mockCanvas.toDataURL = jest.fn(() => "data:image/png;base64,mocked-image");
+  html2canvas.mockResolvedValue(mockCanvas);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+            <DashboardLayoutAlerts />
+            <DashboardLayout />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: { editableDashboard: true, dashboards: updatedMockedDashboards },
+    })
+  );
+
+  expect(
+    await screen.findByLabelText("dashboardExitButton")
+  ).toBeInTheDocument();
+
+  const editButton = await screen.findByLabelText("editButton");
+  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(editButton).toBeInTheDocument();
+  expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
+  expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
+
+  await userEvent.click(editButton);
+
+  expect(await screen.findByLabelText("cancelButton")).toBeInTheDocument();
+  const saveButton = await screen.findByLabelText("saveButton");
+  expect(screen.getByLabelText("saveButton")).toBeInTheDocument();
+  const addGridItemButton = await screen.findByLabelText("addGridItemButton");
+  expect(addGridItemButton).toBeInTheDocument();
+  expect(screen.getByLabelText("Disable Movement Button")).toBeInTheDocument();
+  expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
+
+  await userEvent.click(addGridItemButton);
+  await userEvent.click(saveButton);
+
+  expect(mockUpdateDashboard).toHaveBeenCalledWith(
+    {
+      gridItems: [
+        {
+          args_string: "{}",
+          h: 20,
           i: "1",
           metadata_string: '{"refreshRate":0}',
           source: "",
@@ -1091,7 +1186,7 @@ test("DashboardHeader, editable, edit, save and error", async () => {
           source: "",
           w: 20,
           x: 0,
-          y: 20,
+          y: 0,
         },
       ],
       id: 1,
