@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState, useRef } from "react";
-import { Editor } from "@tiptap/core";
 import PropTypes from "prop-types";
 import { Color } from "@tiptap/extension-color";
 import ListItem from "@tiptap/extension-list-item";
 import Underline from "@tiptap/extension-underline";
 import Highlight from "@tiptap/extension-highlight";
 import TextStyle from "@tiptap/extension-text-style";
+import Text from "@tiptap/extension-text";
+import FontFamily from "@tiptap/extension-font-family";
+import Superscript from "@tiptap/extension-superscript";
+import Subscript from "@tiptap/extension-subscript";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import styled from "styled-components";
@@ -16,6 +19,9 @@ import {
   LuCodeXml,
   LuUnderline,
   LuHighlighter,
+  LuSuperscript,
+  LuSubscript,
+  LuBaseline,
 } from "react-icons/lu";
 import ButtonGroup from "react-bootstrap/ButtonGroup";
 import Overlay from "react-bootstrap/Overlay";
@@ -99,7 +105,20 @@ const ButtonBar = styled.div`
   margin-bottom: 10px;
 `;
 
-const ColorOverlay = ({ target, show, setShow, editor }) => {
+const FONT_OPTIONS = [
+  { label: "Arial", value: "Arial, sans-serif" },
+  { label: "Helvetica", value: "Helvetica, sans-serif" },
+  { label: "Times New Roman", value: '"Times New Roman", serif' },
+  { label: "Georgia", value: "Georgia, serif" },
+  { label: "Courier New", value: '"Courier New", monospace' },
+  { label: "Verdana", value: "Verdana, sans-serif" },
+  { label: "Trebuchet MS", value: '"Trebuchet MS", sans-serif' },
+  { label: "Comic Sans MS", value: '"Comic Sans MS", cursive, sans-serif' },
+  { label: "Lucida Console", value: '"Lucida Console", monospace' },
+  { label: "Tahoma", value: "Tahoma, sans-serif" },
+];
+
+const ColorOverlay = ({ target, show, setShow, editor, type }) => {
   const colors = [
     "red",
     "darkred",
@@ -116,6 +135,8 @@ const ColorOverlay = ({ target, show, setShow, editor }) => {
     "lightgray",
     "gray",
     "darkgray",
+    "black",
+    "white",
   ];
 
   return (
@@ -133,11 +154,20 @@ const ColorOverlay = ({ target, show, setShow, editor }) => {
             {colors.map((color) => (
               <ColorCircleButton
                 key={color}
-                onClick={() =>
-                  editor.chain().focus().toggleHighlight({ color }).run()
+                onClick={
+                  type === "highlight"
+                    ? () =>
+                        editor.chain().focus().toggleHighlight({ color }).run()
+                    : () => editor.chain().focus().setColor(color).run()
                 }
                 className={
-                  editor.isActive("highlight", { color }) ? "is-active" : ""
+                  type === "highlight"
+                    ? editor.isActive("highlight", { color })
+                      ? "is-active"
+                      : ""
+                    : editor.isActive("textStyle", { color })
+                      ? "is-active"
+                      : ""
                 }
               >
                 <ColorCircle bgColor={color} />
@@ -150,7 +180,7 @@ const ColorOverlay = ({ target, show, setShow, editor }) => {
   );
 };
 
-const MenuButtonWithOverlay = ({ children, editor }) => {
+const MenuButtonWithOverlay = ({ children, editor, type }) => {
   const [showPopover, setShowPopover] = useState(false);
   const buttonRef = useRef(null);
 
@@ -164,12 +194,46 @@ const MenuButtonWithOverlay = ({ children, editor }) => {
         show={showPopover}
         setShow={setShowPopover}
         editor={editor}
+        type={type}
       />
     </>
   );
 };
 
 const MenuBar = ({ editor }) => {
+  const [selectedFont, setSelectedFont] = useState("");
+
+  // Keep dropdown value in sync with editor
+  useEffect(() => {
+    if (!editor) return;
+
+    const updateFont = () => {
+      const currentFont = editor.getAttributes("textStyle").fontFamily || "";
+      setSelectedFont(currentFont);
+    };
+
+    editor.on("selectionUpdate", updateFont);
+    editor.on("transaction", updateFont);
+
+    // Initial font value
+    updateFont();
+
+    return () => {
+      editor.off("selectionUpdate", updateFont);
+      editor.off("transaction", updateFont);
+    };
+  }, [editor]);
+
+  const handleChange = (e) => {
+    const font = e.target.value;
+    if (font === "") {
+      editor.chain().focus().unsetFontFamily().run();
+    } else {
+      editor.chain().focus().setFontFamily(font).run();
+    }
+    setSelectedFont(font);
+  };
+
   if (!editor) {
     return null;
   }
@@ -206,47 +270,46 @@ const MenuBar = ({ editor }) => {
           <LuCodeXml />
         </MenuButton>
         <MenuButton
+          onClick={() => editor.chain().focus().toggleSuperscript().run()}
+          disabled={!editor.can().chain().focus().toggleSuperscript().run()}
+          className={editor.isActive("superscript") ? "is-active" : ""}
+        >
+          <LuSuperscript />
+        </MenuButton>
+        <MenuButton
+          onClick={() => editor.chain().focus().toggleSubscript().run()}
+          disabled={!editor.can().chain().focus().toggleSubscript().run()}
+          className={editor.isActive("subscript") ? "is-active" : ""}
+        >
+          <LuSubscript />
+        </MenuButton>
+        <MenuButton
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           disabled={!editor.can().chain().focus().toggleUnderline().run()}
           className={editor.isActive("underline") ? "is-active" : ""}
         >
           <LuUnderline />
         </MenuButton>
-        <MenuButtonWithOverlay editor={editor}>
+        <MenuButtonWithOverlay editor={editor} type={"highlight"}>
           <LuHighlighter />
         </MenuButtonWithOverlay>
+        <MenuButtonWithOverlay editor={editor} type={"color"}>
+          <LuBaseline />
+        </MenuButtonWithOverlay>
+        <div>
+          <label htmlFor="font-select">Font:</label>
+          <select id="font-select" value={selectedFont} onChange={handleChange}>
+            <option value="">Default</option>
+            {FONT_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </ButtonGroup>
     </ButtonBar>
-    // <div className="control-group">
-    //   <div className="button-group">
-    //     <button
-    //       onClick={() => editor.chain().focus().toggleBold().run()}
-    //       disabled={!editor.can().chain().focus().toggleBold().run()}
-    //       className={editor.isActive("bold") ? "is-active" : ""}
-    //     >
-    //       Bold
-    //     </button>
-    //     <button
-    //       onClick={() => editor.chain().focus().toggleItalic().run()}
-    //       disabled={!editor.can().chain().focus().toggleItalic().run()}
-    //       className={editor.isActive("italic") ? "is-active" : ""}
-    //     >
-    //       Italic
-    //     </button>
-    //     <button
-    //       onClick={() => editor.chain().focus().toggleStrike().run()}
-    //       disabled={!editor.can().chain().focus().toggleStrike().run()}
-    //       className={editor.isActive("strike") ? "is-active" : ""}
-    //     >
-    //       Strike
-    //     </button>
-    //     <button
-    //       onClick={() => editor.chain().focus().toggleCode().run()}
-    //       disabled={!editor.can().chain().focus().toggleCode().run()}
-    //       className={editor.isActive("code") ? "is-active" : ""}
-    //     >
-    //       Code
-    //     </button>
+
     //     <button onClick={() => editor.chain().focus().unsetAllMarks().run()}>
     //       Clear marks
     //     </button>
@@ -343,6 +406,10 @@ const TextEditor = ({ textValue, onChange }) => {
     TextStyle,
     Underline,
     Highlight.configure({ multicolor: true }),
+    Superscript,
+    Subscript,
+    Text,
+    FontFamily,
   ];
 
   const editor = useEditor({
