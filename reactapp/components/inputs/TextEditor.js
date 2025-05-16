@@ -452,6 +452,27 @@ const TextEditor = ({ textValue, onChange }) => {
   );
 };
 
+ColorOverlay.propTypes = {
+  target: PropTypes.shape({ current: PropTypes.any }),
+  show: PropTypes.bool,
+  setShow: PropTypes.func,
+  editor: PropTypes.object,
+  type: PropTypes.string,
+};
+
+MenuButtonWithOverlay.propTypes = {
+  children: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.element),
+    PropTypes.element,
+  ]),
+  editor: PropTypes.object,
+  type: PropTypes.string,
+};
+
+MenuBar.propTypes = {
+  editor: PropTypes.object,
+};
+
 TextEditor.propTypes = {
   onChange: PropTypes.func,
   textValue: PropTypes.string,
