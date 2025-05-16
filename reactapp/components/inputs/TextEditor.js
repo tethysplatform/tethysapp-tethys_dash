@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import PropTypes from "prop-types";
 import { Color } from "@tiptap/extension-color";
 import ListItem from "@tiptap/extension-list-item";
+import ListKeymap from "@tiptap/extension-list-keymap";
 import Underline from "@tiptap/extension-underline";
 import Highlight from "@tiptap/extension-highlight";
 import TextStyle from "@tiptap/extension-text-style";
-import Text from "@tiptap/extension-text";
 import FontFamily from "@tiptap/extension-font-family";
 import Superscript from "@tiptap/extension-superscript";
 import Subscript from "@tiptap/extension-subscript";
@@ -18,7 +18,6 @@ import {
   LuItalic,
   LuStrikethrough,
   LuCode,
-  LuCodeXml,
   LuUnderline,
   LuHighlighter,
   LuSuperscript,
@@ -32,24 +31,28 @@ import {
   LuEraser,
   LuList,
   LuListOrdered,
-  LuMessageSquareQuote,
   LuMinus,
-  LuSeparatorHorizontal,
+  LuIndentIncrease,
+  LuIndentDecrease,
 } from "react-icons/lu";
 import ButtonGroup from "react-bootstrap/ButtonGroup";
 import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";
 import "components/inputs/TextEditor.css";
 
+const SeparatedButtonGroup = styled(ButtonGroup)`
+  border-right: 1px solid lightgray;
+  padding-left: 0.2rem;
+  padding-right: 0.2rem;
+  border-radius: 0;
+  height: 2.5rem;
+  gap: 0.1rem;
+  align-items: center;
+`;
+
 const MenuButton = styled.button`
-  font-size: 0.875rem;
-  font-weight: 500;
-  font-feature-settings:
-    "salt" on,
-    "cv01" on;
-  line-height: 1.15;
   height: 2rem;
-  min-width: 2rem;
+  width: 2rem;
   border: none;
   padding: 0.5rem;
   gap: 0.25rem;
@@ -129,6 +132,16 @@ const FONT_OPTIONS = [
   { label: "Comic Sans MS", value: '"Comic Sans MS", cursive, sans-serif' },
   { label: "Lucida Console", value: '"Lucida Console", monospace' },
   { label: "Tahoma", value: "Tahoma, sans-serif" },
+];
+
+const STYLE_OPTIONS = [
+  { label: "Normal Text", value: "Normal Text" },
+  { label: "H1", value: 1 },
+  { label: "H2", value: 2 },
+  { label: "H3", value: 3 },
+  { label: "H4", value: 4 },
+  { label: "H5", value: 5 },
+  { label: "H6", value: 6 },
 ];
 
 const ColorOverlay = ({ target, show, setShow, editor, type }) => {
@@ -214,30 +227,45 @@ const MenuButtonWithOverlay = ({ children, editor, type }) => {
 };
 
 const MenuBar = ({ editor }) => {
-  const [selectedFont, setSelectedFont] = useState("");
+  const [selectedFont, setSelectedFont] = useState("Arial, sans-serif");
+  const [selectedStyle, setSelectedStyle] = useState("Normal Text");
 
   // Keep dropdown value in sync with editor
   useEffect(() => {
     if (!editor) return;
 
     const updateFont = () => {
-      const currentFont = editor.getAttributes("textStyle").fontFamily || "";
+      const currentFont =
+        editor.getAttributes("textStyle").fontFamily || "Arial, sans-serif";
       setSelectedFont(currentFont);
+    };
+
+    const updateStyle = () => {
+      const currentStyle =
+        editor.getAttributes("heading").level || "Normal Text";
+      setSelectedStyle(currentStyle);
     };
 
     editor.on("selectionUpdate", updateFont);
     editor.on("transaction", updateFont);
 
+    editor.on("selectionUpdate", updateStyle);
+    editor.on("transaction", updateStyle);
+
     // Initial font value
     updateFont();
+    updateStyle();
 
     return () => {
       editor.off("selectionUpdate", updateFont);
       editor.off("transaction", updateFont);
+
+      editor.off("selectionUpdate", updateStyle);
+      editor.off("transaction", updateStyle);
     };
   }, [editor]);
 
-  const handleChange = (e) => {
+  const handleFontChange = (e) => {
     const font = e.target.value;
     if (font === "") {
       editor.chain().focus().unsetFontFamily().run();
@@ -247,13 +275,47 @@ const MenuBar = ({ editor }) => {
     setSelectedFont(font);
   };
 
+  const handleStyleChange = (e) => {
+    let style = e.target.value;
+    if (style === "Normal Text" && selectedStyle !== "Normal Text") {
+      style = selectedStyle;
+    }
+    editor
+      .chain()
+      .focus()
+      .toggleHeading({ level: parseInt(style) })
+      .run();
+    setSelectedStyle(style);
+  };
+
   if (!editor) {
     return null;
   }
 
   return (
     <ButtonBar>
-      <ButtonGroup>
+      <SeparatedButtonGroup>
+        <MenuButton
+          onClick={() => editor.chain().focus().undo().run()}
+          disabled={!editor.can().undo()}
+        >
+          <LuUndo />
+        </MenuButton>
+        <MenuButton
+          onClick={() => editor.chain().focus().redo().run()}
+          disabled={!editor.can().redo()}
+        >
+          <LuRedo />
+        </MenuButton>
+        <MenuButton
+          onClick={() =>
+            editor.chain().focus().unsetAllMarks().clearNodes().run()
+          }
+        >
+          <LuEraser />
+        </MenuButton>
+      </SeparatedButtonGroup>
+      <SeparatedButtonGroup>
         <MenuButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={editor.isActive("bold") ? "is-active" : ""}
@@ -267,16 +329,16 @@ const MenuBar = ({ editor }) => {
           <LuItalic />
         </MenuButton>
         <MenuButton
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+          className={editor.isActive("underline") ? "is-active" : ""}
+        >
+          <LuUnderline />
+        </MenuButton>
+        <MenuButton
           onClick={() => editor.chain().focus().toggleStrike().run()}
           className={editor.isActive("strike") ? "is-active" : ""}
         >
           <LuStrikethrough />
-        </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().toggleCode().run()}
-          className={editor.isActive("code") ? "is-active" : ""}
-        >
-          <LuCode />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleSuperscript().run()}
@@ -291,10 +353,10 @@ const MenuBar = ({ editor }) => {
           <LuSubscript />
         </MenuButton>
         <MenuButton
-          onClick={() => editor.chain().focus().toggleUnderline().run()}
-          className={editor.isActive("underline") ? "is-active" : ""}
+          onClick={() => editor.chain().focus().toggleCode().run()}
+          className={editor.isActive("code") ? "is-active" : ""}
         >
-          <LuUnderline />
+          <LuCode />
         </MenuButton>
         <MenuButtonWithOverlay editor={editor} type={"highlight"}>
           <LuHighlighter />
@@ -302,10 +364,15 @@ const MenuBar = ({ editor }) => {
         <MenuButtonWithOverlay editor={editor} type={"color"}>
           <LuBaseline />
         </MenuButtonWithOverlay>
+      </SeparatedButtonGroup>
+      <SeparatedButtonGroup>
         <div>
-          <label htmlFor="font-select">Font:</label>
-          <select id="font-select" value={selectedFont} onChange={handleChange}>
-            <option value="">Default</option>
+          <select
+            id="font-select"
+            value={selectedFont}
+            onChange={handleFontChange}
+            style={{ border: "none" }}
+          >
             {FONT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -313,6 +380,24 @@ const MenuBar = ({ editor }) => {
             ))}
           </select>
         </div>
+      </SeparatedButtonGroup>
+      <SeparatedButtonGroup>
+        <div>
+          <select
+            id="style-select"
+            value={selectedStyle}
+            onChange={handleStyleChange}
+            style={{ border: "none" }}
+          >
+            {STYLE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </SeparatedButtonGroup>
+      <ButtonGroup>
         <MenuButton
           onClick={() => editor.chain().focus().setTextAlign("left").run()}
           className={editor.isActive({ textAlign: "left" }) ? "is-active" : ""}
@@ -334,36 +419,6 @@ const MenuBar = ({ editor }) => {
           <LuAlignRight />
         </MenuButton>
         <MenuButton
-          onClick={() => editor.chain().focus().undo().run()}
-          disabled={!editor.can().undo()}
-        >
-          <LuUndo />
-        </MenuButton>
-        <MenuButton
-          onClick={() => editor.chain().focus().redo().run()}
-          disabled={!editor.can().redo()}
-        >
-          <LuRedo />
-        </MenuButton>
-        <MenuButton
-          onClick={() =>
-            editor.chain().focus().unsetAllMarks().clearNodes().run()
-          }
-        >
-          <LuEraser />
-        </MenuButton>
-        {[1, 2, 3, 4, 5, 6].map((level) => (
-          <MenuButton
-            key={level}
-            onClick={() =>
-              editor.chain().focus().toggleHeading({ level }).run()
-            }
-            className={editor.isActive("heading", { level }) ? "is-active" : ""}
-          >
-            H{level}
-          </MenuButton>
-        ))}
-        <MenuButton
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           className={editor.isActive("bulletList") ? "is-active" : ""}
         >
@@ -376,24 +431,21 @@ const MenuBar = ({ editor }) => {
           <LuListOrdered />
         </MenuButton>
         <MenuButton
-          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-          className={editor.isActive("codeBlock") ? "is-active" : ""}
+          onClick={() => editor.chain().focus().sinkListItem("listItem").run()}
+          disabled={!editor.can().sinkListItem("listItem")}
         >
-          <LuCodeXml />
+          <LuIndentIncrease />
         </MenuButton>
         <MenuButton
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
-          className={editor.isActive("blockquote") ? "is-active" : ""}
+          onClick={() => editor.chain().focus().liftListItem("listItem").run()}
+          disabled={!editor.can().sinkListItem("listItem")}
         >
-          <LuMessageSquareQuote />
+          <LuIndentDecrease />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
         >
           <LuMinus />
-        </MenuButton>
-        <MenuButton onClick={() => editor.chain().focus().setHardBreak().run()}>
-          <LuSeparatorHorizontal />
         </MenuButton>
       </ButtonGroup>
     </ButtonBar>
@@ -411,18 +463,19 @@ const TextEditor = ({ textValue, onChange }) => {
         keepMarks: true,
         keepAttributes: false,
       },
+      textStyle: false,
     }),
     Color.configure({ types: [TextStyle.name, ListItem.name] }),
-    TextStyle,
+    TextStyle.configure({ mergeNestedSpanStyles: true }),
     Underline,
     Highlight.configure({ multicolor: true }),
     Superscript,
     Subscript,
-    Text,
     FontFamily,
     TextAlign.configure({
       types: ["heading", "paragraph"],
     }),
+    ListKeymap,
   ];
 
   const editor = useEditor({
