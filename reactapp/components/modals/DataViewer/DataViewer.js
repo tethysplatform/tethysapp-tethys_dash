@@ -288,8 +288,8 @@ function DataViewerModal({
                   <PaddedBottomDiv>
                     <TextEditor
                       textValue={vizInputsValues.text}
-                      onChange={(e) =>
-                        setVizInputsValues({ text: e.target.value })
+                      onChange={(htmlText) =>
+                        setVizInputsValues({ text: htmlText })
                       }
                     />
                   </PaddedBottomDiv>
