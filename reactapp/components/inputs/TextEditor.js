@@ -9,6 +9,7 @@ import Text from "@tiptap/extension-text";
 import FontFamily from "@tiptap/extension-font-family";
 import Superscript from "@tiptap/extension-superscript";
 import Subscript from "@tiptap/extension-subscript";
+import TextAlign from "@tiptap/extension-text-align";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import styled from "styled-components";
@@ -16,12 +17,24 @@ import {
   LuBold,
   LuItalic,
   LuStrikethrough,
+  LuCode,
   LuCodeXml,
   LuUnderline,
   LuHighlighter,
   LuSuperscript,
   LuSubscript,
   LuBaseline,
+  LuAlignLeft,
+  LuAlignJustify,
+  LuAlignRight,
+  LuUndo,
+  LuRedo,
+  LuEraser,
+  LuList,
+  LuListOrdered,
+  LuMessageSquareQuote,
+  LuMinus,
+  LuSeparatorHorizontal,
 } from "react-icons/lu";
 import ButtonGroup from "react-bootstrap/ButtonGroup";
 import Overlay from "react-bootstrap/Overlay";
@@ -243,49 +256,42 @@ const MenuBar = ({ editor }) => {
       <ButtonGroup>
         <MenuButton
           onClick={() => editor.chain().focus().toggleBold().run()}
-          disabled={!editor.can().chain().focus().toggleBold().run()}
           className={editor.isActive("bold") ? "is-active" : ""}
         >
           <LuBold />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleItalic().run()}
-          disabled={!editor.can().chain().focus().toggleItalic().run()}
           className={editor.isActive("italic") ? "is-active" : ""}
         >
           <LuItalic />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleStrike().run()}
-          disabled={!editor.can().chain().focus().toggleStrike().run()}
           className={editor.isActive("strike") ? "is-active" : ""}
         >
           <LuStrikethrough />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleCode().run()}
-          disabled={!editor.can().chain().focus().toggleCode().run()}
           className={editor.isActive("code") ? "is-active" : ""}
         >
-          <LuCodeXml />
+          <LuCode />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleSuperscript().run()}
-          disabled={!editor.can().chain().focus().toggleSuperscript().run()}
           className={editor.isActive("superscript") ? "is-active" : ""}
         >
           <LuSuperscript />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleSubscript().run()}
-          disabled={!editor.can().chain().focus().toggleSubscript().run()}
           className={editor.isActive("subscript") ? "is-active" : ""}
         >
           <LuSubscript />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleUnderline().run()}
-          disabled={!editor.can().chain().focus().toggleUnderline().run()}
           className={editor.isActive("underline") ? "is-active" : ""}
         >
           <LuUnderline />
@@ -307,86 +313,90 @@ const MenuBar = ({ editor }) => {
             ))}
           </select>
         </div>
+        <MenuButton
+          onClick={() => editor.chain().focus().setTextAlign("left").run()}
+          className={editor.isActive({ textAlign: "left" }) ? "is-active" : ""}
+        >
+          <LuAlignLeft />
+        </MenuButton>
+        <MenuButton
+          onClick={() => editor.chain().focus().setTextAlign("center").run()}
+          className={
+            editor.isActive({ textAlign: "center" }) ? "is-active" : ""
+          }
+        >
+          <LuAlignJustify />
+        </MenuButton>
+        <MenuButton
+          onClick={() => editor.chain().focus().setTextAlign("right").run()}
+          className={editor.isActive({ textAlign: "right" }) ? "is-active" : ""}
+        >
+          <LuAlignRight />
+        </MenuButton>
+        <MenuButton
+          onClick={() => editor.chain().focus().undo().run()}
+          disabled={!editor.can().undo()}
+        >
+          <LuUndo />
+        </MenuButton>
+        <MenuButton
+          onClick={() => editor.chain().focus().redo().run()}
+          disabled={!editor.can().redo()}
+        >
+          <LuRedo />
+        </MenuButton>
+        <MenuButton
+          onClick={() =>
+            editor.chain().focus().unsetAllMarks().clearNodes().run()
+          }
+        >
+          <LuEraser />
+        </MenuButton>
+        {[1, 2, 3, 4, 5, 6].map((level) => (
+          <MenuButton
+            key={level}
+            onClick={() =>
+              editor.chain().focus().toggleHeading({ level }).run()
+            }
+            className={editor.isActive("heading", { level }) ? "is-active" : ""}
+          >
+            H{level}
+          </MenuButton>
+        ))}
+        <MenuButton
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+          className={editor.isActive("bulletList") ? "is-active" : ""}
+        >
+          <LuList />
+        </MenuButton>
+        <MenuButton
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          className={editor.isActive("orderedList") ? "is-active" : ""}
+        >
+          <LuListOrdered />
+        </MenuButton>
+        <MenuButton
+          onClick={() => editor.chain().focus().toggleCodeBlock().run()}
+          className={editor.isActive("codeBlock") ? "is-active" : ""}
+        >
+          <LuCodeXml />
+        </MenuButton>
+        <MenuButton
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          className={editor.isActive("blockquote") ? "is-active" : ""}
+        >
+          <LuMessageSquareQuote />
+        </MenuButton>
+        <MenuButton
+          onClick={() => editor.chain().focus().setHorizontalRule().run()}
+        >
+          <LuMinus />
+        </MenuButton>
+        <MenuButton onClick={() => editor.chain().focus().setHardBreak().run()}>
+          <LuSeparatorHorizontal />
+        </MenuButton>
       </ButtonGroup>
     </ButtonBar>
-
-    //     <button onClick={() => editor.chain().focus().unsetAllMarks().run()}>
-    //       Clear marks
-    //     </button>
-    //     <button onClick={() => editor.chain().focus().clearNodes().run()}>
-    //       Clear nodes
-    //     </button>
-    //     <button
-    //       onClick={() => editor.chain().focus().setParagraph().run()}
-    //       className={editor.isActive("paragraph") ? "is-active" : ""}
-    //     >
-    //       Paragraph
-    //     </button>
-    //     {[1, 2, 3, 4, 5, 6].map((level) => (
-    //       <button
-    //         key={level}
-    //         onClick={() =>
-    //           editor.chain().focus().toggleHeading({ level }).run()
-    //         }
-    //         className={editor.isActive("heading", { level }) ? "is-active" : ""}
-    //       >
-    //         H{level}
-    //       </button>
-    //     ))}
-    //     <button
-    //       onClick={() => editor.chain().focus().toggleBulletList().run()}
-    //       className={editor.isActive("bulletList") ? "is-active" : ""}
-    //     >
-    //       Bullet list
-    //     </button>
-    //     <button
-    //       onClick={() => editor.chain().focus().toggleOrderedList().run()}
-    //       className={editor.isActive("orderedList") ? "is-active" : ""}
-    //     >
-    //       Ordered list
-    //     </button>
-    //     <button
-    //       onClick={() => editor.chain().focus().toggleCodeBlock().run()}
-    //       className={editor.isActive("codeBlock") ? "is-active" : ""}
-    //     >
-    //       Code block
-    //     </button>
-    //     <button
-    //       onClick={() => editor.chain().focus().toggleBlockquote().run()}
-    //       className={editor.isActive("blockquote") ? "is-active" : ""}
-    //     >
-    //       Blockquote
-    //     </button>
-    //     <button
-    //       onClick={() => editor.chain().focus().setHorizontalRule().run()}
-    //     >
-    //       Horizontal rule
-    //     </button>
-    //     <button onClick={() => editor.chain().focus().setHardBreak().run()}>
-    //       Hard break
-    //     </button>
-    //     <button
-    //       onClick={() => editor.chain().focus().undo().run()}
-    //       disabled={!editor.can().chain().focus().undo().run()}
-    //     >
-    //       Undo
-    //     </button>
-    //     <button
-    //       onClick={() => editor.chain().focus().redo().run()}
-    //       disabled={!editor.can().chain().focus().redo().run()}
-    //     >
-    //       Redo
-    //     </button>
-    //     <input
-    //       type="color"
-    //       onChange={(e) =>
-    //         editor.chain().focus().setColor(e.target.value).run()
-    //       }
-    //       value={editor.getAttributes("textStyle").color || "#000000"}
-    //       title="Text Color"
-    //     />
-    //   </div>
-    // </div>
   );
 };
 
@@ -410,6 +420,9 @@ const TextEditor = ({ textValue, onChange }) => {
     Subscript,
     Text,
     FontFamily,
+    TextAlign.configure({
+      types: ["heading", "paragraph"],
+    }),
   ];
 
   const editor = useEditor({
