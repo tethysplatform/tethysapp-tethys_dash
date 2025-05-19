@@ -50,6 +50,7 @@ const StyledVizCol = styled(Col)`
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
+  overflow-y: auto;
 `;
 
 function findBySource(data, targetSource) {

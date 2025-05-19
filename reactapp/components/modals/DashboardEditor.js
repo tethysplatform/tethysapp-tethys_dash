@@ -195,8 +195,8 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     });
   }
 
-  function onNotesChange({ target: { value } }) {
-    setLocalNotes(value);
+  function onNotesChange(textValue) {
+    setLocalNotes(textValue);
   }
 
   return (
