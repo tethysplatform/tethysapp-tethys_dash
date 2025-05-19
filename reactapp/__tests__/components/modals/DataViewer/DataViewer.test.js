@@ -1,4 +1,5 @@
 import userEvent from "@testing-library/user-event";
+import { act } from "react";
 import {
   render,
   screen,
@@ -145,17 +146,22 @@ test("Dashboard Viewer Modal Text", async () => {
   );
   fireEvent.click(visualizationOption);
 
-  const textInput = await screen.findByLabelText("textEditor");
-  expect(textInput).toBeInTheDocument();
+  const textEditor = await screen.findByLabelText("textEditor");
+  expect(textEditor).toBeInTheDocument();
 
   fireEvent.click(dataviewerSaveButton);
   expect(
     await screen.findByText("All arguments must be filled out before saving")
   ).toBeInTheDocument();
 
-  await userEvent.click(textInput);
-  await userEvent.keyboard("some text");
-  expect(await screen.findByText("some text")).toBeInTheDocument();
+  await act(() => {
+    fireEvent.input(textEditor, {
+      target: {
+        innerHTML: "<p>Hello world!</p>",
+      },
+    });
+  });
+  expect(await screen.findByText("Hello world!")).toBeInTheDocument();
 
   fireEvent.click(dataviewerSaveButton);
 
@@ -649,8 +655,12 @@ test("Dashboard Viewer Modal Text Options", async () => {
   fireEvent.click(visualizationOption);
 
   const textEditor = await screen.findByLabelText("textEditor");
-  expect(textEditor).toBeInTheDocument();
-
-  userEvent.type(textEditor, "some new text");
-  expect(await screen.findByText("some new text")).toBeInTheDocument();
+  await act(() => {
+    fireEvent.input(textEditor, {
+      target: {
+        innerHTML: "<p>Hello world!</p>",
+      },
+    });
+  });
+  expect(await screen.findByText("Hello world!")).toBeInTheDocument();
 });

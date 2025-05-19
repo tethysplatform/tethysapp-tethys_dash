@@ -17,7 +17,6 @@ const DashboardLoader = ({
   children,
   id,
   name,
-  notes,
   editable,
   accessGroups,
   unrestrictedPlacement,
@@ -27,6 +26,7 @@ const DashboardLoader = ({
   const [loadError, setLoadError] = useState(false);
   const [variableInputValues, setVariableInputValues] = useState({});
   const [gridItems, setGridItems] = useState([]);
+  const [notes, setNotes] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [disabledEditingMovement, setDisabledEditingMovement] = useState(false);
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
@@ -40,6 +40,7 @@ const DashboardLoader = ({
         if (response.success) {
           updateGridItems(response.dashboard.gridItems);
           originalGridItems.current = response.dashboard.gridItems;
+          setNotes(response.dashboard.notes);
           setIsLoaded(true);
         } else {
           setLoadError(true);

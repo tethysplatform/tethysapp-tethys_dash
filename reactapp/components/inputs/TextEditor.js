@@ -488,6 +488,12 @@ const TextEditor = ({ textValue, onChange }) => {
       },
       [onChange]
     ),
+    editorProps: {
+      attributes: {
+        "aria-label": "textEditor",
+        "data-testid": "tiptap-editor",
+      },
+    },
   });
 
   // Watch for initial textValue and set it manually

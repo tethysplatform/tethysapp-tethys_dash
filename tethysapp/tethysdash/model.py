@@ -298,7 +298,7 @@ def update_named_dashboard(user, id, dashboard_updates):
             db_dashboard.description = dashboard_updates["description"]
 
         if "notes" in dashboard_updates:
-            db_dashboard.notes = dashboard_updates["notes"]
+            db_dashboard.notes = sanitize_html(dashboard_updates["notes"])
 
         if db_access != db_dashboard.access_groups:
             if "public" in dashboard_updates["accessGroups"]:

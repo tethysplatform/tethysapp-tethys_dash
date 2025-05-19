@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, act } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
@@ -242,12 +242,15 @@ test("Dashboard Editor Canvas edit and save", async () => {
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "new_name" } });
 
-  const textArea = await screen.findByLabelText("textEditor");
-  await userEvent.click(textArea);
-  await userEvent.keyboard(". Here are some notes");
-  expect(
-    await screen.findByText("test_notes. Here are some notes")
-  ).toBeInTheDocument();
+  const textEditor = await screen.findByLabelText("textEditor");
+  await act(() => {
+    fireEvent.input(textEditor, {
+      target: {
+        innerHTML: "<p>Hello world!</p>",
+      },
+    });
+  });
+  expect(await screen.findByText("Hello world!")).toBeInTheDocument();
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
   await userEvent.click(saveButton);
@@ -257,7 +260,7 @@ test("Dashboard Editor Canvas edit and save", async () => {
       name: "new_name",
       description: "New Description",
       id: 1,
-      notes: "test_notes. Here are some notes",
+      notes: "<p>Hello world!</p>",
       unrestrictedPlacement: true,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
@@ -302,12 +305,15 @@ test("Dashboard Editor Canvas edit desription only and save", async () => {
   const descriptionInput = await screen.findByLabelText("Description Input");
   fireEvent.change(descriptionInput, { target: { value: "New Description" } });
 
-  const textArea = await screen.findByLabelText("textEditor");
-  await userEvent.click(textArea);
-  await userEvent.keyboard(". Here are some notes");
-  expect(
-    await screen.findByText("test_notes. Here are some notes")
-  ).toBeInTheDocument();
+  const textEditor = await screen.findByLabelText("textEditor");
+  await act(() => {
+    fireEvent.input(textEditor, {
+      target: {
+        innerHTML: "<p>Hello world!</p>",
+      },
+    });
+  });
+  expect(await screen.findByText("Hello world!")).toBeInTheDocument();
 
   const saveButton = await screen.findByLabelText("Save Dashboard Button");
   await userEvent.click(saveButton);
@@ -317,7 +323,7 @@ test("Dashboard Editor Canvas edit desription only and save", async () => {
       name: "editable",
       description: "New Description",
       id: 1,
-      notes: "test_notes. Here are some notes",
+      notes: "<p>Hello world!</p>",
       unrestrictedPlacement: false,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
