@@ -10,11 +10,14 @@ release_package = f"{TethysAppBase.package_namespace}-{app_package}"
 # -- Python Dependencies -- #
 dependencies = [
     "hjson==3.1",
-    "nh3",
+    "nh3==0.2.21",
+    "bleach==6.1.0",
+    "bleach[css]",
+    "cssutils==2.11.1",
     "pytest-django",
     "pytest-mock",
     "pytest-cov",
-    "intake",
+    "intake==2.0.7",
     "djangorestframework",
     "alembic==1.14.0",
 ]
