@@ -278,42 +278,7 @@ function VisualizationPane({
 
   const handleInputChange = (newValue, key) => {
     setVizInputsValues((prev) => {
-      const updated = { ...prev, [key]: newValue.value ?? newValue };
-
-      // Helper to recursively collect valid nested keys from sub_args
-      const collectValidKeys = (subArgs, baseKey) => {
-        let validKeys = [];
-        for (const [subName] of Object.entries(subArgs)) {
-          const fullKey = `${baseKey}.${subName}`;
-          validKeys.push(fullKey);
-        }
-        return validKeys;
-      };
-
-      // Clean up all nested keys that start with this key and are no longer valid
-      const prefix = `${key}.`;
-
-      // Get all valid nested keys based on the new value
-      const validKeys = newValue?.sub_args
-        ? collectValidKeys(newValue.sub_args, key)
-        : [];
-      if (validKeys.length > 0) {
-        validKeys.forEach((key) => {
-          updated[key] = updated[key] ?? null;
-        });
-      }
-
-      // Remove invalid nested keys
-      for (const existingKey in updated) {
-        if (
-          existingKey.startsWith(prefix) &&
-          !validKeys.includes(existingKey)
-        ) {
-          delete updated[existingKey];
-        }
-      }
-
-      return updated;
+      return { ...prev, [key]: newValue.value ?? newValue };
     });
   };
 
