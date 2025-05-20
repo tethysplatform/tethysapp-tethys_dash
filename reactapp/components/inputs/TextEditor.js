@@ -212,7 +212,11 @@ const MenuButtonWithOverlay = ({ children, editor, type }) => {
 
   return (
     <>
-      <MenuButton ref={buttonRef} onClick={() => setShowPopover(!showPopover)}>
+      <MenuButton
+        ref={buttonRef}
+        onClick={() => setShowPopover(!showPopover)}
+        aria-label={`${type} Menu Button`}
+      >
         {children}
       </MenuButton>
       <ColorOverlay
@@ -298,12 +302,14 @@ const MenuBar = ({ editor }) => {
         <MenuButton
           onClick={() => editor.chain().focus().undo().run()}
           disabled={!editor.can().undo()}
+          aria-label="Undo Menu Button"
         >
           <LuUndo />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().redo().run()}
           disabled={!editor.can().redo()}
+          aria-label="Redo Menu Button"
         >
           <LuRedo />
         </MenuButton>
@@ -311,6 +317,7 @@ const MenuBar = ({ editor }) => {
           onClick={() =>
             editor.chain().focus().unsetAllMarks().clearNodes().run()
           }
+          aria-label="Eraser Menu Button"
         >
           <LuEraser />
         </MenuButton>
@@ -319,42 +326,49 @@ const MenuBar = ({ editor }) => {
         <MenuButton
           onClick={() => editor.chain().focus().toggleBold().run()}
           className={editor.isActive("bold") ? "is-active" : ""}
+          aria-label="Bold Menu Button"
         >
           <LuBold />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleItalic().run()}
           className={editor.isActive("italic") ? "is-active" : ""}
+          aria-label="Italic Menu Button"
         >
           <LuItalic />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           className={editor.isActive("underline") ? "is-active" : ""}
+          aria-label="Underline Menu Button"
         >
           <LuUnderline />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleStrike().run()}
           className={editor.isActive("strike") ? "is-active" : ""}
+          aria-label="Strikethrough Menu Button"
         >
           <LuStrikethrough />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleSuperscript().run()}
           className={editor.isActive("superscript") ? "is-active" : ""}
+          aria-label="Superscript Menu Button"
         >
           <LuSuperscript />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleSubscript().run()}
           className={editor.isActive("subscript") ? "is-active" : ""}
+          aria-label="Subscript Menu Button"
         >
           <LuSubscript />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleCode().run()}
           className={editor.isActive("code") ? "is-active" : ""}
+          aria-label="Code Menu Button"
         >
           <LuCode />
         </MenuButton>
@@ -372,6 +386,7 @@ const MenuBar = ({ editor }) => {
             value={selectedFont}
             onChange={handleFontChange}
             style={{ border: "none" }}
+            aria-label="Font Select"
           >
             {FONT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -388,6 +403,7 @@ const MenuBar = ({ editor }) => {
             value={selectedStyle}
             onChange={handleStyleChange}
             style={{ border: "none" }}
+            aria-label="Style Select"
           >
             {STYLE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -401,6 +417,7 @@ const MenuBar = ({ editor }) => {
         <MenuButton
           onClick={() => editor.chain().focus().setTextAlign("left").run()}
           className={editor.isActive({ textAlign: "left" }) ? "is-active" : ""}
+          aria-label="Align Left Menu Button"
         >
           <LuAlignLeft />
         </MenuButton>
@@ -409,41 +426,48 @@ const MenuBar = ({ editor }) => {
           className={
             editor.isActive({ textAlign: "center" }) ? "is-active" : ""
           }
+          aria-label="Align Center Menu Button"
         >
           <LuAlignJustify />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().setTextAlign("right").run()}
           className={editor.isActive({ textAlign: "right" }) ? "is-active" : ""}
+          aria-label="Align Right Menu Button"
         >
           <LuAlignRight />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           className={editor.isActive("bulletList") ? "is-active" : ""}
+          aria-label="List Menu Button"
         >
           <LuList />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           className={editor.isActive("orderedList") ? "is-active" : ""}
+          aria-label="List Order Menu Button"
         >
           <LuListOrdered />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().sinkListItem("listItem").run()}
           disabled={!editor.can().sinkListItem("listItem")}
+          aria-label="Indent Increase Menu Button"
         >
           <LuIndentIncrease />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().liftListItem("listItem").run()}
           disabled={!editor.can().sinkListItem("listItem")}
+          aria-label="Indent Decrease Menu Button"
         >
           <LuIndentDecrease />
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          aria-label="Horizontal Line Menu Button"
         >
           <LuMinus />
         </MenuButton>
