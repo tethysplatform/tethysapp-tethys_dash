@@ -1358,6 +1358,7 @@ test("Visualization Pane Subs Args", async () => {
       args: {
         plugin_arg: "arg1",
         "plugin_arg.sub_arg1a": "sub_arg1b",
+        "plugin_arg.sub_arg1a.sub_arg1aa": true,
         plugin_arg2: "arg3",
         "plugin_arg2.sub_arg3a": "some new value",
       },
@@ -1366,7 +1367,7 @@ test("Visualization Pane Subs Args", async () => {
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
     "Cell updated to show plugin_label"
   );
-  expect(mockSetVizType).toHaveBeenCalledTimes(4);
+  expect(mockSetVizType).toHaveBeenCalledTimes(6);
   expect(mockSetVizType).toHaveBeenCalledWith("plotly");
   expect(mockSetVizData).toHaveBeenCalledWith({
     config: undefined,
@@ -1378,6 +1379,7 @@ test("Visualization Pane Subs Args", async () => {
       plugin_arg: "arg1",
       plugin_arg2: "arg3",
       "plugin_arg.sub_arg1a": "sub_arg1b",
+      "plugin_arg.sub_arg1a.sub_arg1aa": true,
       "plugin_arg2.sub_arg3a": "some new value",
     })
   );
@@ -1386,7 +1388,7 @@ test("Visualization Pane Subs Args", async () => {
   const newSubArg1AOption = await screen.findByText("Sub Arg 1A");
   fireEvent.click(newSubArg1AOption);
 
-  expect(mockSetVizType).toHaveBeenCalledTimes(5);
+  expect(mockSetVizType).toHaveBeenCalledTimes(8);
   expect(mockSetShowingSubModal).toHaveBeenCalledWith(false);
 });
 
