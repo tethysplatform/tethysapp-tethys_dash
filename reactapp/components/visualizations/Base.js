@@ -163,12 +163,6 @@ const BaseVisualization = ({
     const args = JSON.parse(argsString);
     if (source === "") {
       setVizType("unknown");
-    } else if (source === "Custom Image") {
-      setVizType("image");
-      setVizData({ source: args["image_source"], alt: "custom_image" });
-    } else if (source === "Text") {
-      setVizType("text");
-      setVizData({ text: args.text });
     } else if (source === "Variable Input") {
       setVizType("variableInput");
       setVizData({
@@ -183,7 +177,7 @@ const BaseVisualization = ({
   }, [source, argsString]);
 
   useEffect(() => {
-    if (!["", "Custom Image", "Variable Input"].includes(source)) {
+    if (!["", "Variable Input"].includes(source)) {
       setVariableDependentVisualizations({});
     }
     // eslint-disable-next-line
@@ -246,6 +240,12 @@ const BaseVisualization = ({
       } else if (source === "Text") {
         setVizType("text");
         setVizData({ text: updatedGridItemArgs.text });
+      } else if (source === "Custom Image") {
+        setVizType("image");
+        setVizData({
+          source: updatedGridItemArgs.image_source,
+          alt: "custom_image",
+        });
       } else {
         await getVisualization({
           setVizType,

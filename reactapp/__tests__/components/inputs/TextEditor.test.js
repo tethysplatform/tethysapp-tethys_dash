@@ -48,7 +48,15 @@ describe("TextEditor", () => {
   test("bold and then undo", async () => {
     render(<TextEditor textValue={initialValue} onChange={onChangeMock} />);
 
-    // Simulate a button click to apply bold formatting
+    const editorInstance = (await screen.findByLabelText("textEditor")).editor;
+
+    // Ensure cursor is at the end of the content
+    editorInstance
+      .chain()
+      .focus()
+      .setTextSelection(editorInstance.state.doc.content.size - 1)
+      .run();
+
     const boldButton = screen.getByRole("button", { name: "Bold Menu Button" });
     fireEvent.click(boldButton);
 
