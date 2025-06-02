@@ -123,6 +123,7 @@ const VisualizationCard = ({
         <Popover
           onMouseEnter={() => setShowPopover(true)}
           onMouseLeave={() => setShowPopover(false)}
+          aria-label="Visualization Card Popover"
         >
           <Popover.Body>
             <div>

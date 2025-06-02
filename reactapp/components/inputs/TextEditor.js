@@ -236,8 +236,6 @@ const MenuBar = ({ editor }) => {
 
   // Keep dropdown value in sync with editor
   useEffect(() => {
-    if (!editor) return;
-
     const updateFont = () => {
       const currentFont =
         editor.getAttributes("textStyle").fontFamily || "Arial, sans-serif";
@@ -271,11 +269,7 @@ const MenuBar = ({ editor }) => {
 
   const handleFontChange = (e) => {
     const font = e.target.value;
-    if (font === "") {
-      editor.chain().focus().unsetFontFamily().run();
-    } else {
-      editor.chain().focus().setFontFamily(font).run();
-    }
+    editor.chain().focus().setFontFamily(font).run();
     setSelectedFont(font);
   };
 
@@ -291,10 +285,6 @@ const MenuBar = ({ editor }) => {
       .run();
     setSelectedStyle(style);
   };
-
-  if (!editor) {
-    return null;
-  }
 
   return (
     <ButtonBar>
@@ -460,7 +450,7 @@ const MenuBar = ({ editor }) => {
         </MenuButton>
         <MenuButton
           onClick={() => editor.chain().focus().liftListItem("listItem").run()}
-          disabled={!editor.can().sinkListItem("listItem")}
+          disabled={!editor.can().liftListItem("listItem")}
           aria-label="Indent Decrease Menu Button"
         >
           <LuIndentDecrease />

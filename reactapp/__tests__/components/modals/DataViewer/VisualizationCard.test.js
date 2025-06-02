@@ -30,6 +30,29 @@ it("VisualizationCard", async () => {
 
   fireEvent.mouseEnter(thumbnail);
 
+  const popover = await screen.findByLabelText("Visualization Card Popover");
+
+  fireEvent.mouseEnter(popover);
+
+  expect(await screen.findByText("Description")).toBeInTheDocument();
+  expect(await screen.findByText(`: ${description}`)).toBeInTheDocument();
+
+  expect(await screen.findByText("Type")).toBeInTheDocument();
+  expect(await screen.findByText(`: ${type}`)).toBeInTheDocument();
+
+  expect(await screen.findByText("Tags")).toBeInTheDocument();
+  expect(await screen.findByText(`: ${tags.join(", ")}`)).toBeInTheDocument();
+
+  fireEvent.mouseLeave(popover);
+
+  await waitFor(() => {
+    expect(screen.queryByText(`: ${description}`)).not.toBeInTheDocument();
+  });
+  expect(screen.queryByText(`: ${type}`)).not.toBeInTheDocument();
+  expect(screen.queryByText(`: ${tags.join(", ")}`)).not.toBeInTheDocument();
+
+  fireEvent.mouseEnter(thumbnail);
+
   expect(await screen.findByText("Description")).toBeInTheDocument();
   expect(await screen.findByText(`: ${description}`)).toBeInTheDocument();
 
