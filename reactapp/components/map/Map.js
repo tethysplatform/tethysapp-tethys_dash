@@ -47,6 +47,11 @@ const MapComponent = ({
   const viewRef = useRef();
   const mapDivRef = useRef();
   const onMapClickCurrent = useRef();
+  const [zoom, setZoom] = useState(4.5);
+  const [lonLat, setLonLat] = useState([
+    -10686671.116154263, 4721671.572580108,
+  ]);
+  const [projection, setProjection] = useState("EPSG:3857");
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -55,9 +60,9 @@ const MapComponent = ({
   const customMapConfig = { ...defaultMapConfig, ...mapConfig };
 
   const defaultViewConfig = {
-    projection: "EPSG:3857",
-    zoom: 4.5,
-    center: [-10686671.116154263, 4721671.572580108],
+    projection,
+    zoom,
+    center: lonLat,
   };
 
   useEffect(() => {
@@ -76,20 +81,10 @@ const MapComponent = ({
 
     console.log(dataviewerViz);
     if (dataviewerViz) {
-      const infoDiv = document.getElementById("info");
-
       // Update coordinates on pointer move
       visualizationRef.current.on("pointermove", function (evt) {
         const coordinate = evt.coordinate;
-        const zoom = visualizationRef.current.getView().getZoom().toFixed(2);
-        const [lon, lat] = coordinate;
-        const projection = visualizationRef.current.getView().getProjection();
-        const epsgCode = projection.getCode(); // ← this gives you something like "EPSG:3857"
-        infoDiv.innerHTML = `
-          Zoom: ${zoom}<br>
-          Lon: ${lon.toFixed(4)}, Lat: ${lat.toFixed(4)}<br>
-          Projection: ${epsgCode}
-        `;
+        setLonLat(coordinate);
       });
     }
 
@@ -107,14 +102,11 @@ const MapComponent = ({
     const customViewConfig = { ...defaultViewConfig, ...viewConfig };
     if (!viewRef.current || !valuesEqual(viewRef.current, customViewConfig)) {
       const mapViewConfig = new View(customViewConfig);
-      const infoDiv = document.getElementById("info");
+      setProjection(mapViewConfig.getProjection().getCode());
 
       // Update zoom on view change
       mapViewConfig.on("change:resolution", () => {
-        const zoom = visualizationRef.current.getView().getZoom().toFixed(2);
-        const center = visualizationRef.current.getView().getCenter();
-        const [lon, lat] = center;
-        infoDiv.innerHTML = `Zoom: ${zoom}<br>Lon: ${lon.toFixed(2)}, Lat: ${lat.toFixed(2)}`;
+        setZoom(visualizationRef.current.getView().getZoom().toFixed(2));
       });
 
       visualizationRef.current.setView(mapViewConfig);
@@ -206,7 +198,15 @@ const MapComponent = ({
             {errorMessage}
           </StyledAlert>
         )}
-        {dataviewerViz && <InfoDiv id="info"></InfoDiv>}
+        {dataviewerViz && (
+          <InfoDiv id="info">
+            Zoom: {zoom}
+            <br></br>
+            Lon: {lonLat[0].toFixed(2)}, Lat: {lonLat[1].toFixed(2)}
+            <br></br>
+            Projection: {projection}
+          </InfoDiv>
+        )}
         <div>
           {layerControl && (
             <LayersControl
