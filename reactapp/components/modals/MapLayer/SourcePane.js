@@ -218,6 +218,7 @@ const SourcePane = ({
               disabledFields={["required", "property"]}
               allowRowCreation={true}
               placeholders={propertyPlaceholders}
+              show_placeholder_on_hover={true}
             />
           )}
         </>

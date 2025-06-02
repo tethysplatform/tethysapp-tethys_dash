@@ -152,6 +152,7 @@ const MapVisualization = ({
   visualizationRef,
   baseMap,
   layerControl,
+  dataviewerViz,
 }) => {
   const [mapLegend, setMapLegend] = useState();
   const [mapLayers, setMapLayers] = useState();
@@ -414,6 +415,7 @@ const MapVisualization = ({
       onMapClick={inDataViewerMode ? () => {} : onMapClick}
       visualizationRef={visualizationRef}
       data-testid="backlayer-map"
+      dataviewerViz={dataviewerViz}
     />
   );
 };

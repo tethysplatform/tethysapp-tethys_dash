@@ -24,6 +24,7 @@ const InputTable = ({
   allowRowCreation,
   headers,
   placeholders,
+  show_placeholder_on_hover,
 }) => {
   const [tableRows, setTableRows] = useState([]);
   const [tableHeaders, setTableHeaders] = useState([]);
@@ -175,6 +176,11 @@ const InputTable = ({
                               handleKeyDown(e, rowIndex, fieldIndex)
                             }
                             placeholder={
+                              inputPlaceholders &&
+                              inputPlaceholders[rowIndex][field]
+                            }
+                            title={
+                              show_placeholder_on_hover &&
                               inputPlaceholders &&
                               inputPlaceholders[rowIndex][field]
                             }

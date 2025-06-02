@@ -299,6 +299,7 @@ function DataViewerModal({
                     vizRef={visualizationRef}
                     vizType={vizType}
                     vizData={vizData}
+                    dataviewerViz={true}
                   />
                 )}
               </StyledVizCol>

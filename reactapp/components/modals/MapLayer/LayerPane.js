@@ -67,6 +67,7 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
         disabledFields={["required", "property"]}
         allowRowCreation={true}
         placeholders={propertyPlaceholders}
+        show_placeholder_on_hover={true}
       />
     </>
   );

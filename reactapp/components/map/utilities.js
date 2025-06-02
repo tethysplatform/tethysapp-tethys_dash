@@ -89,6 +89,8 @@ export const layerPropertiesOptions = {
     "The minimum view zoom level (exclusive) above which this layer will be visible.",
   maxZoom:
     "The maximum view zoom level (inclusive) at which this layer will be visible.",
+  minZoomQuery:
+    "The minimum view zoom level (inclusive) at which this layer can be queried. If the map is clicked beyond the zoom level, then the map will zoom into the minZoomQuery value",
 };
 
 export function createMarkerLayer(coordinate) {

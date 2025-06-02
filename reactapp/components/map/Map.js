@@ -21,6 +21,17 @@ const StyledAlert = styled(Alert)`
   z-index: 1000;
 `;
 
+const InfoDiv = styled.div`
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  z-index: 1000;
+`;
+
 const MapComponent = ({
   mapConfig,
   viewConfig,
@@ -29,6 +40,7 @@ const MapComponent = ({
   layerControl,
   onMapClick,
   visualizationRef,
+  dataviewerViz,
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
   const [layerControlUpdate, setLayerControlUpdate] = useState();
@@ -62,6 +74,25 @@ const MapComponent = ({
       visualizationRef.current = initialMap;
     }
 
+    console.log(dataviewerViz);
+    if (dataviewerViz) {
+      const infoDiv = document.getElementById("info");
+
+      // Update coordinates on pointer move
+      visualizationRef.current.on("pointermove", function (evt) {
+        const coordinate = evt.coordinate;
+        const zoom = visualizationRef.current.getView().getZoom().toFixed(2);
+        const [lon, lat] = coordinate;
+        const projection = visualizationRef.current.getView().getProjection();
+        const epsgCode = projection.getCode(); // ← this gives you something like "EPSG:3857"
+        infoDiv.innerHTML = `
+          Zoom: ${zoom}<br>
+          Lon: ${lon.toFixed(4)}, Lat: ${lat.toFixed(4)}<br>
+          Projection: ${epsgCode}
+        `;
+      });
+    }
+
     return () => {
       if (visualizationRef.current) {
         visualizationRef.current.setTarget(undefined);
@@ -75,7 +106,18 @@ const MapComponent = ({
     // Update the map view if new viewConfig
     const customViewConfig = { ...defaultViewConfig, ...viewConfig };
     if (!viewRef.current || !valuesEqual(viewRef.current, customViewConfig)) {
-      visualizationRef.current.setView(new View(customViewConfig));
+      const mapViewConfig = new View(customViewConfig);
+      const infoDiv = document.getElementById("info");
+
+      // Update zoom on view change
+      mapViewConfig.on("change:resolution", () => {
+        const zoom = visualizationRef.current.getView().getZoom().toFixed(2);
+        const center = visualizationRef.current.getView().getCenter();
+        const [lon, lat] = center;
+        infoDiv.innerHTML = `Zoom: ${zoom}<br>Lon: ${lon.toFixed(2)}, Lat: ${lat.toFixed(2)}`;
+      });
+
+      visualizationRef.current.setView(mapViewConfig);
       viewRef.current = customViewConfig;
     }
     // eslint-disable-next-line
@@ -164,6 +206,7 @@ const MapComponent = ({
             {errorMessage}
           </StyledAlert>
         )}
+        {dataviewerViz && <InfoDiv id="info"></InfoDiv>}
         <div>
           {layerControl && (
             <LayersControl
