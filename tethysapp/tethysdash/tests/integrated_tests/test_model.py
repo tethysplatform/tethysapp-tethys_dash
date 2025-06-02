@@ -1,6 +1,5 @@
 import pytest
 import json
-import nh3
 from tethysapp.tethysdash.model import (
     add_new_dashboard,
     delete_named_dashboard,
@@ -213,9 +212,6 @@ def test_update_named_dashboard(
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
-    mock_nh3_clean = mocker.patch(
-        "tethysapp.tethysdash.model.nh3.clean", wraps=nh3.clean
-    )
     new_dashboard_name = "new_name"
 
     grid_items = [
@@ -296,7 +292,6 @@ def test_update_named_dashboard(
     assert dashboard.grid_items[0].w == 2
     assert dashboard.grid_items[0].h == 2
     assert dashboard.grid_items[0].metadata_string == json.dumps({"refreshRate": 30})
-    mock_nh3_clean.assert_called()
 
 
 @pytest.mark.django_db
@@ -507,7 +502,6 @@ def test_copy_named_dashboard(
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
-    mocker.patch("tethysapp.tethysdash.model.nh3.clean", wraps=nh3.clean)
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     new_dashboard_name = "new_name"
     new_description = "some updated descripion"

@@ -14,6 +14,7 @@ SAFE_CSS_PROPERTIES = {
     "font-family",
     "text-decoration",  # for <u> styles or
     "font-weight",
+    "font-size",
 }
 
 UNSAFE_VALUE_PATTERN = re.compile(r"expression|javascript:", re.IGNORECASE)
@@ -27,11 +28,14 @@ def sanitize_style_attr(style_str):
             prop.value
         ):
             clean[prop.name] = prop.value
-    return clean.cssText
+    return clean.cssText.replace("\n", " ")
 
 
 def preprocess_styles(html):
     soup = BeautifulSoup(html, "html.parser")
+    for tag in soup(["script"]):
+        tag.decompose()  # completely remove tag and contents
+
     for tag in soup.find_all(True):
         if tag.has_attr("style"):
             cleaned = sanitize_style_attr(tag["style"])
