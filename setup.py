@@ -39,7 +39,7 @@ django.setup()
 
 setup(
     name=release_package,
-    version="0.10.9",
+    version="0.10.11",
     description="",
     long_description="",
     keywords="",
