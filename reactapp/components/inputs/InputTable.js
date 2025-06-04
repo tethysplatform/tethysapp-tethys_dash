@@ -25,6 +25,7 @@ const InputTable = ({
   headers,
   placeholders,
   show_placeholder_on_hover,
+  types,
 }) => {
   const [tableRows, setTableRows] = useState([]);
   const [tableHeaders, setTableHeaders] = useState([]);
@@ -162,7 +163,7 @@ const InputTable = ({
                         <td key={fieldIndex}>
                           <FullInput
                             aria-label={`${field} Input ${rowIndex}`}
-                            type="text"
+                            type={types?.[rowIndex] ?? "text"}
                             value={row[field]}
                             ref={(el) =>
                               (inputRefs.current[

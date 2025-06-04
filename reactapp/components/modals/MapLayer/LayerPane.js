@@ -19,8 +19,12 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
   // setup placeholders for the input table
   const propertyPlaceholders = Object.keys(layerPropertiesOptions).map(
     (key) => ({
-      value: layerPropertiesOptions[key],
+      value: layerPropertiesOptions[key].placeholder,
     })
+  );
+  // setup placeholders for the input table
+  const propertyTypes = Object.keys(layerPropertiesOptions).map(
+    (key) => layerPropertiesOptions[key].type
   );
 
   const [name, setName] = useState(layerProps?.name ?? "");
@@ -65,8 +69,8 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
         onChange={handlePropertyChange}
         values={layerProperties}
         disabledFields={["required", "property"]}
-        allowRowCreation={true}
         placeholders={propertyPlaceholders}
+        types={propertyTypes}
         show_placeholder_on_hover={true}
       />
     </>

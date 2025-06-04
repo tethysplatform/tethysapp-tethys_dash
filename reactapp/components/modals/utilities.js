@@ -99,7 +99,11 @@ export const checkRequiredKeys = (
 
     if (!(key in checkingObj)) {
       missingKeys.push(fullKey); // Add missing key to the list
-    } else if (value && typeof value === "object") {
+    } else if (
+      value &&
+      typeof value === "object" &&
+      !Object.keys(value).includes("placeholder")
+    ) {
       // Recursively check nested objects
       missingKeys = missingKeys.concat(
         checkRequiredKeys(value, checkingObj[key], fullKey)

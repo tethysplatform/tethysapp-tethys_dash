@@ -24,6 +24,7 @@ const generatePropertiesArrayWithValues = (
 ) => {
   const properties = [];
   const placeholders = [];
+  const types = [];
   let existingValues = existingPropertyValues ?? {};
 
   const processKeys = (obj, required, parentKey = "", mappingObj = {}) => {
@@ -36,8 +37,11 @@ const generatePropertiesArrayWithValues = (
       const valueInMap = mappingObj[key];
       const existingValue = valueInMap?.value ?? valueInMap;
 
-      if (typeof value === "object" && value !== null) {
-        // Recursively process nested objects
+      if (
+        value &&
+        typeof value === "object" &&
+        !Object.keys(value).includes("placeholder")
+      ) {
         processKeys(value, required, property, existingValue || {});
       } else {
         // Add to the result array with mapped value or empty string
@@ -50,7 +54,8 @@ const generatePropertiesArrayWithValues = (
               : existingValue
             : "",
         });
-        placeholders.push({ value: value });
+        placeholders.push({ value: value.placeholder });
+        types.push(value?.type ?? "text");
       }
     }
   };
@@ -59,7 +64,7 @@ const generatePropertiesArrayWithValues = (
   processKeys(sourceProperties.required, true, "", existingValues);
   processKeys(sourceProperties.optional, false, "", existingValues);
 
-  return { properties, placeholders };
+  return { properties, placeholders, types };
 };
 
 // coverts a flat object of properties from the generatePropertiesArrayWithValues function into a nested object
@@ -89,6 +94,7 @@ const SourcePane = ({
 }) => {
   const [sourceProperties, setSourceProperties] = useState([]); // array of objects that represent properties that will be rendered in the table
   const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]); // array of objects that represent placeholders for the table inputs
+  const [propertyTypes, SetPropertyTypes] = useState([]); // array of objects that represent types for the table inputs
   const [sourceType, setSourceType] = useState({}); // source type dropdown selection {value: ..., label: ...}
   const [geoJSON, setGeoJSON] = useState("{}"); // track the geojson value
 
@@ -106,12 +112,14 @@ const SourcePane = ({
 
     // if loading existing layer, then set states appropriately
     if (sourceProps.type) {
-      const { properties, placeholders } = generatePropertiesArrayWithValues(
-        sourcePropertiesOptions[sourceProps.type],
-        sourceProps.props
-      );
+      const { properties, placeholders, types } =
+        generatePropertiesArrayWithValues(
+          sourcePropertiesOptions[sourceProps.type],
+          sourceProps.props
+        );
       setSourceProperties(properties);
       SetPropertyPlaceholders(placeholders);
+      SetPropertyTypes(types);
       setSourceType({ value: sourceProps.type, label: sourceProps.type });
     }
 
@@ -144,12 +152,14 @@ const SourcePane = ({
     setSourceType(e);
 
     // update table values and placeholders from new source type
-    const { properties, placeholders } = generatePropertiesArrayWithValues(
-      sourcePropertiesOptions[e.value],
-      sourceProps.props
-    );
+    const { properties, placeholders, types } =
+      generatePropertiesArrayWithValues(
+        sourcePropertiesOptions[e.value],
+        sourceProps.props
+      );
     setSourceProperties(properties);
     SetPropertyPlaceholders(placeholders);
+    SetPropertyTypes(types);
 
     // update layer source props
     const parsedSourceProps = parsePropertiesArray(properties);
@@ -216,9 +226,9 @@ const SourcePane = ({
               onChange={handlePropertyChange}
               values={sourceProperties}
               disabledFields={["required", "property"]}
-              allowRowCreation={true}
               placeholders={propertyPlaceholders}
               show_placeholder_on_hover={true}
+              types={propertyTypes}
             />
           )}
         </>

@@ -13,42 +13,74 @@ import { v4 as uuidv4 } from "uuid";
 export const sourcePropertiesOptions = {
   "ESRI Image and Map Service": {
     required: {
-      url: "ArcGIS Rest service URL",
+      url: {
+        placeholder: "ArcGIS Rest service URL",
+      },
     },
     optional: {
-      attributions: "Attributions",
-      params: {
-        LAYERS: "[show|hide|include|exclude]:layerId1,layerId2",
-        TIME: "<startTime>, <endTime> or <timeInstant>",
-        LAYERDEFS: "Allows you to filter the features of individual layers",
-        mosaicRule: "Specifies how image service should handle mosaics",
+      attributions: {
+        placeholder: "Attributions",
       },
-      projection: "EPSG:<Code>",
+      params: {
+        LAYERS: {
+          placeholder: "[show|hide|include|exclude]:layerId1,layerId2",
+        },
+        TIME: {
+          placeholder: "<startTime>, <endTime> or <timeInstant>",
+        },
+        LAYERDEFS: {
+          placeholder: "Allows you to filter the features of individual layers",
+        },
+        mosaicRule: {
+          placeholder: "Specifies how image service should handle mosaics",
+        },
+      },
+      projection: {
+        placeholder: "EPSG:<Code>",
+      },
     },
   },
   WMS: {
     required: {
-      url: "WMS service URL",
+      url: {
+        placeholder: "WMS service URL",
+      },
       params: {
-        LAYERS: "<workspace>:<layerName>,<workspace>:<layerName>",
+        LAYERS: {
+          placeholder: "<workspace>:<layerName>,<workspace>:<layerName>",
+        },
       },
     },
     optional: {
-      attributions: "Attributions",
-      params: {
-        STYLES: "SLD (Styled Layer Descriptor) Name",
-        TIME: "yyyy-MM-ddThh:mm:ss.SSSZ",
+      attributions: {
+        placeholder: "Attributions",
       },
-      projection: "EPSG:<Code>",
+      params: {
+        STYLES: {
+          placeholder: "SLD (Styled Layer Descriptor) Name",
+        },
+        TIME: {
+          placeholder: "yyyy-MM-ddThh:mm:ss.SSSZ",
+        },
+      },
+      projection: {
+        placeholder: "EPSG:<Code>",
+      },
     },
   },
   "Image Tile": {
     required: {
-      url: "Image Tile URL",
+      url: {
+        placeholder: "Image Tile URL",
+      },
     },
     optional: {
-      attributions: "Attributions",
-      projection: "EPSG:<Code>",
+      attributions: {
+        placeholder: "Attributions",
+      },
+      projection: {
+        placeholder: "EPSG:<Code>",
+      },
     },
   },
   GeoJSON: {
@@ -57,40 +89,70 @@ export const sourcePropertiesOptions = {
   },
   "Vector Tile": {
     required: {
-      urls: "An comma separated list of URL templates. Must include {x}, {y} or {-y}, and {z} placeholders. A {?-?} template pattern, for example subdomain{a-f}.domain.com, may be used instead of defining each one separately in the urls option.",
+      urls: {
+        placeholder:
+          "An comma separated list of URL templates. Must include {x}, {y} or {-y}, and {z} placeholders. A {?-?} template pattern, for example subdomain{a-f}.domain.com, may be used instead of defining each one separately in the urls option.",
+      },
     },
     optional: {
-      attributions: "Attributions",
-      projection: "EPSG:<Code>",
+      attributions: {
+        placeholder: "Attributions",
+      },
+      projection: {
+        placeholder: "EPSG:<Code>",
+      },
     },
   },
   "ESRI Feature Service": {
     required: {
-      url: "ArcGIS Feature Service URL",
-      layer: "the integer for the layer index",
+      url: {
+        placeholder: "ArcGIS Feature Service URL",
+      },
+      layer: { type: "number", placeholder: "the integer for the layer index" },
     },
     optional: {
-      attributions: "Attributions",
+      attributions: {
+        placeholder: "Attributions",
+      },
       params: {
-        TIME: "<startTime>, <endTime> or <timeInstant>",
-        WHERE: "WHERE clause for the query filter",
+        TIME: {
+          placeholder: "<startTime>, <endTime> or <timeInstant>",
+        },
+        WHERE: {
+          placeholder: "WHERE clause for the query filter",
+        },
       },
     },
   },
 };
 
 export const layerPropertiesOptions = {
-  opacity: "Opacity (0, 1)",
-  minResolution:
-    "The minimum resolution (inclusive) at which this layer will be visible.",
-  maxResolution:
-    "The maximum resolution (exclusive) below which this layer will be visible.",
-  minZoom:
-    "The minimum view zoom level (exclusive) above which this layer will be visible.",
-  maxZoom:
-    "The maximum view zoom level (inclusive) at which this layer will be visible.",
-  minZoomQuery:
-    "The minimum view zoom level (inclusive) at which this layer can be queried. If the map is clicked beyond the zoom level, then the map will zoom into the minZoomQuery value",
+  opacity: { type: "number", placeholder: "Opacity (0, 1)" },
+  minResolution: {
+    type: "number",
+    placeholder:
+      "The minimum resolution (inclusive) at which this layer will be visible.",
+  },
+  maxResolution: {
+    type: "number",
+    placeholder:
+      "The maximum resolution (exclusive) below which this layer will be visible.",
+  },
+  minZoom: {
+    type: "number",
+    placeholder:
+      "The minimum view zoom level (exclusive) above which this layer will be visible.",
+  },
+  maxZoom: {
+    type: "number",
+    placeholder:
+      "The maximum view zoom level (inclusive) at which this layer will be visible.",
+  },
+  minZoomQuery: {
+    type: "number",
+    placeholder:
+      "The minimum view zoom level (inclusive) at which this layer can be queried. If the mp is clicked beyond the zoom level, then the map will zoom into the minZoomQuery value",
+  },
 };
 
 export function createMarkerLayer(coordinate) {

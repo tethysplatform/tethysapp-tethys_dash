@@ -79,7 +79,6 @@ const MapComponent = ({
       visualizationRef.current = initialMap;
     }
 
-    console.log(dataviewerViz);
     if (dataviewerViz) {
       // Update coordinates on pointer move
       visualizationRef.current.on("pointermove", function (evt) {
