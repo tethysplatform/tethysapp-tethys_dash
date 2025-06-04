@@ -285,7 +285,9 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   const mapZoom = map.getView().getZoom();
   if (layerInfo.configuration.props.minZoomQuery >= mapZoom) {
     map.getView().setCenter(coordinate);
-    map.getView().setZoom(layerInfo.configuration.props.minZoomQuery);
+    map
+      .getView()
+      .setZoom(parseFloat(layerInfo.configuration.props.minZoomQuery) + 0.1);
     features = "zoomed";
   } else {
     // make the appropriate request based on the source type
