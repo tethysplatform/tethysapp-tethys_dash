@@ -90,7 +90,7 @@ test("Default Map", async () => {
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({
       zoom: 4.5,
-      center: [-10686671.116154263, 4721671.572580108],
+      center: [-10686671.12, 4721671.57],
     })
   );
 
@@ -126,7 +126,7 @@ test("Custom Map Config and View Config", async () => {
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({
       zoom: 7,
-      center: [-10686671.116154263, 4721671.572580108],
+      center: [-10686671.12, 4721671.57],
     })
   );
 
@@ -141,7 +141,7 @@ test("Custom Map Config and View Config", async () => {
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({
       zoom: 7,
-      center: [-10686671.116154263, 4721671.572580108],
+      center: [-10686671.12, 4721671.57],
     })
   );
 });

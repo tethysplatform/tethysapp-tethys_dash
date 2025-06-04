@@ -47,12 +47,12 @@ const MapComponent = ({
   const viewRef = useRef();
   const mapDivRef = useRef();
   const onMapClickCurrent = useRef();
-  const [zoom, setZoom] = useState(viewConfig.zoom.toFixed(2) ?? 4.5);
+  const [zoom, setZoom] = useState(viewConfig?.zoom?.toFixed(2) ?? 4.5);
   const [lonLat, setLonLat] = useState(
-    viewConfig.center ?? [-10686671.12, 4721671.57]
+    viewConfig?.center ?? [-10686671.12, 4721671.57]
   );
   const [projection, setProjection] = useState(
-    viewConfig.projection ?? "EPSG:3857"
+    viewConfig?.projection ?? "EPSG:3857"
   );
 
   const defaultMapConfig = {

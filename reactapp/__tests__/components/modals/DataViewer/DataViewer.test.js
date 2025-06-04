@@ -597,7 +597,7 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
             layers: [],
             layerControl: false,
             viewConfig: {
-              center: [-10686671.116154263, 4721671.572580108],
+              center: [-10686671.12, 4721671.57],
               zoom: 4.5,
             },
           }),
