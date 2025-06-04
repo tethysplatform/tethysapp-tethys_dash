@@ -317,7 +317,11 @@ const MapVisualization = ({
         .then((layerFeatures) => {
           // [{attributes: {key: value}, geometry: {x: "", y: ""}, layerName: ""}]
           // if valid features were selected then continue
-          if (layerFeatures && layerFeatures.length > 0) {
+          if (
+            layerFeatures &&
+            Array.isArray(layerFeatures) &&
+            layerFeatures.length > 0
+          ) {
             let updatedVariableInputs = {};
             for (const layerFeature of layerFeatures) {
               const newHighlightLayer = createHighlightLayer(
@@ -383,11 +387,13 @@ const MapVisualization = ({
     }
 
     const nonEmptyLayers = queryLayerFeaturesResults.filter(
-      (arr) => arr && arr.length > 0
+      (arr) => (arr && Array.isArray(arr) && arr.length > 0) || arr === "zoomed"
     );
     const nonEmptyLayerAttributes = nonEmptyLayers
       .flat()
-      .filter((item) => Object.keys(item.attributes).length > 0);
+      .filter(
+        (item) => item !== "zoomed" && Object.keys(item.attributes).length > 0
+      );
 
     let PopupContent;
     let popupCoordinate;

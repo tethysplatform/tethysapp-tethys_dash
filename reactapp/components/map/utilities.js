@@ -282,23 +282,30 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   const sourceParams = layerInfo.configuration.props.source.props.params;
   const sourceType = layerInfo.configuration.props.source.type;
 
-  // make the appropriate request based on the source type
-  if (sourceType === "ESRI Image and Map Service") {
-    features = await getESRILayerFeatures(sourceUrl, map, coordinate);
-  } else if (sourceType === "WMS") {
-    features = await getImageWMSLayerFeatures(
-      sourceUrl,
-      sourceParams,
-      map,
-      pixel
-    );
-  } else if (
-    sourceType === "GeoJSON" ||
-    sourceType === "ESRI Feature Service"
-  ) {
-    features = await getGeoJSONLayerFeatures(map, pixel, coordinate);
+  const mapZoom = map.getView().getZoom();
+  if (layerInfo.configuration.props.minZoomQuery >= mapZoom) {
+    map.getView().setCenter(coordinate);
+    map.getView().setZoom(layerInfo.configuration.props.minZoomQuery);
+    features = "zoomed";
   } else {
-    throw Error(`${sourceType} is not currently configured to be queried`);
+    // make the appropriate request based on the source type
+    if (sourceType === "ESRI Image and Map Service") {
+      features = await getESRILayerFeatures(sourceUrl, map, coordinate);
+    } else if (sourceType === "WMS") {
+      features = await getImageWMSLayerFeatures(
+        sourceUrl,
+        sourceParams,
+        map,
+        pixel
+      );
+    } else if (
+      sourceType === "GeoJSON" ||
+      sourceType === "ESRI Feature Service"
+    ) {
+      features = await getGeoJSONLayerFeatures(map, pixel, coordinate);
+    } else {
+      throw Error(`${sourceType} is not currently configured to be queried`);
+    }
   }
 
   return features;
