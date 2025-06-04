@@ -219,6 +219,8 @@ InputTable.propTypes = {
   allowRowCreation: PropTypes.bool, // determines if the table rows can be added
   headers: PropTypes.arrayOf(PropTypes.string), // array of strings to use for table headers
   placeholders: PropTypes.arrayOf(PropTypes.objectOf(PropTypes.string)), // object with key as field and value as placeholder
+  show_placeholder_on_hover: PropTypes.bool, // makes the input title the same as the placeholder so it can be seen on hover
+  types: PropTypes.arrayOf(PropTypes.string), // determines the type for each input. index matches the placeholders
 };
 
 export default InputTable;

@@ -90,6 +90,8 @@ const exampleStyle = {
 const TestingComponent = ({
   expectedLayerCount,
   onMapClick,
+  onMapPointerMove,
+  onMapZoom,
   clickCoordinates,
   mapProps,
 }) => {
@@ -134,12 +136,25 @@ const TestingComponent = ({
 
   useEffect(() => {
     if (onMapClick && mapReady) {
-      var evt = {};
+      let evt = {};
       evt.type = "singleclick";
       evt.coordinate = [];
       evt.coordinate[0] = clickCoordinates[0];
       evt.coordinate[1] = clickCoordinates[1];
       visualizationRef.current.dispatchEvent(evt);
+    }
+
+    if (onMapPointerMove && mapReady) {
+      let evt = {};
+      evt.type = "pointermove";
+      evt.coordinate = [];
+      evt.coordinate[0] = clickCoordinates[0];
+      evt.coordinate[1] = clickCoordinates[1];
+      visualizationRef.current.dispatchEvent(evt);
+    }
+
+    if (onMapZoom && mapReady) {
+      visualizationRef.current.getView().setZoom(8);
     }
     // eslint-disable-next-line
   }, [mapReady, clickCoordinates]);
@@ -945,6 +960,7 @@ test("Map click not happen in dataviewer mode", async () => {
           layers,
           baseMap: null,
           layerControl: false,
+          dataviewerViz: true,
         }}
       />
     ),
@@ -963,7 +979,122 @@ test("Map click not happen in dataviewer mode", async () => {
     { timeout: 2000 }
   );
 
+  expect(await screen.findByLabelText("Info Div")).toBeInTheDocument();
   expect(mockMapClick).toHaveBeenCalledTimes(0);
+});
+
+test("Map info div in dataviewer mode with pontermove", async () => {
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: {
+              url: "some_url",
+            },
+          },
+        },
+      },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <TestingComponent
+        expectedLayerCount={1}
+        onMapPointerMove={true}
+        clickCoordinates={clickCoordinates}
+        mapProps={{
+          mapConfig: {},
+          viewConfig: {},
+          layers,
+          baseMap: null,
+          layerControl: false,
+          dataviewerViz: true,
+        }}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+    },
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+
+  await waitFor(
+    async () => {
+      expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    },
+    { timeout: 2000 }
+  );
+
+  expect(await screen.findByLabelText("Info Div")).toBeInTheDocument();
+  expect(await screen.findByText(/Zoom: 4.5/i)).toBeInTheDocument();
+  expect(
+    await screen.findByText(/Lon: 10.00, Lat: 20.00/i)
+  ).toBeInTheDocument();
+  expect(await screen.findByText(/Projection: EPSG:3857/i)).toBeInTheDocument();
+});
+
+test("Map info div in dataviewer mode with zoom", async () => {
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: {
+              url: "some_url",
+            },
+          },
+        },
+      },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <TestingComponent
+        expectedLayerCount={1}
+        onMapZoom={true}
+        clickCoordinates={clickCoordinates}
+        mapProps={{
+          mapConfig: {},
+          viewConfig: {},
+          layers,
+          baseMap: null,
+          layerControl: false,
+          dataviewerViz: true,
+        }}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+    },
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+
+  await waitFor(
+    async () => {
+      expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+    },
+    { timeout: 2000 }
+  );
+
+  expect(await screen.findByLabelText("Info Div")).toBeInTheDocument();
+  expect(await screen.findByText(/Zoom: 8/i)).toBeInTheDocument();
+  expect(
+    await screen.findByText(/Lon: -10686671.12, Lat: 4721671.57/i)
+  ).toBeInTheDocument();
+  expect(await screen.findByText(/Projection: EPSG:3857/i)).toBeInTheDocument();
 });
 
 test("Map bad basemap", async () => {
@@ -1146,5 +1277,7 @@ TestingComponent.propTypes = {
     layers: PropTypes.array,
   }),
   onMapClick: PropTypes.func,
+  onMapPointerMove: PropTypes.bool,
+  onMapZoom: PropTypes.bool,
   clickCoordinates: PropTypes.arrayOf(PropTypes.string),
 };

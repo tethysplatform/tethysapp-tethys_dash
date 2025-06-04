@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import TextEditor from "components/inputs/TextEditor";
 
@@ -252,11 +252,13 @@ describe("TextEditor", () => {
     fireEvent.click(highlightButton);
 
     const tooltip = screen.getByRole("tooltip");
+    // eslint-disable-next-line
     const buttons = tooltip.querySelectorAll("button");
 
     let blueButton = null;
 
     buttons.forEach((button) => {
+      // eslint-disable-next-line
       const colorDiv = button.querySelector("div");
       if (!colorDiv) return;
 
@@ -297,11 +299,13 @@ describe("TextEditor", () => {
     fireEvent.click(colorButton);
 
     const tooltip = screen.getByRole("tooltip");
+    // eslint-disable-next-line
     const buttons = tooltip.querySelectorAll("button");
 
     let blueButton = null;
 
     buttons.forEach((button) => {
+      // eslint-disable-next-line
       const colorDiv = button.querySelector("div");
       if (!colorDiv) return;
 

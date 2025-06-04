@@ -79,7 +79,7 @@ test("SourcePane ImageArcGISRest", async () => {
     JSON.stringify({ type: "ESRI Image and Map Service", props: {} })
   );
 
-  expect(screen.getByText("url")).toBeInTheDocument();
+  expect(screen.getByText("*url")).toBeInTheDocument();
   expect(screen.getByText("attributions")).toBeInTheDocument();
   expect(screen.getByText("params - LAYERS")).toBeInTheDocument();
   expect(screen.getByText("params - TIME")).toBeInTheDocument();
@@ -246,7 +246,7 @@ test("SourcePane Updating Existing VectorTiles", async () => {
     })
   );
 
-  expect(screen.getByText("urls")).toBeInTheDocument();
+  expect(screen.getByText("*urls")).toBeInTheDocument();
   expect(screen.getByText("attributions")).toBeInTheDocument();
   expect(screen.getByText("projection")).toBeInTheDocument();
 

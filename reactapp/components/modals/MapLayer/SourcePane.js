@@ -76,7 +76,8 @@ function parsePropertiesArray(properties) {
 
     // source properties can be {value: ..., placeholder:...} or just a straight value
     if (parts.length > 1) {
-      const [parentKey, childKey] = parts.map((part) => part.trim());
+      let [parentKey, childKey] = parts.map((part) => part.trim());
+      parentKey = parentKey.replace(/^\*/, "");
       acc[parentKey] = acc[parentKey] || {};
       acc[parentKey][childKey] = value?.value ?? value;
     } else {

@@ -154,6 +154,7 @@ test("Dashboard Viewer Modal Text", async () => {
     await screen.findByText("All arguments must be filled out before saving")
   ).toBeInTheDocument();
 
+  // eslint-disable-next-line
   await act(() => {
     fireEvent.input(textEditor, {
       target: {
@@ -655,6 +656,7 @@ test("Dashboard Viewer Modal Text Options", async () => {
   fireEvent.click(visualizationOption);
 
   const textEditor = await screen.findByLabelText("textEditor");
+  // eslint-disable-next-line
   await act(() => {
     fireEvent.input(textEditor, {
       target: {

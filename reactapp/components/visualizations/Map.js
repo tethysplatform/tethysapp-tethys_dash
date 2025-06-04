@@ -437,6 +437,7 @@ MapVisualization.propTypes = {
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
   baseMap: PropTypes.string, // url for basemap layer, maps to baseMapLayers layers in components/visualizations/utilities.js
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
+  dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
 };
 
 Popup.propTypes = {

@@ -200,7 +200,7 @@ const MapComponent = ({
           </StyledAlert>
         )}
         {dataviewerViz && (
-          <InfoDiv id="info">
+          <InfoDiv id="info" aria-label="Info Div">
             Zoom: {zoom}
             <br></br>
             Lon: {lonLat[0].toFixed(2)}, Lat: {lonLat[1].toFixed(2)}
@@ -236,6 +236,7 @@ MapComponent.propTypes = {
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
   onMapClick: PropTypes.func, // function for when user click on the map
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
+  dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
 };
 
 export default memo(MapComponent);

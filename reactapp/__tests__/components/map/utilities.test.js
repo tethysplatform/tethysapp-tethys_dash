@@ -235,7 +235,10 @@ test("transformCoordinates error", async () => {
 
 test("queryLayerFeatures No Feature Found", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn() })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockLayer = {
@@ -262,7 +265,10 @@ test("queryLayerFeatures No Feature Found", async () => {
 
 test("queryLayerFeatures Highlight Layer Found", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn() })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockFeature = {
@@ -301,7 +307,10 @@ test("queryLayerFeatures Highlight Layer Found", async () => {
 
 test("queryLayerFeatures Valid GeoJSON Found", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn() })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockFeature = {
@@ -352,7 +361,10 @@ test("queryLayerFeatures Valid GeoJSON Found", async () => {
 
 test("queryLayerFeatures Valid GeoJSON No Features Found", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn() })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockFeature = null;
@@ -380,7 +392,10 @@ test("queryLayerFeatures Valid GeoJSON No Features Found", async () => {
 
 test("queryLayerFeatures Valid GeoJSON GeometryCollection Found", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn(() => 100) })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(() => 100),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockFeature = {
@@ -474,7 +489,10 @@ test("queryLayerFeatures Valid GeoJSON GeometryCollection Found", async () => {
 
 test("queryLayerFeatures Valid GeoJSON GeometryCollection Found No Points Close Enough", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn(() => 100) })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(() => 100),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockFeature = {
@@ -591,6 +609,7 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
       getProjection: jest.fn(() => ({
         getCode: jest.fn(() => "EPSG:4326"),
       })),
+      getZoom: jest.fn(() => 10),
     })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
@@ -660,6 +679,7 @@ test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
       getProjection: jest.fn(() => ({
         getCode: jest.fn(() => "EPSG:4326"),
       })),
+      getZoom: jest.fn(() => 10),
     })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
@@ -716,6 +736,38 @@ test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
   global.fetch.mockRestore?.();
 });
 
+test("queryLayerFeatures ImageArcGISRest with minZoomQuery", async () => {
+  global.fetch = jest.fn();
+
+  const mockSetCenter = jest.fn();
+  const mockSetZoom = jest.fn();
+  const mockMap = {
+    getSize: jest.fn(() => [100, 200]),
+    getView: jest.fn(() => ({
+      setCenter: mockSetCenter,
+      setZoom: mockSetZoom,
+      getZoom: jest.fn(() => 10),
+    })),
+  };
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+  layerConfigImageArcGISRest.configuration.props.minZoomQuery = 12;
+
+  const features = await queryLayerFeatures(
+    layerConfigImageArcGISRest,
+    mockMap,
+    coordinate,
+    pixel
+  );
+
+  expect(global.fetch).toHaveBeenCalledTimes(0);
+  expect(mockSetCenter).toHaveBeenCalledWith([0, 0]);
+  expect(mockSetZoom).toHaveBeenCalledWith(12.1);
+  expect(features).toStrictEqual("zoomed");
+
+  global.fetch.mockRestore?.();
+});
+
 test("queryLayerFeatures ImageWMS", async () => {
   const mockfetchResults = {
     type: "FeatureCollection",
@@ -761,6 +813,7 @@ test("queryLayerFeatures ImageWMS", async () => {
       getProjection: jest.fn(() => ({
         getCode: jest.fn(() => "EPSG:4326"),
       })),
+      getZoom: jest.fn(() => 10),
     })),
   };
   const coordinate = [0, 0];
@@ -857,6 +910,7 @@ test("queryLayerFeatures ImageWMS Different Projection", async () => {
       getProjection: jest.fn(() => ({
         getCode: jest.fn(() => "EPSG:3857"),
       })),
+      getZoom: jest.fn(() => 10),
     })),
   };
   const coordinate = [0, 0];
@@ -920,6 +974,7 @@ test("queryLayerFeatures ImageWMS Bad Request", async () => {
       getProjection: jest.fn(() => ({
         getCode: jest.fn(() => "EPSG:3857"),
       })),
+      getZoom: jest.fn(() => 10),
     })),
   };
   const coordinate = [0, 0];
@@ -972,7 +1027,13 @@ test("queryLayerFeatures SourceType Not Configured", async () => {
       },
     },
   };
-  const mockMap = {};
+  const getZoomMock = jest.fn(() => 10); // or whatever zoom level you want
+
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getZoom: getZoomMock,
+    })),
+  };
   const coordinate = [0, 0];
   const pixel = [639, 366];
 

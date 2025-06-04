@@ -302,6 +302,7 @@ Visualization.propTypes = {
   ]),
   vizType: PropTypes.string, // determines the type of visualization to be displayed
   vizData: PropTypes.object, // contains information for the various visualization args
+  dataviewerViz: PropTypes.bool, // determines if the visualization is in the dataviewer
 };
 
 export default memo(BaseVisualization);

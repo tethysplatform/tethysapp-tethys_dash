@@ -243,6 +243,7 @@ test("Dashboard Editor Canvas edit and save", async () => {
   fireEvent.change(nameInput, { target: { value: "new_name" } });
 
   const textEditor = await screen.findByLabelText("textEditor");
+  // eslint-disable-next-line
   await act(() => {
     fireEvent.input(textEditor, {
       target: {
@@ -306,6 +307,7 @@ test("Dashboard Editor Canvas edit desription only and save", async () => {
   fireEvent.change(descriptionInput, { target: { value: "New Description" } });
 
   const textEditor = await screen.findByLabelText("textEditor");
+  // eslint-disable-next-line
   await act(() => {
     fireEvent.input(textEditor, {
       target: {
