@@ -218,6 +218,7 @@ function Loader({ children }) {
             args: {
               baseMap: baseMapLayers,
               layers: "custom-AddMapLayer",
+              map_extent: "custom-MapExtent",
               layerControl: "checkbox",
             },
             tags: ["map", "default"],
