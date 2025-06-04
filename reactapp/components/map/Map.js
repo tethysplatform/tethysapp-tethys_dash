@@ -47,11 +47,13 @@ const MapComponent = ({
   const viewRef = useRef();
   const mapDivRef = useRef();
   const onMapClickCurrent = useRef();
-  const [zoom, setZoom] = useState(4.5);
-  const [lonLat, setLonLat] = useState([
-    -10686671.116154263, 4721671.572580108,
-  ]);
-  const [projection, setProjection] = useState("EPSG:3857");
+  const [zoom, setZoom] = useState(viewConfig.zoom.toFixed(2) ?? 4.5);
+  const [lonLat, setLonLat] = useState(
+    viewConfig.center ?? [-10686671.12, 4721671.57]
+  );
+  const [projection, setProjection] = useState(
+    viewConfig.projection ?? "EPSG:3857"
+  );
 
   const defaultMapConfig = {
     className: "ol-map",

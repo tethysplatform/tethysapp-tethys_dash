@@ -32,7 +32,6 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
   function loadExistingArgs(existingProps) {
     // create an array for the input table of the various properties
     return Object.keys(layerPropertiesOptions).map((key) => ({
-      required: false,
       property: key,
       value: existingProps[key] ?? "",
     }));

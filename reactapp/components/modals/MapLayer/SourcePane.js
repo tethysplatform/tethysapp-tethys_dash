@@ -44,10 +44,10 @@ const generatePropertiesArrayWithValues = (
       ) {
         processKeys(value, required, property, existingValue || {});
       } else {
+        const propertyName = `${required ? "*" : ""}${property}`;
         // Add to the result array with mapped value or empty string
         properties.push({
-          required,
-          property,
+          property: propertyName,
           value: existingValue
             ? Array.isArray(existingValue)
               ? existingValue.join(",")
@@ -70,8 +70,9 @@ const generatePropertiesArrayWithValues = (
 // coverts a flat object of properties from the generatePropertiesArrayWithValues function into a nested object
 function parsePropertiesArray(properties) {
   return properties.reduce((acc, item) => {
-    const { property, value } = item;
+    let { property, value } = item;
     const parts = property.split(" - "); // Split by delimiter
+    property = property.replace(/^\*/, "");
 
     // source properties can be {value: ..., placeholder:...} or just a straight value
     if (parts.length > 1) {
@@ -221,15 +222,20 @@ const SourcePane = ({
               />
             </>
           ) : (
-            <InputTable
-              label="Source Properties"
-              onChange={handlePropertyChange}
-              values={sourceProperties}
-              disabledFields={["required", "property"]}
-              placeholders={propertyPlaceholders}
-              show_placeholder_on_hover={true}
-              types={propertyTypes}
-            />
+            <>
+              <InputTable
+                label="Source Properties"
+                onChange={handlePropertyChange}
+                values={sourceProperties}
+                disabledFields={["required", "property"]}
+                placeholders={propertyPlaceholders}
+                show_placeholder_on_hover={true}
+                types={propertyTypes}
+              />
+              <p>
+                <em>* indicates a required property</em>
+              </p>
+            </>
           )}
         </>
       )}
