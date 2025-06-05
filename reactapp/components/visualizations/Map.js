@@ -147,7 +147,7 @@ const Popup = ({ layerAttributes }) => (
 
 const MapVisualization = ({
   mapConfig,
-  viewConfig,
+  mapExtent,
   layers,
   visualizationRef,
   baseMap,
@@ -414,7 +414,7 @@ const MapVisualization = ({
   return (
     <MapComponent
       mapConfig={mapConfig}
-      viewConfig={viewConfig}
+      mapExtent={mapExtent}
       layers={mapLayers}
       legend={mapLegend}
       layerControl={layerControl}
@@ -428,7 +428,7 @@ const MapVisualization = ({
 
 MapVisualization.propTypes = {
   mapConfig: PropTypes.object, // div element properties for the map
-  viewConfig: PropTypes.object, // keys can be found at https://openlayers.org/en/latest/apidoc/module-ol_View-View.html
+  mapExtent: PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
   layers: PropTypes.arrayOf(
     PropTypes.shape({
       configuration: configurationPropType,

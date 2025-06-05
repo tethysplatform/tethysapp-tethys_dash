@@ -114,7 +114,7 @@ export async function getVisualization({
       setVizType("map");
       setVizData({
         mapConfig: responseData.mapConfig,
-        viewConfig: responseData.viewConfig,
+        map_extent: responseData.map_extent,
         layers: responseData.layers,
         baseMap: responseData.baseMap,
         layerControl: responseData.layerControl,

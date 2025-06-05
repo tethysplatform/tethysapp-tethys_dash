@@ -12,6 +12,7 @@ import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
 import { applyStyle } from "ol-mapbox-style";
 import PropTypes from "prop-types";
+import { useMapContext } from "components/contexts/MapContext";
 
 const StyledAlert = styled(Alert)`
   position: absolute;
@@ -34,7 +35,7 @@ const InfoDiv = styled.div`
 
 const MapComponent = ({
   mapConfig,
-  viewConfig,
+  mapExtent,
   layers,
   legend,
   layerControl,
@@ -44,16 +45,13 @@ const MapComponent = ({
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
   const [layerControlUpdate, setLayerControlUpdate] = useState();
-  const viewRef = useRef();
   const mapDivRef = useRef();
   const onMapClickCurrent = useRef();
-  const [zoom, setZoom] = useState(viewConfig?.zoom?.toFixed(2) ?? 4.5);
-  const [lonLat, setLonLat] = useState(
-    viewConfig?.center ?? [-10686671.12, 4721671.57]
-  );
-  const [projection, setProjection] = useState(
-    viewConfig?.projection ?? "EPSG:3857"
-  );
+  const [zoom, setZoom] = useState(4.5);
+  const [lonLat, setLonLat] = useState([-10686671.12, 4721671.57]);
+  const [projection, setProjection] = useState("EPSG:3857");
+  const mapContext = useMapContext();
+  const setMapReady = mapContext?.setMapReady;
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -79,6 +77,12 @@ const MapComponent = ({
       });
 
       visualizationRef.current = initialMap;
+
+      if (setMapReady) {
+        initialMap.once("rendercomplete", () => {
+          setMapReady(true);
+        });
+      }
     }
 
     if (dataviewerViz) {
@@ -99,22 +103,33 @@ const MapComponent = ({
   }, []);
 
   useEffect(() => {
-    // Update the map view if new viewConfig
-    const customViewConfig = { ...defaultViewConfig, ...viewConfig };
-    if (!viewRef.current || !valuesEqual(viewRef.current, customViewConfig)) {
-      const mapViewConfig = new View(customViewConfig);
-      setProjection(mapViewConfig.getProjection().getCode());
+    const mapViewConfig = new View({ projection });
+    setProjection(mapViewConfig.getProjection().getCode());
 
-      // Update zoom on view change
-      mapViewConfig.on("change:resolution", () => {
-        setZoom(visualizationRef.current.getView().getZoom().toFixed(2));
+    const parts = mapExtent.split(",").map((p) => parseFloat(p.trim()));
+    if (parts.length === 3) {
+      const [lon, lat, zoomLevel] = parts;
+      setLonLat([lon, lat]);
+      setZoom(zoomLevel);
+      mapViewConfig.setZoom(zoomLevel);
+      mapViewConfig.setCenter([lon, lat]);
+    } else {
+      mapViewConfig.fit(mapExtent.split(","), {
+        size: visualizationRef.current.getSize(),
+        padding: [20, 20, 20, 20],
       });
-
-      visualizationRef.current.setView(mapViewConfig);
-      viewRef.current = customViewConfig;
+      setZoom(mapViewConfig.getZoom().toFixed(2));
+      setLonLat(mapViewConfig.getCenter());
     }
+
+    // Update zoom on view change
+    mapViewConfig.on("change:resolution", () => {
+      setZoom(visualizationRef.current.getView().getZoom().toFixed(2));
+    });
+
+    visualizationRef.current.setView(mapViewConfig);
     // eslint-disable-next-line
-  }, [viewConfig]);
+  }, [mapExtent]);
 
   useEffect(() => {
     setErrorMessage(null);
@@ -226,7 +241,7 @@ const MapComponent = ({
 
 MapComponent.propTypes = {
   mapConfig: PropTypes.object, // div element properties for the map
-  viewConfig: PropTypes.object, // keys can be found at https://openlayers.org/en/latest/apidoc/module-ol_View-View.html
+  mapExtent: PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
   layers: PropTypes.arrayOf(
     PropTypes.shape({
       configuration: configurationPropType,

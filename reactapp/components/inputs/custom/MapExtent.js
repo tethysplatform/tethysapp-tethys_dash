@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
 import styled from "styled-components";
+import { useMapContext } from "components/contexts/MapContext";
 
 const FullInput = styled.input`
   width: 100%;
@@ -26,22 +27,13 @@ const InputRow = styled.div`
 `;
 
 const InputLabel = styled.label`
-  display: flex;
-  flex-direction: column;
-  font-weight: bold;
-  flex: "1"};
+  width: 100%;
 `;
 
-export const MapExtent = ({
-  label,
-  onChange,
-  values,
-  setShowingSubModal,
-  gridItemIndex,
-}) => {
-  const [extentMode, setExtentMode] = useState("mapExtent");
+export const MapExtent = ({ label, onChange, values, visualizationRef }) => {
+  const [extentMode, setExtentMode] = useState("customCenterZoom");
   const [customExtent, setCustomExtent] = useState("");
-  const [centerZoom, setCenterZoom] = useState("");
+  const [centerZoom, setCenterZoom] = useState("-10686671.12,4721671.57,4.5");
   const [customExtentValid, setCustomExtentValid] = useState(true);
   const [centerZoomValid, setCenterZoomValid] = useState(true);
   const valueOptions = [
@@ -49,6 +41,48 @@ export const MapExtent = ({
     { label: "Use a Custom Extent", value: "customExtent" },
     { label: "Use a Custom Center with Zoom", value: "customCenterZoom" },
   ];
+  const { mapReady } = useMapContext();
+
+  useEffect(() => {
+    if (extentMode === "mapExtent") {
+      onChange(centerZoom);
+    } else if (extentMode === "customExtent") {
+      onChange(customExtent);
+    } else {
+      onChange(centerZoom);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!mapReady || !visualizationRef.current) return;
+    const view = visualizationRef.current?.getView();
+
+    const handleResolutionChange = () => {
+      setMapExtent();
+    };
+
+    if (extentMode === "mapExtent") {
+      setMapExtent();
+      view.on("change:resolution", handleResolutionChange);
+      visualizationRef.current.on("moveend", handleResolutionChange);
+    } else if (extentMode === "customExtent") {
+      onChange(customExtent);
+    } else {
+      onChange(centerZoom);
+    }
+
+    // Cleanup function to remove the event listener
+    return () => {
+      view.un("change:resolution", handleResolutionChange);
+      visualizationRef.current.un("moveend", handleResolutionChange);
+    };
+  }, [extentMode, mapReady]);
+
+  const setMapExtent = () => {
+    const center = visualizationRef.current.getView().getCenter();
+    const zoom = visualizationRef.current.getView().getZoom().toFixed(2);
+    onChange(`${center[0].toFixed(2)},${center[1].toFixed(2)},${zoom}`);
+  };
 
   const isValidExtent = (value, numberOfParts) => {
     const parts = value.split(",").map((p) => p.trim());
@@ -57,27 +91,22 @@ export const MapExtent = ({
     return parts.every((part) => !isNaN(parseFloat(part)) && isFinite(part));
   };
 
-  const onExtentChange = (type, value) => {
-    const validInput = value.replace(/[^0-9.,]/g, "");
+  const onCustomExtentChange = (type, value) => {
+    const validInput = value.replace(/[^0-9.,-]/g, "");
 
-    if (type === "customExtent") {
+    const isCustomExtent = type === "customExtent";
+    const expectedParts = isCustomExtent ? 4 : 3;
+    const isValid = isValidExtent(validInput, expectedParts);
+
+    if (isCustomExtent) {
       setCustomExtent(validInput);
-      setCenterZoom("");
-      const isValid = isValidExtent(validInput, 4);
       setCustomExtentValid(isValid);
-      if (isValid) {
-        onChange(validInput);
-      }
-      return;
+    } else {
+      setCenterZoom(validInput);
+      setCenterZoomValid(isValid);
     }
 
-    setCustomExtent("");
-    setCenterZoom(validInput);
-    const isValid = isValidExtent(validInput, 3);
-    setCenterZoomValid(isValid);
-    if (isValid) {
-      onChange(validInput);
-    }
+    onChange(isValid ? validInput : "");
   };
 
   return (
@@ -87,9 +116,7 @@ export const MapExtent = ({
         aria-label={"Map Extent Input"}
         selectedRadio={extentMode}
         radioOptions={valueOptions}
-        onChange={(e) => {
-          setExtentMode(e.target.value);
-        }}
+        onChange={(e) => setExtentMode(e.target.value)}
         blockedRadio={true}
       />
       {extentMode === "customExtent" && (
@@ -98,8 +125,10 @@ export const MapExtent = ({
             Custom Extent
             <FullInput
               value={customExtent}
-              onChange={(e) => onExtentChange("customExtent", e.target.value)}
-              placeholder="minX, minY, maxX, maxY"
+              onChange={(e) =>
+                onCustomExtentChange("customExtent", e.target.value)
+              }
+              placeholder="minX,minY,maxX,maxY"
               isValid={customExtentValid}
             />
           </InputLabel>
@@ -111,8 +140,10 @@ export const MapExtent = ({
             Center and Zoom
             <FullInput
               value={centerZoom}
-              onChange={(e) => onExtentChange("centerZoom", e.target.value)}
-              placeholder="lon, lat, zoom"
+              onChange={(e) =>
+                onCustomExtentChange("centerZoom", e.target.value)
+              }
+              placeholder="lon,lat,zoom"
               isValid={centerZoomValid}
             />
           </InputLabel>

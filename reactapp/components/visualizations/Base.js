@@ -76,7 +76,7 @@ export const Visualization = memo(
             baseMap={vizData.baseMap}
             layers={vizData.layers}
             layerControl={vizData.layerControl}
-            viewConfig={vizData.viewConfig}
+            mapExtent={vizData.map_extent}
             mapConfig={vizData.mapConfig}
             dataviewerViz={dataviewerViz}
           />
@@ -237,7 +237,7 @@ const BaseVisualization = ({
           baseMap: updatedGridItemArgs.baseMap,
           layers: updatedGridItemArgs.layers,
           layerControl: updatedGridItemArgs.layerControl,
-          viewConfig: updatedGridItemArgs.viewConfig,
+          map_extent: updatedGridItemArgs.map_extent,
           mapConfig: updatedGridItemArgs.mapConfig,
         });
       } else if (source === "Text") {

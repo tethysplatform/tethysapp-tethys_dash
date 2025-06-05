@@ -19,6 +19,7 @@ import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import TextEditor from "components/inputs/TextEditor";
 import { Visualization } from "components/visualizations/Base";
+import MapContextProvider from "components/contexts/MapContext";
 import "components/modals/wideModal.css";
 import "components/modals/DataViewer/DataViewer.css";
 
@@ -132,16 +133,6 @@ function DataViewerModal({
         let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
         updatedGridItems[gridItemIndex].source = vizMetdata.source;
 
-        if (
-          selectedVizTypeOption.source === "Map" &&
-          visualizationRef.current
-        ) {
-          vizInputsValues.viewConfig = {
-            center: visualizationRef.current.getView().getCenter(),
-            zoom: visualizationRef.current.getView().getZoom(),
-          };
-        }
-
         updatedGridItems[gridItemIndex].args_string = JSON.stringify(
           Object.fromEntries(
             Object.entries(vizInputsValues).map(([key, val]) => [
@@ -214,7 +205,7 @@ function DataViewerModal({
   function emptyFunction() {}
 
   return (
-    <>
+    <MapContextProvider>
       <Modal
         show={showModal}
         onHide={activeAppTour ? closeAndSetAppTour : handleModalClose}
@@ -331,7 +322,7 @@ function DataViewerModal({
           </Button>
         </Modal.Footer>
       </Modal>
-    </>
+    </MapContextProvider>
   );
 }
 
