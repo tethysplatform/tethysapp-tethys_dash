@@ -103,6 +103,8 @@ const MapComponent = ({
   }, []);
 
   useEffect(() => {
+    if (!mapExtent) return;
+
     const mapViewConfig = new View({ projection });
     setProjection(mapViewConfig.getProjection().getCode());
 

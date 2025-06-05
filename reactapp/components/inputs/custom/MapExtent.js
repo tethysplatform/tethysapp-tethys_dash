@@ -28,12 +28,19 @@ const InputRow = styled.div`
 
 const InputLabel = styled.label`
   width: 100%;
+  font-weight: bold;
 `;
 
 export const MapExtent = ({ label, onChange, values, visualizationRef }) => {
-  const [extentMode, setExtentMode] = useState("customCenterZoom");
-  const [customExtent, setCustomExtent] = useState("");
-  const [centerZoom, setCenterZoom] = useState("-10686671.12,4721671.57,4.5");
+  const [extentMode, setExtentMode] = useState(
+    values.split(",").length === 4 ? "customExtent" : "customCenterZoom"
+  );
+  const [customExtent, setCustomExtent] = useState(
+    values.split(",").length === 4 ? values : ""
+  );
+  const [centerZoom, setCenterZoom] = useState(
+    values.split(",").length === 3 ? values : ""
+  );
   const [customExtentValid, setCustomExtentValid] = useState(true);
   const [centerZoomValid, setCenterZoomValid] = useState(true);
   const valueOptions = [
@@ -44,12 +51,9 @@ export const MapExtent = ({ label, onChange, values, visualizationRef }) => {
   const { mapReady } = useMapContext();
 
   useEffect(() => {
-    if (extentMode === "mapExtent") {
-      onChange(centerZoom);
-    } else if (extentMode === "customExtent") {
-      onChange(customExtent);
-    } else {
-      onChange(centerZoom);
+    if (!values) {
+      setCenterZoom("-10686671.12,4721671.57,4.5");
+      onChange("-10686671.12,4721671.57,4.5");
     }
   }, []);
 
