@@ -108,7 +108,8 @@ const MapComponent = ({
     const mapViewConfig = new View({ projection });
     setProjection(mapViewConfig.getProjection().getCode());
 
-    const parts = mapExtent.split(",").map((p) => parseFloat(p.trim()));
+    const extent = mapExtent.replaceAll(" ", "");
+    const parts = extent.split(",").map((p) => parseFloat(p.trim()));
     if (parts.length === 3) {
       const [lon, lat, zoomLevel] = parts;
       setLonLat([lon, lat]);
@@ -116,7 +117,7 @@ const MapComponent = ({
       mapViewConfig.setZoom(zoomLevel);
       mapViewConfig.setCenter([lon, lat]);
     } else {
-      mapViewConfig.fit(mapExtent.split(","), {
+      mapViewConfig.fit(extent.split(","), {
         size: visualizationRef.current.getSize(),
         padding: [20, 20, 20, 20],
       });

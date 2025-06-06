@@ -278,7 +278,6 @@ function VisualizationPane({
   }
 
   const handleInputChange = (newValue, key) => {
-    console.log(newValue);
     setVizInputsValues((prev) => {
       return { ...prev, [key]: newValue.value ?? newValue };
     });

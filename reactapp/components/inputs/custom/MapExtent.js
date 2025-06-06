@@ -32,28 +32,19 @@ const InputLabel = styled.label`
 `;
 
 export const MapExtent = ({ label, onChange, values, visualizationRef }) => {
-  const [extentMode, setExtentMode] = useState(
-    values.split(",").length === 4 ? "customExtent" : "customCenterZoom"
-  );
-  const [customExtent, setCustomExtent] = useState(
-    values.split(",").length === 4 ? values : ""
-  );
-  const [centerZoom, setCenterZoom] = useState(
-    values.split(",").length === 3 ? values : ""
-  );
+  const [extentMode, setExtentMode] = useState("customExtent");
+  const [customExtent, setCustomExtent] = useState(values ?? "");
   const [customExtentValid, setCustomExtentValid] = useState(true);
-  const [centerZoomValid, setCenterZoomValid] = useState(true);
   const valueOptions = [
     { label: "Use the Previewed Map Extent", value: "mapExtent" },
     { label: "Use a Custom Extent", value: "customExtent" },
-    { label: "Use a Custom Center with Zoom", value: "customCenterZoom" },
   ];
   const { mapReady } = useMapContext();
 
   useEffect(() => {
     if (!values) {
-      setCenterZoom("-10686671.12,4721671.57,4.5");
-      onChange("-10686671.12,4721671.57,4.5");
+      setCustomExtent("-10686671.12,4721671.57,4.5");
+      onChange("-10686671.12,4721671.90,4.5");
     }
   }, []);
 
@@ -69,10 +60,8 @@ export const MapExtent = ({ label, onChange, values, visualizationRef }) => {
       setMapExtent();
       view.on("change:resolution", handleResolutionChange);
       visualizationRef.current.on("moveend", handleResolutionChange);
-    } else if (extentMode === "customExtent") {
-      onChange(customExtent);
     } else {
-      onChange(centerZoom);
+      onChange(customExtent);
     }
 
     // Cleanup function to remove the event listener
@@ -88,29 +77,34 @@ export const MapExtent = ({ label, onChange, values, visualizationRef }) => {
     onChange(`${center[0].toFixed(2)},${center[1].toFixed(2)},${zoom}`);
   };
 
-  const isValidExtent = (value, numberOfParts) => {
-    const parts = value.split(",").map((p) => p.trim());
-    if (parts.length !== numberOfParts) return false;
+  const containsTemplate = (str) => /\$\{\w+\}/.test(str);
 
-    return parts.every((part) => !isNaN(parseFloat(part)) && isFinite(part));
+  const isValidExtentInput = (value) => {
+    if (typeof value !== "string") return false;
+
+    const trimmed = value.trim();
+
+    // Allow any value with a template
+    if (containsTemplate(trimmed)) return true;
+
+    const parts = trimmed.split(",").map((p) => p.trim());
+
+    // Only 3 or 4 parts allowed
+    if (parts.length !== 3 && parts.length !== 4) return false;
+
+    return parts.every((part) => {
+      const num = parseFloat(part);
+      return !isNaN(num) && isFinite(num);
+    });
   };
 
   const onCustomExtentChange = (type, value) => {
-    const validInput = value.replace(/[^0-9.,-]/g, "");
+    const isValid = isValidExtentInput(value);
 
-    const isCustomExtent = type === "customExtent";
-    const expectedParts = isCustomExtent ? 4 : 3;
-    const isValid = isValidExtent(validInput, expectedParts);
+    setCustomExtent(value);
+    setCustomExtentValid(isValid);
 
-    if (isCustomExtent) {
-      setCustomExtent(validInput);
-      setCustomExtentValid(isValid);
-    } else {
-      setCenterZoom(validInput);
-      setCenterZoomValid(isValid);
-    }
-
-    onChange(isValid ? validInput : "");
+    onChange(isValid ? value : "");
   };
 
   return (
@@ -132,23 +126,8 @@ export const MapExtent = ({ label, onChange, values, visualizationRef }) => {
               onChange={(e) =>
                 onCustomExtentChange("customExtent", e.target.value)
               }
-              placeholder="minX,minY,maxX,maxY"
+              placeholder="minX, minY, maxX, maxY OR Lon, Lat, Zoom"
               isValid={customExtentValid}
-            />
-          </InputLabel>
-        </InputRow>
-      )}
-      {extentMode === "customCenterZoom" && (
-        <InputRow>
-          <InputLabel>
-            Center and Zoom
-            <FullInput
-              value={centerZoom}
-              onChange={(e) =>
-                onCustomExtentChange("centerZoom", e.target.value)
-              }
-              placeholder="lon,lat,zoom"
-              isValid={centerZoomValid}
             />
           </InputLabel>
         </InputRow>

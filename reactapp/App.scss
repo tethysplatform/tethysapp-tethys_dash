@@ -20,6 +20,12 @@ body {
   user-select: text; /* Ensures text can be selected */
 }
 
+/* Override for input/textarea elements inside .no-caret */
+.no-caret input,
+.no-caret textarea {
+  caret-color: auto; /* or any visible color like black */
+}
+
 /* Scrollbar width */
 ::-webkit-scrollbar {
   width: 8px; /* Adjust width */
