@@ -14,6 +14,10 @@ require("dotenv").config({ path: "./reactapp/__tests__/test.env" });
 const originalError = console.error.bind(console.error);
 const originalEnv = process.env;
 
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 // Setup mocked Tethys API
 beforeAll(() => {
   server.listen();

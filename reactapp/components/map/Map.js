@@ -52,6 +52,7 @@ const MapComponent = ({
   const [projection, setProjection] = useState("EPSG:3857");
   const mapContext = useMapContext();
   const setMapReady = mapContext?.setMapReady;
+  const mapReady = mapContext?.mapReady;
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -197,6 +198,10 @@ const MapComponent = ({
 
         // sync map with changes
         visualizationRef.current.renderSync();
+      }
+
+      if (!mapReady && setMapReady) {
+        setMapReady(true);
       }
     };
 

@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useContext, useEffect } from "react";
+import { useContext, useEffect, useState } from "react";
 import { mockedDashboards } from "__tests__/utilities/constants";
 import DashboardLoader from "components/loader/DashboardLoader";
 import Loader from "components/loader/AppLoader";
@@ -15,6 +15,7 @@ import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 
 const TestingComponent = ({ children, options = {} }) => {
+  const [isLoaded, setIsLoaded] = useState(false);
   const { setIsEditing } = useContext(EditingContext);
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
   const { setActiveAppTour, setAppTourStep } = useAppTourContext();
@@ -33,9 +34,12 @@ const TestingComponent = ({ children, options = {} }) => {
       setAppTourStep(options.appTourStep);
     }
     // eslint-disable-next-line
+    setIsLoaded(true);
   }, []);
 
-  return <>{children}</>;
+  if (isLoaded) {
+    return <>{children}</>;
+  }
 };
 
 const createLoadedComponent = ({ children, options = {} }) => {
