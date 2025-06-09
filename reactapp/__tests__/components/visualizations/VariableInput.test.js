@@ -96,7 +96,7 @@ it("Creates a Number Input for a Variable Input", async () => {
   await user.type(variableInput, "9");
 
   expect(variableInput).toHaveValue(9);
-  expect(handleChange).toHaveBeenCalledWith("9"); // Is this expected to be a string?
+  expect(handleChange).toHaveBeenCalledWith(9);
 
   // Only update the Text Input after clicking the input refresh button
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
@@ -436,7 +436,7 @@ describe("When inDataViewerMode", () => {
     await user.type(variableInput, "9");
 
     expect(variableInput).toHaveValue(9);
-    expect(handleChange).toHaveBeenCalledWith("9"); // Is this expected to be a string?
+    expect(handleChange).toHaveBeenCalledWith(9);
 
     // Only update the Text Input after clicking the input refresh button
 

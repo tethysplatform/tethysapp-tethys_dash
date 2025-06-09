@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import TextEditor from "components/inputs/TextEditor";
 
@@ -449,9 +449,11 @@ describe("TextEditor", () => {
     await userEvent.keyboard("{Enter}n");
 
     // Should have triggered the onChange callback
-    expect(onChangeMock).toHaveBeenCalledWith(
-      "<ol><li><p>Hello world</p></li><li><p>n</p></li></ol>"
-    );
+    await waitFor(() => {
+      expect(onChangeMock).toHaveBeenCalledWith(
+        "<ol><li><p>Hello world</p></li><li><p>n</p></li></ol>"
+      );
+    });
 
     expect(indentIncreaseButton.disabled).toBe(false);
     expect(indentDecreaseButton.disabled).toBe(false);

@@ -7,6 +7,9 @@ import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
+import MapContextProvider, {
+  useMapContext,
+} from "components/contexts/MapContext";
 
 const TestingComponent = ({
   source,
@@ -649,10 +652,7 @@ test("Visualization Pane Use Existing Args Map", async () => {
           "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
         layers: [],
         layerControl: true,
-        viewConfig: {
-          center: [-13149708.122672563, 5192159.850904623],
-          zoom: 6.900403428857136,
-        },
+        map_extent: "-13149708.122672563, 5192159.850904623,6.900403428857136",
       }),
       metadata_string: JSON.stringify({
         refreshRate: 0,
@@ -669,17 +669,19 @@ test("Visualization Pane Use Existing Args Map", async () => {
   render(
     createLoadedComponent({
       children: (
-        <TestingComponent
-          layoutContext={mockedDashboard}
-          source={gridItem.source}
-          argsString={gridItem.args_string}
-          setGridItemMessage={mockSetGridItemMessage}
-          vizType={"loader"}
-          setVizType={mockSetVizType}
-          setVizData={mockSetVizData}
-          setVizMetadata={mockSetVizMetadata}
-          setShowingSubModal={mockSetShowingSubModal}
-        />
+        <MapContextProvider>
+          <TestingComponent
+            layoutContext={mockedDashboard}
+            source={gridItem.source}
+            argsString={gridItem.args_string}
+            setGridItemMessage={mockSetGridItemMessage}
+            vizType={"loader"}
+            setVizType={mockSetVizType}
+            setVizData={mockSetVizData}
+            setVizMetadata={mockSetVizMetadata}
+            setShowingSubModal={mockSetShowingSubModal}
+          />
+        </MapContextProvider>
       ),
       options: {
         inDataViewerMode: true,
@@ -699,10 +701,7 @@ test("Visualization Pane Use Existing Args Map", async () => {
         layers: [],
         baseMap:
           "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
-        viewConfig: {
-          center: [-13149708.122672563, 5192159.850904623],
-          zoom: 6.900403428857136,
-        },
+        map_extent: "-13149708.122672563, 5192159.850904623,6.900403428857136",
         layerControl: true,
       },
       source: "Map",
@@ -717,10 +716,7 @@ test("Visualization Pane Use Existing Args Map", async () => {
       "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
     layerControl: true,
     layers: [],
-    viewConfig: {
-      center: [-13149708.122672563, 5192159.850904623],
-      zoom: 6.900403428857136,
-    },
+    map_extent: "-13149708.122672563, 5192159.850904623,6.900403428857136",
   });
 });
 

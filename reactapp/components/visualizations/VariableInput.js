@@ -116,12 +116,12 @@ const VariableInput = ({
   }, [variableInputValues]);
 
   function handleInputChange(e) {
+    let inputValue = e;
     if (variable_options_source === "number") {
-      setValue(parseInt(e));
-    } else {
-      setValue(e);
+      inputValue = parseInt(e);
     }
-    onChange(e);
+    setValue(inputValue);
+    onChange(inputValue);
 
     if (Array.isArray(type) || type === "checkbox") {
       if (!inDataViewerMode) {

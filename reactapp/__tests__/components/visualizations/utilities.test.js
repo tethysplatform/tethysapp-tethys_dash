@@ -365,7 +365,7 @@ test("getVisualization card", async () => {
 
 test("getVisualization map", async () => {
   const mapData = {
-    viewConfig: {},
+    map_extent: "",
     layers: [],
     mapConfig: {},
     legend: [],
@@ -404,7 +404,7 @@ test("getVisualization map", async () => {
     layerControl: undefined,
     layers: [],
     mapConfig: {},
-    viewConfig: {},
+    map_extent: "",
   });
 });
 
