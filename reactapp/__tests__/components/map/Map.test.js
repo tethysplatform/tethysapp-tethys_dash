@@ -2,59 +2,17 @@ import { useRef, useState, useEffect } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import MapComponent from "components/map/Map";
 import PropTypes from "prop-types";
+import MapContextProvider, {
+  useMapContext,
+} from "components/contexts/MapContext";
+import { Map } from "ol";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
 const TestingComponent = ({ expectedLayerCount, mapProps }) => {
   const visualizationRef = useRef();
-  const [mapReady, setMapReady] = useState(false);
-  const [layers, setLayers] = useState();
+  const { mapReady } = useMapContext();
   const [view, setView] = useState();
-
-  useEffect(() => {
-    let isMounted = true;
-    setMapReady(false);
-
-    const fetchMapData = () => {
-      if (visualizationRef.current) {
-        const newView = visualizationRef.current.getView();
-        setView(
-          JSON.stringify({
-            zoom: newView.getZoom(),
-            center: newView.getCenter(),
-          })
-        );
-
-        const mapLayers = visualizationRef.current
-          .getLayers()
-          .getArray()
-          .map((item) => item.get("name"));
-        setLayers(mapLayers.join(","));
-        if (
-          !expectedLayerCount ||
-          !mapProps.layers ||
-          mapLayers.length === expectedLayerCount
-        ) {
-          if (isMounted) {
-            setMapReady(true);
-          }
-        } else {
-          // Simulate fetching data
-          setTimeout(fetchMapData, 1000);
-        }
-      } else {
-        // Simulate fetching data
-        setTimeout(fetchMapData, 1000);
-      }
-    };
-
-    fetchMapData();
-
-    return () => {
-      isMounted = false; // Prevent setting state on unmounted component
-    };
-    // eslint-disable-next-line
-  }, [mapProps]);
 
   useEffect(() => {
     if (mapProps?.onMapClick && mapReady) {
@@ -65,8 +23,18 @@ const TestingComponent = ({ expectedLayerCount, mapProps }) => {
       evt.coordinate[1] = 4079902;
       visualizationRef.current.dispatchEvent(evt);
     }
+
+    if (visualizationRef.current && mapReady) {
+      const newView = visualizationRef.current.getView();
+      setView(
+        JSON.stringify({
+          zoom: newView.getZoom(),
+          center: newView.getCenter(),
+        })
+      );
+    }
     // eslint-disable-next-line
-  }, [mapReady]);
+  }, [mapProps, mapReady]);
 
   return (
     <div>
@@ -74,19 +42,23 @@ const TestingComponent = ({ expectedLayerCount, mapProps }) => {
       <>
         <p>{mapReady ? "Map Ready" : "Map Not Ready"}</p>
         <p data-testid="map-view">{view}</p>
-        <p data-testid="map-layers">{layers}</p>
       </>
     </div>
   );
 };
 
 test("Default Map", async () => {
-  render(<TestingComponent />);
+  render(
+    <MapContextProvider>
+      <TestingComponent />
+    </MapContextProvider>
+  );
 
   const mapDiv = await screen.findByLabelText("Map Div");
   expect(mapDiv).toBeInTheDocument();
   expect(mapDiv).toHaveStyle("width: 100%");
 
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({
       zoom: 4.5,
@@ -101,7 +73,11 @@ test("Default Map", async () => {
 });
 
 test("Default Map with layer control and legend", async () => {
-  render(<TestingComponent mapProps={{ layerControl: true, legend: [] }} />);
+  render(
+    <MapContextProvider>
+      <TestingComponent mapProps={{ layerControl: true, legend: [] }} />
+    </MapContextProvider>
+  );
 
   expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
   expect(
@@ -111,17 +87,20 @@ test("Default Map with layer control and legend", async () => {
 
 test("Custom Map Config and View Config", async () => {
   const { rerender } = render(
-    <TestingComponent
-      mapProps={{
-        mapConfig: { style: { width: "50%" } },
-        viewConfig: { zoom: 7 },
-      }}
-    />
+    <MapContextProvider>
+      <TestingComponent
+        mapProps={{
+          mapConfig: { style: { width: "50%" } },
+          mapExtent: "-10686671.12, 4721671.57, 7}",
+        }}
+      />
+    </MapContextProvider>
   );
 
   const mapDiv = await screen.findByLabelText("Map Div");
   expect(mapDiv).toBeInTheDocument();
   expect(mapDiv).toHaveStyle("width: 50%");
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({
@@ -131,12 +110,14 @@ test("Custom Map Config and View Config", async () => {
   );
 
   rerender(
-    <TestingComponent
-      mapProps={{
-        mapConfig: { style: { width: "50%" } },
-        viewConfig: { zoom: 7 },
-      }}
-    />
+    <MapContextProvider>
+      <TestingComponent
+        mapProps={{
+          mapConfig: { style: { width: "50%" } },
+          viewConfig: { zoom: 7 },
+        }}
+      />
+    </MapContextProvider>
   );
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({
@@ -147,6 +128,7 @@ test("Custom Map Config and View Config", async () => {
 });
 
 test("Map Layers and Updated Layers", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   const layers = [
     {
       type: "WebGLTile",
@@ -176,19 +158,27 @@ test("Map Layers and Updated Layers", async () => {
     },
   ];
 
-  render(<TestingComponent expectedLayerCount={2} mapProps={{ layers }} />);
-  await waitFor(
-    () => {
-      expect(screen.getByText("Map Ready")).toBeInTheDocument();
-    },
-    { timeout: 3000 }
+  render(
+    <MapContextProvider>
+      <TestingComponent expectedLayerCount={2} mapProps={{ layers }} />
+    </MapContextProvider>
   );
-  expect(await screen.findByTestId("map-layers")).toHaveTextContent(
-    "World Light Gray Base,esri"
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(2);
+  });
+
+  expect(addLayerSpy.mock.calls[0][0].values_.name).toBe(
+    "World Light Gray Base"
   );
+  expect(addLayerSpy.mock.calls[1][0].values_.name).toBe("esri");
 });
 
 test("Bad Map Layers", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
   const layers = [
     {
       type: "WeTile",
@@ -218,7 +208,11 @@ test("Bad Map Layers", async () => {
     },
   ];
 
-  const { rerender } = render(<TestingComponent mapProps={{ layers }} />);
+  const { rerender } = render(
+    <MapContextProvider>
+      <TestingComponent mapProps={{ layers }} />
+    </MapContextProvider>
+  );
 
   const warningMessage = await screen.findByText(
     'Failed to load the "Base Layer, Image Layer" layer(s)'
@@ -246,31 +240,22 @@ test("Bad Map Layers", async () => {
     },
   ];
 
-  const mockMapClick = jest.fn();
   rerender(
-    <TestingComponent
-      expectedLayerCount={1}
-      mapProps={{ layers: updatedLayers, onMapClick: mockMapClick }}
-    />
+    <MapContextProvider>
+      <TestingComponent
+        expectedLayerCount={1}
+        mapProps={{ layers: updatedLayers }}
+      />
+    </MapContextProvider>
   );
-  await waitFor(
-    () => {
-      expect(screen.getByText("Map Not Ready")).toBeInTheDocument();
-    },
-    { timeout: 2000 }
-  );
-  await waitFor(
-    () => {
-      expect(screen.getByText("Map Ready")).toBeInTheDocument();
-    },
-    { timeout: 2000 }
-  );
-  expect(await screen.findByTestId("map-layers")).toHaveTextContent(
+
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  expect(addLayerSpy.mock.calls[0][0].values_.name).toBe(
     "World Light Gray Base"
   );
-  await waitFor(() => {
-    expect(mockMapClick).toHaveBeenCalled();
-  });
 
   updatedLayers = [
     {
@@ -289,27 +274,29 @@ test("Bad Map Layers", async () => {
   ];
 
   rerender(
-    <TestingComponent
-      expectedLayerCount={1}
-      mapProps={{ layers: updatedLayers }}
-    />
+    <MapContextProvider>
+      <TestingComponent
+        expectedLayerCount={1}
+        mapProps={{ layers: updatedLayers }}
+      />
+    </MapContextProvider>
   );
-  await waitFor(
-    () => {
-      expect(screen.getByText("Map Not Ready")).toBeInTheDocument();
-    },
-    { timeout: 2000 }
+
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(2);
+  });
+  await waitFor(() => {
+    expect(removeLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  expect(addLayerSpy.mock.calls[1][0].values_.name).toBe("esri");
+  expect(removeLayerSpy.mock.calls[0][0].values_.name).toBe(
+    "World Light Gray Base"
   );
-  await waitFor(
-    () => {
-      expect(screen.getByText("Map Ready")).toBeInTheDocument();
-    },
-    { timeout: 2000 }
-  );
-  expect(await screen.findByTestId("map-layers")).toHaveTextContent("esri");
 });
 
 test("Map Layer Styles", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   const layers = [
     {
       type: "WebGLTile",
@@ -327,15 +314,19 @@ test("Map Layer Styles", async () => {
     },
   ];
 
-  render(<TestingComponent expectedLayerCount={1} mapProps={{ layers }} />);
-
-  await waitFor(
-    () => {
-      expect(screen.getByText("Map Ready")).toBeInTheDocument();
-    },
-    { timeout: 2000 }
+  render(
+    <MapContextProvider>
+      <TestingComponent expectedLayerCount={1} mapProps={{ layers }} />
+    </MapContextProvider>
   );
-  expect(await screen.findByTestId("map-layers")).toHaveTextContent(
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  expect(addLayerSpy.mock.calls[0][0].values_.name).toBe(
     "World Light Gray Base"
   );
 });

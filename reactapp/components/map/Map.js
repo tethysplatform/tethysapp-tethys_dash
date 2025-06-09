@@ -185,13 +185,18 @@ const MapComponent = ({
       if (visualizationRef.current) {
         // setup click event with new layers. This is done so that the variable
         // and states in the passed function are updated and not stale
-        if (onMapClickCurrent.current) {
-          visualizationRef.current.un("singleclick", onMapClickCurrent.current);
+        if (onMapClick) {
+          if (onMapClickCurrent.current) {
+            visualizationRef.current.un(
+              "singleclick",
+              onMapClickCurrent.current
+            );
+          }
+          onMapClickCurrent.current = async function (evt) {
+            onMapClick(visualizationRef.current, evt);
+          };
+          visualizationRef.current.on("singleclick", onMapClickCurrent.current);
         }
-        onMapClickCurrent.current = async function (evt) {
-          onMapClick(visualizationRef.current, evt);
-        };
-        visualizationRef.current.on("singleclick", onMapClickCurrent.current);
 
         // update the layerControlUpdate so that the layer controls are triggered to rerender with the new layers
         setLayerControlUpdate(!layerControlUpdate);

@@ -121,9 +121,7 @@ const TestingComponent = ({
     }
 
     if (onMapZoom) {
-      act(() => {
-        visualizationRef.current.getView().setZoom(8);
-      });
+      visualizationRef.current.getView().setZoom(8);
     }
   }, [mapReady, clickCoordinates, onMapClick, onMapPointerMove, onMapZoom]);
 
@@ -1018,6 +1016,7 @@ test("Map info div in dataviewer mode with zoom", async () => {
             layers,
             baseMap: null,
             layerControl: false,
+            mapExtent: "-10686671.12, 4721671.57,4.5",
             dataviewerViz: true,
           }}
         />
