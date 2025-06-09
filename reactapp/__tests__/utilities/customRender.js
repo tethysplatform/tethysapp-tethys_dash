@@ -33,8 +33,8 @@ const TestingComponent = ({ children, options = {} }) => {
       setActiveAppTour(true);
       setAppTourStep(options.appTourStep);
     }
-    // eslint-disable-next-line
     setIsLoaded(true);
+    // eslint-disable-next-line
   }, []);
 
   if (isLoaded) {

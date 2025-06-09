@@ -4,7 +4,6 @@ import { MapExtent } from "components/inputs/custom/MapExtent";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import MapContextProvider from "components/contexts/MapContext";
 import { MapContext } from "components/contexts/Contexts";
-import userEvent from "@testing-library/user-event";
 
 // Mock view object with required methods
 const mockView = {
@@ -126,6 +125,7 @@ it("existing Custom MapExtent", async () => {
   expect(onChange.mock.calls[2][0]).toBe("");
   expect(window.getComputedStyle(input).borderColor).toBe("red");
 
+  // eslint-disable-next-line
   const variableValues = "${extent}";
   fireEvent.change(input, {
     target: { value: variableValues },
@@ -134,6 +134,7 @@ it("existing Custom MapExtent", async () => {
   expect(onChange.mock.calls[3][0]).toBe(variableValues);
   expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 
+  // eslint-disable-next-line
   const moreVariableValues = "${Lon}, 12, 4";
   fireEvent.change(input, {
     target: { value: moreVariableValues },
@@ -142,6 +143,7 @@ it("existing Custom MapExtent", async () => {
   expect(onChange.mock.calls[4][0]).toBe(moreVariableValues);
   expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 
+  // eslint-disable-next-line
   const evenMoreVariableValues = "${LonLat}, 4";
   fireEvent.change(input, {
     target: { value: evenMoreVariableValues },

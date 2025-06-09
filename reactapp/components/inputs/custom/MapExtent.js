@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
 import styled from "styled-components";
@@ -46,10 +46,13 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
       setCustomExtent("-10686671.12,4721671.57,4.5");
       onChange("-10686671.12,4721671.90,4.5");
     }
+    // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
     if (!mapReady || !visualizationRef.current) return;
+
+    const map = visualizationRef.current;
     const view = visualizationRef.current?.getView();
 
     const handleResolutionChange = () => {
@@ -59,7 +62,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     if (extentMode === "mapExtent") {
       setMapExtent();
       view.on("change:resolution", handleResolutionChange);
-      visualizationRef.current.on("moveend", handleResolutionChange);
+      map.on("moveend", handleResolutionChange);
     } else {
       onChange(customExtent);
     }
@@ -67,8 +70,9 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     // Cleanup function to remove the event listener
     return () => {
       view.un("change:resolution", handleResolutionChange);
-      visualizationRef.current.un("moveend", handleResolutionChange);
+      map.un("moveend", handleResolutionChange);
     };
+    // eslint-disable-next-line
   }, [extentMode, mapReady]);
 
   const setMapExtent = () => {
@@ -133,4 +137,13 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
       )}
     </>
   );
+};
+
+MapExtent.propTypes = {
+  onChange: PropTypes.func,
+  values: PropTypes.string,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };

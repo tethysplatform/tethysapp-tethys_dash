@@ -1,5 +1,4 @@
 import { memo, useEffect, useState, useRef } from "react";
-import { valuesEqual } from "components/modals/utilities";
 import { Map, View } from "ol";
 import moduleLoader from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";

@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, act } from "react";
+import { useRef, useEffect } from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import MapVisualization from "components/visualizations/Map";
 import createLoadedComponent, {

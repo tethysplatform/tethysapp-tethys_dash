@@ -429,6 +429,10 @@ VisualizationArguments.propTypes = {
   handleInputChange: PropTypes.func,
   setShowingSubModal: PropTypes.func,
   gridItemIndex: PropTypes.number,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 VisualizationPane.propTypes = {

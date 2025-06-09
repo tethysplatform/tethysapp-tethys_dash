@@ -46,6 +46,7 @@ DataRadioSelect.propTypes = {
   onChange: PropTypes.func,
   selectedRadio: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
   radioOptions: PropTypes.array,
+  blockedRadio: PropTypes.bool,
 };
 
 export default DataRadioSelect;
