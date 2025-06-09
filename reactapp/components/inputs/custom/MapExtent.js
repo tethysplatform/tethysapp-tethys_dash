@@ -31,7 +31,7 @@ const InputLabel = styled.label`
   font-weight: bold;
 `;
 
-export const MapExtent = ({ label, onChange, values, visualizationRef }) => {
+export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const [extentMode, setExtentMode] = useState("customExtent");
   const [customExtent, setCustomExtent] = useState(values ?? "");
   const [customExtentValid, setCustomExtentValid] = useState(true);
@@ -80,8 +80,6 @@ export const MapExtent = ({ label, onChange, values, visualizationRef }) => {
   const containsTemplate = (str) => /\$\{\w+\}/.test(str);
 
   const isValidExtentInput = (value) => {
-    if (typeof value !== "string") return false;
-
     const trimmed = value.trim();
 
     // Allow any value with a template
@@ -128,6 +126,7 @@ export const MapExtent = ({ label, onChange, values, visualizationRef }) => {
               }
               placeholder="minX, minY, maxX, maxY OR Lon, Lat, Zoom"
               isValid={customExtentValid}
+              aria-label="Custom Extent Input"
             />
           </InputLabel>
         </InputRow>
