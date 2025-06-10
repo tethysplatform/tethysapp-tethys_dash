@@ -643,8 +643,7 @@ test("AttributesPane allow layer query", async () => {
 });
 
 TestingComponent.propTypes = {
-  initialAttributeVariables: PropTypes.object,
-  initialOmittedPopupAttributes: PropTypes.object,
+  initialAttributeProps: PropTypes.object,
   sourceProps: PropTypes.object,
   layerProps: PropTypes.object,
   tabKey: PropTypes.string,

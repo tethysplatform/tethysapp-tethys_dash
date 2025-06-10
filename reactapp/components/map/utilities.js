@@ -748,6 +748,7 @@ export const omittedPopupAttributesPropType = PropTypes.objectOf(
 export const attributePropsPropType = PropTypes.shape({
   variables: attributeVariablesPropType,
   omitted: omittedPopupAttributesPropType,
+  queryable: PropTypes.bool,
 });
 
 export const sourcePropType = PropTypes.shape({

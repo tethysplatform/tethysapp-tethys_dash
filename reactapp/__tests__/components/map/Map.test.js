@@ -9,7 +9,7 @@ import { Map } from "ol";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
-const TestingComponent = ({ expectedLayerCount, mapProps }) => {
+const TestingComponent = ({ mapProps }) => {
   const visualizationRef = useRef();
   const { mapReady } = useMapContext();
   const [view, setView] = useState();
@@ -160,7 +160,7 @@ test("Map Layers and Updated Layers", async () => {
 
   render(
     <MapContextProvider>
-      <TestingComponent expectedLayerCount={2} mapProps={{ layers }} />
+      <TestingComponent mapProps={{ layers }} />
     </MapContextProvider>
   );
 
@@ -242,10 +242,7 @@ test("Bad Map Layers", async () => {
 
   rerender(
     <MapContextProvider>
-      <TestingComponent
-        expectedLayerCount={1}
-        mapProps={{ layers: updatedLayers }}
-      />
+      <TestingComponent mapProps={{ layers: updatedLayers }} />
     </MapContextProvider>
   );
 
@@ -275,10 +272,7 @@ test("Bad Map Layers", async () => {
 
   rerender(
     <MapContextProvider>
-      <TestingComponent
-        expectedLayerCount={1}
-        mapProps={{ layers: updatedLayers }}
-      />
+      <TestingComponent mapProps={{ layers: updatedLayers }} />
     </MapContextProvider>
   );
 
@@ -316,7 +310,7 @@ test("Map Layer Styles", async () => {
 
   render(
     <MapContextProvider>
-      <TestingComponent expectedLayerCount={1} mapProps={{ layers }} />
+      <TestingComponent mapProps={{ layers }} />
     </MapContextProvider>
   );
 
@@ -332,7 +326,6 @@ test("Map Layer Styles", async () => {
 });
 
 TestingComponent.propTypes = {
-  expectedLayerCount: PropTypes.number,
   mapProps: PropTypes.shape({
     onMapClick: PropTypes.func,
     layers: PropTypes.array,

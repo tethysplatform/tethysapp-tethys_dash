@@ -7,8 +7,6 @@ import {
   getLayerAttributes,
   sourcePropertiesOptions,
   attributePropsPropType,
-  attributeVariablesPropType,
-  omittedPopupAttributesPropType,
   sourcePropType,
 } from "components/map/utilities";
 import Spinner from "react-bootstrap/Spinner";

@@ -15,10 +15,9 @@ import { AppContext } from "components/contexts/Contexts";
 import {
   sourcePropertiesOptions,
   layerPropType,
-  omittedPopupAttributesPropType,
-  attributeVariablesPropType,
   legendPropType,
   sourcePropType,
+  attributePropsPropType,
   saveLayerJSON,
 } from "components/map/utilities";
 import {
@@ -306,8 +305,7 @@ MapLayerModal.propTypes = {
     }), // an object of layer properties like opacity, zoom, etc. see components/map/utilities.js (layerPropertiesOptions) for examples
     legend: legendPropType,
     style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
-    attributeVariables: attributeVariablesPropType,
-    omittedPopupAttributes: omittedPopupAttributesPropType,
+    attributeProps: attributePropsPropType,
   }),
   mapLayers: PropTypes.arrayOf(layerPropType),
   existingLayerOriginalName: PropTypes.shape({
