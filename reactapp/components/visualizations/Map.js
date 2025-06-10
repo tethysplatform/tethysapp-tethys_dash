@@ -287,32 +287,42 @@ const MapVisualization = ({
     markerLayer.current = newMarkerLayer;
     map.addLayer(newMarkerLayer);
 
+    const queryableLayers = layers.filter(
+      (item) => !(item.queryable === false)
+    );
+
     // reduce the layer attributes variables values into a simplified object of layer names and then values
-    const mapAttributeVariables = layers.reduce((combined, current) => {
-      if (
-        current.attributeVariables &&
-        typeof current.attributeVariables === "object"
-      ) {
-        // Merge the example object into the combined object
-        Object.assign(combined, current.attributeVariables);
-      }
-      return combined;
-    }, {});
+    const mapAttributeVariables = queryableLayers.reduce(
+      (combined, current) => {
+        if (
+          current.attributeVariables &&
+          typeof current.attributeVariables === "object"
+        ) {
+          // Merge the example object into the combined object
+          Object.assign(combined, current.attributeVariables);
+        }
+        return combined;
+      },
+      {}
+    );
 
     // reduce the layer omitted popup attribute values into a simplified object of layer names and then values
-    const mapOmittedPopupAttributes = layers.reduce((combined, current) => {
-      if (
-        current.omittedPopupAttributes &&
-        typeof current.omittedPopupAttributes === "object"
-      ) {
-        // Merge the example object into the combined object
-        Object.assign(combined, current.omittedPopupAttributes);
-      }
-      return combined;
-    }, {});
+    const mapOmittedPopupAttributes = queryableLayers.reduce(
+      (combined, current) => {
+        if (
+          current.omittedPopupAttributes &&
+          typeof current.omittedPopupAttributes === "object"
+        ) {
+          // Merge the example object into the combined object
+          Object.assign(combined, current.omittedPopupAttributes);
+        }
+        return combined;
+      },
+      {}
+    );
 
     // query the layers
-    const queryCalls = layers.map((layer) =>
+    const queryCalls = queryableLayers.map((layer) =>
       queryLayerFeatures(layer, map, coordinate, pixel)
         .then((layerFeatures) => {
           // [{attributes: {key: value}, geometry: {x: "", y: ""}, layerName: ""}]

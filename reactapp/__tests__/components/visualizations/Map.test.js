@@ -91,7 +91,6 @@ const exampleStyle = {
 };
 
 const TestingComponent = ({
-  expectedLayerCount,
   onMapClick,
   onMapPointerMove,
   onMapZoom,
@@ -143,7 +142,6 @@ test("Map default and update layers", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           mapProps={{
             mapConfig: {},
             viewConfig: {},
@@ -193,7 +191,6 @@ test("Map default and update layers", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           mapProps={{
             mapConfig: {},
             viewConfig: {},
@@ -257,7 +254,6 @@ test("Map GeoJSON with legend and style", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           mapProps={{
             mapConfig: {},
             viewConfig: {},
@@ -334,7 +330,6 @@ test("Map click", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           onMapClick={true}
           clickCoordinates={clickCoordinates}
           mapProps={{
@@ -407,7 +402,6 @@ test("Map click", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={3}
           onMapClick={true}
           clickCoordinates={newClickCoordinates}
           mapProps={{
@@ -460,6 +454,100 @@ test("Map click", async () => {
   ]);
 });
 
+test("Map click no queryable layer", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: "some value" },
+      geometry: {
+        paths: [
+          [
+            [0, 0],
+            [0, 1],
+          ],
+          [
+            [1, 0],
+            [1, 1],
+          ],
+        ],
+      },
+      layerName: "Some Layer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC not queryable",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: {
+              url: "some_url",
+            },
+          },
+        },
+      },
+      queryable: false,
+    },
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: {
+              url: "some_url",
+            },
+          },
+        },
+      },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={true}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // layer, marker, and highlight layer
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(4);
+  });
+
+  expect(addLayerSpy.mock.calls[0][0].values_.name).toBe("ClickMarkerLayer");
+  expect(addLayerSpy.mock.calls[1][0].values_.name).toBe(
+    "ClickHighlighterLayer"
+  );
+  expect(addLayerSpy.mock.calls[2][0].values_.name).toBe("NWC not queryable");
+  expect(addLayerSpy.mock.calls[3][0].values_.name).toBe("NWC");
+
+  expect(mockedQueryLayerFeatures.mock.calls.length).toBe(1);
+  expect(
+    mockedQueryLayerFeatures.mock.calls[0][0].configuration.props.name
+  ).toBe("NWC");
+});
+
 test("Map click no attributes found", async () => {
   mockedQueryLayerFeatures.mockResolvedValue([]);
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
@@ -486,7 +574,6 @@ test("Map click no attributes found", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           onMapClick={true}
           clickCoordinates={clickCoordinates}
           mapProps={{
@@ -545,7 +632,6 @@ test("Map click all attributes omitted", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           onMapClick={true}
           clickCoordinates={clickCoordinates}
           mapProps={{
@@ -606,7 +692,6 @@ test("Map click attribute variables update text variable input", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           onMapClick={true}
           clickCoordinates={clickCoordinates}
           mapProps={{
@@ -695,7 +780,6 @@ test("Map click attribute variables update dropdown variable input", async () =>
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           onMapClick={true}
           clickCoordinates={clickCoordinates}
           mapProps={{
@@ -780,7 +864,6 @@ test("Map click attribute variables Null values", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           onMapClick={true}
           clickCoordinates={clickCoordinates}
           mapProps={{
@@ -842,7 +925,6 @@ test("Map click query error", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           onMapClick={true}
           clickCoordinates={clickCoordinates}
           mapProps={{
@@ -891,7 +973,6 @@ test("Map click not happen in dataviewer mode", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           onMapClick={true}
           clickCoordinates={clickCoordinates}
           mapProps={{
@@ -953,7 +1034,6 @@ test("Map info div in dataviewer mode with pontermove", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           clickCoordinates={clickCoordinates}
           onMapPointerMove={true}
           mapProps={{
@@ -1007,7 +1087,6 @@ test("Map info div in dataviewer mode with zoom", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={1}
           onMapZoom={true}
           clickCoordinates={clickCoordinates}
           mapProps={{
@@ -1049,7 +1128,6 @@ test("Map bad basemap", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={0}
           mapProps={{
             mapConfig: {},
             viewConfig: {},
@@ -1105,7 +1183,6 @@ test("Map bad GeoJSON", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={0}
           mapProps={{
             mapConfig: {},
             viewConfig: {},
@@ -1167,7 +1244,6 @@ test("Map bad style", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          expectedLayerCount={0}
           mapProps={{
             mapConfig: {},
             viewConfig: {},
@@ -1205,7 +1281,6 @@ test("Map bad style", async () => {
 });
 
 TestingComponent.propTypes = {
-  expectedLayerCount: PropTypes.number,
   mapProps: PropTypes.shape({
     onMapClick: PropTypes.func,
     layers: PropTypes.array,
