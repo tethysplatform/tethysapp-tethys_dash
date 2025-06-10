@@ -26,11 +26,13 @@ const exampleGeoJSON = {
 
 const TestingComponent = ({ initialSourceProps }) => {
   const [sourceProps, setSourceProps] = useState(initialSourceProps ?? {});
-  const [attributeVariables, setAttributeVariables] = useState({
-    someLayer: { someField: "someVariable" },
-  });
-  const [omittedPopupAttributes, setOmittedPopupAttributes] = useState({
-    someLayer: ["someField"],
+  const [attributeProps, setAttributeProps] = useState({
+    variables: {
+      someLayer: { someField: "someVariable" },
+    },
+    omitted: {
+      someLayer: ["someField"],
+    },
   });
 
   return (
@@ -38,15 +40,14 @@ const TestingComponent = ({ initialSourceProps }) => {
       <SourcePane
         sourceProps={sourceProps}
         setSourceProps={setSourceProps}
-        setAttributeVariables={setAttributeVariables}
-        setOmittedPopupAttributes={setOmittedPopupAttributes}
+        setAttributeProps={setAttributeProps}
       />
       <p data-testid="sourceProps">{JSON.stringify(sourceProps)}</p>
       <p data-testid="attributeVariables">
-        {JSON.stringify(attributeVariables)}
+        {JSON.stringify(attributeProps.variables)}
       </p>
       <p data-testid="omittedPopupAttributes">
-        {JSON.stringify(omittedPopupAttributes)}
+        {JSON.stringify(attributeProps.omitted)}
       </p>
     </>
   );

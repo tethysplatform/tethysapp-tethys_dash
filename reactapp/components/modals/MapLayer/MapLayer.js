@@ -54,14 +54,11 @@ const MapLayerModal = ({
   const [errorMessage, setErrorMessage] = useState(null);
   const [sourceProps, setSourceProps] = useState(layerInfo.sourceProps ?? {});
   const [layerProps, setLayerProps] = useState(layerInfo.layerProps ?? {});
+  const [attributeProps, setAttributeProps] = useState(
+    layerInfo.attributeProps ?? {}
+  );
   const [style, setStyle] = useState(layerInfo.style);
   const [legend, setLegend] = useState(layerInfo.legend);
-  const [attributeVariables, setAttributeVariables] = useState(
-    layerInfo.attributeVariables
-  );
-  const [omittedPopupAttributes, setOmittedPopupAttributes] = useState(
-    layerInfo.omittedPopupAttributes
-  );
   const containerRef = useRef(null);
   const { csrf } = useContext(AppContext);
 
@@ -86,8 +83,6 @@ const MapLayerModal = ({
       );
       return;
     }
-
-    const minAttributeVariables = removeEmptyValues(attributeVariables);
 
     if (sourceProps.type === "Vector Tile") {
       validSourceProps.urls = validSourceProps.urls.split(",");
@@ -114,12 +109,16 @@ const MapLayerModal = ({
       },
     };
 
+    const minAttributeVariables = removeEmptyValues(
+      attributeProps.variables ?? {}
+    );
+
     if (Object.keys(minAttributeVariables).length > 0) {
       mapConfiguration.attributeVariables = minAttributeVariables;
     }
 
-    if (Object.keys(omittedPopupAttributes).length > 0) {
-      mapConfiguration.omittedPopupAttributes = omittedPopupAttributes;
+    if (Object.keys(attributeProps.omitted ?? []).length > 0) {
+      mapConfiguration.omittedPopupAttributes = attributeProps.omitted;
     }
 
     if (legend && Object.keys(legend).length > 0) {
@@ -219,8 +218,7 @@ const MapLayerModal = ({
               <SourcePane
                 sourceProps={sourceProps}
                 setSourceProps={setSourceProps}
-                setAttributeVariables={setAttributeVariables}
-                setOmittedPopupAttributes={setOmittedPopupAttributes}
+                setAttributeProps={setAttributeProps}
               />
             </Tab>
             <Tab
@@ -252,10 +250,8 @@ const MapLayerModal = ({
               className="layer-attributes-tab"
             >
               <AttributesPane
-                attributeVariables={attributeVariables}
-                setAttributeVariables={setAttributeVariables}
-                omittedPopupAttributes={omittedPopupAttributes}
-                setOmittedPopupAttributes={setOmittedPopupAttributes}
+                attributeProps={attributeProps}
+                setAttributeProps={setAttributeProps}
                 sourceProps={sourceProps}
                 layerProps={layerProps}
                 tabKey={tabKey}

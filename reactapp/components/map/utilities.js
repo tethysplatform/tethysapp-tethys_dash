@@ -745,6 +745,11 @@ export const omittedPopupAttributesPropType = PropTypes.objectOf(
   PropTypes.arrayOf(PropTypes.string)
 );
 
+export const attributePropsPropType = PropTypes.shape({
+  variables: attributeVariablesPropType,
+  omitted: omittedPopupAttributesPropType,
+});
+
 export const sourcePropType = PropTypes.shape({
   props: PropTypes.object, // an object of source properties like url, params, etc. see components/map/utilities.js (sourcePropertiesOptions) for examples
   type: PropTypes.string, // layer source type

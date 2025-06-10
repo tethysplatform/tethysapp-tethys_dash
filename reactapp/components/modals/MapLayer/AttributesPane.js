@@ -6,6 +6,7 @@ import Alert from "react-bootstrap/Alert";
 import {
   getLayerAttributes,
   sourcePropertiesOptions,
+  attributePropsPropType,
   attributeVariablesPropType,
   omittedPopupAttributesPropType,
   sourcePropType,
@@ -42,11 +43,14 @@ const CenteredTD = styled.td`
   vertical-align: middle;
 `;
 
+const QueryLabel = styled.label`
+  margin-bottom: 1rem;
+  font-weight: bold;
+`;
+
 const AttributesPane = ({
-  attributeVariables,
-  setAttributeVariables,
-  omittedPopupAttributes,
-  setOmittedPopupAttributes,
+  attributeProps,
+  setAttributeProps,
   sourceProps,
   layerProps,
   tabKey,
@@ -54,11 +58,10 @@ const AttributesPane = ({
   const [warningMessage, setWarningMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [attributes, setAttributes] = useState({});
-  const attributeVariableValues = useRef(attributeVariables ?? {});
-  const omittedPopupAttributesValues = useRef(omittedPopupAttributes ?? {});
   const previousSourceProps = useRef({});
   const [customAttributes, setCustomAttributes] = useState(null);
   const [layerPopupSwitch, setLayerPopupSwitch] = useState({});
+  const [queryable, setQueryable] = useState(true);
 
   useEffect(() => {
     if (tabKey === "attributes") {
@@ -162,10 +165,10 @@ const AttributesPane = ({
 
               // check to see if there are any current attributes or ommitted popups setup for the layer
               const existingLayerattributeVariableFields = Object.keys(
-                attributeVariableValues.current[layerName] || {}
+                attributeProps?.variables?.[layerName] || {}
               );
               const existingOmittedPopupAttributesFields =
-                omittedPopupAttributesValues.current[layerName] || [];
+                attributeProps?.omitted?.[layerName] || [];
 
               // get a unique array of attributes already configured for either popups or attributes
               const existingAttributes = [
@@ -214,10 +217,14 @@ const AttributesPane = ({
           // set states and refs after processing all done
           setAttributes(layerAttributes);
           setLayerPopupSwitch(popupSwitchValues);
-          attributeVariableValues.current =
-            extractVariableInputs(layerAttributes);
-          omittedPopupAttributesValues.current =
-            extractFalsePopups(layerAttributes);
+
+          setAttributeProps((previousAttributeProps) => ({
+            ...previousAttributeProps,
+            ...{
+              variables: extractVariableInputs(layerAttributes),
+              omitted: extractFalsePopups(layerAttributes),
+            },
+          }));
         });
       }
     }
@@ -256,14 +263,14 @@ const AttributesPane = ({
 
         // check to see if the attribute is already being omitted in the popup
         const existingPopup =
-          !omittedPopupAttributesValues.current[layerName] ||
-          !omittedPopupAttributesValues.current[layerName].includes(name);
+          !attributeProps?.omitted?.[layerName] ||
+          !attributeProps.omitted[layerName].includes(name);
         layerAttribute["popup"] = existingPopup;
 
         // check to see if the attribute is already configured for a variable
         const existingvariableInput =
-          attributeVariableValues.current[layerName] &&
-          attributeVariableValues.current[layerName][name];
+          attributeProps?.variables?.[layerName] &&
+          attributeProps.variables[layerName][name];
         layerAttribute["variableInput"] = existingvariableInput ?? "";
 
         newObj[layerName].push(layerAttribute);
@@ -333,14 +340,13 @@ const AttributesPane = ({
     }
     setAttributes(updatedAttributes);
 
-    // extract attribute variables and set state and ref
-    attributeVariableValues.current = extractVariableInputs(updatedAttributes);
-    setAttributeVariables(attributeVariableValues.current);
-
-    // extract omitted popups and set state and ref
-    omittedPopupAttributesValues.current =
-      extractFalsePopups(updatedAttributes);
-    setOmittedPopupAttributes(omittedPopupAttributesValues.current);
+    setAttributeProps((previousAttributeProps) => ({
+      ...previousAttributeProps,
+      ...{
+        variables: extractVariableInputs(updatedAttributes),
+        omitted: extractFalsePopups(updatedAttributes),
+      },
+    }));
 
     // if a popup is being altered, check to see if the header checkbox needs to be updated
     if (field === "popup") {
@@ -375,120 +381,142 @@ const AttributesPane = ({
       })),
     };
 
-    // update states and refs
-    omittedPopupAttributesValues.current =
-      extractFalsePopups(updatedAttributes);
+    setAttributeProps((previousAttributeProps) => ({
+      ...previousAttributeProps,
+      ...{
+        omitted: extractFalsePopups(updatedAttributes),
+      },
+    }));
     setAttributes(updatedAttributes);
-    setOmittedPopupAttributes(omittedPopupAttributesValues.current);
+  }
+
+  function updatedQueryable(e) {
+    const newqueryable = e.target.checked;
+    setQueryable(newqueryable);
   }
 
   return (
     <>
-      {errorMessage ? (
-        <Alert key="danger" variant="danger" dismissible>
-          {errorMessage}
-        </Alert>
-      ) : (
+      <QueryLabel>
+        <input
+          type="checkbox"
+          onChange={updatedQueryable}
+          checked={queryable}
+        ></input>{" "}
+        Allow Layer Query
+      </QueryLabel>
+      {queryable && (
         <>
-          {warningMessage && (
-            <Alert key="warning" variant="warning" dismissible>
-              {warningMessage}
+          {errorMessage ? (
+            <Alert key="danger" variant="danger" dismissible>
+              {errorMessage}
             </Alert>
-          )}
-          {customAttributes === null ? (
-            <StyledSpinner
-              data-testid="Loading..."
-              animation="border"
-              variant="info"
-            />
-          ) : customAttributes ? (
-            Object.keys(attributes).map((layerName, index) => (
-              <div key={index}>
-                <p>
-                  <b>{layerName}</b>:
-                </p>
-                <FixedTable striped bordered hover size="sm">
-                  <thead>
-                    <tr>
-                      <th className="text-center" style={{ width: "25%" }}>
-                        Name
-                      </th>
-                      <th className="text-center" style={{ width: "25%" }}>
-                        Alias
-                      </th>
-                      <th className="text-center" style={{ width: "20%" }}>
-                        Show in popup
-                        <br />
-                        <input
-                          type="checkbox"
-                          checked={layerPopupSwitch[layerName]}
-                          onChange={(e) =>
-                            handleLayerPopup(layerName, e.target.checked)
-                          }
-                        />
-                      </th>
-                      <th className="text-center">Variable Input Name</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {attributes[layerName].map(({ name, alias }, index) => (
-                      <tr key={index}>
-                        <OverflowTD>{name}</OverflowTD>
-                        <OverflowTD>{alias}</OverflowTD>
-                        <CenteredTD>
-                          <input
-                            type="checkbox"
-                            checked={attributes[layerName][index]["popup"]}
-                            onChange={(e) => {
-                              updateAttributes({
-                                index,
-                                layerName,
-                                field: "popup",
-                                fieldChange: e.target.checked,
-                              });
-                            }}
-                          />
-                        </CenteredTD>
-                        <td>
-                          <StyledInput
-                            value={
-                              attributes[layerName][index]["variableInput"]
-                            }
-                            onChange={(e) => {
-                              updateAttributes({
-                                index,
-                                layerName,
-                                field: "variableInput",
-                                fieldChange: e.target.value,
-                              });
-                            }}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </FixedTable>
-              </div>
-            ))
           ) : (
-            Object.keys(attributes).map((layerName, index) => (
-              <InputTable
-                key={index}
-                label={layerName}
-                onChange={({ newValue, field, fullChange }) =>
-                  updateAttributes({
-                    index,
-                    layerName,
-                    field,
-                    fieldChange: newValue,
-                    fullChange: fullChange,
-                  })
-                }
-                values={attributes[layerName]}
-                allowRowCreation={true}
-                headers={["Name", "Show in popup", "Variable Input Name"]}
-              />
-            ))
+            <>
+              {warningMessage && (
+                <Alert key="warning" variant="warning" dismissible>
+                  {warningMessage}
+                </Alert>
+              )}
+              {customAttributes === null ? (
+                <StyledSpinner
+                  data-testid="Loading..."
+                  animation="border"
+                  variant="info"
+                />
+              ) : customAttributes ? (
+                Object.keys(attributes).map((layerName, index) => (
+                  <div key={index}>
+                    <p>
+                      <b>{layerName}</b>:
+                    </p>
+                    <FixedTable striped bordered hover size="sm">
+                      <thead>
+                        <tr>
+                          <th className="text-center" style={{ width: "25%" }}>
+                            Name
+                          </th>
+                          <th className="text-center" style={{ width: "25%" }}>
+                            Alias
+                          </th>
+                          <th className="text-center" style={{ width: "20%" }}>
+                            Show in popup
+                            <br />
+                            <input
+                              type="checkbox"
+                              checked={layerPopupSwitch[layerName]}
+                              onChange={(e) =>
+                                handleLayerPopup(layerName, e.target.checked)
+                              }
+                              aria-label="Show in popup header"
+                            />
+                          </th>
+                          <th className="text-center">Variable Input Name</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {attributes[layerName].map(({ name, alias }, index) => (
+                          <tr key={index}>
+                            <OverflowTD>{name}</OverflowTD>
+                            <OverflowTD>{alias}</OverflowTD>
+                            <CenteredTD>
+                              <input
+                                type="checkbox"
+                                checked={attributes[layerName][index]["popup"]}
+                                aria-label="Show in popup row"
+                                onChange={(e) => {
+                                  updateAttributes({
+                                    index,
+                                    layerName,
+                                    field: "popup",
+                                    fieldChange: e.target.checked,
+                                  });
+                                }}
+                              />
+                            </CenteredTD>
+                            <td>
+                              <StyledInput
+                                value={
+                                  attributes[layerName][index]["variableInput"]
+                                }
+                                aria-label="variable row"
+                                onChange={(e) => {
+                                  updateAttributes({
+                                    index,
+                                    layerName,
+                                    field: "variableInput",
+                                    fieldChange: e.target.value,
+                                  });
+                                }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </FixedTable>
+                  </div>
+                ))
+              ) : (
+                Object.keys(attributes).map((layerName, index) => (
+                  <InputTable
+                    key={index}
+                    label={layerName}
+                    onChange={({ newValue, field, fullChange }) =>
+                      updateAttributes({
+                        index,
+                        layerName,
+                        field,
+                        fieldChange: newValue,
+                        fullChange: fullChange,
+                      })
+                    }
+                    values={attributes[layerName]}
+                    allowRowCreation={true}
+                    headers={["Name", "Show in popup", "Variable Input Name"]}
+                  />
+                ))
+              )}
+            </>
           )}
         </>
       )}
@@ -497,10 +525,8 @@ const AttributesPane = ({
 };
 
 AttributesPane.propTypes = {
-  attributeVariables: attributeVariablesPropType, // react state that tracks what attributes are configured for variables
-  setAttributeVariables: PropTypes.func.isRequired, // state setter for attributeVariables
-  omittedPopupAttributes: omittedPopupAttributesPropType, // react state that tracks what attributes are not shown in popups
-  setOmittedPopupAttributes: PropTypes.func.isRequired, // state setter for omittedPopupAttributes
+  attributeProps: attributePropsPropType, // react state that tracks attribute properties
+  setAttributeProps: PropTypes.func, // state setter for attributeProps
   sourceProps: sourcePropType, // configuration and properties for openlayers layer source
   layerProps: PropTypes.shape({
     name: PropTypes.string,

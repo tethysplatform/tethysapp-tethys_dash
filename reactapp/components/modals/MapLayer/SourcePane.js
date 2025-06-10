@@ -88,12 +88,7 @@ function parsePropertiesArray(properties) {
   }, {});
 }
 
-const SourcePane = ({
-  sourceProps,
-  setSourceProps,
-  setAttributeVariables,
-  setOmittedPopupAttributes,
-}) => {
+const SourcePane = ({ sourceProps, setSourceProps, setAttributeProps }) => {
   const [sourceProperties, setSourceProperties] = useState([]); // array of objects that represent properties that will be rendered in the table
   const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]); // array of objects that represent placeholders for the table inputs
   const [propertyTypes, SetPropertyTypes] = useState([]); // array of objects that represent types for the table inputs
@@ -174,8 +169,7 @@ const SourcePane = ({
     }));
 
     // reset attribute variable and omitted popup attributes since the source has changed
-    setAttributeVariables({});
-    setOmittedPopupAttributes({});
+    setAttributeProps({});
   }
 
   function handleGeoJSONUpload({ fileContent }) {
@@ -247,8 +241,7 @@ const SourcePane = ({
 SourcePane.propTypes = {
   sourceProps: sourcePropType,
   setSourceProps: PropTypes.func, // setter for sourceProps state
-  setAttributeVariables: PropTypes.func, // setter for attributeVariables state
-  setOmittedPopupAttributes: PropTypes.func, // setter for omittedPopupAttributes state
+  setAttributeProps: PropTypes.func, // setter for attributeProps state
 };
 
 export default SourcePane;

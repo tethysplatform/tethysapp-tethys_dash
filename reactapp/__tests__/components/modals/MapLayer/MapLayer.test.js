@@ -551,9 +551,8 @@ test("MapLayerModal attribute variables and omitted popups", async () => {
   const attributesTabContent = screen.getByLabelText("layer-attributes-tab");
   const variableInput = within(attributesTabContent).getAllByRole("textbox")[0];
   fireEvent.change(variableInput, { target: { value: "Some Variable" } });
-  const popupCheckbox =
-    within(attributesTabContent).getAllByRole("checkbox")[1];
-  fireEvent.click(popupCheckbox);
+  const popupCheckboxes = screen.getAllByLabelText("Show in popup row");
+  fireEvent.click(popupCheckboxes[0]);
 
   const createLayerButton = await screen.findByLabelText("Create Layer Button");
   fireEvent.click(createLayerButton);
