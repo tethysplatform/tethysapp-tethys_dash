@@ -71,9 +71,12 @@ const MapLayerTemplate = ({
     const existingMapLayer = mapLayers.find(
       (t) => t.configuration.props.name === mapLayerName
     );
+    const attributeVariables = existingMapLayer.attributeVariables ?? {};
+    const omittedPopupAttributes =
+      existingMapLayer.omittedPopupAttributes ?? {};
+    const queryableLayer = existingMapLayer.queryable === false ? false : true;
 
-    // Set the layerInfo and existingLayerOriginalName to the specified mapLayer
-    setLayerInfo({
+    const updatedLayerInfo = {
       sourceProps: existingMapLayer.configuration.props.source,
       layerProps: Object.fromEntries(
         Object.entries(existingMapLayer.configuration.props).filter(
@@ -82,9 +85,15 @@ const MapLayerTemplate = ({
       ),
       legend: existingMapLayer.legend,
       style: existingMapLayer.configuration.style,
-      attributeVariables: existingMapLayer.attributeVariables ?? {}, // {layerName: {"field1": "Variable Name 1"}}
-      omittedPopupAttributes: existingMapLayer.omittedPopupAttributes ?? {}, // {layerName: ["field1", "field2"]}
-    });
+      attributeProps: {
+        variables: attributeVariables,
+        omitted: omittedPopupAttributes,
+        queryable: queryableLayer,
+      },
+    };
+
+    // Set the layerInfo and existingLayerOriginalName to the specified mapLayer
+    setLayerInfo(updatedLayerInfo);
     existingLayerOriginalName.current =
       existingMapLayer.configuration.props.name;
 

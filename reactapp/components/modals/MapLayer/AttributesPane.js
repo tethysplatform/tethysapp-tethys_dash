@@ -61,7 +61,9 @@ const AttributesPane = ({
   const previousSourceProps = useRef({});
   const [customAttributes, setCustomAttributes] = useState(null);
   const [layerPopupSwitch, setLayerPopupSwitch] = useState({});
-  const [queryable, setQueryable] = useState(true);
+  const [allowLayerQuery, setAllowLayerQuery] = useState(
+    attributeProps.queryable ?? true
+  );
 
   useEffect(() => {
     if (tabKey === "attributes") {
@@ -391,8 +393,16 @@ const AttributesPane = ({
   }
 
   function updatedQueryable(e) {
-    const newqueryable = e.target.checked;
-    setQueryable(newqueryable);
+    const newAllowLayerQuery = e.target.checked;
+    setAllowLayerQuery(newAllowLayerQuery);
+
+    setAttributeProps((previousAttributeProps) => {
+      const { queryable, ...rest } = previousAttributeProps;
+
+      return newAllowLayerQuery
+        ? rest // remove 'queryable'
+        : { ...rest, queryable: newAllowLayerQuery }; // keep or set it to false
+    });
   }
 
   return (
@@ -401,11 +411,11 @@ const AttributesPane = ({
         <input
           type="checkbox"
           onChange={updatedQueryable}
-          checked={queryable}
+          checked={allowLayerQuery}
         ></input>{" "}
         Allow Layer Query
       </QueryLabel>
-      {queryable && (
+      {allowLayerQuery && (
         <>
           {errorMessage ? (
             <Alert key="danger" variant="danger" dismissible>

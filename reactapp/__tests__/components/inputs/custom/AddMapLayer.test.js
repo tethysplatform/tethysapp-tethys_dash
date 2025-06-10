@@ -41,6 +41,12 @@ it("AddMapLayer update existing", async () => {
     title: "Legend Title",
     items: [{ color: "red", label: "legend label", symbol: "square" }],
   };
+  layerConfiguration.attributeVariables = {
+    states: { the_geom: "some variable" },
+  };
+  layerConfiguration.omittedPopupAttributes = { states: ["the_geom"] };
+  layerConfiguration.queryable = false;
+
   const onChange = jest.fn();
   const setShowingSubModal = jest.fn();
   const values = [layerConfiguration];
@@ -96,6 +102,11 @@ it("AddMapLayer update existing", async () => {
 
   expect(onChange).toHaveBeenCalledWith([
     {
+      attributeVariables: {
+        states: {
+          the_geom: "some variable",
+        },
+      },
       configuration: {
         props: {
           name: "New Layer Name",
@@ -120,6 +131,10 @@ it("AddMapLayer update existing", async () => {
         ],
         title: "Legend Title",
       },
+      omittedPopupAttributes: {
+        states: ["the_geom"],
+      },
+      queryable: false,
     },
   ]);
 });

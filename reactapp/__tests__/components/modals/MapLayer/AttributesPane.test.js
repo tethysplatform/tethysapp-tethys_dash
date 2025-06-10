@@ -39,6 +39,7 @@ const TestingComponent = ({
       <p data-testid="omittedPopupAttributes">
         {JSON.stringify(attributeProps.omitted)}
       </p>
+      <p data-testid="queryable">{JSON.stringify(attributeProps.queryable)}</p>
     </>
   );
 };
@@ -588,6 +589,57 @@ test("AttributesPane bad GeoJSON", async () => {
       "Expected property name or '}' in JSON at position 1"
     )
   ).toBeInTheDocument();
+});
+
+test("AttributesPane allow layer query", async () => {
+  mockedGetLayerAttributes.mockResolvedValue({
+    states: [
+      { name: "the_geom", alias: "the_geom" },
+      { name: "STATE_NAME", alias: "STATE_NAME" },
+    ],
+  });
+
+  const sourceProps = {
+    type: "WMS",
+    props: {
+      url: "http://localhost:8081/geoserver/wms",
+      params: {
+        LAYERS: "topp:states",
+      },
+    },
+  };
+  render(
+    <TestingComponent
+      sourceProps={sourceProps}
+      layerProps={{
+        name: "esri",
+      }}
+      tabKey={"attributes"}
+      initialAttributeProps={{
+        variables: { states: { the_geom: "some variable" } },
+        omitted: { states: ["the_geom"] },
+        queryable: false,
+      }}
+    />
+  );
+
+  const layerQuery = screen.getByLabelText("Allow Layer Query");
+  expect(layerQuery.checked).toBe(false);
+  expect(screen.getByTestId("queryable")).toHaveTextContent(
+    JSON.stringify(false)
+  );
+
+  fireEvent.click(layerQuery);
+
+  expect(layerQuery.checked).toBe(true);
+  expect(screen.getByTestId("queryable")).toBeEmptyDOMElement();
+
+  fireEvent.click(layerQuery);
+
+  expect(layerQuery.checked).toBe(false);
+  expect(screen.getByTestId("queryable")).toHaveTextContent(
+    JSON.stringify(false)
+  );
 });
 
 TestingComponent.propTypes = {

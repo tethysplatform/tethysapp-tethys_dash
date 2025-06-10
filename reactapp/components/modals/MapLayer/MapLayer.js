@@ -121,6 +121,10 @@ const MapLayerModal = ({
       mapConfiguration.omittedPopupAttributes = attributeProps.omitted;
     }
 
+    if (attributeProps.queryable === false) {
+      mapConfiguration.queryable = false;
+    }
+
     if (legend && Object.keys(legend).length > 0) {
       if (legend.title === "") {
         setErrorMessage(
