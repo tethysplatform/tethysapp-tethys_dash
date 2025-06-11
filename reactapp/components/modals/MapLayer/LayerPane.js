@@ -4,16 +4,23 @@ import { layerPropertiesOptions } from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
 import { useState } from "react";
 import styled from "styled-components";
+import { spaceAndCapitalize } from "components/modals/utilities";
+import Toggle from "components/inputs/Toggle";
 
 const PaddedDiv = styled.div`
   padding-bottom: 1rem;
+  display: flex;
+  width: 100%;
+  gap: 5rem;
 `;
 
 const LayerPane = ({ layerProps, setLayerProps }) => {
   // load existing layerProperties
   const layerProperties = loadExistingArgs(
     Object.fromEntries(
-      Object.entries(layerProps).filter(([key]) => key !== "name")
+      Object.entries(layerProps).filter(
+        ([key]) => !["name", "layerVisibility"].includes(key)
+      )
     )
   );
   // setup placeholders for the input table
@@ -32,7 +39,8 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
   function loadExistingArgs(existingProps) {
     // create an array for the input table of the various properties
     return Object.keys(layerPropertiesOptions).map((key) => ({
-      property: key,
+      rawProperty: key,
+      property: spaceAndCapitalize(key),
       value: existingProps[key] ?? "",
     }));
   }
@@ -40,9 +48,17 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
   function handlePropertyChange({ newValue, rowIndex }) {
     // update property based on the table row
     const updatedLayerProps = JSON.parse(JSON.stringify(layerProps));
-    const property = layerProperties[rowIndex]["property"];
+    const property = layerProperties[rowIndex]["rawProperty"];
     updatedLayerProps[property] = newValue;
     setLayerProps(updatedLayerProps);
+  }
+
+  function onVisibilityToggle(newValue) {
+    setLayerProps((previousLayerProps) => {
+      const { layerVisibility, ...rest } = previousLayerProps;
+
+      return newValue ? rest : { ...rest, layerVisibility: newValue }; // remove layerVisibility unless its false
+    });
   }
 
   return (
@@ -61,13 +77,22 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
           }}
           value={name}
           type={"text"}
+          divProps={{ style: { flex: 1 } }}
+        />
+        <Toggle
+          defaultValue={layerProps.layerVisibility !== false}
+          label={"Default Visibility"}
+          uncheckedLabel={"Invisible"}
+          checkedLabel={"Visible"}
+          onChange={onVisibilityToggle}
         />
       </PaddedDiv>
       <InputTable
         label="Layer Properties"
         onChange={handlePropertyChange}
         values={layerProperties}
-        disabledFields={["required", "property"]}
+        disabledFields={["property"]}
+        hiddenFields={["rawProperty"]}
         placeholders={propertyPlaceholders}
         types={propertyTypes}
         show_placeholder_on_hover={true}

@@ -70,8 +70,9 @@ const MapLayerModal = ({
       return;
     }
 
+    const { layerVisibility, ...layerProperties } = layerProps;
     const validSourceProps = removeEmptyValues(sourceProps.props);
-    const validLayerProps = removeEmptyValues(layerProps);
+    const validLayerProps = removeEmptyValues(layerProperties);
     const missingRequiredProps = checkRequiredKeys(
       sourcePropertiesOptions[sourceProps.type].required,
       validSourceProps
@@ -111,6 +112,10 @@ const MapLayerModal = ({
     const minAttributeVariables = removeEmptyValues(
       attributeProps.variables ?? {}
     );
+
+    if (layerVisibility === false) {
+      mapConfiguration.layerVisibility = false;
+    }
 
     if (Object.keys(minAttributeVariables).length > 0) {
       mapConfiguration.attributeVariables = minAttributeVariables;

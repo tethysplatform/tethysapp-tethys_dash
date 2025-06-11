@@ -75,14 +75,16 @@ const MapLayerTemplate = ({
     const omittedPopupAttributes =
       existingMapLayer.omittedPopupAttributes ?? {};
     const queryableLayer = existingMapLayer.queryable === false ? false : true;
+    const layerProps = Object.fromEntries(
+      Object.entries(existingMapLayer.configuration.props).filter(
+        ([key]) => key !== "source"
+      )
+    );
+    layerProps.layerVisibility = existingMapLayer.layerVisibility;
 
     const updatedLayerInfo = {
       sourceProps: existingMapLayer.configuration.props.source,
-      layerProps: Object.fromEntries(
-        Object.entries(existingMapLayer.configuration.props).filter(
-          ([key]) => key !== "source"
-        )
-      ),
+      layerProps,
       legend: existingMapLayer.legend,
       style: existingMapLayer.configuration.style,
       attributeProps: {

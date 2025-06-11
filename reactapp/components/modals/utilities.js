@@ -14,12 +14,23 @@ export function getInitialInputValue(value) {
 }
 
 export function spaceAndCapitalize(string) {
+  if (!string) return "";
+
   let capitalized_words = [];
+
+  // Split by underscores first
   let separated_string = string.split("_");
+
   for (let substring of separated_string) {
-    capitalized_words.push(
-      substring.charAt(0).toUpperCase() + substring.slice(1)
-    );
+    // Insert space before capital letters that follow lowercase letters
+    let withSpaces = substring.replace(/([a-z])([A-Z])/g, "$1 $2");
+
+    // Capitalize each word in the split string
+    let words = withSpaces
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1));
+
+    capitalized_words.push(words.join(" "));
   }
 
   return capitalized_words.join(" ");

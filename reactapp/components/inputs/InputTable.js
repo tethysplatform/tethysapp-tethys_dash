@@ -21,6 +21,7 @@ const InputTable = ({
   onChange,
   values,
   disabledFields,
+  hiddenFields = [],
   allowRowCreation,
   headers,
   placeholders,
@@ -121,11 +122,13 @@ const InputTable = ({
           <thead>
             <tr>
               {tableHeaders.map((colHeader, index) => {
-                return (
-                  <th key={index} className="text-center">
-                    {colHeader}
-                  </th>
-                );
+                if (!hiddenFields.includes(colHeader)) {
+                  return (
+                    <th key={index} className="text-center">
+                      {colHeader}
+                    </th>
+                  );
+                }
               })}
             </tr>
           </thead>
@@ -133,61 +136,67 @@ const InputTable = ({
             {tableRows.map((row, rowIndex) => (
               <tr key={rowIndex}>
                 {Object.keys(row).map((field, fieldIndex) => {
-                  if (disabledFields && disabledFields.includes(field)) {
-                    return (
-                      <CenteredTD key={fieldIndex}>
-                        {typeof row[field] === "string"
-                          ? row[field]
-                          : JSON.stringify(row[field])}
-                      </CenteredTD>
-                    );
-                  } else {
-                    if (typeof row[field] === "boolean") {
+                  if (!hiddenFields.includes(field)) {
+                    if (disabledFields && disabledFields.includes(field)) {
                       return (
                         <CenteredTD key={fieldIndex}>
-                          <input
-                            type="checkbox"
-                            checked={row[field]}
-                            onChange={(e) =>
-                              handleChange(e.target.checked, rowIndex, field)
-                            }
-                            onKeyDown={(e) =>
-                              handleKeyDown(e, rowIndex, fieldIndex)
-                            }
-                            aria-label={`${field} Input ${rowIndex}`}
-                          />
+                          {typeof row[field] === "string"
+                            ? row[field]
+                            : JSON.stringify(row[field])}
                         </CenteredTD>
                       );
                     } else {
-                      return (
-                        <td key={fieldIndex}>
-                          <FullInput
-                            aria-label={`${field} Input ${rowIndex}`}
-                            type={types?.[rowIndex] ?? "text"}
-                            value={row[field]}
-                            ref={(el) =>
-                              (inputRefs.current[
-                                rowIndex * Object.keys(row).length + fieldIndex
-                              ] = el)
-                            }
-                            onChange={(e) =>
-                              handleChange(e.target.value, rowIndex, field)
-                            }
-                            onKeyDown={(e) =>
-                              handleKeyDown(e, rowIndex, fieldIndex)
-                            }
-                            placeholder={
-                              inputPlaceholders &&
-                              inputPlaceholders[rowIndex][field]
-                            }
-                            title={
-                              show_placeholder_on_hover &&
-                              inputPlaceholders &&
-                              inputPlaceholders[rowIndex][field]
-                            }
-                          />
-                        </td>
-                      );
+                      if (
+                        typeof row[field] === "boolean" ||
+                        types?.[rowIndex] === "checkbox"
+                      ) {
+                        return (
+                          <CenteredTD key={fieldIndex}>
+                            <input
+                              type="checkbox"
+                              checked={row[field]}
+                              onChange={(e) =>
+                                handleChange(e.target.checked, rowIndex, field)
+                              }
+                              onKeyDown={(e) =>
+                                handleKeyDown(e, rowIndex, fieldIndex)
+                              }
+                              aria-label={`${field} Input ${rowIndex}`}
+                            />
+                          </CenteredTD>
+                        );
+                      } else {
+                        return (
+                          <td key={fieldIndex}>
+                            <FullInput
+                              aria-label={`${field} Input ${rowIndex}`}
+                              type={types?.[rowIndex] ?? "text"}
+                              value={row[field]}
+                              ref={(el) =>
+                                (inputRefs.current[
+                                  rowIndex * Object.keys(row).length +
+                                    fieldIndex
+                                ] = el)
+                              }
+                              onChange={(e) =>
+                                handleChange(e.target.value, rowIndex, field)
+                              }
+                              onKeyDown={(e) =>
+                                handleKeyDown(e, rowIndex, fieldIndex)
+                              }
+                              placeholder={
+                                inputPlaceholders &&
+                                inputPlaceholders[rowIndex][field]
+                              }
+                              title={
+                                show_placeholder_on_hover &&
+                                inputPlaceholders &&
+                                inputPlaceholders[rowIndex][field]
+                              }
+                            />
+                          </td>
+                        );
+                      }
                     }
                   }
                 })}
