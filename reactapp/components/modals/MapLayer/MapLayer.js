@@ -114,7 +114,7 @@ const MapLayerModal = ({
     );
 
     if (layerVisibility === false) {
-      mapConfiguration.layerVisibility = false;
+      mapConfiguration.configuration.layerVisibility = false;
     }
 
     if (Object.keys(minAttributeVariables).length > 0) {

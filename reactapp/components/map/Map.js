@@ -52,6 +52,7 @@ const MapComponent = ({
   const mapContext = useMapContext();
   const setMapReady = mapContext?.setMapReady;
   const mapReady = mapContext?.mapReady;
+  const isFirstRender = useRef(true);
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -157,6 +158,12 @@ const MapComponent = ({
               layerConfig,
               visualizationRef.current.getView().getProjection().getCode()
             );
+            if (
+              layerConfig.layerVisibility === false &&
+              isFirstRender.current
+            ) {
+              layerInstance.setVisible(false);
+            }
             visualizationRef.current.addLayer(layerInstance);
             if (layerConfig.style) {
               await applyStyle(
@@ -206,6 +213,10 @@ const MapComponent = ({
 
       if (!mapReady && setMapReady) {
         setMapReady(true);
+      }
+
+      if (layers && !dataviewerViz && isFirstRender.current) {
+        isFirstRender.current = false;
       }
     };
 

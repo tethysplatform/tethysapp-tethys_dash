@@ -80,7 +80,7 @@ const MapLayerTemplate = ({
         ([key]) => key !== "source"
       )
     );
-    layerProps.layerVisibility = existingMapLayer.layerVisibility;
+    layerProps.layerVisibility = existingMapLayer.configuration.layerVisibility;
 
     const updatedLayerInfo = {
       sourceProps: existingMapLayer.configuration.props.source,
