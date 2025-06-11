@@ -120,7 +120,6 @@ const MapComponent = ({
     } else {
       mapViewConfig.fit(extent.split(","), {
         size: visualizationRef.current.getSize(),
-        padding: [20, 20, 20, 20],
       });
       setZoom(mapViewConfig.getZoom().toFixed(2));
       setLonLat(mapViewConfig.getCenter());

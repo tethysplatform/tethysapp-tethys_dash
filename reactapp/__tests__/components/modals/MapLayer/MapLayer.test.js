@@ -1029,6 +1029,9 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
   const nameInput = await screen.findByLabelText("Name Input");
   fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
 
+  const visibilityToggle = screen.getByLabelText("Default Visibility Toggle");
+  fireEvent.click(visibilityToggle);
+
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
@@ -1067,6 +1070,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
         },
       },
       type: "ImageLayer",
+      layerVisibility: false,
     },
     attributeVariables: {
       "New Layer Name": {

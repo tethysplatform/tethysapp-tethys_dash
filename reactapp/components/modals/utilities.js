@@ -14,8 +14,6 @@ export function getInitialInputValue(value) {
 }
 
 export function spaceAndCapitalize(string) {
-  if (!string) return "";
-
   let capitalized_words = [];
 
   // Split by underscores first

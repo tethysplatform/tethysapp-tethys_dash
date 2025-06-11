@@ -91,7 +91,7 @@ test("Custom Map Config and View Config", async () => {
       <TestingComponent
         mapProps={{
           mapConfig: { style: { width: "50%" } },
-          mapExtent: "-10686671.12, 4721671.57, 7}",
+          mapExtent: "-10686671.12, 4721671.57, 7",
         }}
       />
     </MapContextProvider>
@@ -114,16 +114,38 @@ test("Custom Map Config and View Config", async () => {
       <TestingComponent
         mapProps={{
           mapConfig: { style: { width: "50%" } },
-          viewConfig: { zoom: 7 },
+          mapExtent: "-10686671.12, 4721671.57, 8",
         }}
       />
     </MapContextProvider>
   );
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({
-      zoom: 7,
+      zoom: 8,
       center: [-10686671.12, 4721671.57],
     })
+  );
+});
+
+test("Custom bounding box map extent", async () => {
+  render(
+    <MapContextProvider>
+      <TestingComponent
+        mapProps={{
+          mapConfig: { style: { width: "50%" } },
+          mapExtent: "10, 20, 30, 40",
+        }}
+      />
+    </MapContextProvider>
+  );
+
+  const mapDiv = await screen.findByLabelText("Map Div");
+  expect(mapDiv).toBeInTheDocument();
+  expect(mapDiv).toHaveStyle("width: 50%");
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  expect(await screen.findByTestId("map-view")).toHaveTextContent(
+    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
   );
 });
 
@@ -174,6 +196,58 @@ test("Map Layers and Updated Layers", async () => {
     "World Light Gray Base"
   );
   expect(addLayerSpy.mock.calls[1][0].values_.name).toBe("esri");
+});
+
+test("Map Layers  default invisible layer", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const layers = [
+    {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "Image Tile",
+          props: {
+            url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+          },
+        },
+        name: "World Light Gray Base",
+        zIndex: 0,
+      },
+    },
+    {
+      type: "ImageLayer",
+      props: {
+        name: "esri",
+        source: {
+          type: "ESRI Image and Map Service",
+          props: {
+            url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+          },
+        },
+        zIndex: 1,
+      },
+      layerVisibility: false,
+    },
+  ];
+
+  render(
+    <MapContextProvider>
+      <TestingComponent mapProps={{ layers }} />
+    </MapContextProvider>
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(2);
+  });
+
+  expect(addLayerSpy.mock.calls[0][0].values_.name).toBe(
+    "World Light Gray Base"
+  );
+  expect(addLayerSpy.mock.calls[0][0].isVisible()).toBe(true);
+  expect(addLayerSpy.mock.calls[1][0].values_.name).toBe("esri");
+  expect(addLayerSpy.mock.calls[1][0].isVisible()).toBe(false);
 });
 
 test("Bad Map Layers", async () => {
