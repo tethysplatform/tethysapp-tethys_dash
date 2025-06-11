@@ -25,14 +25,35 @@ test("LayerPane", async () => {
     JSON.stringify({ name: "some name" })
   );
 
-  expect(await screen.findByText("opacity")).toBeInTheDocument();
-  expect(await screen.findByText("minResolution")).toBeInTheDocument();
-  expect(await screen.findByText("maxResolution")).toBeInTheDocument();
-  expect(await screen.findByText("minZoom")).toBeInTheDocument();
-  expect(await screen.findByText("maxZoom")).toBeInTheDocument();
+  expect(await screen.findByText("Opacity")).toBeInTheDocument();
+  expect(await screen.findByText("Min Resolution")).toBeInTheDocument();
+  expect(await screen.findByText("Max Resolution")).toBeInTheDocument();
+  expect(await screen.findByText("Min Zoom")).toBeInTheDocument();
+  expect(await screen.findByText("Max Zoom")).toBeInTheDocument();
 
   const opacityInput = await screen.findByLabelText("value Input 0");
   fireEvent.change(opacityInput, { target: { value: ".5" } });
+  expect(await screen.findByTestId("layerProps")).toHaveTextContent(
+    JSON.stringify({ name: "some name", opacity: ".5" })
+  );
+
+  expect(await screen.findByText("Default Visibility")).toBeInTheDocument();
+  expect(await screen.findByText("Invisible")).toBeInTheDocument();
+  expect(await screen.findByText("Visible")).toBeInTheDocument();
+
+  const visibilityToggle = await screen.findByLabelText(
+    "Default Visibility Toggle"
+  );
+  expect(visibilityToggle.checked).toBe(true);
+  fireEvent.click(visibilityToggle);
+  expect(visibilityToggle.checked).toBe(false);
+
+  expect(await screen.findByTestId("layerProps")).toHaveTextContent(
+    JSON.stringify({ name: "some name", opacity: ".5", layerVisibility: false })
+  );
+
+  fireEvent.click(visibilityToggle);
+
   expect(await screen.findByTestId("layerProps")).toHaveTextContent(
     JSON.stringify({ name: "some name", opacity: ".5" })
   );
