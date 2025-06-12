@@ -315,9 +315,9 @@ const DashboardItem = ({
           fluid
           className="h-100 gridVisualization"
           aria-label="gridItem"
-          onDoubleClick={() => {
-            setShowFullscreen(true);
-          }}
+          // onDoubleClick={() => {
+          //   setShowFullscreen(true);
+          // }}
         >
           <CustomAlert
             alertType={"success"}

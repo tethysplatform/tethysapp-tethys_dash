@@ -148,6 +148,7 @@ const Popup = ({ layerAttributes }) => (
 const MapVisualization = ({
   mapConfig,
   mapExtent,
+  mapDrawing,
   layers,
   visualizationRef,
   baseMap,
@@ -168,6 +169,8 @@ const MapVisualization = ({
   const popupOverlayRef = useRef(null);
   const popupContainerRef = useRef(document.createElement("div"));
   const popupRootRef = useRef(null);
+
+  const drawing = useRef(false);
 
   // Mount the React popup inside the container div
   useEffect(() => {
@@ -268,6 +271,8 @@ const MapVisualization = ({
   }, [layers, baseMap]);
 
   const onMapClick = async (map, evt) => {
+    if (drawing.current) return;
+
     const coordinate = evt.coordinate;
     const pixel = evt.pixel;
 
@@ -428,6 +433,8 @@ const MapVisualization = ({
       layers={mapLayers}
       legend={mapLegend}
       layerControl={layerControl}
+      mapDrawing={mapDrawing}
+      drawing={drawing}
       onMapClick={inDataViewerMode ? () => {} : onMapClick}
       visualizationRef={visualizationRef}
       data-testid="backlayer-map"

@@ -347,6 +347,7 @@ function VisualizationPane({
             layers: updatedGridItemArgs.layers,
             baseMap: updatedGridItemArgs.baseMap,
             layerControl: updatedGridItemArgs.layerControl,
+            mapDrawing: updatedGridItemArgs.mapDrawing,
           });
         } else {
           itemData.args = updatedGridItemArgs;

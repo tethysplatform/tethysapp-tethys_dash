@@ -168,7 +168,6 @@ const DashboardItemDropdown = ({
 
 DashboardItemDropdown.propTypes = {
   gridItemIndex: PropTypes.number,
-  showFullscreen: PropTypes.func,
   deleteGridItem: PropTypes.func,
   editGridItem: PropTypes.func,
   editSize: PropTypes.func,

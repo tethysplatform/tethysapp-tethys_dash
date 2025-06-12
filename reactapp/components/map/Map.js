@@ -3,6 +3,7 @@ import { Map, View } from "ol";
 import moduleLoader from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
 import LegendControl from "components/map/LegendControl";
+import DrawInteractions from "components/map/DrawInteractions";
 import {
   legendPropType,
   configurationPropType,
@@ -24,7 +25,7 @@ const StyledAlert = styled(Alert)`
 const InfoDiv = styled.div`
   position: absolute;
   top: 10px;
-  left: 10px;
+  right: 10px;
   background: rgba(255, 255, 255, 0.8);
   padding: 4px 8px;
   font-size: 12px;
@@ -38,6 +39,8 @@ const MapComponent = ({
   layers,
   legend,
   layerControl,
+  mapDrawing,
+  drawing,
   onMapClick,
   visualizationRef,
   dataviewerViz,
@@ -244,6 +247,13 @@ const MapComponent = ({
             <br></br>
             Projection: {projection}
           </InfoDiv>
+        )}
+        {mapDrawing && (
+          <DrawInteractions
+            mapDrawing={mapDrawing}
+            visualizationRef={visualizationRef}
+            drawing={drawing}
+          />
         )}
         <div>
           {layerControl && (

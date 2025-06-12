@@ -78,6 +78,7 @@ export const Visualization = memo(
             layerControl={vizData.layerControl}
             mapExtent={vizData.map_extent}
             mapConfig={vizData.mapConfig}
+            mapDrawing={vizData.mapDrawing}
             dataviewerViz={dataviewerViz}
           />
         );
@@ -239,6 +240,7 @@ const BaseVisualization = ({
           layerControl: updatedGridItemArgs.layerControl,
           map_extent: updatedGridItemArgs.map_extent,
           mapConfig: updatedGridItemArgs.mapConfig,
+          mapDrawing: updatedGridItemArgs.mapDrawing,
         });
       } else if (source === "Text") {
         setVizType("text");
