@@ -3,15 +3,18 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 
 const Container = styled.div`
+  margin-left: 1.5rem;
   gap: 1rem;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
 `;
 
 const drawingOptions = ["Point", "LineString", "Polygon", "Circle"];
 
 export const MapDrawing = ({ onChange, values, visualizationRef }) => {
-  const [selected, setSelected] = useState(values ?? []);
+  const [selected, setSelected] = useState(values?.options ?? []);
+  const [featureLimit, setFeatureLimit] = useState(values?.limit ?? 0);
 
   const handleToggle = (option) => {
     let newSelected;
@@ -21,31 +24,55 @@ export const MapDrawing = ({ onChange, values, visualizationRef }) => {
       newSelected = [...selected, option];
     }
     setSelected(newSelected);
-    onChange(newSelected);
+
+    const newValues = featureLimit
+      ? { options: newSelected, limit: featureLimit }
+      : { options: newSelected };
+    onChange(newValues);
+  };
+
+  const handleLimitChange = (e) => {
+    const value = parseInt(e.target.value, 10);
+    setFeatureLimit(value);
+
+    if (selected.length > 0) {
+      onChange({ options: selected, limit: value });
+    }
   };
 
   return (
-    <Container>
+    <>
       <p>
         <b>Map Drawing</b>:
       </p>
-      {drawingOptions.map((option) => (
-        <label key={option}>
-          {option}{" "}
+      <Container>
+        {drawingOptions.map((option) => (
+          <label key={option}>
+            {option}{" "}
+            <input
+              type="checkbox"
+              checked={selected.includes(option)}
+              onChange={() => handleToggle(option)}
+            />
+          </label>
+        ))}
+        <label>
+          <b>Drawn Feature Limit:</b>{" "}
           <input
-            type="checkbox"
-            checked={selected.includes(option)}
-            onChange={() => handleToggle(option)}
+            type="number"
+            min="1"
+            value={featureLimit}
+            onChange={handleLimitChange}
           />
         </label>
-      ))}
-    </Container>
+      </Container>
+    </>
   );
 };
 
 MapDrawing.propTypes = {
   onChange: PropTypes.func,
-  values: PropTypes.string,
+  values: PropTypes.arrayOf(PropTypes.string),
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),

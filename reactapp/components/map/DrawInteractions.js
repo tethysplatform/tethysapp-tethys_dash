@@ -58,8 +58,15 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
   const vectorSourceRef = useRef();
 
   const toggleDrawing = (type) => {
-    drawing.current = true;
-    setDrawType((prev) => (prev === type ? null : type));
+    setDrawType((prev) => {
+      if (prev === type) {
+        drawing.current = false;
+        return null;
+      } else {
+        drawing.current = true;
+        return type;
+      }
+    });
   };
 
   const stopDrawing = () => {
@@ -100,24 +107,60 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
       type: drawType,
     });
 
+    let drawEndHandler;
+
+    if (mapDrawing.limit) {
+      drawEndHandler = (event) => {
+        const source = vectorSourceRef.current;
+        if (!source) return;
+
+        const features = source.getFeatures();
+
+        if (features.length >= mapDrawing.limit) {
+          // Remove the oldest feature (first in the array)
+          source.removeFeature(features[0]);
+        }
+      };
+
+      drawInteraction.on("drawend", drawEndHandler);
+    }
+
     visualizationRef.current.addInteraction(drawInteraction);
     drawInteractionRef.current = drawInteraction;
 
     return () => {
+      if (drawInteraction && drawEndHandler) {
+        drawInteraction.un("drawend", drawEndHandler);
+      }
       visualizationRef.current?.removeInteraction(drawInteraction);
     };
   }, [mapDrawing, drawType]);
+
+  useEffect(() => {
+    const source = vectorSourceRef.current;
+
+    if (mapDrawing.limit >= 0 && source) {
+      let features = source.getFeatures();
+
+      while (features.length > mapDrawing.limit) {
+        source.removeFeature(features[0]); // Remove oldest
+        features = source.getFeatures(); // Refresh the list
+      }
+    }
+  }, [mapDrawing.limit]);
 
   const clearAll = () => {
     vectorSourceRef.current?.clear();
   };
 
+  if (!mapDrawing.options) return;
+
   return (
     <>
-      {mapDrawing.length === 0 ? null : (
+      {mapDrawing.options && mapDrawing.options?.length === 0 ? null : (
         <InteractionsWrapper>
           <InteractionsContainer>
-            {mapDrawing.map((mapDrawingType) => (
+            {mapDrawing.options.map((mapDrawingType) => (
               <DrawButton
                 key={mapDrawingType}
                 onClick={() => toggleDrawing(mapDrawingType)}

@@ -44,10 +44,18 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   useEffect(() => {
     if (!values) {
       setCustomExtent("-10686671.12,4721671.57,4.5");
-      onChange("-10686671.12,4721671.90,4.5");
     }
     // eslint-disable-next-line
   }, []);
+
+  useEffect(() => {
+    if (customExtent) {
+      const isValid = isValidExtentInput(customExtent);
+      if (isValid) {
+        onChange(customExtent);
+      }
+    }
+  }, [customExtent]);
 
   useEffect(() => {
     if (!mapReady || !visualizationRef.current) return;
