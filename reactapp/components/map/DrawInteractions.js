@@ -88,6 +88,7 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
           "circle-radius": 7,
           "circle-fill-color": "#ffcc33",
         },
+        zIndex: 9999,
       });
       visualizationRef.current.addLayer(interactionLayer);
 
