@@ -25,6 +25,11 @@ export const MapDrawing = ({ onChange, values, visualizationRef }) => {
     }
     setSelected(newSelected);
 
+    if (newSelected.length === 0) {
+      onChange({});
+      return;
+    }
+
     const newValues = featureLimit
       ? { options: newSelected, limit: featureLimit }
       : { options: newSelected };
