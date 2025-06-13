@@ -56,8 +56,6 @@ it("Initializes a Base Item with an empty div", async () => {
           source={""}
           argsString={"{}"}
           metadataString={"{}"}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -89,8 +87,6 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
           source={mockedApiImageBase.source}
           argsString={mockedApiImageBase.args_string}
           metadataString={mockedApiImageBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -113,8 +109,6 @@ it("Creates an Base Item with a Custom Image", async () => {
           source={mockedCustomImageBase.source}
           argsString={mockedCustomImageBase.args_string}
           metadataString={mockedCustomImageBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -132,8 +126,6 @@ it("Creates an Base Item with a Text Box", async () => {
           source={mockedTextBase.source}
           argsString={mockedTextBase.args_string}
           metadataString={mockedTextBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -154,8 +146,6 @@ it("Creates an Base Item with a Map", async () => {
             source={mockedMapBase.source}
             argsString={mockedMapBase.args_string}
             metadataString={mockedMapBase.metadata_string}
-            showFullscreen={false}
-            hideFullscreen={jest.fn()}
           />
         </div>
       ),
@@ -185,8 +175,6 @@ it("Creates an Base Item with a variable input text box", async () => {
             source={mockedTextVariable.source}
             argsString={mockedTextVariable.args_string}
             metadataString={mockedTextVariable.metadata_string}
-            showFullscreen={false}
-            hideFullscreen={jest.fn()}
           />
           <InputVariablePComponent />
         </>
@@ -245,8 +233,6 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
           source={apiImageBase.source}
           argsString={apiImageBase.args_string}
           metadataString={apiImageBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -306,8 +292,6 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
           source={apiImageBase.source}
           argsString={apiImageBase.args_string}
           metadataString={apiImageBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
       options: { inEditing: true },
@@ -357,8 +341,6 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
           source={mockedPlotBase.source}
           argsString={mockedPlotBase.args_string}
           metadataString={mockedPlotBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -394,8 +376,6 @@ it("Creates an Base Item with a custom module obtained from the api", async () =
           source={mockedTableBase.source}
           argsString={mockedTableBase.args_string}
           metadataString={mockedTableBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -431,8 +411,6 @@ it("Creates an Base Item with a table obtained from the api", async () => {
           source={mockedTableBase.source}
           argsString={mockedTableBase.args_string}
           metadataString={mockedTableBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -468,8 +446,6 @@ it("Creates an Base Item with a card obtained from the api", async () => {
           source={mockedCardBase.source}
           argsString={mockedCardBase.args_string}
           metadataString={mockedCardBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -505,8 +481,6 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
           source={mockedUnknownBase.source}
           argsString={mockedUnknownBase.args_string}
           metadataString={mockedUnknownBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -543,8 +517,6 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
           source={mockedUnknownBase.source}
           argsString={mockedUnknownBase.args_string}
           metadataString={mockedUnknownBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -604,15 +576,11 @@ it("Base - update variable input", async () => {
             source={mockedDashboard.gridItems[0].source}
             argsString={mockedDashboard.gridItems[0].args_string}
             metadataString={mockedDashboard.gridItems[0].metadata_string}
-            showFullscreen={false}
-            hideFullscreen={jest.fn()}
           />
           <BaseVisualization
             source={mockedDashboard.gridItems[1].source}
             argsString={mockedDashboard.gridItems[1].args_string}
             metadataString={mockedDashboard.gridItems[1].metadata_string}
-            showFullscreen={false}
-            hideFullscreen={jest.fn()}
           />
         </>
       ),

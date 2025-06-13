@@ -97,16 +97,18 @@ it("existing Custom MapExtent", async () => {
 
   const input = screen.getByLabelText("Custom Extent Input");
 
+  expect(input.value).toBe(values);
   await waitFor(() => {
-    expect(input.value).toBe(values);
+    expect(onChange.mock.calls[0][0]).toBe(values);
   });
+  expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 
   const invalidValues = "10,20";
   fireEvent.change(input, {
     target: { value: invalidValues },
   });
 
-  expect(onChange.mock.calls[0][0]).toBe("");
+  expect(onChange.mock.calls[1][0]).toBe("");
   expect(window.getComputedStyle(input).borderColor).toBe("red");
 
   const validValues = "10,20,30,40";
@@ -114,7 +116,7 @@ it("existing Custom MapExtent", async () => {
     target: { value: validValues },
   });
 
-  expect(onChange.mock.calls[1][0]).toBe(validValues);
+  expect(onChange.mock.calls[2][0]).toBe(validValues);
   expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 
   const moreInvalidValues = "10,20,30,40, 50";
@@ -122,7 +124,7 @@ it("existing Custom MapExtent", async () => {
     target: { value: moreInvalidValues },
   });
 
-  expect(onChange.mock.calls[2][0]).toBe("");
+  expect(onChange.mock.calls[3][0]).toBe("");
   expect(window.getComputedStyle(input).borderColor).toBe("red");
 
   // eslint-disable-next-line
@@ -131,7 +133,7 @@ it("existing Custom MapExtent", async () => {
     target: { value: variableValues },
   });
 
-  expect(onChange.mock.calls[3][0]).toBe(variableValues);
+  expect(onChange.mock.calls[4][0]).toBe(variableValues);
   expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 
   // eslint-disable-next-line
@@ -140,7 +142,7 @@ it("existing Custom MapExtent", async () => {
     target: { value: moreVariableValues },
   });
 
-  expect(onChange.mock.calls[4][0]).toBe(moreVariableValues);
+  expect(onChange.mock.calls[5][0]).toBe(moreVariableValues);
   expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 
   // eslint-disable-next-line
@@ -149,7 +151,7 @@ it("existing Custom MapExtent", async () => {
     target: { value: evenMoreVariableValues },
   });
 
-  expect(onChange.mock.calls[5][0]).toBe(evenMoreVariableValues);
+  expect(onChange.mock.calls[6][0]).toBe(evenMoreVariableValues);
   expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 });
 

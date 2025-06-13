@@ -51,9 +51,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   useEffect(() => {
     if (customExtent) {
       const isValid = isValidExtentInput(customExtent);
-      if (isValid) {
-        onChange(customExtent);
-      }
+      onChange(isValid ? customExtent : "");
     }
   }, [customExtent]);
 
@@ -108,13 +106,11 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     });
   };
 
-  const onCustomExtentChange = (type, value) => {
+  const onCustomExtentChange = (value) => {
     const isValid = isValidExtentInput(value);
 
     setCustomExtent(value);
     setCustomExtentValid(isValid);
-
-    onChange(isValid ? value : "");
   };
 
   return (
@@ -133,9 +129,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
             Custom Extent
             <FullInput
               value={customExtent}
-              onChange={(e) =>
-                onCustomExtentChange("customExtent", e.target.value)
-              }
+              onChange={(e) => onCustomExtentChange(e.target.value)}
               placeholder="minX, minY, maxX, maxY OR Lon, Lat, Zoom"
               isValid={customExtentValid}
               aria-label="Custom Extent Input"
