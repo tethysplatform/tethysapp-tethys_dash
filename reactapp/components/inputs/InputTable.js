@@ -122,13 +122,13 @@ const InputTable = ({
           <thead>
             <tr>
               {tableHeaders.map((colHeader, index) => {
-                if (!hiddenFields.includes(colHeader)) {
-                  return (
-                    <th key={index} className="text-center">
-                      {colHeader}
-                    </th>
-                  );
-                }
+                if (hiddenFields.includes(colHeader)) return null;
+
+                return (
+                  <th key={index} className="text-center">
+                    {colHeader}
+                  </th>
+                );
               })}
             </tr>
           </thead>
@@ -136,67 +136,66 @@ const InputTable = ({
             {tableRows.map((row, rowIndex) => (
               <tr key={rowIndex}>
                 {Object.keys(row).map((field, fieldIndex) => {
-                  if (!hiddenFields.includes(field)) {
-                    if (disabledFields && disabledFields.includes(field)) {
+                  if (hiddenFields.includes(field)) return null;
+
+                  if (disabledFields && disabledFields.includes(field)) {
+                    return (
+                      <CenteredTD key={fieldIndex}>
+                        {typeof row[field] === "string"
+                          ? row[field]
+                          : JSON.stringify(row[field])}
+                      </CenteredTD>
+                    );
+                  } else {
+                    if (
+                      typeof row[field] === "boolean" ||
+                      types?.[rowIndex] === "checkbox"
+                    ) {
                       return (
                         <CenteredTD key={fieldIndex}>
-                          {typeof row[field] === "string"
-                            ? row[field]
-                            : JSON.stringify(row[field])}
+                          <input
+                            type="checkbox"
+                            checked={row[field]}
+                            onChange={(e) =>
+                              handleChange(e.target.checked, rowIndex, field)
+                            }
+                            onKeyDown={(e) =>
+                              handleKeyDown(e, rowIndex, fieldIndex)
+                            }
+                            aria-label={`${field} Input ${rowIndex}`}
+                          />
                         </CenteredTD>
                       );
                     } else {
-                      if (
-                        typeof row[field] === "boolean" ||
-                        types?.[rowIndex] === "checkbox"
-                      ) {
-                        return (
-                          <CenteredTD key={fieldIndex}>
-                            <input
-                              type="checkbox"
-                              checked={row[field]}
-                              onChange={(e) =>
-                                handleChange(e.target.checked, rowIndex, field)
-                              }
-                              onKeyDown={(e) =>
-                                handleKeyDown(e, rowIndex, fieldIndex)
-                              }
-                              aria-label={`${field} Input ${rowIndex}`}
-                            />
-                          </CenteredTD>
-                        );
-                      } else {
-                        return (
-                          <td key={fieldIndex}>
-                            <FullInput
-                              aria-label={`${field} Input ${rowIndex}`}
-                              type={types?.[rowIndex] ?? "text"}
-                              value={row[field]}
-                              ref={(el) =>
-                                (inputRefs.current[
-                                  rowIndex * Object.keys(row).length +
-                                    fieldIndex
-                                ] = el)
-                              }
-                              onChange={(e) =>
-                                handleChange(e.target.value, rowIndex, field)
-                              }
-                              onKeyDown={(e) =>
-                                handleKeyDown(e, rowIndex, fieldIndex)
-                              }
-                              placeholder={
-                                inputPlaceholders &&
-                                inputPlaceholders[rowIndex][field]
-                              }
-                              title={
-                                show_placeholder_on_hover &&
-                                inputPlaceholders &&
-                                inputPlaceholders[rowIndex][field]
-                              }
-                            />
-                          </td>
-                        );
-                      }
+                      return (
+                        <td key={fieldIndex}>
+                          <FullInput
+                            aria-label={`${field} Input ${rowIndex}`}
+                            type={types?.[rowIndex] ?? "text"}
+                            value={row[field]}
+                            ref={(el) =>
+                              (inputRefs.current[
+                                rowIndex * Object.keys(row).length + fieldIndex
+                              ] = el)
+                            }
+                            onChange={(e) =>
+                              handleChange(e.target.value, rowIndex, field)
+                            }
+                            onKeyDown={(e) =>
+                              handleKeyDown(e, rowIndex, fieldIndex)
+                            }
+                            placeholder={
+                              inputPlaceholders &&
+                              inputPlaceholders[rowIndex][field]
+                            }
+                            title={
+                              show_placeholder_on_hover &&
+                              inputPlaceholders &&
+                              inputPlaceholders[rowIndex][field]
+                            }
+                          />
+                        </td>
+                      );
                     }
                   }
                 })}
@@ -225,6 +224,7 @@ InputTable.propTypes = {
     )
   ).isRequired, // array of objects (rows) that contain colum keys and values
   disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
+  hiddenFields: PropTypes.arrayOf(PropTypes.string), // array of fields to hide
   allowRowCreation: PropTypes.bool, // determines if the table rows can be added
   headers: PropTypes.arrayOf(PropTypes.string), // array of strings to use for table headers
   placeholders: PropTypes.arrayOf(PropTypes.objectOf(PropTypes.string)), // object with key as field and value as placeholder

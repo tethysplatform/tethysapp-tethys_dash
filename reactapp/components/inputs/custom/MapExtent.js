@@ -53,6 +53,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
       const isValid = isValidExtentInput(customExtent);
       onChange(isValid ? customExtent : "");
     }
+    // eslint-disable-next-line
   }, [customExtent]);
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import styled from "styled-components";
 import { Form } from "react-bootstrap";
+import PropTypes from "prop-types";
 
 const CenteredForm = styled(Form)`
   align-content: center;
@@ -40,6 +41,14 @@ const Toggle = ({
       </Form.Group>
     </CenteredForm>
   );
+};
+
+Toggle.propTypes = {
+  defaultValue: PropTypes.bool,
+  label: PropTypes.string,
+  uncheckedLabel: PropTypes.string,
+  checkedLabel: PropTypes.string,
+  onChange: PropTypes.func,
 };
 
 export default Toggle;

@@ -6,7 +6,9 @@ import { TbPointFilled } from "react-icons/tb";
 import { MdHorizontalRule } from "react-icons/md";
 import { FaDrawPolygon, FaRegCircle } from "react-icons/fa6";
 import { BsSignStopFill, BsEraser } from "react-icons/bs";
+import { mapDrawingPropType } from "components/map/utilities";
 import styled from "styled-components";
+import PropTypes from "prop-types";
 
 const InteractionsWrapper = styled.div`
   position: absolute;
@@ -113,7 +115,6 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
     if (mapDrawing.limit) {
       drawEndHandler = (event) => {
         const source = vectorSourceRef.current;
-        if (!source) return;
 
         const features = source.getFeatures();
 
@@ -133,8 +134,10 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
       if (drawInteraction && drawEndHandler) {
         drawInteraction.un("drawend", drawEndHandler);
       }
+      // eslint-disable-next-line
       visualizationRef.current?.removeInteraction(drawInteraction);
     };
+    // eslint-disable-next-line
   }, [mapDrawing, drawType]);
 
   useEffect(() => {
@@ -182,6 +185,15 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
       )}
     </>
   );
+};
+
+DrawInteractions.propTypes = {
+  mapDrawing: mapDrawingPropType,
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
+  drawing: PropTypes.bool,
 };
 
 export default DrawInteractions;

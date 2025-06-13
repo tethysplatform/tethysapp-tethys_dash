@@ -7,6 +7,7 @@ import DrawInteractions from "components/map/DrawInteractions";
 import {
   legendPropType,
   configurationPropType,
+  mapDrawingPropType,
 } from "components/map/utilities";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
@@ -284,6 +285,8 @@ MapComponent.propTypes = {
   onMapClick: PropTypes.func, // function for when user click on the map
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
+  mapDrawing: mapDrawingPropType,
+  drawing: PropTypes.bool,
 };
 
 export default memo(MapComponent);

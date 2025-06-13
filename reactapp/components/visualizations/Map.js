@@ -6,6 +6,7 @@ import {
   createHighlightLayer,
   createMarkerLayer,
   configurationPropType,
+  mapDrawingPropType,
   loadLayerJSONs,
 } from "components/map/utilities";
 import PropTypes from "prop-types";
@@ -455,6 +456,7 @@ MapVisualization.propTypes = {
   baseMap: PropTypes.string, // url for basemap layer, maps to baseMapLayers layers in components/visualizations/utilities.js
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
+  mapDrawing: mapDrawingPropType, // contains draw interaction metadata like options and limits
 };
 
 Popup.propTypes = {

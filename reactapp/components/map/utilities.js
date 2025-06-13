@@ -795,3 +795,8 @@ export const layerInfoPropType = PropTypes.shape({
   attributeVariables: attributeVariablesPropType,
   omittedPopupAttributes: omittedPopupAttributesPropType,
 });
+
+export const mapDrawingPropType = PropTypes.shape({
+  options: PropTypes.arrayOf(PropTypes.string),
+  limit: PropTypes.number,
+});
