@@ -175,7 +175,11 @@ const VariableInput = ({
 };
 
 VariableInput.propTypes = {
-  initial_value: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
+  initial_value: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.bool,
+    PropTypes.number,
+  ]),
   variable_name: PropTypes.string,
   variable_options_source: PropTypes.string, // This is where the name of the source comes in like in the dropdown
   onChange: PropTypes.func,

@@ -945,7 +945,9 @@ test("Map click query error", async () => {
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-  expect(popSetPosition).toHaveBeenLastCalledWith(clickCoordinates);
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith(clickCoordinates);
+  });
   expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
 });
 

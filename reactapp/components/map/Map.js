@@ -286,7 +286,7 @@ MapComponent.propTypes = {
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType,
-  drawing: PropTypes.bool,
+  drawing: PropTypes.shape({ current: PropTypes.bool }),
 };
 
 export default memo(MapComponent);

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, memo } from "react";
 import { Vector as VectorLayer } from "ol/layer";
 import VectorSource from "ol/source/Vector";
 import { Draw } from "ol/interaction";
@@ -77,7 +77,7 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
   };
 
   useEffect(() => {
-    if (!mapDrawing || !visualizationRef.current) return;
+    if (!mapDrawing || !visualizationRef.current || !drawType) return;
 
     if (!vectorSourceRef.current) {
       const interactionSource = new VectorSource();
@@ -100,10 +100,7 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
     // Remove previous draw interaction
     if (drawInteractionRef.current) {
       visualizationRef.current.removeInteraction(drawInteractionRef.current);
-      drawInteractionRef.current = null;
     }
-
-    if (!drawType) return;
 
     const drawInteraction = new Draw({
       source: vectorSourceRef.current,
@@ -193,7 +190,7 @@ DrawInteractions.propTypes = {
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),
   ]),
-  drawing: PropTypes.bool,
+  drawing: PropTypes.shape({ current: PropTypes.bool }),
 };
 
-export default DrawInteractions;
+export default memo(DrawInteractions);

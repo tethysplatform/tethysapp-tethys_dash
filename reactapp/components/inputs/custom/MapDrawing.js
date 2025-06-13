@@ -1,6 +1,7 @@
 import { useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
+import { mapDrawingPropType } from "components/map/utilities";
 
 const Container = styled.div`
   margin-left: 1.5rem;
@@ -12,7 +13,7 @@ const Container = styled.div`
 
 const drawingOptions = ["Point", "LineString", "Polygon", "Circle"];
 
-export const MapDrawing = ({ onChange, values, visualizationRef }) => {
+export const MapDrawing = ({ onChange, values }) => {
   const [selected, setSelected] = useState(values?.options ?? []);
   const [featureLimit, setFeatureLimit] = useState(values?.limit ?? 0);
 
@@ -77,9 +78,5 @@ export const MapDrawing = ({ onChange, values, visualizationRef }) => {
 
 MapDrawing.propTypes = {
   onChange: PropTypes.func,
-  values: PropTypes.arrayOf(PropTypes.string),
-  visualizationRef: PropTypes.oneOfType([
-    PropTypes.func,
-    PropTypes.shape({ current: PropTypes.any }),
-  ]),
+  values: mapDrawingPropType,
 };

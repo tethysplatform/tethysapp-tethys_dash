@@ -135,6 +135,7 @@ test("Draw Interactions clear features", async () => {
       drawing={drawing}
     />
   );
+  fireEvent.click(screen.getByTitle("Draw Point"));
 
   const clearFeaturesButton = screen.getByTitle("Clear All Features");
   fireEvent.click(clearFeaturesButton);
