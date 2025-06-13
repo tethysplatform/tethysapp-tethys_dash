@@ -59,12 +59,14 @@ test("Default Map", async () => {
   expect(mapDiv).toHaveStyle("width: 100%");
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-  expect(await screen.findByTestId("map-view")).toHaveTextContent(
-    JSON.stringify({
-      zoom: 4.5,
-      center: [-10686671.12, 4721671.57],
-    })
-  );
+  await waitFor(async () => {
+    expect(await screen.findByTestId("map-view")).toHaveTextContent(
+      JSON.stringify({
+        zoom: 4.5,
+        center: [-10686671.12, 4721671.57],
+      })
+    );
+  });
 
   expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
   expect(

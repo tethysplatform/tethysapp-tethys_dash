@@ -885,8 +885,10 @@ test("Map click attribute variables Null values", async () => {
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-  // popup
-  expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+  });
 
   expect(await screen.findByText("Some Layer")).toBeInTheDocument();
   expect(await screen.findByText("Field")).toBeInTheDocument();
