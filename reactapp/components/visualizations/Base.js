@@ -211,7 +211,7 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
 
     const itemData = { source: source, args: args };
     const updatedGridItemArgs = updateObjectWithVariableInputs(
-      argsString,
+      args,
       variableInputValues
     );
 

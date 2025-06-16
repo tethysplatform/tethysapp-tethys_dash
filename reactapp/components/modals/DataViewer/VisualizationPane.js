@@ -337,7 +337,7 @@ function VisualizationPane({
         });
       } else {
         const updatedGridItemArgs = updateObjectWithVariableInputs(
-          JSON.stringify(itemData.args),
+          itemData.args,
           variableInputValues
         );
         if (selectedVizTypeOption.value === "Map") {

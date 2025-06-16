@@ -2,6 +2,7 @@ import { useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import { mapDrawingPropType } from "components/map/utilities";
+import { drawTypes } from "components/map/DrawInteractions";
 
 const Container = styled.div`
   margin-left: 1.5rem;
@@ -11,11 +12,12 @@ const Container = styled.div`
   align-items: center;
 `;
 
-const drawingOptions = ["Point", "LineString", "Polygon", "Circle"];
-
 export const MapDrawing = ({ onChange, values }) => {
   const [selected, setSelected] = useState(values?.options ?? []);
   const [featureLimit, setFeatureLimit] = useState(values?.limit ?? 0);
+  const [geometryVariable, setGeometryVariable] = useState(
+    values?.variable ?? ""
+  );
 
   const handleToggle = (option) => {
     let newSelected;
@@ -31,9 +33,11 @@ export const MapDrawing = ({ onChange, values }) => {
       return;
     }
 
-    const newValues = featureLimit
-      ? { options: newSelected, limit: featureLimit }
-      : { options: newSelected };
+    const newValues = {
+      options: newSelected,
+      ...(featureLimit && { limit: featureLimit }),
+      ...(geometryVariable && { variable: geometryVariable }),
+    };
     onChange(newValues);
   };
 
@@ -42,7 +46,26 @@ export const MapDrawing = ({ onChange, values }) => {
     setFeatureLimit(value);
 
     if (selected.length > 0) {
-      onChange({ options: selected, limit: value });
+      const newValues = {
+        options: selected,
+        limit: value,
+        ...(geometryVariable && { variable: geometryVariable }),
+      };
+      onChange(newValues);
+    }
+  };
+
+  const handleVariableChange = (e) => {
+    const value = e.target.value;
+    setGeometryVariable(value);
+
+    if (selected.length > 0) {
+      const newValues = {
+        options: selected,
+        variable: value,
+        ...(featureLimit && { limit: featureLimit }),
+      };
+      onChange(newValues);
     }
   };
 
@@ -52,7 +75,7 @@ export const MapDrawing = ({ onChange, values }) => {
         <b>Map Drawing</b>:
       </p>
       <Container>
-        {drawingOptions.map((option) => (
+        {Object.keys(drawTypes).map((option) => (
           <label key={option}>
             {option}{" "}
             <input
@@ -66,9 +89,17 @@ export const MapDrawing = ({ onChange, values }) => {
           <b>Drawn Feature Limit:</b>{" "}
           <input
             type="number"
-            min="1"
+            min="0"
             value={featureLimit}
             onChange={handleLimitChange}
+          />
+        </label>
+        <label>
+          <b>Geometry Variable Name:</b>{" "}
+          <input
+            type="text"
+            value={geometryVariable}
+            onChange={handleVariableChange}
           />
         </label>
       </Container>

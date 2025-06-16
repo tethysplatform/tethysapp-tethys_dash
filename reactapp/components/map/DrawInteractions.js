@@ -1,12 +1,15 @@
-import { useEffect, useState, useRef, memo } from "react";
+import { useEffect, useState, useRef, memo, useContext } from "react";
 import { Vector as VectorLayer } from "ol/layer";
 import VectorSource from "ol/source/Vector";
-import { Draw } from "ol/interaction";
+import Draw, { createBox } from "ol/interaction/Draw";
 import { TbPointFilled } from "react-icons/tb";
 import { MdHorizontalRule } from "react-icons/md";
-import { FaDrawPolygon, FaRegCircle } from "react-icons/fa6";
+import { FaDrawPolygon } from "react-icons/fa6";
+import { BiRectangle } from "react-icons/bi";
 import { BsSignStopFill, BsEraser } from "react-icons/bs";
 import { mapDrawingPropType } from "components/map/utilities";
+import { VariableInputsContext } from "components/contexts/Contexts";
+import GeoJSON from "ol/format/GeoJSON";
 import styled from "styled-components";
 import PropTypes from "prop-types";
 
@@ -47,17 +50,18 @@ const StopEraseButton = styled.button`
   }
 `;
 
-const drawTypes = {
+export const drawTypes = {
   Point: <TbPointFilled />,
   LineString: <MdHorizontalRule />,
   Polygon: <FaDrawPolygon />,
-  Circle: <FaRegCircle />,
+  Rectangle: <BiRectangle />,
 };
 
 const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
   const [drawType, setDrawType] = useState(null);
   const drawInteractionRef = useRef(null);
   const vectorSourceRef = useRef();
+  const { setVariableInputValues } = useContext(VariableInputsContext);
 
   const toggleDrawing = (type) => {
     setDrawType((prev) => {
@@ -104,13 +108,14 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
 
     const drawInteraction = new Draw({
       source: vectorSourceRef.current,
-      type: drawType,
+      type: drawType === "Rectangle" ? "Circle" : drawType,
+      geometryFunction: drawType === "Rectangle" && createBox(),
     });
 
     let drawEndHandler;
 
     if (mapDrawing.limit) {
-      drawEndHandler = (event) => {
+      drawEndHandler = ({ feature }) => {
         const source = vectorSourceRef.current;
 
         const features = source.getFeatures();
@@ -118,6 +123,32 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
         if (features.length >= mapDrawing.limit) {
           // Remove the oldest feature (first in the array)
           source.removeFeature(features[0]);
+        }
+
+        if (
+          mapDrawing.variable &&
+          source.getFeatures().length + 1 === mapDrawing.limit
+        ) {
+          const geometries = [];
+          source.getFeatures().forEach((existingFeature) => {
+            const existingFeaturegeometry = existingFeature.getGeometry();
+            const existingFeatureGeojson = new GeoJSON().writeGeometry(
+              existingFeaturegeometry
+            );
+            geometries.push(existingFeatureGeojson);
+          });
+
+          const geometry = feature.getGeometry();
+          const geojson = new GeoJSON().writeGeometry(geometry);
+          geometries.push(geojson);
+
+          setVariableInputValues((previousVariableInputValues) => ({
+            ...previousVariableInputValues,
+            ...{
+              [mapDrawing.variable]:
+                geometries.length > 1 ? geometries : geometries[0],
+            },
+          }));
         }
       };
 
