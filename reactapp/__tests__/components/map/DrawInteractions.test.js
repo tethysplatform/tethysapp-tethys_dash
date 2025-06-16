@@ -5,7 +5,9 @@ import VectorSource from "ol/source/Vector";
 import Feature from "ol/Feature";
 import Point from "ol/geom/Point";
 import { fromLonLat } from "ol/proj";
-import createLoadedComponent from "__tests__/utilities/customRender";
+import createLoadedComponent, {
+  InputVariablePComponent,
+} from "__tests__/utilities/customRender";
 
 test("Draw Interactions no options and no render", async () => {
   const mockMap = {
@@ -58,7 +60,7 @@ test("Draw Interactions no options and no render", async () => {
 });
 
 test("Draw Interactions click draw and then deselect", async () => {
-  const mapDrawing = { options: ["Point"], limit: 2 };
+  const mapDrawing = { options: ["Rectangle"], limit: 2 };
   const mockAddInteraction = jest.fn();
 
   const mockMap = {
@@ -82,7 +84,7 @@ test("Draw Interactions click draw and then deselect", async () => {
   render(LoadedComponent);
 
   // Click the "Draw Point" button to trigger interaction setup
-  const drawButton = await screen.findByTitle("Draw Point");
+  const drawButton = await screen.findByTitle("Draw Rectangle");
   fireEvent.click(drawButton);
 
   expect(drawing.current).toBe(true);
@@ -242,6 +244,160 @@ test("Draw Interactions drawend", async () => {
 
   expect(sourceRemoveFeature).toHaveBeenCalledWith(feature);
   expect(vectorSource.getFeatures().length).toBe(1);
+});
+
+test("Draw Interactions drawend update variables", async () => {
+  const addedInteractions = [];
+  const mockMap = {
+    addLayer: jest.fn(),
+    addInteraction: jest.fn((interaction) => {
+      addedInteractions.push(interaction); // Capture Draw
+    }),
+    removeInteraction: jest.fn(),
+    getView: jest.fn(() => ({
+      getProjection: jest.fn(() => ({
+        getCode: jest.fn(() => 3857),
+      })),
+    })),
+  };
+
+  const mapDrawing = { options: ["Point"], limit: 1, variable: "test" };
+  const visualizationRef = { current: mockMap };
+  const drawing = { current: false };
+  const target = { getMap: jest.fn(() => mockMap) };
+
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <>
+        <DrawInteractions
+          mapDrawing={mapDrawing}
+          visualizationRef={visualizationRef}
+          drawing={drawing}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+  });
+  render(LoadedComponent);
+
+  // Click the "Draw Point" button to trigger interaction setup
+  fireEvent.click(await screen.findByTitle("Draw Point"));
+
+  // Wait for the interaction to be created and added
+  expect(addedInteractions.length).toBeGreaterThan(0);
+  const drawInteraction = addedInteractions[0];
+
+  const feature = new Feature({
+    geometry: new Point(fromLonLat([-123.1, 49.3])), // longitude, latitude
+    name: "My Point Feature",
+  });
+
+  // Now we can safely dispatch the event
+  act(() => {
+    drawInteraction.dispatchEvent({
+      type: "drawend",
+      feature,
+      target,
+    });
+  });
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      test: {
+        projection: 3857,
+        geometries: [
+          {
+            type: "Point",
+            coordinates: [-13703429.316651978, 6325919.274572156],
+          },
+        ],
+      },
+    })
+  );
+});
+
+test("Draw Interactions drawend multiple features update variables", async () => {
+  const addedInteractions = [];
+  let interactionLayer;
+  const mockMap = {
+    addLayer: jest.fn((layer) => {
+      interactionLayer = layer;
+    }),
+    addInteraction: jest.fn((interaction) => {
+      addedInteractions.push(interaction); // Capture Draw
+    }),
+    removeInteraction: jest.fn(),
+    getView: jest.fn(() => ({
+      getProjection: jest.fn(() => ({
+        getCode: jest.fn(() => 3857),
+      })),
+    })),
+  };
+
+  const mapDrawing = { options: ["Point"], limit: 2, variable: "test" };
+  const visualizationRef = { current: mockMap };
+  const drawing = { current: false };
+  const target = { getMap: jest.fn(() => mockMap) };
+
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <>
+        <DrawInteractions
+          mapDrawing={mapDrawing}
+          visualizationRef={visualizationRef}
+          drawing={drawing}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+  });
+  render(LoadedComponent);
+
+  // Click the "Draw Point" button to trigger interaction setup
+  fireEvent.click(await screen.findByTitle("Draw Point"));
+
+  // Wait for the interaction to be created and added
+  expect(addedInteractions.length).toBeGreaterThan(0);
+  const drawInteraction = addedInteractions[0];
+
+  let vectorSource = interactionLayer.getSource();
+  const feature = new Feature({
+    geometry: new Point(fromLonLat([-123.1, 49.3])), // longitude, latitude
+    name: "My Point Feature",
+  });
+  vectorSource.addFeature(feature);
+
+  const feature2 = new Feature({
+    geometry: new Point(fromLonLat([-123.1, 50])), // longitude, latitude
+    name: "My Point Feature 2",
+  });
+
+  // Now we can safely dispatch the event
+  act(() => {
+    drawInteraction.dispatchEvent({
+      type: "drawend",
+      feature: feature2,
+      target,
+    });
+  });
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      test: {
+        projection: 3857,
+        geometries: [
+          {
+            type: "Point",
+            coordinates: [-13703429.316651978, 6325919.274572156],
+          },
+          {
+            type: "Point",
+            coordinates: [-13703429.316651978, 6446275.841017158],
+          },
+        ],
+      },
+    })
+  );
 });
 
 test("Draw Interactions drawend no limit", async () => {

@@ -191,7 +191,7 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
 
   return (
     <>
-      {mapDrawing.options && mapDrawing.options?.length === 0 ? null : (
+      {mapDrawing.options.length === 0 ? null : (
         <InteractionsWrapper>
           <InteractionsContainer>
             {mapDrawing.options.map((mapDrawingType) => (
