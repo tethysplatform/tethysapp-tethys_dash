@@ -15,7 +15,7 @@ const DataRadioSelect = ({
   blockedRadio,
 }) => {
   let RadioButtons = [];
-  const groupName = label.replace(" ", "-");
+  const groupName = label?.replace(" ", "-") ?? "radios";
   for (let i = 0; i < radioOptions.length; i++) {
     RadioButtons.push(
       <Form.Check
@@ -34,7 +34,11 @@ const DataRadioSelect = ({
 
   return (
     <StyledDiv>
-      <b>{label}</b>:
+      {label && (
+        <>
+          <b>{label}</b>:
+        </>
+      )}
       <br />
       {RadioButtons}
     </StyledDiv>

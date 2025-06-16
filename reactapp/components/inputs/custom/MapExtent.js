@@ -18,12 +18,17 @@ const FullInput = styled.input`
   }
 `;
 
+const StyledDiv = styled.div`
+  border: 1px solid #dedddd;
+`;
+
 const InputRow = styled.div`
   margin-left: 1.5rem;
   display: flex;
-  gap: 1rem; /* space between inputs */
+  gap: 1rem;
   align-items: center;
   margin-bottom: 1rem;
+  padding-right: 1rem;
 `;
 
 const InputLabel = styled.label`
@@ -31,15 +36,40 @@ const InputLabel = styled.label`
   font-weight: bold;
 `;
 
+const CollapsibleHeader = styled.div`
+  cursor: pointer;
+  font-weight: bold;
+  background: #f2f2f2;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+`;
+
+const ArrowIcon = styled.span`
+  font-size: 1.5rem;
+  line-height: 1;
+  user-select: none;
+`;
+
+const CollapsibleContent = styled.div`
+  padding-left: 0.5rem;
+  margin-bottom: 1rem;
+`;
+
 export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const [extentMode, setExtentMode] = useState("customExtent");
   const [customExtent, setCustomExtent] = useState(values ?? "");
   const [customExtentValid, setCustomExtentValid] = useState(true);
+  const [isOpen, setIsOpen] = useState(false);
+  const { mapReady } = useMapContext();
+
   const valueOptions = [
     { label: "Use the Previewed Map Extent", value: "mapExtent" },
     { label: "Use a Custom Extent", value: "customExtent" },
   ];
-  const { mapReady } = useMapContext();
 
   useEffect(() => {
     if (!values) {
@@ -74,7 +104,6 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
       onChange(customExtent);
     }
 
-    // Cleanup function to remove the event listener
     return () => {
       view.un("change:resolution", handleResolutionChange);
       map.un("moveend", handleResolutionChange);
@@ -92,13 +121,9 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
 
   const isValidExtentInput = (value) => {
     const trimmed = value.trim();
-
-    // Allow any value with a template
     if (containsTemplate(trimmed)) return true;
 
     const parts = trimmed.split(",").map((p) => p.trim());
-
-    // Only 3 or 4 parts allowed
     if (parts.length !== 3 && parts.length !== 4) return false;
 
     return parts.every((part) => {
@@ -109,36 +134,42 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
 
   const onCustomExtentChange = (value) => {
     const isValid = isValidExtentInput(value);
-
     setCustomExtent(value);
     setCustomExtentValid(isValid);
   };
 
   return (
-    <>
-      <DataRadioSelect
-        label={"Map Extent"}
-        aria-label={"Map Extent Input"}
-        selectedRadio={extentMode}
-        radioOptions={valueOptions}
-        onChange={(e) => setExtentMode(e.target.value)}
-        blockedRadio={true}
-      />
-      {extentMode === "customExtent" && (
-        <InputRow>
-          <InputLabel>
-            Custom Extent
-            <FullInput
-              value={customExtent}
-              onChange={(e) => onCustomExtentChange(e.target.value)}
-              placeholder="minX, minY, maxX, maxY OR Lon, Lat, Zoom"
-              isValid={customExtentValid}
-              aria-label="Custom Extent Input"
-            />
-          </InputLabel>
-        </InputRow>
+    <StyledDiv>
+      <CollapsibleHeader onClick={() => setIsOpen(!isOpen)}>
+        <span>Map Extent</span>
+        <ArrowIcon>{isOpen ? "▾" : "▸"}</ArrowIcon>
+      </CollapsibleHeader>
+      {isOpen && (
+        <CollapsibleContent>
+          <DataRadioSelect
+            aria-label={"Map Extent Input"}
+            selectedRadio={extentMode}
+            radioOptions={valueOptions}
+            onChange={(e) => setExtentMode(e.target.value)}
+            blockedRadio={true}
+          />
+          {extentMode === "customExtent" && (
+            <InputRow>
+              <InputLabel>
+                Custom Extent
+                <FullInput
+                  value={customExtent}
+                  onChange={(e) => onCustomExtentChange(e.target.value)}
+                  placeholder="minX, minY, maxX, maxY OR Lon, Lat, Zoom"
+                  isValid={customExtentValid}
+                  aria-label="Custom Extent Input"
+                />
+              </InputLabel>
+            </InputRow>
+          )}
+        </CollapsibleContent>
       )}
-    </>
+    </StyledDiv>
   );
 };
 

@@ -10,9 +10,33 @@ const Container = styled.div`
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  padding: 0.5rem 0;
+`;
+
+const CollapsibleHeader = styled.div`
+  cursor: pointer;
+  font-weight: bold;
+  background: #f2f2f2;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+`;
+
+const ArrowIcon = styled.span`
+  font-size: 1.5rem;
+  line-height: 1;
+  user-select: none;
+`;
+
+const StyledDiv = styled.div`
+  border: 1px solid #dedddd;
 `;
 
 export const MapDrawing = ({ onChange, values }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const [selected, setSelected] = useState(values?.options ?? []);
   const [featureLimit, setFeatureLimit] = useState(values?.limit ?? 0);
   const [geometryVariable, setGeometryVariable] = useState(
@@ -20,12 +44,10 @@ export const MapDrawing = ({ onChange, values }) => {
   );
 
   const handleToggle = (option) => {
-    let newSelected;
-    if (selected.includes(option)) {
-      newSelected = selected.filter((item) => item !== option);
-    } else {
-      newSelected = [...selected, option];
-    }
+    const newSelected = selected.includes(option)
+      ? selected.filter((item) => item !== option)
+      : [...selected, option];
+
     setSelected(newSelected);
 
     if (newSelected.length === 0) {
@@ -33,12 +55,11 @@ export const MapDrawing = ({ onChange, values }) => {
       return;
     }
 
-    const newValues = {
+    onChange({
       options: newSelected,
       ...(featureLimit && { limit: featureLimit }),
       ...(geometryVariable && { variable: geometryVariable }),
-    };
-    onChange(newValues);
+    });
   };
 
   const handleLimitChange = (e) => {
@@ -46,12 +67,11 @@ export const MapDrawing = ({ onChange, values }) => {
     setFeatureLimit(value);
 
     if (selected.length > 0) {
-      const newValues = {
+      onChange({
         options: selected,
         limit: value,
         ...(geometryVariable && { variable: geometryVariable }),
-      };
-      onChange(newValues);
+      });
     }
   };
 
@@ -60,50 +80,53 @@ export const MapDrawing = ({ onChange, values }) => {
     setGeometryVariable(value);
 
     if (selected.length > 0) {
-      const newValues = {
+      onChange({
         options: selected,
         variable: value,
         ...(featureLimit && { limit: featureLimit }),
-      };
-      onChange(newValues);
+      });
     }
   };
 
   return (
-    <>
-      <p>
-        <b>Map Drawing</b>:
-      </p>
-      <Container>
-        {Object.keys(drawTypes).map((option) => (
-          <label key={option}>
-            {option}{" "}
+    <StyledDiv>
+      <CollapsibleHeader onClick={() => setIsOpen(!isOpen)}>
+        <span>Map Drawing</span>
+        <ArrowIcon>{isOpen ? "▾" : "▸"}</ArrowIcon>
+      </CollapsibleHeader>
+
+      {isOpen && (
+        <Container>
+          {Object.keys(drawTypes).map((option) => (
+            <label key={option}>
+              {option}{" "}
+              <input
+                type="checkbox"
+                checked={selected.includes(option)}
+                onChange={() => handleToggle(option)}
+              />
+            </label>
+          ))}
+          <label>
+            <b>Drawn Feature Limit:</b>{" "}
             <input
-              type="checkbox"
-              checked={selected.includes(option)}
-              onChange={() => handleToggle(option)}
+              type="number"
+              min="0"
+              value={featureLimit}
+              onChange={handleLimitChange}
             />
           </label>
-        ))}
-        <label>
-          <b>Drawn Feature Limit:</b>{" "}
-          <input
-            type="number"
-            min="0"
-            value={featureLimit}
-            onChange={handleLimitChange}
-          />
-        </label>
-        <label>
-          <b>Geometry Variable Name:</b>{" "}
-          <input
-            type="text"
-            value={geometryVariable}
-            onChange={handleVariableChange}
-          />
-        </label>
-      </Container>
-    </>
+          <label>
+            <b>Geometry Variable Name:</b>{" "}
+            <input
+              type="text"
+              value={geometryVariable}
+              onChange={handleVariableChange}
+            />
+          </label>
+        </Container>
+      )}
+    </StyledDiv>
   );
 };
 

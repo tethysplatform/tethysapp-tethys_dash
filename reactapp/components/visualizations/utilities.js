@@ -172,7 +172,10 @@ export function updateObjectWithVariableInputs(args, variableInputs) {
     }
     let updatedValuesWithVariableInputs = value.replace(
       /\$\{([^}]+)\}/g,
-      (_, key) => variableInputs[key] ?? ""
+      (_, key) =>
+        typeof variableInputs[key] === "object"
+          ? JSON.stringify(variableInputs[key])
+          : (variableInputs[key] ?? "")
     );
 
     if (typeof args[gridItemsArg] !== "string") {

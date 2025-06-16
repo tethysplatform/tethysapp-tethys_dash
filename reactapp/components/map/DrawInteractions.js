@@ -115,7 +115,7 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
     let drawEndHandler;
 
     if (mapDrawing.limit) {
-      drawEndHandler = ({ feature }) => {
+      drawEndHandler = ({ feature, target }) => {
         const source = vectorSourceRef.current;
 
         const features = source.getFeatures();
@@ -132,21 +132,23 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
           const geometries = [];
           source.getFeatures().forEach((existingFeature) => {
             const existingFeaturegeometry = existingFeature.getGeometry();
-            const existingFeatureGeojson = new GeoJSON().writeGeometry(
-              existingFeaturegeometry
+            const existingFeatureGeojson = JSON.parse(
+              new GeoJSON().writeGeometry(existingFeaturegeometry)
             );
             geometries.push(existingFeatureGeojson);
           });
 
           const geometry = feature.getGeometry();
-          const geojson = new GeoJSON().writeGeometry(geometry);
+          const geojson = JSON.parse(new GeoJSON().writeGeometry(geometry));
           geometries.push(geojson);
 
           setVariableInputValues((previousVariableInputValues) => ({
             ...previousVariableInputValues,
             ...{
-              [mapDrawing.variable]:
-                geometries.length > 1 ? geometries : geometries[0],
+              [mapDrawing.variable]: {
+                projection: target.getMap().getView().getProjection().getCode(),
+                geometries: geometries,
+              },
             },
           }));
         }
