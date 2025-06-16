@@ -36,7 +36,7 @@ describe("MapDrawing Component", () => {
     render(
       <MapDrawing
         onChange={handleChange}
-        values={{ options: ["LineString"] }}
+        values={{ options: ["LineString"], variable: "some value" }}
       />
     );
     const mapDrawing = screen.getByText("Map Drawing");
@@ -48,6 +48,33 @@ describe("MapDrawing Component", () => {
     expect(handleChange).toHaveBeenCalledWith({
       options: ["LineString"],
       limit: 3,
+      variable: "some value",
+    });
+
+    const drawingOption = screen.getByLabelText("LineString");
+    fireEvent.click(drawingOption);
+
+    expect(handleChange).toHaveBeenCalledWith({});
+  });
+
+  test("sets variable and calls onChange with options + limit", async () => {
+    const handleChange = jest.fn();
+    render(
+      <MapDrawing
+        onChange={handleChange}
+        values={{ options: ["LineString"], limit: 2 }}
+      />
+    );
+    const mapDrawing = screen.getByText("Map Drawing");
+    fireEvent.click(mapDrawing);
+
+    const input = await screen.findByLabelText(/Geometry Variable Name/i);
+    fireEvent.change(input, { target: { value: "some variable" } });
+
+    expect(handleChange).toHaveBeenCalledWith({
+      options: ["LineString"],
+      limit: 2,
+      variable: "some variable",
     });
 
     const drawingOption = screen.getByLabelText("LineString");
@@ -61,7 +88,11 @@ describe("MapDrawing Component", () => {
     render(
       <MapDrawing
         onChange={handleChange}
-        values={{ options: ["Polygon", "Rectangle"], limit: 5 }}
+        values={{
+          options: ["Polygon", "Rectangle"],
+          limit: 5,
+          variable: "some value",
+        }}
       />
     );
     const mapDrawing = screen.getByText("Map Drawing");
@@ -81,6 +112,7 @@ describe("MapDrawing Component", () => {
     expect(handleChange).toHaveBeenCalledWith({
       options: ["Polygon", "Rectangle", "Point"],
       limit: 5,
+      variable: "some value",
     });
   });
 
@@ -93,6 +125,19 @@ describe("MapDrawing Component", () => {
     const input = await screen.findByLabelText(/Drawn Feature Limit/i);
 
     fireEvent.change(input, { target: { value: "10" } });
+
+    expect(handleChange).not.toHaveBeenCalled();
+  });
+
+  test("does not call onChange on variable change if no options selected", async () => {
+    const handleChange = jest.fn();
+    render(<MapDrawing onChange={handleChange} values={{}} />);
+    const mapDrawing = screen.getByText("Map Drawing");
+    fireEvent.click(mapDrawing);
+
+    const input = await screen.findByLabelText(/Geometry Variable Name/i);
+
+    fireEvent.change(input, { target: { value: "some value" } });
 
     expect(handleChange).not.toHaveBeenCalled();
   });
