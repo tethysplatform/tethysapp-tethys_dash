@@ -63,7 +63,15 @@ const LayersControl = ({ updater, visualizationRef }) => {
     // loop through mapLayers array and create an object of layername keys and visibility values
     return mapLayers.reduce((obj, layer, index) => {
       const layerName = layer.get("name") ?? `Layer ${index + 1}`;
-      const layerVisible = layer.getVisible() ?? true;
+      const layerVisible =
+        layerVisibility[layerName] ?? layer.getVisible() ?? true;
+
+      if (
+        layerVisibility[layerName] !== undefined &&
+        layerVisibility[layerName] !== layer.getVisible()
+      ) {
+        layer.setVisible(layerVisibility[layerName]);
+      }
 
       obj[layerName] = layerVisible;
       return obj;
