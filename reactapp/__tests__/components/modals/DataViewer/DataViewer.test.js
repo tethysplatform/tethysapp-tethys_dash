@@ -595,10 +595,10 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
           args_string: JSON.stringify({
             baseMap:
               "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+            layerControl: false,
             layers: [],
             map_extent: "-10686671.12,4721671.57,4.5",
             mapDrawing: {},
-            layerControl: false,
           }),
           metadata_string: "{}",
         },

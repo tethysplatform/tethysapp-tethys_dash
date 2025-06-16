@@ -59,8 +59,12 @@ it("empty MapExtent", async () => {
     })
   );
 
-  expect(await screen.findByText("Map Extent")).toBeInTheDocument();
-  expect(screen.getByText("Use the Previewed Map Extent")).toBeInTheDocument();
+  const mapExtent = await screen.findByText("Map Extent");
+  fireEvent.click(mapExtent);
+
+  expect(
+    await screen.findByText("Use the Previewed Map Extent")
+  ).toBeInTheDocument();
   expect(screen.getByText("Use a Custom Extent")).toBeInTheDocument();
   expect(screen.getByText("Custom Extent")).toBeInTheDocument();
 
@@ -90,8 +94,12 @@ it("existing Custom MapExtent", async () => {
     })
   );
 
-  expect(await screen.findByText("Map Extent")).toBeInTheDocument();
-  expect(screen.getByText("Use the Previewed Map Extent")).toBeInTheDocument();
+  const mapExtent = await screen.findByText("Map Extent");
+  fireEvent.click(mapExtent);
+
+  expect(
+    await screen.findByText("Use the Previewed Map Extent")
+  ).toBeInTheDocument();
   expect(screen.getByText("Use a Custom Extent")).toBeInTheDocument();
   expect(screen.getByText("Custom Extent")).toBeInTheDocument();
 
@@ -155,11 +163,16 @@ it("existing Custom MapExtent", async () => {
   expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 });
 
-test("attaches event listeners when extentMode is mapExtent", () => {
+test("attaches event listeners when extentMode is mapExtent", async () => {
   const { onChange } = renderWithContext();
 
+  const mapExtent = screen.getByText("Map Extent");
+  fireEvent.click(mapExtent);
+
   // Switch to "mapExtent" mode
-  fireEvent.click(screen.getByLabelText(/Use the Previewed Map Extent/i));
+  fireEvent.click(
+    await screen.findByLabelText(/Use the Previewed Map Extent/i)
+  );
 
   expect(mockMap.getView().on).toHaveBeenCalledWith(
     "change:resolution",

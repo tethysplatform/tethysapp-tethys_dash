@@ -5,6 +5,7 @@ import VectorSource from "ol/source/Vector";
 import Feature from "ol/Feature";
 import Point from "ol/geom/Point";
 import { fromLonLat } from "ol/proj";
+import createLoadedComponent from "__tests__/utilities/customRender";
 
 test("Draw Interactions no options and no render", async () => {
   const mockMap = {
@@ -16,33 +17,42 @@ test("Draw Interactions no options and no render", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  const { rerender } = render(
-    <DrawInteractions
-      mapDrawing={{}}
-      visualizationRef={visualizationRef}
-      drawing={drawing}
-    />
-  );
+  let LoadedComponent = createLoadedComponent({
+    children: (
+      <DrawInteractions
+        mapDrawing={{}}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    ),
+  });
+  const { rerender } = render(LoadedComponent);
 
   expect(screen.queryByTitle("Stop Drawing")).not.toBeInTheDocument();
 
-  rerender(
-    <DrawInteractions
-      mapDrawing={{ options: [] }}
-      visualizationRef={visualizationRef}
-      drawing={drawing}
-    />
-  );
+  LoadedComponent = createLoadedComponent({
+    children: (
+      <DrawInteractions
+        mapDrawing={{ options: [] }}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    ),
+  });
+  rerender(LoadedComponent);
 
   expect(screen.queryByTitle("Stop Drawing")).not.toBeInTheDocument();
 
-  rerender(
-    <DrawInteractions
-      mapDrawing={{ options: ["Point"] }}
-      visualizationRef={visualizationRef}
-      drawing={drawing}
-    />
-  );
+  LoadedComponent = createLoadedComponent({
+    children: (
+      <DrawInteractions
+        mapDrawing={{ options: ["Point"] }}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    ),
+  });
+  rerender(LoadedComponent);
 
   expect(await screen.findByTitle("Stop Drawing")).toBeInTheDocument();
 });
@@ -60,16 +70,19 @@ test("Draw Interactions click draw and then deselect", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  render(
-    <DrawInteractions
-      mapDrawing={mapDrawing}
-      visualizationRef={visualizationRef}
-      drawing={drawing}
-    />
-  );
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <DrawInteractions
+        mapDrawing={mapDrawing}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    ),
+  });
+  render(LoadedComponent);
 
-  // simulate clicking the draw button
-  const drawButton = screen.getByTitle("Draw Point");
+  // Click the "Draw Point" button to trigger interaction setup
+  const drawButton = await screen.findByTitle("Draw Point");
   fireEvent.click(drawButton);
 
   expect(drawing.current).toBe(true);
@@ -93,16 +106,19 @@ test("Draw Interactions click draw and then stop", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  render(
-    <DrawInteractions
-      mapDrawing={mapDrawing}
-      visualizationRef={visualizationRef}
-      drawing={drawing}
-    />
-  );
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <DrawInteractions
+        mapDrawing={mapDrawing}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    ),
+  });
+  render(LoadedComponent);
 
-  // simulate clicking the draw button
-  const drawButton = screen.getByTitle("Draw Point");
+  // Click the "Draw Point" button to trigger interaction setup
+  const drawButton = await screen.findByTitle("Draw Point");
   fireEvent.click(drawButton);
 
   expect(drawing.current).toBe(true);
@@ -128,14 +144,19 @@ test("Draw Interactions clear features", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  render(
-    <DrawInteractions
-      mapDrawing={mapDrawing}
-      visualizationRef={visualizationRef}
-      drawing={drawing}
-    />
-  );
-  fireEvent.click(screen.getByTitle("Draw Point"));
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <DrawInteractions
+        mapDrawing={mapDrawing}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    ),
+  });
+  render(LoadedComponent);
+
+  // Click the "Draw Point" button to trigger interaction setup
+  fireEvent.click(await screen.findByTitle("Draw Point"));
 
   const clearFeaturesButton = screen.getByTitle("Clear All Features");
   fireEvent.click(clearFeaturesButton);
@@ -165,16 +186,19 @@ test("Draw Interactions drawend", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  render(
-    <DrawInteractions
-      mapDrawing={mapDrawing}
-      visualizationRef={visualizationRef}
-      drawing={drawing}
-    />
-  );
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <DrawInteractions
+        mapDrawing={mapDrawing}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    ),
+  });
+  render(LoadedComponent);
 
   // Click the "Draw Point" button to trigger interaction setup
-  fireEvent.click(screen.getByTitle("Draw Point"));
+  fireEvent.click(await screen.findByTitle("Draw Point"));
 
   // Wait for the interaction to be created and added
   expect(addedInteractions.length).toBeGreaterThan(0);
@@ -234,16 +258,19 @@ test("Draw Interactions drawend no limit", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  render(
-    <DrawInteractions
-      mapDrawing={mapDrawing}
-      visualizationRef={visualizationRef}
-      drawing={drawing}
-    />
-  );
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <DrawInteractions
+        mapDrawing={mapDrawing}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    ),
+  });
+  render(LoadedComponent);
 
   // Click the "Draw Point" button to trigger interaction setup
-  fireEvent.click(screen.getByTitle("Draw Point"));
+  fireEvent.click(await screen.findByTitle("Draw Point"));
 
   // Wait for the interaction to be created and added
   expect(addedInteractions.length).toBeGreaterThan(0);
@@ -278,16 +305,19 @@ test("Draw Interactions update limit and remove existing", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  const { rerender } = render(
-    <DrawInteractions
-      mapDrawing={mapDrawing}
-      visualizationRef={visualizationRef}
-      drawing={drawing}
-    />
-  );
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <DrawInteractions
+        mapDrawing={mapDrawing}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    ),
+  });
+  const { rerender } = render(LoadedComponent);
 
   // Click the "Draw Point" button to trigger interaction setup
-  fireEvent.click(screen.getByTitle("Draw Point"));
+  fireEvent.click(await screen.findByTitle("Draw Point"));
 
   // Wait for the interaction to be created and added
   expect(addedInteractions.length).toBeGreaterThan(0);
@@ -310,13 +340,16 @@ test("Draw Interactions update limit and remove existing", async () => {
   expect(vectorSource.getFeatures().length).toBe(2);
 
   const newMapDrawing = { options: ["Point"], limit: 1 };
-  rerender(
-    <DrawInteractions
-      mapDrawing={newMapDrawing}
-      visualizationRef={visualizationRef}
-      drawing={drawing}
-    />
-  );
+  const NewLoadedComponent = createLoadedComponent({
+    children: (
+      <DrawInteractions
+        mapDrawing={newMapDrawing}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    ),
+  });
+  rerender(NewLoadedComponent);
 
   expect(sourceRemoveFeature).toHaveBeenCalledWith(feature);
   expect(vectorSource.getFeatures().length).toBe(1);

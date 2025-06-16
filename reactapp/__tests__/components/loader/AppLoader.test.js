@@ -137,10 +137,10 @@ test("AppLoader", async () => {
             type: "map",
             args: {
               baseMap: baseMapLayers,
+              layerControl: "checkbox",
               layers: "custom-AddMapLayer",
               map_extent: "custom-MapExtent",
               mapDrawing: "custom-MapDrawing",
-              layerControl: "checkbox",
             },
             tags: ["map", "default"],
             description:
