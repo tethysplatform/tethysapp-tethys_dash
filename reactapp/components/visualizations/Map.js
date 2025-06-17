@@ -6,6 +6,7 @@ import {
   createHighlightLayer,
   createMarkerLayer,
   configurationPropType,
+  mapDrawingPropType,
   loadLayerJSONs,
 } from "components/map/utilities";
 import PropTypes from "prop-types";
@@ -148,6 +149,7 @@ const Popup = ({ layerAttributes }) => (
 const MapVisualization = ({
   mapConfig,
   mapExtent,
+  mapDrawing,
   layers,
   visualizationRef,
   baseMap,
@@ -168,6 +170,8 @@ const MapVisualization = ({
   const popupOverlayRef = useRef(null);
   const popupContainerRef = useRef(document.createElement("div"));
   const popupRootRef = useRef(null);
+
+  const drawing = useRef(false);
 
   // Mount the React popup inside the container div
   useEffect(() => {
@@ -268,6 +272,8 @@ const MapVisualization = ({
   }, [layers, baseMap]);
 
   const onMapClick = async (map, evt) => {
+    if (drawing.current) return;
+
     const coordinate = evt.coordinate;
     const pixel = evt.pixel;
 
@@ -428,6 +434,8 @@ const MapVisualization = ({
       layers={mapLayers}
       legend={mapLegend}
       layerControl={layerControl}
+      mapDrawing={mapDrawing}
+      drawing={drawing}
       onMapClick={inDataViewerMode ? () => {} : onMapClick}
       visualizationRef={visualizationRef}
       data-testid="backlayer-map"
@@ -448,6 +456,7 @@ MapVisualization.propTypes = {
   baseMap: PropTypes.string, // url for basemap layer, maps to baseMapLayers layers in components/visualizations/utilities.js
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
+  mapDrawing: mapDrawingPropType, // contains draw interaction metadata like options and limits
 };
 
 Popup.propTypes = {

@@ -18,7 +18,10 @@ const MapContextProvider = ({ children }) => {
 };
 
 MapContextProvider.propTypes = {
-  children: PropTypes.arrayOf(PropTypes.object),
+  children: PropTypes.oneOf(
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.object
+  ),
 };
 
 export default MapContextProvider;

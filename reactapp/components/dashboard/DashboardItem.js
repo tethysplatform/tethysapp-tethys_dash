@@ -180,7 +180,6 @@ const DashboardItem = ({
   gridItemIndex,
 }) => {
   const { isEditing, setIsEditing } = useContext(EditingContext);
-  const [showFullscreen, setShowFullscreen] = useState(false);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
@@ -209,10 +208,6 @@ const DashboardItem = ({
       updateGridItems(updated_grid_items);
       setIsEditing(true);
     }
-  }
-
-  function hideFullscreen() {
-    setShowFullscreen(false);
   }
 
   function editGridItem() {
@@ -315,9 +310,6 @@ const DashboardItem = ({
           fluid
           className="h-100 gridVisualization"
           aria-label="gridItem"
-          onDoubleClick={() => {
-            setShowFullscreen(true);
-          }}
         >
           <CustomAlert
             alertType={"success"}
@@ -336,8 +328,6 @@ const DashboardItem = ({
             source={gridItemSource}
             argsString={gridItemArgsString}
             metadataString={gridItemMetadataString}
-            showFullscreen={showFullscreen}
-            hideFullscreen={hideFullscreen}
           />
         </StyledContainer>
         {showDataViewerModal && (

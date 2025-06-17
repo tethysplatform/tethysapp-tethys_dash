@@ -6,6 +6,9 @@ import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
 import { Map } from "ol";
+import createLoadedComponent, {
+  InputVariablePComponent,
+} from "__tests__/utilities/customRender";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -15,12 +18,18 @@ const TestingComponent = ({ mapProps }) => {
   const [view, setView] = useState();
 
   useEffect(() => {
+    var evt = {};
     if (mapProps?.onMapClick && mapReady) {
-      var evt = {};
       evt.type = "singleclick";
       evt.coordinate = [];
       evt.coordinate[0] = 6633511;
       evt.coordinate[1] = 4079902;
+      visualizationRef.current.dispatchEvent(evt);
+    }
+
+    if (mapProps?.onMapMove && mapReady) {
+      evt.type = "moveend";
+      evt.map = visualizationRef.current;
       visualizationRef.current.dispatchEvent(evt);
     }
 
@@ -48,23 +57,29 @@ const TestingComponent = ({ mapProps }) => {
 };
 
 test("Default Map", async () => {
-  render(
-    <MapContextProvider>
-      <TestingComponent />
-    </MapContextProvider>
-  );
+  const loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent />
+      </MapContextProvider>
+    ),
+  });
+
+  render(loadedComponent);
 
   const mapDiv = await screen.findByLabelText("Map Div");
   expect(mapDiv).toBeInTheDocument();
   expect(mapDiv).toHaveStyle("width: 100%");
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-  expect(await screen.findByTestId("map-view")).toHaveTextContent(
-    JSON.stringify({
-      zoom: 4.5,
-      center: [-10686671.12, 4721671.57],
-    })
-  );
+  await waitFor(async () => {
+    expect(await screen.findByTestId("map-view")).toHaveTextContent(
+      JSON.stringify({
+        zoom: 4.5,
+        center: [-10686671.12, 4721671.57],
+      })
+    );
+  });
 
   expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
   expect(
@@ -73,11 +88,15 @@ test("Default Map", async () => {
 });
 
 test("Default Map with layer control and legend", async () => {
-  render(
-    <MapContextProvider>
-      <TestingComponent mapProps={{ layerControl: true, legend: [] }} />
-    </MapContextProvider>
-  );
+  const loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layerControl: true, legend: [] }} />
+      </MapContextProvider>
+    ),
+  });
+
+  render(loadedComponent);
 
   expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
   expect(
@@ -86,16 +105,20 @@ test("Default Map with layer control and legend", async () => {
 });
 
 test("Custom Map Config and View Config", async () => {
-  const { rerender } = render(
-    <MapContextProvider>
-      <TestingComponent
-        mapProps={{
-          mapConfig: { style: { width: "50%" } },
-          mapExtent: "-10686671.12, 4721671.57, 7",
-        }}
-      />
-    </MapContextProvider>
-  );
+  let loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: { extent: "-10686671.12, 4721671.57, 7" },
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+
+  const { rerender } = render(loadedComponent);
 
   const mapDiv = await screen.findByLabelText("Map Div");
   expect(mapDiv).toBeInTheDocument();
@@ -109,16 +132,21 @@ test("Custom Map Config and View Config", async () => {
     })
   );
 
-  rerender(
-    <MapContextProvider>
-      <TestingComponent
-        mapProps={{
-          mapConfig: { style: { width: "50%" } },
-          mapExtent: "-10686671.12, 4721671.57, 8",
-        }}
-      />
-    </MapContextProvider>
-  );
+  loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: { extent: "-10686671.12, 4721671.57, 8" },
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+
+  rerender(loadedComponent);
+
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({
       zoom: 8,
@@ -128,16 +156,20 @@ test("Custom Map Config and View Config", async () => {
 });
 
 test("Custom bounding box map extent", async () => {
-  render(
-    <MapContextProvider>
-      <TestingComponent
-        mapProps={{
-          mapConfig: { style: { width: "50%" } },
-          mapExtent: "10, 20, 30, 40",
-        }}
-      />
-    </MapContextProvider>
-  );
+  const loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: { extent: "10, 20, 30, 40" },
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+
+  render(loadedComponent);
 
   const mapDiv = await screen.findByLabelText("Map Div");
   expect(mapDiv).toBeInTheDocument();
@@ -146,6 +178,56 @@ test("Custom bounding box map extent", async () => {
 
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
+  );
+});
+
+test("Custom bounding box map extent with variable", async () => {
+  const loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: { extent: "10, 20, 30, 40", variable: "test" },
+            onMapMove: true,
+          }}
+        />
+        <InputVariablePComponent />
+      </MapContextProvider>
+    ),
+  });
+
+  render(loadedComponent);
+
+  const mapDiv = await screen.findByLabelText("Map Div");
+  expect(mapDiv).toBeInTheDocument();
+  expect(mapDiv).toHaveStyle("width: 50%");
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  expect(await screen.findByTestId("map-view")).toHaveTextContent(
+    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
+  );
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      test: {
+        projection: "EPSG:3857",
+        geometries: [
+          {
+            type: "Polygon",
+            coordinates: [
+              [
+                [10, 20],
+                [10, 40],
+                [30, 40],
+                [30, 20],
+                [10, 20],
+              ],
+            ],
+          },
+        ],
+      },
+    })
   );
 });
 
@@ -180,11 +262,15 @@ test("Map Layers and Updated Layers", async () => {
     },
   ];
 
-  render(
-    <MapContextProvider>
-      <TestingComponent mapProps={{ layers }} />
-    </MapContextProvider>
-  );
+  const loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    ),
+  });
+
+  render(loadedComponent);
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
@@ -230,11 +316,15 @@ test("Map Layers  default invisible layer", async () => {
     },
   ];
 
-  render(
-    <MapContextProvider>
-      <TestingComponent mapProps={{ layers }} />
-    </MapContextProvider>
-  );
+  const loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    ),
+  });
+
+  render(loadedComponent);
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
@@ -282,11 +372,15 @@ test("Bad Map Layers", async () => {
     },
   ];
 
-  const { rerender } = render(
-    <MapContextProvider>
-      <TestingComponent mapProps={{ layers }} />
-    </MapContextProvider>
-  );
+  let loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    ),
+  });
+
+  const { rerender } = render(loadedComponent);
 
   const warningMessage = await screen.findByText(
     'Failed to load the "Base Layer, Image Layer" layer(s)'
@@ -314,11 +408,15 @@ test("Bad Map Layers", async () => {
     },
   ];
 
-  rerender(
-    <MapContextProvider>
-      <TestingComponent mapProps={{ layers: updatedLayers }} />
-    </MapContextProvider>
-  );
+  loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers: updatedLayers }} />
+      </MapContextProvider>
+    ),
+  });
+
+  rerender(loadedComponent);
 
   await waitFor(() => {
     expect(addLayerSpy.mock.calls.length).toBe(1);
@@ -344,11 +442,15 @@ test("Bad Map Layers", async () => {
     },
   ];
 
-  rerender(
-    <MapContextProvider>
-      <TestingComponent mapProps={{ layers: updatedLayers }} />
-    </MapContextProvider>
-  );
+  loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers: updatedLayers }} />
+      </MapContextProvider>
+    ),
+  });
+
+  rerender(loadedComponent);
 
   await waitFor(() => {
     expect(addLayerSpy.mock.calls.length).toBe(2);
@@ -383,9 +485,13 @@ test("Map Layer Styles", async () => {
   ];
 
   render(
-    <MapContextProvider>
-      <TestingComponent mapProps={{ layers }} />
-    </MapContextProvider>
+    createLoadedComponent({
+      children: (
+        <MapContextProvider>
+          <TestingComponent mapProps={{ layers }} />
+        </MapContextProvider>
+      ),
+    })
   );
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();

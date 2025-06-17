@@ -1,17 +1,22 @@
-import { memo, useEffect, useState, useRef } from "react";
+import { memo, useEffect, useState, useRef, useContext } from "react";
 import { Map, View } from "ol";
 import moduleLoader from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
 import LegendControl from "components/map/LegendControl";
+import DrawInteractions from "components/map/DrawInteractions";
 import {
   legendPropType,
   configurationPropType,
+  mapDrawingPropType,
 } from "components/map/utilities";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
 import { applyStyle } from "ol-mapbox-style";
 import PropTypes from "prop-types";
 import { useMapContext } from "components/contexts/MapContext";
+import { fromExtent } from "ol/geom/Polygon";
+import { VariableInputsContext } from "components/contexts/Contexts";
+import GeoJSON from "ol/format/GeoJSON";
 
 const StyledAlert = styled(Alert)`
   position: absolute;
@@ -24,7 +29,7 @@ const StyledAlert = styled(Alert)`
 const InfoDiv = styled.div`
   position: absolute;
   top: 10px;
-  left: 10px;
+  right: 10px;
   background: rgba(255, 255, 255, 0.8);
   padding: 4px 8px;
   font-size: 12px;
@@ -38,6 +43,8 @@ const MapComponent = ({
   layers,
   legend,
   layerControl,
+  mapDrawing,
+  drawing,
   onMapClick,
   visualizationRef,
   dataviewerViz,
@@ -53,6 +60,8 @@ const MapComponent = ({
   const setMapReady = mapContext?.setMapReady;
   const mapReady = mapContext?.mapReady;
   const isFirstRender = useRef(true);
+  const mapExtentVariableEvent = useRef();
+  const { setVariableInputValues } = useContext(VariableInputsContext);
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -109,7 +118,7 @@ const MapComponent = ({
     const mapViewConfig = new View({ projection });
     setProjection(mapViewConfig.getProjection().getCode());
 
-    const extent = mapExtent.replaceAll(" ", "");
+    const extent = mapExtent.extent.replaceAll(" ", "");
     const parts = extent.split(",").map((p) => parseFloat(p.trim()));
     if (parts.length === 3) {
       const [lon, lat, zoomLevel] = parts;
@@ -123,6 +132,15 @@ const MapComponent = ({
       });
       setZoom(mapViewConfig.getZoom().toFixed(2));
       setLonLat(mapViewConfig.getCenter());
+    }
+
+    if (mapExtentVariableEvent.current) {
+      visualizationRef.current.un("moveend", mapExtentVariableEvent.current);
+    }
+
+    if (mapExtent.variable) {
+      visualizationRef.current.on("moveend", updateMapExtentVariable);
+      mapExtentVariableEvent.current = updateMapExtentVariable;
     }
 
     // Update zoom on view change
@@ -223,6 +241,22 @@ const MapComponent = ({
     // eslint-disable-next-line
   }, [layers]);
 
+  const updateMapExtentVariable = (event) => {
+    const view = event.map.getView();
+    const extent = view.calculateExtent(event.map.getSize());
+    const rectangleGeom = fromExtent(extent);
+    const geojson = JSON.parse(new GeoJSON().writeGeometry(rectangleGeom));
+    setVariableInputValues((previousVariableInputValues) => ({
+      ...previousVariableInputValues,
+      ...{
+        [mapExtent.variable]: {
+          projection: view.getProjection().getCode(),
+          geometries: [geojson],
+        },
+      },
+    }));
+  };
+
   return (
     <>
       <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
@@ -244,6 +278,13 @@ const MapComponent = ({
             <br></br>
             Projection: {projection}
           </InfoDiv>
+        )}
+        {mapDrawing && (
+          <DrawInteractions
+            mapDrawing={mapDrawing}
+            visualizationRef={visualizationRef}
+            drawing={drawing}
+          />
         )}
         <div>
           {layerControl && (
@@ -274,6 +315,8 @@ MapComponent.propTypes = {
   onMapClick: PropTypes.func, // function for when user click on the map
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
+  mapDrawing: mapDrawingPropType,
+  drawing: PropTypes.shape({ current: PropTypes.bool }),
 };
 
 export default memo(MapComponent);

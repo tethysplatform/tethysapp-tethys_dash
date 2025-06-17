@@ -543,21 +543,27 @@ test("getGridItem", async () => {
 });
 
 test("updateObjectWithVariableInputs", async () => {
-  const argsString = JSON.stringify({
+  const args = {
     // eslint-disable-next-line
     location: "${Some Variable}",
     // eslint-disable-next-line
     text: "Here is some text with the a variable ${Some Variable}",
-  });
+  };
   const variableInputs = { "Some Variable": "Test" };
 
-  const result = updateObjectWithVariableInputs(argsString, variableInputs);
+  const result = updateObjectWithVariableInputs(
+    JSON.parse(JSON.stringify(args)),
+    variableInputs
+  );
   expect(result).toStrictEqual({
     location: "Test",
     text: "Here is some text with the a variable Test",
   });
 
-  const newResult = updateObjectWithVariableInputs(argsString, {});
+  const newResult = updateObjectWithVariableInputs(
+    JSON.parse(JSON.stringify(args)),
+    {}
+  );
   expect(newResult).toStrictEqual({
     location: "",
     text: "Here is some text with the a variable ",

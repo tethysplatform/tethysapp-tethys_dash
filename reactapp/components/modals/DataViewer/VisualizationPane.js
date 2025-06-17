@@ -337,7 +337,7 @@ function VisualizationPane({
         });
       } else {
         const updatedGridItemArgs = updateObjectWithVariableInputs(
-          JSON.stringify(itemData.args),
+          itemData.args,
           variableInputValues
         );
         if (selectedVizTypeOption.value === "Map") {
@@ -347,6 +347,7 @@ function VisualizationPane({
             layers: updatedGridItemArgs.layers,
             baseMap: updatedGridItemArgs.baseMap,
             layerControl: updatedGridItemArgs.layerControl,
+            mapDrawing: updatedGridItemArgs.mapDrawing,
           });
         } else {
           itemData.args = updatedGridItemArgs;

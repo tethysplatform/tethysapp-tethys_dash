@@ -109,6 +109,7 @@ LayerPane.propTypes = {
     maxResolution: PropTypes.string,
     minZoom: PropTypes.string,
     maxZoom: PropTypes.string,
+    layerVisibility: PropTypes.bool,
   }),
   setLayerProps: PropTypes.func,
 };

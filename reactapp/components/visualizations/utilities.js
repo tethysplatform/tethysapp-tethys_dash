@@ -163,24 +163,30 @@ export function getGridItem(gridItems, gridItemI) {
   return result;
 }
 
-export function updateObjectWithVariableInputs(argsString, variableInputs) {
-  let gridItemsArgs = argsString;
-  if (typeof gridItemsArgs === "string") {
-    gridItemsArgs = JSON.parse(argsString);
-  }
-  for (let gridItemsArg in gridItemsArgs) {
-    const value = gridItemsArgs[gridItemsArg];
-    const stringifiedValue = JSON.stringify(value);
-    const updatedValuesWithVariableInputs = JSON.parse(
-      stringifiedValue.replace(
-        /\$\{([^}]+)\}/g,
-        (_, key) => variableInputs[key] ?? ""
-      )
+export function updateObjectWithVariableInputs(args, variableInputs) {
+  for (let gridItemsArg in args) {
+    let value = args[gridItemsArg];
+
+    if (typeof value !== "string") {
+      value = JSON.stringify(value);
+    }
+    let updatedValuesWithVariableInputs = value.replace(
+      /\$\{([^}]+)\}/g,
+      (_, key) =>
+        typeof variableInputs[key] === "object"
+          ? JSON.stringify(variableInputs[key])
+          : (variableInputs[key] ?? "")
     );
-    gridItemsArgs[gridItemsArg] = updatedValuesWithVariableInputs;
+
+    if (typeof args[gridItemsArg] !== "string") {
+      updatedValuesWithVariableInputs = JSON.parse(
+        updatedValuesWithVariableInputs
+      );
+    }
+    args[gridItemsArg] = updatedValuesWithVariableInputs;
   }
 
-  return gridItemsArgs;
+  return args;
 }
 
 export const nonDropDownVariableInputTypes = ["text", "number", "checkbox"];

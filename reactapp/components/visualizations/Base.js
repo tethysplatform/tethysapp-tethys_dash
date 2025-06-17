@@ -1,6 +1,5 @@
 import PropTypes from "prop-types";
 import { useEffect, useState, memo, useRef, useContext, Fragment } from "react";
-import FullscreenPlotModal from "components/modals/FullscreenPlot";
 import Image from "components/visualizations/Image";
 import Text from "components/visualizations/Text";
 import VariableInput from "components/visualizations/VariableInput";
@@ -78,6 +77,7 @@ export const Visualization = memo(
             layerControl={vizData.layerControl}
             mapExtent={vizData.map_extent}
             mapConfig={vizData.mapConfig}
+            mapDrawing={vizData.mapDrawing}
             dataviewerViz={dataviewerViz}
           />
         );
@@ -144,13 +144,7 @@ export const Visualization = memo(
   }
 );
 
-const BaseVisualization = ({
-  source,
-  argsString,
-  metadataString,
-  showFullscreen,
-  hideFullscreen,
-}) => {
+const BaseVisualization = ({ source, argsString, metadataString }) => {
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
   const { visualizations } = useContext(AppContext);
@@ -160,7 +154,6 @@ const BaseVisualization = ({
   const [refreshCount, setRefreshCount] = useState(0);
   const { isEditing } = useContext(EditingContext);
   const dashboardVizRef = useRef();
-  const modalVizRef = useRef();
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -218,7 +211,7 @@ const BaseVisualization = ({
 
     const itemData = { source: source, args: args };
     const updatedGridItemArgs = updateObjectWithVariableInputs(
-      argsString,
+      args,
       variableInputValues
     );
 
@@ -239,6 +232,7 @@ const BaseVisualization = ({
           layerControl: updatedGridItemArgs.layerControl,
           map_extent: updatedGridItemArgs.map_extent,
           mapConfig: updatedGridItemArgs.mapConfig,
+          mapDrawing: updatedGridItemArgs.mapDrawing,
         });
       } else if (source === "Text") {
         setVizType("text");
@@ -265,25 +259,11 @@ const BaseVisualization = ({
   }
 
   return (
-    <>
-      <Visualization
-        vizRef={dashboardVizRef}
-        vizType={vizType}
-        vizData={vizData}
-      />
-      {
-        <FullscreenPlotModal
-          showModal={showFullscreen}
-          handleModalClose={hideFullscreen}
-        >
-          <Visualization
-            vizRef={modalVizRef}
-            vizType={vizType}
-            vizData={vizData}
-          />
-        </FullscreenPlotModal>
-      }
-    </>
+    <Visualization
+      vizRef={dashboardVizRef}
+      vizType={vizType}
+      vizData={vizData}
+    />
   );
 };
 
@@ -291,8 +271,6 @@ BaseVisualization.propTypes = {
   source: PropTypes.string,
   argsString: PropTypes.string,
   metadataString: PropTypes.string,
-  showFullscreen: PropTypes.bool,
-  hideFullscreen: PropTypes.func,
 };
 
 Visualization.propTypes = {

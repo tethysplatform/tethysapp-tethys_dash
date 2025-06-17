@@ -885,8 +885,10 @@ test("Map click attribute variables Null values", async () => {
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-  // popup
-  expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+  });
 
   expect(await screen.findByText("Some Layer")).toBeInTheDocument();
   expect(await screen.findByText("Field")).toBeInTheDocument();
@@ -943,7 +945,9 @@ test("Map click query error", async () => {
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
-  expect(popSetPosition).toHaveBeenLastCalledWith(clickCoordinates);
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith(clickCoordinates);
+  });
   expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
 });
 
@@ -1095,7 +1099,7 @@ test("Map info div in dataviewer mode with zoom", async () => {
             layers,
             baseMap: null,
             layerControl: false,
-            mapExtent: "-10686671.12, 4721671.57,4.5",
+            mapExtent: { extent: "-10686671.12, 4721671.57,4.5" },
             dataviewerViz: true,
           }}
         />
