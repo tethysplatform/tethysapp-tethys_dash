@@ -62,7 +62,7 @@ const CollapsibleContent = styled.div`
 
 export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const [extentMode, setExtentMode] = useState("customExtent");
-  const [customExtent, setCustomExtent] = useState(values.extent ?? "");
+  const [customExtent, setCustomExtent] = useState(values?.extent ?? "");
   const [customExtentValid, setCustomExtentValid] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const { mapReady } = useMapContext();
