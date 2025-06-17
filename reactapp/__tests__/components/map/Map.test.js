@@ -9,7 +9,6 @@ import { Map } from "ol";
 import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
-import { length } from "file-loader";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -19,12 +18,18 @@ const TestingComponent = ({ mapProps }) => {
   const [view, setView] = useState();
 
   useEffect(() => {
+    var evt = {};
     if (mapProps?.onMapClick && mapReady) {
-      var evt = {};
       evt.type = "singleclick";
       evt.coordinate = [];
       evt.coordinate[0] = 6633511;
       evt.coordinate[1] = 4079902;
+      visualizationRef.current.dispatchEvent(evt);
+    }
+
+    if (mapProps?.onMapMove && mapReady) {
+      evt.type = "moveend";
+      evt.map = visualizationRef.current;
       visualizationRef.current.dispatchEvent(evt);
     }
 
@@ -173,6 +178,56 @@ test("Custom bounding box map extent", async () => {
 
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
+  );
+});
+
+test("Custom bounding box map extent with variable", async () => {
+  const loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: { extent: "10, 20, 30, 40", variable: "test" },
+            onMapMove: true,
+          }}
+        />
+        <InputVariablePComponent />
+      </MapContextProvider>
+    ),
+  });
+
+  render(loadedComponent);
+
+  const mapDiv = await screen.findByLabelText("Map Div");
+  expect(mapDiv).toBeInTheDocument();
+  expect(mapDiv).toHaveStyle("width: 50%");
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  expect(await screen.findByTestId("map-view")).toHaveTextContent(
+    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
+  );
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      test: {
+        projection: "EPSG:3857",
+        geometries: [
+          {
+            type: "Polygon",
+            coordinates: [
+              [
+                [10, 20],
+                [10, 40],
+                [30, 40],
+                [30, 20],
+                [10, 20],
+              ],
+            ],
+          },
+        ],
+      },
+    })
   );
 });
 

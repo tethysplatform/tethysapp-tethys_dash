@@ -30,7 +30,7 @@ const renderWithContext = (props) => {
     <MapContext.Provider value={{ mapReady: true }}>
       <MapExtent
         onChange={onChange}
-        values="10,20,4"
+        values={{ extent: "10,20,4" }}
         visualizationRef={visualizationRef}
         {...props}
       />
@@ -72,6 +72,18 @@ it("empty MapExtent", async () => {
 
   await waitFor(() => {
     expect(input.value).toBe("-10686671.12,4721671.57,4.5");
+  });
+
+  const extentVariable = screen.getByLabelText("Extent Variable Name:");
+  expect(extentVariable).toBeInTheDocument();
+
+  fireEvent.change(extentVariable, {
+    target: { value: "test" },
+  });
+
+  expect(onChange.mock.calls[1][0]).toStrictEqual({
+    extent: "-10686671.12,4721671.57,4.5",
+    variable: "test",
   });
 });
 
@@ -127,12 +139,24 @@ it("existing Custom MapExtent", async () => {
   expect(onChange.mock.calls[2][0]).toStrictEqual({ extent: validValues });
   expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 
+  const extentVariable = screen.getByLabelText("Extent Variable Name:");
+  expect(extentVariable).toBeInTheDocument();
+
+  fireEvent.change(extentVariable, {
+    target: { value: "test" },
+  });
+
+  expect(onChange.mock.calls[3][0]).toStrictEqual({
+    extent: validValues,
+    variable: "test",
+  });
+
   const moreInvalidValues = "10,20,30,40, 50";
   fireEvent.change(input, {
     target: { value: moreInvalidValues },
   });
 
-  expect(onChange.mock.calls[3][0]).toBe(null);
+  expect(onChange.mock.calls[4][0]).toBe(null);
   expect(window.getComputedStyle(input).borderColor).toBe("red");
 
   // eslint-disable-next-line
@@ -141,7 +165,10 @@ it("existing Custom MapExtent", async () => {
     target: { value: variableValues },
   });
 
-  expect(onChange.mock.calls[4][0]).toStrictEqual({ extent: variableValues });
+  expect(onChange.mock.calls[5][0]).toStrictEqual({
+    extent: variableValues,
+    variable: "test",
+  });
   expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 
   // eslint-disable-next-line
@@ -150,8 +177,9 @@ it("existing Custom MapExtent", async () => {
     target: { value: moreVariableValues },
   });
 
-  expect(onChange.mock.calls[5][0]).toStrictEqual({
+  expect(onChange.mock.calls[6][0]).toStrictEqual({
     extent: moreVariableValues,
+    variable: "test",
   });
   expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 
@@ -161,14 +189,19 @@ it("existing Custom MapExtent", async () => {
     target: { value: evenMoreVariableValues },
   });
 
-  expect(onChange.mock.calls[6][0]).toStrictEqual({
+  expect(onChange.mock.calls[7][0]).toStrictEqual({
     extent: evenMoreVariableValues,
+    variable: "test",
   });
   expect(window.getComputedStyle(input).borderColor).toBe("#ccc");
 });
 
 test("attaches event listeners when extentMode is mapExtent", async () => {
   const { onChange } = renderWithContext();
+
+  expect(onChange.mock.calls[0][0]).toStrictEqual({
+    extent: "10,20,4",
+  });
 
   const mapExtent = screen.getByText("Map Extent");
   fireEvent.click(mapExtent);
@@ -191,5 +224,26 @@ test("attaches event listeners when extentMode is mapExtent", async () => {
     .on.mock.calls.find(([event]) => event === "change:resolution")[1];
   resolutionCallback();
 
-  expect(onChange).toHaveBeenCalledWith({ extent: "123456.78,987654.32,4.57" });
+  expect(onChange.mock.calls[2][0]).toStrictEqual({
+    extent: "123456.78,987654.32,4.57",
+  });
+
+  const extentVariable = screen.getByLabelText("Extent Variable Name:");
+  expect(extentVariable).toBeInTheDocument();
+
+  fireEvent.change(extentVariable, {
+    target: { value: "test" },
+  });
+
+  expect(onChange.mock.calls[5][0]).toStrictEqual({
+    extent: "123456.78,987654.32,4.57",
+    variable: "test",
+  });
+
+  fireEvent.click(await screen.findByLabelText(/Use a Custom Extent/i));
+
+  expect(onChange.mock.calls[6][0]).toStrictEqual({
+    extent: "123456.78,987654.32,4.57",
+    variable: "test",
+  });
 });

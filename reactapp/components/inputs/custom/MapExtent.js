@@ -126,8 +126,10 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const setMapExtent = () => {
     const center = visualizationRef.current.getView().getCenter();
     const zoom = visualizationRef.current.getView().getZoom().toFixed(2);
+    const newExtent = `${center[0].toFixed(2)},${center[1].toFixed(2)},${zoom}`;
+    setCustomExtent(newExtent);
     onChange({
-      extent: `${center[0].toFixed(2)},${center[1].toFixed(2)},${zoom}`,
+      extent: newExtent,
       ...(extentVariable && { variable: extentVariable }),
     });
   };
