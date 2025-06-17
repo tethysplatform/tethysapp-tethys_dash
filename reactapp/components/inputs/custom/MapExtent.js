@@ -57,14 +57,16 @@ const ArrowIcon = styled.span`
 const CollapsibleContent = styled.div`
   padding-left: 0.5rem;
   margin-bottom: 1rem;
+  margin-left: 1.5rem;
 `;
 
 export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const [extentMode, setExtentMode] = useState("customExtent");
-  const [customExtent, setCustomExtent] = useState(values ?? "");
+  const [customExtent, setCustomExtent] = useState(values.extent ?? "");
   const [customExtentValid, setCustomExtentValid] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
   const { mapReady } = useMapContext();
+  const [extentVariable, setExtentVariable] = useState(values?.variable ?? "");
 
   const valueOptions = [
     { label: "Use the Previewed Map Extent", value: "mapExtent" },
@@ -81,7 +83,14 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   useEffect(() => {
     if (customExtent) {
       const isValid = isValidExtentInput(customExtent);
-      onChange(isValid ? customExtent : "");
+      if (isValid) {
+        onChange({
+          extent: customExtent,
+          ...(extentVariable && { variable: extentVariable }),
+        });
+      } else {
+        onChange(null);
+      }
     }
     // eslint-disable-next-line
   }, [customExtent]);
@@ -101,7 +110,10 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
       view.on("change:resolution", handleResolutionChange);
       map.on("moveend", handleResolutionChange);
     } else {
-      onChange(customExtent);
+      onChange({
+        extent: customExtent,
+        ...(extentVariable && { variable: extentVariable }),
+      });
     }
 
     return () => {
@@ -114,7 +126,10 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const setMapExtent = () => {
     const center = visualizationRef.current.getView().getCenter();
     const zoom = visualizationRef.current.getView().getZoom().toFixed(2);
-    onChange(`${center[0].toFixed(2)},${center[1].toFixed(2)},${zoom}`);
+    onChange({
+      extent: `${center[0].toFixed(2)},${center[1].toFixed(2)},${zoom}`,
+      ...(extentVariable && { variable: extentVariable }),
+    });
   };
 
   const containsTemplate = (str) => /\$\{\w+\}/.test(str);
@@ -136,6 +151,16 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     const isValid = isValidExtentInput(value);
     setCustomExtent(value);
     setCustomExtentValid(isValid);
+  };
+
+  const handleVariableChange = (e) => {
+    const value = e.target.value;
+    setExtentVariable(value);
+
+    onChange({
+      extent: customExtent,
+      variable: value,
+    });
   };
 
   return (
@@ -167,6 +192,14 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
               </InputLabel>
             </InputRow>
           )}
+          <label>
+            <b>Extent Variable Name:</b>{" "}
+            <input
+              type="text"
+              value={extentVariable}
+              onChange={handleVariableChange}
+            />
+          </label>
         </CollapsibleContent>
       )}
     </StyledDiv>

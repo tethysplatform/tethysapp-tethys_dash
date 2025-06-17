@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useRef } from "react";
+import { memo, useEffect, useState, useRef, useContext } from "react";
 import { Map, View } from "ol";
 import moduleLoader from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
@@ -14,6 +14,9 @@ import styled from "styled-components";
 import { applyStyle } from "ol-mapbox-style";
 import PropTypes from "prop-types";
 import { useMapContext } from "components/contexts/MapContext";
+import { fromExtent } from "ol/geom/Polygon";
+import { VariableInputsContext } from "components/contexts/Contexts";
+import GeoJSON from "ol/format/GeoJSON";
 
 const StyledAlert = styled(Alert)`
   position: absolute;
@@ -57,6 +60,8 @@ const MapComponent = ({
   const setMapReady = mapContext?.setMapReady;
   const mapReady = mapContext?.mapReady;
   const isFirstRender = useRef(true);
+  const mapExtentVariableEvent = useRef();
+  const { setVariableInputValues } = useContext(VariableInputsContext);
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -113,7 +118,7 @@ const MapComponent = ({
     const mapViewConfig = new View({ projection });
     setProjection(mapViewConfig.getProjection().getCode());
 
-    const extent = mapExtent.replaceAll(" ", "");
+    const extent = mapExtent.extent.replaceAll(" ", "");
     const parts = extent.split(",").map((p) => parseFloat(p.trim()));
     if (parts.length === 3) {
       const [lon, lat, zoomLevel] = parts;
@@ -127,6 +132,15 @@ const MapComponent = ({
       });
       setZoom(mapViewConfig.getZoom().toFixed(2));
       setLonLat(mapViewConfig.getCenter());
+    }
+
+    if (mapExtentVariableEvent.current) {
+      visualizationRef.current.un("moveend", mapExtentVariableEvent.current);
+    }
+
+    if (mapExtent.variable) {
+      visualizationRef.current.on("moveend", updateMapExtentVariable);
+      mapExtentVariableEvent.current = updateMapExtentVariable;
     }
 
     // Update zoom on view change
@@ -226,6 +240,22 @@ const MapComponent = ({
     updateLayers();
     // eslint-disable-next-line
   }, [layers]);
+
+  const updateMapExtentVariable = (event) => {
+    const view = event.map.getView();
+    const extent = view.calculateExtent(event.map.getSize());
+    const rectangleGeom = fromExtent(extent);
+    const geojson = JSON.parse(new GeoJSON().writeGeometry(rectangleGeom));
+    setVariableInputValues((previousVariableInputValues) => ({
+      ...previousVariableInputValues,
+      ...{
+        [mapExtent.variable]: {
+          projection: view.getProjection().getCode(),
+          geometries: [geojson],
+        },
+      },
+    }));
+  };
 
   return (
     <>
