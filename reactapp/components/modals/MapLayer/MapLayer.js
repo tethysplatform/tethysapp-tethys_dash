@@ -113,8 +113,14 @@ const MapLayerModal = ({
       attributeProps.variables ?? {}
     );
 
+    const minAttributeAliases = removeEmptyValues(attributeProps.aliases ?? {});
+
     if (layerVisibility === false) {
       mapConfiguration.configuration.layerVisibility = false;
+    }
+
+    if (Object.keys(minAttributeAliases).length > 0) {
+      mapConfiguration.attributeAliases = attributeProps.aliases;
     }
 
     if (Object.keys(minAttributeVariables).length > 0) {

@@ -454,6 +454,85 @@ test("Map click", async () => {
   ]);
 });
 
+test("Map click with aliases", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { field1: "some value" },
+      geometry: {
+        paths: [
+          [
+            [0, 0],
+            [0, 1],
+          ],
+          [
+            [1, 0],
+            [1, 1],
+          ],
+        ],
+      },
+      layerName: "Some Layer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: {
+              url: "some_url",
+            },
+          },
+        },
+      },
+      attributeAliases: { "Some Layer": { field1: "Some Alias Field" } },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={true}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  // layer, marker, and highlight layer
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(3);
+  });
+
+  // popup
+  expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+
+  expect(await screen.findByText("Some Layer")).toBeInTheDocument();
+  expect(await screen.findByText("Field")).toBeInTheDocument();
+  expect(await screen.findByText("Value")).toBeInTheDocument();
+  expect(screen.queryByText("field1")).not.toBeInTheDocument();
+  expect(await screen.findByText("Some Alias Field")).toBeInTheDocument();
+  expect(await screen.findByText("some value")).toBeInTheDocument();
+});
+
 test("Map click no queryable layer", async () => {
   mockedQueryLayerFeatures.mockResolvedValue([
     {

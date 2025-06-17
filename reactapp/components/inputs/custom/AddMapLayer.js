@@ -72,6 +72,7 @@ const MapLayerTemplate = ({
       (t) => t.configuration.props.name === mapLayerName
     );
     const attributeVariables = existingMapLayer.attributeVariables ?? {};
+    const attributeAliases = existingMapLayer.attributeAliases ?? {};
     const omittedPopupAttributes =
       existingMapLayer.omittedPopupAttributes ?? {};
     const queryableLayer = existingMapLayer.queryable === false ? false : true;
@@ -90,6 +91,7 @@ const MapLayerTemplate = ({
       attributeProps: {
         variables: attributeVariables,
         omitted: omittedPopupAttributes,
+        aliases: attributeAliases,
         queryable: queryableLayer,
       },
     };

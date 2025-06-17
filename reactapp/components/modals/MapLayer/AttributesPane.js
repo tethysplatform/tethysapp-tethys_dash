@@ -261,6 +261,12 @@ const AttributesPane = ({
       for (const layerAttribute of layerAttributes[layerName]) {
         const name = layerAttribute.name;
 
+        // check to see if an alias is already configured
+        const existingAlias =
+          attributeProps?.aliases?.[layerName] &&
+          attributeProps.aliases[layerName][name];
+        layerAttribute["alias"] = existingAlias ?? "";
+
         // check to see if the attribute is already being omitted in the popup
         const existingPopup =
           !attributeProps?.omitted?.[layerName] ||
@@ -278,6 +284,25 @@ const AttributesPane = ({
     }
 
     return newObj;
+  }
+
+  function extractAliases(layerData) {
+    const result = {};
+
+    // check each layer and its attributes to extract any configured variable inputs
+    Object.entries(layerData).forEach(([layerName, layerAttributes]) => {
+      const extractedAliases = layerAttributes.reduce(
+        (acc, { name, alias }) => {
+          acc[name] = alias;
+          return acc;
+        },
+        {}
+      );
+
+      result[layerName] = extractedAliases;
+    });
+
+    return result;
   }
 
   function extractVariableInputs(layerData) {
@@ -345,6 +370,7 @@ const AttributesPane = ({
       ...{
         variables: extractVariableInputs(updatedAttributes),
         omitted: extractFalsePopups(updatedAttributes),
+        aliases: extractAliases(updatedAttributes),
       },
     }));
 
@@ -466,7 +492,22 @@ const AttributesPane = ({
                         {attributes[layerName].map(({ name, alias }, index) => (
                           <tr key={index}>
                             <OverflowTD>{name}</OverflowTD>
-                            <OverflowTD>{alias}</OverflowTD>
+                            <td>
+                              <StyledInput
+                                value={
+                                  attributes[layerName][index]["alias"] ?? alias
+                                }
+                                aria-label="alias row"
+                                onChange={(e) => {
+                                  updateAttributes({
+                                    index,
+                                    layerName,
+                                    field: "alias",
+                                    fieldChange: e.target.value,
+                                  });
+                                }}
+                              />
+                            </td>
                             <CenteredTD>
                               <input
                                 type="checkbox"
@@ -520,7 +561,12 @@ const AttributesPane = ({
                     }
                     values={attributes[layerName]}
                     allowRowCreation={true}
-                    headers={["Name", "Show in popup", "Variable Input Name"]}
+                    headers={[
+                      "Name",
+                      "Alias",
+                      "Show in popup",
+                      "Variable Input Name",
+                    ]}
                   />
                 ))
               )}

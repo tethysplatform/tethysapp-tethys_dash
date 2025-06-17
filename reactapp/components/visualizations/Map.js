@@ -298,6 +298,18 @@ const MapVisualization = ({
     );
 
     // reduce the layer attributes variables values into a simplified object of layer names and then values
+    const mapAttributeAliases = queryableLayers.reduce((combined, current) => {
+      if (
+        current.attributeAliases &&
+        typeof current.attributeAliases === "object"
+      ) {
+        // Merge the example object into the combined object
+        Object.assign(combined, current.attributeAliases);
+      }
+      return combined;
+    }, {});
+
+    // reduce the layer attributes variables values into a simplified object of layer names and then values
     const mapAttributeVariables = queryableLayers.reduce(
       (combined, current) => {
         if (
@@ -369,12 +381,13 @@ const MapVisualization = ({
                 }
               }
 
+              const aliasMap = mapAttributeAliases[layerName] || {};
+              const omittedFields = mapOmittedPopupAttributes[layerName] || [];
+
               const newLayerAttributes = Object.fromEntries(
-                Object.entries(layerFeature.attributes).filter(
-                  ([key]) =>
-                    !(layerName in mapOmittedPopupAttributes) ||
-                    !mapOmittedPopupAttributes[layerName].includes(key)
-                )
+                Object.entries(layerFeature.attributes)
+                  .filter(([key]) => !omittedFields.includes(key))
+                  .map(([key, value]) => [aliasMap[key] || key, value])
               );
 
               layerFeature.attributes = newLayerAttributes;
