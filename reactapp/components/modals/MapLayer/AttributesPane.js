@@ -223,6 +223,7 @@ const AttributesPane = ({
             ...{
               variables: extractVariableInputs(layerAttributes),
               omitted: extractFalsePopups(layerAttributes),
+              aliases: extractAliases(layerAttributes),
             },
           }));
         });
@@ -265,7 +266,7 @@ const AttributesPane = ({
         const existingAlias =
           attributeProps?.aliases?.[layerName] &&
           attributeProps.aliases[layerName][name];
-        layerAttribute["alias"] = existingAlias ?? "";
+        layerAttribute["alias"] = existingAlias ?? layerAttribute.alias ?? "";
 
         // check to see if the attribute is already being omitted in the popup
         const existingPopup =
