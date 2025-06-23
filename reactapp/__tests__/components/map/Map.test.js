@@ -507,7 +507,8 @@ test("Map Layer Styles", async () => {
 
 TestingComponent.propTypes = {
   mapProps: PropTypes.shape({
-    onMapClick: PropTypes.func,
+    onMapClick: PropTypes.bool,
+    onMapMove: PropTypes.bool,
     layers: PropTypes.array,
   }),
 };
