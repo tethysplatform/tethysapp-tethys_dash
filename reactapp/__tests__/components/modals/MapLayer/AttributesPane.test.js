@@ -36,6 +36,9 @@ const TestingComponent = ({
       <p data-testid="attributeVariables">
         {JSON.stringify(attributeProps.variables)}
       </p>
+      <p data-testid="attributeAliases">
+        {JSON.stringify(attributeProps.aliases)}
+      </p>
       <p data-testid="omittedPopupAttributes">
         {JSON.stringify(attributeProps.omitted)}
       </p>
@@ -80,7 +83,7 @@ test("AttributesPane successful query no initial variables or popups", async () 
   mockedGetLayerAttributes.mockResolvedValue({
     states: [
       { name: "the_geom", alias: "the_geom" },
-      { name: "STATE_NAME", alias: "STATE_NAME" },
+      { name: "STATE_NAME", alias: "STATE" },
     ],
   });
 
@@ -111,11 +114,18 @@ test("AttributesPane successful query no initial variables or popups", async () 
   expect(screen.getByText("Variable Input Name")).toBeInTheDocument();
 
   // Body
-  expect(screen.getAllByText("the_geom").length).toBe(2);
-  expect(screen.getAllByText("STATE_NAME").length).toBe(2);
-  expect(screen.getAllByRole("textbox").length).toBe(2);
-  expect(screen.getAllByRole("textbox")[0].value).toBe("");
-  expect(screen.getAllByRole("textbox")[1].value).toBe("");
+  expect(screen.getAllByText("the_geom").length).toBe(1);
+  expect(screen.getAllByText("STATE_NAME").length).toBe(1);
+
+  const aliasTextboxes = screen.getAllByLabelText("alias row");
+  expect(aliasTextboxes.length).toBe(2);
+  expect(aliasTextboxes[0].value).toBe("the_geom");
+  expect(aliasTextboxes[1].value).toBe("STATE");
+
+  const variableTextboxes = screen.getAllByLabelText("variable row");
+  expect(variableTextboxes.length).toBe(2);
+  expect(variableTextboxes[0].value).toBe("");
+  expect(variableTextboxes[1].value).toBe("");
 
   const popupCheckboxes = screen.getAllByLabelText("Show in popup row");
   expect(popupCheckboxes.length).toBe(2); // includes header and 2 rows
@@ -154,6 +164,7 @@ test("AttributesPane successful query with initial variables or popups", async (
       initialAttributeProps={{
         variables: { states: { the_geom: "some variable" } },
         omitted: { states: ["the_geom"] },
+        aliases: { states: { the_geom: "Geometry" } },
       }}
     />
   );
@@ -171,8 +182,14 @@ test("AttributesPane successful query with initial variables or popups", async (
   expect(screen.getByText("Variable Input Name")).toBeInTheDocument();
 
   // Body
-  expect(screen.getAllByText("the_geom").length).toBe(2);
-  expect(screen.getAllByText("STATE_NAME").length).toBe(2);
+  expect(screen.getAllByText("the_geom").length).toBe(1);
+  expect(screen.getAllByText("STATE_NAME").length).toBe(1);
+
+  const aliasTextboxes = screen.getAllByLabelText("alias row");
+  expect(aliasTextboxes.length).toBe(2);
+
+  expect(aliasTextboxes[0].value).toBe("Geometry");
+  expect(aliasTextboxes[1].value).toBe("STATE_NAME");
 
   const variableTextboxes = screen.getAllByLabelText("variable row");
   expect(variableTextboxes.length).toBe(2);
@@ -230,7 +247,11 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
 
   let popCheckboxes = screen.getAllByRole("checkbox", { name: /popup/i });
   expect(popCheckboxes.length).toBe(1); // includes 1 row
-  expect(screen.getAllByRole("textbox").length).toBe(2); // name and variable input
+  expect(screen.getAllByRole("textbox").length).toBe(3); // name, alias and variable input
+
+  expect(screen.getByLabelText("name Input 0").value).toBe("");
+  expect(screen.getByLabelText("alias Input 0").value).toBe("");
+  expect(screen.getByLabelText("variableInput Input 0").value).toBe("");
 
   const rowCheckbox = popCheckboxes[0];
   fireEvent.click(rowCheckbox);
@@ -238,13 +259,19 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
     JSON.stringify({})
   );
 
-  const nameTextbox = screen.getAllByRole("textbox")[0];
+  const nameTextbox = screen.getByLabelText("name Input 0");
   fireEvent.change(nameTextbox, { target: { value: "test" } });
   expect(screen.getByTestId("omittedPopupAttributes")).toHaveTextContent(
     JSON.stringify({ states: ["test"] })
   );
 
-  const variableTextbox = screen.getAllByRole("textbox")[1];
+  const aliasTextbox = screen.getByLabelText("alias Input 0");
+  fireEvent.change(aliasTextbox, { target: { value: "New Alias" } });
+  expect(screen.getByTestId("attributeAliases")).toHaveTextContent(
+    JSON.stringify({ states: { test: "New Alias" } })
+  );
+
+  const variableTextbox = screen.getByLabelText("variableInput Input 0");
   fireEvent.change(variableTextbox, { target: { value: "some variable" } });
   expect(screen.getByTestId("attributeVariables")).toHaveTextContent(
     JSON.stringify({ states: { test: "some variable" } })
@@ -255,8 +282,8 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
   await userEvent.tab();
   popCheckboxes = screen.getAllByRole("checkbox", { name: /popup/i });
   expect(popCheckboxes.length).toBe(2);
-  expect(screen.getAllByRole("textbox").length).toBe(4);
-  expect(screen.getAllByRole("textbox")[2]).toHaveFocus();
+  expect(screen.getAllByRole("textbox").length).toBe(6);
+  expect(screen.getAllByRole("textbox")[3]).toHaveFocus();
 
   // dont rerun query if source props dont change
   rerender(
@@ -284,11 +311,15 @@ test("AttributesPane unsuccessful query no initial variables or popups", async (
   expect(screen.getByTestId("attributeVariables")).toHaveTextContent(
     JSON.stringify({ states: { test: "some variable" } })
   );
-  expect(screen.getAllByRole("textbox")[0].value).toBe("test");
-  expect(screen.getAllByRole("textbox")[1].value).toBe("some variable");
+
+  expect(screen.getByLabelText("name Input 0").value).toBe("test");
+  expect(screen.getByLabelText("alias Input 0").value).toBe("New Alias");
+  expect(screen.getByLabelText("variableInput Input 0").value).toBe(
+    "some variable"
+  );
 });
 
-test("AttributesPane unsuccessful query with initial variables or popups", async () => {
+test("AttributesPane unsuccessful query with initial variables, fields, and popups", async () => {
   mockedGetLayerAttributes.mockRejectedValue({ message: "Something happened" });
 
   const sourceProps = {
@@ -306,6 +337,7 @@ test("AttributesPane unsuccessful query with initial variables or popups", async
       tabKey={"attributes"}
       initialAttributeProps={{
         variables: { esri: { the_geom: "some variable" } },
+        aliases: { esri: { the_geom: "Geometry", STATE_NAME: "State" } },
         omitted: { esri: ["the_geom", "STATE_NAME"] },
       }}
     />
@@ -329,12 +361,16 @@ test("AttributesPane unsuccessful query with initial variables or popups", async
 
   const popCheckboxes = screen.getAllByRole("checkbox", { name: /popup/i });
   expect(popCheckboxes.length).toBe(2); // includes 2 row
-  expect(screen.getAllByRole("textbox").length).toBe(4); // name and variable input
+  expect(screen.getAllByRole("textbox").length).toBe(6); // name, alias and variable input
 
-  expect(screen.getAllByRole("textbox")[0].value).toBe("the_geom");
-  expect(screen.getAllByRole("textbox")[1].value).toBe("some variable");
-  expect(screen.getAllByRole("textbox")[2].value).toBe("STATE_NAME");
-  expect(screen.getAllByRole("textbox")[3].value).toBe("");
+  expect(screen.getByLabelText("name Input 0").value).toBe("the_geom");
+  expect(screen.getByLabelText("alias Input 0").value).toBe("Geometry");
+  expect(screen.getByLabelText("variableInput Input 0").value).toBe(
+    "some variable"
+  );
+  expect(screen.getByLabelText("name Input 1").value).toBe("STATE_NAME");
+  expect(screen.getByLabelText("alias Input 1").value).toBe("State");
+  expect(screen.getByLabelText("variableInput Input 1").value).toBe("");
 
   expect(popCheckboxes[0].checked).toBe(false);
   expect(popCheckboxes[1].checked).toBe(false);
@@ -484,14 +520,23 @@ test("AttributesPane attributes change", async () => {
 
   expect(await screen.findByText("states")).toBeInTheDocument();
 
-  const geomTextbox = screen.getAllByRole("textbox")[0];
+  const geomTextbox = screen.getAllByLabelText("variable row")[0];
   fireEvent.change(geomTextbox, { target: { value: "some variable" } });
 
   expect(await screen.findByTestId("attributeVariables")).toHaveTextContent(
     JSON.stringify({ states: { the_geom: "some variable" } })
   );
 
-  const stateTextbox = screen.getAllByRole("textbox")[1];
+  const geomAliasTextbox = screen.getAllByLabelText("alias row")[0];
+  fireEvent.change(geomAliasTextbox, { target: { value: "Geometry" } });
+
+  expect(screen.getByTestId("attributeAliases")).toHaveTextContent(
+    JSON.stringify({
+      states: { the_geom: "Geometry", STATE_NAME: "STATE_NAME" },
+    })
+  );
+
+  const stateTextbox = screen.getAllByLabelText("variable row")[1];
   fireEvent.change(stateTextbox, { target: { value: "some other variable" } });
 
   expect(await screen.findByTestId("attributeVariables")).toHaveTextContent(

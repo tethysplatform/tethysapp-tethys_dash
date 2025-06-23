@@ -490,14 +490,12 @@ const AttributesPane = ({
                         </tr>
                       </thead>
                       <tbody>
-                        {attributes[layerName].map(({ name, alias }, index) => (
+                        {attributes[layerName].map(({ name }, index) => (
                           <tr key={index}>
                             <OverflowTD>{name}</OverflowTD>
                             <td>
                               <StyledInput
-                                value={
-                                  attributes[layerName][index]["alias"] ?? alias
-                                }
+                                value={attributes[layerName][index]["alias"]}
                                 aria-label="alias row"
                                 onChange={(e) => {
                                   updateAttributes({

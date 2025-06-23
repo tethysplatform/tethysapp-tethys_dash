@@ -568,6 +568,15 @@ test("updateObjectWithVariableInputs", async () => {
     location: "",
     text: "Here is some text with the a variable ",
   });
+
+  const jsonResult = updateObjectWithVariableInputs(
+    JSON.parse(JSON.stringify(args)),
+    { "Some Variable": { some: "value" } }
+  );
+  expect(jsonResult).toStrictEqual({
+    location: '{"some":"value"}',
+    text: 'Here is some text with the a variable {"some":"value"}',
+  });
 });
 
 test("getBaseMapLayer", async () => {

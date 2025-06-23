@@ -36,8 +36,6 @@ const TestingComponent = ({
   handleModalClose,
   addMapLayer,
   layerInfo,
-  mapLayers,
-  existingLayerOriginalName,
 }) => {
   const csrf = "asdasdasdasd";
   const appContext = {
@@ -52,8 +50,6 @@ const TestingComponent = ({
           handleModalClose={handleModalClose}
           addMapLayer={addMapLayer}
           layerInfo={layerInfo}
-          mapLayers={mapLayers}
-          existingLayerOriginalName={existingLayerOriginalName}
         />
       </AppContext.Provider>
     </>
@@ -64,16 +60,12 @@ test("MapLayerModal new ImageArcGISRest layer", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -124,16 +116,12 @@ test("MapLayerModal new ImageWMS layer", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -197,16 +185,12 @@ test("MapLayerModal new GeoJSON layer", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -316,16 +300,12 @@ test("MapLayerModal new ImageTile layer", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -378,16 +358,12 @@ test("MapLayerModal new VectorTile layer", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -438,16 +414,12 @@ test("MapLayerModal no name error", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -465,16 +437,12 @@ test("MapLayerModal missing required properties", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -515,16 +483,12 @@ test("MapLayerModal attribute variables and omitted popups", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -549,7 +513,8 @@ test("MapLayerModal attribute variables and omitted popups", async () => {
 
   expect(await screen.findByText("New Layer Name")).toBeInTheDocument();
   const attributesTabContent = screen.getByLabelText("layer-attributes-tab");
-  const variableInput = within(attributesTabContent).getAllByRole("textbox")[0];
+  const variableInput =
+    within(attributesTabContent).getAllByLabelText("variable row")[0];
   fireEvent.change(variableInput, { target: { value: "Some Variable" } });
   const popupCheckboxes = screen.getAllByLabelText("Show in popup row");
   fireEvent.click(popupCheckboxes[0]);
@@ -561,6 +526,12 @@ test("MapLayerModal attribute variables and omitted popups", async () => {
     attributeVariables: {
       "New Layer Name": {
         the_geom: "Some Variable",
+      },
+    },
+    attributeAliases: {
+      "New Layer Name": {
+        STATE_NAME: "STATE_NAME",
+        the_geom: "the_geom",
       },
     },
     omittedPopupAttributes: {
@@ -585,16 +556,12 @@ test("MapLayerModal legend", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -684,16 +651,12 @@ test("MapLayerModal new GeoJSON layer api fail", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -756,16 +719,12 @@ test("MapLayerModal style", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -868,16 +827,12 @@ test("MapLayerModal style api fail", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
   const layerInfo = {};
-  const mapLayers = [];
-  const existingLayerOriginalName = { current: null };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -979,42 +934,20 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
       },
       type: "ESRI Image and Map Service",
     },
-    attributeVariables: {
-      "New Layer Name": {
-        the_geom: "Some Variable",
-      },
-    },
-  };
-  const mapLayers = [
-    {
-      configuration: {
-        props: {
-          name: "New Layer Name",
-          source: {
-            props: {
-              url: "Some Url",
-            },
-            type: "ESRI Image and Map Service",
-          },
-        },
-        type: "ImageLayer",
-      },
-      attributeVariables: {
+    attributeProps: {
+      variables: {
         "New Layer Name": {
           the_geom: "Some Variable",
         },
       },
     },
-  ];
-  const existingLayerOriginalName = { current: "New Layer Name" };
+  };
   render(
     <TestingComponent
       showModal={true}
       handleModalClose={handleModalClose}
       addMapLayer={addMapLayer}
       layerInfo={layerInfo}
-      mapLayers={mapLayers}
-      existingLayerOriginalName={existingLayerOriginalName}
     />
   );
 
@@ -1052,7 +985,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
   const attributesTabContent = screen.getByLabelText("layer-attributes-tab");
 
   const variableInput1 =
-    within(attributesTabContent).getAllByRole("textbox")[0];
+    within(attributesTabContent).getAllByLabelText("variable row")[0];
   fireEvent.change(variableInput1, { target: { value: "Some New Variable" } });
 
   const createLayerButton = await screen.findByLabelText("Create Layer Button");
@@ -1075,6 +1008,12 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
     attributeVariables: {
       "New Layer Name": {
         the_geom: "Some New Variable",
+      },
+    },
+    attributeAliases: {
+      "New Layer Name": {
+        STATE_NAME: "STATE_NAME",
+        the_geom: "the_geom",
       },
     },
   });
