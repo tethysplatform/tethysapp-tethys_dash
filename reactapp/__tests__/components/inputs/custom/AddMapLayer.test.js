@@ -173,7 +173,7 @@ it("AddMapLayer add new", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("ESRI Image and Map Service");

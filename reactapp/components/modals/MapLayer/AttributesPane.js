@@ -57,6 +57,7 @@ const AttributesPane = ({
   const [errorMessage, setErrorMessage] = useState(null);
   const [attributes, setAttributes] = useState({});
   const previousSourceProps = useRef({});
+  const previousAttributeProps = useRef({});
   const [customAttributes, setCustomAttributes] = useState(null);
   const [layerPopupSwitch, setLayerPopupSwitch] = useState({});
   const [allowLayerQuery, setAllowLayerQuery] = useState(
@@ -200,29 +201,11 @@ const AttributesPane = ({
             }
           }
 
-          // add a popup and variableInput field, using preexisting values if possible
-          layerAttributes =
-            appendExistingVariablesAliasesAndPopups(layerAttributes);
+          parseAttributes(layerAttributes);
 
-          // check to see what the header popup switch should be. If all field popups are false, then the header switch should be false
-          let popupSwitchValues;
-          if (Object.keys(layerAttributes).length > 0) {
-            popupSwitchValues = Object.fromEntries(
-              Object.entries(layerAttributes).map(([key, value]) => [
-                key,
-                !value.every((item) => item.popup === false), // false if all popups are false, true otherwise
-              ])
-            );
-          } else {
-            setWarningMessage("No field attributes were found.");
-            layerAttributes = {};
-            popupSwitchValues = {};
-          }
-
-          // set states and refs after processing all done
-          setAttributes(layerAttributes);
-          setLayerPopupSwitch(popupSwitchValues);
-
+          previousAttributeProps.current = JSON.parse(
+            JSON.stringify(attributeProps)
+          );
           setAttributeProps((previousAttributeProps) => ({
             ...previousAttributeProps,
             ...{
@@ -235,7 +218,41 @@ const AttributesPane = ({
       }
     }
     // eslint-disable-next-line
-  }, [tabKey, sourceProps, attributeProps]);
+  }, [tabKey, sourceProps]);
+
+  useEffect(() => {
+    if (!valuesEqual(previousAttributeProps.current, attributeProps)) {
+      previousAttributeProps.current = JSON.parse(
+        JSON.stringify(attributeProps)
+      );
+      parseAttributes(attributes);
+    }
+    // eslint-disable-next-line
+  }, [attributeProps]);
+
+  function parseAttributes(layerAttributes) {
+    // add a popup and variableInput field, using preexisting values if possible
+    layerAttributes = appendExistingVariablesAliasesAndPopups(layerAttributes);
+
+    // check to see what the header popup switch should be. If all field popups are false, then the header switch should be false
+    let popupSwitchValues;
+    if (Object.keys(layerAttributes).length > 0) {
+      popupSwitchValues = Object.fromEntries(
+        Object.entries(layerAttributes).map(([key, value]) => [
+          key,
+          !value.every((item) => item.popup === false), // false if all popups are false, true otherwise
+        ])
+      );
+    } else {
+      setWarningMessage("No field attributes were found.");
+      layerAttributes = {};
+      popupSwitchValues = {};
+    }
+
+    // set states and refs after processing all done
+    setAttributes(layerAttributes);
+    setLayerPopupSwitch(popupSwitchValues);
+  }
 
   async function queryLayerAttributes() {
     // query source endpoints for attributes

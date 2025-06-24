@@ -83,7 +83,7 @@ test("MapLayerModal new ImageArcGISRest layer", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("ESRI Image and Map Service");
@@ -139,7 +139,7 @@ test("MapLayerModal new ImageWMS layer", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("WMS");
@@ -207,7 +207,7 @@ test("MapLayerModal new GeoJSON layer", async () => {
 
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("GeoJSON");
@@ -323,7 +323,7 @@ test("MapLayerModal new ImageTile layer", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("Image Tile");
@@ -381,7 +381,7 @@ test("MapLayerModal new VectorTile layer", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("Vector Tile");
@@ -452,7 +452,7 @@ test("MapLayerModal missing required properties", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("WMS");
@@ -498,7 +498,7 @@ test("MapLayerModal attribute variables and omitted popups", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("ESRI Image and Map Service");
@@ -571,7 +571,7 @@ test("MapLayerModal legend", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("ESRI Image and Map Service");
@@ -665,7 +665,7 @@ test("MapLayerModal new GeoJSON layer api fail", async () => {
 
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("GeoJSON");
@@ -734,7 +734,7 @@ test("MapLayerModal style", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("ESRI Image and Map Service");
@@ -842,7 +842,7 @@ test("MapLayerModal style api fail", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("ESRI Image and Map Service");
@@ -968,7 +968,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
   const sourceOption = await screen.findByText("ESRI Image and Map Service");

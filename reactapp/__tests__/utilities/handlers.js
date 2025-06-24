@@ -43,6 +43,16 @@ const handlers = [
     );
   }),
   rest.get(
+    "http://api.test/apps/tethysdash/json/download/",
+    (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({ data: {} }),
+        ctx.set("Content-Type", "application/json")
+      );
+    }
+  ),
+  rest.get(
     "http://api.test/apps/tethysdash/dashboards/get/",
     (req, res, ctx) => {
       return res(

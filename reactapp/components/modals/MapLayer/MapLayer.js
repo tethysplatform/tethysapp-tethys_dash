@@ -342,6 +342,7 @@ const MapLayerModal = ({
                 options={mapLayerTemplates}
                 value={selectedOption}
                 onChange={onLayoutChange}
+                aria-label={"Layer Templates Input"}
                 styles={{
                   control: (base) => ({
                     ...base,
