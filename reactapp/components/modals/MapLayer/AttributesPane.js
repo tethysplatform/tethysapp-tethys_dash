@@ -167,6 +167,9 @@ const AttributesPane = ({
               const existingLayerattributeVariableFields = Object.keys(
                 attributeProps?.variables?.[layerName] || {}
               );
+              const existingLayerAttributeAliases = Object.keys(
+                attributeProps?.aliases?.[layerName] || {}
+              );
               const existingOmittedPopupAttributesFields =
                 attributeProps?.omitted?.[layerName] || [];
 
@@ -175,6 +178,7 @@ const AttributesPane = ({
                 ...new Set([
                   ...existingLayerattributeVariableFields,
                   ...existingOmittedPopupAttributesFields,
+                  ...existingLayerAttributeAliases,
                 ]),
               ];
 
@@ -197,7 +201,8 @@ const AttributesPane = ({
           }
 
           // add a popup and variableInput field, using preexisting values if possible
-          layerAttributes = appendExistingVariablesAndPopups(layerAttributes);
+          layerAttributes =
+            appendExistingVariablesAliasesAndPopups(layerAttributes);
 
           // check to see what the header popup switch should be. If all field popups are false, then the header switch should be false
           let popupSwitchValues;
@@ -230,7 +235,7 @@ const AttributesPane = ({
       }
     }
     // eslint-disable-next-line
-  }, [tabKey]);
+  }, [tabKey, sourceProps, attributeProps]);
 
   async function queryLayerAttributes() {
     // query source endpoints for attributes
@@ -251,7 +256,7 @@ const AttributesPane = ({
     }
   }
 
-  function appendExistingVariablesAndPopups(layerAttributes) {
+  function appendExistingVariablesAliasesAndPopups(layerAttributes) {
     const newObj = {};
 
     // loop through layers

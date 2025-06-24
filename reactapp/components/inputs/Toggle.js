@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import styled from "styled-components";
 import { Form } from "react-bootstrap";
 import PropTypes from "prop-types";
@@ -7,14 +7,12 @@ const CenteredForm = styled(Form)`
   align-content: center;
 `;
 
-const Toggle = ({
-  defaultValue,
-  label,
-  uncheckedLabel,
-  checkedLabel,
-  onChange,
-}) => {
-  const [toggleValue, setToggleValue] = useState(defaultValue);
+const Toggle = ({ checked, label, uncheckedLabel, checkedLabel, onChange }) => {
+  const [toggleValue, setToggleValue] = useState(checked);
+
+  useEffect(() => {
+    setToggleValue(checked);
+  }, [checked]);
 
   function onToggleChange(e) {
     setToggleValue(e.target.checked);
@@ -44,7 +42,7 @@ const Toggle = ({
 };
 
 Toggle.propTypes = {
-  defaultValue: PropTypes.bool,
+  checked: PropTypes.bool,
   label: PropTypes.string,
   uncheckedLabel: PropTypes.string,
   checkedLabel: PropTypes.string,

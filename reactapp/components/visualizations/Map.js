@@ -459,7 +459,10 @@ const MapVisualization = ({
 
 MapVisualization.propTypes = {
   mapConfig: PropTypes.object, // div element properties for the map
-  mapExtent: PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
+  mapExtent: PropTypes.shape({
+    extent: PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
+    variable: PropTypes.string,
+  }),
   layers: PropTypes.arrayOf(
     PropTypes.shape({
       configuration: configurationPropType,

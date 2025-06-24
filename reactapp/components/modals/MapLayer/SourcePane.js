@@ -125,7 +125,7 @@ const SourcePane = ({ sourceProps, setSourceProps, setAttributeProps }) => {
       fetchGeoJSON();
     }
     // eslint-disable-next-line
-  }, []);
+  }, [sourceProps]);
 
   function handlePropertyChange({ newValue, rowIndex, field }) {
     // update table values

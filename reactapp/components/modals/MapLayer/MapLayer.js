@@ -24,6 +24,8 @@ import {
   removeEmptyValues,
   checkRequiredKeys,
 } from "components/modals/utilities";
+import Select from "react-select";
+import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
 const StyledModalHeader = styled(Modal.Header)`
@@ -43,6 +45,28 @@ const StyledAlert = styled(Alert)`
   max-width: 75%;
 `;
 
+const FooterContent = styled.div`
+  display: flex;
+  justify-content: space-between; /* spreads items out */
+  align-items: center;
+  width: 100%;
+  gap: 1rem;
+  flex-wrap: wrap; /* allows responsiveness */
+`;
+
+const LeftGroup = styled.div`
+  flex: 1;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+`;
+
+const RightGroup = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+`;
+
 const MapLayerModal = ({
   showModal,
   handleModalClose,
@@ -58,8 +82,9 @@ const MapLayerModal = ({
   );
   const [style, setStyle] = useState(layerInfo.style);
   const [legend, setLegend] = useState(layerInfo.legend);
+  const [selectedOption, setSelectedOption] = useState(null);
   const containerRef = useRef(null);
-  const { csrf } = useContext(AppContext);
+  const { csrf, mapLayerTemplates } = useContext(AppContext);
 
   async function saveLayer() {
     setErrorMessage(null);
@@ -193,6 +218,38 @@ const MapLayerModal = ({
     handleModalClose();
   }
 
+  const onLayoutChange = async (e) => {
+    setSelectedOption(e);
+    const apiResponse = await appAPI.getPlotData({
+      source: e.source,
+      args: {},
+    });
+
+    const attributeVariables = apiResponse.data.attributeVariables ?? {};
+    const attributeAliases = apiResponse.data.attributeAliases ?? {};
+    const omittedPopupAttributes =
+      apiResponse.data.omittedPopupAttributes ?? {};
+    const queryableLayer = apiResponse.data.queryable === false ? false : true;
+    const updatedLayerProps = Object.fromEntries(
+      Object.entries(apiResponse.data.configuration.props).filter(
+        ([key]) => key !== "source"
+      )
+    );
+    updatedLayerProps.layerVisibility =
+      apiResponse.data.configuration.layerVisibility;
+
+    setSourceProps(apiResponse.data.configuration.props.source);
+    setLayerProps(updatedLayerProps);
+    setAttributeProps({
+      variables: attributeVariables,
+      omitted: omittedPopupAttributes,
+      aliases: attributeAliases,
+      queryable: queryableLayer,
+    });
+    setStyle(apiResponse.data.configuration.style);
+    setLegend(apiResponse.data.legend);
+  };
+
   return (
     <>
       <Modal
@@ -274,30 +331,56 @@ const MapLayerModal = ({
           </Tabs>
         </StyledModalBody>
         <Modal.Footer>
-          {errorMessage && (
-            <StyledAlert
-              key="danger"
-              variant="danger"
-              dismissible
-              onClose={() => setErrorMessage("")}
-            >
-              {errorMessage}
-            </StyledAlert>
-          )}
-          <Button
-            variant="secondary"
-            onClick={handleModalClose}
-            aria-label={"Close Layer Modal Button"}
-          >
-            Close
-          </Button>
-          <Button
-            variant="success"
-            onClick={saveLayer}
-            aria-label={"Create Layer Button"}
-          >
-            Create
-          </Button>
+          <FooterContent>
+            <LeftGroup>
+              <label htmlFor="layer-templates" style={{ fontWeight: "bold" }}>
+                Layer Templates
+              </label>
+              <Select
+                inputId="layer-templates"
+                menuPlacement="top"
+                options={mapLayerTemplates}
+                value={selectedOption}
+                onChange={onLayoutChange}
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    minWidth: "100%",
+                  }),
+                  container: (base) => ({
+                    ...base,
+                    flex: 0.5,
+                  }),
+                }}
+              />
+            </LeftGroup>
+            {errorMessage && (
+              <StyledAlert
+                key="danger"
+                variant="danger"
+                dismissible
+                onClose={() => setErrorMessage("")}
+              >
+                {errorMessage}
+              </StyledAlert>
+            )}
+            <RightGroup>
+              <Button
+                variant="secondary"
+                onClick={handleModalClose}
+                aria-label={"Close Layer Modal Button"}
+              >
+                Close
+              </Button>
+              <Button
+                variant="success"
+                onClick={saveLayer}
+                aria-label={"Create Layer Button"}
+              >
+                Create
+              </Button>
+            </RightGroup>
+          </FooterContent>
         </Modal.Footer>
       </Modal>
     </>

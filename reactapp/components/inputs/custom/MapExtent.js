@@ -210,7 +210,10 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
 
 MapExtent.propTypes = {
   onChange: PropTypes.func,
-  values: PropTypes.string,
+  values: PropTypes.shape({
+    extent: PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
+    variable: PropTypes.string,
+  }),
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),

@@ -135,6 +135,7 @@ function Loader({ children }) {
       let dashboards;
       let visualizations;
       let allVisualizations = [];
+      let mapLayerTemplates = [];
       let visualizationArgs = [];
 
       try {
@@ -175,7 +176,26 @@ function Loader({ children }) {
         return;
       }
 
-      allVisualizations = visualizations.visualizations;
+      for (const visualizationGroup of visualizations.visualizations) {
+        const nonMapLayerItems = visualizationGroup.options.filter(
+          (opt) => opt.type !== "map_layer"
+        );
+        const mapLayerItems = visualizationGroup.options.filter(
+          (opt) => opt.type === "map_layer"
+        );
+
+        // Collect map_layer items into flat array
+        mapLayerTemplates.push(...mapLayerItems);
+
+        // If non-map_layer items exist, preserve the group
+        if (nonMapLayerItems.length > 0) {
+          allVisualizations.push({
+            label: visualizationGroup.label,
+            options: nonMapLayerItems,
+          });
+        }
+      }
+
       visualizationArgs = [
         {
           label: "Base Map Layers",
@@ -275,6 +295,7 @@ function Loader({ children }) {
         csrf,
         routes: setupRoutes(dashboards),
         visualizations: allVisualizations,
+        mapLayerTemplates,
         visualizationArgs,
       });
       setAvailableDashboards(dashboards);

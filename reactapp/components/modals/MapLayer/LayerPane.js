@@ -2,7 +2,7 @@ import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
 import { layerPropertiesOptions } from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import styled from "styled-components";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import Toggle from "components/inputs/Toggle";
@@ -15,14 +15,24 @@ const PaddedDiv = styled.div`
 `;
 
 const LayerPane = ({ layerProps, setLayerProps }) => {
-  // load existing layerProperties
-  const layerProperties = loadExistingArgs(
-    Object.fromEntries(
-      Object.entries(layerProps).filter(
-        ([key]) => !["name", "layerVisibility"].includes(key)
-      )
-    )
+  const [layerProperties, setLayerProperties] = useState(
+    filterLayerProps(layerProps)
   );
+
+  useEffect(() => {
+    setLayerProperties(filterLayerProps(layerProps));
+  }, [layerProps]);
+
+  function filterLayerProps(props) {
+    return loadExistingArgs(
+      Object.fromEntries(
+        Object.entries(props).filter(
+          ([key]) => !["name", "layerVisibility"].includes(key)
+        )
+      )
+    );
+  }
+
   // setup placeholders for the input table
   const propertyPlaceholders = Object.keys(layerPropertiesOptions).map(
     (key) => ({
@@ -33,8 +43,6 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
   const propertyTypes = Object.keys(layerPropertiesOptions).map(
     (key) => layerPropertiesOptions[key].type
   );
-
-  const [name, setName] = useState(layerProps?.name ?? "");
 
   function loadExistingArgs(existingProps) {
     // create an array for the input table of the various properties
@@ -67,7 +75,6 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
         <NormalInput
           label={"Name"}
           onChange={(e) => {
-            setName(e.target.value);
             setLayerProps((previousLayerProps) => ({
               ...previousLayerProps,
               ...{
@@ -75,12 +82,12 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
               },
             }));
           }}
-          value={name}
+          value={layerProps.name ?? ""}
           type={"text"}
           divProps={{ style: { flex: 1 } }}
         />
         <Toggle
-          defaultValue={layerProps.layerVisibility !== false}
+          checked={layerProps.layerVisibility !== false}
           label={"Default Visibility"}
           uncheckedLabel={"Invisible"}
           checkedLabel={"Visible"}
