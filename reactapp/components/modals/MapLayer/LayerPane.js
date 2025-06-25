@@ -21,6 +21,7 @@ const LayerPane = ({ layerProps, setLayerProps }) => {
 
   useEffect(() => {
     setLayerProperties(filterLayerProps(layerProps));
+    // eslint-disable-next-line
   }, [layerProps]);
 
   function filterLayerProps(props) {
