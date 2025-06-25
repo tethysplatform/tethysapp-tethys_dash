@@ -13,8 +13,15 @@ import ErrorBoundary from "components/error/ErrorBoundary";
 import userEvent from "@testing-library/user-event";
 
 const TestingComponent = () => {
-  const { tethysApp, user, csrf, routes, visualizations, visualizationArgs } =
-    useContext(AppContext);
+  const {
+    tethysApp,
+    user,
+    csrf,
+    routes,
+    visualizations,
+    visualizationArgs,
+    mapLayerTemplates,
+  } = useContext(AppContext);
   const { availableDashboards } = useContext(AvailableDashboardsContext);
 
   return (
@@ -26,6 +33,7 @@ const TestingComponent = () => {
         {JSON.stringify(routes.map((route) => route.key))}
       </p>
       <p data-testid="visualizations">{JSON.stringify(visualizations)}</p>
+      <p data-testid="mapLayerTemplates">{JSON.stringify(mapLayerTemplates)}</p>
       <p data-testid="visualizationArgs">{JSON.stringify(visualizationArgs)}</p>
       <p data-testid="availableDashboards">
         {JSON.stringify(availableDashboards)}
@@ -50,7 +58,22 @@ test("AppLoader", async () => {
         },
       ],
     },
+    {
+      label: "Map Layers",
+      options: [
+        {
+          source: "plugin_source_map_layer",
+          value: "plugin_source_map_layer",
+          label: "plugin_source_map_layer",
+          args: {},
+          type: "map_layer",
+          tags: [],
+          description: "",
+        },
+      ],
+    },
   ];
+
   server.use(
     rest.get(
       "http://api.test/apps/tethysdash/visualizations/",
@@ -198,6 +221,20 @@ test("AppLoader", async () => {
               "An input that acts as a dashboard variable. This variable can be referenced in other visualizations to allow for dynamic updating.",
           },
         ],
+      },
+    ])
+  );
+
+  expect(await screen.findByTestId("mapLayerTemplates")).toHaveTextContent(
+    JSON.stringify([
+      {
+        source: "plugin_source_map_layer",
+        value: "plugin_source_map_layer",
+        label: "plugin_source_map_layer",
+        args: {},
+        type: "map_layer",
+        tags: [],
+        description: "",
       },
     ])
   );

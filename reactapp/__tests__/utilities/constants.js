@@ -570,20 +570,20 @@ export const mockedMapData = {
             },
           },
         },
-        style: {
-          type: "Style",
-          props: {
-            stroke: {
-              type: "Stroke",
-              props: {
-                color: "#501020",
-                width: 1,
-              },
+        name: "rfc max forecast (Decreasing Forecast Trend)",
+        zIndex: 2,
+      },
+      style: {
+        type: "Style",
+        props: {
+          stroke: {
+            type: "Stroke",
+            props: {
+              color: "#501020",
+              width: 1,
             },
           },
         },
-        name: "rfc max forecast (Decreasing Forecast Trend)",
-        zIndex: 2,
       },
     },
   ],
@@ -1028,4 +1028,50 @@ export const exampleStyle = {
       },
     },
   ],
+};
+
+export const fullMapLayer = {
+  configuration: {
+    type: "ImageLayer",
+    layerVisibility: false,
+    props: {
+      name: "NWC",
+      source: {
+        type: "ESRI Image and Map Service",
+        props: {
+          url: "some_url",
+        },
+      },
+    },
+    style: {
+      type: "Style",
+      props: {
+        stroke: {
+          type: "Stroke",
+          props: {
+            color: "#501020",
+            width: 1,
+          },
+        },
+      },
+    },
+  },
+  queryable: true,
+  attributeAliases: {
+    NWC: {
+      nws_lid: "LID",
+    },
+  },
+  attributeVariables: {
+    NWC: {
+      nws_lid: "LID",
+    },
+  },
+  omittedPopupAttributes: {
+    NWC: ["nws_lid"],
+  },
+  legend: {
+    title: "Some Title",
+    items: [{ label: "Some label", color: "green", symbol: "square" }],
+  },
 };

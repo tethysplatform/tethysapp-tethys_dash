@@ -52,6 +52,13 @@ const handlers = [
       );
     }
   ),
+  rest.post("http://api.test/apps/tethysdash/json/upload/", (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({ success: true, filename: "12345.json" }),
+      ctx.set("Content-Type", "application/json")
+    );
+  }),
   rest.get(
     "http://api.test/apps/tethysdash/dashboards/get/",
     (req, res, ctx) => {

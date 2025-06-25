@@ -246,7 +246,7 @@ const MapLayerModal = ({
       aliases: attributeAliases,
       queryable: queryableLayer,
     });
-    setStyle(apiResponse.data.configuration.style);
+    setStyle(JSON.stringify(apiResponse.data.configuration.style));
     setLegend(apiResponse.data.legend);
   };
 
