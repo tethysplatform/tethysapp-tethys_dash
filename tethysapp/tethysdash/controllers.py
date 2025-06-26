@@ -86,11 +86,21 @@ def ping(request):
             middleware.update_last_activity(request, now)
             return JsonResponse({
                 "status": 1,
-                "EXPIRE_AFTER": EXPIRE_AFTER,
-                "WARN_AFTER": WARN_AFTER
+                "EXPIRE_AFTER": EXPIRE_AFTER + 1,
+                "WARN_AFTER": WARN_AFTER + 1
             })
     except ImportError as error:
         raise ImportError("If this is called, there's something really wrong.", error)
+    except NameError:
+        # This is caused by trying to use a function that doesn't exist
+        # Useful for resetting a website that used to have the session security.
+        delattr(request, "session")
+        print("Deleting session information due to django-session-security being uninstalled.")
+        return JsonResponse({
+            "status": -1,
+            "EXPIRE_AFTER": 0,
+            "WARN_AFTER": 0
+        })
 
 
 @api_view(["GET"])

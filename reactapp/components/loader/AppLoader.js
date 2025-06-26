@@ -139,15 +139,18 @@ function Loader({ children }) {
   });
 
   useEffect(() => {
+    console.log(isTimerEnabled);
+    if (!isTimerEnabled) return;
+
     const interval = setInterval(() => {
       setRemaining(Math.ceil(getRemainingTime() / 1000))
       console.log(Math.ceil(getRemainingTime() / 1000));
-    }, 500)
+    }, 500);
 
     return () => {
       clearInterval(interval)
     }
-  }, [getRemainingTime]);
+  }, [getRemainingTime, isTimerEnabled]);
 
   useEffect(() => {
     if (sessionState === "Active" || (sessionState === "Active" && count > lastCountRef.current)) {
@@ -583,7 +586,9 @@ function Loader({ children }) {
                 confirmation={
                   <>
                     <div style={{ marginTop: ".75rem" }}>
-                      Logging out in {remaining} seconds.
+                      {/* remaining - 1 to kinda fake the timer
+                      since there's a race condition with the backend logout */}
+                      Logging out in {remaining - 1} seconds.
                     </div>
                   </>
                 }
