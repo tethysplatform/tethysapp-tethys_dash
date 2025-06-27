@@ -38,8 +38,10 @@ def upgrade() -> None:
         viz_args = json.loads(row.args_string)
 
         if "viewConfig" in viz_args:
-            viz_args["map_extent"] = f"{",".join([str(x) for x in viz_args['viewConfig']['center']])},{viz_args['viewConfig']['zoom']}"
-            del viz_args["viewConfig"]  
+            viz_args["map_extent"] = (
+                f"{",".join([str(x) for x in viz_args['viewConfig']['center']])},{viz_args['viewConfig']['zoom']}"
+            )
+            del viz_args["viewConfig"]
             new_config_str = json.dumps(viz_args)
             connection.execute(
                 t_griditems.update()
@@ -68,10 +70,10 @@ def downgrade() -> None:
         if "map_extent" in viz_args:
             map_extent = viz_args["map_extent"].split(",")
             if len(map_extent) == 3:
-                center, zoom  = map_extent[:-1], map_extent[-1]
+                center, zoom = map_extent[:-1], map_extent[-1]
                 viz_args["viewConfig"] = {"center": center, "zoom": zoom}
-            del viz_args["map_extent"]  
-        
+            del viz_args["map_extent"]
+
             new_config_str = json.dumps(viz_args)
             connection.execute(
                 t_griditems.update()

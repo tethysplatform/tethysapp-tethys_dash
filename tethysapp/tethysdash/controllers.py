@@ -25,6 +25,7 @@ from tethysapp.tethysdash.visualizations import (
 )
 from pathlib import Path
 
+
 @controller(login_required=False)
 def home(request):
     """Controller for the app home page."""
@@ -44,15 +45,11 @@ def ping(request):
     If the user isn't logged out, it checks if there's new inputs to update the last activity
     If there isn't any activity, it sends the log out warning and log out execution
     """
-    session_id = request.COOKIES.get('sessionid', None)
+    session_id = request.COOKIES.get("sessionid", None)
 
     if not session_id:
         # Session is missing meaning this is a public login
-        return JsonResponse({
-            "status": 2,
-            "EXPIRE_AFTER": 0,
-            "WARN_AFTER": 0
-        })
+        return JsonResponse({"status": 2, "EXPIRE_AFTER": 0, "WARN_AFTER": 0})
 
     session = SessionStore(session_key=session_id)
     session_security = session.get("_session_security", None)
@@ -60,47 +57,37 @@ def ping(request):
     if not session_security:
         # User is logged out (session missing)
         # This could also mean that the django-session-security package isn't installed
-        return JsonResponse({
-            "status": -1,
-            "EXPIRE_AFTER": 0,
-            "WARN_AFTER": 0
-        })
+        return JsonResponse({"status": -1, "EXPIRE_AFTER": 0, "WARN_AFTER": 0})
 
-    EXPIRE_AFTER = getattr(settings, 'SESSION_SECURITY_EXPIRE_AFTER', 600) # 10 minutes
-    WARN_AFTER = getattr(settings, 'SESSION_SECURITY_WARN_AFTER', 540) # 9 minutes
+    EXPIRE_AFTER = getattr(settings, "SESSION_SECURITY_EXPIRE_AFTER", 600)  # 10 minutes
+    WARN_AFTER = getattr(settings, "SESSION_SECURITY_WARN_AFTER", 540)  # 9 minutes
     setattr(request, "session", session)
 
     try:
-        from .sessions import SessionSecurityMiddleware
+        from tethysapp.tethysdash.sessions import SessionSecurityMiddleware
 
         middleware = SessionSecurityMiddleware()
         is_user_logged_out = middleware.is_user_session_expired(request)
         if is_user_logged_out:
-            return JsonResponse({
-                "status": -2,
-                "EXPIRE_AFTER": 0,
-                "WARN_AFTER": 0
-            })
-        elif 'idleFor' in request.GET:
-            now = datetime.now()
-            middleware.update_last_activity(request, now)
-            return JsonResponse({
+            return JsonResponse({"status": -2, "EXPIRE_AFTER": 0, "WARN_AFTER": 0})
+
+        now = datetime.now()
+        middleware.update_last_activity(request, now)
+        return JsonResponse(
+            {
                 "status": 1,
                 "EXPIRE_AFTER": EXPIRE_AFTER + 1,
-                "WARN_AFTER": WARN_AFTER + 1
-            })
-    except ImportError as error:
-        raise ImportError("If this is called, there's something really wrong.", error)
+                "WARN_AFTER": WARN_AFTER + 1,
+            }
+        )
     except NameError:
         # This is caused by trying to use a function that doesn't exist
         # Useful for resetting a website that used to have the session security.
         delattr(request, "session")
-        print("Deleting session information due to django-session-security being uninstalled.")
-        return JsonResponse({
-            "status": -1,
-            "EXPIRE_AFTER": 0,
-            "WARN_AFTER": 0
-        })
+        print(
+            "Deleting session information due to django-session-security being uninstalled."
+        )
+        return JsonResponse({"status": -1, "EXPIRE_AFTER": 0, "WARN_AFTER": 0})
 
 
 @api_view(["GET"])

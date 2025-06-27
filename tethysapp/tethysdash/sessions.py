@@ -25,14 +25,15 @@ try:
 except ImportError as error:
     print("Not importing session_security", error)
 
-class SessionSecurityMiddleware():
+
+class SessionSecurityMiddleware:
     """
     In charge of maintaining the real 'last activity' time, and log out the
     user if appropriate.
     """
 
     def is_passive_request(self, request):
-        """ Should we skip activity update on this URL/View. """
+        """Should we skip activity update on this URL/View."""
         if request.path in PASSIVE_URLS:
             return True
 
@@ -59,7 +60,7 @@ class SessionSecurityMiddleware():
         return delta >= timedelta(seconds=expire_seconds)
 
     def process_request(self, request):
-        """ Update last activity time or logout. """
+        """Update last activity time or logout."""
 
         if django.VERSION < (1, 10):
             is_authenticated = request.user.is_authenticated()
@@ -70,15 +71,17 @@ class SessionSecurityMiddleware():
             return -2
 
         now = datetime.now()
-        if '_session_security' not in request.session:
+        if "_session_security" not in request.session:
             set_last_activity(request.session, now)
             return
 
         is_user_logged_out = self.is_user_session_expired(request, now)
         if is_user_logged_out:
             return -1
-        elif (request.path == reverse('session_security_ping') and
-                'idleFor' in request.GET):
+        elif (
+            request.path == reverse("session_security_ping")
+            and "idleFor" in request.GET
+        ):
             self.update_last_activity(request, now)
         elif not self.is_passive_request(request):
             set_last_activity(request.session, now)
@@ -94,7 +97,7 @@ class SessionSecurityMiddleware():
 
         # Gracefully ignore non-integer values
         try:
-            client_idle_for = int(request.GET['idleFor'])
+            client_idle_for = int(request.GET["idleFor"])
         except ValueError:
             return
 
