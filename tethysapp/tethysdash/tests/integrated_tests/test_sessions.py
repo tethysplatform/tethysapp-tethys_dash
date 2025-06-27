@@ -4,7 +4,7 @@ from django.contrib.auth.models import AnonymousUser, User
 from django.test import RequestFactory
 from django.urls import reverse
 from django.conf import settings
-from types import SimpleNamespace, ModuleType
+from types import SimpleNamespace
 from django.urls import ResolverMatch
 
 
@@ -107,7 +107,7 @@ def test_no_last_activity(mocker, authenticated_request):
     middleware = SessionSecurityMiddleware()
     result = middleware.process_request(authenticated_request)
 
-    assert result == None
+    assert result is None
 
 
 def test_expired_session_detected(mocker, authenticated_request):
@@ -332,8 +332,6 @@ def test_is_passive_request_404(mocker):
 
 
 def test__session_security_not_in_request(mocker, authenticated_request):
-    now = datetime.now()
-
     set_last_activity_mock = mocker.Mock()
     get_last_activity_mock = mocker.Mock()
 

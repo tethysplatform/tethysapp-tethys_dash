@@ -44,7 +44,7 @@ def ping(request):
     Returns 2 if this is a public login
     If the user isn't logged out, it checks if there's new inputs to update the last activity
     If there isn't any activity, it sends the log out warning and log out execution
-    """
+    """  # noqa: E501
     session_id = request.COOKIES.get("sessionid", None)
 
     if not session_id:
@@ -61,7 +61,7 @@ def ping(request):
 
     EXPIRE_AFTER = getattr(settings, "SESSION_SECURITY_EXPIRE_AFTER", 600)  # 10 minutes
     WARN_AFTER = getattr(settings, "SESSION_SECURITY_WARN_AFTER", 540)  # 9 minutes
-    setattr(request, "session", session)
+    request.session = session
 
     try:
         from tethysapp.tethysdash.sessions import SessionSecurityMiddleware
@@ -85,7 +85,7 @@ def ping(request):
         # Useful for resetting a website that used to have the session security.
         delattr(request, "session")
         print(
-            "Deleting session information due to django-session-security being uninstalled."
+            "Deleting session information due to django-session-security being uninstalled."  # noqa: E501
         )
         return JsonResponse({"status": -1, "EXPIRE_AFTER": 0, "WARN_AFTER": 0})
 

@@ -39,7 +39,7 @@ def upgrade() -> None:
 
         if "viewConfig" in viz_args:
             viz_args["map_extent"] = (
-                f"{",".join([str(x) for x in viz_args['viewConfig']['center']])},{viz_args['viewConfig']['zoom']}"
+                f"{",".join([str(x) for x in viz_args['viewConfig']['center']])},{viz_args['viewConfig']['zoom']}"  # noqa: E501
             )
             del viz_args["viewConfig"]
             new_config_str = json.dumps(viz_args)
