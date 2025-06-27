@@ -69,7 +69,6 @@ class SessionSecurityMiddleware:
 
     def process_request(self, request):
         """Update last activity or trigger logout."""
-
         if django.VERSION < (1, 10):
             is_authenticated = request.user.is_authenticated()
         else:

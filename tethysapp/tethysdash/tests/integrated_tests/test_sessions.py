@@ -4,7 +4,7 @@ from django.contrib.auth.models import AnonymousUser, User
 from django.test import RequestFactory
 from django.urls import reverse
 from django.conf import settings
-from types import SimpleNamespace
+from types import SimpleNamespace, ModuleType
 from django.urls import ResolverMatch
 
 
@@ -46,6 +46,7 @@ def test_authenticated_sets_last_activity(mocker, authenticated_request):
             "session_security": mocker.Mock(),
             "session_security.utils": fake_utils,
             "session_security.settings": fake_settings,
+            "session_security.urls": SimpleNamespace(urlpatterns=[]),
         },
     )
 
@@ -95,6 +96,7 @@ def test_no_last_activity(mocker, authenticated_request):
             "session_security.settings": SimpleNamespace(
                 EXPIRE_AFTER=expire_after, PASSIVE_URLS=[], PASSIVE_URL_NAMES=[]
             ),
+            "session_security.urls": SimpleNamespace(urlpatterns=[]),
         },
     )
 
@@ -182,7 +184,7 @@ def test_process_request_old_django_version(mocker):
 
 def test_idle_for_updates_last_activity(mocker, authenticated_request):
     now = datetime.now()
-    old_activity = now - timedelta(seconds=100)
+    old_activity = now - timedelta(seconds=1)
 
     set_last_activity_mock = mocker.Mock()
     mocker.patch.dict(
@@ -196,6 +198,7 @@ def test_idle_for_updates_last_activity(mocker, authenticated_request):
             "session_security.settings": SimpleNamespace(
                 EXPIRE_AFTER=600, PASSIVE_URLS=[], PASSIVE_URL_NAMES=[]
             ),
+            "session_security.urls": SimpleNamespace(urlpatterns=[]),
         },
     )
 
