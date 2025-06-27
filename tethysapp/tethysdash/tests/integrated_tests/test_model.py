@@ -14,11 +14,39 @@ from tethysapp.tethysdash.model import (
     check_existing_public_dashboards,
     parse_db_dashboard,
     clean_up_jsons,
+    init_primary_db,
 )
 from unittest.mock import MagicMock
 import base64
 import os
 from pathlib import Path
+from types import SimpleNamespace
+from sqlalchemy.exc import ProgrammingError
+
+
+@pytest.fixture
+def mock_alembic(mocker):
+    # Patch alembic components
+    mock_cfg = mocker.Mock()
+    mock_script = mocker.Mock()
+    mock_revision = mocker.Mock(revision="1234")
+
+    mocker.patch("tethysapp.tethysdash.model.Config", return_value=mock_cfg)
+    mocker.patch("tethysapp.tethysdash.model.command.ensure_version")
+    mock_upgrade = mocker.patch("tethysapp.tethysdash.model.command.upgrade")
+    mock_stamp = mocker.patch("tethysapp.tethysdash.model.command.stamp")
+    mocker.patch(
+        "tethysapp.tethysdash.model.script.ScriptDirectory.from_config",
+        return_value=mock_script,
+    )
+
+    return SimpleNamespace(
+        config=mock_cfg,
+        script=mock_script,
+        revision=mock_revision,
+        upgrade=mock_upgrade,
+        stamp=mock_stamp,
+    )
 
 
 @pytest.mark.django_db
@@ -677,3 +705,72 @@ def test_clean_up_jsons(dashboard, mock_app_get_ps_db, mocker, tmp_path):
     assert not os.path.exists(user_unused_style_file)
     assert not os.path.exists(unused_style_file)
     assert os.path.exists(nonuser_style_file)
+
+
+def test_init_primary_db_with_current_revision(mocker, mock_alembic):
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout="abcd1234 some message"),
+    )
+
+    mock_alembic.script.walk_revisions.return_value = []
+
+    init_primary_db(engine=mocker.Mock(), first_time=True)
+
+    mock_alembic.upgrade.assert_called_once_with(mock_alembic.config, "head")
+    mock_alembic.stamp.assert_not_called()
+
+
+def test_init_primary_db_no_current_revision_upgrade_all(mocker, mock_alembic):
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout=""),
+    )
+
+    rev1 = mocker.Mock(revision="rev1")
+    rev2 = mocker.Mock(revision="rev2")
+    mock_alembic.script.walk_revisions.return_value = [rev2, rev1]
+
+    init_primary_db(engine=mocker.Mock(), first_time=True)
+
+    assert mock_alembic.upgrade.call_count == 2
+    mock_alembic.upgrade.assert_any_call(mock_alembic.config, "rev1")
+    mock_alembic.upgrade.assert_any_call(mock_alembic.config, "rev2")
+    mock_alembic.stamp.assert_not_called()
+
+
+def test_init_primary_db_skips_existing_table(mocker, mock_alembic):
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout=""),
+    )
+
+    rev = mock_alembic.revision
+    mock_alembic.script.walk_revisions.return_value = [rev]
+
+    error = ProgrammingError("select 1", {}, Exception("relation already exists"))
+    error.args = ("table already exists",)
+    mock_alembic.upgrade.side_effect = error
+
+    init_primary_db(engine=mocker.Mock(), first_time=True)
+
+    mock_alembic.stamp.assert_called_once_with(mock_alembic.config, rev.revision)
+
+
+def test_init_primary_db_raises_unexpected_error(mocker, mock_alembic):
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout=""),
+    )
+
+    rev = mock_alembic.revision
+    mock_alembic.script.walk_revisions.return_value = [rev]
+
+    error = ProgrammingError("select 1", {}, Exception("other error"))
+    error.args = ("some other failure",)
+    mock_alembic.upgrade.side_effect = error
+
+    with pytest.raises(ProgrammingError):
+        init_primary_db(engine=mocker.Mock(), first_time=True)
+
+    mock_alembic.stamp.assert_not_called()
