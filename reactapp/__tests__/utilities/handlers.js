@@ -52,6 +52,17 @@ const handlers = [
       );
     }
   ),
+  rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
+    return res(
+      ctx.status(200),
+      ctx.json({
+        status: 1,
+        EXPIRE_AFTER: 0,
+        WARN_AFTER: 0,
+      }),
+      ctx.set("Content-Type", "application/json")
+    );
+  }),
   rest.post("http://api.test/apps/tethysdash/json/upload/", (req, res, ctx) => {
     return res(
       ctx.status(200),

@@ -91,7 +91,7 @@ function Loader({ children }) {
   const [appContext, setAppContext] = useState(null);
   const [availableDashboards, setAvailableDashboards] = useState(null);
   const [isTimerEnabled, setIsTimerEnabled] = useState(true);
-  const [sessionState, setSessionState] = useState('Active');
+  const [sessionState, setSessionState] = useState("Active");
   const [count, setCount] = useState(0);
   const [sessionSecurityWarn, setSessionSecurityWarn] = useState(540);
   const [sessionSecurityExpire, setSessionSecurityExpire] = useState(600);
@@ -108,7 +108,7 @@ function Loader({ children }) {
   };
 
   const onIdle = () => {
-    setSessionState('Idle');
+    setSessionState("Idle");
     // TODO Figure out how to forcefully log out
     window.location.assign(
       `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
@@ -117,12 +117,12 @@ function Loader({ children }) {
   };
 
   const onActive = () => {
-    setSessionState('Active');
+    setSessionState("Active");
     setShowActivePrompt(false);
   };
 
   const onPrompt = () => {
-    setSessionState('Prompted');
+    setSessionState("Prompted");
     setCount(0);
     setShowActivePrompt(true);
   };
@@ -139,22 +139,23 @@ function Loader({ children }) {
   });
 
   useEffect(() => {
-    console.log(isTimerEnabled);
     if (!isTimerEnabled) return;
 
     const interval = setInterval(() => {
-      setRemaining(Math.ceil(getRemainingTime() / 1000))
-      console.log(Math.ceil(getRemainingTime() / 1000));
+      setRemaining(Math.ceil(getRemainingTime() / 1000));
     }, 500);
 
     return () => {
-      clearInterval(interval)
-    }
+      clearInterval(interval);
+    };
   }, [getRemainingTime, isTimerEnabled]);
 
   useEffect(() => {
-    if (sessionState === "Active" || (sessionState === "Active" && count > lastCountRef.current)) {
-      lastCountRef.current = count
+    if (
+      sessionState === "Active" ||
+      (sessionState === "Active" && count > lastCountRef.current)
+    ) {
+      lastCountRef.current = count;
       const callAPI = async () => {
         try {
           const idleFor = 0;
@@ -181,7 +182,7 @@ function Loader({ children }) {
             }
           }
         } catch (error) {
-          console.error('API call failed:', error)
+          console.error("API call failed:", error);
         }
       };
 

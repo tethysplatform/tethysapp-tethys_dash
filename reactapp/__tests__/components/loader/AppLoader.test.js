@@ -306,7 +306,9 @@ test("AppLoader, public session and continue", async () => {
     )
   ).toBeInTheDocument();
 
-  const continueButton = screen.getByRole("button", { name: "Proceed Without Signing in" });
+  const continueButton = screen.getByRole("button", {
+    name: "Proceed Without Signing in",
+  });
   await userEvent.click(continueButton);
 
   // This component should only redirect when the user clicks the "Sign In" button
@@ -556,7 +558,18 @@ test("AppLoader, check if user signed in", async () => {
           ctx.set("Content-Type", "application/json")
         );
       }
-    )
+    ),
+    rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          status: 1,
+          EXPIRE_AFTER: 10,
+          WARN_AFTER: 3,
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
   );
 
   const { rerender } = render(
@@ -578,7 +591,9 @@ test("AppLoader, check if user signed in", async () => {
   );
   expect(screen.getByText("Are you still here?")).toBeInTheDocument();
 
-  const staySignedInButton = screen.getByRole("button", {name: "Stay Signed In"});
+  const staySignedInButton = screen.getByRole("button", {
+    name: "Stay Signed In",
+  });
   expect(staySignedInButton).toBeInTheDocument();
 
   await user.click(staySignedInButton);
