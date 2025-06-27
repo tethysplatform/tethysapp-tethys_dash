@@ -1,5 +1,5 @@
 import Loader from "components/loader/AppLoader";
-import { screen, render } from "@testing-library/react";
+import { screen, render, waitFor } from "@testing-library/react";
 import { useContext } from "react";
 import {
   AppContext,
@@ -273,13 +273,22 @@ test("AppLoader, public session and continue", async () => {
         ctx.json({ error: "Internal Server Error" }),
         ctx.set("Content-Type", "application/json")
       );
-    })
-  );
-  server.use(
+    }),
     rest.get("http://api.test/apps/tethysdash/dashboards/", (req, res, ctx) => {
       return res(
         ctx.status(200),
         ctx.json({ user: [], public: mockedDashboards.public }),
+        ctx.set("Content-Type", "application/json")
+      );
+    }),
+    rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          status: 2,
+          EXPIRE_AFTER: 0,
+          WARN_AFTER: 0,
+        }),
         ctx.set("Content-Type", "application/json")
       );
     })
@@ -609,6 +618,56 @@ test("AppLoader, check if user signed in", async () => {
   await sleep(5000);
 
   expect(window.location.assign).toHaveBeenCalledTimes(1);
+});
+
+test("AppLoader, user signed out", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          status: -2,
+          EXPIRE_AFTER: 10,
+          WARN_AFTER: 3,
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  render(
+    <Loader>
+      <TestingComponent />
+    </Loader>
+  );
+
+  expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
+
+  await waitFor(() => {
+    expect(window.location.assign).toHaveBeenCalledWith(
+      "http://api.test/accounts/login?next=/"
+    );
+  });
+});
+
+test("AppLoader, failed ping", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
+      return res(
+        ctx.status(500),
+        ctx.json({ error: "Internal Server Error" }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  render(
+    <Loader>
+      <TestingComponent />
+    </Loader>
+  );
+
+  expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 });
 
 test("AppLoader, delays signing out if activity is detected", async () => {
