@@ -19,8 +19,15 @@ function sleep(ms) {
 jest.setTimeout(30000);
 
 const TestingComponent = () => {
-  const { tethysApp, user, csrf, routes, visualizations, visualizationArgs } =
-    useContext(AppContext);
+  const {
+    tethysApp,
+    user,
+    csrf,
+    routes,
+    visualizations,
+    visualizationArgs,
+    mapLayerTemplates,
+  } = useContext(AppContext);
   const { availableDashboards } = useContext(AvailableDashboardsContext);
 
   return (
@@ -32,6 +39,7 @@ const TestingComponent = () => {
         {JSON.stringify(routes.map((route) => route.key))}
       </p>
       <p data-testid="visualizations">{JSON.stringify(visualizations)}</p>
+      <p data-testid="mapLayerTemplates">{JSON.stringify(mapLayerTemplates)}</p>
       <p data-testid="visualizationArgs">{JSON.stringify(visualizationArgs)}</p>
       <p data-testid="availableDashboards">
         {JSON.stringify(availableDashboards)}
@@ -50,10 +58,28 @@ test("AppLoader", async () => {
           value: "plugin_value_checkbox",
           label: "plugin_label_checkbox",
           args: { plugin_arg: "checkbox" },
+          type: "some type",
+          tags: [],
+          description: "",
+        },
+      ],
+    },
+    {
+      label: "Map Layers",
+      options: [
+        {
+          source: "plugin_source_map_layer",
+          value: "plugin_source_map_layer",
+          label: "plugin_source_map_layer",
+          args: {},
+          type: "map_layer",
+          tags: [],
+          description: "",
         },
       ],
     },
   ];
+
   server.use(
     rest.get(
       "http://api.test/apps/tethysdash/visualizations/",
@@ -124,38 +150,55 @@ test("AppLoader", async () => {
             value: "plugin_value_checkbox",
             label: "plugin_label_checkbox",
             args: { plugin_arg: "checkbox" },
+            type: "some type",
+            tags: [],
+            description: "",
           },
         ],
       },
       {
-        label: "Other",
+        label: "Default",
         options: [
           {
             source: "Map",
             value: "Map",
             label: "Map",
+            type: "map",
             args: {
-              base_map: baseMapLayers,
-              additional_layers: "custom-AddMapLayer",
-              show_layer_controls: "checkbox",
+              baseMap: baseMapLayers,
+              layerControl: "checkbox",
+              layers: "custom-AddMapLayer",
+              map_extent: "custom-MapExtent",
+              mapDrawing: "custom-MapDrawing",
             },
+            tags: ["map", "default"],
+            description:
+              "A configurable map that allows users to add a basemap and custom layers from a variety of sources.",
           },
           {
             source: "Custom Image",
             value: "Custom Image",
             label: "Custom Image",
+            type: "image",
             args: { image_source: "text" },
+            tags: ["image", "default", "custom"],
+            description:
+              "Any publicly available image using the corresponding URL.",
           },
           {
             source: "Text",
             value: "Text",
             label: "Text",
+            type: "text",
             args: { text: "text" },
+            tags: ["text", "default"],
+            description: "A block of formattable text.",
           },
           {
             source: "Variable Input",
             value: "Variable Input",
             label: "Variable Input",
+            type: "variableInput",
             args: {
               variable_name: "text",
               variable_options_source: [
@@ -179,8 +222,25 @@ test("AppLoader", async () => {
                 },
               ],
             },
+            tags: ["variable", "default", "dynamic"],
+            description:
+              "An input that acts as a dashboard variable. This variable can be referenced in other visualizations to allow for dynamic updating.",
           },
         ],
+      },
+    ])
+  );
+
+  expect(await screen.findByTestId("mapLayerTemplates")).toHaveTextContent(
+    JSON.stringify([
+      {
+        source: "plugin_source_map_layer",
+        value: "plugin_source_map_layer",
+        label: "plugin_source_map_layer",
+        args: {},
+        type: "map_layer",
+        tags: [],
+        description: "",
       },
     ])
   );

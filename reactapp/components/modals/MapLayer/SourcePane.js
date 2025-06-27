@@ -24,6 +24,7 @@ const generatePropertiesArrayWithValues = (
 ) => {
   const properties = [];
   const placeholders = [];
+  const types = [];
   let existingValues = existingPropertyValues ?? {};
 
   const processKeys = (obj, required, parentKey = "", mappingObj = {}) => {
@@ -36,21 +37,25 @@ const generatePropertiesArrayWithValues = (
       const valueInMap = mappingObj[key];
       const existingValue = valueInMap?.value ?? valueInMap;
 
-      if (typeof value === "object" && value !== null) {
-        // Recursively process nested objects
+      if (
+        value &&
+        typeof value === "object" &&
+        !Object.keys(value).includes("placeholder")
+      ) {
         processKeys(value, required, property, existingValue || {});
       } else {
+        const propertyName = `${required ? "*" : ""}${property}`;
         // Add to the result array with mapped value or empty string
         properties.push({
-          required,
-          property,
+          property: propertyName,
           value: existingValue
             ? Array.isArray(existingValue)
               ? existingValue.join(",")
               : existingValue
             : "",
         });
-        placeholders.push({ value: value });
+        placeholders.push({ value: value.placeholder });
+        types.push(value?.type ?? "text");
       }
     }
   };
@@ -59,18 +64,20 @@ const generatePropertiesArrayWithValues = (
   processKeys(sourceProperties.required, true, "", existingValues);
   processKeys(sourceProperties.optional, false, "", existingValues);
 
-  return { properties, placeholders };
+  return { properties, placeholders, types };
 };
 
 // coverts a flat object of properties from the generatePropertiesArrayWithValues function into a nested object
 function parsePropertiesArray(properties) {
   return properties.reduce((acc, item) => {
-    const { property, value } = item;
+    let { property, value } = item;
     const parts = property.split(" - "); // Split by delimiter
+    property = property.replace(/^\*/, "");
 
     // source properties can be {value: ..., placeholder:...} or just a straight value
     if (parts.length > 1) {
-      const [parentKey, childKey] = parts.map((part) => part.trim());
+      let [parentKey, childKey] = parts.map((part) => part.trim());
+      parentKey = parentKey.replace(/^\*/, "");
       acc[parentKey] = acc[parentKey] || {};
       acc[parentKey][childKey] = value?.value ?? value;
     } else {
@@ -81,14 +88,10 @@ function parsePropertiesArray(properties) {
   }, {});
 }
 
-const SourcePane = ({
-  sourceProps,
-  setSourceProps,
-  setAttributeVariables,
-  setOmittedPopupAttributes,
-}) => {
+const SourcePane = ({ sourceProps, setSourceProps, setAttributeProps }) => {
   const [sourceProperties, setSourceProperties] = useState([]); // array of objects that represent properties that will be rendered in the table
   const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]); // array of objects that represent placeholders for the table inputs
+  const [propertyTypes, SetPropertyTypes] = useState([]); // array of objects that represent types for the table inputs
   const [sourceType, setSourceType] = useState({}); // source type dropdown selection {value: ..., label: ...}
   const [geoJSON, setGeoJSON] = useState("{}"); // track the geojson value
 
@@ -106,12 +109,14 @@ const SourcePane = ({
 
     // if loading existing layer, then set states appropriately
     if (sourceProps.type) {
-      const { properties, placeholders } = generatePropertiesArrayWithValues(
-        sourcePropertiesOptions[sourceProps.type],
-        sourceProps.props
-      );
+      const { properties, placeholders, types } =
+        generatePropertiesArrayWithValues(
+          sourcePropertiesOptions[sourceProps.type],
+          sourceProps.props
+        );
       setSourceProperties(properties);
       SetPropertyPlaceholders(placeholders);
+      SetPropertyTypes(types);
       setSourceType({ value: sourceProps.type, label: sourceProps.type });
     }
 
@@ -120,7 +125,7 @@ const SourcePane = ({
       fetchGeoJSON();
     }
     // eslint-disable-next-line
-  }, []);
+  }, [sourceProps]);
 
   function handlePropertyChange({ newValue, rowIndex, field }) {
     // update table values
@@ -144,12 +149,14 @@ const SourcePane = ({
     setSourceType(e);
 
     // update table values and placeholders from new source type
-    const { properties, placeholders } = generatePropertiesArrayWithValues(
-      sourcePropertiesOptions[e.value],
-      sourceProps.props
-    );
+    const { properties, placeholders, types } =
+      generatePropertiesArrayWithValues(
+        sourcePropertiesOptions[e.value],
+        sourceProps.props
+      );
     setSourceProperties(properties);
     SetPropertyPlaceholders(placeholders);
+    SetPropertyTypes(types);
 
     // update layer source props
     const parsedSourceProps = parsePropertiesArray(properties);
@@ -162,8 +169,7 @@ const SourcePane = ({
     }));
 
     // reset attribute variable and omitted popup attributes since the source has changed
-    setAttributeVariables({});
-    setOmittedPopupAttributes({});
+    setAttributeProps({});
   }
 
   function handleGeoJSONUpload({ fileContent }) {
@@ -211,14 +217,20 @@ const SourcePane = ({
               />
             </>
           ) : (
-            <InputTable
-              label="Source Properties"
-              onChange={handlePropertyChange}
-              values={sourceProperties}
-              disabledFields={["required", "property"]}
-              allowRowCreation={true}
-              placeholders={propertyPlaceholders}
-            />
+            <>
+              <InputTable
+                label="Source Properties"
+                onChange={handlePropertyChange}
+                values={sourceProperties}
+                disabledFields={["required", "property"]}
+                placeholders={propertyPlaceholders}
+                show_placeholder_on_hover={true}
+                types={propertyTypes}
+              />
+              <p>
+                <em>* indicates a required property</em>
+              </p>
+            </>
           )}
         </>
       )}
@@ -229,8 +241,7 @@ const SourcePane = ({
 SourcePane.propTypes = {
   sourceProps: sourcePropType,
   setSourceProps: PropTypes.func, // setter for sourceProps state
-  setAttributeVariables: PropTypes.func, // setter for attributeVariables state
-  setOmittedPopupAttributes: PropTypes.func, // setter for omittedPopupAttributes state
+  setAttributeProps: PropTypes.func, // setter for attributeProps state
 };
 
 export default SourcePane;

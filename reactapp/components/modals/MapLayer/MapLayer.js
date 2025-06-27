@@ -15,16 +15,17 @@ import { AppContext } from "components/contexts/Contexts";
 import {
   sourcePropertiesOptions,
   layerPropType,
-  omittedPopupAttributesPropType,
-  attributeVariablesPropType,
   legendPropType,
   sourcePropType,
+  attributePropsPropType,
   saveLayerJSON,
 } from "components/map/utilities";
 import {
   removeEmptyValues,
   checkRequiredKeys,
 } from "components/modals/utilities";
+import Select from "react-select";
+import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
 
 const StyledModalHeader = styled(Modal.Header)`
@@ -44,6 +45,28 @@ const StyledAlert = styled(Alert)`
   max-width: 75%;
 `;
 
+const FooterContent = styled.div`
+  display: flex;
+  justify-content: space-between; /* spreads items out */
+  align-items: center;
+  width: 100%;
+  gap: 1rem;
+  flex-wrap: wrap; /* allows responsiveness */
+`;
+
+const LeftGroup = styled.div`
+  flex: 1;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+`;
+
+const RightGroup = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+`;
+
 const MapLayerModal = ({
   showModal,
   handleModalClose,
@@ -54,16 +77,14 @@ const MapLayerModal = ({
   const [errorMessage, setErrorMessage] = useState(null);
   const [sourceProps, setSourceProps] = useState(layerInfo.sourceProps ?? {});
   const [layerProps, setLayerProps] = useState(layerInfo.layerProps ?? {});
+  const [attributeProps, setAttributeProps] = useState(
+    layerInfo.attributeProps ?? {}
+  );
   const [style, setStyle] = useState(layerInfo.style);
   const [legend, setLegend] = useState(layerInfo.legend);
-  const [attributeVariables, setAttributeVariables] = useState(
-    layerInfo.attributeVariables
-  );
-  const [omittedPopupAttributes, setOmittedPopupAttributes] = useState(
-    layerInfo.omittedPopupAttributes
-  );
+  const [selectedOption, setSelectedOption] = useState(null);
   const containerRef = useRef(null);
-  const { csrf } = useContext(AppContext);
+  const { csrf, mapLayerTemplates } = useContext(AppContext);
 
   async function saveLayer() {
     setErrorMessage(null);
@@ -74,8 +95,9 @@ const MapLayerModal = ({
       return;
     }
 
+    const { layerVisibility, ...layerProperties } = layerProps;
     const validSourceProps = removeEmptyValues(sourceProps.props);
-    const validLayerProps = removeEmptyValues(layerProps);
+    const validLayerProps = removeEmptyValues(layerProperties);
     const missingRequiredProps = checkRequiredKeys(
       sourcePropertiesOptions[sourceProps.type].required,
       validSourceProps
@@ -87,52 +109,19 @@ const MapLayerModal = ({
       return;
     }
 
-    const minAttributeVariables = removeEmptyValues(attributeVariables);
-    // Check to see if the pending attribute variables are valid
-    if (Object.keys(minAttributeVariables).length > 0) {
-      // flatten attribute variables into a list
-      const pendingVariableInputs = Object.values(
-        minAttributeVariables
-      ).flatMap((value) => Object.values(value));
-
-      // check for duplicate pending variable input names
-      const duplicatePendingVariableInputs = pendingVariableInputs.filter(
-        (pendingVariableInput, index) =>
-          pendingVariableInputs.indexOf(pendingVariableInput) !== index
-      );
-      if (duplicatePendingVariableInputs.length) {
-        setErrorMessage(
-          <>
-            <p>The following variable inputs are duplicated:</p>
-            <ul>
-              {duplicatePendingVariableInputs.map(
-                (duplicatePendingVariableInput, index) => (
-                  <li key={index}>{duplicatePendingVariableInput}</li>
-                )
-              )}
-            </ul>
-            <p>
-              Change the Variable Input Names in the Attributes tab before
-              trying again.
-            </p>
-          </>
-        );
-        return;
-      }
-    }
-
-    if (sourceProps.type === "VectorTile") {
+    if (sourceProps.type === "Vector Tile") {
       validSourceProps.urls = validSourceProps.urls.split(",");
     }
 
     const mapConfiguration = {
       configuration: {
         type:
-          sourceProps.type === "VectorTile"
+          sourceProps.type === "Vector Tile"
             ? "VectorTileLayer"
             : sourceProps.type.includes("Tile")
               ? "TileLayer"
-              : sourceProps.type.includes("Image")
+              : sourceProps.type.includes("Image") ||
+                  sourceProps.type.includes("WMS")
                 ? "ImageLayer"
                 : "VectorLayer",
         props: {
@@ -145,12 +134,30 @@ const MapLayerModal = ({
       },
     };
 
+    const minAttributeVariables = removeEmptyValues(
+      attributeProps.variables ?? {}
+    );
+
+    const minAttributeAliases = removeEmptyValues(attributeProps.aliases ?? {});
+
+    if (layerVisibility === false) {
+      mapConfiguration.configuration.layerVisibility = false;
+    }
+
+    if (Object.keys(minAttributeAliases).length > 0) {
+      mapConfiguration.attributeAliases = attributeProps.aliases;
+    }
+
     if (Object.keys(minAttributeVariables).length > 0) {
       mapConfiguration.attributeVariables = minAttributeVariables;
     }
 
-    if (Object.keys(omittedPopupAttributes).length > 0) {
-      mapConfiguration.omittedPopupAttributes = omittedPopupAttributes;
+    if (Object.keys(attributeProps.omitted ?? []).length > 0) {
+      mapConfiguration.omittedPopupAttributes = attributeProps.omitted;
+    }
+
+    if (attributeProps.queryable === false) {
+      mapConfiguration.queryable = false;
     }
 
     if (legend && Object.keys(legend).length > 0) {
@@ -211,6 +218,38 @@ const MapLayerModal = ({
     handleModalClose();
   }
 
+  const onLayoutChange = async (e) => {
+    setSelectedOption(e);
+    const apiResponse = await appAPI.getPlotData({
+      source: e.source,
+      args: {},
+    });
+
+    const attributeVariables = apiResponse.data.attributeVariables ?? {};
+    const attributeAliases = apiResponse.data.attributeAliases ?? {};
+    const omittedPopupAttributes =
+      apiResponse.data.omittedPopupAttributes ?? {};
+    const queryableLayer = apiResponse.data.queryable === false ? false : true;
+    const updatedLayerProps = Object.fromEntries(
+      Object.entries(apiResponse.data.configuration.props).filter(
+        ([key]) => key !== "source"
+      )
+    );
+    updatedLayerProps.layerVisibility =
+      apiResponse.data.configuration.layerVisibility;
+
+    setSourceProps(apiResponse.data.configuration.props.source);
+    setLayerProps(updatedLayerProps);
+    setAttributeProps({
+      variables: attributeVariables,
+      omitted: omittedPopupAttributes,
+      aliases: attributeAliases,
+      queryable: queryableLayer,
+    });
+    setStyle(JSON.stringify(apiResponse.data.configuration.style));
+    setLegend(apiResponse.data.legend);
+  };
+
   return (
     <>
       <Modal
@@ -250,8 +289,7 @@ const MapLayerModal = ({
               <SourcePane
                 sourceProps={sourceProps}
                 setSourceProps={setSourceProps}
-                setAttributeVariables={setAttributeVariables}
-                setOmittedPopupAttributes={setOmittedPopupAttributes}
+                setAttributeProps={setAttributeProps}
               />
             </Tab>
             <Tab
@@ -283,10 +321,8 @@ const MapLayerModal = ({
               className="layer-attributes-tab"
             >
               <AttributesPane
-                attributeVariables={attributeVariables}
-                setAttributeVariables={setAttributeVariables}
-                omittedPopupAttributes={omittedPopupAttributes}
-                setOmittedPopupAttributes={setOmittedPopupAttributes}
+                attributeProps={attributeProps}
+                setAttributeProps={setAttributeProps}
                 sourceProps={sourceProps}
                 layerProps={layerProps}
                 tabKey={tabKey}
@@ -295,30 +331,57 @@ const MapLayerModal = ({
           </Tabs>
         </StyledModalBody>
         <Modal.Footer>
-          {errorMessage && (
-            <StyledAlert
-              key="danger"
-              variant="danger"
-              dismissible
-              onClose={() => setErrorMessage("")}
-            >
-              {errorMessage}
-            </StyledAlert>
-          )}
-          <Button
-            variant="secondary"
-            onClick={handleModalClose}
-            aria-label={"Close Layer Modal Button"}
-          >
-            Close
-          </Button>
-          <Button
-            variant="success"
-            onClick={saveLayer}
-            aria-label={"Create Layer Button"}
-          >
-            Create
-          </Button>
+          <FooterContent>
+            <LeftGroup>
+              <label htmlFor="layer-templates" style={{ fontWeight: "bold" }}>
+                Layer Templates
+              </label>
+              <Select
+                inputId="layer-templates"
+                menuPlacement="top"
+                options={mapLayerTemplates}
+                value={selectedOption}
+                onChange={onLayoutChange}
+                aria-label={"Layer Templates Input"}
+                styles={{
+                  control: (base) => ({
+                    ...base,
+                    minWidth: "100%",
+                  }),
+                  container: (base) => ({
+                    ...base,
+                    flex: 0.5,
+                  }),
+                }}
+              />
+            </LeftGroup>
+            {errorMessage && (
+              <StyledAlert
+                key="danger"
+                variant="danger"
+                dismissible
+                onClose={() => setErrorMessage("")}
+              >
+                {errorMessage}
+              </StyledAlert>
+            )}
+            <RightGroup>
+              <Button
+                variant="secondary"
+                onClick={handleModalClose}
+                aria-label={"Close Layer Modal Button"}
+              >
+                Close
+              </Button>
+              <Button
+                variant="success"
+                onClick={saveLayer}
+                aria-label={"Create Layer Button"}
+              >
+                Create
+              </Button>
+            </RightGroup>
+          </FooterContent>
         </Modal.Footer>
       </Modal>
     </>
@@ -337,8 +400,7 @@ MapLayerModal.propTypes = {
     }), // an object of layer properties like opacity, zoom, etc. see components/map/utilities.js (layerPropertiesOptions) for examples
     legend: legendPropType,
     style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
-    attributeVariables: attributeVariablesPropType,
-    omittedPopupAttributes: omittedPopupAttributesPropType,
+    attributeProps: attributePropsPropType,
   }),
   mapLayers: PropTypes.arrayOf(layerPropType),
   existingLayerOriginalName: PropTypes.shape({

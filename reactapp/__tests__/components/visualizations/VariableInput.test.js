@@ -23,13 +23,16 @@ it("Creates a Text Input for a Variable Input", async () => {
   const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   dashboard.gridItems = [mockedTextVariable];
   const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedTextVariable.args_string);
 
   render(
     createLoadedComponent({
       children: (
         <>
           <VariableInput
-            args={JSON.parse(mockedTextVariable.args_string)}
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
             onChange={handleChange}
           />
           <InputVariablePComponent />
@@ -67,13 +70,16 @@ it("Creates a Number Input for a Variable Input", async () => {
   const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   dashboard.gridItems = [mockedNumberVariable];
   const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedNumberVariable.args_string);
 
   render(
     createLoadedComponent({
       children: (
         <>
           <VariableInput
-            args={JSON.parse(mockedNumberVariable.args_string)}
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
             onChange={handleChange}
           />
           <InputVariablePComponent />
@@ -90,11 +96,11 @@ it("Creates a Number Input for a Variable Input", async () => {
   await user.type(variableInput, "9");
 
   expect(variableInput).toHaveValue(9);
-  expect(handleChange).toHaveBeenCalledWith("9"); // Is this expected to be a string?
+  expect(handleChange).toHaveBeenCalledWith(9);
 
   // Only update the Text Input after clicking the input refresh button
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "0" })
+    JSON.stringify({ "Test Variable": 0 })
   );
 
   const refreshButton = screen.getByRole("button");
@@ -111,13 +117,16 @@ it("Creates a Checkbox Input for a Variable Input", async () => {
   const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   dashboard.gridItems = [mockedCheckboxVariable];
   const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedCheckboxVariable.args_string);
 
   render(
     createLoadedComponent({
       children: (
         <>
           <VariableInput
-            args={JSON.parse(mockedCheckboxVariable.args_string)}
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
             onChange={handleChange}
           />
           <InputVariablePComponent />
@@ -145,13 +154,16 @@ it("Creates a Checkbox Input for a Variable Input with a null value", async () =
   const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   dashboard.gridItems = [mockedNullCheckboxVariable];
   const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedNullCheckboxVariable.args_string);
 
   render(
     createLoadedComponent({
       children: (
         <>
           <VariableInput
-            args={JSON.parse(mockedNullCheckboxVariable.args_string)}
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
             onChange={handleChange}
           />
           <InputVariablePComponent />
@@ -182,13 +194,16 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
   const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   dashboard.gridItems = [mockedDropdownVariable];
   const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedDropdownVariable.args_string);
 
   render(
     createLoadedComponent({
       children: (
         <>
           <VariableInput
-            args={JSON.parse(mockedDropdownVariable.args_string)}
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
             onChange={handleChange}
           />
           <InputVariablePComponent />
@@ -223,17 +238,79 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
   );
 });
 
-it("Creates a Dropdown Input for a Variable Input, not signed in", async () => {
+it("Creates a Dropdown Input for a Variable Input from array", async () => {
   const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
-  dashboard.gridItems = [mockedDropdownVariable];
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Variable Input",
+    args_string: JSON.stringify({
+      initial_value: "value 1",
+      variable_name: "Test Variable",
+      variable_options_source: [
+        { label: "label 1", value: "value 1" },
+        { label: "label 2", value: "value 2" },
+      ],
+    }),
+    metadata_string: JSON.stringify({
+      refreshRate: 0,
+    }),
+  };
+  dashboard.gridItems = [gridItem];
   const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(gridItem.args_string);
 
   render(
     createLoadedComponent({
       children: (
         <>
           <VariableInput
-            args={JSON.parse(mockedDropdownVariable.args_string)}
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        dashboards: { user: [dashboard], public: [] },
+      },
+    })
+  );
+
+  const variableInput = await screen.findByLabelText("Test Variable Input");
+  expect(variableInput).toBeInTheDocument();
+  await select(variableInput, "label 1");
+
+  expect(screen.getByText("label 1")).toBeInTheDocument();
+  expect(handleChange).toHaveBeenCalledWith({
+    label: "label 1",
+    value: "value 1",
+  });
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "value 1" })
+  );
+});
+
+it("Creates a Dropdown Input for a Variable Input, not signed in", async () => {
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  dashboard.gridItems = [mockedDropdownVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedDropdownVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
             onChange={handleChange}
           />
           <InputVariablePComponent />
@@ -280,13 +357,16 @@ describe("When inDataViewerMode", () => {
     const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
     dashboard.gridItems = [mockedTextVariable];
     const handleChange = jest.fn();
+    const varInputArgs = JSON.parse(mockedTextVariable.args_string);
 
     render(
       createLoadedComponent({
         children: (
           <>
             <VariableInput
-              args={JSON.parse(mockedTextVariable.args_string)}
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
               onChange={handleChange}
             />
             <InputVariablePComponent />
@@ -327,13 +407,16 @@ describe("When inDataViewerMode", () => {
     const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
     dashboard.gridItems = [mockedNumberVariable];
     const handleChange = jest.fn();
+    const varInputArgs = JSON.parse(mockedNumberVariable.args_string);
 
     render(
       createLoadedComponent({
         children: (
           <>
             <VariableInput
-              args={JSON.parse(mockedNumberVariable.args_string)}
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
               onChange={handleChange}
             />
             <InputVariablePComponent />
@@ -353,12 +436,12 @@ describe("When inDataViewerMode", () => {
     await user.type(variableInput, "9");
 
     expect(variableInput).toHaveValue(9);
-    expect(handleChange).toHaveBeenCalledWith("9"); // Is this expected to be a string?
+    expect(handleChange).toHaveBeenCalledWith(9);
 
     // Only update the Text Input after clicking the input refresh button
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": "0" })
+      JSON.stringify({ "Test Variable": 0 })
     );
 
     const refreshButton = screen.getByRole("button");
@@ -366,7 +449,7 @@ describe("When inDataViewerMode", () => {
     await user.click(refreshButton);
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": "0" })
+      JSON.stringify({ "Test Variable": 0 })
     );
   });
 
@@ -375,13 +458,16 @@ describe("When inDataViewerMode", () => {
     const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
     dashboard.gridItems = [mockedCheckboxVariable];
     const handleChange = jest.fn();
+    const varInputArgs = JSON.parse(mockedCheckboxVariable.args_string);
 
     render(
       createLoadedComponent({
         children: (
           <>
             <VariableInput
-              args={JSON.parse(mockedCheckboxVariable.args_string)}
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
               onChange={handleChange}
             />
             <InputVariablePComponent />
@@ -420,13 +506,16 @@ describe("When inDataViewerMode", () => {
     const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
     dashboard.gridItems = [mockedNullCheckboxVariable];
     const handleChange = jest.fn();
+    const varInputArgs = JSON.parse(mockedNullCheckboxVariable.args_string);
 
     render(
       createLoadedComponent({
         children: (
           <>
             <VariableInput
-              args={JSON.parse(mockedNullCheckboxVariable.args_string)}
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
               onChange={handleChange}
             />
             <InputVariablePComponent />
@@ -463,13 +552,16 @@ describe("When inDataViewerMode", () => {
     const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
     dashboard.gridItems = [mockedDropdownVariable];
     const handleChange = jest.fn();
+    const varInputArgs = JSON.parse(mockedDropdownVariable.args_string);
 
     render(
       createLoadedComponent({
         children: (
           <>
             <VariableInput
-              args={JSON.parse(mockedDropdownVariable.args_string)}
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
               onChange={handleChange}
             />
             <InputVariablePComponent />

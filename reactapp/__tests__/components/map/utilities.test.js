@@ -4,7 +4,6 @@ import {
   transformCoordinates,
   queryLayerFeatures,
   getLayerAttributes,
-  getMapAttributeVariables,
 } from "components/map/utilities";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
 import VectorLayer from "ol/layer/Vector.js";
@@ -12,7 +11,7 @@ import {
   layerConfigGeoJSON,
   layerConfigImageArcGISRest,
   layerConfigImageWMS,
-  layerAttributeVariables,
+  layerConfigArcGISFeatureService,
 } from "__tests__/utilities/constants";
 
 test("createMarkerLayer", async () => {
@@ -236,7 +235,10 @@ test("transformCoordinates error", async () => {
 
 test("queryLayerFeatures No Feature Found", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn() })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockLayer = {
@@ -263,7 +265,10 @@ test("queryLayerFeatures No Feature Found", async () => {
 
 test("queryLayerFeatures Highlight Layer Found", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn() })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockFeature = {
@@ -302,7 +307,10 @@ test("queryLayerFeatures Highlight Layer Found", async () => {
 
 test("queryLayerFeatures Valid GeoJSON Found", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn() })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockFeature = {
@@ -353,7 +361,10 @@ test("queryLayerFeatures Valid GeoJSON Found", async () => {
 
 test("queryLayerFeatures Valid GeoJSON No Features Found", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn() })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockFeature = null;
@@ -381,7 +392,10 @@ test("queryLayerFeatures Valid GeoJSON No Features Found", async () => {
 
 test("queryLayerFeatures Valid GeoJSON GeometryCollection Found", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn(() => 100) })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(() => 100),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockFeature = {
@@ -475,7 +489,10 @@ test("queryLayerFeatures Valid GeoJSON GeometryCollection Found", async () => {
 
 test("queryLayerFeatures Valid GeoJSON GeometryCollection Found No Points Close Enough", async () => {
   const mockMap = {
-    getView: jest.fn(() => ({ getResolution: jest.fn(() => 100) })),
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(() => 100),
+      getZoom: jest.fn(() => 10),
+    })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockFeature = {
@@ -592,6 +609,7 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
       getProjection: jest.fn(() => ({
         getCode: jest.fn(() => "EPSG:4326"),
       })),
+      getZoom: jest.fn(() => 10),
     })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
@@ -631,7 +649,7 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
     tolerance: 10, // Pixel tolerance
     returnGeometry: true,
     geometryType: "esriGeometryPoint",
-    sr: "EPSG:4326",
+    sr: "4326",
     geometry: "0,0",
     mapExtent: "1,2,3,4",
     returnFieldName: true,
@@ -661,6 +679,7 @@ test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
       getProjection: jest.fn(() => ({
         getCode: jest.fn(() => "EPSG:4326"),
       })),
+      getZoom: jest.fn(() => 10),
     })),
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
@@ -700,7 +719,7 @@ test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
     tolerance: 10, // Pixel tolerance
     returnGeometry: true,
     geometryType: "esriGeometryPoint",
-    sr: "EPSG:4326",
+    sr: "4326",
     geometry: "0,0",
     mapExtent: "1,2,3,4",
     returnFieldName: true,
@@ -713,6 +732,38 @@ test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
     `${featureQueryUrl}?${params.toString()}`
   );
   expect(features).toStrictEqual(mockArgisResults);
+
+  global.fetch.mockRestore?.();
+});
+
+test("queryLayerFeatures ImageArcGISRest with minZoomQuery", async () => {
+  global.fetch = jest.fn();
+
+  const mockSetCenter = jest.fn();
+  const mockSetZoom = jest.fn();
+  const mockMap = {
+    getSize: jest.fn(() => [100, 200]),
+    getView: jest.fn(() => ({
+      setCenter: mockSetCenter,
+      setZoom: mockSetZoom,
+      getZoom: jest.fn(() => 10),
+    })),
+  };
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+  layerConfigImageArcGISRest.configuration.props.minZoomQuery = 12;
+
+  const features = await queryLayerFeatures(
+    layerConfigImageArcGISRest,
+    mockMap,
+    coordinate,
+    pixel
+  );
+
+  expect(global.fetch).toHaveBeenCalledTimes(0);
+  expect(mockSetCenter).toHaveBeenCalledWith([0, 0]);
+  expect(mockSetZoom).toHaveBeenCalledWith(12.1);
+  expect(features).toStrictEqual("zoomed");
 
   global.fetch.mockRestore?.();
 });
@@ -762,6 +813,7 @@ test("queryLayerFeatures ImageWMS", async () => {
       getProjection: jest.fn(() => ({
         getCode: jest.fn(() => "EPSG:4326"),
       })),
+      getZoom: jest.fn(() => 10),
     })),
   };
   const coordinate = [0, 0];
@@ -858,6 +910,7 @@ test("queryLayerFeatures ImageWMS Different Projection", async () => {
       getProjection: jest.fn(() => ({
         getCode: jest.fn(() => "EPSG:3857"),
       })),
+      getZoom: jest.fn(() => 10),
     })),
   };
   const coordinate = [0, 0];
@@ -921,6 +974,7 @@ test("queryLayerFeatures ImageWMS Bad Request", async () => {
       getProjection: jest.fn(() => ({
         getCode: jest.fn(() => "EPSG:3857"),
       })),
+      getZoom: jest.fn(() => 10),
     })),
   };
   const coordinate = [0, 0];
@@ -973,7 +1027,13 @@ test("queryLayerFeatures SourceType Not Configured", async () => {
       },
     },
   };
-  const mockMap = {};
+  const getZoomMock = jest.fn(() => 10); // or whatever zoom level you want
+
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getZoom: getZoomMock,
+    })),
+  };
   const coordinate = [0, 0];
   const pixel = [639, 366];
 
@@ -982,7 +1042,7 @@ test("queryLayerFeatures SourceType Not Configured", async () => {
   ).rejects.toThrow("sdfsdfsdf is not currently configured to be queried");
 });
 
-test("getLayerAttributes ESRI", async () => {
+test("getLayerAttributes ImageArcGISRest", async () => {
   const mockServiceResults = {
     layers: [
       {
@@ -1038,6 +1098,132 @@ test("getLayerAttributes ESRI", async () => {
       { name: "producer", alias: "RFC" },
     ],
   });
+});
+
+test("getLayerAttributes ArcGISFeatureService", async () => {
+  const mockServiceResults = {
+    id: 0,
+    name: "Max Status - Forecast Trend",
+    parentLayerId: -1,
+    defaultVisibility: true,
+    subLayerIds: null,
+    minScale: 0,
+    maxScale: 0,
+    type: "Feature Layer",
+    geometryType: "esriGeometryPoint",
+    supportsDynamicLegends: true,
+    fields: [
+      {
+        name: "nws_name",
+        type: "esriFieldTypeString",
+        alias: "Name",
+        length: 60000,
+        domain: null,
+      },
+      {
+        name: "producer",
+        type: "esriFieldTypeString",
+        alias: "RFC",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    })
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+
+  const sourceProps =
+    layerConfigArcGISFeatureService.configuration.props.source;
+  const layerName = layerConfigArcGISFeatureService.configuration.props.name;
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "Some ArcGISFeatureService Layer": [
+      { name: "nws_name", alias: "Name" },
+      { name: "producer", alias: "RFC" },
+    ],
+  });
+
+  const params = new URLSearchParams({
+    f: "json",
+  });
+
+  const featureQueryUrl =
+    layerConfigArcGISFeatureService.configuration.props.source.props.url +
+    "/" +
+    layerConfigArcGISFeatureService.configuration.props.source.props.layer;
+  expect(global.fetch).toHaveBeenCalledWith(
+    `${featureQueryUrl}?${params.toString()}`
+  );
+});
+
+test("getLayerAttributes ArcGISFeatureService with slash", async () => {
+  const mockServiceResults = {
+    id: 0,
+    name: "Max Status - Forecast Trend",
+    parentLayerId: -1,
+    defaultVisibility: true,
+    subLayerIds: null,
+    minScale: 0,
+    maxScale: 0,
+    type: "Feature Layer",
+    geometryType: "esriGeometryPoint",
+    supportsDynamicLegends: true,
+    fields: [
+      {
+        name: "nws_name",
+        type: "esriFieldTypeString",
+        alias: "Name",
+        length: 60000,
+        domain: null,
+      },
+      {
+        name: "producer",
+        type: "esriFieldTypeString",
+        alias: "RFC",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    })
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+
+  layerConfigArcGISFeatureService.configuration.props.source.props.url += "/";
+  const sourceProps =
+    layerConfigArcGISFeatureService.configuration.props.source;
+  const layerName = layerConfigArcGISFeatureService.configuration.props.name;
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "Some ArcGISFeatureService Layer": [
+      { name: "nws_name", alias: "Name" },
+      { name: "producer", alias: "RFC" },
+    ],
+  });
+
+  const params = new URLSearchParams({
+    f: "json",
+  });
+
+  const featureQueryUrl =
+    layerConfigArcGISFeatureService.configuration.props.source.props.url +
+    layerConfigArcGISFeatureService.configuration.props.source.props.layer;
+  expect(global.fetch).toHaveBeenCalledWith(
+    `${featureQueryUrl}?${params.toString()}`
+  );
 });
 
 test("getLayerAttributes ImageWMS", async () => {
@@ -1157,11 +1343,4 @@ test("getLayerAttributes Error", async () => {
   await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
     "bad type is not currently configured to be queried"
   );
-});
-
-test("getMapAttributeVariables", async () => {
-  const mapLayers = [{ attributeVariables: layerAttributeVariables }];
-  const mapAttributeVariables = getMapAttributeVariables(mapLayers);
-
-  expect(mapAttributeVariables).toStrictEqual(["variable 1"]);
 });

@@ -63,7 +63,7 @@ const MultiInput = ({ label, onChange, values }) => {
   return (
     <Container>
       <Row className="mb-1">
-        <label htmlFor={id}>
+        <label htmlFor={id} className="no-caret">
           <b>{label}</b>:
         </label>
         <br />

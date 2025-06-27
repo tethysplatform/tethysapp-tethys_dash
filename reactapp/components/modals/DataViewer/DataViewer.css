@@ -1,0 +1,11 @@
+.tab-content {
+  flex-grow: 1;
+  overflow: auto;
+  height: 100%;
+}
+
+.tab-pane {
+  height: 100%;
+  overflow: auto;
+  padding: 1rem;
+}

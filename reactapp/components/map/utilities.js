@@ -11,70 +11,148 @@ import appAPI from "services/api/app";
 import { v4 as uuidv4 } from "uuid";
 
 export const sourcePropertiesOptions = {
-  ImageArcGISRest: {
+  "ESRI Image and Map Service": {
     required: {
-      url: "ArcGIS Rest service URL",
+      url: {
+        placeholder: "ArcGIS Rest service URL",
+      },
     },
     optional: {
-      attributions: "Attributions",
-      params: {
-        LAYERS: "[show|hide|include|exclude]:layerId1,layerId2",
-        TIME: "<startTime>, <endTime> or <timeInstant>",
-        LAYERDEFS: "Allows you to filter the features of individual layers",
+      attributions: {
+        placeholder: "Attributions",
       },
-      projection: "EPSG:<Code>",
+      params: {
+        LAYERS: {
+          placeholder: "[show|hide|include|exclude]:layerId1,layerId2",
+        },
+        TIME: {
+          placeholder: "<startTime>, <endTime> or <timeInstant>",
+        },
+        LAYERDEFS: {
+          placeholder: "Allows you to filter the features of individual layers",
+        },
+        mosaicRule: {
+          placeholder: "Specifies how image service should handle mosaics",
+        },
+      },
+      projection: {
+        placeholder: "EPSG:<Code>",
+      },
     },
   },
-  ImageWMS: {
+  WMS: {
     required: {
-      url: "WMS service URL",
+      url: {
+        placeholder: "WMS service URL",
+      },
       params: {
-        LAYERS: "<workspace>:<layerName>,<workspace>:<layerName>",
+        LAYERS: {
+          placeholder: "<workspace>:<layerName>,<workspace>:<layerName>",
+        },
       },
     },
     optional: {
-      attributions: "Attributions",
-      params: {
-        STYLES: "SLD (Styled Layer Descriptor) Name",
-        TIME: "yyyy-MM-ddThh:mm:ss.SSSZ",
+      attributions: {
+        placeholder: "Attributions",
       },
-      projection: "EPSG:<Code>",
+      params: {
+        STYLES: {
+          placeholder: "SLD (Styled Layer Descriptor) Name",
+        },
+        TIME: {
+          placeholder: "yyyy-MM-ddThh:mm:ss.SSSZ",
+        },
+      },
+      projection: {
+        placeholder: "EPSG:<Code>",
+      },
     },
   },
-  ImageTile: {
+  "Image Tile": {
     required: {
-      url: "Image Tile URL",
+      url: {
+        placeholder: "Image Tile URL",
+      },
     },
     optional: {
-      attributions: "Attributions",
-      projection: "EPSG:<Code>",
+      attributions: {
+        placeholder: "Attributions",
+      },
+      projection: {
+        placeholder: "EPSG:<Code>",
+      },
     },
   },
   GeoJSON: {
     required: {},
     optional: {},
   },
-  VectorTile: {
+  "Vector Tile": {
     required: {
-      urls: "An comma separated list of URL templates. Must include {x}, {y} or {-y}, and {z} placeholders. A {?-?} template pattern, for example subdomain{a-f}.domain.com, may be used instead of defining each one separately in the urls option.",
+      urls: {
+        placeholder:
+          "An comma separated list of URL templates. Must include {x}, {y} or {-y}, and {z} placeholders. A {?-?} template pattern, for example subdomain{a-f}.domain.com, may be used instead of defining each one separately in the urls option.",
+      },
     },
     optional: {
-      attributions: "Attributions",
-      projection: "EPSG:<Code>",
+      attributions: {
+        placeholder: "Attributions",
+      },
+      projection: {
+        placeholder: "EPSG:<Code>",
+      },
+    },
+  },
+  "ESRI Feature Service": {
+    required: {
+      url: {
+        placeholder: "ArcGIS Feature Service URL",
+      },
+      layer: { type: "number", placeholder: "the integer for the layer index" },
+    },
+    optional: {
+      attributions: {
+        placeholder: "Attributions",
+      },
+      params: {
+        TIME: {
+          placeholder: "<startTime>, <endTime> or <timeInstant>",
+        },
+        WHERE: {
+          placeholder: "WHERE clause for the query filter",
+        },
+      },
     },
   },
 };
 
 export const layerPropertiesOptions = {
-  opacity: "Opacity (0, 1)",
-  minResolution:
-    "The minimum resolution (inclusive) at which this layer will be visible.",
-  maxResolution:
-    "The maximum resolution (exclusive) below which this layer will be visible.",
-  minZoom:
-    "The minimum view zoom level (exclusive) above which this layer will be visible.",
-  maxZoom:
-    "The maximum view zoom level (inclusive) at which this layer will be visible.",
+  opacity: { type: "number", placeholder: "Opacity (0, 1)" },
+  minResolution: {
+    type: "number",
+    placeholder:
+      "The minimum resolution (inclusive) at which this layer will be visible.",
+  },
+  maxResolution: {
+    type: "number",
+    placeholder:
+      "The maximum resolution (exclusive) below which this layer will be visible.",
+  },
+  minZoom: {
+    type: "number",
+    placeholder:
+      "The minimum view zoom level (exclusive) above which this layer will be visible.",
+  },
+  maxZoom: {
+    type: "number",
+    placeholder:
+      "The maximum view zoom level (inclusive) at which this layer will be visible.",
+  },
+  minZoomQuery: {
+    type: "number",
+    placeholder:
+      "The minimum view zoom level (inclusive) at which this layer can be queried. If the mp is clicked beyond the zoom level, then the map will zoom into the minZoomQuery value",
+  },
 };
 
 export function createMarkerLayer(coordinate) {
@@ -127,10 +205,11 @@ export function createHighlightLayer(geometries) {
         name: "LineString",
       }),
     ];
-  } else if (geometries?.type === "MultiPolygon") {
+  } else if ("rings" in geometries || geometries?.type === "MultiPolygon") {
+    const paths = geometries.rings || geometries.coordinates;
     features = [
       new Feature({
-        geometry: new MultiPolygon(geometries.coordinates),
+        geometry: new MultiPolygon(paths),
         name: "MultiPolygon",
       }),
     ];
@@ -203,20 +282,32 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   const sourceParams = layerInfo.configuration.props.source.props.params;
   const sourceType = layerInfo.configuration.props.source.type;
 
-  // make the appropriate request based on the source type
-  if (sourceType === "ImageArcGISRest") {
-    features = await getESRILayerFeatures(sourceUrl, map, coordinate);
-  } else if (sourceType === "ImageWMS") {
-    features = await getImageWMSLayerFeatures(
-      sourceUrl,
-      sourceParams,
-      map,
-      pixel
-    );
-  } else if (sourceType === "GeoJSON") {
-    features = await getGeoJSONLayerFeatures(map, pixel, coordinate);
+  const mapZoom = map.getView().getZoom();
+  if (layerInfo.configuration.props.minZoomQuery >= mapZoom) {
+    map.getView().setCenter(coordinate);
+    map
+      .getView()
+      .setZoom(parseFloat(layerInfo.configuration.props.minZoomQuery) + 0.1);
+    features = "zoomed";
   } else {
-    throw Error(`${sourceType} is not currently configured to be queried`);
+    // make the appropriate request based on the source type
+    if (sourceType === "ESRI Image and Map Service") {
+      features = await getESRILayerFeatures(sourceUrl, map, coordinate);
+    } else if (sourceType === "WMS") {
+      features = await getImageWMSLayerFeatures(
+        sourceUrl,
+        sourceParams,
+        map,
+        pixel
+      );
+    } else if (
+      sourceType === "GeoJSON" ||
+      sourceType === "ESRI Feature Service"
+    ) {
+      features = await getGeoJSONLayerFeatures(map, pixel, coordinate);
+    } else {
+      throw Error(`${sourceType} is not currently configured to be queried`);
+    }
   }
 
   return features;
@@ -230,7 +321,7 @@ async function getESRILayerFeatures(sourceUrl, map, coordinate) {
     tolerance: 10, // Pixel tolerance
     returnGeometry: true,
     geometryType: "esriGeometryPoint",
-    sr: map.getView().getProjection().getCode(),
+    sr: map.getView().getProjection().getCode().split(":")[1],
     geometry: coordinate.join(","),
     mapExtent: map.getView().calculateExtent().join(","),
     returnFieldName: true,
@@ -403,14 +494,21 @@ export async function getLayerAttributes(sourceProps, layerName) {
   const sourceParams = sourceProperties?.params ?? {};
   const sourceUrl = sourceProperties?.url ?? "";
   const sourceGeoJSON = sourceProps?.geojson ?? {};
+  const layerNumber = sourceProperties?.layer;
 
   // make the appropriate request based on the source type
-  if (sourceType === "ImageArcGISRest") {
-    attributes = await getESRILayerAttributes(sourceUrl);
-  } else if (sourceType === "ImageWMS") {
+  if (sourceType === "ESRI Image and Map Service") {
+    attributes = await getImageArcGISRestLayerAttributes(sourceUrl);
+  } else if (sourceType === "WMS") {
     attributes = await getImageWMSLayerAttributes(sourceUrl, sourceParams);
   } else if (sourceType === "GeoJSON") {
     attributes = await getGeoJSONLayerAttributes(sourceGeoJSON, layerName);
+  } else if (sourceType === "ESRI Feature Service") {
+    attributes = await getArcGISFeatureServiceLayerAttributes(
+      sourceUrl,
+      layerNumber,
+      layerName
+    );
   } else {
     throw Error(`${sourceType} is not currently configured to be queried`);
   }
@@ -418,7 +516,7 @@ export async function getLayerAttributes(sourceProps, layerName) {
   return attributes;
 }
 
-async function getESRILayerAttributes(sourceUrl) {
+async function getImageArcGISRestLayerAttributes(sourceUrl) {
   // setup fetch request with params
   const sourceURLParams = new URLSearchParams({
     f: "json",
@@ -450,6 +548,32 @@ async function getESRILayerAttributes(sourceUrl) {
     sourceAttributes[layerName] = specificLayerFieds;
   }
 
+  return sourceAttributes;
+}
+
+async function getArcGISFeatureServiceLayerAttributes(
+  sourceUrl,
+  layerNumber,
+  layerName
+) {
+  sourceUrl += sourceUrl.endsWith("/") ? layerNumber : `/${layerNumber}`;
+
+  // setup fetch request with params
+  const sourceURLParams = new URLSearchParams({
+    f: "json",
+  });
+  const sourceInfoUrl = `${sourceUrl}?${sourceURLParams.toString()}`;
+
+  // Fetch data and parse json
+  const sourceInfoResponse = await fetch(sourceInfoUrl);
+  const sourceInfoJSON = await sourceInfoResponse.json();
+
+  // setup constants, get an array of layer names
+  let layerFields = [];
+  for (const field of sourceInfoJSON.fields) {
+    layerFields.push({ name: field.name, alias: field.alias });
+  }
+  const sourceAttributes = { [layerName]: layerFields };
   return sourceAttributes;
 }
 
@@ -542,27 +666,11 @@ async function getGeoJSONLayerAttributes(sourceGeoJSON, layerName) {
   return sourceAttributes;
 }
 
-export function getMapAttributeVariables(mapLayers) {
-  let mapAttributeVariables = [];
-  // loop through all map layers
-  for (let mapLayer of mapLayers) {
-    // loop through all map layers/sublayers
-    for (const mapLayerName in mapLayer.attributeVariables) {
-      // get all the variable inputs setup from the layer/sublayer attributes
-      const layerAttributeVariables = Object.values(
-        mapLayer.attributeVariables[mapLayerName]
-      );
-      mapAttributeVariables = [
-        ...mapAttributeVariables,
-        ...layerAttributeVariables,
-      ];
-    }
-  }
-  return mapAttributeVariables;
-}
-
 export async function loadLayerJSONs(mapLayer) {
-  if (mapLayer?.configuration?.style) {
+  if (
+    mapLayer?.configuration?.style &&
+    typeof mapLayer.configuration.style !== "object"
+  ) {
     const styleJSONResponse = await appAPI.downloadJSON({
       filename: mapLayer.configuration.style,
     });
@@ -576,7 +684,11 @@ export async function loadLayerJSONs(mapLayer) {
     }
   }
 
-  if (mapLayer?.configuration?.props?.source?.type === "GeoJSON") {
+  if (
+    mapLayer?.configuration?.props?.source?.type === "GeoJSON" &&
+    mapLayer?.configuration?.props?.source?.geojson &&
+    typeof mapLayer.configuration.props.source.geojson !== "object"
+  ) {
     const geoJSONResponse = await appAPI.downloadJSON({
       filename: mapLayer.configuration.props.source.geojson,
     });
@@ -633,6 +745,12 @@ export const omittedPopupAttributesPropType = PropTypes.objectOf(
   PropTypes.arrayOf(PropTypes.string)
 );
 
+export const attributePropsPropType = PropTypes.shape({
+  variables: attributeVariablesPropType,
+  omitted: omittedPopupAttributesPropType,
+  queryable: PropTypes.bool,
+});
+
 export const sourcePropType = PropTypes.shape({
   props: PropTypes.object, // an object of source properties like url, params, etc. see components/map/utilities.js (sourcePropertiesOptions) for examples
   type: PropTypes.string, // layer source type
@@ -676,4 +794,9 @@ export const layerInfoPropType = PropTypes.shape({
   style: PropTypes.string, // name of .json file that is save with the application that contain the actual style json
   attributeVariables: attributeVariablesPropType,
   omittedPopupAttributes: omittedPopupAttributesPropType,
+});
+
+export const mapDrawingPropType = PropTypes.shape({
+  options: PropTypes.arrayOf(PropTypes.string),
+  limit: PropTypes.number,
 });

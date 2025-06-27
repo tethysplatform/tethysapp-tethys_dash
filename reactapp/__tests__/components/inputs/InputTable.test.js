@@ -19,12 +19,37 @@ it("InputTable", async () => {
   expect(screen.getByText("field 2")).toBeInTheDocument();
   const field2Input = screen.getByLabelText("field 2 Input 0");
   expect(field2Input).toBeInTheDocument();
+  expect(field2Input.value).toBe("value 2");
 
   // make sure a new row is not created on tab
   field2Input.focus();
   await userEvent.tab();
 
   expect(screen.queryAllByRole("textbox").length).toBe(1);
+});
+
+it("InputTable hidden fields", async () => {
+  const label = "Test Table";
+  const onChange = jest.fn();
+  const values = [{ "field 1": true, "field 2": { some: "object" } }];
+  render(
+    <InputTable
+      label={label}
+      onChange={onChange}
+      values={values}
+      hiddenFields={["field 1"]}
+      disabledFields={["field 2"]}
+    />
+  );
+
+  // field 1 should be a checkbox
+  expect(screen.queryByText("field 1")).not.toBeInTheDocument();
+  expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+
+  // field 2 should be a stringified object
+  expect(
+    screen.getByText(JSON.stringify({ some: "object" }))
+  ).toBeInTheDocument();
 });
 
 it("InputTable allow row creation", async () => {

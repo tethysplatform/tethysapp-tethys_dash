@@ -6,6 +6,7 @@ import { useAppTourContext } from "components/contexts/AppTourContext";
 import { useState, useContext } from "react";
 import TextArea from "components/inputs/TextArea";
 import NormalInput from "components/inputs/NormalInput";
+import Spinner from "react-bootstrap/Spinner";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 
@@ -19,6 +20,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
   const { addDashboard } = useContext(AvailableDashboardsContext);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const [errorMessage, setErrorMessage] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleModalClose = () => {
     if (activeAppTour) {
@@ -27,7 +29,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
     setShowModal(false);
   };
 
-  function createNewDashboard(event) {
+  async function createNewDashboard(event) {
     event.preventDefault();
     setErrorMessage(null);
 
@@ -37,21 +39,22 @@ function NewDashboardModal({ showModal, setShowModal }) {
       );
       return;
     }
+    setIsSubmitting(true);
 
     const inputData = {
       name,
       description,
     };
-    addDashboard(inputData).then((response) => {
-      if (response["success"]) {
-        setShowModal(false);
-        if (activeAppTour) {
-          setAppTourStep((previousStep) => previousStep + 1);
-        }
-      } else {
-        setErrorMessage(response["message"]);
+    const apiResponse = await addDashboard(inputData);
+    if (apiResponse["success"]) {
+      setShowModal(false);
+      if (activeAppTour) {
+        setAppTourStep((previousStep) => previousStep + 1);
       }
-    });
+    } else {
+      setErrorMessage(apiResponse["message"]);
+    }
+    setIsSubmitting(false);
   }
 
   function onNameInput(value) {
@@ -106,8 +109,22 @@ function NewDashboardModal({ showModal, setShowModal }) {
             variant="success"
             onClick={createNewDashboard}
             aria-label={"Create Dashboard Button"}
+            disabled={isSubmitting}
           >
-            Create
+            {isSubmitting ? (
+              <>
+                <Spinner
+                  as="span"
+                  animation="border"
+                  size="sm"
+                  role="status"
+                  aria-hidden="true"
+                />{" "}
+                Creating...
+              </>
+            ) : (
+              "Create"
+            )}
           </Button>
         </Modal.Footer>
       </Modal>

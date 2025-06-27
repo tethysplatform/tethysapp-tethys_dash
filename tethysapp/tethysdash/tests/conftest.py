@@ -77,6 +77,7 @@ def dashboard_data():
         "notes": "some notes",
         "owner": "admin",
         "access_groups": [],
+        "unrestricted_placement": False,
     }
 
 
@@ -89,6 +90,7 @@ def public_dashboard_data():
         "notes": "some notes",
         "owner": "public_user",
         "access_groups": ["public"],
+        "unrestricted_placement": False,
     }
 
 
@@ -150,6 +152,8 @@ def mock_plugin(mocker):
         visualization_label="Some Package",
         visualization_args={"package_arg": "text"},
         visualization_type="image",
+        visualization_tags=["some tag"],
+        visualization_description="some description",
     )
     plugin.name = "package_name"
 
@@ -179,6 +183,9 @@ def mock_plugin_visualization(mock_plugin):
                 "value": mock_plugin.visualization_label,
                 "label": mock_plugin.visualization_label,
                 "args": mock_plugin.visualization_args,
+                "type": mock_plugin.visualization_type,
+                "tags": mock_plugin.visualization_tags,
+                "description": mock_plugin.visualization_description,
             }
         ],
     }
@@ -196,22 +203,20 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "value": mock_plugin.visualization_label,
                 "label": mock_plugin.visualization_label,
                 "args": mock_plugin.visualization_args,
+                "type": mock_plugin.visualization_type,
+                "tags": mock_plugin.visualization_tags,
+                "description": mock_plugin.visualization_description,
             },
             {
                 "source": mock_plugin2.name,
                 "value": mock_plugin2.visualization_label,
                 "label": mock_plugin2.visualization_label,
                 "args": mock_plugin2.visualization_args,
+                "type": mock_plugin2.visualization_type,
+                "tags": [],
+                "description": "",
             },
         ],
     }
 
     return plugin_visualization
-
-
-@pytest.fixture(scope="function")
-def mock_user_setting():
-
-    return {
-        "deselected_visualizations": [],
-    }

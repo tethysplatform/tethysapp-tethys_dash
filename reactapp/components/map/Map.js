@@ -1,21 +1,22 @@
-import { useEffect, useState, useRef } from "react";
-import ReactDOM from "react-dom";
-import { valuesEqual } from "components/modals/utilities";
-import { MapContext } from "components/contexts/Contexts";
+import { memo, useEffect, useState, useRef, useContext } from "react";
 import { Map, View } from "ol";
-import Overlay from "ol/Overlay";
 import moduleLoader from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
 import LegendControl from "components/map/LegendControl";
+import DrawInteractions from "components/map/DrawInteractions";
 import {
   legendPropType,
   configurationPropType,
+  mapDrawingPropType,
 } from "components/map/utilities";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
 import { applyStyle } from "ol-mapbox-style";
-import { FaTimes } from "react-icons/fa";
 import PropTypes from "prop-types";
+import { useMapContext } from "components/contexts/MapContext";
+import { fromExtent } from "ol/geom/Polygon";
+import { VariableInputsContext } from "components/contexts/Contexts";
+import GeoJSON from "ol/format/GeoJSON";
 
 const StyledAlert = styled(Alert)`
   position: absolute;
@@ -25,72 +26,42 @@ const StyledAlert = styled(Alert)`
   z-index: 1000;
 `;
 
-const OverLayContentWrapper = styled.div`
+const InfoDiv = styled.div`
   position: absolute;
-  background-color: white;
-  padding: 15px;
-  border-radius: 10px;
-  border: 1px solid #ccc;
-  max-width: 30vw;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
-  transform: translate(-50%, -100%);
-
-  &:after,
-  &:before {
-    bottom: -20px;
-    border: solid transparent;
-    content: "";
-    height: 0;
-    width: 0;
-    position: absolute;
-    pointer-events: none;
-  }
-
-  &:after {
-    border-top-color: white;
-    border-width: 10px;
-    left: 50%;
-    margin-left: -10px;
-  }
-
-  &:before {
-    border-top-color: #ccc;
-    border-width: 11px;
-    left: 50%;
-    margin-left: -11px;
-  }
-`;
-
-const StyledCloser = styled.a`
-  text-decoration: none;
-  position: absolute;
-  top: 2px;
-  right: 8px;
-  color: black;
-`;
-
-const StyledContent = styled.div`
-  padding-top: 1rem;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  z-index: 1000;
 `;
 
 const MapComponent = ({
   mapConfig,
-  viewConfig,
+  mapExtent,
   layers,
   legend,
   layerControl,
+  mapDrawing,
+  drawing,
   onMapClick,
   visualizationRef,
+  dataviewerViz,
 }) => {
-  const [map, setMap] = useState();
   const [errorMessage, setErrorMessage] = useState("");
   const [layerControlUpdate, setLayerControlUpdate] = useState();
-  const viewRef = useRef();
   const mapDivRef = useRef();
-  const popupRef = useRef(null);
   const onMapClickCurrent = useRef();
-  const popupCurrent = useRef();
-  const [popupContent, setPopupContent] = useState(null);
+  const [zoom, setZoom] = useState(4.5);
+  const [lonLat, setLonLat] = useState([-10686671.12, 4721671.57]);
+  const [projection, setProjection] = useState("EPSG:3857");
+  const mapContext = useMapContext();
+  const setMapReady = mapContext?.setMapReady;
+  const mapReady = mapContext?.mapReady;
+  const isFirstRender = useRef(true);
+  const mapExtentVariableEvent = useRef();
+  const { setVariableInputValues } = useContext(VariableInputsContext);
 
   const defaultMapConfig = {
     className: "ol-map",
@@ -99,39 +70,87 @@ const MapComponent = ({
   const customMapConfig = { ...defaultMapConfig, ...mapConfig };
 
   const defaultViewConfig = {
-    projection: "EPSG:3857",
-    zoom: 4.5,
-    center: [-10686671.116154263, 4721671.572580108],
+    projection,
+    zoom,
+    center: lonLat,
   };
 
   useEffect(() => {
     // Set up an initial map and set it to state/ref
-    const initialMap = new Map({
-      target: mapDivRef.current,
-      view: new View(defaultViewConfig),
-      layers: [],
-      controls: [],
-      overlays: [],
-    });
+    if (mapDivRef.current) {
+      const initialMap = new Map({
+        target: mapDivRef.current,
+        view: new View(defaultViewConfig),
+        layers: [],
+        controls: [],
+        overlays: [],
+      });
 
-    setMap(initialMap);
-    visualizationRef.current = initialMap;
+      visualizationRef.current = initialMap;
+
+      if (setMapReady) {
+        initialMap.once("rendercomplete", () => {
+          setMapReady(true);
+        });
+      }
+    }
+
+    if (dataviewerViz) {
+      // Update coordinates on pointer move
+      visualizationRef.current.on("pointermove", function (evt) {
+        const coordinate = evt.coordinate;
+        setLonLat(coordinate);
+      });
+    }
 
     return () => {
-      initialMap.setTarget(undefined);
+      if (visualizationRef.current) {
+        visualizationRef.current.setTarget(undefined);
+        visualizationRef.current = null;
+      }
     };
     // eslint-disable-next-line
   }, []);
 
   useEffect(() => {
-    // Update the map view if new viewConfig
-    const customViewConfig = { ...defaultViewConfig, ...viewConfig };
-    if (!viewRef.current || !valuesEqual(viewRef.current, customViewConfig)) {
-      visualizationRef.current.setView(new View(customViewConfig));
-      viewRef.current = customViewConfig;
+    if (!mapExtent) return;
+
+    const mapViewConfig = new View({ projection });
+    setProjection(mapViewConfig.getProjection().getCode());
+
+    const extent = mapExtent.extent.replaceAll(" ", "");
+    const parts = extent.split(",").map((p) => parseFloat(p.trim()));
+    if (parts.length === 3) {
+      const [lon, lat, zoomLevel] = parts;
+      setLonLat([lon, lat]);
+      setZoom(zoomLevel);
+      mapViewConfig.setZoom(zoomLevel);
+      mapViewConfig.setCenter([lon, lat]);
+    } else {
+      mapViewConfig.fit(extent.split(","), {
+        size: visualizationRef.current.getSize(),
+      });
+      setZoom(mapViewConfig.getZoom().toFixed(2));
+      setLonLat(mapViewConfig.getCenter());
     }
+
+    if (mapExtentVariableEvent.current) {
+      visualizationRef.current.un("moveend", mapExtentVariableEvent.current);
+    }
+
+    if (mapExtent.variable) {
+      visualizationRef.current.on("moveend", updateMapExtentVariable);
+      mapExtentVariableEvent.current = updateMapExtentVariable;
+    }
+
+    // Update zoom on view change
+    mapViewConfig.on("change:resolution", () => {
+      setZoom(visualizationRef.current.getView().getZoom().toFixed(2));
+    });
+
+    visualizationRef.current.setView(mapViewConfig);
     // eslint-disable-next-line
-  }, [viewConfig]);
+  }, [mapExtent]);
 
   useEffect(() => {
     setErrorMessage(null);
@@ -156,6 +175,12 @@ const MapComponent = ({
               layerConfig,
               visualizationRef.current.getView().getProjection().getCode()
             );
+            if (
+              layerConfig.layerVisibility === false &&
+              isFirstRender.current
+            ) {
+              layerInstance.setVisible(false);
+            }
             visualizationRef.current.addLayer(layerInstance);
             if (layerConfig.style) {
               await applyStyle(
@@ -180,100 +205,109 @@ const MapComponent = ({
         );
       }
 
-      // setup popup with new layers. This is done so that the variable
-      // and states in the passed popup are updated and not stale
-      const popup = new Overlay({
-        element: popupRef.current,
-        autoPan: true,
-        autoPanAnimation: {
-          duration: 250,
-        },
-        autoPanMargin: 20,
-      });
-      if (popupCurrent.current) {
-        visualizationRef.current.removeOverlay(popupCurrent.current);
+      if (visualizationRef.current) {
+        // setup click event with new layers. This is done so that the variable
+        // and states in the passed function are updated and not stale
+        if (onMapClick) {
+          if (onMapClickCurrent.current) {
+            visualizationRef.current.un(
+              "singleclick",
+              onMapClickCurrent.current
+            );
+          }
+          onMapClickCurrent.current = async function (evt) {
+            onMapClick(visualizationRef.current, evt);
+          };
+          visualizationRef.current.on("singleclick", onMapClickCurrent.current);
+        }
+
+        // update the layerControlUpdate so that the layer controls are triggered to rerender with the new layers
+        setLayerControlUpdate(!layerControlUpdate);
+
+        // sync map with changes
+        visualizationRef.current.renderSync();
       }
-      popupCurrent.current = popup;
-      visualizationRef.current.addOverlay(popup);
 
-      // setup click event with new layers. This is done so that the variable
-      // and states in the passed function are updated and not stale
-      if (onMapClickCurrent.current) {
-        visualizationRef.current.un("singleclick", onMapClickCurrent.current);
+      if (!mapReady && setMapReady) {
+        setMapReady(true);
       }
-      onMapClickCurrent.current = async function (evt) {
-        onMapClick(
-          visualizationRef.current,
-          evt,
-          setPopupContent,
-          popupCurrent.current
-        );
-      };
-      visualizationRef.current.on("singleclick", onMapClickCurrent.current);
 
-      // update the layerControlUpdate so that the layer controls are triggered to rerender with the new layers
-      setLayerControlUpdate(!layerControlUpdate);
-
-      // sync map with changes
-      visualizationRef.current.renderSync();
+      if (layers && !dataviewerViz && isFirstRender.current) {
+        isFirstRender.current = false;
+      }
     };
 
     updateLayers();
     // eslint-disable-next-line
   }, [layers]);
 
+  const updateMapExtentVariable = (event) => {
+    const view = event.map.getView();
+    const extent = view.calculateExtent(event.map.getSize());
+    const rectangleGeom = fromExtent(extent);
+    const geojson = JSON.parse(new GeoJSON().writeGeometry(rectangleGeom));
+    setVariableInputValues((previousVariableInputValues) => ({
+      ...previousVariableInputValues,
+      ...{
+        [mapExtent.variable]: {
+          projection: view.getProjection().getCode(),
+          geometries: [geojson],
+        },
+      },
+    }));
+  };
+
   return (
     <>
-      <MapContext.Provider value={{ map }}>
-        <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
-          {errorMessage && (
-            <StyledAlert
-              key="failure"
-              variant="danger"
-              dismissible={true}
-              onClose={() => setErrorMessage("")}
-            >
-              {errorMessage}
-            </StyledAlert>
-          )}
-          <div>
-            {layerControl && <LayersControl updater={layerControlUpdate} />}
-            {legend && legend.length > 0 && (
-              <LegendControl legendItems={legend} />
-            )}
-          </div>
-        </div>
-        <OverLayContentWrapper
-          aria-label="Map Popup"
-          id="map-popup"
-          className="map-popup"
-          ref={popupRef}
-        >
-          <StyledCloser
-            href="#"
-            id="popup-closer"
-            className="ol-popup-closer"
-            aria-label="Popup Closer"
-            onClick={() => {
-              popupCurrent.current.setPosition(undefined);
-              setPopupContent(null);
-            }}
+      <div aria-label="Map Div" ref={mapDivRef} {...customMapConfig}>
+        {errorMessage && (
+          <StyledAlert
+            key="failure"
+            variant="danger"
+            dismissible={true}
+            onClose={() => setErrorMessage("")}
           >
-            <FaTimes />
-          </StyledCloser>
-          <StyledContent aria-label="Map Popup Content" id="popup-content">
-            {popupContent &&
-              ReactDOM.createPortal(popupContent, popupRef.current)}
-          </StyledContent>
-        </OverLayContentWrapper>
-      </MapContext.Provider>
+            {errorMessage}
+          </StyledAlert>
+        )}
+        {dataviewerViz && (
+          <InfoDiv id="info" aria-label="Info Div">
+            Zoom: {zoom}
+            <br></br>
+            Lon: {lonLat[0].toFixed(2)}, Lat: {lonLat[1].toFixed(2)}
+            <br></br>
+            Projection: {projection}
+          </InfoDiv>
+        )}
+        {mapDrawing && (
+          <DrawInteractions
+            mapDrawing={mapDrawing}
+            visualizationRef={visualizationRef}
+            drawing={drawing}
+          />
+        )}
+        <div>
+          {layerControl && (
+            <LayersControl
+              visualizationRef={visualizationRef}
+              updater={layerControlUpdate}
+            />
+          )}
+          {legend && legend.length > 0 && (
+            <LegendControl legendItems={legend} />
+          )}
+        </div>
+      </div>
     </>
   );
 };
 
 MapComponent.propTypes = {
   mapConfig: PropTypes.object, // div element properties for the map
-  viewConfig: PropTypes.object, // keys can be found at https://openlayers.org/en/latest/apidoc/module-ol_View-View.html
+  mapExtent: PropTypes.shape({
+    extent: PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
+    variable: PropTypes.string,
+  }),
   layers: PropTypes.arrayOf(
     PropTypes.shape({
       configuration: configurationPropType,
@@ -283,6 +317,9 @@ MapComponent.propTypes = {
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
   onMapClick: PropTypes.func, // function for when user click on the map
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
+  dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
+  mapDrawing: mapDrawingPropType,
+  drawing: PropTypes.shape({ current: PropTypes.bool }),
 };
 
-export default MapComponent;
+export default memo(MapComponent);

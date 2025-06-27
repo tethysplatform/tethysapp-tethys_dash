@@ -23,11 +23,15 @@ def get_available_visualizations():
     available_visualizations = []
     for intake_source in valid_intake_sources:
         plugin = getattr(intake, f"open_{intake_source}")
+
         plugin_metadata = {
             "source": intake_source,
             "value": plugin.visualization_label,
             "label": plugin.visualization_label,
             "args": plugin.visualization_args,
+            "type": plugin.visualization_type,
+            "tags": getattr(plugin, "visualization_tags", []),
+            "description": getattr(plugin, "visualization_description", ""),
         }
 
         existing_group = [
@@ -47,6 +51,7 @@ def get_available_visualizations():
 
 def get_visualization(viz_source, viz_args):
     plugin = getattr(intake, f"open_{viz_source}")
+
     data = plugin(**viz_args).read()
 
     return plugin.visualization_type, data

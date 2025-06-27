@@ -4,7 +4,6 @@ import {
   valuesEqual,
   removeEmptyValues,
   checkRequiredKeys,
-  extractVariableInputNames,
 } from "components/modals/utilities";
 
 test("getInitialInputValue", async () => {
@@ -65,6 +64,9 @@ test("valuesEqual", async () => {
   expect(equal).toBe(false);
 
   equal = valuesEqual(null, null);
+  expect(equal).toBe(true);
+
+  equal = valuesEqual({}, {});
   expect(equal).toBe(true);
 });
 
@@ -138,100 +140,4 @@ test("checkRequiredKeys", async () => {
   };
   missingKeys = checkRequiredKeys(requiredKeysObj, checkingObj);
   expect(missingKeys).toStrictEqual(["test", "test2.test3"]);
-});
-
-test("extractVariableInputNames", async () => {
-  let attributeVariables = extractVariableInputNames({
-    "some layer": [
-      {
-        name: "nws_name",
-        alias: "Name",
-        variableInput: "",
-        popup: true,
-      },
-    ],
-  });
-  expect(attributeVariables).toStrictEqual({});
-
-  attributeVariables = extractVariableInputNames({
-    "some layer": [
-      {
-        name: "nws_name",
-        alias: "Name",
-        variableInput: "Some Variable Name",
-        popup: true,
-      },
-    ],
-  });
-  expect(attributeVariables).toStrictEqual({
-    "some layer": { Name: "Some Variable Name" },
-  });
-
-  attributeVariables = extractVariableInputNames({
-    "some layer": [
-      {
-        name: "nws_name",
-        alias: "Name",
-        variableInput: "Some Variable Name",
-        popup: true,
-      },
-    ],
-    "some other layer": [
-      {
-        name: "nws_name",
-        alias: "Name",
-        variableInput: "",
-        popup: true,
-      },
-    ],
-  });
-  expect(attributeVariables).toStrictEqual({
-    "some layer": { Name: "Some Variable Name" },
-  });
-
-  attributeVariables = extractVariableInputNames({
-    "some layer": [
-      {
-        name: "nws_name",
-        alias: "Name",
-        variableInput: "Some Variable Name",
-        popup: true,
-      },
-    ],
-    "some other layer": [
-      {
-        name: "nws_name",
-        alias: "Name",
-        variableInput: "Some Other Variable Name",
-        popup: true,
-      },
-    ],
-  });
-  expect(attributeVariables).toStrictEqual({
-    "some layer": { Name: "Some Variable Name" },
-    "some other layer": { Name: "Some Other Variable Name" },
-  });
-
-  attributeVariables = extractVariableInputNames({
-    "some layer": [
-      {
-        name: "nws_name",
-        alias: "Name",
-        variableInput: "Some Variable Name",
-        popup: true,
-      },
-    ],
-    "some other layer": [
-      {
-        name: "nws_name",
-        alias: "Name",
-        variableInput: "Some Other Variable Name",
-        popup: true,
-      },
-    ],
-  });
-  expect(attributeVariables).toStrictEqual({
-    "some layer": { Name: "Some Variable Name" },
-    "some other layer": { Name: "Some Other Variable Name" },
-  });
 });

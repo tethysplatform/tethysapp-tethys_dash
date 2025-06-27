@@ -21,9 +21,12 @@ const InputTable = ({
   onChange,
   values,
   disabledFields,
+  hiddenFields = [],
   allowRowCreation,
   headers,
   placeholders,
+  show_placeholder_on_hover,
+  types,
 }) => {
   const [tableRows, setTableRows] = useState([]);
   const [tableHeaders, setTableHeaders] = useState([]);
@@ -119,6 +122,8 @@ const InputTable = ({
           <thead>
             <tr>
               {tableHeaders.map((colHeader, index) => {
+                if (hiddenFields.includes(colHeader)) return null;
+
                 return (
                   <th key={index} className="text-center">
                     {colHeader}
@@ -131,6 +136,8 @@ const InputTable = ({
             {tableRows.map((row, rowIndex) => (
               <tr key={rowIndex}>
                 {Object.keys(row).map((field, fieldIndex) => {
+                  if (hiddenFields.includes(field)) return null;
+
                   if (disabledFields && disabledFields.includes(field)) {
                     return (
                       <CenteredTD key={fieldIndex}>
@@ -140,7 +147,10 @@ const InputTable = ({
                       </CenteredTD>
                     );
                   } else {
-                    if (typeof row[field] === "boolean") {
+                    if (
+                      typeof row[field] === "boolean" ||
+                      types?.[rowIndex] === "checkbox"
+                    ) {
                       return (
                         <CenteredTD key={fieldIndex}>
                           <input
@@ -161,7 +171,7 @@ const InputTable = ({
                         <td key={fieldIndex}>
                           <FullInput
                             aria-label={`${field} Input ${rowIndex}`}
-                            type="text"
+                            type={types?.[rowIndex] ?? "text"}
                             value={row[field]}
                             ref={(el) =>
                               (inputRefs.current[
@@ -175,6 +185,11 @@ const InputTable = ({
                               handleKeyDown(e, rowIndex, fieldIndex)
                             }
                             placeholder={
+                              inputPlaceholders &&
+                              inputPlaceholders[rowIndex][field]
+                            }
+                            title={
+                              show_placeholder_on_hover &&
                               inputPlaceholders &&
                               inputPlaceholders[rowIndex][field]
                             }
@@ -209,9 +224,12 @@ InputTable.propTypes = {
     )
   ).isRequired, // array of objects (rows) that contain colum keys and values
   disabledFields: PropTypes.arrayOf(PropTypes.string), // array of fields to not have an input
+  hiddenFields: PropTypes.arrayOf(PropTypes.string), // array of fields to hide
   allowRowCreation: PropTypes.bool, // determines if the table rows can be added
   headers: PropTypes.arrayOf(PropTypes.string), // array of strings to use for table headers
   placeholders: PropTypes.arrayOf(PropTypes.objectOf(PropTypes.string)), // object with key as field and value as placeholder
+  show_placeholder_on_hover: PropTypes.bool, // makes the input title the same as the placeholder so it can be seen on hover
+  types: PropTypes.arrayOf(PropTypes.string), // determines the type for each input. index matches the placeholders
 };
 
 export default InputTable;

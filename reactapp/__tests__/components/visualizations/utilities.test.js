@@ -1,14 +1,14 @@
-import { render, screen } from "@testing-library/react";
 import {
-  setVisualization,
+  getVisualization,
   getGridItem,
-  updateGridItemArgsWithVariableInputs,
+  updateObjectWithVariableInputs,
   getBaseMapLayer,
   findSelectOptionByValue,
   baseMapLayers,
   downloadJSONFile,
 } from "components/visualizations/utilities";
-import appAPI from "services/api/app";
+import { server } from "__tests__/utilities/server";
+import { rest } from "msw";
 
 jest.mock("components/visualizations/Map", () => {
   const MockMapVisualization = () => <div>Map Mock</div>;
@@ -16,216 +16,518 @@ jest.mock("components/visualizations/Map", () => {
   return MockMapVisualization;
 });
 
-jest.mock("components/visualizations/ModuleLoader", () => {
-  const MockModuleLoader = () => <div>ModuleLoader Mock</div>;
-  MockModuleLoader.displayName = "ModuleLoader"; // Set the display name to resolve the linting warning
-  return MockModuleLoader;
-});
+test("getVisualization bad response", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: false,
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
-test("setVisualization bad response", async () => {
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: false,
-    });
-  };
-
-  const setViz = jest.fn();
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
   const visualizationRef = jest.fn();
-  await setVisualization(setViz, {}, visualizationRef);
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
 
-  // Render the element passed to setViz to check the text content
-  render(setViz.mock.calls[0][0]);
-
-  // Check if the rendered content contains the error message
-  expect(
-    await screen.findByText("Failed to retrieve data")
-  ).toBeInTheDocument();
-});
-
-test("setVisualization bad type", async () => {
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      viz_type: "some random type",
-    });
-  };
-
-  const setViz = jest.fn();
-  const visualizationRef = jest.fn();
-  await setVisualization(setViz, {}, visualizationRef);
-
-  // Render the element passed to setViz to check the text content
-  render(setViz.mock.calls[0][0]);
-
-  // Check if the rendered content contains the error message
-  expect(
-    await screen.findByText(
-      "some random type visualizations still need to be configured"
-    )
-  ).toBeInTheDocument();
-});
-
-test("setVisualization plotly", async () => {
-  const plotData = { data: {}, layout: {} };
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      viz_type: "plotly",
-      data: plotData,
-    });
-  };
-
-  const setViz = jest.fn();
-  const visualizationRef = { current: null };
-  await setVisualization(setViz, {}, visualizationRef);
-
-  expect(setViz.mock.calls[0][0].type.type.name).toBe("BasePlot");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
-    plotData: {
-      data: {},
-      layout: {},
-    },
-    visualizationRef: {
-      current: null,
-    },
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("vizError");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    error: "Failed to retrieve data",
   });
 });
 
-test("setVisualization image", async () => {
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      viz_type: "image",
-      data: "some_path",
-    });
-  };
+test("getVisualization bad response with custom messaging", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: false,
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
-  const setViz = jest.fn();
-  const visualizationRef = { current: null };
-  await setVisualization(setViz, { source: "some_source" }, visualizationRef);
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "",
+    itemData: {},
+    visualizationRef,
+    metadataString: JSON.stringify({
+      customMessaging: {
+        error: "custom error message",
+      },
+    }),
+    argsString: "{}",
+    variableInputValues: [],
+  });
 
-  expect(setViz.mock.calls[0][0].type.type.name).toBe("Image");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("vizError");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    error: "custom error message",
+  });
+});
+
+test("getVisualization bad type", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: {},
+          viz_type: "some random type",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "sdfsd",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("vizWarning");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    warnings: ["some random type visualizations still need to be configured"],
+  });
+});
+
+test("getVisualization plotly", async () => {
+  const plotData = { data: {}, layout: {} };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          viz_type: "plotly",
+          data: plotData,
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "plotly",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("plotly");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    data: {},
+    layout: {},
+    config: undefined,
+  });
+});
+
+test("getVisualization image", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          viz_type: "image",
+          data: "some_path",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "image",
+    itemData: { source: "some_source" },
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("image");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
     source: "some_path",
     alt: "some_source",
-    visualizationRef: {
-      current: null,
-    },
+    imageError: undefined,
   });
 });
 
-test("setVisualization table", async () => {
-  const tableData = { data: [], title: "Some Title" };
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      viz_type: "table",
-      data: tableData,
-    });
-  };
+test("getVisualization, empty variable and no custom messaging", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          viz_type: "image",
+          data: "some_path",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
-  const setViz = jest.fn();
-  const visualizationRef = { current: null };
-  await setVisualization(setViz, {}, visualizationRef);
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "image",
+    itemData: { source: "some_source" },
+    visualizationRef,
+    metadataString: JSON.stringify({}),
+    // eslint-disable-next-line
+    argsString: JSON.stringify({ gauge_location: "${Location} ${Time}" }),
+    variableInputValues: {},
+  });
 
-  expect(setViz.mock.calls[0][0].type.type.name).toBe("DataTable");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
+  expect(mockSetVizType.mock.calls[0][0]).toBe("vizWarning");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    warnings: ["Location variable is empty", "Time variable is empty"],
+  });
+});
+
+test("getVisualization, empty variable and custom messaging", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          viz_type: "image",
+          data: "some_path",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "image",
+    itemData: { source: "some_source" },
+    visualizationRef,
+    metadataString: JSON.stringify({
+      customMessaging: {
+        Location: "custom location message",
+      },
+    }),
+    // eslint-disable-next-line
+    argsString: JSON.stringify({ gauge_location: "${Location} ${Time}" }),
+    variableInputValues: { Time: "some value" },
+  });
+
+  expect(mockSetVizType.mock.calls[0][0]).toBe("vizWarning");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    warnings: ["custom location message"],
+  });
+});
+
+test("getVisualization table", async () => {
+  const tableData = {
     data: [],
     title: "Some Title",
-    visualizationRef: {
-      current: null,
-    },
+    subtitle: "Some Subtitle",
+  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          viz_type: "table",
+          data: tableData,
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "table",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("table");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    data: [],
+    title: "Some Title",
+    subtitle: "Some Subtitle",
   });
 });
 
-test("setVisualization card", async () => {
+test("getVisualization card", async () => {
   const cardData = {
     data: [],
     title: "Some Title",
     description: "Some Description",
   };
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      viz_type: "card",
-      data: cardData,
-    });
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          viz_type: "card",
+          data: cardData,
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
-  const setViz = jest.fn();
-  const visualizationRef = { current: null };
-  await setVisualization(setViz, {}, visualizationRef);
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "card",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
 
-  expect(setViz.mock.calls[0][0].type.name).toBe("Card");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("card");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
     data: [],
     title: "Some Title",
     description: "Some Description",
-    visualizationRef: {
-      current: null,
-    },
   });
 });
 
-test("setVisualization map", async () => {
+test("getVisualization map", async () => {
   const mapData = {
-    viewConfig: {},
+    map_extent: "",
     layers: [],
     mapConfig: {},
     legend: [],
   };
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      viz_type: "map",
-      data: mapData,
-    });
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          viz_type: "map",
+          data: mapData,
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
-  const setViz = jest.fn();
-  const visualizationRef = { current: null };
-  await setVisualization(setViz, {}, visualizationRef);
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "map",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
 
-  expect(setViz.mock.calls[0][0].type.name).toBe("MockMapVisualization");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
+  expect(mockSetVizType.mock.calls[0][0]).toBe("map");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    baseMap: undefined,
+    layerControl: undefined,
     layers: [],
-    legend: [],
     mapConfig: {},
-    viewConfig: {},
-    visualizationRef: {
-      current: null,
-    },
+    map_extent: "",
   });
 });
 
-test("setVisualization custom", async () => {
+test("getVisualization custom", async () => {
   const customData = {
     url: "url",
     scope: "scope",
     module: "module",
     props: {},
   };
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      viz_type: "custom",
-      data: customData,
-    });
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: customData,
+          viz_type: "custom",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
-  const setViz = jest.fn();
-  const visualizationRef = { current: null };
-  await setVisualization(setViz, {}, visualizationRef);
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "custom",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
 
-  expect(setViz.mock.calls[0][0].type.name).toBe("MockModuleLoader");
-  expect(setViz.mock.calls[0][0].props).toStrictEqual({
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("custom");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
     url: "url",
     scope: "scope",
     module: "module",
     props: {},
-    visualizationRef: {
-      current: null,
-    },
+  });
+});
+
+test("getVisualization text", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: { text: "some text" },
+          viz_type: "text",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "text",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("text");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    text: "some text",
+  });
+});
+
+test("getVisualization variable input", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: {
+            variable_name: "some variable_name",
+            initial_value: "some initial_value",
+            variable_options_source: "some variable_options_source",
+          },
+          viz_type: "variable_input",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "variableInput",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("variableInput");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    variable_name: "some variable_name",
+    initial_value: "some initial_value",
+    variable_options_source: "some variable_options_source",
   });
 });
 
@@ -240,17 +542,17 @@ test("getGridItem", async () => {
   expect(result).toStrictEqual({ i: 2, data: "2" });
 });
 
-test("updateGridItemArgsWithVariableInputs", async () => {
-  const argsString = JSON.stringify({
+test("updateObjectWithVariableInputs", async () => {
+  const args = {
     // eslint-disable-next-line
     location: "${Some Variable}",
     // eslint-disable-next-line
     text: "Here is some text with the a variable ${Some Variable}",
-  });
+  };
   const variableInputs = { "Some Variable": "Test" };
 
-  const result = updateGridItemArgsWithVariableInputs(
-    argsString,
+  const result = updateObjectWithVariableInputs(
+    JSON.parse(JSON.stringify(args)),
     variableInputs
   );
   expect(result).toStrictEqual({
@@ -258,10 +560,22 @@ test("updateGridItemArgsWithVariableInputs", async () => {
     text: "Here is some text with the a variable Test",
   });
 
-  const newResult = updateGridItemArgsWithVariableInputs(argsString, {});
+  const newResult = updateObjectWithVariableInputs(
+    JSON.parse(JSON.stringify(args)),
+    {}
+  );
   expect(newResult).toStrictEqual({
     location: "",
     text: "Here is some text with the a variable ",
+  });
+
+  const jsonResult = updateObjectWithVariableInputs(
+    JSON.parse(JSON.stringify(args)),
+    { "Some Variable": { some: "value" } }
+  );
+  expect(jsonResult).toStrictEqual({
+    location: '{"some":"value"}',
+    text: 'Here is some text with the a variable {"some":"value"}',
   });
 });
 
@@ -279,7 +593,7 @@ test("getBaseMapLayer", async () => {
             'Tiles © <a href="https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer">ArcGIS</a>',
           url: "https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}",
         },
-        type: "ImageTile",
+        type: "Image Tile",
       },
     },
     type: "WebGLTile",

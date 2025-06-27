@@ -173,6 +173,7 @@ def add_dashboard(request, app_media):
     description = dashboard_metadata.get("description", "")
     notes = dashboard_metadata.get("notes", "")
     access_groups = dashboard_metadata.get("accessGroups", [])
+    unrestricted_placement = dashboard_metadata.get("unrestrictedPlacement", False)
     grid_items = dashboard_metadata.get("gridItems", [])
     owner = str(request.user)
     dashboard_uuid = str(uuid.uuid4())
@@ -180,7 +181,14 @@ def add_dashboard(request, app_media):
 
     try:
         new_dashboard_id = add_new_dashboard(
-            owner, dashboard_uuid, name, description, notes, access_groups, grid_items
+            owner,
+            dashboard_uuid,
+            name,
+            description,
+            notes,
+            access_groups,
+            unrestricted_placement,
+            grid_items,
         )
 
         dashboard_image = os.path.join(

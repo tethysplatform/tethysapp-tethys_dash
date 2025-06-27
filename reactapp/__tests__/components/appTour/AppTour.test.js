@@ -204,12 +204,12 @@ test("Dashboard App Tour", async () => {
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /Click on "Edit Visualization" in the menu to learn more or continue the App Tour by clicking on "Next"./i
+      /Click on "Edit" in the menu to learn more or continue the App Tour by clicking on "Next"./i
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
-  const editGridItemButton = await screen.findByText("Edit Visualization");
+  const editGridItemButton = await screen.findByText("Edit");
   await userEvent.click(editGridItemButton);
 
   //////////////////////////
@@ -334,7 +334,7 @@ test("Dashboard App Tour", async () => {
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
-      /Click on "Edit Visualization" in the menu to learn more or continue the App Tour by clicking on "Next"./i
+      /Click on "Edit" in the menu to learn more or continue the App Tour by clicking on "Next"./i
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -358,7 +358,7 @@ test("Dashboard App Tour", async () => {
   /////////////
   expect(
     await screen.findByText(
-      "Deleting the dashboard item will remove it from the dashboard layout."
+      "Export the dashboard item information into a file which can then be imported into dashboards."
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -370,7 +370,7 @@ test("Dashboard App Tour", async () => {
   /////////////
   expect(
     await screen.findByText(
-      "Exit the dashboard and return to the landing page."
+      "Deleting the dashboard item will remove it from the dashboard layout."
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -382,7 +382,7 @@ test("Dashboard App Tour", async () => {
   /////////////
   expect(
     await screen.findByText(
-      "Cancel any changes made and return the layout to the latest saved version."
+      "Exit the dashboard and return to the landing page."
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -394,7 +394,7 @@ test("Dashboard App Tour", async () => {
   /////////////
   expect(
     await screen.findByText(
-      "Save any changes made and persist for later sessions."
+      "Cancel any changes made and return the layout to the latest saved version."
     )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
@@ -405,7 +405,9 @@ test("Dashboard App Tour", async () => {
   // STEP 28 //
   /////////////
   expect(
-    await screen.findByText("Add new dashboard items to the layout.")
+    await screen.findByText(
+      "Save any changes made and persist for later sessions."
+    )
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
@@ -415,7 +417,7 @@ test("Dashboard App Tour", async () => {
   // STEP 29 //
   /////////////
   expect(
-    await screen.findByText("Lock grid item movement during editing.")
+    await screen.findByText("Add new dashboard items to the layout.")
   ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
@@ -423,6 +425,27 @@ test("Dashboard App Tour", async () => {
 
   /////////////
   // STEP 30 //
+  /////////////
+  expect(
+    await screen.findByText("Lock grid item movement during editing.")
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  backButton = await screen.findByLabelText("Back");
+  await userEvent.click(nextButton);
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 31 //
+  /////////////
+  expect(
+    await screen.findByText("Import grid items from a configuration file.")
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  backButton = await screen.findByLabelText("Back");
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 32 //
   /////////////
   expect(
     await screen.findByText(
@@ -442,7 +465,7 @@ test("Dashboard App Tour", async () => {
   await userEvent.click(dashboardSettingButton);
 
   ////////////////////////////////
-  // STEP 39 - DASHBOARD EDITOR //
+  // STEP 41 - DASHBOARD EDITOR //
   ////////////////////////////////
   await waitFor(async () => {
     expect(
@@ -468,6 +491,11 @@ test("Dashboard App Tour", async () => {
   ).toBeInTheDocument();
   expect(
     await screen.findByText(
+      /This allows grid items to be placed in any location in the dashboard and overlap./i
+    )
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(
       /Write and persist any text for future reference. These notes are publicly viewable if the dashboard is public./i
     )
   ).toBeInTheDocument();
@@ -476,7 +504,7 @@ test("Dashboard App Tour", async () => {
   await userEvent.click(nextButton);
 
   ////////////////////////////////
-  // STEP 40 - DASHBOARD EDITOR //
+  // STEP 42 - DASHBOARD EDITOR //
   ////////////////////////////////
   expect(
     await screen.findByText("Save updated dashboard settings.")
@@ -486,7 +514,7 @@ test("Dashboard App Tour", async () => {
   await userEvent.click(nextButton);
 
   ////////////////////////////////
-  // STEP 41 - DASHBOARD EDITOR //
+  // STEP 43 - DASHBOARD EDITOR //
   ////////////////////////////////
   expect(
     await screen.findByText(
@@ -498,7 +526,7 @@ test("Dashboard App Tour", async () => {
   await userEvent.click(nextButton);
 
   ////////////////////////////////
-  // STEP 42 - DASHBOARD EDITOR //
+  // STEP 44 - DASHBOARD EDITOR //
   ////////////////////////////////
   expect(
     await screen.findByText(
@@ -510,7 +538,7 @@ test("Dashboard App Tour", async () => {
   await userEvent.click(nextButton);
 
   ////////////////////////////////
-  // STEP 43 - DASHBOARD EDITOR //
+  // STEP 45 - DASHBOARD EDITOR //
   ////////////////////////////////
   expect(
     await screen.findByText(
@@ -525,7 +553,7 @@ test("Dashboard App Tour", async () => {
   await userEvent.click(cancelDashboardEditorButton);
 
   /////////////
-  // STEP 31 //
+  // STEP 33 //
   /////////////
   expect(
     await screen.findByText(/For more information about TethysDash, visit the/i)
@@ -546,7 +574,7 @@ test("Dashboard App Tour", async () => {
   await userEvent.click(backButton);
 
   /////////////
-  // STEP 30 //
+  // STEP 32 //
   /////////////
   expect(
     await screen.findByText(
@@ -563,7 +591,7 @@ test("Dashboard App Tour", async () => {
   await userEvent.click(nextButton);
 
   /////////////
-  // STEP 31 //
+  // STEP 33 //
   /////////////
   expect(
     await screen.findByText(/For more information about TethysDash, visit the/i)

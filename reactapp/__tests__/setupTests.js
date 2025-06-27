@@ -15,6 +15,10 @@ require("dotenv").config({ path: "./reactapp/__tests__/test.env" });
 const originalError = console.error.bind(console.error);
 const originalEnv = process.env;
 
+beforeEach(() => {
+  jest.clearAllMocks();
+});
+
 // Setup mocked Tethys API
 beforeAll(() => {
   server.listen();
@@ -51,4 +55,24 @@ afterAll(() => {
 
 // Mocks for tests involving plotly
 window.URL.createObjectURL = jest.fn();
-HTMLCanvasElement.prototype.getContext = jest.fn();
+HTMLCanvasElement.prototype.getContext = function () {
+  return {
+    fillRect: () => {},
+    clearRect: () => {},
+    getImageData: () => ({ data: [] }),
+    putImageData: () => {},
+    createImageData: () => [],
+    setTransform: () => {},
+    drawImage: () => {},
+    save: () => {},
+    restore: () => {},
+    beginPath: () => {},
+    moveTo: () => {},
+    lineTo: () => {},
+    closePath: () => {},
+    stroke: () => {},
+    fill: () => {},
+    arc: () => {},
+    clip: () => {},
+  };
+};

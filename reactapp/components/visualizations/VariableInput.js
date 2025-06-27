@@ -32,7 +32,12 @@ const FlexDiv = styled.div`
   width: 100%;
 `;
 
-const VariableInput = ({ args, onChange }) => {
+const VariableInput = ({
+  variable_name,
+  initial_value,
+  variable_options_source,
+  onChange,
+}) => {
   const [value, setValue] = useState("");
   const [type, setType] = useState(null);
   const [label, setLabel] = useState(null);
@@ -44,58 +49,63 @@ const VariableInput = ({ args, onChange }) => {
 
   const updateVariableInputs = useCallback(
     (new_value) => {
-      if (new_value || new_value === false) {
+      if (new_value || new_value === false || new_value === 0) {
         setVariableInputValues((prevVariableInputValues) => ({
           ...prevVariableInputValues,
-          [args.variable_name]: new_value,
+          [variable_name]: new_value,
         }));
       }
     },
-    [args.variable_name, setVariableInputValues]
+    [variable_name, setVariableInputValues]
   );
 
   useEffect(() => {
-    let initialVariableValue = args.initial_value;
-    let variableValue = initialVariableValue;
+    if (variable_options_source) {
+      let initialVariableValue = initial_value;
+      let variableValue = initialVariableValue;
 
-    // Sets the type to the variable_options_source if not a dropdown
-    if (nonDropDownVariableInputTypes.includes(args.variable_options_source)) {
-      setType(args.variable_options_source);
-    } else {
-      var selectedArg = visualizationArgs.find((obj) => {
-        return obj.label === args.variable_options_source;
-      });
-      setType(selectedArg.argOptions);
-      initialVariableValue = findSelectOptionByValue(
-        selectedArg.argOptions,
-        initialVariableValue
-      );
-    }
+      // Sets the type to the variable_options_source if not a dropdown
+      if (
+        nonDropDownVariableInputTypes.includes(variable_options_source) ||
+        Array.isArray(variable_options_source)
+      ) {
+        setType(variable_options_source);
+      } else {
+        var selectedArg = visualizationArgs.find((obj) => {
+          return obj.label === variable_options_source;
+        });
+        setType(selectedArg.argOptions);
+        initialVariableValue = findSelectOptionByValue(
+          selectedArg.argOptions,
+          initialVariableValue
+        );
+      }
 
-    if (args.variable_options_source === "number") {
-      // If the variable_options_source is a number, it parses the int value from initial_value
-      initialVariableValue = parseInt(args.initial_value);
-      variableValue = initialVariableValue;
-    } else if (
-      args.variable_options_source === "checkbox" &&
-      args.initial_value === null
-    ) {
-      // This sets to false because null isn't a valid value for a checkbox
-      // But I've never been able to get this to fire.
-      initialVariableValue = false;
-      variableValue = initialVariableValue;
-    }
-    setValue(initialVariableValue);
-    setLabel(args.variable_name);
+      if (variable_options_source === "number") {
+        // If the variable_options_source is a number, it parses the int value from initial_value
+        initialVariableValue = parseInt(initial_value);
+        variableValue = initialVariableValue;
+      } else if (
+        variable_options_source === "checkbox" &&
+        initial_value === null
+      ) {
+        // This sets to false because null isn't a valid value for a checkbox
+        // But I've never been able to get this to fire.
+        initialVariableValue = false;
+        variableValue = initialVariableValue;
+      }
+      setValue(initialVariableValue);
+      setLabel(variable_name);
 
-    if (!inDataViewerMode) {
-      updateVariableInputs(variableValue);
+      if (!inDataViewerMode) {
+        updateVariableInputs(variableValue);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [args]);
+  }, [variable_name, initial_value, variable_options_source]);
 
   useEffect(() => {
-    let newValue = variableInputValues[args.variable_name];
+    let newValue = variableInputValues[variable_name];
     if (Array.isArray(type)) {
       newValue = findSelectOptionByValue(type, newValue);
     }
@@ -106,16 +116,16 @@ const VariableInput = ({ args, onChange }) => {
   }, [variableInputValues]);
 
   function handleInputChange(e) {
-    if (args.variable_options_source === "number") {
-      setValue(parseInt(e));
-    } else {
-      setValue(e);
+    let inputValue = e;
+    if (variable_options_source === "number") {
+      inputValue = parseInt(e);
     }
-    onChange(e);
+    setValue(inputValue);
+    onChange(inputValue);
 
     if (Array.isArray(type) || type === "checkbox") {
       if (!inDataViewerMode) {
-        updateVariableInputs(e.value || e);
+        updateVariableInputs(e.value ?? e);
       }
     }
   }
@@ -130,7 +140,9 @@ const VariableInput = ({ args, onChange }) => {
     return (
       <StyledDiv>
         <DataInput
-          objValue={{ label, type, value }}
+          label={label}
+          type={type}
+          value={value}
           onChange={handleInputChange}
         />
       </StyledDiv>
@@ -143,10 +155,7 @@ const VariableInput = ({ args, onChange }) => {
         </label>
         <FlexDiv>
           <InputDiv>
-            <DataInput
-              objValue={{ type, value }}
-              onChange={handleInputChange}
-            />
+            <DataInput type={type} value={value} onChange={handleInputChange} />
           </InputDiv>
           <ButtonDiv>
             <TooltipButton
@@ -166,17 +175,13 @@ const VariableInput = ({ args, onChange }) => {
 };
 
 VariableInput.propTypes = {
-  args: PropTypes.shape({
-    variable_input_type: PropTypes.oneOf([
-      "text",
-      "number",
-      "checkbox",
-      "dropdown",
-    ]), // This just defines the type of input
-    initial_value: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
-    variable_name: PropTypes.string,
-    variable_options_source: PropTypes.string, // This is where the name of the source comes in like in the dropdown
-  }),
+  initial_value: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.bool,
+    PropTypes.number,
+  ]),
+  variable_name: PropTypes.string,
+  variable_options_source: PropTypes.string, // This is where the name of the source comes in like in the dropdown
   onChange: PropTypes.func,
 };
 

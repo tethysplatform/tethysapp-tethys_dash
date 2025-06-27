@@ -368,8 +368,8 @@ const AppTour = () => {
           well as any dashboard item settings.
           <br />
           <br />
-          Click on "Edit Visualization" in the menu to learn more or continue
-          the App Tour by clicking on "Next".
+          Click on "Edit" in the menu to learn more or continue the App Tour by
+          clicking on "Next".
         </div>
       ),
       disableBeacon: true,
@@ -396,7 +396,23 @@ const AppTour = () => {
       spotlightPadding: -1,
     },
     {
-      target: ".dashboard-item-dropdown-delete", // 24
+      target: ".dashboard-item-dropdown-export", // 24
+      content: (
+        <div>
+          Export the dashboard item information into a file which can then be
+          imported into dashboards.
+        </div>
+      ),
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+      spotlightPadding: -1,
+    },
+    {
+      target: ".dashboard-item-dropdown-delete", // 25
       content: (
         <div>
           Deleting the dashboard item will remove it from the dashboard layout.
@@ -411,7 +427,7 @@ const AppTour = () => {
       spotlightPadding: -1,
     },
     {
-      target: ".dashboardExitButton", // 25
+      target: ".dashboardExitButton", // 26
       content: <div>Exit the dashboard and return to the landing page.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
@@ -422,7 +438,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".cancelChangesButton", // 26
+      target: ".cancelChangesButton", // 27
       content: (
         <div>
           Cancel any changes made and return the layout to the latest saved
@@ -438,7 +454,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".saveChangesButton", // 27
+      target: ".saveChangesButton", // 28
       content: <div>Save any changes made and persist for later sessions.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
@@ -449,7 +465,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".addGridItemsButton", // 28
+      target: ".addGridItemsButton", // 29
       content: <div>Add new dashboard items to the layout.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
@@ -460,7 +476,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".lockUnlocKMovementButton", // 29
+      target: ".lockUnlocKMovementButton", // 30
       content: <div>Lock grid item movement during editing.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
@@ -471,7 +487,18 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".dashboardSettingButton", // 30
+      target: ".importDashboardItemButton", // 31
+      content: <div>Import grid items from a configuration file.</div>,
+      disableBeacon: true,
+      disableOverlayClose: true,
+      styles: {
+        overlay: { "pointer-events": "auto" },
+      },
+      data: { callbackNext: true },
+      spotlightPadding: 5,
+    },
+    {
+      target: ".dashboardSettingButton", // 32
       content: (
         <div>
           Edit dashboard settings like names, descriptions, thumbnails, sharing
@@ -490,7 +517,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".react-grid-layout", // 31
+      target: ".react-grid-layout", // 33
       content: (
         <div>
           For more information about TethysDash, visit the{" "}
@@ -524,7 +551,7 @@ const AppTour = () => {
     },
     // DATAVIEWER STEPS
     {
-      target: ".modal-content", // 32
+      target: ".modal-content", // 34
       content: (
         <div>
           This is a modal for configuring and previewing visualizations.
@@ -541,7 +568,7 @@ const AppTour = () => {
       data: { callbackNext: true },
     },
     {
-      target: "#visualization-tabs > li:nth-child(1)", // 33
+      target: "#visualization-tabs > li:nth-child(1)", // 35
       content: (
         <div>
           The visualization tab will show options for configuring the
@@ -555,7 +582,7 @@ const AppTour = () => {
       spotlightPadding: -1,
     },
     {
-      target: ".dataviewer-inputs", // 34
+      target: ".dataviewer-inputs", // 36
       content: (
         <div>
           Begin by selecting a "Visualization Type" to pick a visualization.
@@ -580,7 +607,7 @@ const AppTour = () => {
       placement: "right",
     },
     {
-      target: "#visualization-tabs > li:nth-child(2)", // 35
+      target: "#visualization-tabs > li:nth-child(2)", // 37
       content: (
         <div>
           The settings tab will show options for configuring any dashboard item
@@ -596,7 +623,7 @@ const AppTour = () => {
       spotlightPadding: -1,
     },
     {
-      target: ".dataviewer-inputs", // 36
+      target: ".dataviewer-inputs", // 38
       content: (
         <div>
           Once the visualization is loaded, available settings for the
@@ -619,7 +646,7 @@ const AppTour = () => {
       placement: "right",
     },
     {
-      target: ".dataviewer-save-button", // 37
+      target: ".dataviewer-save-button", // 39
       content: (
         <div>
           After the visualization is configured correctly, click on the "Save"
@@ -633,7 +660,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".dataviewer-close-button", // 38
+      target: ".dataviewer-close-button", // 40
       content: (
         <div>
           Click on the "Close" button to exit the data viewer and continue with
@@ -648,7 +675,7 @@ const AppTour = () => {
     },
     // DASHBOARD SETTINGS
     {
-      target: ".dashboard-settings-editor", // 39
+      target: ".dashboard-settings-editor", // 41
       content: (
         <div>
           General dashboard settings can be altered in this menu. General
@@ -672,6 +699,11 @@ const AppTour = () => {
             </li>
             <br />
             <li>
+              <b>Unrestricted Grid Item Movement</b>: This allows grid items to
+              be placed in any location in the dashboard and overlap.
+            </li>
+            <br />
+            <li>
               <b>Notes</b>: Write and persist any text for future reference.
               These notes are publicly viewable if the dashboard is public.
             </li>
@@ -685,7 +717,7 @@ const AppTour = () => {
       placement: "right",
     },
     {
-      target: ".save-dashboard-button", // 40
+      target: ".save-dashboard-button", // 42
       content: <div>Save updated dashboard settings.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
@@ -694,7 +726,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".delete-dashboard-button", // 41
+      target: ".delete-dashboard-button", // 43
       content: <div>Delete the dashboard. This action cannot be undone.</div>,
       disableBeacon: true,
       disableOverlayClose: true,
@@ -703,7 +735,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".copy-dashboard-button", // 42
+      target: ".copy-dashboard-button", // 44
       content: (
         <div>
           Copy with the same settings and dashboard items. The new dashboard
@@ -717,7 +749,7 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".cancel-dashboard-editor-button", // 43
+      target: ".cancel-dashboard-editor-button", // 45
       content: (
         <div>
           Click on the "Close" button to exit the settings editor and continue

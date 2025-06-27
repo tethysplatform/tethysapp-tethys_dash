@@ -14,4 +14,5 @@ export const moduleMap = {
   "ol/style/Style.js": () => import("ol/style/Style.js"),
   "ol/style/Stroke.js": () => import("ol/style/Stroke.js"),
   "ol/style/Fill.js": () => import("ol/style/Fill.js"),
+  "ol/format/EsriJSON.js": () => import("ol/format/EsriJSON.js"),
 };

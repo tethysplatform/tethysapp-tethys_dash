@@ -9,6 +9,7 @@ import styled from "styled-components";
 import {
   LayoutContext,
   VariableInputsContext,
+  AppContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import CustomAlert from "components/dashboard/CustomAlert";
@@ -16,7 +17,21 @@ import VisualizationPane from "components/modals/DataViewer/VisualizationPane";
 import SettingsPane from "components/modals/DataViewer/SettingsPane";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
+import TextEditor from "components/inputs/TextEditor";
+import { Visualization } from "components/visualizations/Base";
+import MapContextProvider from "components/contexts/MapContext";
 import "components/modals/wideModal.css";
+import "components/modals/DataViewer/DataViewer.css";
+
+const StyledTabContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+`;
+
+const PaddedBottomDiv = styled.div`
+  padding-bottom: 1rem;
+`;
 
 const StyledContainer = styled(Container)`
   height: 75vh;
@@ -29,7 +44,6 @@ const StyledRow = styled(Row)`
 
 const StyledCol = styled(Col)`
   border-right: black solid 1px;
-  overflow: auto;
 `;
 
 const StyledVizCol = styled(Col)`
@@ -37,7 +51,19 @@ const StyledVizCol = styled(Col)`
   -moz-user-select: none;
   -ms-user-select: none;
   user-select: none;
+  overflow-y: auto;
 `;
+
+function findBySource(data, targetSource) {
+  for (const group of data) {
+    for (const option of group.options) {
+      if (option.source === targetSource) {
+        return option;
+      }
+    }
+  }
+  return null;
+}
 
 function DataViewerModal({
   gridItemIndex,
@@ -49,12 +75,16 @@ function DataViewerModal({
   setGridItemMessage,
   setShowGridItemMessage,
 }) {
-  const [selectedVizTypeOption, setSelectVizTypeOption] = useState(null);
-  const [viz, setViz] = useState(null);
-  const [vizInputsValues, setVizInputsValues] = useState([]);
+  const { visualizations } = useContext(AppContext);
+  const [selectedVizTypeOption, setSelectVizTypeOption] = useState(
+    findBySource(visualizations, source)
+  );
+  const [vizType, setVizType] = useState("unknown");
+  const [vizData, setVizData] = useState({});
+  const [vizInputsValues, setVizInputsValues] = useState({});
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
-  const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
+  const { updateGridItems, gridItems } = useContext(LayoutContext);
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
   const { variableInputValues, setVariableInputValues } = useContext(
@@ -64,25 +94,18 @@ function DataViewerModal({
   const { setAppTourStep, activeAppTour } = useAppTourContext();
 
   const gridMetadata = JSON.parse(metadataString);
-  const visualizationRef = useRef({});
+  const visualizationRef = useRef();
   const settingsRef = useRef(gridMetadata);
   const [tabKey, setTabKey] = useState("visualization");
 
   function saveChanges(e) {
-    const { gridItems } = getDashboardMetadata();
     e.preventDefault();
     e.stopPropagation();
     setShowAlert(false);
     if (selectedVizTypeOption !== null) {
-      let inputValues = vizInputsValues.map((value) => value.value);
-
       if (selectedVizTypeOption.source === "Variable Input") {
-        var variableInputName = vizInputsValues.find((obj) => {
-          return obj.name === "variable_name";
-        }).value;
-        var variableInputSource = vizInputsValues.find((obj) => {
-          return obj.name === "variable_options_source";
-        }).value;
+        var variableInputName = vizInputsValues.variable_name;
+        var variableInputSource = vizInputsValues.variable_options_source;
 
         if (
           variableInputName in variableInputValues &&
@@ -98,43 +121,36 @@ function DataViewerModal({
           setShowAlert(true);
           return;
         } else {
-          vizInputsValues.push({
-            label: "Initial Value",
-            name: "initial_value",
-            value: variableInputValue,
-          });
+          vizInputsValues.initial_value = variableInputValue;
         }
       }
 
-      if (inputValues.every((value) => ![null, ""].includes(value))) {
+      if (
+        Object.values(vizInputsValues).every(
+          (value) => ![null, ""].includes(value)
+        )
+      ) {
         let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
         updatedGridItems[gridItemIndex].source = vizMetdata.source;
 
-        let vizArgs = {};
-        for (const vizArg of vizInputsValues) {
-          vizArgs[vizArg.name] =
-            vizArg.value?.value === false
-              ? false
-              : vizArg.value.value || vizArg.value; // can be a basic value or an object (like when a checkbox is a dropdown in the dataviewer)
-        }
-
-        if (
-          selectedVizTypeOption.source === "Map" &&
-          visualizationRef.current
-        ) {
-          vizArgs["initial_view"] = {
-            center: visualizationRef.current.getView().getCenter(),
-            zoom: visualizationRef.current.getView().getZoom(),
-          };
-        }
-        updatedGridItems[gridItemIndex].args_string = JSON.stringify(vizArgs);
+        updatedGridItems[gridItemIndex].args_string = JSON.stringify(
+          Object.fromEntries(
+            Object.entries(vizInputsValues).map(([key, val]) => [
+              key,
+              val.value ?? val,
+            ])
+          )
+        );
 
         updatedGridItems[gridItemIndex].metadata_string = JSON.stringify(
           settingsRef.current
         );
 
         if (selectedVizTypeOption.source === "Variable Input") {
-          updatedGridItems = updateVariableInputs(vizArgs, updatedGridItems);
+          updatedGridItems = updateVariableInputs(
+            vizInputsValues,
+            updatedGridItems
+          );
         }
 
         updateGridItems(updatedGridItems);
@@ -175,7 +191,7 @@ function DataViewerModal({
       }
     }
     variableInputValues[vizArgs.variable_name] =
-      variableInputValue.value || variableInputValue;
+      variableInputValue.value ?? variableInputValue;
     setVariableInputValues(variableInputValues);
 
     return updatedGridItems;
@@ -189,7 +205,7 @@ function DataViewerModal({
   function emptyFunction() {}
 
   return (
-    <>
+    <MapContextProvider>
       <Modal
         show={showModal}
         onHide={activeAppTour ? closeAndSetAppTour : handleModalClose}
@@ -199,62 +215,84 @@ function DataViewerModal({
         aria-label={"DataViewer Modal"}
       >
         <Modal.Header closeButton>
-          <Modal.Title>Select Cell Data</Modal.Title>
+          <Modal.Title className="no-caret">Edit Visualization</Modal.Title>
         </Modal.Header>
         <Modal.Body>
           <StyledContainer>
             <StyledRow>
               <StyledCol
                 className={
-                  "justify-content-center h-100 col-3 dataviewer-inputs"
+                  "justify-content-center h-100 col-4 dataviewer-inputs"
                 }
               >
-                <Tabs
-                  activeKey={tabKey}
-                  onSelect={(k) => setTabKey(k)}
-                  id="visualization-tabs"
-                  className="mb-3"
-                >
-                  <Tab
-                    eventKey="visualization"
-                    title="Visualization"
-                    aria-label="visualizationTab"
-                    className="visualizationTab"
+                <StyledTabContainer>
+                  <Tabs
+                    activeKey={tabKey}
+                    onSelect={(k) => setTabKey(k)}
+                    id="visualization-tabs"
+                    className="mb-3"
                   >
-                    <VisualizationPane
-                      gridItemIndex={gridItemIndex}
-                      source={source}
-                      argsString={argsString}
-                      setGridItemMessage={setGridItemMessage}
-                      selectedVizTypeOption={selectedVizTypeOption}
-                      setSelectVizTypeOption={setSelectVizTypeOption}
-                      setViz={setViz}
-                      setVizMetadata={setVizMetadata}
-                      vizInputsValues={vizInputsValues}
-                      setVizInputsValues={setVizInputsValues}
-                      variableInputValue={variableInputValue}
-                      setVariableInputValue={setVariableInputValue}
-                      settingsRef={settingsRef}
-                      visualizationRef={visualizationRef}
-                      setShowingSubModal={setShowingSubModal}
-                    />
-                  </Tab>
-                  <Tab
-                    eventKey="settings"
-                    title="Settings"
-                    aria-label="settingsTab"
-                    className="settingsTab"
-                  >
-                    <SettingsPane
-                      settingsRef={settingsRef}
-                      viz={viz}
-                      visualizationRef={visualizationRef}
-                    />
-                  </Tab>
-                </Tabs>
+                    <Tab
+                      eventKey="visualization"
+                      title="Visualization"
+                      aria-label="visualizationTab"
+                      className="visualizationTab"
+                    >
+                      <VisualizationPane
+                        gridItemIndex={gridItemIndex}
+                        source={source}
+                        argsString={argsString}
+                        metadataString={metadataString}
+                        setGridItemMessage={setGridItemMessage}
+                        selectedVizTypeOption={selectedVizTypeOption}
+                        setSelectVizTypeOption={setSelectVizTypeOption}
+                        vizType={vizType}
+                        setVizType={setVizType}
+                        setVizData={setVizData}
+                        setVizMetadata={setVizMetadata}
+                        vizInputsValues={vizInputsValues}
+                        setVizInputsValues={setVizInputsValues}
+                        variableInputValue={variableInputValue}
+                        setVariableInputValue={setVariableInputValue}
+                        settingsRef={settingsRef}
+                        visualizationRef={visualizationRef}
+                        setShowingSubModal={setShowingSubModal}
+                      />
+                    </Tab>
+                    <Tab
+                      eventKey="settings"
+                      title="Settings"
+                      aria-label="settingsTab"
+                      className="settingsTab"
+                    >
+                      <SettingsPane
+                        settingsRef={settingsRef}
+                        vizType={vizType}
+                        visualizationRef={visualizationRef}
+                        vizInputsValues={vizInputsValues}
+                      />
+                    </Tab>
+                  </Tabs>
+                </StyledTabContainer>
               </StyledCol>
-              <StyledVizCol className={"justify-content-center h-100 col-9"}>
-                {viz}
+              <StyledVizCol className={"justify-content-center h-100 col-8"}>
+                {selectedVizTypeOption?.value === "Text" ? (
+                  <PaddedBottomDiv>
+                    <TextEditor
+                      textValue={vizInputsValues.text}
+                      onChange={(htmlText) =>
+                        setVizInputsValues({ text: htmlText })
+                      }
+                    />
+                  </PaddedBottomDiv>
+                ) : (
+                  <Visualization
+                    vizRef={visualizationRef}
+                    vizType={vizType}
+                    vizData={vizData}
+                    dataviewerViz={true}
+                  />
+                )}
               </StyledVizCol>
             </StyledRow>
           </StyledContainer>
@@ -284,7 +322,7 @@ function DataViewerModal({
           </Button>
         </Modal.Footer>
       </Modal>
-    </>
+    </MapContextProvider>
   );
 }
 

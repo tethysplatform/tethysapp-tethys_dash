@@ -1,4 +1,5 @@
 import userEvent from "@testing-library/user-event";
+import { act } from "react";
 import {
   render,
   screen,
@@ -56,7 +57,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
     })
   );
 
-  expect(await screen.findByText("Select Cell Data")).toBeInTheDocument();
+  expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
   expect(await screen.findByText("Visualization")).toBeInTheDocument();
   expect(await screen.findByText("Settings")).toBeInTheDocument();
 
@@ -68,10 +69,18 @@ test("Dashboard Viewer Modal Custom Image", async () => {
     await screen.findByText("A visualization must be chosen before saving")
   ).toBeInTheDocument();
 
-  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  const visualizationTypeSelect = await screen.findByLabelText(
+    "Search Visualization Type Button"
+  );
   await userEvent.click(visualizationTypeSelect);
-  const customImageOption = await screen.findByText("Custom Image");
-  fireEvent.click(customImageOption);
+  const groupOption = await screen.findByText("Default");
+  fireEvent.click(groupOption);
+
+  const visualizationOption = await screen.findByLabelText(
+    "Custom Image Visualization Card"
+  );
+  fireEvent.click(visualizationOption);
+
   expect(await screen.findByText("Image Source")).toBeInTheDocument();
   const imageSourceInput = screen.getByLabelText("Image Source Input");
 
@@ -81,6 +90,80 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   ).toBeInTheDocument();
 
   fireEvent.change(imageSourceInput, { target: { value: "some_png" } });
+  fireEvent.click(dataviewerSaveButton);
+
+  expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
+  expect(mocksetShowGridItemMessage).toHaveBeenCalledTimes(1);
+});
+
+test("Dashboard Viewer Modal Text", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockhandleModalClose = jest.fn();
+  const mocksetGridItemMessage = jest.fn();
+  const mocksetShowGridItemMessage = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataViewerModal
+          gridItemIndex={0}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          metadataString={gridItem.metadata_string}
+          gridItemI={gridItem.i}
+          showModal={true}
+          handleModalClose={mockhandleModalClose}
+          setGridItemMessage={mocksetGridItemMessage}
+          setShowGridItemMessage={mocksetShowGridItemMessage}
+        />
+      ),
+      options: { initialDashboard: mockedDashboards.user[0] },
+    })
+  );
+
+  expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
+  expect(await screen.findByText("Visualization")).toBeInTheDocument();
+  expect(await screen.findByText("Settings")).toBeInTheDocument();
+
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button"
+  );
+  fireEvent.click(dataviewerSaveButton);
+  expect(
+    await screen.findByText("A visualization must be chosen before saving")
+  ).toBeInTheDocument();
+
+  const visualizationTypeSelect = await screen.findByLabelText(
+    "Search Visualization Type Button"
+  );
+  await userEvent.click(visualizationTypeSelect);
+  const groupOption = await screen.findByText("Default");
+  fireEvent.click(groupOption);
+
+  const visualizationOption = await screen.findByLabelText(
+    "Text Visualization Card"
+  );
+  fireEvent.click(visualizationOption);
+
+  const textEditor = await screen.findByLabelText("textEditor");
+  expect(textEditor).toBeInTheDocument();
+
+  fireEvent.click(dataviewerSaveButton);
+  expect(
+    await screen.findByText("All arguments must be filled out before saving")
+  ).toBeInTheDocument();
+
+  // eslint-disable-next-line
+  await act(() => {
+    fireEvent.input(textEditor, {
+      target: {
+        innerHTML: "<p>Hello world!</p>",
+      },
+    });
+  });
+  expect(await screen.findByText("Hello world!")).toBeInTheDocument();
+
   fireEvent.click(dataviewerSaveButton);
 
   expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
@@ -113,7 +196,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
     })
   );
 
-  expect(await screen.findByText("Select Cell Data")).toBeInTheDocument();
+  expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
   expect(await screen.findByText("Visualization")).toBeInTheDocument();
   expect(await screen.findByText("Settings")).toBeInTheDocument();
 
@@ -125,10 +208,18 @@ test("Dashboard Viewer Modal Variable Input", async () => {
     await screen.findByText("A visualization must be chosen before saving")
   ).toBeInTheDocument();
 
-  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  const visualizationTypeSelect = await screen.findByLabelText(
+    "Search Visualization Type Button"
+  );
   await userEvent.click(visualizationTypeSelect);
-  const customImageOption = await screen.findByText("Variable Input");
-  fireEvent.click(customImageOption);
+  const groupOption = await screen.findByText("Default");
+  fireEvent.click(groupOption);
+
+  const visualizationOption = await screen.findByLabelText(
+    "Variable Input Visualization Card"
+  );
+  fireEvent.click(visualizationOption);
+
   expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
     await screen.findByText("Variable Options Source")
@@ -217,7 +308,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
     })
   );
 
-  expect(await screen.findByText("Select Cell Data")).toBeInTheDocument();
+  expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
   expect(await screen.findByText("Visualization")).toBeInTheDocument();
   expect(await screen.findByText("Settings")).toBeInTheDocument();
 
@@ -229,10 +320,18 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
     await screen.findByText("A visualization must be chosen before saving")
   ).toBeInTheDocument();
 
-  const visualizationTypeSelect = screen.getByLabelText("visualizationType");
+  const visualizationTypeSelect = await screen.findByLabelText(
+    "Search Visualization Type Button"
+  );
   await userEvent.click(visualizationTypeSelect);
-  const customImageOption = await screen.findByText("Variable Input");
-  fireEvent.click(customImageOption);
+  const groupOption = await screen.findByText("Default");
+  fireEvent.click(groupOption);
+
+  const visualizationOption = await screen.findByLabelText(
+    "Variable Input Visualization Card"
+  );
+  fireEvent.click(visualizationOption);
+
   expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
     await screen.findByText("Variable Options Source")
@@ -258,6 +357,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
 
   const testVariableInput = await screen.findByLabelText("undefined Input");
   fireEvent.change(testVariableInput, { target: { value: "Some Value" } });
+  expect(testVariableInput.value).toBe("Some Value");
 
   fireEvent.click(dataviewerSaveButton);
   expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
@@ -362,6 +462,7 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
   fireEvent.click(dataviewerSaveButton);
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
+      "Test Variable": "some value",
       "Test Variable 2": "some value",
     })
   );
@@ -401,7 +502,7 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
     })
   );
 
-  expect(await screen.findByText("Select Cell Data")).toBeInTheDocument();
+  expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
   expect(await screen.findByText("Visualization")).toBeInTheDocument();
   expect(await screen.findByText("Settings")).toBeInTheDocument();
 
@@ -413,62 +514,6 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
   fireEvent.click(await screen.findByText("Settings"));
   expect(settingsTab).toHaveClass("active");
   expect(visualizationTab).not.toHaveClass("active");
-});
-
-test("Dashboard Viewer Modal selected visualization types modal", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
-  const gridItem = mockedDashboard.gridItems[0];
-  const mockhandleModalClose = jest.fn();
-  const mocksetGridItemMessage = jest.fn();
-  const mocksetShowGridItemMessage = jest.fn();
-
-  render(
-    createLoadedComponent({
-      children: (
-        <>
-          <DataViewerModal
-            gridItemIndex={1}
-            source={gridItem.source}
-            argsString={gridItem.args_string}
-            metadataString={gridItem.metadata_string}
-            gridItemI={gridItem.i}
-            showModal={true}
-            handleModalClose={mockhandleModalClose}
-            setGridItemMessage={mocksetGridItemMessage}
-            setShowGridItemMessage={mocksetShowGridItemMessage}
-          />
-          <InputVariablePComponent />
-        </>
-      ),
-      options: {
-        initialDashboard: mockedDashboards.user[0],
-        inDataViewerMode: true,
-      },
-    })
-  );
-
-  const visualizationSettingButton = await screen.findByLabelText(
-    "visualizationSettingButton"
-  );
-  expect(visualizationSettingButton).toBeInTheDocument();
-  await userEvent.click(visualizationSettingButton);
-
-  const dataviewerModal = await screen.findByLabelText("DataViewer Modal");
-  expect(dataviewerModal).toBeInTheDocument();
-  expect(dataviewerModal).toHaveStyle({ "z-index": 1050 });
-
-  const selectedVisualizationTypeModal = await screen.findByLabelText(
-    "Selected Visualization Type Modal"
-  );
-  expect(selectedVisualizationTypeModal).toBeInTheDocument();
-
-  await userEvent.keyboard("{Escape}");
-  await waitFor(async () => {
-    expect(
-      screen.queryByLabelText("Selected Visualization Type Modal")
-    ).not.toBeInTheDocument();
-  });
-  expect(dataviewerModal).not.toHaveStyle({ "z-index": 1050 });
 });
 
 test("Dashboard Viewer Modal Map False layer control", async () => {
@@ -500,11 +545,17 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
     })
   );
 
-  const visualizationTypeSelect =
-    await screen.findByLabelText("visualizationType");
+  const visualizationTypeSelect = await screen.findByLabelText(
+    "Search Visualization Type Button"
+  );
   await userEvent.click(visualizationTypeSelect);
-  const customImageOption = await screen.findByText("Map");
-  fireEvent.click(customImageOption);
+  const groupOption = await screen.findByText("Default");
+  fireEvent.click(groupOption);
+
+  const visualizationOption = await screen.findByLabelText(
+    "Map Visualization Card"
+  );
+  fireEvent.click(visualizationOption);
 
   const visualizationTabContent =
     await screen.findByLabelText("visualizationTab");
@@ -513,15 +564,15 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
   );
   const baseMapDropdown = comboboxes[1];
   await selectEvent.openMenu(baseMapDropdown);
-  const baseMapOption = screen.getByText("World Light Gray Base");
+  const baseMapOption = await screen.findByText("World Light Gray Base");
   expect(baseMapOption).toBeInTheDocument();
   fireEvent.click(baseMapOption);
 
   const showLayersDropdown = comboboxes[2];
   await selectEvent.openMenu(showLayersDropdown);
-  const showLayersOption = screen.getByText("False");
-  expect(showLayersOption).toBeInTheDocument();
-  fireEvent.click(showLayersOption);
+  const showLayersOption = await screen.findAllByText("False");
+  expect(showLayersOption[1]).toBeInTheDocument();
+  fireEvent.click(showLayersOption[1]);
 
   const dataviewerSaveButton = await screen.findByLabelText(
     "dataviewer-save-button"
@@ -542,14 +593,12 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
           h: 20,
           source: "Map",
           args_string: JSON.stringify({
-            base_map:
+            baseMap:
               "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
-            additional_layers: [],
-            show_layer_controls: false,
-            initial_view: {
-              center: [-10686671.116154263, 4721671.572580108],
-              zoom: 4.5,
-            },
+            layerControl: false,
+            layers: [],
+            map_extent: { extent: "-10686671.12,4721671.57,4.5" },
+            mapDrawing: {},
           }),
           metadata_string: "{}",
         },
@@ -558,4 +607,60 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
       description: "test_description",
     })
   );
+});
+
+test("Dashboard Viewer Modal Text Options", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const gridItem = mockedDashboard.gridItems[0];
+  const mockhandleModalClose = jest.fn();
+  const mocksetGridItemMessage = jest.fn();
+  const mocksetShowGridItemMessage = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DataViewerModal
+            gridItemIndex={1}
+            source={gridItem.source}
+            argsString={gridItem.args_string}
+            metadataString={gridItem.metadata_string}
+            gridItemI={gridItem.i}
+            showModal={true}
+            handleModalClose={mockhandleModalClose}
+            setGridItemMessage={mocksetGridItemMessage}
+            setShowGridItemMessage={mocksetShowGridItemMessage}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: mockedDashboards.user[0],
+        inDataViewerMode: true,
+      },
+    })
+  );
+
+  const visualizationTypeSelect = await screen.findByLabelText(
+    "Search Visualization Type Button"
+  );
+  await userEvent.click(visualizationTypeSelect);
+  const groupOption = await screen.findByText("Default");
+  fireEvent.click(groupOption);
+
+  const visualizationOption = await screen.findByLabelText(
+    "Text Visualization Card"
+  );
+  fireEvent.click(visualizationOption);
+
+  const textEditor = await screen.findByLabelText("textEditor");
+  // eslint-disable-next-line
+  await act(() => {
+    fireEvent.input(textEditor, {
+      target: {
+        innerHTML: "<p>Hello world!</p>",
+      },
+    });
+  });
+  expect(await screen.findByText("Hello world!")).toBeInTheDocument();
 });

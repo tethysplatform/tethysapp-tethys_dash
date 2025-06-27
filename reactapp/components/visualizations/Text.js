@@ -5,7 +5,6 @@ import parse from "html-react-parser";
 import DOMPurify from "dompurify";
 
 const StyledDiv = styled.div`
-  text-align: center;
   height: 100%;
   overflow-y: auto;
 `;

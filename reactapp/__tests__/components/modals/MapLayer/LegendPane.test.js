@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import PropTypes from "prop-types";
 import {
   render,
@@ -15,6 +15,10 @@ const TestingComponent = ({ initialLegend }) => {
   const [legend, setLegend] = useState(initialLegend);
   const containerRef = useRef();
 
+  useEffect(() => {
+    setLegend(initialLegend);
+  }, [initialLegend]);
+
   return (
     <div ref={containerRef}>
       <LegendPane
@@ -28,7 +32,7 @@ const TestingComponent = ({ initialLegend }) => {
 };
 
 test("LegendPane no initial legend, add new row and delete", async () => {
-  render(<TestingComponent />);
+  const { rerender } = render(<TestingComponent />);
 
   expect(await screen.findByText("Legend Control")).toBeInTheDocument();
 
@@ -40,7 +44,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
   expect(await screen.findByTestId("legend")).toHaveTextContent("");
 
   fireEvent.click(onRadio);
-  expect(await screen.findByTestId("legend")).toHaveTextContent("{}");
+  expect(screen.getByTestId("legend").textContent?.trim()).toBe("");
 
   const addRowButton = await screen.findByLabelText("Add Legend Item Button");
   fireEvent.click(addRowButton);
@@ -116,6 +120,27 @@ test("LegendPane no initial legend, add new row and delete", async () => {
 
   fireEvent.click(offRadio);
   expect(await screen.findByTestId("legend")).toHaveTextContent("{}");
+
+  rerender(<TestingComponent initialLegend={{ title: "some title" }} />);
+
+  expect(await screen.findByTestId("legend")).toHaveTextContent(
+    JSON.stringify({ title: "some title", items: [] })
+  );
+
+  rerender(
+    <TestingComponent
+      initialLegend={{
+        items: [{ color: "yellow", label: "Some Label", symbol: "square" }],
+      }}
+    />
+  );
+
+  expect(await screen.findByTestId("legend")).toHaveTextContent(
+    JSON.stringify({
+      title: "",
+      items: [{ color: "yellow", label: "Some Label", symbol: "square" }],
+    })
+  );
 });
 
 test("LegendPane initial legend", async () => {

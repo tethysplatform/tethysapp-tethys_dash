@@ -1,18 +1,15 @@
 import { render, screen, fireEvent } from "@testing-library/react";
-import { MapContext } from "components/contexts/Contexts";
 import LayersControl from "components/map/LayersControl";
 
 test("LayersControl update layers", async () => {
-  let mockMap;
+  let visualizationRef;
   let updater;
 
   // map object is not defined yet
-  mockMap = undefined;
+  visualizationRef = { current: undefined };
   updater = null;
   const { rerender } = render(
-    <MapContext.Provider value={{ map: mockMap }}>
-      <LayersControl updater={updater} />
-    </MapContext.Provider>
+    <LayersControl updater={updater} visualizationRef={visualizationRef} />
   );
   const showLayersButton = await screen.findByLabelText("Show Layers Control");
   fireEvent.click(showLayersButton);
@@ -35,15 +32,15 @@ test("LayersControl update layers", async () => {
   const mockGetLayers = {
     getArray: mockGetArray,
   };
-  mockMap = {
-    getLayers: jest.fn(() => mockGetLayers),
+  visualizationRef = {
+    current: {
+      getLayers: jest.fn(() => mockGetLayers),
+    },
   };
 
   updater = true;
   rerender(
-    <MapContext.Provider value={{ map: mockMap }}>
-      <LayersControl updater={updater} />
-    </MapContext.Provider>
+    <LayersControl updater={updater} visualizationRef={visualizationRef} />
   );
   // eslint-disable-next-line
   expect(mapLayersDiv.children.length).toBe(1);
@@ -65,9 +62,7 @@ test("LayersControl update layers", async () => {
   };
   mockGetArray.mockReturnValue([mockedLayer]);
   rerender(
-    <MapContext.Provider value={{ map: mockMap }}>
-      <LayersControl updater={!updater} />
-    </MapContext.Provider>
+    <LayersControl updater={!updater} visualizationRef={visualizationRef} />
   );
   expect(screen.queryByText("ImageArcGISLayer")).not.toBeInTheDocument();
   expect(await screen.findByText("Layer 1")).toBeInTheDocument();

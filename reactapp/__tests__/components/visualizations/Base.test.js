@@ -11,18 +11,26 @@ import {
   mockedTableBase,
   mockedTableData,
   mockedTextBase,
+  mockedCustomData,
   mockedTextVariable,
   mockedUnknownBase,
   mockedDashboards,
   mockedMapBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization from "components/visualizations/Base";
-import appAPI from "services/api/app";
 import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
 import { Map } from "ol";
 import * as utilities from "components/visualizations/utilities";
+import { server } from "__tests__/utilities/server";
+import { rest } from "msw";
+
+jest.mock("components/visualizations/ModuleLoader", () => {
+  const MockModuleLoader = () => <div>ModuleLoader Mock</div>;
+  MockModuleLoader.displayName = "ModuleLoader"; // Set the display name to resolve the linting warning
+  return MockModuleLoader;
+});
 
 const { ResizeObserver } = window;
 
@@ -48,8 +56,6 @@ it("Initializes a Base Item with an empty div", async () => {
           source={""}
           argsString={"{}"}
           metadataString={"{}"}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -59,13 +65,20 @@ it("Initializes a Base Item with an empty div", async () => {
 });
 
 it("Initializes a Base Item with an empty div and updates it with an image", async () => {
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-      viz_type: "image",
-    });
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+          viz_type: "image",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -74,8 +87,6 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
           source={mockedApiImageBase.source}
           argsString={mockedApiImageBase.args_string}
           metadataString={mockedApiImageBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -98,8 +109,6 @@ it("Creates an Base Item with a Custom Image", async () => {
           source={mockedCustomImageBase.source}
           argsString={mockedCustomImageBase.args_string}
           metadataString={mockedCustomImageBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -117,8 +126,6 @@ it("Creates an Base Item with a Text Box", async () => {
           source={mockedTextBase.source}
           argsString={mockedTextBase.args_string}
           metadataString={mockedTextBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -139,8 +146,6 @@ it("Creates an Base Item with a Map", async () => {
             source={mockedMapBase.source}
             argsString={mockedMapBase.args_string}
             metadataString={mockedMapBase.metadata_string}
-            showFullscreen={false}
-            hideFullscreen={jest.fn()}
           />
         </div>
       ),
@@ -150,14 +155,6 @@ it("Creates an Base Item with a Map", async () => {
   const mapDiv = await screen.findByLabelText("Map Div");
   expect(mapDiv).toBeInTheDocument();
   expect(mapDiv).toHaveStyle("width: 100%");
-
-  const mapPopup = await screen.findByLabelText("Map Popup");
-  expect(mapPopup).toBeInTheDocument();
-
-  const mapPopupContent = await screen.findByLabelText("Map Popup Content");
-  expect(mapPopupContent).toBeInTheDocument();
-  // eslint-disable-next-line
-  expect(mapPopupContent.children.length).toBe(0);
 
   expect(await screen.findByLabelText("Map Legend")).toBeInTheDocument();
   expect(
@@ -178,8 +175,6 @@ it("Creates an Base Item with a variable input text box", async () => {
             source={mockedTextVariable.source}
             argsString={mockedTextVariable.args_string}
             metadataString={mockedTextVariable.metadata_string}
-            showFullscreen={false}
-            hideFullscreen={jest.fn()}
           />
           <InputVariablePComponent />
         </>
@@ -210,21 +205,21 @@ it("Creates an Base Item with a variable input text box", async () => {
 
 it("Creates an Base Item with an image obtained from the api, 1 min refresh rate", async () => {
   jest.useFakeTimers();
-  jest.spyOn(utilities, "setVisualization");
-
-  appAPI.getPlotData = () => {
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            success: true,
-            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-            viz_type: "image",
-          }),
-        2000
-      )
-    );
-  };
+  jest.spyOn(utilities, "getVisualization");
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+          viz_type: "image",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
   apiImageBase.metadata_string = JSON.stringify({
@@ -238,8 +233,6 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
           source={apiImageBase.source}
           argsString={apiImageBase.args_string}
           metadataString={apiImageBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -256,9 +249,9 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );
-  expect(utilities.setVisualization).toHaveBeenCalledTimes(2);
+  expect(utilities.getVisualization).toHaveBeenCalledTimes(2);
 
-  // go past refresh rate so setVisualization is called again
+  // go past refresh rate so getVisualization is called again
   act(() => {
     jest.advanceTimersByTime(90000);
   });
@@ -266,27 +259,26 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );
-  expect(utilities.setVisualization).toHaveBeenCalledTimes(3);
+  expect(utilities.getVisualization).toHaveBeenCalledTimes(3);
 
   jest.useRealTimers();
 });
 
 it("Creates an Base Item with an image obtained from the api, no refresh when editing", async () => {
   jest.useFakeTimers();
-
-  appAPI.getPlotData = () => {
-    return new Promise((resolve) =>
-      setTimeout(
-        () =>
-          resolve({
-            success: true,
-            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-            viz_type: "image",
-          }),
-        2000
-      )
-    );
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+          viz_type: "image",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
   apiImageBase.metadata_string = JSON.stringify({
@@ -300,20 +292,11 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
           source={apiImageBase.source}
           argsString={apiImageBase.args_string}
           metadataString={apiImageBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
       options: { inEditing: true },
     })
   );
-
-  const spinner = await screen.findByTestId("Loading...");
-  expect(spinner).toBeInTheDocument();
-
-  act(() => {
-    jest.runOnlyPendingTimers();
-  });
 
   const image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
@@ -336,13 +319,20 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
 });
 
 it("Creates an Base Item with a plot obtained from the api", async () => {
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: mockedPlotData,
-      viz_type: "plotly",
-    });
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: mockedPlotData,
+          viz_type: "plotly",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -351,8 +341,6 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
           source={mockedPlotBase.source}
           argsString={mockedPlotBase.args_string}
           metadataString={mockedPlotBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -365,14 +353,21 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
   expect(plot).toBeInTheDocument();
 });
 
-it("Creates an Base Item with a table obtained from the api", async () => {
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: mockedTableData,
-      viz_type: "table",
-    });
-  };
+it("Creates an Base Item with a custom module obtained from the api", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: mockedCustomData,
+          viz_type: "custom",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -381,8 +376,41 @@ it("Creates an Base Item with a table obtained from the api", async () => {
           source={mockedTableBase.source}
           argsString={mockedTableBase.args_string}
           metadataString={mockedTableBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
+        />
+      ),
+    })
+  );
+
+  const spinner = await screen.findByTestId("Loading...");
+  expect(spinner).toBeInTheDocument();
+
+  const customModule = await screen.findByText("ModuleLoader Mock");
+  expect(customModule).toBeInTheDocument();
+});
+
+it("Creates an Base Item with a table obtained from the api", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: mockedTableData,
+          viz_type: "table",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedTableBase.source}
+          argsString={mockedTableBase.args_string}
+          metadataString={mockedTableBase.metadata_string}
         />
       ),
     })
@@ -396,13 +424,20 @@ it("Creates an Base Item with a table obtained from the api", async () => {
 });
 
 it("Creates an Base Item with a card obtained from the api", async () => {
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: mockedCardData,
-      viz_type: "card",
-    });
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: mockedCardData,
+          viz_type: "card",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -411,8 +446,6 @@ it("Creates an Base Item with a card obtained from the api", async () => {
           source={mockedCardBase.source}
           argsString={mockedCardBase.args_string}
           metadataString={mockedCardBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -426,13 +459,20 @@ it("Creates an Base Item with a card obtained from the api", async () => {
 });
 
 it("Gives the user an error message if an unknown viz type is obtained from the api", async () => {
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: true,
-      data: {},
-      viz_type: "random_viz_type",
-    });
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          data: {},
+          viz_type: "random_viz_type",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -441,8 +481,6 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
           source={mockedUnknownBase.source}
           argsString={mockedUnknownBase.args_string}
           metadataString={mockedUnknownBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
@@ -458,13 +496,19 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
 });
 
 it("Gives the user an error message if the api couldn't retrieve data", async () => {
-  appAPI.getPlotData = () => {
-    return Promise.resolve({
-      success: false,
-      data: {},
-      viz_type: "",
-    });
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: false,
+          data: {},
+          viz_type: "",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -473,15 +517,10 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
           source={mockedUnknownBase.source}
           argsString={mockedUnknownBase.args_string}
           metadataString={mockedUnknownBase.metadata_string}
-          showFullscreen={false}
-          hideFullscreen={jest.fn()}
         />
       ),
     })
   );
-
-  const spinner = await screen.findByTestId("Loading...");
-  expect(spinner).toBeInTheDocument();
 
   const message = await screen.findByText("Failed to retrieve data");
   expect(message).toBeInTheDocument();
@@ -513,13 +552,21 @@ it("Base - update variable input", async () => {
   };
   const dashboards = { user: [mockedDashboard], public: [] };
 
-  appAPI.getPlotData = (props) => {
-    return Promise.resolve({
-      success: true,
-      data: props.args.url,
-      viz_type: "image",
-    });
-  };
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
+      return res(
+        ctx.delay(5),
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          // eslint-disable-next-line
+          data: "${Test Variable}",
+          viz_type: "image",
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
 
   render(
     createLoadedComponent({
@@ -529,15 +576,11 @@ it("Base - update variable input", async () => {
             source={mockedDashboard.gridItems[0].source}
             argsString={mockedDashboard.gridItems[0].args_string}
             metadataString={mockedDashboard.gridItems[0].metadata_string}
-            showFullscreen={false}
-            hideFullscreen={jest.fn()}
           />
           <BaseVisualization
             source={mockedDashboard.gridItems[1].source}
             argsString={mockedDashboard.gridItems[1].args_string}
             metadataString={mockedDashboard.gridItems[1].metadata_string}
-            showFullscreen={false}
-            hideFullscreen={jest.fn()}
           />
         </>
       ),
@@ -545,7 +588,7 @@ it("Base - update variable input", async () => {
     })
   );
 
-  const image = await screen.findByAltText(mockedApiImageBase.source);
+  let image = await screen.findByAltText(mockedApiImageBase.source);
   await waitFor(async () => {
     expect(image.src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
   });
@@ -562,6 +605,10 @@ it("Base - update variable input", async () => {
   expect(refreshButton).toBeInTheDocument();
   await user.click(refreshButton);
 
+  const spinner = await screen.findByTestId("Loading...");
+  expect(spinner).toBeInTheDocument();
+
+  image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );

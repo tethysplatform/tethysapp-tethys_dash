@@ -1,5 +1,4 @@
-import { useEffect, useState, useContext } from "react";
-import { MapContext } from "components/contexts/Contexts";
+import { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import { FaLayerGroup, FaTimes } from "react-icons/fa"; // Import icons
@@ -43,28 +42,36 @@ const CloseButton = styled.button`
   right: 5px;
 `;
 
-const LayersControl = ({ updater }) => {
-  const { map } = useContext(MapContext);
+const LayersControl = ({ updater, visualizationRef }) => {
   const [layers, setLayers] = useState([]); // [<openlayer layers>], controls what is shown in the layer controls
   const [isexpanded, setisexpanded] = useState(false); // bool, controls layer conrol menu expansion
   const [layerVisibility, setLayerVisibility] = useState({}); // {layerName: layerVisibility, ...}, controls checkbox checked value based on layer visibility
 
   useEffect(() => {
-    if (map) {
+    if (visualizationRef.current) {
       // Get layers from the map and set them in local state
-      const mapLayers = map.getLayers().getArray();
+      const mapLayers = visualizationRef.current.getLayers().getArray();
       setLayers(mapLayers);
 
       // Update state tracking the checkbox
       setLayerVisibility(formatVisibility(mapLayers));
     }
-  }, [isexpanded, updater, map]);
+    // eslint-disable-next-line
+  }, [isexpanded, updater]);
 
   function formatVisibility(mapLayers) {
     // loop through mapLayers array and create an object of layername keys and visibility values
     return mapLayers.reduce((obj, layer, index) => {
       const layerName = layer.get("name") ?? `Layer ${index + 1}`;
-      const layerVisible = layer.getVisible() ?? true;
+      const layerVisible =
+        layerVisibility[layerName] ?? layer.getVisible() ?? true;
+
+      if (
+        layerVisibility[layerName] !== undefined &&
+        layerVisibility[layerName] !== layer.getVisible()
+      ) {
+        layer.setVisible(layerVisibility[layerName]);
+      }
 
       obj[layerName] = layerVisible;
       return obj;
@@ -141,6 +148,10 @@ const LayersControl = ({ updater }) => {
 
 LayersControl.propTypes = {
   updater: PropTypes.bool, // a boolean that switches when layers are updated
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default LayersControl;

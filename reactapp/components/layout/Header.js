@@ -186,12 +186,14 @@ export const DashboardHeader = () => {
   );
   const { user } = useContext(AppContext);
   const {
-    getDashboardMetadata,
+    name,
+    editable,
+    gridItems,
     updateGridItems,
     resetGridItems,
     saveLayoutContext,
+    unrestrictedPlacement,
   } = useContext(LayoutContext);
-  const { name, editable } = getDashboardMetadata();
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [isSaving, setIsSaving] = useState(false);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
@@ -209,7 +211,7 @@ export const DashboardHeader = () => {
     setShowEditCanvas(true);
     if (activeAppTour) {
       setTimeout(() => {
-        setAppTourStep(39);
+        setAppTourStep(41);
       }, 400);
     }
   };
@@ -222,7 +224,6 @@ export const DashboardHeader = () => {
   }
 
   function onAddGridItem({ importedGridItem }) {
-    const { gridItems } = getDashboardMetadata();
     let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
@@ -244,7 +245,12 @@ export const DashboardHeader = () => {
       };
     }
     newGridItem.i = `${parseInt(maxGridItemI) + 1}`;
-    const updatedGridItems = [...gridItems, newGridItem];
+    let updatedGridItems;
+    if (unrestrictedPlacement) {
+      updatedGridItems = [...gridItems, newGridItem];
+    } else {
+      updatedGridItems = [newGridItem, ...gridItems];
+    }
     updateGridItems(updatedGridItems);
   }
 
@@ -288,7 +294,6 @@ export const DashboardHeader = () => {
     setIsSaving(true);
 
     const image = await captureScreenshot();
-    const { gridItems } = getDashboardMetadata();
     saveLayoutContext({ gridItems, image }).then((response) => {
       if (response.success) {
         setSuccessMessage("Change have been saved.");
@@ -385,6 +390,7 @@ export const DashboardHeader = () => {
                       tooltipPlacement="bottom"
                       tooltipText="Import Dashboard Item"
                       aria-label="importDashboardItemButton"
+                      className="importDashboardItemButton"
                     >
                       <BsUpload size="1.5rem" />
                     </TooltipButton>

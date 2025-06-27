@@ -2,7 +2,8 @@
 omit =
    *app.py,
    */.tethys/*,
-   */tests/*
+   */tests/*,
+   */alembic/*
 
 [report]
 skip_covered = True

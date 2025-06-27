@@ -1198,6 +1198,7 @@ test("DashboardCard editable, export", async () => {
       image: "my_image.png",
       name: "editable",
       notes: "test_notes",
+      unrestrictedPlacement: false,
     },
     "editable.json"
   );
@@ -1302,6 +1303,7 @@ test("DashboardCard editable, export fail", async () => {
       image: "my_image.png",
       name: "editable",
       notes: "test_notes",
+      unrestrictedPlacement: false,
     },
     "editable.json"
   );

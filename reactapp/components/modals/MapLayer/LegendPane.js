@@ -13,6 +13,7 @@ import { BsTrash } from "react-icons/bs";
 import { legendSymbols, getLegendSymbol } from "components/map/LegendControl";
 import { RxDragHandleHorizontal } from "react-icons/rx";
 import { legendPropType, legendItemPropType } from "components/map/utilities";
+import { valuesEqual } from "components/modals/utilities";
 import "components/modals/wideModal.css";
 
 const StyledLabel = styled.label`
@@ -176,7 +177,20 @@ const LegendPane = ({ legend, setLegend, containerRef }) => {
   const [legendMode, setLegendMode] = useState(legend ? "on" : "off");
   const [legendItems, setLegendItems] = useState(legend?.items ?? []);
   const [legendTitle, setLegendTitle] = useState(legend?.title ?? "");
-  const previousLegendInfo = useRef(legend ?? {});
+  const previousLegendInfo = useRef(legend);
+
+  useEffect(() => {
+    if (
+      !valuesEqual(previousLegendInfo.current, legend) &&
+      Object.keys(legend ?? {}).length > 0
+    ) {
+      previousLegendInfo.current = legend;
+      setLegendMode("on");
+      setLegendItems(legend.items ?? []);
+      setLegendTitle(legend.title ?? "");
+    }
+    // eslint-disable-next-line
+  }, [legend]);
 
   useEffect(() => {
     if (legendMode === "off") return;

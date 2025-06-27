@@ -71,20 +71,33 @@ const MapLayerTemplate = ({
     const existingMapLayer = mapLayers.find(
       (t) => t.configuration.props.name === mapLayerName
     );
+    const attributeVariables = existingMapLayer.attributeVariables ?? {};
+    const attributeAliases = existingMapLayer.attributeAliases ?? {};
+    const omittedPopupAttributes =
+      existingMapLayer.omittedPopupAttributes ?? {};
+    const queryableLayer = existingMapLayer.queryable === false ? false : true;
+    const layerProps = Object.fromEntries(
+      Object.entries(existingMapLayer.configuration.props).filter(
+        ([key]) => key !== "source"
+      )
+    );
+    layerProps.layerVisibility = existingMapLayer.configuration.layerVisibility;
+
+    const updatedLayerInfo = {
+      sourceProps: existingMapLayer.configuration.props.source,
+      layerProps,
+      legend: existingMapLayer.legend,
+      style: existingMapLayer.configuration.style,
+      attributeProps: {
+        variables: attributeVariables,
+        omitted: omittedPopupAttributes,
+        aliases: attributeAliases,
+        queryable: queryableLayer,
+      },
+    };
 
     // Set the layerInfo and existingLayerOriginalName to the specified mapLayer
-    setLayerInfo({
-      sourceProps: existingMapLayer.configuration.props.source,
-      layerProps: Object.fromEntries(
-        Object.entries(existingMapLayer.configuration.props).filter(
-          ([key]) => key !== "source"
-        )
-      ),
-      legend: existingMapLayer.legend,
-      style: existingMapLayer.style,
-      attributeVariables: existingMapLayer.attributeVariables ?? {}, // {layerName: {"field1": "Variable Name 1"}}
-      omittedPopupAttributes: existingMapLayer.omittedPopupAttributes ?? {}, // {layerName: ["field1", "field2"]}
-    });
+    setLayerInfo(updatedLayerInfo);
     existingLayerOriginalName.current =
       existingMapLayer.configuration.props.name;
 

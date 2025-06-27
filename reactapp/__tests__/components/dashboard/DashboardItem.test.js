@@ -21,7 +21,10 @@ import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
 import appAPI from "services/api/app";
-import { layerConfigImageArcGISRest } from "__tests__/utilities/constants";
+import {
+  layerConfigImageArcGISRest,
+  exampleStyle,
+} from "__tests__/utilities/constants";
 import * as utils from "components/visualizations/utilities";
 
 // eslint-disable-next-line
@@ -64,36 +67,154 @@ const exampleGeoJSON = {
   ],
 };
 
-const exampleStyle = {
-  version: 8,
-  sprite:
-    "https://cdn.arcgis.com/sharing/rest/content/items/005b8960ddd04ae781df8d471b6726b3/resources/styles/../sprites/sprite",
-  glyphs:
-    "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/resources/fonts/{fontstack}/{range}.pbf",
-  sources: {
-    esri: {
-      type: "vector",
-      url: "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer",
-      tiles: [
-        "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf",
-      ],
-    },
-  },
-  layers: [
-    {
-      id: "Land/Ice",
-      type: "fill",
-      source: "esri",
-      "source-layer": "Land",
-      filter: ["==", "_symbol", 1],
-      layout: {},
-      paint: {
-        "fill-opacity": 0.8,
-        "fill-color": "#feffff",
+test("Dashboard Item not editing", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const gridItem = mockedDashboard.gridItems[0];
+  mockedConfirm.mockResolvedValue(true);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        editableDashboard: true,
+        initialDashboard: mockedDashboards.user[0],
       },
+    })
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  expect(dashboardGridItem).toBeInTheDocument();
+  const styles = window.getComputedStyle(dashboardGridItem);
+
+  expect(styles.getPropertyValue("border")).toBe("");
+  expect(styles.getPropertyValue("background-color")).toBe("transparent");
+  expect(styles.getPropertyValue("box-shadow")).toBe("none");
+
+  expect(
+    screen.queryByLabelText("dashboard-item-dropdown-toggle")
+  ).not.toBeInTheDocument();
+});
+
+test("Dashboard Item editing, no custom borders/css", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const gridItem = mockedDashboard.gridItems[0];
+  mockedConfirm.mockResolvedValue(true);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        editableDashboard: true,
+        initialDashboard: mockedDashboards.user[0],
+        inEditing: true,
+      },
+    })
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
+  expect(dashboardGridItem).toBeInTheDocument();
+
+  await waitFor(() => {
+    expect(
+      window.getComputedStyle(dashboardGridItem).getPropertyValue("border")
+    ).toBe("1px solid #dcdcdc");
+  });
+  const styles = window.getComputedStyle(dashboardGridItem);
+  expect(styles.getPropertyValue("background-color")).toBe("whitesmoke");
+  expect(styles.getPropertyValue("box-shadow")).toBe(
+    "0 4px 8px rgba(0,0,0,0.1)"
+  );
+
+  expect(
+    screen.getByLabelText("dashboard-item-dropdown-toggle")
+  ).toBeInTheDocument();
+});
+
+test("Dashboard Item editing, custom borders/css", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const gridItem = mockedDashboard.gridItems[0];
+  gridItem.metadata_string = JSON.stringify({
+    border: {
+      "border-left": "1px dashed #f03939",
+      "border-right": "3px solid rgb(57, 84, 240)",
     },
-  ],
-};
+    backgroundColor: "#a1ff8dfe",
+    boxShadow: "4px 0 8px #f03939,-4px 0 8px rgb(57, 84, 240)",
+  });
+  mockedConfirm.mockResolvedValue(true);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        editableDashboard: true,
+        initialDashboard: mockedDashboards.user[0],
+        inEditing: true,
+      },
+    })
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
+  expect(dashboardGridItem).toBeInTheDocument();
+
+  await waitFor(() => {
+    expect(
+      window.getComputedStyle(dashboardGridItem).getPropertyValue("border-left")
+    ).toBe("1px dashed #f03939");
+  });
+  const styles = window.getComputedStyle(dashboardGridItem);
+  expect(styles.getPropertyValue("border-right")).toBe(
+    "3px solid rgb(57,84,240)"
+  );
+  expect(styles.getPropertyValue("border-top")).toBe("");
+  expect(styles.getPropertyValue("border-bottom")).toBe("");
+  expect(styles.getPropertyValue("border")).toBe("");
+  expect(styles.getPropertyValue("background-color")).toBe(
+    "rgba(161, 255, 141, 0.996)"
+  );
+  expect(styles.getPropertyValue("box-shadow")).toBe(
+    "4px 0 8px #f03939,-4px 0 8px rgb(57,84,240)"
+  );
+
+  expect(
+    await screen.findByLabelText("dashboard-item-dropdown-toggle")
+  ).toBeInTheDocument();
+});
 
 test("Dashboard Item delete grid item", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
@@ -118,6 +239,7 @@ test("Dashboard Item delete grid item", async () => {
       options: {
         editableDashboard: true,
         initialDashboard: mockedDashboards.user[0],
+        inEditing: true,
       },
     })
   );
@@ -167,6 +289,7 @@ test("Dashboard Item delete grid item cancel", async () => {
       options: {
         editableDashboard: true,
         initialDashboard: mockedDashboards.user[0],
+        inEditing: true,
       },
     })
   );
@@ -206,84 +329,6 @@ test("Dashboard Item delete grid item cancel", async () => {
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
 
-test("Dashboard Item fullscreen but no source", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
-  const gridItem = mockedDashboard.gridItems[0];
-
-  render(
-    createLoadedComponent({
-      children: (
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={0}
-        />
-      ),
-      options: {
-        editableDashboard: true,
-        initialDashboard: mockedDashboards.user[0],
-      },
-    })
-  );
-
-  const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
-  );
-  await userEvent.click(dashboardItemDropdownToggle);
-
-  expect(screen.queryByText("Fullscreen")).not.toBeInTheDocument();
-});
-
-test("Dashboard Item fullscreen", async () => {
-  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
-  const gridItem = mockedDashboard.gridItems[0];
-  gridItem.source = "Custom Image";
-  gridItem.args_string = JSON.stringify({
-    image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
-  });
-
-  render(
-    createLoadedComponent({
-      children: (
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={0}
-        />
-      ),
-      options: {
-        editableDashboard: true,
-        dashboards: updatedMockedDashboards,
-        initialDashboard: mockedDashboard,
-      },
-    })
-  );
-
-  const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
-  );
-  await userEvent.click(dashboardItemDropdownToggle);
-
-  const fullScreenButton = await screen.findByText("Fullscreen");
-  await userEvent.click(fullScreenButton);
-  const fullscreenModal = await screen.findByRole("dialog");
-  expect(fullscreenModal).toBeInTheDocument();
-  expect(fullscreenModal).toHaveClass("fullscreen");
-
-  const closeFullScreenButton = await screen.findByRole("button", {
-    name: "Close",
-  });
-  fireEvent.click(closeFullScreenButton);
-  await waitFor(() => {
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-});
-
 test("Dashboard Item edit item", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
   const gridItem = mockedDashboard.gridItems[0];
@@ -307,6 +352,7 @@ test("Dashboard Item edit item", async () => {
       options: {
         editableDashboard: true,
         initialDashboard: mockedDashboard,
+        inEditing: true,
       },
     })
   );
@@ -316,7 +362,7 @@ test("Dashboard Item edit item", async () => {
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
-  const editGridItemButton = await screen.findByText("Edit Visualization");
+  const editGridItemButton = await screen.findByText("Edit");
   await userEvent.click(editGridItemButton);
   const dataViewerModal = await screen.findByRole("dialog");
   expect(dataViewerModal).toBeInTheDocument();
@@ -397,6 +443,7 @@ test("Dashboard Item copy item", async () => {
         editableDashboard: true,
         dashboards: updatedMockedDashboards,
         initialDashboard: mockedDashboard,
+        inEditing: true,
       },
     })
   );
@@ -406,7 +453,7 @@ test("Dashboard Item copy item", async () => {
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
-  const createCopyButton = await screen.findByText("Create Copy");
+  const createCopyButton = await screen.findByText("Copy");
   await userEvent.click(createCopyButton);
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
@@ -515,6 +562,7 @@ test("Dashboard Item copy item variable input", async () => {
         editableDashboard: true,
         dashboards: updatedMockedDashboards,
         initialDashboard: mockedDashboard,
+        inEditing: true,
       },
     })
   );
@@ -524,7 +572,7 @@ test("Dashboard Item copy item variable input", async () => {
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
-  const createCopyButton = await screen.findByText("Create Copy");
+  const createCopyButton = await screen.findByText("Copy");
   await userEvent.click(createCopyButton);
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
@@ -639,6 +687,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
         editableDashboard: true,
         dashboards: updatedMockedDashboards,
         initialDashboard: mockedDashboard,
+        inEditing: true,
       },
     })
   );
@@ -648,7 +697,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
-  const createCopyButton = await screen.findByText("Create Copy");
+  const createCopyButton = await screen.findByText("Copy");
   await userEvent.click(createCopyButton);
 
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
@@ -721,14 +770,137 @@ test("Dashboard Item copy item variable input already exists", async () => {
   );
 });
 
-test("Dashboard Item edit size", async () => {
+test("Dashboard Item order options disabled for single grid item", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.user[0];
+  mockedDashboard.unrestrictedPlacement = true;
   const gridItem = mockedDashboard.gridItems[0];
   gridItem.source = "Custom Image";
   gridItem.args_string = JSON.stringify({
     image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
   });
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DashboardItem
+          gridItemSource={gridItem.source}
+          gridItemI={gridItem.i}
+          gridItemArgsString={gridItem.args_string}
+          gridItemMetadataString={gridItem.metadata_string}
+          gridItemIndex={0}
+        />
+      ),
+      options: {
+        editableDashboard: true,
+        dashboards: updatedMockedDashboards,
+        initialDashboard: mockedDashboard,
+        inEditing: true,
+      },
+    })
+  );
+
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
+
+  const orderOption = await screen.findByText("Order");
+  expect(orderOption).toBeInTheDocument();
+  fireEvent.mouseEnter(orderOption);
+
+  const bringToFrontOption = await screen.findByText("Bring to Front");
+  expect(bringToFrontOption).toBeInTheDocument();
+  expect(bringToFrontOption).toHaveClass("disabled");
+
+  const bringForwardOption = await screen.findByText("Bring Forward");
+  expect(bringForwardOption).toBeInTheDocument();
+  expect(bringForwardOption).toHaveClass("disabled");
+
+  const sendToBackOption = await screen.findByText("Send to Back");
+  expect(sendToBackOption).toBeInTheDocument();
+  expect(sendToBackOption).toHaveClass("disabled");
+
+  const sendBackwardOption = await screen.findByText("Send Backward");
+  expect(sendBackwardOption).toBeInTheDocument();
+  expect(sendBackwardOption).toHaveClass("disabled");
+});
+
+test("Dashboard Item order forward", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.user[0];
+  mockedDashboard.unrestrictedPlacement = true;
+  const greenGridItem = {
+    i: "3",
+    x: 1,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Text",
+    args_string: JSON.stringify({
+      text: "green",
+    }),
+    metadata_string: JSON.stringify({
+      border: {
+        border: "1px solid black",
+      },
+      backgroundColor: "#71d47bcb",
+    }),
+  };
+  const blueGridItem = {
+    i: "4",
+    x: 5,
+    y: 3,
+    w: 20,
+    h: 20,
+    source: "Text",
+    args_string: JSON.stringify({
+      text: "blue",
+    }),
+    metadata_string: JSON.stringify({
+      border: {
+        border: "1px solid black",
+      },
+      backgroundColor: "#424cd9",
+    }),
+  };
+  const redGridItem = {
+    i: "5",
+    x: 12,
+    y: 9,
+    w: 20,
+    h: 20,
+    source: "Text",
+    args_string: JSON.stringify({
+      text: "red",
+    }),
+    metadata_string: JSON.stringify({
+      border: {
+        border: "1px solid black",
+      },
+      backgroundColor: "#d72e56",
+    }),
+  };
+  const yellowGridItem = {
+    i: "6",
+    x: 12,
+    y: 9,
+    w: 20,
+    h: 20,
+    source: "Text",
+    args_string: JSON.stringify({
+      text: "yellow",
+    }),
+    metadata_string: JSON.stringify({
+      border: {
+        border: "1px solid black",
+      },
+      backgroundColor: "#d72e56",
+    }),
+  };
+  const gridItems = [greenGridItem, blueGridItem, redGridItem, yellowGridItem];
+  mockedDashboard.gridItems = gridItems;
+  const gridItem = gridItems[1];
 
   render(
     createLoadedComponent({
@@ -739,15 +911,17 @@ test("Dashboard Item edit size", async () => {
             gridItemI={gridItem.i}
             gridItemArgsString={gridItem.args_string}
             gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
+            gridItemIndex={1}
           />
-          <EditingPComponent />
+
+          <ContextLayoutPComponent />
         </>
       ),
       options: {
         editableDashboard: true,
         dashboards: updatedMockedDashboards,
         initialDashboard: mockedDashboard,
+        inEditing: true,
       },
     })
   );
@@ -757,9 +931,195 @@ test("Dashboard Item edit size", async () => {
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
-  const editSizeButton = await screen.findByText("Edit Size/Location");
-  await userEvent.click(editSizeButton);
-  expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
+  let orderOption = await screen.findByText("Order");
+  expect(orderOption).toBeInTheDocument();
+  fireEvent.mouseEnter(orderOption);
+
+  const bringToFrontOption = await screen.findByText("Bring to Front");
+  expect(bringToFrontOption).toBeInTheDocument();
+  await userEvent.click(bringToFrontOption);
+
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      id: 1,
+      name: "editable",
+      notes: "test_notes",
+      gridItems: [greenGridItem, redGridItem, yellowGridItem, blueGridItem],
+      editable: true,
+      accessGroups: [],
+      description: "test_description",
+    })
+  );
+
+  await userEvent.click(dashboardItemDropdownToggle);
+
+  orderOption = await screen.findByText("Order");
+  expect(orderOption).toBeInTheDocument();
+  fireEvent.mouseEnter(orderOption);
+
+  const bringForwardOption = await screen.findByText("Bring Forward");
+  expect(bringForwardOption).toBeInTheDocument();
+  await userEvent.click(bringForwardOption);
+
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      id: 1,
+      name: "editable",
+      notes: "test_notes",
+      gridItems: [greenGridItem, yellowGridItem, redGridItem, blueGridItem],
+      editable: true,
+      accessGroups: [],
+      description: "test_description",
+    })
+  );
+});
+
+test("Dashboard Item order backward", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.user[0];
+  mockedDashboard.unrestrictedPlacement = true;
+  const greenGridItem = {
+    i: "3",
+    x: 1,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Text",
+    args_string: JSON.stringify({
+      text: "green",
+    }),
+    metadata_string: JSON.stringify({
+      border: {
+        border: "1px solid black",
+      },
+      backgroundColor: "#71d47bcb",
+    }),
+  };
+  const blueGridItem = {
+    i: "4",
+    x: 5,
+    y: 3,
+    w: 20,
+    h: 20,
+    source: "Text",
+    args_string: JSON.stringify({
+      text: "blue",
+    }),
+    metadata_string: JSON.stringify({
+      border: {
+        border: "1px solid black",
+      },
+      backgroundColor: "#424cd9",
+    }),
+  };
+  const redGridItem = {
+    i: "5",
+    x: 12,
+    y: 9,
+    w: 20,
+    h: 20,
+    source: "Text",
+    args_string: JSON.stringify({
+      text: "red",
+    }),
+    metadata_string: JSON.stringify({
+      border: {
+        border: "1px solid black",
+      },
+      backgroundColor: "#d72e56",
+    }),
+  };
+  const yellowGridItem = {
+    i: "6",
+    x: 12,
+    y: 9,
+    w: 20,
+    h: 20,
+    source: "Text",
+    args_string: JSON.stringify({
+      text: "yellow",
+    }),
+    metadata_string: JSON.stringify({
+      border: {
+        border: "1px solid black",
+      },
+      backgroundColor: "#d72e56",
+    }),
+  };
+  const gridItems = [greenGridItem, blueGridItem, redGridItem, yellowGridItem];
+  mockedDashboard.gridItems = gridItems;
+  const gridItem = gridItems[1];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={2}
+          />
+
+          <ContextLayoutPComponent />
+        </>
+      ),
+      options: {
+        editableDashboard: true,
+        dashboards: updatedMockedDashboards,
+        initialDashboard: mockedDashboard,
+        inEditing: true,
+      },
+    })
+  );
+
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
+
+  let orderOption = await screen.findByText("Order");
+  expect(orderOption).toBeInTheDocument();
+  fireEvent.mouseEnter(orderOption);
+
+  const sendToBackOption = await screen.findByText("Send to Back");
+  expect(sendToBackOption).toBeInTheDocument();
+  await userEvent.click(sendToBackOption);
+
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      id: 1,
+      name: "editable",
+      notes: "test_notes",
+      gridItems: [redGridItem, greenGridItem, blueGridItem, yellowGridItem],
+      editable: true,
+      accessGroups: [],
+      description: "test_description",
+    })
+  );
+
+  await userEvent.click(dashboardItemDropdownToggle);
+
+  orderOption = await screen.findByText("Order");
+  expect(orderOption).toBeInTheDocument();
+  fireEvent.mouseEnter(orderOption);
+
+  const sendBackwardOption = await screen.findByText("Send Backward");
+  expect(sendBackwardOption).toBeInTheDocument();
+  await userEvent.click(sendBackwardOption);
+
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({
+      id: 1,
+      name: "editable",
+      notes: "test_notes",
+      gridItems: [redGridItem, blueGridItem, greenGridItem, yellowGridItem],
+      editable: true,
+      accessGroups: [],
+      description: "test_description",
+    })
+  );
 });
 
 test("Dashboard Item export", async () => {
@@ -789,6 +1149,7 @@ test("Dashboard Item export", async () => {
         editableDashboard: true,
         dashboards: updatedMockedDashboards,
         initialDashboard: mockedDashboard,
+        inEditing: true,
       },
     })
   );
@@ -849,6 +1210,7 @@ test("Dashboard Item export fail", async () => {
         editableDashboard: true,
         dashboards: updatedMockedDashboards,
         initialDashboard: mockedDashboard,
+        inEditing: true,
       },
     })
   );
@@ -921,7 +1283,7 @@ test("handleGridItemExport with map and no layers", async () => {
     w: 20,
     h: 20,
     source: "Map",
-    args_string: JSON.stringify({ additional_layers: [] }),
+    args_string: JSON.stringify({ layers: [] }),
     metadata_string: JSON.stringify({
       refreshRate: 0,
     }),
@@ -936,7 +1298,7 @@ test("handleGridItemExport with map and no layers", async () => {
     w: 20,
     h: 20,
     source: "Map",
-    args_string: { additional_layers: [] },
+    args_string: { layers: [] },
     metadata_string: {
       refreshRate: 0,
     },
@@ -963,7 +1325,7 @@ test("handleGridItemExport with map and geojson layer", async () => {
     h: 20,
     source: "Map",
     args_string: JSON.stringify({
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -995,7 +1357,7 @@ test("handleGridItemExport with map and geojson layer", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -1035,7 +1397,7 @@ test("handleGridItemExport bad load", async () => {
     h: 20,
     source: "Map",
     args_string: JSON.stringify({
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -1123,7 +1485,7 @@ test("handleGridItemImport with map and no layers", async () => {
     w: 20,
     h: 20,
     source: "Map",
-    args_string: { additional_layers: [] },
+    args_string: { layers: [] },
     metadata_string: {
       refreshRate: 0,
     },
@@ -1140,7 +1502,7 @@ test("handleGridItemImport with map and no layers", async () => {
       w: 20,
       h: 20,
       source: "Map",
-      args_string: JSON.stringify({ additional_layers: [] }),
+      args_string: JSON.stringify({ layers: [] }),
       metadata_string: JSON.stringify({
         refreshRate: 0,
       }),
@@ -1168,7 +1530,7 @@ test("handleGridItemImport with map geojson layer and style", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -1202,7 +1564,7 @@ test("handleGridItemImport with map geojson layer and style", async () => {
       h: 20,
       source: "Map",
       args_string: JSON.stringify({
-        additional_layers: [
+        layers: [
           {
             configuration: {
               type: "VectorLayer",
@@ -1242,7 +1604,7 @@ test("handleGridItemImport with map geojson layer and no style", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -1275,7 +1637,7 @@ test("handleGridItemImport with map geojson layer and no style", async () => {
       h: 20,
       source: "Map",
       args_string: JSON.stringify({
-        additional_layers: [
+        layers: [
           {
             configuration: {
               type: "VectorLayer",
@@ -1311,7 +1673,7 @@ test("handleGridItemImport with map arcgis layer and no style", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [layerConfigImageArcGISRest],
+      layers: [layerConfigImageArcGISRest],
     },
     metadata_string: {
       refreshRate: 0,
@@ -1330,7 +1692,7 @@ test("handleGridItemImport with map arcgis layer and no style", async () => {
       h: 20,
       source: "Map",
       args_string: JSON.stringify({
-        additional_layers: [layerConfigImageArcGISRest],
+        layers: [layerConfigImageArcGISRest],
       }),
       metadata_string: JSON.stringify({
         refreshRate: 0,
@@ -1349,7 +1711,7 @@ test("handleGridItemImport with map geojson layer missing props", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             props: {
@@ -1395,7 +1757,7 @@ test("handleGridItemImport bad geojson load", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",
@@ -1443,7 +1805,7 @@ test("handleGridItemImport bad style load", async () => {
     h: 20,
     source: "Map",
     args_string: {
-      additional_layers: [
+      layers: [
         {
           configuration: {
             type: "VectorLayer",

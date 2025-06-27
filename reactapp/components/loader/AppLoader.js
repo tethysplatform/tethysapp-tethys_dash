@@ -243,6 +243,7 @@ function Loader({ children }) {
       let dashboards;
       let visualizations;
       let allVisualizations = [];
+      let mapLayerTemplates = [];
       let visualizationArgs = [];
 
       try {
@@ -283,7 +284,26 @@ function Loader({ children }) {
         return;
       }
 
-      allVisualizations = visualizations.visualizations;
+      for (const visualizationGroup of visualizations.visualizations) {
+        const nonMapLayerItems = visualizationGroup.options.filter(
+          (opt) => opt.type !== "map_layer"
+        );
+        const mapLayerItems = visualizationGroup.options.filter(
+          (opt) => opt.type === "map_layer"
+        );
+
+        // Collect map_layer items into flat array
+        mapLayerTemplates.push(...mapLayerItems);
+
+        // If non-map_layer items exist, preserve the group
+        if (nonMapLayerItems.length > 0) {
+          allVisualizations.push({
+            label: visualizationGroup.label,
+            options: nonMapLayerItems,
+          });
+        }
+      }
+
       visualizationArgs = [
         {
           label: "Base Map Layers",
@@ -316,34 +336,48 @@ function Loader({ children }) {
       }
 
       allVisualizations.push({
-        label: "Other",
+        label: "Default",
         options: [
           {
             source: "Map",
             value: "Map",
             label: "Map",
+            type: "map",
             args: {
-              base_map: baseMapLayers,
-              additional_layers: "custom-AddMapLayer",
-              show_layer_controls: "checkbox",
+              baseMap: baseMapLayers,
+              layerControl: "checkbox",
+              layers: "custom-AddMapLayer",
+              map_extent: "custom-MapExtent",
+              mapDrawing: "custom-MapDrawing",
             },
+            tags: ["map", "default"],
+            description:
+              "A configurable map that allows users to add a basemap and custom layers from a variety of sources.",
           },
           {
             source: "Custom Image",
             value: "Custom Image",
             label: "Custom Image",
+            type: "image",
             args: { image_source: "text" },
+            tags: ["image", "default", "custom"],
+            description:
+              "Any publicly available image using the corresponding URL.",
           },
           {
             source: "Text",
             value: "Text",
             label: "Text",
+            type: "text",
             args: { text: "text" },
+            tags: ["text", "default"],
+            description: "A block of formattable text.",
           },
           {
             source: "Variable Input",
             value: "Variable Input",
             label: "Variable Input",
+            type: "variableInput",
             args: {
               variable_name: "text",
               variable_options_source: [
@@ -356,6 +390,9 @@ function Loader({ children }) {
                 ],
               ],
             },
+            tags: ["variable", "default", "dynamic"],
+            description:
+              "An input that acts as a dashboard variable. This variable can be referenced in other visualizations to allow for dynamic updating.",
           },
         ],
       });
@@ -366,6 +403,7 @@ function Loader({ children }) {
         csrf,
         routes: setupRoutes(dashboards),
         visualizations: allVisualizations,
+        mapLayerTemplates,
         visualizationArgs,
       });
       setAvailableDashboards(dashboards);

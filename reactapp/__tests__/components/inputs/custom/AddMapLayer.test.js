@@ -9,18 +9,44 @@ import { AddMapLayer } from "components/inputs/custom/AddMapLayer";
 import {
   layerConfigImageArcGISRest,
   layerConfigImageWMS,
+  exampleStyle,
 } from "__tests__/utilities/constants";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import selectEvent from "react-select-event";
+import appAPI from "services/api/app";
+
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
 
 it("AddMapLayer update existing", async () => {
+  const mockDownloadJSON = jest.fn();
+  appAPI.downloadJSON = mockDownloadJSON;
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: exampleStyle,
+  });
+  const mockUploadJSON = jest.fn();
+  appAPI.uploadJSON = mockUploadJSON;
+  mockUploadJSON.mockResolvedValueOnce({
+    success: true,
+    filename: "geojson.json",
+  });
+
   const layerConfiguration = JSON.parse(
     JSON.stringify(layerConfigImageArcGISRest)
   );
+  layerConfiguration.configuration.style = "some_json.json";
   layerConfiguration.legend = {
     title: "Legend Title",
     items: [{ color: "red", label: "legend label", symbol: "square" }],
   };
+  layerConfiguration.attributeVariables = {
+    states: { the_geom: "some variable" },
+  };
+  layerConfiguration.omittedPopupAttributes = { states: ["the_geom"] };
+  layerConfiguration.queryable = false;
+
   const onChange = jest.fn();
   const setShowingSubModal = jest.fn();
   const values = [layerConfiguration];
@@ -62,7 +88,6 @@ it("AddMapLayer update existing", async () => {
   const createLayerButton = await screen.findByLabelText("Create Layer Button");
   fireEvent.click(createLayerButton);
 
-  expect(screen.queryByText("ImageArcGISRest Layer")).not.toBeInTheDocument();
   expect(await screen.findByText("New Layer Name")).toBeInTheDocument();
   expect(screen.queryByText("ImageArcGISRest Layer")).not.toBeInTheDocument();
 
@@ -77,6 +102,11 @@ it("AddMapLayer update existing", async () => {
 
   expect(onChange).toHaveBeenCalledWith([
     {
+      attributeVariables: {
+        states: {
+          the_geom: "some variable",
+        },
+      },
       configuration: {
         props: {
           name: "New Layer Name",
@@ -84,10 +114,11 @@ it("AddMapLayer update existing", async () => {
             props: {
               url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
             },
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
           },
           zIndex: 1,
         },
+        style: "geojson.json",
         type: "ImageLayer",
       },
       legend: {
@@ -100,6 +131,10 @@ it("AddMapLayer update existing", async () => {
         ],
         title: "Legend Title",
       },
+      omittedPopupAttributes: {
+        states: ["the_geom"],
+      },
+      queryable: false,
     },
   ]);
 });
@@ -138,10 +173,10 @@ it("AddMapLayer add new", async () => {
   const sourceTab = screen.getByText("Source");
   fireEvent.click(sourceTab);
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
-  const sourceDropdown = screen.getByRole("combobox");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
 
   selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ImageArcGISRest");
+  const sourceOption = await screen.findByText("ESRI Image and Map Service");
   fireEvent.click(sourceOption);
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
@@ -164,7 +199,7 @@ it("AddMapLayer add new", async () => {
             props: {
               url: "Some Url",
             },
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
           },
         },
         type: "ImageLayer",
@@ -212,7 +247,7 @@ it("AddMapLayer rerender", async () => {
   rerender(NewLoadedComponent);
 
   expect(screen.queryByText("ImageArcGISRest Layer")).not.toBeInTheDocument();
-  expect(screen.getByText("Image WMS")).toBeInTheDocument();
+  expect(screen.getByText("WMS")).toBeInTheDocument();
 });
 
 it("AddMapLayer reorder", async () => {
@@ -234,14 +269,14 @@ it("AddMapLayer reorder", async () => {
     })
   );
 
-  const wmsLayer = await screen.findByText("Image WMS");
+  const wmsLayer = await screen.findByText("WMS");
   const imageArcGISRestLayer = screen.getByText("ImageArcGISRest Layer");
   expect(wmsLayer).toBeInTheDocument();
   expect(imageArcGISRestLayer).toBeInTheDocument();
 
   const tabelCells = screen.getAllByRole("cell");
   expect(tabelCells[1]).toHaveTextContent("ImageArcGISRest Layer");
-  expect(tabelCells[5]).toHaveTextContent("Image WMS");
+  expect(tabelCells[5]).toHaveTextContent("WMS");
 
   fireEvent.dragStart(tabelCells[1], {
     dataTransfer: {
@@ -253,7 +288,7 @@ it("AddMapLayer reorder", async () => {
   fireEvent.drop(tabelCells[5]);
 
   await waitFor(() => {
-    expect(tabelCells[1]).toHaveTextContent("Image WMS");
+    expect(tabelCells[1]).toHaveTextContent("WMS");
   });
   await waitFor(() => {
     expect(tabelCells[5]).toHaveTextContent("ImageArcGISRest Layer");
@@ -263,13 +298,13 @@ it("AddMapLayer reorder", async () => {
     {
       configuration: {
         props: {
-          name: "Image WMS",
+          name: "WMS",
           source: {
             props: {
               params: { LAYERS: "topp:states" },
               url: "https://ahocevar.com/geoserver/wms",
             },
-            type: "ImageWMS",
+            type: "WMS",
           },
           zIndex: 1,
         },
@@ -284,7 +319,7 @@ it("AddMapLayer reorder", async () => {
             props: {
               url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
             },
-            type: "ImageArcGISRest",
+            type: "ESRI Image and Map Service",
           },
           zIndex: 1,
         },

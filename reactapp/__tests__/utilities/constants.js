@@ -29,6 +29,7 @@ export const mockedDashboards = {
       name: "editable",
       description: "test_description",
       accessGroups: [],
+      unrestrictedPlacement: false,
       image: "my_image.png",
       notes: "test_notes",
       gridItems: [
@@ -83,12 +84,18 @@ export const mockedVisualizations = [
         value: "plugin_value",
         label: "plugin_label",
         args: { plugin_arg: "text" },
+        type: "some type",
+        tags: ["test", "plugin"],
+        description: "some description",
       },
       {
         source: "plugin_source2",
         value: "plugin_value2",
         label: "plugin_label2",
         args: { plugin_arg: "text" },
+        type: "some type",
+        tags: [],
+        description: "",
       },
     ],
   },
@@ -100,6 +107,9 @@ export const mockedVisualizations = [
         value: "plugin_value3",
         label: "plugin_label3",
         args: { plugin_arg3: "text" },
+        type: "some type",
+        tags: [],
+        description: "",
       },
     ],
   },
@@ -131,13 +141,19 @@ export const mockedVisualizationsWithDefaults = [
         source: "plugin_source",
         value: "plugin_value",
         label: "plugin_label",
+        type: "image",
         args: { plugin_arg: "text" },
+        tags: ["test", "plugin"],
+        description: "some description",
       },
       {
         source: "plugin_source2",
         value: "plugin_value2",
         label: "plugin_label2",
+        type: "plotly",
         args: { plugin_arg: "text" },
+        tags: [],
+        description: "",
       },
     ],
   },
@@ -148,25 +164,33 @@ export const mockedVisualizationsWithDefaults = [
         source: "plugin_source3",
         value: "plugin_value3",
         label: "plugin_label3",
+        type: "plotly",
         args: { plugin_arg3: "text" },
+        tags: [],
+        description: "",
       },
     ],
   },
   {
-    label: "Other",
+    label: "Default",
     options: [
       {
         source: "Custom Image",
         value: "Custom Image",
         label: "Custom Image",
+        type: "image",
         args: { image_source: "text" },
+        tags: ["image", "default", "custom"],
+        description:
+          "Any publicly available image using the corresponding URL.",
       },
       {
         source: "Map",
         value: "Map",
         label: "Map",
+        type: "map",
         args: {
-          base_map: [
+          baseMap: [
             {
               label: "ArcGIS Map Service Base Maps",
               options: [
@@ -178,20 +202,27 @@ export const mockedVisualizationsWithDefaults = [
               ],
             },
           ],
-          additional_layers: "custom-AddMapLayer",
-          show_layer_controls: "checkbox",
+          layers: "custom-AddMapLayer",
+          layerControl: "checkbox",
         },
+        tags: ["map", "default"],
+        description:
+          "A configurable map that allows users to add a basemap and custom layers from a variety of sources.",
       },
       {
         source: "Text",
         value: "Text",
         label: "Text",
+        type: "text",
         args: { text: "text" },
+        tags: ["text", "default"],
+        description: "A block of formattable text.",
       },
       {
         source: "Variable Input",
         value: "Variable Input",
         label: "Variable Input",
+        type: "variableInput",
         args: {
           variable_name: "text",
           variable_options_source: [
@@ -204,6 +235,9 @@ export const mockedVisualizationsWithDefaults = [
             },
           ],
         },
+        tags: ["variable", "default", "dynamic"],
+        description:
+          "An input that acts as a dashboard variable. This variable can be referenced in other visualizations to allow for dynamic updating.",
       },
     ],
   },
@@ -287,9 +321,9 @@ export const mockedApiImageBase = {
   y: 0,
   w: 20,
   h: 20,
-  source: "cnrfc_5day_streamflow_volume_exceedance",
+  source: "plugin_source",
   args_string: JSON.stringify({
-    gauge_location: "CREC1",
+    plugin_arg: "CREC1",
   }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
@@ -302,8 +336,10 @@ export const mockedPlotBase = {
   y: 0,
   w: 20,
   h: 20,
-  source: "plot_api",
-  args_string: "{}",
+  source: "plugin_source",
+  args_string: JSON.stringify({
+    plugin_arg: "CREC1",
+  }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
   }),
@@ -352,27 +388,36 @@ export const mockedTableBase = {
   y: 0,
   w: 20,
   h: 20,
-  source: "table_api",
-  args_string: "{}",
+  source: "plugin_source",
+  args_string: JSON.stringify({
+    plugin_arg: "CREC1",
+  }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
   }),
 };
 
+export const mockedCustomData = {
+  url: "some url",
+  scope: "some scope",
+  module: "some module",
+  props: { prop1: "some prop" },
+};
+
 export const mockedTableData = {
   data: [
     {
-      name: "Alice Johnson",
+      " name": "Alice Johnson",
       age: 28,
       occupation: "Engineer",
     },
     {
-      name: "Bob Smith",
+      " name": "Bob Smith",
       age: 34,
       occupation: "Designer",
     },
     {
-      name: "Charlie Brown",
+      " name": "Charlie Brown",
       age: 22,
       occupation: "Teacher",
     },
@@ -386,8 +431,10 @@ export const mockedCardBase = {
   y: 0,
   w: 20,
   h: 20,
-  source: "card_api",
-  args_string: "{}",
+  source: "plugin_source",
+  args_string: JSON.stringify({
+    plugin_arg: "CREC1",
+  }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
   }),
@@ -425,16 +472,16 @@ export const mockedMapBase = {
   h: 20,
   source: "Map",
   args_string: JSON.stringify({
-    base_map:
+    baseMap:
       "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
-    additional_layers: [
+    layers: [
       {
         configuration: {
           type: "ImageLayer",
           props: {
             name: "NWC",
             source: {
-              type: "ImageArcGISRest",
+              type: "ESRI Image and Map Service",
               props: {
                 url: "some_url",
               },
@@ -455,8 +502,8 @@ export const mockedMapBase = {
         },
       },
     ],
-    show_layer_controls: true,
-    initial_view: {
+    layerControl: true,
+    viewConfig: {
       center: [-9974138.670265444, 4049495.619645755],
       zoom: 7.253038543654934,
     },
@@ -483,7 +530,7 @@ export const mockedMapData = {
       type: "WebGLTile",
       props: {
         source: {
-          type: "ImageTile",
+          type: "Image Tile",
           props: {
             url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
             attributions:
@@ -498,7 +545,7 @@ export const mockedMapData = {
       type: "ImageLayer",
       props: {
         source: {
-          type: "ImageArcGISRest",
+          type: "ESRI Image and Map Service",
           props: {
             url: "https://mapservices.weather.noaa.gov/eventdriven/rest/services/water/riv_gauges/MapServer",
             params: {
@@ -523,20 +570,20 @@ export const mockedMapData = {
             },
           },
         },
-        style: {
-          type: "Style",
-          props: {
-            stroke: {
-              type: "Stroke",
-              props: {
-                color: "#501020",
-                width: 1,
-              },
+        name: "rfc max forecast (Decreasing Forecast Trend)",
+        zIndex: 2,
+      },
+      style: {
+        type: "Style",
+        props: {
+          stroke: {
+            type: "Stroke",
+            props: {
+              color: "#501020",
+              width: 1,
             },
           },
         },
-        name: "rfc max forecast (Decreasing Forecast Trend)",
-        zIndex: 2,
       },
     },
   ],
@@ -649,7 +696,7 @@ export const mockedNumberVariable = {
   h: 20,
   source: "Variable Input",
   args_string: JSON.stringify({
-    initial_value: "0",
+    initial_value: 0,
     variable_name: "Test Variable",
     variable_options_source: "number", // TODO Change this to be an empty string or null
     variable_input_type: "number",
@@ -744,14 +791,13 @@ export const mockedDropdownVisualization = [
             },
           ],
         },
+        type: "some type",
+        tags: [],
+        description: "",
       },
     ],
   },
 ];
-
-export const mockedUserSetting = {
-  deselected_visualizations: [],
-};
 
 export const legendItems = {
   title: "Some Title",
@@ -815,7 +861,7 @@ export const layerConfig = {
     props: {
       name: "Some Layer",
       source: {
-        type: "ImageArcGISRest",
+        type: "ESRI Image and Map Service",
         props: {
           url: "Some Url",
         },
@@ -832,6 +878,22 @@ export const layerAttributeVariables = {
 
 export const layerOmittedPopupAttributes = {
   "Some Layer": ["attribute 2"],
+};
+
+export const layerConfigArcGISFeatureService = {
+  configuration: {
+    type: "VectorLayer",
+    props: {
+      name: "Some ArcGISFeatureService Layer",
+      source: {
+        type: "ESRI Feature Service",
+        props: {
+          url: "Some Url",
+          layer: 0,
+        },
+      },
+    },
+  },
 };
 
 export const layerConfigGeoJSON = {
@@ -874,7 +936,7 @@ export const layerConfigImageArcGISRest = {
     props: {
       name: "ImageArcGISRest Layer",
       source: {
-        type: "ImageArcGISRest",
+        type: "ESRI Image and Map Service",
         props: {
           url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
         },
@@ -888,9 +950,9 @@ export const layerConfigImageWMS = {
   configuration: {
     type: "ImageLayer",
     props: {
-      name: "Image WMS",
+      name: "WMS",
       source: {
-        type: "ImageWMS",
+        type: "WMS",
         props: {
           url: "https://ahocevar.com/geoserver/wms",
           params: { LAYERS: "topp:states" },
@@ -906,7 +968,7 @@ export const layerConfigVectorTile = {
     type: "VectorTileLayer",
     props: {
       source: {
-        type: "VectorTile",
+        type: "Vector Tile",
         props: {
           urls: [
             "https://ahocevar.com/geoserver/gwc/service/tms/1.0.0/ne:ne_10m_admin_0_countries@EPSG%3A900913@pbf/{z}/{x}/{-y}.pbf",
@@ -926,7 +988,7 @@ export const layerConfigWebGLTile = {
     type: "WebGLTile",
     props: {
       source: {
-        type: "ImageTile",
+        type: "Image Tile",
         props: {
           url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
         },
@@ -934,5 +996,82 @@ export const layerConfigWebGLTile = {
       name: "World Light Gray Base",
       zIndex: 0,
     },
+  },
+};
+
+export const exampleStyle = {
+  version: 8,
+  sprite:
+    "https://cdn.arcgis.com/sharing/rest/content/items/005b8960ddd04ae781df8d471b6726b3/resources/styles/../sprites/sprite",
+  glyphs:
+    "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/resources/fonts/{fontstack}/{range}.pbf",
+  sources: {
+    esri: {
+      type: "vector",
+      url: "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer",
+      tiles: [
+        "https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/tile/{z}/{y}/{x}.pbf",
+      ],
+    },
+  },
+  layers: [
+    {
+      id: "Land/Ice",
+      type: "fill",
+      source: "esri",
+      "source-layer": "Land",
+      filter: ["==", "_symbol", 1],
+      layout: {},
+      paint: {
+        "fill-opacity": 0.8,
+        "fill-color": "#feffff",
+      },
+    },
+  ],
+};
+
+export const fullMapLayer = {
+  configuration: {
+    type: "ImageLayer",
+    layerVisibility: false,
+    props: {
+      name: "NWC",
+      source: {
+        type: "ESRI Image and Map Service",
+        props: {
+          url: "some_url",
+        },
+      },
+    },
+    style: {
+      type: "Style",
+      props: {
+        stroke: {
+          type: "Stroke",
+          props: {
+            color: "#501020",
+            width: 1,
+          },
+        },
+      },
+    },
+  },
+  queryable: true,
+  attributeAliases: {
+    NWC: {
+      nws_lid: "LID",
+    },
+  },
+  attributeVariables: {
+    NWC: {
+      nws_lid: "LID",
+    },
+  },
+  omittedPopupAttributes: {
+    NWC: ["nws_lid"],
+  },
+  legend: {
+    title: "Some Title",
+    items: [{ label: "Some label", color: "green", symbol: "square" }],
   },
 };

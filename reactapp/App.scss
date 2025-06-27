@@ -15,6 +15,17 @@ body {
   padding-top: var(--ts-header-height);
 }
 
+.no-caret {
+  caret-color: transparent;
+  user-select: text; /* Ensures text can be selected */
+}
+
+/* Override for input/textarea elements inside .no-caret */
+.no-caret input,
+.no-caret textarea {
+  caret-color: auto; /* or any visible color like black */
+}
+
 /* Scrollbar width */
 ::-webkit-scrollbar {
   width: 8px; /* Adjust width */
@@ -36,4 +47,8 @@ body {
 /* Handle on hover */
 ::-webkit-scrollbar-thumb:hover {
   background: #555;
+}
+
+.form-check-input {
+  border-color: black;
 }

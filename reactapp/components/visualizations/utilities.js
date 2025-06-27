@@ -1,82 +1,158 @@
 import appAPI from "services/api/app";
-import BasePlot from "components/visualizations/BasePlot";
-import DataTable from "components/visualizations/DataTable";
-import Image from "components/visualizations/Image";
-import styled from "styled-components";
-import Card from "components/visualizations/Card";
-import MapVisualization from "components/visualizations/Map";
-import ModuleLoader from "components/visualizations/ModuleLoader";
 import { spaceAndCapitalize } from "components/modals/utilities";
 
-const StyledH2 = styled.h2`
-  text-align: center;
-`;
+function checkForEmptyVariableInputs({
+  metadata,
+  argsString,
+  variableInputValues,
+}) {
+  const dependentVariableInputs = getDependentVariableInputs(argsString);
 
-export async function setVisualization(setViz, itemData, visualizationRef) {
-  appAPI.getPlotData(itemData).then((response) => {
-    if (response.success === true) {
-      if (response["viz_type"] === "plotly") {
-        const plotData = {
-          data: response.data.data,
-          layout: response.data.layout,
-        };
-        setViz(
-          <BasePlot plotData={plotData} visualizationRef={visualizationRef} />
+  if (!dependentVariableInputs.every((key) => key in variableInputValues)) {
+    const warnings = [];
+    for (const dependentVariableInput of dependentVariableInputs) {
+      if (!variableInputValues[dependentVariableInput]) {
+        warnings.push(
+          metadata.customMessaging?.[dependentVariableInput] ??
+            `${dependentVariableInput} variable is empty`
         );
-      } else if (response["viz_type"] === "image") {
-        setViz(
-          <Image
-            source={response.data}
-            alt={itemData.source}
-            visualizationRef={visualizationRef}
-          />
-        );
-      } else if (response["viz_type"] === "table") {
-        setViz(
-          <DataTable
-            data={response.data.data}
-            title={response.data.title}
-            visualizationRef={visualizationRef}
-          />
-        );
-      } else if (response["viz_type"] === "card") {
-        setViz(
-          <Card
-            data={response.data.data}
-            title={response.data.title}
-            description={response.data.description}
-            visualizationRef={visualizationRef}
-          />
-        );
-      } else if (response["viz_type"] === "map") {
-        setViz(
-          <MapVisualization
-            viewConfig={response.data.viewConfig}
-            layers={response.data.layers}
-            mapConfig={response.data.mapConfig}
-            legend={response.data.legend}
-            visualizationRef={visualizationRef}
-          />
-        );
-      } else if (response["viz_type"] === "custom") {
-        setViz(
-          <ModuleLoader
-            url={response.data.url}
-            scope={response.data.scope}
-            module={response.data.module}
-            props={response.data.props}
-            visualizationRef={visualizationRef}
-          />
-        );
-      } else {
-        let message =
-          response["viz_type"] + " visualizations still need to be configured";
-        setViz(<StyledH2>{message}</StyledH2>);
       }
-    } else {
-      setViz(<StyledH2>Failed to retrieve data</StyledH2>);
     }
+    return warnings;
+  }
+
+  return null;
+}
+
+function getDependentVariableInputs(args) {
+  const regex = /\${(.*?)}/g; // Matches ${...}
+  const uniqueValues = new Set();
+
+  let match;
+  while ((match = regex.exec(args)) !== null) {
+    uniqueValues.add(match[1]); // Extract the variable name
+  }
+
+  return [...uniqueValues];
+}
+
+export async function getVisualization({
+  setVizType,
+  setVizData,
+  sourceType,
+  itemData,
+  metadataString,
+  argsString,
+  variableInputValues,
+  dashboardView,
+}) {
+  const metadata = JSON.parse(metadataString);
+  const emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadata,
+    argsString,
+    variableInputValues,
   });
+  if (emptyVariableWarnings) {
+    setVizType("vizWarning");
+    setVizData({
+      warnings: emptyVariableWarnings,
+    });
+    return;
+  }
+
+  if (sourceType !== "map") {
+    setVizType("loader");
+  }
+
+  const apiResponse = await appAPI.getPlotData(itemData);
+  if (apiResponse.success === true) {
+    let responseData = JSON.parse(JSON.stringify(apiResponse.data));
+    if (typeof apiResponse.data === "string") {
+      responseData = { value: apiResponse.data };
+    }
+
+    if (dashboardView) {
+      responseData = updateObjectWithVariableInputs(
+        responseData,
+        variableInputValues
+      );
+    }
+
+    if (typeof apiResponse.data === "string") {
+      responseData = responseData.value;
+    }
+
+    if (apiResponse.viz_type === "plotly") {
+      setVizType("plotly");
+      setVizData({
+        data: responseData.data,
+        layout: responseData.layout,
+        config: responseData.config,
+      });
+    } else if (apiResponse.viz_type === "card") {
+      setVizType("card");
+      setVizData({
+        data: responseData.data,
+        title: responseData.title,
+        description: responseData.description,
+      });
+    } else if (apiResponse.viz_type === "table") {
+      setVizType("table");
+      setVizData({
+        data: responseData.data,
+        title: responseData.title,
+        subtitle: responseData.subtitle,
+      });
+    } else if (apiResponse.viz_type === "image") {
+      setVizType("image");
+      setVizData({
+        source: responseData,
+        alt: itemData.source,
+        imageError: metadata.customMessaging?.error,
+      });
+    } else if (apiResponse.viz_type === "map") {
+      setVizType("map");
+      setVizData({
+        mapConfig: responseData.mapConfig,
+        map_extent: responseData.map_extent,
+        layers: responseData.layers,
+        baseMap: responseData.baseMap,
+        layerControl: responseData.layerControl,
+      });
+    } else if (apiResponse.viz_type === "custom") {
+      setVizType("custom");
+      setVizData({
+        url: responseData.url,
+        scope: responseData.scope,
+        module: responseData.module,
+        props: responseData.props,
+      });
+    } else if (apiResponse.viz_type === "text") {
+      setVizType("text");
+      setVizData({
+        text: responseData.text,
+      });
+    } else if (apiResponse.viz_type === "variable_input") {
+      setVizType("variableInput");
+      setVizData({
+        variable_name: responseData.variable_name,
+        initial_value: responseData.initial_value,
+        variable_options_source: responseData.variable_options_source,
+      });
+    } else {
+      setVizType("vizWarning");
+      setVizData({
+        warnings: [
+          `${apiResponse.viz_type} visualizations still need to be configured`,
+        ],
+      });
+    }
+  } else {
+    setVizType("vizError");
+    setVizData({
+      error: metadata.customMessaging?.error ?? "Failed to retrieve data",
+    });
+  }
 }
 
 export function getGridItem(gridItems, gridItemI) {
@@ -87,24 +163,30 @@ export function getGridItem(gridItems, gridItemI) {
   return result;
 }
 
-export function updateGridItemArgsWithVariableInputs(
-  argsString,
-  variableInputs
-) {
-  const gridItemsArgs = JSON.parse(argsString);
-  for (let gridItemsArg in gridItemsArgs) {
-    const value = gridItemsArgs[gridItemsArg];
-    const stringifiedValue = JSON.stringify(value);
-    const updatedValuesWithVariableInputs = JSON.parse(
-      stringifiedValue.replace(
-        /\$\{([^}]+)\}/g,
-        (_, key) => variableInputs[key] || ""
-      )
+export function updateObjectWithVariableInputs(args, variableInputs) {
+  for (let gridItemsArg in args) {
+    let value = args[gridItemsArg];
+
+    if (typeof value !== "string") {
+      value = JSON.stringify(value);
+    }
+    let updatedValuesWithVariableInputs = value.replace(
+      /\$\{([^}]+)\}/g,
+      (_, key) =>
+        typeof variableInputs[key] === "object"
+          ? JSON.stringify(variableInputs[key])
+          : (variableInputs[key] ?? "")
     );
-    gridItemsArgs[gridItemsArg] = updatedValuesWithVariableInputs;
+
+    if (typeof args[gridItemsArg] !== "string") {
+      updatedValuesWithVariableInputs = JSON.parse(
+        updatedValuesWithVariableInputs
+      );
+    }
+    args[gridItemsArg] = updatedValuesWithVariableInputs;
   }
 
-  return gridItemsArgs;
+  return args;
 }
 
 export const nonDropDownVariableInputTypes = ["text", "number", "checkbox"];
@@ -213,7 +295,7 @@ export function getBaseMapLayer(baseMapURL) {
     type: "WebGLTile",
     props: {
       source: {
-        type: "ImageTile",
+        type: "Image Tile",
         props: {
           url: baseMapURL + "/tile/{z}/{y}/{x}",
           attributions: 'Tiles © <a href="' + baseMapURL + '">ArcGIS</a>',
@@ -226,13 +308,22 @@ export function getBaseMapLayer(baseMapURL) {
   return layer_dict;
 }
 
-export function findSelectOptionByValue(data, searchValue) {
+export function findSelectOptionByValue(
+  data,
+  searchValue,
+  searchKey = "value"
+) {
   for (const element of data) {
-    if (element.value === searchValue) {
+    if (element[searchKey] === searchValue || element === searchValue) {
       return element; // Return the matching element
     }
+
     if (element.options && Array.isArray(element.options)) {
-      const found = findSelectOptionByValue(element.options, searchValue); // Recursively search in options
+      const found = findSelectOptionByValue(
+        element.options,
+        searchValue,
+        searchKey
+      ); // Recursively search in options
       if (found) {
         return found; // Return the matching element from nested options
       }

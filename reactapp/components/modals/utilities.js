@@ -6,6 +6,8 @@ export function getInitialInputValue(value) {
     inputValue = false;
   } else if (value === "multiinput" || value === "custom-AddMapLayer") {
     inputValue = [];
+  } else if (value === "custom-MapDrawing") {
+    inputValue = {};
   } else {
     inputValue = null;
   }
@@ -15,11 +17,20 @@ export function getInitialInputValue(value) {
 
 export function spaceAndCapitalize(string) {
   let capitalized_words = [];
+
+  // Split by underscores first
   let separated_string = string.split("_");
+
   for (let substring of separated_string) {
-    capitalized_words.push(
-      substring.charAt(0).toUpperCase() + substring.slice(1)
-    );
+    // Insert space before capital letters that follow lowercase letters
+    let withSpaces = substring.replace(/([a-z])([A-Z])/g, "$1 $2");
+
+    // Capitalize each word in the split string
+    let words = withSpaces
+      .split(" ")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1));
+
+    capitalized_words.push(words.join(" "));
   }
 
   return capitalized_words.join(" ");
@@ -99,7 +110,11 @@ export const checkRequiredKeys = (
 
     if (!(key in checkingObj)) {
       missingKeys.push(fullKey); // Add missing key to the list
-    } else if (value && typeof value === "object") {
+    } else if (
+      value &&
+      typeof value === "object" &&
+      !Object.keys(value).includes("placeholder")
+    ) {
       // Recursively check nested objects
       missingKeys = missingKeys.concat(
         checkRequiredKeys(value, checkingObj[key], fullKey)
@@ -108,25 +123,4 @@ export const checkRequiredKeys = (
   }
 
   return missingKeys;
-};
-
-//  extract variableInputs from map layer attributes
-export const extractVariableInputNames = (attributes) => {
-  const result = {};
-
-  // check each layer for attributes
-  Object.keys(attributes).forEach((layerName) => {
-    const mappings = attributes[layerName].reduce((acc, item) => {
-      if (item["variableInput"]) {
-        acc[item.alias] = item["variableInput"];
-      }
-      return acc;
-    }, {});
-
-    if (Object.keys(mappings).length > 0) {
-      result[layerName] = mappings;
-    }
-  });
-
-  return result;
 };

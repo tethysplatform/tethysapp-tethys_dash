@@ -71,13 +71,22 @@ const UrlDiv = styled.div`
 `;
 
 function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
-  const [selectedSharingStatus, setSelectedSharingStatus] = useState(false);
+  const [selectedSharingStatus, setSelectedSharingStatus] = useState("private");
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
-  const { getDashboardMetadata, saveLayoutContext } = useContext(LayoutContext);
-  const { id, name, description, editable, accessGroups, notes } =
-    getDashboardMetadata();
+  const {
+    id,
+    name,
+    description,
+    editable,
+    accessGroups,
+    unrestrictedPlacement,
+    notes,
+    saveLayoutContext,
+  } = useContext(LayoutContext);
+  const [selectedUnrestrictedPlacement, setSelectedUnrestrictedPlacement] =
+    useState(unrestrictedPlacement);
   const { deleteDashboard, copyDashboard } = useContext(
     AvailableDashboardsContext
   );
@@ -93,6 +102,11 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     { label: "Private", value: "private" },
   ];
 
+  const unrestrictedPlacementOptions = [
+    { label: "On", value: true },
+    { label: "Off", value: false },
+  ];
+
   useEffect(() => {
     if (accessGroups.includes("public")) {
       setSelectedSharingStatus("public");
@@ -104,6 +118,10 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
 
   function onSharingChange(e) {
     setSelectedSharingStatus(e.target.value);
+  }
+
+  function onUnrestrictedPlacementChange(e) {
+    setSelectedUnrestrictedPlacement(e.target.value === "true");
   }
 
   const handleCopyURLClick = async () => {
@@ -119,7 +137,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const handleClose = () => {
     setShowCanvas(false);
     if (activeAppTour) {
-      setAppTourStep(31);
+      setAppTourStep(33);
     }
   };
 
@@ -131,6 +149,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
       notes: localNotes,
       name: localName,
       description: localDescription,
+      unrestrictedPlacement: selectedUnrestrictedPlacement,
     };
     saveLayoutContext(newProperties).then((response) => {
       if (response["success"]) {
@@ -176,8 +195,8 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     });
   }
 
-  function onNotesChange({ target: { value } }) {
-    setLocalNotes(value);
+  function onNotesChange(textValue) {
+    setLocalNotes(textValue);
   }
 
   return (
@@ -243,6 +262,12 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
               selectedRadio={selectedSharingStatus}
               radioOptions={sharingStatusOptions}
               onChange={onSharingChange}
+            />
+            <DataRadioSelect
+              label={"Unrestricted Grid Item Placement"}
+              selectedRadio={selectedUnrestrictedPlacement}
+              radioOptions={unrestrictedPlacementOptions}
+              onChange={onUnrestrictedPlacementChange}
             />
           </>
         ) : (

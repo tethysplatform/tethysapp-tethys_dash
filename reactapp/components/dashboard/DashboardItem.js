@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
-import styled from "styled-components";
+import styled, { css } from "styled-components";
 import Container from "react-bootstrap/Container";
-import { memo, useState, useContext } from "react";
+import { memo, useState, useContext, useEffect } from "react";
 import {
   LayoutContext,
   EditingContext,
@@ -29,7 +29,28 @@ const StyledButtonDiv = styled.div`
   position: absolute;
   margin: 0.5rem;
   right: 0;
-  z-index: 1;
+  top: 0;
+`;
+
+const StyledDiv = styled.div`
+  height: 100%;
+  width: 100%;
+  ${(props) =>
+    props.$borderProps
+      ? css(props.$borderProps)
+      : props.$isEditing && "border: 1px solid #dcdcdc"};
+  background-color: ${(props) =>
+    props.$backgroundColorProps
+      ? props.$backgroundColorProps
+      : props.$isEditing
+        ? "whitesmoke"
+        : "transparent"};
+  box-shadow: ${(props) =>
+    props.$boxShadowProps
+      ? props.$boxShadowProps
+      : props.$isEditing
+        ? "0 4px 8px rgba(0, 0, 0, 0.1)"
+        : "none"};
 `;
 
 export const minMapLayerStructure = `Map layers must have at minimum, the following structure:
@@ -64,11 +85,8 @@ export const handleGridItemExport = async (gridItem) => {
   exportedGridItem.args_string = gridItemArgs;
 
   if (exportedGridItem.source === "Map") {
-    if (
-      "additional_layers" in gridItemArgs &&
-      gridItemArgs["additional_layers"].length > 0
-    ) {
-      for (const mapLayer of gridItemArgs["additional_layers"]) {
+    if ("layers" in gridItemArgs && gridItemArgs["layers"].length > 0) {
+      for (const mapLayer of gridItemArgs["layers"]) {
         const apiResponse = await loadLayerJSONs(mapLayer);
         if (!apiResponse.success) {
           return apiResponse;
@@ -95,12 +113,10 @@ export const handleGridItemImport = async (gridItem, csrf) => {
 
   if (importedGridItem.source === "Map") {
     if (
-      "additional_layers" in importedGridItem.args_string &&
-      importedGridItem.args_string["additional_layers"].length > 0
+      "layers" in importedGridItem.args_string &&
+      importedGridItem.args_string["layers"].length > 0
     ) {
-      for (const mapLayer of importedGridItem.args_string[
-        "additional_layers"
-      ]) {
+      for (const mapLayer of importedGridItem.args_string["layers"]) {
         if (
           !mapLayer?.configuration?.props?.source?.type ||
           !mapLayer?.configuration?.type
@@ -164,21 +180,27 @@ const DashboardItem = ({
   gridItemIndex,
 }) => {
   const { isEditing, setIsEditing } = useContext(EditingContext);
-  const [showFullscreen, setShowFullscreen] = useState(false);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
   const [gridItemWarning, setGridItemWarning] = useState("");
   const [showGridItemWarning, setShowGridItemWarning] = useState(false);
-  const { updateGridItems, getDashboardMetadata } = useContext(LayoutContext);
+  const [gridItemStyling, setGridItemStyling] = useState(
+    JSON.parse(gridItemMetadataString)
+  );
+  const { updateGridItems, gridItems } = useContext(LayoutContext);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
 
+  useEffect(() => {
+    setGridItemStyling(JSON.parse(gridItemMetadataString));
+    // eslint-disable-next-line
+  }, [gridItemMetadataString]);
+
   async function deleteGridItem(e) {
-    const { gridItems } = getDashboardMetadata();
     if (await confirm("Are you sure you want to delete the item?")) {
       const updated_grid_items = JSON.parse(JSON.stringify(gridItems));
       updated_grid_items.splice(gridItemIndex, 1);
@@ -188,25 +210,43 @@ const DashboardItem = ({
     }
   }
 
-  function onFullscreen() {
-    setShowFullscreen(true);
-  }
-
-  function hideFullscreen() {
-    setShowFullscreen(false);
-  }
-
   function editGridItem() {
     setShowDataViewerModal(true);
     setIsEditing(true);
     setInDataViewerMode(true);
     if (activeAppTour) {
-      setAppTourStep(32);
+      setAppTourStep(34);
     }
   }
 
+  function updateGridItemOrder(newIndex) {
+    const updatedGridItems = [...gridItems];
+    const [movingGridItem] = updatedGridItems.splice(gridItemIndex, 1);
+    updatedGridItems.splice(newIndex, 0, movingGridItem);
+    updateGridItems(updatedGridItems);
+  }
+
+  function bringGridItemtoFront() {
+    const newIndex = gridItems.length - 1;
+    updateGridItemOrder(newIndex);
+  }
+
+  function bringGridItemForward() {
+    const newIndex = gridItemIndex + 1;
+    updateGridItemOrder(newIndex);
+  }
+
+  function sendGridItemtoBack() {
+    const newIndex = 0;
+    updateGridItemOrder(newIndex);
+  }
+
+  function sendGridItembackward() {
+    const newIndex = gridItemIndex - 1;
+    updateGridItemOrder(newIndex);
+  }
+
   async function exportGridItem() {
-    const { gridItems } = getDashboardMetadata();
     const gridItem = JSON.parse(JSON.stringify(gridItems[gridItemIndex]));
 
     const exportedGridItem = await handleGridItemExport(gridItem);
@@ -220,7 +260,6 @@ const DashboardItem = ({
   }
 
   function copyGridItem() {
-    const { gridItems } = getDashboardMetadata();
     let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
@@ -252,10 +291,6 @@ const DashboardItem = ({
     setIsEditing(true);
   }
 
-  function editSize() {
-    setIsEditing(true);
-  }
-
   function hideDataViewerModal() {
     setShowDataViewerModal(false);
     setInDataViewerMode(false);
@@ -263,53 +298,65 @@ const DashboardItem = ({
 
   return (
     <>
-      <StyledContainer
-        fluid
-        className="h-100 gridVisualization"
-        aria-label="gridItem"
+      <StyledDiv
+        $isEditing={isEditing}
+        $borderProps={gridItemStyling?.border}
+        $backgroundColorProps={gridItemStyling?.backgroundColor}
+        $boxShadowProps={gridItemStyling?.boxShadow}
+        aria-label="gridItemDiv"
+        className="no-caret"
       >
-        <CustomAlert
-          alertType={"success"}
-          showAlert={showGridItemMessage}
-          setShowAlert={setShowGridItemMessage}
-          alertMessage={gridItemMessage}
-        />
-        <CustomAlert
-          alertType={"warning"}
-          showAlert={showGridItemWarning}
-          setShowAlert={setGridItemWarning}
-          alertMessage={gridItemWarning}
-        />
+        <StyledContainer
+          fluid
+          className="h-100 gridVisualization"
+          aria-label="gridItem"
+        >
+          <CustomAlert
+            alertType={"success"}
+            showAlert={showGridItemMessage}
+            setShowAlert={setShowGridItemMessage}
+            alertMessage={gridItemMessage}
+          />
+          <CustomAlert
+            alertType={"warning"}
+            showAlert={showGridItemWarning}
+            setShowAlert={setGridItemWarning}
+            alertMessage={gridItemWarning}
+          />
+          <BaseVisualization
+            key={gridItemI}
+            source={gridItemSource}
+            argsString={gridItemArgsString}
+            metadataString={gridItemMetadataString}
+          />
+        </StyledContainer>
+        {showDataViewerModal && (
+          <DataViewerModal
+            gridItemIndex={gridItemIndex}
+            source={gridItemSource}
+            argsString={gridItemArgsString}
+            metadataString={gridItemMetadataString}
+            showModal={showDataViewerModal}
+            handleModalClose={hideDataViewerModal}
+            setGridItemMessage={setGridItemMessage}
+            setShowGridItemMessage={setShowGridItemMessage}
+          />
+        )}
+      </StyledDiv>
+      {isEditing && (
         <StyledButtonDiv>
           <DashboardItemDropdown
-            showFullscreen={gridItemSource ? onFullscreen : null}
+            gridItemIndex={gridItemIndex}
             deleteGridItem={deleteGridItem}
             editGridItem={editGridItem}
             exportGridItem={exportGridItem}
-            editSize={isEditing ? null : editSize}
             copyGridItem={copyGridItem}
+            bringGridItemtoFront={bringGridItemtoFront}
+            bringGridItemForward={bringGridItemForward}
+            sendGridItemtoBack={sendGridItemtoBack}
+            sendGridItembackward={sendGridItembackward}
           />
         </StyledButtonDiv>
-        <BaseVisualization
-          key={gridItemI}
-          source={gridItemSource}
-          argsString={gridItemArgsString}
-          metadataString={gridItemMetadataString}
-          showFullscreen={showFullscreen}
-          hideFullscreen={hideFullscreen}
-        />
-      </StyledContainer>
-      {showDataViewerModal && (
-        <DataViewerModal
-          gridItemIndex={gridItemIndex}
-          source={gridItemSource}
-          argsString={gridItemArgsString}
-          metadataString={gridItemMetadataString}
-          showModal={showDataViewerModal}
-          handleModalClose={hideDataViewerModal}
-          setGridItemMessage={setGridItemMessage}
-          setShowGridItemMessage={setShowGridItemMessage}
-        />
       )}
     </>
   );

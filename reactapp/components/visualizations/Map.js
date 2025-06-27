@@ -1,10 +1,12 @@
 import { memo, useRef, useEffect, useState, useContext } from "react";
+import { createRoot } from "react-dom/client";
 import MapComponent from "components/map/Map";
 import {
   queryLayerFeatures,
   createHighlightLayer,
   createMarkerLayer,
   configurationPropType,
+  mapDrawingPropType,
   loadLayerJSONs,
 } from "components/map/utilities";
 import PropTypes from "prop-types";
@@ -21,11 +23,14 @@ import "swiper/css";
 import "swiper/css/pagination";
 import "swiper/css/navigation";
 import { Pagination, Navigation } from "swiper/modules";
+import Overlay from "ol/Overlay";
+import { FaTimes } from "react-icons/fa";
 
 const FixedTable = styled(Table)`
   table-layout: fixed;
   font-size: small;
 `;
+
 const OverflowTD = styled.td`
   overflow-x: auto;
 `;
@@ -76,74 +81,84 @@ const StyledSwiper = styled(Swiper)`
   width: 20vw;
 `;
 
-const Popup = ({ layerAttributes }) => {
-  return (
-    <>
-      <StyledSwiper
-        modules={[Pagination, Navigation]}
-        navigation={{
-          nextEl: ".custom-next",
-          prevEl: ".custom-prev",
-        }}
-        pagination={{
-          el: ".custom-pagination",
-          type: "fraction",
-        }}
-        className="mySwiper"
-      >
-        {layerAttributes.map((selectedFeature, index) => (
-          <MarginSwiperSlide key={index}>
-            <PopupDiv>
-              <div>
-                <p>
-                  <b>{selectedFeature.layerName}</b>:
-                </p>
-                <FixedTable striped bordered hover size="sm">
-                  <thead>
-                    <tr>
-                      <th className="text-center" style={{ width: "33%" }}>
-                        Field
-                      </th>
-                      <th className="text-center" style={{ width: "33%" }}>
-                        Value
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.keys(selectedFeature.attributes).map((field) => (
-                      <tr key={field}>
-                        <OverflowTD>{field}</OverflowTD>
-                        <OverflowTD>
-                          {selectedFeature.attributes[field]}
-                        </OverflowTD>
-                      </tr>
-                    ))}
-                  </tbody>
-                </FixedTable>
-              </div>
-            </PopupDiv>
-          </MarginSwiperSlide>
-        ))}
-        <SwiperControls>
-          <SwiperArrows className="custom-prev">❮</SwiperArrows>
-          <SwiperPagination className="custom-pagination"></SwiperPagination>
-          <SwiperArrows className="custom-next">❯</SwiperArrows>
-        </SwiperControls>
-      </StyledSwiper>
-    </>
-  );
-};
+const OverlayContentWrapper = styled.div`
+  position: relative;
+  background-color: white;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.2);
+`;
+
+const StyledCloser = styled.a`
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  cursor: pointer;
+`;
+
+const StyledContent = styled.div`
+  margin-top: 1rem;
+`;
+
+const Popup = ({ layerAttributes }) => (
+  <StyledSwiper
+    modules={[Pagination, Navigation]}
+    navigation={{ nextEl: ".custom-next", prevEl: ".custom-prev" }}
+    pagination={{ el: ".custom-pagination", type: "fraction" }}
+    className="mySwiper"
+  >
+    {layerAttributes.map((selectedFeature, index) => (
+      <MarginSwiperSlide key={index}>
+        <PopupDiv>
+          <div>
+            <p>
+              <b>{selectedFeature.layerName}</b>:
+            </p>
+            <FixedTable striped bordered hover size="sm">
+              <thead>
+                <tr>
+                  <th className="text-center" style={{ width: "33%" }}>
+                    Field
+                  </th>
+                  <th className="text-center" style={{ width: "33%" }}>
+                    Value
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.keys(selectedFeature.attributes).map((field) => (
+                  <tr key={field}>
+                    <OverflowTD>{field}</OverflowTD>
+                    <OverflowTD>{selectedFeature.attributes[field]}</OverflowTD>
+                  </tr>
+                ))}
+              </tbody>
+            </FixedTable>
+          </div>
+        </PopupDiv>
+      </MarginSwiperSlide>
+    ))}
+    <SwiperControls>
+      <SwiperArrows className="custom-prev">❮</SwiperArrows>
+      <SwiperPagination className="custom-pagination"></SwiperPagination>
+      <SwiperArrows className="custom-next">❯</SwiperArrows>
+    </SwiperControls>
+  </StyledSwiper>
+);
 
 const MapVisualization = ({
   mapConfig,
-  viewConfig,
+  mapExtent,
+  mapDrawing,
   layers,
   visualizationRef,
   baseMap,
   layerControl,
+  dataviewerViz,
 }) => {
   const [mapLegend, setMapLegend] = useState();
   const [mapLayers, setMapLayers] = useState();
+  const [popupContent, setPopupContent] = useState(null);
   const markerLayer = useRef();
   const highlightLayer = useRef([]);
   const currentLayers = useRef([]);
@@ -151,29 +166,94 @@ const MapVisualization = ({
   const { setVariableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
+  const spinnerOverlayRef = useRef(null);
+  const popupOverlayRef = useRef(null);
+  const popupContainerRef = useRef(document.createElement("div"));
+  const popupRootRef = useRef(null);
+
+  const drawing = useRef(false);
+
+  // Mount the React popup inside the container div
+  useEffect(() => {
+    popupRootRef.current = createRoot(popupContainerRef.current);
+    const popupOverlay = new Overlay({
+      element: popupContainerRef.current,
+      autoPan: true,
+      autoPanAnimation: { duration: 250 },
+    });
+
+    spinnerOverlayRef.current = new Overlay({
+      element: document.createElement("div"),
+      positioning: "center-center",
+    });
+
+    if (visualizationRef?.current) {
+      visualizationRef.current.addOverlay(spinnerOverlayRef.current);
+      visualizationRef.current.addOverlay(popupOverlay);
+      popupOverlayRef.current = popupOverlay;
+    }
+
+    return () => {
+      if (visualizationRef?.current) {
+        if (spinnerOverlayRef.current) {
+          visualizationRef.current.removeOverlay(spinnerOverlayRef.current);
+        }
+        if (popupOverlayRef.current) {
+          // eslint-disable-next-line
+          visualizationRef.current.removeOverlay(popupOverlayRef.current);
+        }
+      }
+    };
+  }, [visualizationRef]);
+
+  useEffect(() => {
+    if (popupRootRef.current) {
+      popupRootRef.current.render(
+        popupContent ? (
+          <OverlayContentWrapper aria-label="Map Popup" id="map-popup">
+            <StyledCloser
+              href="#"
+              id="popup-closer"
+              className="ol-popup-closer"
+              aria-label="Popup Closer"
+              onClick={(e) => {
+                e.preventDefault();
+                popupOverlayRef.current.setPosition(undefined);
+                setPopupContent(null);
+              }}
+            >
+              <FaTimes />
+            </StyledCloser>
+            <StyledContent aria-label="Map Popup Content" id="popup-content">
+              {popupContent}
+            </StyledContent>
+          </OverlayContentWrapper>
+        ) : null
+      );
+    }
+  }, [popupContent]);
+
   useEffect(() => {
     const updateLayers = async () => {
       if (
-        !valuesEqual(layers, currentLayers.current) ||
+        (layers && !valuesEqual(layers, currentLayers.current)) ||
         !valuesEqual(baseMap, currentBaseMap.current)
       ) {
         currentBaseMap.current = baseMap;
         currentLayers.current = JSON.parse(JSON.stringify(layers));
         const newMapLegend = [];
         const newMapLayers = [];
+
         for (const layer of layers) {
           await loadLayerJSONs(layer);
-
-          if (layer.legend) {
-            newMapLegend.push(layer.legend);
-          }
+          if (layer.legend) newMapLegend.push(layer.legend);
           newMapLayers.push(layer.configuration);
         }
 
         if (baseMap) {
           const baseMapLayer = getBaseMapLayer(baseMap);
           if (baseMapLayer) {
-            newMapLayers.splice(0, 0, baseMapLayer);
+            newMapLayers.unshift(baseMapLayer);
           } else {
             console.error(`${baseMap} is not a valid basemap`);
           }
@@ -191,10 +271,16 @@ const MapVisualization = ({
     updateLayers();
   }, [layers, baseMap]);
 
-  const onMapClick = async (map, evt, setPopupContent, popup) => {
-    // get coordinates and add pointer marker where the click occurred
+  const onMapClick = async (map, evt) => {
+    if (drawing.current) return;
+
     const coordinate = evt.coordinate;
     const pixel = evt.pixel;
+
+    if (spinnerOverlayRef.current) {
+      spinnerOverlayRef.current.setPosition(coordinate);
+    }
+
     const newMarkerLayer = createMarkerLayer(coordinate);
     if (markerLayer.current) {
       map.removeLayer(markerLayer.current);
@@ -207,37 +293,63 @@ const MapVisualization = ({
     markerLayer.current = newMarkerLayer;
     map.addLayer(newMarkerLayer);
 
+    const queryableLayers = layers.filter(
+      (item) => !(item.queryable === false)
+    );
+
     // reduce the layer attributes variables values into a simplified object of layer names and then values
-    const mapAttributeVariables = layers.reduce((combined, current) => {
+    const mapAttributeAliases = queryableLayers.reduce((combined, current) => {
       if (
-        current.attributeVariables &&
-        typeof current.attributeVariables === "object"
+        current.attributeAliases &&
+        typeof current.attributeAliases === "object"
       ) {
         // Merge the example object into the combined object
-        Object.assign(combined, current.attributeVariables);
+        Object.assign(combined, current.attributeAliases);
       }
       return combined;
     }, {});
+
+    // reduce the layer attributes variables values into a simplified object of layer names and then values
+    const mapAttributeVariables = queryableLayers.reduce(
+      (combined, current) => {
+        if (
+          current.attributeVariables &&
+          typeof current.attributeVariables === "object"
+        ) {
+          // Merge the example object into the combined object
+          Object.assign(combined, current.attributeVariables);
+        }
+        return combined;
+      },
+      {}
+    );
 
     // reduce the layer omitted popup attribute values into a simplified object of layer names and then values
-    const mapOmittedPopupAttributes = layers.reduce((combined, current) => {
-      if (
-        current.omittedPopupAttributes &&
-        typeof current.omittedPopupAttributes === "object"
-      ) {
-        // Merge the example object into the combined object
-        Object.assign(combined, current.omittedPopupAttributes);
-      }
-      return combined;
-    }, {});
+    const mapOmittedPopupAttributes = queryableLayers.reduce(
+      (combined, current) => {
+        if (
+          current.omittedPopupAttributes &&
+          typeof current.omittedPopupAttributes === "object"
+        ) {
+          // Merge the example object into the combined object
+          Object.assign(combined, current.omittedPopupAttributes);
+        }
+        return combined;
+      },
+      {}
+    );
 
     // query the layers
-    const queryCalls = layers.map((layer) =>
+    const queryCalls = queryableLayers.map((layer) =>
       queryLayerFeatures(layer, map, coordinate, pixel)
         .then((layerFeatures) => {
           // [{attributes: {key: value}, geometry: {x: "", y: ""}, layerName: ""}]
           // if valid features were selected then continue
-          if (layerFeatures && layerFeatures.length > 0) {
+          if (
+            layerFeatures &&
+            Array.isArray(layerFeatures) &&
+            layerFeatures.length > 0
+          ) {
             let updatedVariableInputs = {};
             for (const layerFeature of layerFeatures) {
               const newHighlightLayer = createHighlightLayer(
@@ -269,12 +381,13 @@ const MapVisualization = ({
                 }
               }
 
+              const aliasMap = mapAttributeAliases[layerName] || {};
+              const omittedFields = mapOmittedPopupAttributes[layerName] || [];
+
               const newLayerAttributes = Object.fromEntries(
-                Object.entries(layerFeature.attributes).filter(
-                  ([key]) =>
-                    !(layerName in mapOmittedPopupAttributes) ||
-                    !mapOmittedPopupAttributes[layerName].includes(key)
-                )
+                Object.entries(layerFeature.attributes)
+                  .filter(([key]) => !omittedFields.includes(key))
+                  .map(([key, value]) => [aliasMap[key] || key, value])
               );
 
               layerFeature.attributes = newLayerAttributes;
@@ -297,12 +410,19 @@ const MapVisualization = ({
     );
     const queryLayerFeaturesResults = await Promise.all(queryCalls);
 
+    // Remove spinner overlay once queries are done
+    if (spinnerOverlayRef.current) {
+      spinnerOverlayRef.current.setPosition(null);
+    }
+
     const nonEmptyLayers = queryLayerFeaturesResults.filter(
-      (arr) => arr && arr.length > 0
+      (arr) => (arr && Array.isArray(arr) && arr.length > 0) || arr === "zoomed"
     );
     const nonEmptyLayerAttributes = nonEmptyLayers
       .flat()
-      .filter((item) => Object.keys(item.attributes).length > 0);
+      .filter(
+        (item) => item !== "zoomed" && Object.keys(item.attributes).length > 0
+      );
 
     let PopupContent;
     let popupCoordinate;
@@ -317,26 +437,32 @@ const MapVisualization = ({
       popupCoordinate = coordinate;
     }
     setPopupContent(PopupContent);
-    popup.setPosition(popupCoordinate);
+    popupOverlayRef.current?.setPosition(popupCoordinate);
   };
 
   return (
     <MapComponent
       mapConfig={mapConfig}
-      viewConfig={viewConfig}
+      mapExtent={mapExtent}
       layers={mapLayers}
       legend={mapLegend}
       layerControl={layerControl}
+      mapDrawing={mapDrawing}
+      drawing={drawing}
       onMapClick={inDataViewerMode ? () => {} : onMapClick}
       visualizationRef={visualizationRef}
       data-testid="backlayer-map"
+      dataviewerViz={dataviewerViz}
     />
   );
 };
 
 MapVisualization.propTypes = {
   mapConfig: PropTypes.object, // div element properties for the map
-  viewConfig: PropTypes.object, // keys can be found at https://openlayers.org/en/latest/apidoc/module-ol_View-View.html
+  mapExtent: PropTypes.shape({
+    extent: PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
+    variable: PropTypes.string,
+  }),
   layers: PropTypes.arrayOf(
     PropTypes.shape({
       configuration: configurationPropType,
@@ -345,6 +471,8 @@ MapVisualization.propTypes = {
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
   baseMap: PropTypes.string, // url for basemap layer, maps to baseMapLayers layers in components/visualizations/utilities.js
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present
+  dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
+  mapDrawing: mapDrawingPropType, // contains draw interaction metadata like options and limits
 };
 
 Popup.propTypes = {
