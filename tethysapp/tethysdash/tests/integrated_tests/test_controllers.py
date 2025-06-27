@@ -7,6 +7,7 @@ import os
 import shutil
 from django.conf import settings
 from datetime import datetime, timedelta
+import types
 
 
 @pytest.mark.django_db
@@ -1028,12 +1029,31 @@ def test_ping_no_session_security(client, mock_app):
 
 
 @pytest.mark.django_db
-def test_ping_with_session_security(client, mock_app):
+def test_ping_with_session_security(mocker, client, mock_app):
     mock_app("tethysapp.tethysdash.controllers.App")
     url = reverse("tethysdash:ping")
 
     EXPIRE_AFTER = getattr(settings, "SESSION_SECURITY_EXPIRE_AFTER", 600)  # 10 minutes
     WARN_AFTER = getattr(settings, "SESSION_SECURITY_WARN_AFTER", 540)  # 9 minutes
+
+    # Create fake modules and attributes
+    fake_utils = types.SimpleNamespace(
+        get_last_activity=mocker.Mock(return_value=datetime.now()),
+        set_last_activity=mocker.Mock(),
+    )
+    fake_settings = types.SimpleNamespace(
+        EXPIRE_AFTER=300, PASSIVE_URLS=["/keepalive/"], PASSIVE_URL_NAMES=["keepalive"]
+    )
+
+    # Patch sys.modules to pretend the imports work
+    mocker.patch.dict(
+        "sys.modules",
+        {
+            "session_security": mocker.Mock(),
+            "session_security.utils": fake_utils,
+            "session_security.settings": fake_settings,
+        },
+    )
 
     # Create a session manually
     session = client.session
@@ -1063,11 +1083,26 @@ def test_ping_with_session_security_and_logged_out(mocker, client, mock_app):
 
     EXPIRE_AFTER = getattr(settings, "SESSION_SECURITY_EXPIRE_AFTER", 600)  # 10 minutes
     WARN_AFTER = getattr(settings, "SESSION_SECURITY_WARN_AFTER", 540)  # 9 minutes
-    mock_get_last_activity = mocker.patch(
-        "tethysapp.tethysdash.sessions.get_last_activity"
-    )
-    mock_get_last_activity.return_value = datetime.now() - timedelta(
+    
+        # Create fake modules and attributes
+    fake_utils = types.SimpleNamespace(
+        get_last_activity=mocker.Mock(return_value=datetime.now() - timedelta(
         seconds=EXPIRE_AFTER + 1000
+    )),
+        set_last_activity=mocker.Mock(),
+    )
+    fake_settings = types.SimpleNamespace(
+        EXPIRE_AFTER=300, PASSIVE_URLS=["/keepalive/"], PASSIVE_URL_NAMES=["keepalive"]
+    )
+
+    # Patch sys.modules to pretend the imports work
+    mocker.patch.dict(
+        "sys.modules",
+        {
+            "session_security": mocker.Mock(),
+            "session_security.utils": fake_utils,
+            "session_security.settings": fake_settings,
+        },
     )
 
     # Create a session manually
@@ -1098,10 +1133,25 @@ def test_ping_with_session_security_and_name_error(mocker, client, mock_app):
 
     EXPIRE_AFTER = getattr(settings, "SESSION_SECURITY_EXPIRE_AFTER", 600)  # 10 minutes
     WARN_AFTER = getattr(settings, "SESSION_SECURITY_WARN_AFTER", 540)  # 9 minutes
-    mock_get_last_activity = mocker.patch(
-        "tethysapp.tethysdash.sessions.get_last_activity"
+    
+    # Create fake modules and attributes
+    fake_utils = types.SimpleNamespace(
+        get_last_activity=mocker.Mock(side_effect=NameError("your message")),
+        set_last_activity=mocker.Mock(),
     )
-    mock_get_last_activity.side_effect = NameError("your message")
+    fake_settings = types.SimpleNamespace(
+        EXPIRE_AFTER=300, PASSIVE_URLS=["/keepalive/"], PASSIVE_URL_NAMES=["keepalive"]
+    )
+
+    # Patch sys.modules to pretend the imports work
+    mocker.patch.dict(
+        "sys.modules",
+        {
+            "session_security": mocker.Mock(),
+            "session_security.utils": fake_utils,
+            "session_security.settings": fake_settings,
+        },
+    )
 
     # Create a session manually
     session = client.session
