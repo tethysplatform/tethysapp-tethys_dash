@@ -88,7 +88,7 @@ const ButtonWithOverlay = ({ backgroundColor, onColorChange }) => {
 
 const BackgroundSettings = ({ initialBackgroundColor, onChange }) => {
   const [backgroundColor, setBackgroundColor] = useState(
-    initialBackgroundColor ?? "rgba(0, 0, 0, 0)"
+    initialBackgroundColor ?? "#00000000"
   );
 
   useEffect(() => {
