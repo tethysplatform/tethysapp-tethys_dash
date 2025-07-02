@@ -42,11 +42,51 @@ export async function getVisualization({
   setVizData,
   sourceType,
   itemData,
+  argsString,
   metadataString,
   variableInputValues,
   dashboardView,
 }) {
   const metadata = JSON.parse(metadataString);
+  const emptyVariableWarnings = checkForEmptyVariableInputs({
+    metadataString,
+    argsString,
+    variableInputValues,
+  });
+  if (emptyVariableWarnings) {
+    setVizType("vizWarning");
+    setVizData({
+      warnings: emptyVariableWarnings,
+    });
+    return;
+  }
+
+  if (itemData.source === "Map") {
+    setVizType("map");
+    setVizData({
+      baseMap: itemData.args.baseMap,
+      layers: itemData.args.layers,
+      layerControl: itemData.args.layerControl,
+      map_extent: itemData.args.map_extent,
+      mapConfig: itemData.args.mapConfig,
+      mapDrawing: itemData.args.mapDrawing,
+    });
+
+    return;
+  } else if (itemData.source === "Text") {
+    setVizType("text");
+    setVizData({ text: itemData.args.text });
+
+    return;
+  } else if (itemData.source === "Custom Image") {
+    setVizType("image");
+    setVizData({
+      source: itemData.args.image_source,
+      alt: "custom_image",
+    });
+
+    return;
+  }
 
   if (sourceType !== "map") {
     setVizType("loader");

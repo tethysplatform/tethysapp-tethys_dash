@@ -225,49 +225,16 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
       gridItemSource.current = source;
 
-      const emptyVariableWarnings = checkForEmptyVariableInputs({
-        metadataString,
+      await getVisualization({
+        setVizType,
+        setVizData,
+        sourceType,
+        itemData,
         argsString,
+        metadataString,
         variableInputValues,
+        dashboardView: true,
       });
-      if (emptyVariableWarnings) {
-        setVizType("vizWarning");
-        setVizData({
-          warnings: emptyVariableWarnings,
-        });
-        return;
-      }
-
-      if (source === "Map") {
-        setVizType("map");
-        setVizData({
-          baseMap: updatedGridItemArgs.baseMap,
-          layers: updatedGridItemArgs.layers,
-          layerControl: updatedGridItemArgs.layerControl,
-          map_extent: updatedGridItemArgs.map_extent,
-          mapConfig: updatedGridItemArgs.mapConfig,
-          mapDrawing: updatedGridItemArgs.mapDrawing,
-        });
-      } else if (source === "Text") {
-        setVizType("text");
-        setVizData({ text: updatedGridItemArgs.text });
-      } else if (source === "Custom Image") {
-        setVizType("image");
-        setVizData({
-          source: updatedGridItemArgs.image_source,
-          alt: "custom_image",
-        });
-      } else {
-        await getVisualization({
-          setVizType,
-          setVizData,
-          sourceType,
-          itemData,
-          metadataString,
-          variableInputValues,
-          dashboardView: true,
-        });
-      }
     }
   }
 

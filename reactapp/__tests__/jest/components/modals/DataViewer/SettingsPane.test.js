@@ -6,7 +6,7 @@
 //   defaultBorderWidth,
 //   defaultBorderColor,
 // } from "components/modals/DataViewer/BorderSettings";
-// import createLoadedComponent from "__tests__/utilities/customRender";
+// import createLoadedComponent from "__tests__/jest/utilities/customRender";
 // import selectEvent from "react-select-event";
 // import PropTypes from "prop-types";
 
@@ -454,6 +454,14 @@
 
 //   expect(await screen.findByTestId("settings")).toHaveTextContent(
 //     JSON.stringify({})
+//   );
+
+//   await userEvent.clear(hexInput);
+//   await userEvent.type(hexInput, "red");
+//   await userEvent.tab();
+
+//   expect(await screen.findByTestId("settings")).toHaveTextContent(
+//     JSON.stringify({ backgroundColor: "red" })
 //   );
 // });
 

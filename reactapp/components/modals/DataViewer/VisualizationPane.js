@@ -333,48 +333,20 @@ function VisualizationPane({
           onChange: (e) => setVariableInputValue(e),
         });
       } else {
-        const emptyVariableWarnings = checkForEmptyVariableInputs({
-          metadataString: JSON.stringify(settings),
-          argsString: JSON.stringify(vizInputsValues),
-          variableInputValues,
-        });
-        if (emptyVariableWarnings) {
-          setVizType("vizWarning");
-          setVizData({
-            warnings: emptyVariableWarnings,
-          });
-          return;
-        }
-
         const updatedGridItemArgs = updateObjectWithVariableInputs(
           itemData.args,
           variableInputValues
         );
-        if (selectedVizTypeOption.value === "Map") {
-          setVizType("map");
-          setVizData({
-            map_extent: updatedGridItemArgs.map_extent,
-            layers: updatedGridItemArgs.layers,
-            baseMap: updatedGridItemArgs.baseMap,
-            layerControl: updatedGridItemArgs.layerControl,
-            mapDrawing: updatedGridItemArgs.mapDrawing,
-          });
-        } else if (selectedVizTypeOption.value === "Custom Image") {
-          setVizType("image");
-          setVizData({
-            source: updatedGridItemArgs.image_source,
-          });
-        } else {
-          itemData.args = updatedGridItemArgs;
-          await getVisualization({
-            setVizType,
-            setVizData,
-            sourceType,
-            itemData,
-            metadataString: JSON.stringify(settings),
-            variableInputValues,
-          });
-        }
+        itemData.args = updatedGridItemArgs;
+        await getVisualization({
+          setVizType,
+          setVizData,
+          sourceType,
+          itemData,
+          argsString: JSON.stringify(vizInputsValues),
+          metadataString: JSON.stringify(settings),
+          variableInputValues,
+        });
       }
     }
   }

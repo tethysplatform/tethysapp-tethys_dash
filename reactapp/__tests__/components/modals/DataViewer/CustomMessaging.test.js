@@ -8,25 +8,19 @@ global.ResizeObserver = require("resize-observer-polyfill");
 const TestingComponent = ({
   vizInputsValues = {},
   initialCustomMessaging = {},
+  onChange,
 }) => {
-  const [customMessaging, setCustomMessaging] = useState(
-    initialCustomMessaging
-  );
-
   return (
-    <>
-      <CustomMessaging
-        vizInputsValues={vizInputsValues}
-        customMessaging={customMessaging}
-        setCustomMessaging={setCustomMessaging}
-      />
-      <p data-testid="customMessaging">{JSON.stringify(customMessaging)}</p>
-    </>
+    <CustomMessaging
+      vizInputsValues={vizInputsValues}
+      initialCustomMessaging={initialCustomMessaging}
+      onChange={onChange}
+    />
   );
 };
 
 it("CustomMessaging", async () => {
-  render(<TestingComponent />);
+  render(<TestingComponent onChange={jest.fn()} />);
 
   expect(screen.getByText("Custom Messaging")).toBeInTheDocument();
   expect(screen.getByText("Error -")).toBeInTheDocument();
@@ -39,6 +33,7 @@ it("CustomMessaging", async () => {
 it("CustomMessaging with no dependent variable inputs", async () => {
   render(
     <TestingComponent
+      onChange={jest.fn()}
       vizInputsValues={[
         {
           label: "Text",
@@ -77,8 +72,10 @@ it("CustomMessaging with no dependent variable inputs", async () => {
 });
 
 it("CustomMessaging with dependent variable inputs", async () => {
+  const mockOnChange = jest.fn();
   render(
     <TestingComponent
+      onChange={mockOnChange}
       vizInputsValues={{
         // eslint-disable-next-line
         text: "${Location} ${Time}",
@@ -110,28 +107,20 @@ it("CustomMessaging with dependent variable inputs", async () => {
   ).toBeInTheDocument();
   expect(screen.getAllByRole("textbox").length).toBe(4);
 
-  expect(await screen.findByTestId("customMessaging")).toHaveTextContent(
-    JSON.stringify({})
-  );
-
   fireEvent.change(errorMessageInput, {
     target: { value: "a custom message" },
   });
 
-  expect(await screen.findByTestId("customMessaging")).toHaveTextContent(
-    JSON.stringify({ error: "a custom message" })
-  );
+  expect(mockOnChange).toHaveBeenCalledWith({ error: "a custom message" });
 
   fireEvent.change(locationMessageInput, {
     target: { value: "a custom location message" },
   });
 
-  expect(await screen.findByTestId("customMessaging")).toHaveTextContent(
-    JSON.stringify({
-      error: "a custom message",
-      Location: "a custom location message",
-    })
-  );
+  expect(mockOnChange).toHaveBeenCalledWith({
+    error: "a custom message",
+    Location: "a custom location message",
+  });
 });
 
 TestingComponent.propTypes = {

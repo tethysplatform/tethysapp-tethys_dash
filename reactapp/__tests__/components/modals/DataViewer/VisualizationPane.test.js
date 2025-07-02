@@ -28,7 +28,7 @@ const TestingComponent = ({
     JSON.parse(argsString)
   );
   const [variableInputValue, setVariableInputValue] = useState(null);
-  const settingsRef = useRef({});
+  const [settings, setSettings] = useState({});
   const visualizationRef = useRef();
 
   return (
@@ -48,7 +48,8 @@ const TestingComponent = ({
         setVizInputsValues={setVizInputsValues}
         variableInputValue={variableInputValue}
         setVariableInputValue={setVariableInputValue}
-        settingsRef={settingsRef}
+        settings={settings}
+        setSettings={setSettings}
         visualizationRef={visualizationRef}
         setShowingSubModal={setShowingSubModal}
       />
@@ -120,7 +121,10 @@ test("Visualization Pane Custom Image", async () => {
     "Cell updated to show Custom Image"
   );
   expect(mockSetVizType).toHaveBeenCalledWith("image");
-  expect(mockSetVizData).toHaveBeenCalledWith({ source: "some_png" });
+  expect(mockSetVizData).toHaveBeenCalledWith({
+    source: "some_png",
+    alt: "custom_image",
+  });
 });
 
 test("Visualization Pane Custom Image through Dropdown", async () => {
@@ -180,7 +184,10 @@ test("Visualization Pane Custom Image through Dropdown", async () => {
     "Cell updated to show Custom Image"
   );
   expect(mockSetVizType).toHaveBeenCalledWith("image");
-  expect(mockSetVizData).toHaveBeenCalledWith({ source: "some_png" });
+  expect(mockSetVizData).toHaveBeenCalledWith({
+    source: "some_png",
+    alt: "custom_image",
+  });
 });
 
 test("Visualization Pane Variable Input", async () => {
@@ -849,7 +856,10 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
     "Cell updated to show Custom Image"
   );
   expect(mockSetVizType).toHaveBeenCalledWith("image");
-  expect(mockSetVizData).toHaveBeenCalledWith({ source: "some_png" });
+  expect(mockSetVizData).toHaveBeenCalledWith({
+    source: "some_png",
+    alt: "custom_image",
+  });
 });
 
 test("Visualization Pane Use Existing Args Viz with True checkbox", async () => {
@@ -930,7 +940,7 @@ test("Visualization Pane Use Existing Args Viz with True checkbox", async () => 
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
     "Cell updated to show plugin_label"
   );
-  expect(mockSetVizType).toHaveBeenCalledWith("plotly");
+  expect(mockSetVizType).toHaveBeenCalledWith("loader");
   expect(mockSetVizData).toHaveBeenCalledWith({});
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({ plugin_arg: true })
