@@ -1,43 +1,39 @@
-import { useRef, forwardRef, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import SettingsPane, {
+import SettingsPane from "components/modals/DataViewer/SettingsPane";
+import {
   defaultBorderWidth,
   defaultBorderColor,
-} from "components/modals/DataViewer/SettingsPane";
+} from "components/modals/DataViewer/BorderSettings";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import selectEvent from "react-select-event";
 import PropTypes from "prop-types";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
-const TestingComponent = forwardRef(
-  (
-    { visualizationRefElement, vizInputsValues = {}, currentSettings = {} },
-    ref
-  ) => {
-    const settingsRef = useRef(currentSettings);
-    const visualizationRef = useRef(visualizationRefElement);
+const TestingComponent = ({
+  visualizationRefElement,
+  vizInputsValues = {},
+  currentSettings = {},
+}) => {
+  const [settings, setSettings] = useState(currentSettings);
+  const visualizationRef = useRef(visualizationRefElement);
 
-    // Ensure ref stays updated
-    useEffect(() => {
-      if (ref) {
-        ref.current = settingsRef.current;
-      }
-    }, [currentSettings, ref]);
+  return (
+    <>
+      <SettingsPane
+        settings={settings}
+        setSettings={setSettings}
+        viz={null}
+        visualizationRef={visualizationRef}
+        vizInputsValues={vizInputsValues}
+      />
+      <p data-testid="settings">{JSON.stringify(settings)}</p>
+    </>
+  );
+};
 
-    return (
-      <>
-        <SettingsPane
-          settingsRef={settingsRef}
-          viz={null}
-          visualizationRef={visualizationRef}
-          vizInputsValues={vizInputsValues}
-        />
-      </>
-    );
-  }
-);
 TestingComponent.displayName = "TestingComponent";
 
 test("Settings Pane", async () => {
@@ -58,13 +54,10 @@ test("Settings Pane", async () => {
 });
 
 test("Settings Pane with visualizationRef Element", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          ref={settingsRef}
           visualizationRefElement={{
             tagName: "div",
           }}
@@ -83,24 +76,27 @@ test("Settings Pane with visualizationRef Element", async () => {
   fireEvent.change(refreshRateInput, { target: { value: -2 } });
   expect(refreshRateInput.value).toBe("0");
 
-  fireEvent.change(refreshRateInput, { target: { value: 2 } });
-  expect(refreshRateInput.value).toBe("2");
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({})
+  );
 
+  fireEvent.change(refreshRateInput, { target: { value: 2 } });
   await waitFor(() => {
-    expect(settingsRef.current).toEqual({
-      refreshRate: 2,
-    });
+    expect(refreshRateInput.value).toBe("2");
   });
+
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
+      refreshRate: 2,
+    })
+  );
 });
 
 test("Settings Pane with visualizationRef Image Element with current settings", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          ref={settingsRef}
           visualizationRefElement={{
             tagName: "img",
             naturalWidth: 1,
@@ -132,23 +128,20 @@ test("Settings Pane with visualizationRef Image Element with current settings", 
   fireEvent.click(enforceAspectRationInput);
   expect(enforceAspectRationInput).toBeChecked();
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
+      refreshRate: 5,
       aspectRatio: 0.5,
       enforceAspectRatio: true,
-      refreshRate: 5,
-    });
-  });
+    })
+  );
 });
 
 test("Settings Pane with visualizationRef Image Element but no natural width", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          ref={settingsRef}
           visualizationRefElement={{
             tagName: "img",
           }}
@@ -165,26 +158,24 @@ test("Settings Pane with visualizationRef Image Element but no natural width", a
   );
   expect(enforceAspectRationInput).not.toBeInTheDocument();
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({});
-  });
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({})
+  );
 });
 
 test("Settings configure border", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
-      children: <TestingComponent ref={settingsRef} currentSettings={{}} />,
+      children: <TestingComponent currentSettings={{}} />,
       options: {
         inDataViewerMode: true,
       },
     })
   );
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({});
-  });
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({})
+  );
 
   const leftBorderButton = await screen.findByLabelText("left Border Button");
   expect(leftBorderButton).toBeInTheDocument();
@@ -218,11 +209,11 @@ test("Settings configure border", async () => {
 
   await userEvent.click(allBorderButton);
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: { border: `${defaultBorderWidth}px solid ${defaultBorderColor}` },
-    });
-  });
+    })
+  );
 
   // left border button will update existing
   await userEvent.click(leftBorderButton);
@@ -232,26 +223,23 @@ test("Settings configure border", async () => {
 
   await userEvent.click(leftBorderButton);
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: {
         "border-bottom": "1px solid black",
         "border-left": "1px dashed black",
         "border-right": "1px solid black",
         "border-top": "1px solid black",
       },
-    });
-  });
+    })
+  );
 });
 
 test("Settings with border", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          ref={settingsRef}
           currentSettings={{ border: { border: "4px solid #ff6161" } }}
         />
       ),
@@ -261,11 +249,11 @@ test("Settings with border", async () => {
     })
   );
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: { border: "4px solid #ff6161" },
-    });
-  });
+    })
+  );
 
   const leftBorderButton = await screen.findByLabelText("left Border Button");
   expect(leftBorderButton).toBeInTheDocument();
@@ -301,18 +289,20 @@ test("Settings with border", async () => {
     "#ff6161"
   );
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: { border: "4px solid #ff6161" },
-    });
-  });
+    })
+  );
 
   // all border button will affect all sides
   await userEvent.click(allBorderButton);
 
-  let hexInput = await screen.findByLabelText(/hex/i);
+  const hexInput = screen.getByRole("textbox", { name: "Color : HEX" });
   expect(hexInput.value).toBe("#ff6161");
-  fireEvent.change(hexInput, { target: { value: "#0000ff" } });
+  await userEvent.clear(hexInput);
+  await userEvent.type(hexInput, "#0000ff");
+  await userEvent.tab();
 
   let styleSelect = await screen.findByRole("combobox");
   await selectEvent.select(styleSelect, "dashed");
@@ -321,27 +311,24 @@ test("Settings with border", async () => {
   expect(widthInput[1].value).toBe("4");
   fireEvent.change(widthInput[1], { target: { value: 20 } });
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: { border: "20px dashed #0000ff" },
-    });
-  });
+    })
+  );
 
   await userEvent.click(removeBordersButton);
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({});
-  });
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({})
+  );
 });
 
 test("Settings with top and bottom border", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          ref={settingsRef}
           currentSettings={{
             border: {
               "border-top": "2px solid #7fc066",
@@ -380,26 +367,21 @@ test("Settings with top and bottom border", async () => {
     "#ff6161"
   );
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: {
         "border-bottom": "4px solid #ff6161",
         "border-top": "2px solid #7fc066",
       },
-    });
-  });
+    })
+  );
 });
 
-test("Settings with backgroundColor", async () => {
-  const settingsRef = { current: null };
-
+test.only("Settings with backgroundColor", async () => {
   render(
     createLoadedComponent({
       children: (
-        <TestingComponent
-          ref={settingsRef}
-          currentSettings={{ backgroundColor: "#ff6161" }}
-        />
+        <TestingComponent currentSettings={{ backgroundColor: "#ff6161" }} />
       ),
       options: {
         inDataViewerMode: true,
@@ -407,11 +389,11 @@ test("Settings with backgroundColor", async () => {
     })
   );
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       backgroundColor: "#ff6161",
-    });
-  });
+    })
+  );
 
   const backgroundColorButton = await screen.findByLabelText(
     "Background Color Selector"
@@ -427,51 +409,58 @@ test("Settings with backgroundColor", async () => {
 
   const hexInput = await screen.findByLabelText(/hex/i);
   expect(hexInput.value).toBe("#ff6161");
+  await userEvent.clear(hexInput);
+  await userEvent.type(hexInput, "#0000ff");
+  await userEvent.tab();
 
-  fireEvent.change(hexInput, { target: { value: "#0000ff" } });
-
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       backgroundColor: "#0000ff",
-    });
-  });
+    })
+  );
 
   // change to transparent
-  fireEvent.change(hexInput, { target: { value: "#00000000" } });
+  await userEvent.clear(hexInput);
+  await userEvent.type(hexInput, "#00000000");
+  await userEvent.tab();
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({});
-  });
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({})
+  );
 
-  fireEvent.change(hexInput, { target: { value: "rgb(255,255,0)" } });
+  await userEvent.clear(hexInput);
+  await userEvent.type(hexInput, "rgb(255,255,0)");
+  await userEvent.tab();
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       backgroundColor: "rgb(255,255,0)",
-    });
-  });
+    })
+  );
 
   // change to transparent
-  fireEvent.change(hexInput, { target: { value: "rgba(0, 0, 0, 0)" } });
+  await userEvent.clear(hexInput);
+  await userEvent.type(hexInput, "rgba(0, 0, 0, 0)");
+  await userEvent.tab();
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({});
-  });
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({})
+  );
 
   // change to transparent
-  fireEvent.change(hexInput, { target: { value: "argertert" } });
+  await userEvent.clear(hexInput);
+  await userEvent.type(hexInput, "argertert");
+  await userEvent.tab();
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({});
-  });
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({})
+  );
 });
 
 test("Settings with box shadow", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
-      children: <TestingComponent ref={settingsRef} currentSettings={{}} />,
+      children: <TestingComponent currentSettings={{}} />,
       options: {
         inDataViewerMode: true,
       },
@@ -483,27 +472,24 @@ test("Settings with box shadow", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
-    });
-  });
+    })
+  );
 
   await userEvent.click(boxShadowCheckbox);
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({});
-  });
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({})
+  );
 });
 
 test("Settings with box shadow and border", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          ref={settingsRef}
           currentSettings={{ border: { border: "4px solid #ff6161" } }}
         />
       ),
@@ -518,30 +504,27 @@ test("Settings with box shadow and border", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: { border: "4px solid #ff6161" },
       boxShadow: "0 4px 8px #ff6161",
-    });
-  });
+    })
+  );
 
   await userEvent.click(boxShadowCheckbox);
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: { border: "4px solid #ff6161" },
-    });
-  });
+    })
+  );
 });
 
 test("Settings with box shadow and top and bottom border", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          ref={settingsRef}
           currentSettings={{
             border: {
               "border-top": "2px solid #7fc066",
@@ -561,25 +544,22 @@ test("Settings with box shadow and top and bottom border", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: {
-        "border-bottom": "4px solid #ff6161",
         "border-top": "2px solid #7fc066",
+        "border-bottom": "4px solid #ff6161",
       },
       boxShadow: "0 4px 8px #ff6161,0 -4px 8px #7fc066",
-    });
-  });
+    })
+  );
 });
 
 test("Settings with box shadow and left and right border", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          ref={settingsRef}
           currentSettings={{
             border: {
               "border-left": "2px solid #7fc066",
@@ -599,25 +579,22 @@ test("Settings with box shadow and left and right border", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: {
         "border-left": "2px solid #7fc066",
         "border-right": "4px solid #ff6161",
       },
       boxShadow: "4px 0 8px #ff6161,-4px 0 8px #7fc066",
-    });
-  });
+    })
+  );
 });
 
 test("Settings with box shadow and change border", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          ref={settingsRef}
           currentSettings={{
             border: {
               "border-left": "2px solid #7fc066",
@@ -639,41 +616,40 @@ test("Settings with box shadow and change border", async () => {
 
   await userEvent.click(boxShadowCheckbox);
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: {
         "border-left": "2px solid #7fc066",
         "border-right": "4px solid #ff6161",
       },
       boxShadow: "4px 0 8px #ff6161,-4px 0 8px #7fc066",
-    });
-  });
+    })
+  );
 
   await userEvent.click(leftBorderButton);
 
   const hexInput = await screen.findByLabelText(/hex/i);
   expect(hexInput.value).toBe("#7fc066");
-  fireEvent.change(hexInput, { target: { value: "#FF0000" } });
+  await userEvent.clear(hexInput);
+  await userEvent.type(hexInput, "#FF0000");
+  await userEvent.tab();
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       border: {
         "border-left": "2px solid #FF0000",
         "border-right": "4px solid #ff6161",
       },
       boxShadow: "4px 0 8px #ff6161,-4px 0 8px #FF0000",
-    });
-  });
+    })
+  );
 });
 
 test("Settings with custom messaging", async () => {
-  const settingsRef = { current: null };
-
   render(
     createLoadedComponent({
       children: (
         <TestingComponent
-          ref={settingsRef}
           currentSettings={{
             customMessaging: { error: "some custom error message" },
           }}
@@ -685,11 +661,11 @@ test("Settings with custom messaging", async () => {
     })
   );
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       customMessaging: { error: "some custom error message" },
-    });
-  });
+    })
+  );
 
   const errorMessageInput = screen.getByLabelText("error Custom Message Input");
   expect(errorMessageInput).toBeInTheDocument();
@@ -699,19 +675,19 @@ test("Settings with custom messaging", async () => {
     target: { value: "a new custom message" },
   });
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({
       customMessaging: { error: "a new custom message" },
-    });
-  });
+    })
+  );
 
   fireEvent.change(errorMessageInput, {
     target: { value: "" },
   });
 
-  await waitFor(() => {
-    expect(settingsRef.current).toEqual({});
-  });
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({})
+  );
 });
 
 TestingComponent.propTypes = {

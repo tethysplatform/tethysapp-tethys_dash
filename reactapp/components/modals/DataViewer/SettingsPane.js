@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
 import CheckboxInput from "components/inputs/CheckboxInput";
@@ -8,44 +7,31 @@ import Alert from "react-bootstrap/Alert";
 import CustomMessaging from "components/modals/DataViewer/CustomMessaging";
 import "components/modals/wideModal.css";
 
-export const defaultBorderStyle = { value: "none", label: "none" };
-export const defaultBorderWidth = 1;
-export const defaultBorderColor = "black";
-
 function checkTransparency(color) {
-  // Handle HEX format
   if (color.startsWith("#")) {
-    color = color.replace(/^#/, ""); // Remove the `#`
-
+    color = color.replace(/^#/, "");
     if (color.length === 8) {
-      // #RRGGBBAA format
-      let alpha = parseInt(color.slice(6, 8), 16); // Convert AA to decimal
+      let alpha = parseInt(color.slice(6, 8), 16);
       return alpha === 0;
     }
-
-    // #RRGGBB format (fully opaque)
     return false;
   }
 
-  // Handle RGB(A) format
   const rgbaMatch = color.match(
     /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(\d*\.?\d+)\s*)?\)$/
   );
 
-  let alpha = rgbaMatch[4] !== undefined ? parseFloat(rgbaMatch[4]) : 1; // Default alpha = 1 (opaque)
+  let alpha = rgbaMatch?.[4] !== undefined ? parseFloat(rgbaMatch[4]) : 1;
   return alpha === 0;
 }
 
 function getBorderStyle(borderConfig) {
   const sides = ["top", "bottom", "left", "right"];
-
-  // Remove sides with style.value of "none"
   const filteredSides = sides.filter(
     (side) =>
       borderConfig[side]?.style && borderConfig[side].style.value !== "none"
   );
 
-  // Check if "all" and all individual sides exist in the object
   const hasAll = "all" in borderConfig;
   const hasSides = filteredSides.length === sides.length;
 
@@ -67,7 +53,6 @@ function getBorderStyle(borderConfig) {
     }
   }
 
-  // If "all" is not in the object or the borders are different
   let borderStyles = {};
   filteredSides.forEach((side) => {
     const border = borderConfig[side];
@@ -76,45 +61,6 @@ function getBorderStyle(borderConfig) {
   });
 
   return borderStyles;
-}
-
-function parseBorderStyles(styles) {
-  const sides = ["top", "bottom", "left", "right"];
-  const borderConfig = {};
-
-  if (styles.border) {
-    const [width, style, color] = styles.border.split(" ");
-    const borderValue = {
-      color: color,
-      style: { value: style, label: style },
-      width: parseInt(width),
-    };
-    sides.forEach((side) => {
-      borderConfig[side] = { ...borderValue };
-    });
-    borderConfig.all = { ...borderValue };
-  } else {
-    sides.forEach((side) => {
-      const key = `border-${side}`;
-      if (styles[key]) {
-        const [width, style, color] = styles[key].split(" ");
-        borderConfig[side] = {
-          color: color,
-          style: { value: style, label: style },
-          width: parseInt(width),
-        };
-      } else {
-        borderConfig[side] = {
-          color: defaultBorderColor,
-          style: defaultBorderStyle,
-          width: defaultBorderWidth,
-        };
-      }
-    });
-    borderConfig.all = { ...borderConfig[sides[0]] };
-  }
-
-  return borderConfig;
 }
 
 function getShadowBox(borderSettings) {
@@ -150,132 +96,122 @@ function getShadowBox(borderSettings) {
 
 function getValidMessaging(obj) {
   return Object.fromEntries(
-    Object.entries(obj).filter(([key, value]) => value.trim() !== "")
+    Object.entries(obj).filter(([_, value]) => value.trim() !== "")
   );
 }
 
 function SettingsPane({
-  settingsRef,
+  settings,
+  setSettings,
   vizType,
   visualizationRef,
   vizInputsValues,
 }) {
-  const [gridItemRefreshRate, setGridItemRefreshRate] = useState(
-    settingsRef.current.refreshRate ?? 0
-  );
-  const [enforceAspectRatio, setEnforceAspectRatio] = useState(
-    settingsRef.current.enforceAspectRatio ? true : false
-  );
-  const [border, setBorder] = useState(
-    parseBorderStyles(settingsRef.current.border ?? {})
-  );
-  const [boxShadow, setBoxShadow] = useState(
-    settingsRef.current.boxShadow ? true : false
-  );
-  const [backgroundColor, setBackgroundColor] = useState(
-    settingsRef.current.backgroundColor ?? "rgba(0, 0, 0, 0)"
-  );
-  const [customMessaging, setCustomMessaging] = useState(
-    settingsRef.current.customMessaging ?? {}
-  );
-
-  useEffect(() => {
-    setGridItemRefreshRate(
-      settingsRef.current.refreshRate ? settingsRef.current.refreshRate : 0
-    );
-    setEnforceAspectRatio(
-      settingsRef.current.enforceAspectRatio ? true : false
-    );
-    // eslint-disable-next-line
-  }, [vizType]);
-
-  useEffect(() => {
-    const newBorder = getBorderStyle(border);
-    if (Object.keys(newBorder).length > 0) {
-      settingsRef.current.border = newBorder;
-    } else {
-      delete settingsRef.current.border;
+  const onRefreshRateChange = (e) => {
+    const value = parseInt(e.target.value);
+    if (value >= 0) {
+      setSettings((prev) => ({ ...prev, refreshRate: value }));
     }
-    if (boxShadow) {
-      settingsRef.current.boxShadow = getShadowBox(newBorder);
-    }
-    // eslint-disable-next-line
-  }, [border]);
+  };
 
-  useEffect(() => {
-    const customMessages = getValidMessaging(customMessaging);
-    if (Object.keys(customMessages).length > 0) {
-      settingsRef.current.customMessaging = customMessages;
-    } else {
-      delete settingsRef.current.customMessaging;
-    }
-    // eslint-disable-next-line
-  }, [customMessaging]);
+  const onBoxShadowChange = (e) => {
+    setSettings((prev) => {
+      if (e.target.checked) {
+        return {
+          ...prev,
+          boxShadow: getShadowBox(prev.border ?? {}),
+        };
+      } else {
+        const { boxShadow, ...rest } = prev;
+        return rest;
+      }
+    });
+  };
 
-  useEffect(() => {
-    if (checkTransparency(backgroundColor)) {
-      delete settingsRef.current.backgroundColor;
-    } else {
-      settingsRef.current.backgroundColor = backgroundColor;
-    }
-    // eslint-disable-next-line
-  }, [backgroundColor]);
+  const onBackgroundColorChange = (color) => {
+    setSettings((prev) => {
+      const isTransparent = checkTransparency(color);
+      const { backgroundColor, ...rest } = prev;
+      return isTransparent ? rest : { ...rest, backgroundColor: color };
+    });
+  };
 
-  function onRefreshRateChange(e) {
-    if (parseInt(e.target.value) >= 0) {
-      setGridItemRefreshRate(parseInt(e.target.value));
-      settingsRef.current.refreshRate = parseInt(e.target.value);
-    }
-  }
+  const onBorderChange = (borderConfig) => {
+    const newBorder = getBorderStyle(borderConfig);
+    setSettings((prev) => {
+      const hasBorder = Object.keys(newBorder).length > 0;
+      const updated = {
+        ...prev,
+        ...(hasBorder ? { border: newBorder } : { border: undefined }),
+        ...(prev.boxShadow ? { boxShadow: getShadowBox(newBorder) } : {}),
+      };
+      return updated;
+    });
+  };
 
-  function onEnforceAspectRatioChange(e) {
-    if (e.target.checked === true) {
-      settingsRef.current.aspectRatio =
+  const onCustomMessagingChange = (customMessaging) => {
+    const cleaned = getValidMessaging(customMessaging);
+    setSettings((prev) => {
+      const { customMessaging, ...rest } = prev;
+      return Object.keys(cleaned).length > 0
+        ? { ...rest, customMessaging: cleaned }
+        : rest;
+    });
+  };
+
+  const onEnforceAspectRatioChange = (e) => {
+    const checked = e.target.checked;
+
+    if (
+      checked &&
+      visualizationRef.current?.naturalWidth &&
+      visualizationRef.current?.naturalHeight
+    ) {
+      const aspectRatio =
         visualizationRef.current.naturalWidth /
         visualizationRef.current.naturalHeight;
-      settingsRef.current.enforceAspectRatio = true;
-    } else {
-      delete settingsRef.current.enforceAspectRatio;
-    }
-    setEnforceAspectRatio(e.target.checked);
-  }
 
-  function onBoxShadowChange(e) {
-    setBoxShadow(e.target.checked);
-    if (e.target.checked) {
-      settingsRef.current.boxShadow = getShadowBox(
-        settingsRef.current.border ?? {}
-      );
+      setSettings((prev) => ({
+        ...prev,
+        aspectRatio,
+        enforceAspectRatio: true,
+      }));
     } else {
-      delete settingsRef.current.boxShadow;
+      setSettings((prev) => {
+        const { enforceAspectRatio, ...rest } = prev;
+        return rest;
+      });
     }
-  }
+  };
 
   return (
     <>
       <NormalInput
         label="Refresh Rate (Minutes)"
         type="number"
-        value={gridItemRefreshRate}
+        value={settings.refreshRate ?? 0}
         onChange={onRefreshRateChange}
         divProps={{ style: { marginBottom: ".5rem" } }}
       />
-      <BorderSettings border={border} setBorder={setBorder} />
+      <BorderSettings
+        initialBorder={settings.border}
+        onChange={onBorderChange}
+      />
       <BackgroundSettings
-        backgroundColor={backgroundColor}
-        setBackgroundColor={setBackgroundColor}
+        initialBackgroundColor={settings.backgroundColor}
+        onChange={onBackgroundColorChange}
       />
       <CheckboxInput
         label="Use Box Shadow Styling"
         type="checkbox"
-        value={boxShadow}
+        value={!!settings.boxShadow}
         onChange={onBoxShadowChange}
         divProps={{ style: { marginBottom: ".5rem" } }}
       />
       <CustomMessaging
         vizInputsValues={vizInputsValues}
-        customMessaging={customMessaging}
-        setCustomMessaging={setCustomMessaging}
+        initialCustomMessaging={settings.customMessaging}
+        onChange={onCustomMessagingChange}
       />
       {visualizationRef.current?.tagName ? (
         <>
@@ -284,7 +220,7 @@ function SettingsPane({
               <CheckboxInput
                 label="Enforce Aspect Ratio"
                 type="checkbox"
-                value={enforceAspectRatio}
+                value={!!settings.enforceAspectRatio}
                 onChange={onEnforceAspectRatioChange}
                 divProps={{ style: { marginBottom: "1rem" } }}
               />
@@ -300,10 +236,8 @@ function SettingsPane({
 }
 
 SettingsPane.propTypes = {
-  settingsRef: PropTypes.oneOfType([
-    PropTypes.func,
-    PropTypes.shape({ current: PropTypes.any }),
-  ]),
+  settings: PropTypes.object,
+  setSettings: PropTypes.func,
   vizType: PropTypes.string,
   vizInputsValues: PropTypes.object,
   visualizationRef: PropTypes.oneOfType([

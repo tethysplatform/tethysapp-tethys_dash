@@ -35,12 +35,19 @@ function getDependentVariableInputs(inputs) {
 
 const CustomMessaging = ({
   vizInputsValues,
-  customMessaging,
-  setCustomMessaging,
+  initialCustomMessaging,
+  onChange,
 }) => {
+  const [customMessaging, setCustomMessaging] = useState(
+    initialCustomMessaging ?? {}
+  );
   const [dependentVariableInputs, setDependentVariableInputs] = useState(
     getDependentVariableInputs(vizInputsValues)
   );
+
+  useEffect(() => {
+    onChange(customMessaging);
+  }, [customMessaging]);
 
   useEffect(() => {
     setDependentVariableInputs(getDependentVariableInputs(vizInputsValues));

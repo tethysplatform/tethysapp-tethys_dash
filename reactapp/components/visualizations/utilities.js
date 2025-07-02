@@ -1,11 +1,12 @@
 import appAPI from "services/api/app";
 import { spaceAndCapitalize } from "components/modals/utilities";
 
-function checkForEmptyVariableInputs({
-  metadata,
+export function checkForEmptyVariableInputs({
+  metadataString,
   argsString,
   variableInputValues,
 }) {
+  const metadata = JSON.parse(metadataString);
   const dependentVariableInputs = getDependentVariableInputs(argsString);
 
   if (!dependentVariableInputs.every((key) => key in variableInputValues)) {
@@ -42,23 +43,10 @@ export async function getVisualization({
   sourceType,
   itemData,
   metadataString,
-  argsString,
   variableInputValues,
   dashboardView,
 }) {
   const metadata = JSON.parse(metadataString);
-  const emptyVariableWarnings = checkForEmptyVariableInputs({
-    metadata,
-    argsString,
-    variableInputValues,
-  });
-  if (emptyVariableWarnings) {
-    setVizType("vizWarning");
-    setVizData({
-      warnings: emptyVariableWarnings,
-    });
-    return;
-  }
 
   if (sourceType !== "map") {
     setVizType("loader");

@@ -5,6 +5,7 @@ import styled from "styled-components";
 import DataInput from "components/inputs/DataInput";
 import {
   getVisualization,
+  checkForEmptyVariableInputs,
   findSelectOptionByValue,
 } from "components/visualizations/utilities";
 import {
@@ -133,7 +134,8 @@ function VisualizationPane({
   setVizInputsValues,
   variableInputValue,
   setVariableInputValue,
-  settingsRef,
+  settings,
+  setSettings,
   visualizationRef,
   setShowingSubModal,
 }) {
@@ -198,7 +200,7 @@ function VisualizationPane({
       !valuesEqual(currentSelectedVizTypeOption.current, selectedVizTypeOption)
     ) {
       visualizationRef.current = null;
-      settingsRef.current = {};
+      setSettings({});
 
       let updatedVizArguments = [];
       const updatedVizInputsValues = {};
@@ -238,11 +240,11 @@ function VisualizationPane({
   useEffect(() => {
     checkAllInputs();
     // eslint-disable-next-line
-  }, [vizInputsValues]);
+  }, [vizInputsValues, settings.customMessaging]);
 
   function onDataTypeChange(e) {
     visualizationRef.current = null;
-    settingsRef.current = {};
+    setSettings({});
     setSelectVizTypeOption(e);
 
     let updatedVizArguments = [];
@@ -314,11 +316,6 @@ function VisualizationPane({
       );
       if (selectedVizTypeOption.value === "Text") {
         return;
-      } else if (selectedVizTypeOption.value === "Custom Image") {
-        setVizType("image");
-        setVizData({
-          source: vizInputsValues.image_source,
-        });
       } else if (selectedVizTypeOption.value === "Variable Input") {
         itemData.args.initial_value = variableInputValue;
         if (itemData.args.initial_value === null) {
@@ -336,6 +333,19 @@ function VisualizationPane({
           onChange: (e) => setVariableInputValue(e),
         });
       } else {
+        const emptyVariableWarnings = checkForEmptyVariableInputs({
+          metadataString: JSON.stringify(settings),
+          argsString: JSON.stringify(vizInputsValues),
+          variableInputValues,
+        });
+        if (emptyVariableWarnings) {
+          setVizType("vizWarning");
+          setVizData({
+            warnings: emptyVariableWarnings,
+          });
+          return;
+        }
+
         const updatedGridItemArgs = updateObjectWithVariableInputs(
           itemData.args,
           variableInputValues
@@ -349,6 +359,11 @@ function VisualizationPane({
             layerControl: updatedGridItemArgs.layerControl,
             mapDrawing: updatedGridItemArgs.mapDrawing,
           });
+        } else if (selectedVizTypeOption.value === "Custom Image") {
+          setVizType("image");
+          setVizData({
+            source: updatedGridItemArgs.image_source,
+          });
         } else {
           itemData.args = updatedGridItemArgs;
           await getVisualization({
@@ -356,8 +371,7 @@ function VisualizationPane({
             setVizData,
             sourceType,
             itemData,
-            metadataString: JSON.stringify(settingsRef.current),
-            argsString: vizInputsValues,
+            metadataString: JSON.stringify(settings),
             variableInputValues,
           });
         }
@@ -452,10 +466,8 @@ VisualizationPane.propTypes = {
   setVizInputsValues: PropTypes.func,
   variableInputValue: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
   setVariableInputValue: PropTypes.func,
-  settingsRef: PropTypes.oneOfType([
-    PropTypes.func,
-    PropTypes.shape({ current: PropTypes.any }),
-  ]),
+  settings: PropTypes.object,
+  setSettings: PropTypes.func,
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,
     PropTypes.shape({ current: PropTypes.any }),

@@ -6,7 +6,7 @@ import {
   defaultBorderStyle,
   defaultBorderWidth,
   defaultBorderColor,
-} from "components/modals/DataViewer/SettingsPane";
+} from "components/modals/DataViewer/BorderSettings";
 import selectEvent from "react-select-event";
 import PropTypes from "prop-types";
 

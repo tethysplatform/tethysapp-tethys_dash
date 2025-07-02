@@ -10,6 +10,7 @@ import DataTable from "components/visualizations/DataTable";
 import ModuleLoader from "components/visualizations/ModuleLoader";
 import {
   getVisualization,
+  checkForEmptyVariableInputs,
   updateObjectWithVariableInputs,
   findSelectOptionByValue,
 } from "components/visualizations/utilities";
@@ -224,6 +225,19 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
       gridItemSource.current = source;
 
+      const emptyVariableWarnings = checkForEmptyVariableInputs({
+        metadataString,
+        argsString,
+        variableInputValues,
+      });
+      if (emptyVariableWarnings) {
+        setVizType("vizWarning");
+        setVizData({
+          warnings: emptyVariableWarnings,
+        });
+        return;
+      }
+
       if (source === "Map") {
         setVizType("map");
         setVizData({
@@ -250,7 +264,6 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
           sourceType,
           itemData,
           metadataString,
-          argsString,
           variableInputValues,
           dashboardView: true,
         });

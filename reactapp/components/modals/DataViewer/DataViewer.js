@@ -95,7 +95,7 @@ function DataViewerModal({
 
   const gridMetadata = JSON.parse(metadataString);
   const visualizationRef = useRef();
-  const settingsRef = useRef(gridMetadata);
+  const [settings, setSettings] = useState(gridMetadata);
   const [tabKey, setTabKey] = useState("visualization");
 
   function saveChanges(e) {
@@ -142,9 +142,8 @@ function DataViewerModal({
           )
         );
 
-        updatedGridItems[gridItemIndex].metadata_string = JSON.stringify(
-          settingsRef.current
-        );
+        updatedGridItems[gridItemIndex].metadata_string =
+          JSON.stringify(settings);
 
         if (selectedVizTypeOption.source === "Variable Input") {
           updatedGridItems = updateVariableInputs(
@@ -254,7 +253,8 @@ function DataViewerModal({
                         setVizInputsValues={setVizInputsValues}
                         variableInputValue={variableInputValue}
                         setVariableInputValue={setVariableInputValue}
-                        settingsRef={settingsRef}
+                        settings={settings}
+                        setSettings={setSettings}
                         visualizationRef={visualizationRef}
                         setShowingSubModal={setShowingSubModal}
                       />
@@ -266,7 +266,8 @@ function DataViewerModal({
                       className="settingsTab"
                     >
                       <SettingsPane
-                        settingsRef={settingsRef}
+                        settings={settings}
+                        setSettings={setSettings}
                         vizType={vizType}
                         visualizationRef={visualizationRef}
                         vizInputsValues={vizInputsValues}

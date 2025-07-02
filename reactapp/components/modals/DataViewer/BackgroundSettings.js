@@ -4,7 +4,7 @@ import { BsFillSquareFill } from "react-icons/bs";
 import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";
 import ColorPicker from "components/inputs/ColorPicker";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const StyledPopoverBody = styled(Popover.Body)`
   max-height: 70vh;
@@ -86,7 +86,15 @@ const ButtonWithOverlay = ({ backgroundColor, onColorChange }) => {
   );
 };
 
-const BackgroundSettings = ({ backgroundColor, setBackgroundColor }) => {
+const BackgroundSettings = ({ initialBackgroundColor, onChange }) => {
+  const [backgroundColor, setBackgroundColor] = useState(
+    initialBackgroundColor ?? "rgba(0, 0, 0, 0)"
+  );
+
+  useEffect(() => {
+    onChange(backgroundColor);
+  }, [backgroundColor]);
+
   return (
     <FlexLabel className="no-caret">
       <b>Background Color</b>:

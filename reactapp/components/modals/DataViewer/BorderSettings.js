@@ -15,7 +15,7 @@ import Popover from "react-bootstrap/Popover";
 import ColorPicker from "components/inputs/ColorPicker";
 import DataSelect from "components/inputs/DataSelect";
 import NormalInput from "components/inputs/NormalInput";
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 
 const StyledDiv = styled.div`
   margin-bottom: 1rem;
@@ -65,6 +65,10 @@ const borderStyles = [
   { value: "inset", label: "inset" },
   { value: "outset", label: "outset" },
 ];
+
+export const defaultBorderStyle = { value: "none", label: "none" };
+export const defaultBorderWidth = 1;
+export const defaultBorderColor = "black";
 
 const BorderOverlay = ({
   target,
@@ -156,7 +160,52 @@ const ButtonWithOverlay = ({
   );
 };
 
-const BorderSettings = ({ border, setBorder }) => {
+const BorderSettings = ({ initialBorder, onChange }) => {
+  const [border, setBorder] = useState(parseBorderStyles(initialBorder ?? {}));
+
+  useEffect(() => {
+    onChange(border);
+  }, [border]);
+
+  function parseBorderStyles(styles) {
+    const sides = ["top", "bottom", "left", "right"];
+    const borderConfig = {};
+
+    if (styles.border) {
+      const [width, style, color] = styles.border.split(" ");
+      const borderValue = {
+        color: color,
+        style: { value: style, label: style },
+        width: parseInt(width),
+      };
+      sides.forEach((side) => {
+        borderConfig[side] = { ...borderValue };
+      });
+      borderConfig.all = { ...borderValue };
+    } else {
+      sides.forEach((side) => {
+        const key = `border-${side}`;
+        if (styles[key]) {
+          const [width, style, color] = styles[key].split(" ");
+          borderConfig[side] = {
+            color: color,
+            style: { value: style, label: style },
+            width: parseInt(width),
+          };
+        } else {
+          borderConfig[side] = {
+            color: defaultBorderColor,
+            style: defaultBorderStyle,
+            width: defaultBorderWidth,
+          };
+        }
+      });
+      borderConfig.all = { ...borderConfig[sides[0]] };
+    }
+
+    return borderConfig;
+  }
+
   const onColorChange = (changedColor, side) => {
     if (side === "all") {
       setBorder((prevBorder) => {
