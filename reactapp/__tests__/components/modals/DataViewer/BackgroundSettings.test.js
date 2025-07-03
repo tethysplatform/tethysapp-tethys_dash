@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor } from "@testing-library/react";
 import BackgroundSettings from "components/modals/DataViewer/BackgroundSettings";
@@ -6,8 +7,16 @@ import PropTypes from "prop-types";
 global.ResizeObserver = require("resize-observer-polyfill");
 
 const TestingComponent = ({ onChange }) => {
+  const settingsPaneRef = useRef(null);
+
   return (
-    <BackgroundSettings initialBackgroundColor={"black"} onChange={onChange} />
+    <div ref={settingsPaneRef}>
+      <BackgroundSettings
+        initialBackgroundColor={"black"}
+        onChange={onChange}
+        settingsPaneRef={settingsPaneRef}
+      />
+    </div>
   );
 };
 

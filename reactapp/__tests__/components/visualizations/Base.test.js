@@ -102,7 +102,7 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
 });
 
 it("Creates an Base Item with a Custom Image", async () => {
-  render(
+  const { rerender } = render(
     createLoadedComponent({
       children: (
         <BaseVisualization
@@ -116,6 +116,46 @@ it("Creates an Base Item with a Custom Image", async () => {
 
   const image = await screen.findByAltText("custom_image");
   expect(image.src).toBe("https://www.aquaveo.com/images/aquaveo_logo.svg");
+
+  mockedCustomImageBase.args_string = JSON.stringify({
+    // eslint-disable-next-line
+    image_source: "${test_variable}",
+  });
+
+  rerender(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedCustomImageBase.source}
+          argsString={mockedCustomImageBase.args_string}
+          metadataString={mockedCustomImageBase.metadata_string}
+        />
+      ),
+    })
+  );
+
+  expect(
+    await screen.findByText("test_variable variable is empty")
+  ).toBeInTheDocument();
+
+  mockedCustomImageBase.metadata_string = JSON.stringify({
+    refreshRate: 0,
+    customMessaging: { test_variable: "missing variable" },
+  });
+
+  rerender(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedCustomImageBase.source}
+          argsString={mockedCustomImageBase.args_string}
+          metadataString={mockedCustomImageBase.metadata_string}
+        />
+      ),
+    })
+  );
+
+  expect(await screen.findByText("missing variable")).toBeInTheDocument();
 });
 
 it("Creates an Base Item with a Text Box", async () => {

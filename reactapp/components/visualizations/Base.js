@@ -150,6 +150,7 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
   const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
+  const customMessages = useRef({});
   const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
   const { isEditing } = useContext(EditingContext);
@@ -170,7 +171,7 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
       setVariableDependentVisualizations({});
     }
     // eslint-disable-next-line
-  }, [source, argsString]);
+  }, [source, argsString, metadataString]);
 
   useEffect(() => {
     if (!["", "Variable Input"].includes(source)) {
@@ -203,6 +204,7 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
 
   async function setVariableDependentVisualizations({ refresh }) {
     const args = JSON.parse(argsString);
+    const gridMetadata = JSON.parse(metadataString);
     const sourceType = findSelectOptionByValue(
       visualizations,
       source,
@@ -214,15 +216,21 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
       args,
       variableInputValues
     );
+    const customMessaging = gridMetadata.customMessaging;
 
     if (
       refresh ||
       (source && argsString === "{}") ||
-      !valuesEqual(gridItemArgsWithVariableInputs.current, updatedGridItemArgs)
+      !valuesEqual(
+        gridItemArgsWithVariableInputs.current,
+        updatedGridItemArgs
+      ) ||
+      !valuesEqual(customMessages.current, customMessaging)
     ) {
       itemData.args = updatedGridItemArgs;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
       gridItemSource.current = source;
+      customMessages.current = customMessaging;
 
       await getVisualization({
         setVizType,

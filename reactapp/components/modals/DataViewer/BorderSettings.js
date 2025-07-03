@@ -72,6 +72,7 @@ export const defaultBorderColor = "black";
 
 const BorderOverlay = ({
   target,
+  container,
   show,
   setShow,
   side,
@@ -87,7 +88,7 @@ const BorderOverlay = ({
       placement="right"
       rootClose={true}
       onHide={() => setShow(false)}
-      container={target}
+      container={container}
     >
       <Popover className="color-picker-popover">
         <StyledPopoverBody>
@@ -131,6 +132,7 @@ const ButtonWithOverlay = ({
   onStyleChange,
   onStyleWidth,
   onColorChange,
+  settingsPaneRef,
 }) => {
   const [showPopover, setShowPopover] = useState(false);
   const borderRef = useRef(null);
@@ -147,6 +149,7 @@ const ButtonWithOverlay = ({
         {children}
       </BackgroundColorButton>
       <BorderOverlay
+        container={settingsPaneRef.current}
         target={borderRef.current}
         show={showPopover}
         setShow={setShowPopover}
@@ -160,7 +163,7 @@ const ButtonWithOverlay = ({
   );
 };
 
-const BorderSettings = ({ initialBorder, onChange }) => {
+const BorderSettings = ({ initialBorder, onChange, settingsPaneRef }) => {
   const [border, setBorder] = useState(parseBorderStyles(initialBorder ?? {}));
 
   useEffect(() => {
@@ -310,6 +313,7 @@ const BorderSettings = ({ initialBorder, onChange }) => {
               onStyleWidth={onStyleWidth}
               onColorChange={onColorChange}
               side="all"
+              settingsPaneRef={settingsPaneRef}
             >
               <CgBorderAll size="1.5rem" />
             </ButtonWithOverlay>
@@ -321,6 +325,7 @@ const BorderSettings = ({ initialBorder, onChange }) => {
               onStyleWidth={onStyleWidth}
               onColorChange={onColorChange}
               side="left"
+              settingsPaneRef={settingsPaneRef}
             >
               <CgBorderLeft
                 size="1.5rem"
@@ -337,6 +342,7 @@ const BorderSettings = ({ initialBorder, onChange }) => {
               onStyleWidth={onStyleWidth}
               onColorChange={onColorChange}
               side="top"
+              settingsPaneRef={settingsPaneRef}
             >
               <CgBorderTop
                 size="1.5rem"
@@ -353,6 +359,7 @@ const BorderSettings = ({ initialBorder, onChange }) => {
               onStyleWidth={onStyleWidth}
               onColorChange={onColorChange}
               side="right"
+              settingsPaneRef={settingsPaneRef}
             >
               <CgBorderRight
                 size="1.5rem"
@@ -369,6 +376,7 @@ const BorderSettings = ({ initialBorder, onChange }) => {
               onStyleWidth={onStyleWidth}
               onColorChange={onColorChange}
               side="bottom"
+              settingsPaneRef={settingsPaneRef}
             >
               <CgBorderBottom
                 size="1.5rem"
@@ -403,6 +411,13 @@ BorderOverlay.propTypes = {
     PropTypes.object,
     PropTypes.instanceOf(Element),
   ]),
+  container: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.node,
+    PropTypes.object,
+    PropTypes.instanceOf(Element),
+  ]),
   show: PropTypes.bool,
   setShow: PropTypes.func,
   side: PropTypes.string,
@@ -425,6 +440,13 @@ ButtonWithOverlay.propTypes = {
   onStyleChange: PropTypes.func,
   onStyleWidth: PropTypes.func,
   onColorChange: PropTypes.func,
+  settingsPaneRef: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.node,
+    PropTypes.object,
+    PropTypes.instanceOf(Element),
+  ]),
 };
 
 BorderSettings.propTypes = {
@@ -436,6 +458,13 @@ BorderSettings.propTypes = {
     right: sideProps,
   }),
   onChange: PropTypes.func,
+  settingsPaneRef: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.node,
+    PropTypes.object,
+    PropTypes.instanceOf(Element),
+  ]),
 };
 
 export default BorderSettings;

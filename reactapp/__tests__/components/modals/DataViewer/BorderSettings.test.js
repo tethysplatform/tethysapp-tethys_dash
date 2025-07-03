@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import BorderSettings from "components/modals/DataViewer/BorderSettings";
@@ -12,6 +13,8 @@ import PropTypes from "prop-types";
 global.ResizeObserver = require("resize-observer-polyfill");
 
 const TestingComponent = ({ onChange }) => {
+  const settingsPaneRef = useRef(null);
+
   const initialBorder = {
     top: {
       color: defaultBorderColor,
@@ -40,7 +43,13 @@ const TestingComponent = ({ onChange }) => {
     },
   };
 
-  return <BorderSettings initialBorder={initialBorder} onChange={onChange} />;
+  return (
+    <BorderSettings
+      initialBorder={initialBorder}
+      onChange={onChange}
+      settingsPaneRef={settingsPaneRef}
+    />
+  );
 };
 
 it("BorderSettings", async () => {

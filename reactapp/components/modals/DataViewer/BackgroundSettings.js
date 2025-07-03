@@ -28,6 +28,7 @@ const FlexLabel = styled.label`
 
 const BackgroundOverlay = ({
   target,
+  container,
   show,
   setShow,
   backgroundColor,
@@ -40,7 +41,7 @@ const BackgroundOverlay = ({
       placement="right"
       rootClose={true}
       onHide={() => setShow(false)}
-      container={target}
+      container={container}
     >
       <Popover className="color-picker-popover">
         <StyledPopoverBody>
@@ -58,7 +59,11 @@ const BackgroundOverlay = ({
   );
 };
 
-const ButtonWithOverlay = ({ backgroundColor, onColorChange }) => {
+const ButtonWithOverlay = ({
+  backgroundColor,
+  onColorChange,
+  settingsPaneRef,
+}) => {
   const [showPopover, setShowPopover] = useState(false);
   const colorTarget = useRef(null);
 
@@ -76,6 +81,7 @@ const ButtonWithOverlay = ({ backgroundColor, onColorChange }) => {
         />
       </BorderedDiv>
       <BackgroundOverlay
+        container={settingsPaneRef.current}
         target={colorTarget.current}
         show={showPopover}
         setShow={setShowPopover}
@@ -86,7 +92,11 @@ const ButtonWithOverlay = ({ backgroundColor, onColorChange }) => {
   );
 };
 
-const BackgroundSettings = ({ initialBackgroundColor, onChange }) => {
+const BackgroundSettings = ({
+  initialBackgroundColor,
+  onChange,
+  settingsPaneRef,
+}) => {
   const [backgroundColor, setBackgroundColor] = useState(
     initialBackgroundColor ?? "#00000000"
   );
@@ -102,6 +112,7 @@ const BackgroundSettings = ({ initialBackgroundColor, onChange }) => {
       <ButtonWithOverlay
         backgroundColor={backgroundColor}
         onColorChange={(changedColor) => setBackgroundColor(changedColor)}
+        settingsPaneRef={settingsPaneRef}
       />
     </FlexLabel>
   );
@@ -109,6 +120,13 @@ const BackgroundSettings = ({ initialBackgroundColor, onChange }) => {
 
 BackgroundOverlay.propTypes = {
   target: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.node,
+    PropTypes.object,
+    PropTypes.instanceOf(Element),
+  ]),
+  container: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.node),
     PropTypes.arrayOf(PropTypes.object),
     PropTypes.node,
@@ -124,11 +142,25 @@ BackgroundOverlay.propTypes = {
 ButtonWithOverlay.propTypes = {
   backgroundColor: PropTypes.string,
   onColorChange: PropTypes.func,
+  settingsPaneRef: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.node,
+    PropTypes.object,
+    PropTypes.instanceOf(Element),
+  ]),
 };
 
 BackgroundSettings.propTypes = {
   initialBackgroundColor: PropTypes.string,
   onChange: PropTypes.func,
+  settingsPaneRef: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.arrayOf(PropTypes.object),
+    PropTypes.node,
+    PropTypes.object,
+    PropTypes.instanceOf(Element),
+  ]),
 };
 
 export default BackgroundSettings;

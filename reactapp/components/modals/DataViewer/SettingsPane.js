@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
 import CheckboxInput from "components/inputs/CheckboxInput";
@@ -100,10 +101,11 @@ function getValidMessaging(obj) {
 function SettingsPane({
   settings,
   setSettings,
-  vizType,
   visualizationRef,
   vizInputsValues,
 }) {
+  const settingsPaneRef = useRef(null);
+
   const onRefreshRateChange = (e) => {
     const value = parseInt(e.target.value);
     if (value >= 0) {
@@ -182,7 +184,7 @@ function SettingsPane({
   };
 
   return (
-    <>
+    <div ref={settingsPaneRef}>
       <NormalInput
         label="Refresh Rate (Minutes)"
         type="number"
@@ -193,10 +195,12 @@ function SettingsPane({
       <BorderSettings
         initialBorder={settings.border}
         onChange={onBorderChange}
+        settingsPaneRef={settingsPaneRef}
       />
       <BackgroundSettings
         initialBackgroundColor={settings.backgroundColor}
         onChange={onBackgroundColorChange}
+        settingsPaneRef={settingsPaneRef}
       />
       <CheckboxInput
         label="Use Box Shadow Styling"
@@ -228,7 +232,7 @@ function SettingsPane({
           Visualization must be loaded to change additional settings.
         </Alert>
       )}
-    </>
+    </div>
   );
 }
 
