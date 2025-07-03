@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import CustomMessaging from "components/modals/DataViewer/CustomMessaging";
 import PropTypes from "prop-types";
@@ -126,4 +125,5 @@ it("CustomMessaging with dependent variable inputs", async () => {
 TestingComponent.propTypes = {
   vizInputsValues: PropTypes.object,
   initialCustomMessaging: PropTypes.object,
+  onChange: PropTypes.func,
 };

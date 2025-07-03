@@ -1,20 +1,27 @@
 import PropTypes from "prop-types";
 import { ColorPicker as RCPColorPicker, useColor } from "react-color-palette";
+import { useMemo } from "react";
+import debounce from "lodash.debounce";
 import "react-color-palette/css";
 
 const ColorPicker = ({ color, onChange, hideInput }) => {
   const [pickerColor, setPickerColor] = useColor(color);
 
   // debounce the change before comitting it. Without this the color picker cursor shakes and causes weird behavior
-  const onColorChange = (newColor) => {
-    onChange(newColor.hex);
-  };
+  const onColorChange = useMemo(
+    () =>
+      debounce((newColor) => {
+        onChange(newColor.hex);
+        setPickerColor(newColor);
+      }, 5), // debounce at 5ms
+    // eslint-disable-next-line
+    []
+  );
 
   return (
     <RCPColorPicker
       color={pickerColor}
-      onChange={setPickerColor}
-      onChangeComplete={onColorChange}
+      onChange={onColorChange}
       hideInput={hideInput}
     />
   );

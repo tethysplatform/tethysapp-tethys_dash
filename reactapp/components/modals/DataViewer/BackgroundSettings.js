@@ -93,6 +93,7 @@ const BackgroundSettings = ({ initialBackgroundColor, onChange }) => {
 
   useEffect(() => {
     onChange(backgroundColor);
+    // eslint-disable-next-line
   }, [backgroundColor]);
 
   return (
@@ -126,8 +127,8 @@ ButtonWithOverlay.propTypes = {
 };
 
 BackgroundSettings.propTypes = {
-  backgroundColor: PropTypes.string,
-  setBackgroundColor: PropTypes.func,
+  initialBackgroundColor: PropTypes.string,
+  onChange: PropTypes.func,
 };
 
 export default BackgroundSettings;

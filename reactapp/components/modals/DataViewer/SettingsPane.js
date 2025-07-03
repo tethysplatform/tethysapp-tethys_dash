@@ -8,21 +8,18 @@ import CustomMessaging from "components/modals/DataViewer/CustomMessaging";
 import "components/modals/wideModal.css";
 
 function checkTransparency(color) {
-  if (color.startsWith("#")) {
-    color = color.replace(/^#/, "");
-    if (color.length === 8) {
-      let alpha = parseInt(color.slice(6, 8), 16);
-      return alpha === 0;
-    }
-    return false;
+  const hex = color.slice(1);
+
+  // Must be either 6 or 8 hex digits
+  if (!/^[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/.test(hex)) return true;
+
+  // If it's 8-digit hex, check alpha
+  if (hex.length === 8) {
+    const alpha = parseInt(hex.slice(6, 8), 16);
+    return alpha === 0;
   }
 
-  const rgbaMatch = color.match(
-    /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*(\d*\.?\d+)\s*)?\)$/
-  );
-
-  let alpha = rgbaMatch?.[4] !== undefined ? parseFloat(rgbaMatch[4]) : 1;
-  return alpha === 0;
+  return false; // 6-digit hex has no alpha = opaque
 }
 
 function getBorderStyle(borderConfig) {

@@ -15,7 +15,7 @@ import Popover from "react-bootstrap/Popover";
 import ColorPicker from "components/inputs/ColorPicker";
 import DataSelect from "components/inputs/DataSelect";
 import NormalInput from "components/inputs/NormalInput";
-import { useState, useRef, useMemo, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const StyledDiv = styled.div`
   margin-bottom: 1rem;
@@ -165,6 +165,7 @@ const BorderSettings = ({ initialBorder, onChange }) => {
 
   useEffect(() => {
     onChange(border);
+    // eslint-disable-next-line
   }, [border]);
 
   function parseBorderStyles(styles) {
@@ -427,14 +428,14 @@ ButtonWithOverlay.propTypes = {
 };
 
 BorderSettings.propTypes = {
-  border: PropTypes.shape({
+  initialBorder: PropTypes.shape({
     all: sideProps,
     top: sideProps,
     bottom: sideProps,
     left: sideProps,
     right: sideProps,
   }),
-  setBorder: PropTypes.func,
+  onChange: PropTypes.func,
 };
 
 export default BorderSettings;

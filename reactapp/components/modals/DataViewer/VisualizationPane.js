@@ -5,7 +5,6 @@ import styled from "styled-components";
 import DataInput from "components/inputs/DataInput";
 import {
   getVisualization,
-  checkForEmptyVariableInputs,
   findSelectOptionByValue,
 } from "components/visualizations/utilities";
 import {
@@ -126,7 +125,6 @@ function VisualizationPane({
   setGridItemMessage,
   selectedVizTypeOption,
   setSelectVizTypeOption,
-  vizType,
   setVizType,
   setVizData,
   setVizMetadata,

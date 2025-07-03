@@ -10,7 +10,6 @@ import DataTable from "components/visualizations/DataTable";
 import ModuleLoader from "components/visualizations/ModuleLoader";
 import {
   getVisualization,
-  checkForEmptyVariableInputs,
   updateObjectWithVariableInputs,
   findSelectOptionByValue,
 } from "components/visualizations/utilities";
