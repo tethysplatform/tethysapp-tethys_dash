@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import Button from "react-bootstrap/Button";
-import { useState, useRef, useEffect, memo } from "react";
+import { useState, useRef, useEffect, memo, useMemo } from "react";
 import Table from "react-bootstrap/Table";
 import DraggableList from "components/inputs/DraggableList";
 import styled from "styled-components";
@@ -180,38 +180,55 @@ const LegendTemplate = ({
     </tr>
   );
 };
-
 const LegendPane = ({ legend, setLegend, containerRef, sourceProps }) => {
   const [legendMode, setLegendMode] = useState(
     !legend ? "off" : legend === "default" ? "default" : "custom"
   );
   const previousCustomLegendRef = useRef(typeof legend === "object" && legend);
-  const limitedLegendTypes = ["GeoJSON", "Vector Tile", "Image Tile"];
-  const isLimited = limitedLegendTypes.includes(sourceProps?.type);
 
-  const valueOptions = isLimited
-    ? [
-        { label: "No Legend", value: "off" },
-        { label: "Custom Legend", value: "custom" },
-      ]
-    : [
-        { label: "No Legend", value: "off" },
-        { label: "Default Legend", value: "default" },
-        { label: "Custom Legend", value: "custom" },
-      ];
+  const limitedLegendTypes = ["GeoJSON", "Image Tile"];
 
-  // Sync when parent passes in a new legend
+  // Dynamically determine valid options based on sourceProps.type
+  const legendOptions = useMemo(() => {
+    return limitedLegendTypes.includes(sourceProps?.type)
+      ? [
+          { label: "No Legend", value: "off" },
+          { label: "Custom Legend", value: "custom" },
+        ]
+      : [
+          { label: "No Legend", value: "off" },
+          { label: "Default Legend", value: "default" },
+          { label: "Custom Legend", value: "custom" },
+        ];
+  }, [sourceProps?.type]);
+
+  const validOptionValues = useMemo(
+    () => legendOptions.map((o) => o.value),
+    [legendOptions]
+  );
+
+  // Keep legendMode in sync with incoming legend or sourceProps changes
   useEffect(() => {
+    let nextMode = "off";
     if (typeof legend === "object" && Object.keys(legend).length > 0) {
-      setLegendMode("custom");
+      nextMode = "custom";
       previousCustomLegendRef.current = legend;
     } else if (legend === "default") {
-      setLegendMode("default");
+      nextMode = "default";
     }
-  }, [legend]);
+
+    // Fallback if current mode is no longer valid (e.g. due to sourceProps change)
+    if (!validOptionValues.includes(nextMode)) {
+      nextMode = "off";
+      setLegend({});
+    }
+
+    setLegendMode(nextMode);
+  }, [legend, validOptionValues]);
 
   const handleModeChange = (event) => {
     const mode = event.target.value;
+
     if (legendMode === "custom") {
       previousCustomLegendRef.current = legend;
     }
@@ -257,7 +274,7 @@ const LegendPane = ({ legend, setLegend, containerRef, sourceProps }) => {
         label="Legend Control"
         aria-label="Legend Control Input"
         selectedRadio={legendMode}
-        radioOptions={valueOptions}
+        radioOptions={legendOptions}
         onChange={handleModeChange}
       />
 
