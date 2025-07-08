@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import Button from "react-bootstrap/Button";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import Table from "react-bootstrap/Table";
 import DraggableList from "components/inputs/DraggableList";
 import styled from "styled-components";
@@ -10,7 +10,10 @@ import Popover from "react-bootstrap/Popover";
 import ColorPicker from "components/inputs/ColorPicker";
 import CustomPicker from "components/inputs/CustomPicker";
 import { BsTrash } from "react-icons/bs";
-import { legendSymbols, getLegendSymbol } from "components/map/LegendControl";
+import LegendRenderer, {
+  legendSymbols,
+  getLegendSymbol,
+} from "components/map/LegendRenderer";
 import { RxDragHandleHorizontal } from "react-icons/rx";
 import { legendPropType, legendItemPropType } from "components/map/utilities";
 import { valuesEqual } from "components/modals/utilities";
@@ -58,6 +61,11 @@ const HoverDiv = styled.div`
 const FlexDiv = styled.div`
   display: flex;
   width: 100%;
+`;
+
+const LegendDiv = styled.div`
+  width: 25%;
+  margin: auto;
 `;
 
 const LegendTemplate = ({
@@ -173,116 +181,132 @@ const LegendTemplate = ({
   );
 };
 
-const LegendPane = ({ legend, setLegend, containerRef }) => {
-  const [legendMode, setLegendMode] = useState(legend ? "on" : "off");
-  const [legendItems, setLegendItems] = useState(legend?.items ?? []);
-  const [legendTitle, setLegendTitle] = useState(legend?.title ?? "");
-  const previousLegendInfo = useRef(legend);
+const LegendPane = ({ legend, setLegend, containerRef, sourceProps }) => {
+  const [legendMode, setLegendMode] = useState(
+    !legend ? "off" : legend === "default" ? "default" : "custom"
+  );
+  const previousCustomLegendRef = useRef(typeof legend === "object" && legend);
+  const limitedLegendTypes = ["GeoJSON", "Vector Tile", "Image Tile"];
+  const isLimited = limitedLegendTypes.includes(sourceProps?.type);
 
+  const valueOptions = isLimited
+    ? [
+        { label: "No Legend", value: "off" },
+        { label: "Custom Legend", value: "custom" },
+      ]
+    : [
+        { label: "No Legend", value: "off" },
+        { label: "Default Legend", value: "default" },
+        { label: "Custom Legend", value: "custom" },
+      ];
+
+  // Sync when parent passes in a new legend
   useEffect(() => {
-    if (
-      !valuesEqual(previousLegendInfo.current, legend) &&
-      Object.keys(legend ?? {}).length > 0
-    ) {
-      previousLegendInfo.current = legend;
-      setLegendMode("on");
-      setLegendItems(legend.items ?? []);
-      setLegendTitle(legend.title ?? "");
+    if (typeof legend === "object" && Object.keys(legend).length > 0) {
+      setLegendMode("custom");
+      previousCustomLegendRef.current = legend;
+    } else if (legend === "default") {
+      setLegendMode("default");
     }
-    // eslint-disable-next-line
   }, [legend]);
 
-  useEffect(() => {
-    if (legendMode === "off") return;
+  const handleModeChange = (event) => {
+    const mode = event.target.value;
+    if (legendMode === "custom") {
+      previousCustomLegendRef.current = legend;
+    }
+    setLegendMode(mode);
 
-    const newLegend = { title: legendTitle, items: legendItems };
-    setLegend(newLegend);
-    // eslint-disable-next-line
-  }, [legendItems, legendTitle]);
+    if (mode === "off") {
+      setLegend({});
+    } else if (mode === "default") {
+      setLegend("default");
+    } else {
+      setLegend(previousCustomLegendRef.current ?? { title: "", items: [] });
+    }
+  };
 
-  const valueOptions = [
-    { label: "Don't show legend for layer", value: "off" },
-    { label: "Show legend for layer", value: "on" },
-  ];
+  const handleTitleChange = (e) => {
+    const title = e.target.value;
+    setLegend((prev) => ({ ...prev, title }));
+  };
 
   const addLegendItem = () => {
-    setLegendItems((previousLegendItems) => [
-      ...previousLegendItems,
-      { label: "", color: "#ff0000", symbol: "square" },
-    ]);
+    setLegend((prev) => ({
+      ...prev,
+      items: [
+        ...(prev.items ?? []),
+        { label: "", color: "#ff0000", symbol: "square" },
+      ],
+    }));
   };
 
-  const onOrderUpdate = (newLegendItems) => {
-    setLegendItems(newLegendItems);
-  };
-
-  const changeLegendMode = (e) => {
-    let newLegend;
-    if (e === "off") {
-      previousLegendInfo.current = legend;
-      newLegend = {};
-    } else {
-      newLegend = previousLegendInfo.current;
-    }
-    setLegendMode(e);
-    setLegend(newLegend);
-  };
-
-  const onTitleChange = (e) => {
-    setLegendTitle(e.target.value);
+  const updateLegendItems = (newItems) => {
+    setLegend((prev) => ({ ...prev, items: newItems }));
   };
 
   const templateArgs = {
     containerRef,
-    legendItems,
-    setLegendItems,
+    legendItems: legend?.items ?? [],
+    setLegendItems: updateLegendItems,
   };
 
   return (
     <>
       <DataRadioSelect
-        label={"Legend Control"}
-        aria-label={"Legend Control Input"}
+        label="Legend Control"
+        aria-label="Legend Control Input"
         selectedRadio={legendMode}
         radioOptions={valueOptions}
-        onChange={(e) => {
-          changeLegendMode(e.target.value);
-        }}
+        onChange={handleModeChange}
       />
-      {legendMode === "on" && (
+
+      {legendMode === "default" && (
+        <LegendDiv>
+          <LegendRenderer
+            legend={{
+              sourceType: sourceProps.type,
+              url: sourceProps.props?.url,
+              layers:
+                sourceProps.props?.params?.LAYERS || sourceProps.props?.layer,
+            }}
+          />
+        </LegendDiv>
+      )}
+
+      {legendMode === "custom" && (
         <>
           <StyledDiv>
             <label>
               <b>Title</b>:{" "}
-              <input value={legendTitle} onChange={onTitleChange}></input>
+              <input value={legend?.title ?? ""} onChange={handleTitleChange} />
             </label>
             <Button
               variant="info"
               onClick={addLegendItem}
-              aria-label={"Add Legend Item Button"}
+              aria-label="Add Legend Item Button"
             >
               Add Legend Item
             </Button>
           </StyledDiv>
-          <div>
-            <Table striped bordered hover size="sm">
-              <thead>
-                <tr>
-                  <th className="text-center">Label</th>
-                  <th className="text-center">Symbol</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <DraggableList
-                  items={legendItems}
-                  onOrderUpdate={onOrderUpdate}
-                  ItemTemplate={LegendTemplate}
-                  templateArgs={templateArgs}
-                />
-              </tbody>
-            </Table>
-          </div>
+
+          <Table striped bordered hover size="sm">
+            <thead>
+              <tr>
+                <th className="text-center">Label</th>
+                <th className="text-center">Symbol</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <DraggableList
+                items={legend?.items ?? []}
+                onOrderUpdate={updateLegendItems}
+                ItemTemplate={LegendTemplate}
+                templateArgs={templateArgs}
+              />
+            </tbody>
+          </Table>
         </>
       )}
     </>
@@ -314,4 +338,4 @@ LegendPane.propTypes = {
   }), // ref pointing to the container of the content so that color picker renders inside the same div
 };
 
-export default LegendPane;
+export default memo(LegendPane);

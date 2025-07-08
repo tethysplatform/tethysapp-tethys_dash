@@ -160,26 +160,28 @@ const MapLayerModal = ({
       mapConfiguration.queryable = false;
     }
 
-    if (legend && Object.keys(legend).length > 0) {
-      if (legend.title === "") {
-        setErrorMessage(
-          "Provide a legend title if showing a legend for this layer"
-        );
-        return;
-      }
+    if (legend) {
+      if (typeof legend === "object" && Object.keys(legend).length > 0) {
+        if (legend.title === "") {
+          setErrorMessage(
+            "Provide a legend title if showing a legend for this layer"
+          );
+          return;
+        }
 
-      //check if any key in the object is empty
-      const hasEmptyValues = (obj) => {
-        return Object.values(obj).some(
-          (value) => value === "" || value === null || value === undefined
-        );
-      };
+        //check if any key in the object is empty
+        const hasEmptyValues = (obj) => {
+          return Object.values(obj).some(
+            (value) => value === "" || value === null || value === undefined
+          );
+        };
 
-      if (legend.items.some(hasEmptyValues)) {
-        setErrorMessage(
-          "All Legend Items must have a label, color, and symbol"
-        );
-        return;
+        if (legend.items.some(hasEmptyValues)) {
+          setErrorMessage(
+            "All Legend Items must have a label, color, and symbol"
+          );
+          return;
+        }
       }
       mapConfiguration.legend = legend;
     }
@@ -310,6 +312,7 @@ const MapLayerModal = ({
                 <LegendPane
                   legend={legend}
                   setLegend={setLegend}
+                  sourceProps={sourceProps}
                   containerRef={containerRef}
                 />
               </div>

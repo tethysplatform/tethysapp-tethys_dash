@@ -246,7 +246,17 @@ const MapVisualization = ({
 
         for (const layer of layers) {
           await loadLayerJSONs(layer);
-          if (layer.legend) newMapLegend.push(layer.legend);
+          if (layer.legend) {
+            if (layer.legend === "default") {
+              newMapLegend.push({
+                sourceType: layer.configuration.props.source.type,
+                url: layer.configuration.props.source.props.url,
+                layers: layer.configuration.props.source.props?.params?.LAYERS,
+              });
+            } else {
+              newMapLegend.push(layer.legend);
+            }
+          }
           newMapLayers.push(layer.configuration);
         }
 
