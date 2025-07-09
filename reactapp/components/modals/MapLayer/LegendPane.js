@@ -76,29 +76,35 @@ const LegendTemplate = ({
   legendItems,
   setLegendItems,
 }) => {
-  console.log(value);
   const colorTarget = useRef(null);
   const [showColorPopover, setShowColorPopover] = useState(false);
+  const [localLabel, setLocalLabel] = useState(value.label);
+  const [symbolValue, setSymbolValue] = useState(value.symbol);
+  const [symbolColor, setSymbolColor] = useState(value.color);
 
-  const updateLegendItem = (updates) => {
-    const updatedLegendItems = [...legendItems];
-    updatedLegendItems[index] = {
-      ...updatedLegendItems[index],
-      ...updates,
-    };
-    setLegendItems(updatedLegendItems);
-  };
+  // Sync internal state when props change (e.g. drag reorder)
+  useEffect(() => {
+    setLocalLabel(value.label);
+    setSymbolValue(value.symbol);
+    setSymbolColor(value.color);
+  }, [value]);
+
+  // Push symbol or color change up
+  useEffect(() => {
+    const updatedItems = legendItems.map((item, i) =>
+      i === index ? { ...item, symbol: symbolValue, color: symbolColor } : item
+    );
+    setLegendItems(updatedItems);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbolValue, symbolColor]);
 
   const onLabelChange = (e) => {
-    updateLegendItem({ label: e.target.value });
-  };
-
-  const onColorChange = (changedColor) => {
-    updateLegendItem({ color: changedColor });
-  };
-
-  const onSymbolChange = (symbol) => {
-    updateLegendItem({ symbol });
+    const newLabel = e.target.value;
+    setLocalLabel(newLabel);
+    const updatedItems = legendItems.map((item, i) =>
+      i === index ? { ...item, label: newLabel } : item
+    );
+    setLegendItems(updatedItems);
   };
 
   const deleteRow = () => {
@@ -113,7 +119,7 @@ const LegendTemplate = ({
         <FlexDiv>
           <AlignedDragHandle size="1rem" />
           <InputDiv>
-            <StyledInput value={value.label} onChange={onLabelChange} />
+            <StyledInput value={localLabel} onChange={onLabelChange} />
           </InputDiv>
         </FlexDiv>
       </td>
@@ -122,7 +128,7 @@ const LegendTemplate = ({
           ref={colorTarget}
           onClick={() => setShowColorPopover(!showColorPopover)}
         >
-          <LegendSymbol symbol={value.symbol} color={value.color} />
+          <LegendSymbol symbol={symbolValue} color={symbolColor} />
         </div>
         <Overlay
           container={containerRef}
@@ -139,16 +145,16 @@ const LegendTemplate = ({
                 <CustomPicker
                   maxColCount={3}
                   pickerOptions={legendSymbols}
-                  onSelect={onSymbolChange}
-                  selected={value.symbol}
+                  onSelect={setSymbolValue}
+                  selected={symbolValue}
                 />
               </StyledLabel>
               <StyledLabel>
                 <b>Color</b>:{" "}
                 <ColorPicker
                   hideInput={["rgb", "hsv"]}
-                  color={value.color}
-                  onChange={onColorChange}
+                  color={symbolColor}
+                  onChange={setSymbolColor}
                 />
               </StyledLabel>
             </StyledPopoverBody>
