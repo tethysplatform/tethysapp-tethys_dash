@@ -181,19 +181,12 @@ test("LegendPane initial legend", async () => {
   });
 
   const tabelCells = screen.getAllByRole("cell");
-
-  await waitFor(() => {
-    // eslint-disable-next-line
-    expect(tabelCells[1].querySelector("svg").getAttribute("color")).toBe(
-      "yellow"
-    );
-  });
-  await waitFor(() => {
-    // eslint-disable-next-line
-    expect(tabelCells[4].querySelector("svg").getAttribute("color")).toBe(
-      "green"
-    );
-  });
+  expect(
+    within(tabelCells[1]).getByLabelText("yellow-square")
+  ).toBeInTheDocument();
+  expect(
+    within(tabelCells[4]).getByLabelText("green-square")
+  ).toBeInTheDocument();
 
   // Simulate dragging row 1 to row 2
   fireEvent.dragStart(tabelCells[0], {
@@ -210,19 +203,12 @@ test("LegendPane initial legend", async () => {
   await waitFor(() => {
     expect(textboxes[2].value).toBe("Some Label");
   });
-
-  await waitFor(() => {
-    // eslint-disable-next-line
-    expect(tabelCells[1].querySelector("svg").getAttribute("color")).toBe(
-      "green"
-    );
-  });
-  await waitFor(() => {
-    // eslint-disable-next-line
-    expect(tabelCells[4].querySelector("svg").getAttribute("color")).toBe(
-      "yellow"
-    );
-  });
+  expect(
+    within(tabelCells[1]).getByLabelText("green-square")
+  ).toBeInTheDocument();
+  expect(
+    within(tabelCells[4]).getByLabelText("yellow-square")
+  ).toBeInTheDocument();
 });
 
 TestingComponent.propTypes = {

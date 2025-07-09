@@ -32,8 +32,13 @@ export const legendSymbols = {
 };
 
 export const LegendSymbol = ({ symbol, color, ...rest }) => {
-  const SymbolComponent = legendSymbols[symbol] || BsFillSquareFill;
-  return <SymbolComponent color={color} {...rest} />;
+  const isValidSymbol = symbol in legendSymbols;
+  const SymbolComponent = isValidSymbol
+    ? legendSymbols[symbol]
+    : BsFillSquareFill;
+  const label = `${color}-${isValidSymbol ? symbol : "square"}`;
+
+  return <SymbolComponent aria-label={label} color={color} {...rest} />;
 };
 
 const LegendWrapper = styled.div`
@@ -89,8 +94,9 @@ const ErrorMessage = styled.div`
   color: red;
 `;
 
-const parseLayerFilter = (raw, allLayerIds = []) => {
-  if (!raw || typeof raw !== "string") return [];
+const parseLayerFilter = (raw, allLayerIds) => {
+  if (typeof raw === "number") return [raw];
+  if (typeof raw !== "string") return [];
 
   // If raw contains ":", assume it's in mode:list format
   if (raw.includes(":")) {
@@ -184,7 +190,7 @@ function LegendRenderer({ legend }) {
           if (!response.ok) throw new Error("Network response was not ok");
           const data = await response.json();
 
-          if (legend.layers) {
+          if (legend.layers != null) {
             const allLayerIds = data.layers.map((l) => l.layerId);
             const selectedIds = parseLayerFilter(legend.layers, allLayerIds);
             const filtered = data.layers.filter((layer) =>
