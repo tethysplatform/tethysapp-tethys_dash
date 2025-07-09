@@ -1,9 +1,19 @@
 import PropTypes from "prop-types";
-import Container from "react-bootstrap/Container";
-import Row from "react-bootstrap/Row";
-import Col from "react-bootstrap/Col";
+import styled from "styled-components";
+import { Container, Row, Col } from "react-bootstrap";
 
-const CustomPicker = ({ pickerOptions, onSelect }) => {
+const HighlightedCol = styled(Col)`
+  border: 2px solid ${({ selected }) => (selected ? "#007bff" : "transparent")};
+  border-radius: 4px;
+  padding: 0.25rem;
+  cursor: pointer;
+
+  &:hover {
+    border-color: ${({ selected }) => (selected ? "#007bff" : "#ccc")};
+  }
+`;
+
+const CustomPicker = ({ pickerOptions, onSelect, selected }) => {
   const pickerKeys = Object.keys(pickerOptions);
 
   return (
@@ -11,10 +21,16 @@ const CustomPicker = ({ pickerOptions, onSelect }) => {
       <Row>
         {pickerKeys.map((pickerKey) => {
           const PickerComponent = pickerOptions[pickerKey];
+          const isSelected = pickerKey === selected;
           return (
-            <Col key={pickerKey} xs="auto" onClick={() => onSelect(pickerKey)}>
+            <HighlightedCol
+              key={pickerKey}
+              xs="auto"
+              onClick={() => onSelect(pickerKey)}
+              selected={isSelected}
+            >
               <PickerComponent />
-            </Col>
+            </HighlightedCol>
           );
         })}
       </Row>

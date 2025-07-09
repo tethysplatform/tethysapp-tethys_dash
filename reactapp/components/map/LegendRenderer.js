@@ -21,19 +21,19 @@ const LeftTriangle = styled(BsFillTriangleFill)`
 `;
 
 export const legendSymbols = {
-  square: () => <BsFillSquareFill />,
-  circle: () => <BsFillCircleFill />,
-  upTriangle: () => <BsFillTriangleFill />,
-  rightTriangle: () => <RightTriangle />,
-  downTriangle: () => <DownTriangle />,
-  leftTriangle: () => <LeftTriangle />,
-  rectangle: () => <RiRectangleFill />,
-  line: () => <IoAnalyticsOutline />,
+  square: BsFillSquareFill,
+  circle: BsFillCircleFill,
+  upTriangle: BsFillTriangleFill,
+  rightTriangle: RightTriangle,
+  downTriangle: DownTriangle,
+  leftTriangle: LeftTriangle,
+  rectangle: RiRectangleFill,
+  line: IoAnalyticsOutline,
 };
 
-export const getLegendSymbol = (symbol, color) => {
-  const Symbol = legendSymbols[symbol] || BsFillSquareFill;
-  return <Symbol color={color} />;
+export const LegendSymbol = ({ symbol, color, ...rest }) => {
+  const SymbolComponent = legendSymbols[symbol] || BsFillSquareFill;
+  return <SymbolComponent color={color} {...rest} />;
 };
 
 const LegendWrapper = styled.div`
@@ -215,7 +215,7 @@ function LegendRenderer({ legend }) {
         <LegendList>
           {legend.items.map((item, index) => (
             <LegendItem key={index}>
-              {getLegendSymbol(item.symbol, item.color)}
+              <LegendSymbol symbol={item.symbol} color={item.color} />
               <span>{item.label}</span>
             </LegendItem>
           ))}

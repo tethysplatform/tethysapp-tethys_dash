@@ -11,7 +11,7 @@ import LegendPane from "components/modals/MapLayer/LegendPane";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
-const TestingComponent = ({ initialLegend }) => {
+const TestingComponent = ({ initialLegend, sourceProps }) => {
   const [legend, setLegend] = useState(initialLegend);
   const containerRef = useRef();
 
@@ -24,6 +24,7 @@ const TestingComponent = ({ initialLegend }) => {
       <LegendPane
         legend={legend}
         setLegend={setLegend}
+        sourceProps={sourceProps ?? {}}
         containerRef={containerRef}
       />
       <p data-testid="legend">{JSON.stringify(legend)}</p>
@@ -36,15 +37,22 @@ test("LegendPane no initial legend, add new row and delete", async () => {
 
   expect(await screen.findByText("Legend Control")).toBeInTheDocument();
 
-  const offRadio = screen.getByLabelText("Don't show legend for layer");
-  const onRadio = screen.getByLabelText("Show legend for layer");
+  const offRadio = screen.getByLabelText("No Legend");
+  const defaultRadio = screen.getByLabelText("Default Legend");
+  const customRadio = screen.getByLabelText("Custom Legend");
 
   expect(offRadio.checked).toBe(true);
-  expect(onRadio.checked).toBe(false);
+  expect(defaultRadio.checked).toBe(false);
+  expect(customRadio.checked).toBe(false);
   expect(await screen.findByTestId("legend")).toHaveTextContent("");
 
-  fireEvent.click(onRadio);
-  expect(screen.getByTestId("legend").textContent?.trim()).toBe("");
+  fireEvent.click(customRadio);
+  expect(screen.getByTestId("legend").textContent?.trim()).toBe(
+    JSON.stringify({
+      title: "",
+      items: [],
+    })
+  );
 
   const addRowButton = await screen.findByLabelText("Add Legend Item Button");
   fireEvent.click(addRowButton);
@@ -124,7 +132,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
   rerender(<TestingComponent initialLegend={{ title: "some title" }} />);
 
   expect(await screen.findByTestId("legend")).toHaveTextContent(
-    JSON.stringify({ title: "some title", items: [] })
+    JSON.stringify({ title: "some title" })
   );
 
   rerender(
@@ -137,7 +145,6 @@ test("LegendPane no initial legend, add new row and delete", async () => {
 
   expect(await screen.findByTestId("legend")).toHaveTextContent(
     JSON.stringify({
-      title: "",
       items: [{ color: "yellow", label: "Some Label", symbol: "square" }],
     })
   );
@@ -155,8 +162,8 @@ test("LegendPane initial legend", async () => {
 
   expect(await screen.findByText("Legend Control")).toBeInTheDocument();
 
-  const offRadio = screen.getByLabelText("Don't show legend for layer");
-  const onRadio = screen.getByLabelText("Show legend for layer");
+  const offRadio = screen.getByLabelText("No Legend");
+  const onRadio = screen.getByLabelText("Custom Legend");
 
   expect(offRadio.checked).toBe(false);
   expect(onRadio.checked).toBe(true);

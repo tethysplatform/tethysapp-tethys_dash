@@ -766,7 +766,7 @@ test("MapLayerModal legend", async () => {
   fireEvent.click(legendTab);
 
   expect(await screen.findByText("Legend Control")).toBeInTheDocument();
-  const onRadio = screen.getByLabelText("Show legend for layer");
+  const onRadio = screen.getByLabelText("Custom Legend");
   fireEvent.click(onRadio);
 
   const addRowButton = await screen.findByLabelText("Add Legend Item Button");
