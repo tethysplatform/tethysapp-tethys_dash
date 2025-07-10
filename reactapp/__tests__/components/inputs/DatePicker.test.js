@@ -74,8 +74,10 @@ test("DatePicker initial date and change to variable input", async () => {
   const input = screen.getByRole("textbox");
   expect(input.value).toBe("01/01/1990");
 
+  // eslint-disable-next-line
   fireEvent.change(input, { target: { value: "${Date}" } });
 
+  // eslint-disable-next-line
   expect(input.placeholder).toBe("${Date}");
 });
 
@@ -140,6 +142,7 @@ test("DatePicker variable input 1", async () => {
     <DatePicker
       label="Test DatePicker"
       type="date"
+      // eslint-disable-next-line
       value="${Date}"
       onChange={mockOnChange}
     />
@@ -149,6 +152,7 @@ test("DatePicker variable input 1", async () => {
 
   const input = screen.getByRole("textbox");
   expect(input.value).toBe("");
+  // eslint-disable-next-line
   expect(input.placeholder).toBe("${Date}");
 });
 
@@ -159,6 +163,7 @@ test("DatePicker variable input 2", async () => {
     <DatePicker
       label="Test DatePicker"
       type="date"
+      // eslint-disable-next-line
       value="01/05/2025 ${hour} AM"
       onChange={mockOnChange}
     />
@@ -168,6 +173,7 @@ test("DatePicker variable input 2", async () => {
 
   const input = screen.getByRole("textbox");
   expect(input.value).toBe("");
+  // eslint-disable-next-line
   expect(input.placeholder).toBe("01/05/2025 ${hour} AM");
 });
 

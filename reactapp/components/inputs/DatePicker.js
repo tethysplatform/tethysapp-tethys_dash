@@ -1,5 +1,6 @@
 import { parse, isValid, format } from "date-fns";
 import { useState } from "react";
+import PropTypes from "prop-types";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
@@ -62,6 +63,13 @@ const DatePicker = ({ label, value, onChange, type }) => {
       />
     </div>
   );
+};
+
+DatePicker.propTypes = {
+  label: PropTypes.string,
+  type: PropTypes.oneOfType([PropTypes.string, PropTypes.array]),
+  onChange: PropTypes.func,
+  value: PropTypes.string,
 };
 
 export default DatePicker;
