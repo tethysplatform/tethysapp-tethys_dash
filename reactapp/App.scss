@@ -52,3 +52,9 @@ body {
 .form-check-input {
   border-color: black;
 }
+
+.date-picker input::placeholder {
+  color: inherit; /* Same color as input text */
+  font-style: normal; /* Remove italic if present */
+  opacity: 1; /* Remove transparency in Firefox */
+}

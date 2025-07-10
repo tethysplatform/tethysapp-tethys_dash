@@ -1,52 +1,68 @@
-import { format } from "date-fns";
-import PropTypes from "prop-types";
+import { parse, isValid, format } from "date-fns";
+import { useState } from "react";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-const DatePicker = ({ label, value, onChange, type, inputProps = {} }) => {
-  const commonProps = {
-    id: label,
-    selected: value,
-    name: label,
-    placeholderText: "Select a Date",
-    ...inputProps,
+const isValidDateString = (str) => {
+  if (typeof str !== "string") return false;
+
+  const formats = ["MM/dd/yyyy", "MM/dd/yyyy h:mm aa"];
+
+  return formats.some((fmt) => {
+    const parsed = parse(str, fmt, new Date());
+    return isValid(parsed) && format(parsed, fmt) === str;
+  });
+};
+
+const DatePicker = ({ label, value, onChange, type }) => {
+  const [placeholderText, setPlaceholderText] = useState(
+    checkForVariable(value) && value
+  );
+
+  function checkForVariable(val) {
+    if (typeof val !== "string") return false;
+    // Regex to find at least one `${...}` anywhere in the string
+    return /\$\{[^}]+\}/.test(val);
+  }
+
+  const handleRawChange = (e) => {
+    const val = e.target.value;
+    if (checkForVariable(val)) {
+      onChange(val); // pass string like "${Date}"
+      setPlaceholderText(val);
+    }
   };
 
-  const labelEl = (
-    <label htmlFor={label} style={{ display: "block", marginBottom: 4 }}>
-      <b>{label}</b>:
-    </label>
-  );
+  const handleDateChange = (date) => {
+    console.log(date);
+    if (type === "date") {
+      onChange(format(date, "MM/dd/yyyy"));
+    } else {
+      onChange(format(date, "MM/dd/yyyy h:mm aa"));
+    }
+    setPlaceholderText("");
+  };
 
   return (
     <div className="date-picker">
-      {labelEl}
-      {type === "date-hour" ? (
-        <ReactDatePicker
-          {...commonProps}
-          onChange={(date) => onChange(format(date, "MM/dd/yyyy h:mm aa"))}
-          showTimeInput
-          timeInputLabel="Time:"
-          dateFormat="MM/dd/yyyy h:mm aa"
-        />
-      ) : (
-        <ReactDatePicker
-          {...commonProps}
-          onChange={(date) => onChange(format(date, "MM/dd/yyyy"))}
-          dateFormat="MM/dd/yyyy"
-        />
+      {label && (
+        <label htmlFor={label} style={{ display: "block", marginBottom: 4 }}>
+          {label}
+        </label>
       )}
+      <ReactDatePicker
+        id={label}
+        name={label}
+        placeholderText={placeholderText}
+        selected={isValidDateString(value) ? new Date(value) : null}
+        onChange={handleDateChange}
+        onChangeRaw={handleRawChange}
+        showTimeInput={type === "date-hour"}
+        dateFormat={type === "date-hour" ? "MM/dd/yyyy h:mm aa" : "MM/dd/yyyy"}
+        timeInputLabel="Time:"
+      />
     </div>
   );
-};
-
-DatePicker.propTypes = {
-  label: PropTypes.string, // label for the input
-  value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // state for input value
-  onChange: PropTypes.func, // callback function when the input changes
-  type: PropTypes.string, // type of input to use
-  name: PropTypes.string,
-  inputProps: PropTypes.object, // additional props to pass to the parent div
 };
 
 export default DatePicker;

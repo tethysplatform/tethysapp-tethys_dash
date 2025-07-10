@@ -220,7 +220,13 @@ export function updateObjectWithVariableInputs(args, variableInputs) {
   return args;
 }
 
-export const nonDropDownVariableInputTypes = ["text", "number", "checkbox"];
+export const nonDropDownVariableInputTypes = [
+  "text",
+  "number",
+  "checkbox",
+  "date",
+  "date-hour",
+];
 
 export const baseMapLayers = [
   {

@@ -160,7 +160,7 @@ const VariableInput = ({
           <ButtonDiv>
             <TooltipButton
               onClick={handleInputRefresh}
-              tooltipPlacement={"right"}
+              tooltipPlacement={"left"}
               tooltipText={"Refresh variable input"}
               variant={"warning"}
               style={{ height: "100%" }}
