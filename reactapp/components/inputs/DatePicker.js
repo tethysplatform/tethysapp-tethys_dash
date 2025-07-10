@@ -28,13 +28,12 @@ const DatePicker = ({ label, value, onChange, type }) => {
   const handleRawChange = (e) => {
     const val = e.target.value;
     if (checkForVariable(val)) {
-      onChange(val); // pass string like "${Date}"
+      onChange(val);
       setPlaceholderText(val);
     }
   };
 
   const handleDateChange = (date) => {
-    console.log(date);
     if (type === "date") {
       onChange(format(date, "MM/dd/yyyy"));
     } else {

@@ -205,6 +205,8 @@ test("AppLoader", async () => {
                 "text",
                 "number",
                 "checkbox",
+                "date",
+                "date-hour",
                 {
                   label: "Existing Visualization Inputs",
                   options: [
