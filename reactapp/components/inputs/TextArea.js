@@ -25,6 +25,7 @@ TextArea.propTypes = {
   onChange: PropTypes.func, // callback function when the input changes
   value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // state for input value
   type: PropTypes.string, // type of input to use
+  maxLength: PropTypes.number,
 };
 
 export default TextArea;

@@ -7,6 +7,7 @@ import {
   waitFor,
   fireEvent,
 } from "@testing-library/react";
+import { sourcePropType } from "components/map/utilities";
 import LegendPane from "components/modals/MapLayer/LegendPane";
 
 global.ResizeObserver = require("resize-observer-polyfill");
@@ -390,4 +391,5 @@ test("LegendPane items partial initial legend", async () => {
 
 TestingComponent.propTypes = {
   initialLegend: PropTypes.object,
+  sourceProps: sourcePropType,
 };

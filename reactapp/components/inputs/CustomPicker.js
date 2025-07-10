@@ -41,6 +41,7 @@ const CustomPicker = ({ pickerOptions, onSelect, selected }) => {
 CustomPicker.propTypes = {
   pickerOptions: PropTypes.objectOf(PropTypes.elementType).isRequired,
   onSelect: PropTypes.func.isRequired,
+  selected: PropTypes.string,
 };
 
 export default CustomPicker;

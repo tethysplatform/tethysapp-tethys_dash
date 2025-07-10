@@ -771,11 +771,13 @@ export const legendItemPropType = PropTypes.shape({
   symbol: PropTypes.string, // legend item symbol
 });
 
-export const legendPropType = PropTypes.shape({
-  title: PropTypes.string, // title for the layer in the map legend
-  // an array of legend items to show in the map legend
-  items: PropTypes.arrayOf(legendItemPropType),
-});
+export const legendPropType = PropTypes.oneOfType([
+  PropTypes.string, // e.g., "default"
+  PropTypes.shape({
+    title: PropTypes.string, // title for the layer in the map legend
+    items: PropTypes.arrayOf(legendItemPropType), // array of legend items
+  }),
+]);
 
 export const layerPropType = PropTypes.shape({
   configuration: configurationPropType,

@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import Button from "react-bootstrap/Button";
-import { useState, useRef, useEffect, memo, useMemo } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import Table from "react-bootstrap/Table";
 import DraggableList from "components/inputs/DraggableList";
 import styled from "styled-components";
@@ -15,8 +15,11 @@ import LegendRenderer, {
   LegendSymbol,
 } from "components/map/LegendRenderer";
 import { RxDragHandleHorizontal } from "react-icons/rx";
-import { legendPropType, legendItemPropType } from "components/map/utilities";
-import { valuesEqual } from "components/modals/utilities";
+import {
+  legendPropType,
+  legendItemPropType,
+  sourcePropType,
+} from "components/map/utilities";
 import "components/modals/wideModal.css";
 
 const StyledLabel = styled.label`
@@ -215,6 +218,7 @@ const LegendPane = ({ legend, setLegend, containerRef, sourceProps }) => {
       }
       setLegendMode(nextMode);
     }
+    // eslint-disable-next-line
   }, [sourceProps.type]);
 
   const handleModeChange = (event) => {
@@ -345,6 +349,7 @@ LegendTemplate.propTypes = {
 LegendPane.propTypes = {
   legend: legendPropType,
   setLegend: PropTypes.func,
+  sourceProps: sourcePropType,
   containerRef: PropTypes.shape({
     current: PropTypes.oneOfType([PropTypes.object, PropTypes.element]),
   }), // ref pointing to the container of the content so that color picker renders inside the same div

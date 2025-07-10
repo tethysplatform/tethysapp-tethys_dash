@@ -1,4 +1,5 @@
 import { useEffect, useState, memo } from "react";
+import PropTypes from "prop-types";
 import { RiRectangleFill } from "react-icons/ri";
 import { IoAnalyticsOutline } from "react-icons/io5";
 import {
@@ -6,6 +7,7 @@ import {
   BsFillSquareFill,
   BsFillCircleFill,
 } from "react-icons/bs";
+import { legendPropType } from "components/map/utilities";
 import styled from "styled-components";
 
 const RightTriangle = styled(BsFillTriangleFill)`
@@ -173,6 +175,7 @@ function LegendRenderer({ legend }) {
         })
         .finally(() => setIsLoading(false));
     }
+    // eslint-disable-next-line
   }, [legend]);
 
   // 🔴 Handle ESRI
@@ -209,6 +212,7 @@ function LegendRenderer({ legend }) {
         }
       })();
     }
+    // eslint-disable-next-line
   }, [legend]);
 
   if (!legend) return null;
@@ -278,5 +282,14 @@ function LegendRenderer({ legend }) {
 
   return null;
 }
+
+LegendSymbol.propTypes = {
+  color: PropTypes.string, // legend item color
+  symbol: PropTypes.string, // legend item symbol
+};
+
+LegendRenderer.propTypes = {
+  legend: legendPropType,
+};
 
 export default memo(LegendRenderer);
