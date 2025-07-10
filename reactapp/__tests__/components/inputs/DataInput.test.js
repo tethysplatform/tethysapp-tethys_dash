@@ -8,6 +8,7 @@ import {
   mockedDashboards,
   layerConfigImageArcGISRest,
 } from "__tests__/utilities/constants";
+import { format } from "date-fns";
 
 describe("DataInput Component", () => {
   const mockOnChange = jest.fn();
@@ -276,6 +277,68 @@ test("renders inputtable", async () => {
     newValue: "Some Input Value",
     rowIndex: 0,
   });
+});
+
+test("renders date", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataInput
+          label="Test DatePicker"
+          type="date"
+          value=""
+          onChange={mockOnChange}
+        />
+      ),
+    })
+  );
+
+  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+
+  const input = screen.getByRole("textbox");
+  await userEvent.click(input);
+
+  // pick first available day in calendar (simulate)
+  const days = await screen.findAllByRole("option", { name: /1/i });
+  await userEvent.click(days[0]);
+
+  const now = new Date();
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const expectedDateString = format(firstOfMonth, "MM/dd/yyyy");
+  expect(mockOnChange).toHaveBeenCalledWith(expectedDateString);
+});
+
+test("renders date-hour", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataInput
+          label="Test DatePicker"
+          type="date-hour"
+          value=""
+          onChange={mockOnChange}
+        />
+      ),
+    })
+  );
+
+  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+
+  const input = screen.getByRole("textbox");
+  await userEvent.click(input);
+
+  // pick first available day in calendar (simulate)
+  const days = await screen.findAllByRole("option", { name: /1/i });
+  await userEvent.click(days[0]);
+
+  const now = new Date();
+  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  let expectedDateString = format(firstOfMonth, "MM/dd/yyyy h:mm aa");
+  expect(mockOnChange).toHaveBeenCalledWith(expectedDateString);
 });
 
 test("renders custom-AddMapLayer", async () => {

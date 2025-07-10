@@ -3,24 +3,17 @@ import PropTypes from "prop-types";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-const DatePicker = ({
-  label = "Select Date",
-  value,
-  onChange,
-  name = "date",
-  type = "date",
-  inputProps = {},
-}) => {
+const DatePicker = ({ label, value, onChange, type, inputProps = {} }) => {
   const commonProps = {
-    id: name,
+    id: label,
     selected: value,
-    name,
+    name: label,
     placeholderText: "Select a Date",
     ...inputProps,
   };
 
   const labelEl = (
-    <label htmlFor={name} style={{ display: "block", marginBottom: 4 }}>
+    <label htmlFor={label} style={{ display: "block", marginBottom: 4 }}>
       <b>{label}</b>:
     </label>
   );
