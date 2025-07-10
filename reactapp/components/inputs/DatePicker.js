@@ -14,13 +14,13 @@ const DatePicker = ({
     id: name,
     selected: value,
     name,
-    placeholderText: label,
+    placeholderText: "Select a Date",
     ...inputProps,
   };
 
   const labelEl = (
     <label htmlFor={name} style={{ display: "block", marginBottom: 4 }}>
-      {label}
+      <b>{label}</b>:
     </label>
   );
 
