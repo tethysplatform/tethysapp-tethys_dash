@@ -95,6 +95,7 @@ function NewDashboardModal({ showModal, setShowModal }) {
             label={"Description"}
             value={description}
             onChange={(e) => onDescriptionInput(e.target.value)}
+            maxLength={500}
           />
         </Modal.Body>
         <Modal.Footer>

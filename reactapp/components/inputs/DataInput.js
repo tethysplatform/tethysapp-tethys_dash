@@ -11,6 +11,7 @@ import MultiInput from "components/inputs/MultiInput";
 import InputTable from "components/inputs/InputTable";
 import NormalInput from "components/inputs/NormalInput";
 import CheckboxInput from "components/inputs/CheckboxInput";
+import DatePicker from "components/inputs/DatePicker";
 import * as customInputs from "components/inputs/Custom";
 
 const StyledDiv = styled.div`
@@ -72,6 +73,16 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
         value={value}
         type={type}
         inputProps={inputProps}
+      />
+    );
+  } else if (type === "date" || type === "date-hour") {
+    return (
+      <DatePicker
+        label={label}
+        onChange={(date) => onChange(date)}
+        value={value}
+        inputProps={inputProps}
+        type={type}
       />
     );
   } else if (type === "radio") {
