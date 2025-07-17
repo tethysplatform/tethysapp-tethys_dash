@@ -6,6 +6,7 @@ import nh3
 from rest_framework.decorators import api_view
 import uuid
 from datetime import datetime
+from django.core.exceptions import RequestDataTooBig
 
 from django.contrib.sessions.backends.db import SessionStore
 from django.conf import settings
@@ -272,7 +273,16 @@ def delete_dashboard(request, app_media):
 def update_dashboard(request):
     """API controller for the dashboards page."""
 
-    dashboard_updates = json.loads(request.body)
+    try:
+        dashboard_updates = json.loads(request.body)
+    except RequestDataTooBig as e:
+        return JsonResponse(
+            {
+                "success": False,
+                "message": f"File size too big. Total request must be less than {settings.DATA_UPLOAD_MAX_MEMORY_SIZE/1024} KB",
+            }
+        )
+
     id = dashboard_updates.pop("id")
     user = str(request.user)
 

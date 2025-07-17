@@ -401,17 +401,6 @@ test("DashboardHeader, import gridItem", async () => {
   });
   appAPI.updateDashboard = mockUpdateDashboard;
 
-  jest
-    .spyOn(Element.prototype, "getBoundingClientRect")
-    .mockImplementation(() => ({
-      width: 100,
-      height: 100,
-    }));
-
-  const mockCanvas = document.createElement("canvas");
-  mockCanvas.toDataURL = jest.fn(() => "data:image/png;base64,mocked-image");
-  html2canvas.mockResolvedValue(mockCanvas);
-
   render(
     createLoadedComponent({
       children: (
@@ -511,7 +500,6 @@ test("DashboardHeader, import gridItem", async () => {
           },
         ],
         id: 1,
-        image: "data:image/png;base64,mocked-image",
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
     );
@@ -901,17 +889,6 @@ test("DashboardHeader, editable, edit and save", async () => {
   });
   appAPI.updateDashboard = mockUpdateDashboard;
 
-  jest
-    .spyOn(Element.prototype, "getBoundingClientRect")
-    .mockImplementation(() => ({
-      width: 100,
-      height: 100,
-    }));
-
-  const mockCanvas = document.createElement("canvas");
-  mockCanvas.toDataURL = jest.fn(() => "data:image/png;base64,mocked-image");
-  html2canvas.mockResolvedValue(mockCanvas);
-
   render(
     createLoadedComponent({
       children: (
@@ -1005,7 +982,6 @@ test("DashboardHeader, editable, edit and save", async () => {
           },
         ],
         id: 1,
-        image: "data:image/png;base64,mocked-image",
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
     );
@@ -1020,17 +996,6 @@ test("DashboardHeader, editable, edit, save and error", async () => {
     success: false,
   });
   appAPI.updateDashboard = mockUpdateDashboard;
-
-  jest
-    .spyOn(Element.prototype, "getBoundingClientRect")
-    .mockImplementation(() => ({
-      width: 100,
-      height: 100,
-    }));
-
-  const mockCanvas = document.createElement("canvas");
-  mockCanvas.toDataURL = jest.fn(() => "data:image/png;base64,mocked-image");
-  html2canvas.mockResolvedValue(mockCanvas);
 
   render(
     createLoadedComponent({
@@ -1095,7 +1060,6 @@ test("DashboardHeader, editable, edit, save and error", async () => {
         },
       ],
       id: 1,
-      image: "data:image/png;base64,mocked-image",
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
@@ -1115,17 +1079,6 @@ test("DashboardHeader, editable, edit, save and error with unrestricted movement
   });
   appAPI.updateDashboard = mockUpdateDashboard;
   updatedMockedDashboards.user[0].unrestrictedPlacement = true;
-
-  jest
-    .spyOn(Element.prototype, "getBoundingClientRect")
-    .mockImplementation(() => ({
-      width: 100,
-      height: 100,
-    }));
-
-  const mockCanvas = document.createElement("canvas");
-  mockCanvas.toDataURL = jest.fn(() => "data:image/png;base64,mocked-image");
-  html2canvas.mockResolvedValue(mockCanvas);
 
   render(
     createLoadedComponent({
@@ -1190,7 +1143,6 @@ test("DashboardHeader, editable, edit, save and error with unrestricted movement
         },
       ],
       id: 1,
-      image: "data:image/png;base64,mocked-image",
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );

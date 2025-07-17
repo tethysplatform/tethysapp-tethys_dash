@@ -269,31 +269,12 @@ export const DashboardHeader = () => {
     }
   }
 
-  async function captureScreenshot() {
-    const element = document.querySelector(".react-grid-layout");
-    const rect = element.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
-    // Create a screenshot of the visible area within the window
-    const canvas = await html2canvas(element, {
-      x: rect.left,
-      y: rect.top,
-      width: Math.min(rect.width, viewportWidth), // Capture only the visible width
-      height: Math.min(rect.height, viewportHeight), // Capture only the visible height
-      scale: window.devicePixelRatio, // Ensure high resolution on high-DPI screens
-      useCORS: true, // Attempts to bypass CORS issues
-    });
-    return canvas.toDataURL("image/png");
-  }
-
   async function onSave() {
     // delete item then save bring back old item
     setShowSuccessMessage(false);
     setShowErrorMessage(false);
     setIsSaving(true);
 
-    // const image = await captureScreenshot();
     saveLayoutContext({ gridItems }).then((response) => {
       if (response.success) {
         setSuccessMessage("Change have been saved.");

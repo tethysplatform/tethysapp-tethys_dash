@@ -43,6 +43,7 @@ def upgrade():
         sa.Column("w", sa.Integer(), nullable=False),
         sa.Column("h", sa.Integer(), nullable=False),
         sa.Column("source", sa.String(), nullable=True),
+        sa.Column("refresh_rate", sa.Integer(), nullable=True),
         sa.Column("args_string", sa.String(), nullable=True),
         sa.Column("metadata_string", sa.String(), nullable=True),
     )

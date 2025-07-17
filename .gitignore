@@ -19,6 +19,7 @@ launch.json
 cache
 coverage
 data
+public
 
 tethysapp/tethysdash/public/images/plugins/*
 !tethysapp/tethysdash/public/images/plugins/Variable Input.png

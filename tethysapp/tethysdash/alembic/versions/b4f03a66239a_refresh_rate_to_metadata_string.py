@@ -20,8 +20,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("griditems", sa.Column("metadata_string", sa.String))
-
     t_griditems = sa.Table(
         "griditems",
         sa.MetaData(),

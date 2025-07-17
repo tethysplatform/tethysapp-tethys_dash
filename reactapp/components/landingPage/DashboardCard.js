@@ -278,10 +278,10 @@ const DashboardCard = ({
         image: newImage,
       },
     });
-    if (apiResponse["success"]) {
+    if (apiResponse.success) {
       setDashboardImage(newImage);
     } else {
-      setErrorMessage("Failed to update dashboard");
+      setErrorMessage(apiResponse.message ?? "Failed to update dashboard");
     }
   };
 

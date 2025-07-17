@@ -329,7 +329,10 @@ def test_update_named_dashboard_image(dashboard, mock_app_get_ps_db, mocker, tmp
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
     existing_dashboard = parse_db_dashboard([dashboard], False)
-    assert existing_dashboard[0]["image"] == "/static/tethysdash/images/tethys_dash.png"
+    assert (
+        existing_dashboard[0]["image"]
+        == "/static/tethysdash/images/dashboard_thumbnail.png"
+    )
 
     example_image = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -415,7 +418,7 @@ def test_get_dashboards_all(
                 "name": dashboard.name,
                 "description": dashboard.description,
                 "accessGroups": [],
-                "image": "/static/tethysdash/images/tethys_dash.png",
+                "image": "/static/tethysdash/images/dashboard_thumbnail.png",
                 "uuid": "some_user_dashboard_uuid",
                 "unrestrictedPlacement": False,
             }
@@ -426,7 +429,7 @@ def test_get_dashboards_all(
                 "name": public_dashboard.name,
                 "description": public_dashboard.description,
                 "accessGroups": ["public"],
-                "image": "/static/tethysdash/images/tethys_dash.png",
+                "image": "/static/tethysdash/images/dashboard_thumbnail.png",
                 "uuid": "some_public_dashboard_uuid",
                 "unrestrictedPlacement": False,
             }
@@ -452,7 +455,7 @@ def test_get_dashboards_specific_dashboard_view(
         "notes": dashboard.notes,
         "accessGroups": [],
         "gridItems": [],
-        "image": "/static/tethysdash/images/tethys_dash.png",
+        "image": "/static/tethysdash/images/dashboard_thumbnail.png",
         "uuid": "some_user_dashboard_uuid",
         "unrestrictedPlacement": False,
     }
@@ -472,7 +475,7 @@ def test_get_dashboards_specific_landing_page_view(
         "name": dashboard.name,
         "description": dashboard.description,
         "accessGroups": [],
-        "image": "/static/tethysdash/images/tethys_dash.png",
+        "image": "/static/tethysdash/images/dashboard_thumbnail.png",
         "uuid": "some_user_dashboard_uuid",
         "unrestrictedPlacement": False,
     }
@@ -587,7 +590,7 @@ def test_parse_db_dashboard_landing_page_view(
         "name": dashboard.name,
         "description": dashboard.description,
         "accessGroups": [],
-        "image": "/static/tethysdash/images/tethys_dash.png",
+        "image": "/static/tethysdash/images/dashboard_thumbnail.png",
         "unrestrictedPlacement": False,
     }
 
@@ -607,7 +610,7 @@ def test_parse_db_dashboard_dashboard_view(
         "name": dashboard.name,
         "description": dashboard.description,
         "accessGroups": [],
-        "image": "/static/tethysdash/images/tethys_dash.png",
+        "image": "/static/tethysdash/images/dashboard_thumbnail.png",
         "notes": dashboard.notes,
         "gridItems": [],
         "unrestrictedPlacement": False,

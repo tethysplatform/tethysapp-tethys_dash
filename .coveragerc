@@ -4,6 +4,7 @@ omit =
    */.tethys/*,
    */tests/*,
    */alembic/*
+source = tethysapp/tethysdash
 
 [report]
 skip_covered = True

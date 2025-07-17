@@ -405,7 +405,7 @@ def parse_db_dashboard(dashboards, dashboard_view):
         )
         app_media = get_app_media(App)
         if not os.path.exists(os.path.join(app_media.path, f"{dashboard.uuid}.png")):
-            dashboard_image = "/static/tethysdash/images/tethys_dash.png"
+            dashboard_image = "/static/tethysdash/images/dashboard_thumbnail.png"
 
         dashboard_dict = {
             "id": dashboard.id,

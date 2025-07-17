@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import os
 import shutil
 from django.conf import settings
+from django.test import override_settings
 from datetime import datetime, timedelta
 import types
 
@@ -121,7 +122,7 @@ def test_dashboards(
                 "id": dashboard.id,
                 "name": dashboard.name,
                 "uuid": dashboard.uuid,
-                "image": "/static/tethysdash/images/tethys_dash.png",
+                "image": "/static/tethysdash/images/dashboard_thumbnail.png",
                 "unrestrictedPlacement": False,
             }
         ],
@@ -156,7 +157,7 @@ def test_get_dashboard(
             "gridItems": [],
             "uuid": dashboard.uuid,
             "notes": "some notes",
-            "image": "/static/tethysdash/images/tethys_dash.png",
+            "image": "/static/tethysdash/images/dashboard_thumbnail.png",
             "unrestrictedPlacement": False,
         },
         "success": True,
@@ -503,7 +504,7 @@ def test_update_dashboard(
         "id": dashboard.id,
         "name": "new_dashboard_name",
         "notes": dashboard.notes,
-        "image": "/static/tethysdash/images/tethys_dash.png",
+        "image": "/static/tethysdash/images/dashboard_thumbnail.png",
         "uuid": "some_user_dashboard_uuid",
         "unrestrictedPlacement": False,
     }
@@ -538,6 +539,37 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert response.json()["message"] == "failed to update"
+
+
+@override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=1024)  # 1 KB
+def test_update_dashboard_body_too_big(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+
+    url = reverse("tethysdash:update_dashboard")
+    client.force_login(admin_user)
+
+    # Patch the update method to ensure it's not called
+    mock_update_dashboard = mocker.patch(
+        "tethysapp.tethysdash.controllers.update_named_dashboard"
+    )
+
+    # Create a body that's too big (e.g., 2 KB JSON string)
+    too_big_data = {"data": "x" * 2048}
+    body = json.dumps(too_big_data)
+
+    # Use .generic() to simulate raw POST with a large body
+    response = client.generic(
+        "POST",
+        url,
+        body,
+        content_type="application/json",
+    )
+
+    # Assert behavior
+    mock_update_dashboard.assert_not_called()
+    assert response.status_code == 200  # or the expected status
+    assert response.json()["success"] is False
+    assert "File size too big" in response.json()["message"]
 
 
 @pytest.mark.django_db
@@ -611,7 +643,7 @@ def test_copy_dashboard(
         "description": "test_dashboard",
         "id": new_dashboard["id"],
         "name": "some_new_dashboard_name",
-        "image": "/static/tethysdash/images/tethys_dash.png",
+        "image": "/static/tethysdash/images/dashboard_thumbnail.png",
         "uuid": "123e4567-e89b-12d3-a456-426614174000",
         "unrestrictedPlacement": False,
     }
