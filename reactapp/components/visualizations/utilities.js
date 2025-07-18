@@ -89,6 +89,15 @@ export async function getVisualization({
     });
 
     return;
+  } else if (itemData.source === "Slider") {
+    setVizType("slider");
+    setVizData({
+      min: itemData.args?.metadata?.min,
+      max: itemData.args?.metadata?.max,
+      step: itemData.args?.metadata?.step,
+    });
+
+    return;
   }
 
   if (sourceType !== "map") {

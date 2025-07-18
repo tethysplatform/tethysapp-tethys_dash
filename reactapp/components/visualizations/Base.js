@@ -7,6 +7,7 @@ import MapVisualization from "components/visualizations/Map";
 import BasePlot from "components/visualizations/BasePlot";
 import Card from "components/visualizations/Card";
 import DataTable from "components/visualizations/DataTable";
+import Slider from "components/visualizations/Slider";
 import ModuleLoader from "components/visualizations/ModuleLoader";
 import {
   getVisualization,
@@ -107,6 +108,10 @@ export const Visualization = memo(
             subtitle={vizData.subtitle}
             visualizationRef={vizRef}
           />
+        );
+      case "slider":
+        return (
+          <Slider step={vizData.step} min={vizData.min} max={vizData.max} />
         );
       case "custom":
         return (
