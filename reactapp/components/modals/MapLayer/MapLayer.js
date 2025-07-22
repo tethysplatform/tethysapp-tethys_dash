@@ -292,6 +292,7 @@ const MapLayerModal = ({
                 sourceProps={sourceProps}
                 setSourceProps={setSourceProps}
                 setAttributeProps={setAttributeProps}
+                setErrorMessage={setErrorMessage}
               />
             </Tab>
             <Tab

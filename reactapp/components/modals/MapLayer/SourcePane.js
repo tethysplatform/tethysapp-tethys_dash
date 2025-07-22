@@ -88,7 +88,12 @@ function parsePropertiesArray(properties) {
   }, {});
 }
 
-const SourcePane = ({ sourceProps, setSourceProps, setAttributeProps }) => {
+const SourcePane = ({
+  sourceProps,
+  setSourceProps,
+  setAttributeProps,
+  setErrorMessage,
+}) => {
   const [sourceProperties, setSourceProperties] = useState([]); // array of objects that represent properties that will be rendered in the table
   const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]); // array of objects that represent placeholders for the table inputs
   const [propertyTypes, SetPropertyTypes] = useState([]); // array of objects that represent types for the table inputs
@@ -100,11 +105,15 @@ const SourcePane = ({ sourceProps, setSourceProps, setAttributeProps }) => {
       const apiResponse = await appAPI.downloadJSON({
         filename: sourceProps.geojson,
       });
-      setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
-      setSourceProps((previousSourceProps) => ({
-        ...previousSourceProps,
-        ...{ geojson: JSON.stringify(apiResponse.data) },
-      }));
+      if (apiResponse.success) {
+        setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
+        setSourceProps((previousSourceProps) => ({
+          ...previousSourceProps,
+          ...{ geojson: JSON.stringify(apiResponse.data) },
+        }));
+      } else {
+        setErrorMessage("Failed to retrieve JSON");
+      }
     };
 
     // if loading existing layer, then set states appropriately
@@ -121,8 +130,23 @@ const SourcePane = ({ sourceProps, setSourceProps, setAttributeProps }) => {
     }
 
     // if loading existing GeoJSON layer, then get JSON data and set states
-    if (sourceProps.type === "GeoJSON" && sourceProps?.geojson) {
-      fetchGeoJSON();
+    if (sourceProps.type === "GeoJSON") {
+      if (
+        typeof sourceProps.geojson === "string" &&
+        (sourceProps.geojson.endsWith(".json") ||
+          sourceProps.geojson.endsWith(".geojson"))
+      ) {
+        fetchGeoJSON();
+      } else if (
+        typeof sourceProps?.geojson === "object" &&
+        sourceProps.geojson !== null
+      ) {
+        setGeoJSON(JSON.stringify(sourceProps.geojson, null, 4));
+        setSourceProps((previousSourceProps) => ({
+          ...previousSourceProps,
+          ...{ geojson: JSON.stringify(sourceProps.geojson) },
+        }));
+      }
     }
     // eslint-disable-next-line
   }, [sourceProps]);

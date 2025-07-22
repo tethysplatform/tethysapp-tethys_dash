@@ -9,6 +9,7 @@ import { Stroke, Style, Circle } from "ol/style";
 import Icon from "ol/style/Icon";
 import appAPI from "services/api/app";
 import { v4 as uuidv4 } from "uuid";
+import JSON5 from "json5";
 
 export const sourcePropertiesOptions = {
   "ESRI Image and Map Service": {
@@ -706,7 +707,7 @@ export async function loadLayerJSONs(mapLayer) {
 export async function saveLayerJSON({ stringJSON, csrf, check_crs }) {
   let parsedJSON;
   try {
-    parsedJSON = JSON.parse(stringJSON);
+    parsedJSON = JSON5.parse(stringJSON);
   } catch (err) {
     return {
       success: false,
@@ -727,7 +728,7 @@ export async function saveLayerJSON({ stringJSON, csrf, check_crs }) {
 
   const JSONFilename = `${uuidv4()}.json`;
   const JSONInfo = {
-    data: stringJSON,
+    data: JSON.stringify(parsedJSON),
     filename: JSONFilename,
   };
   const apiResponse = await appAPI.uploadJSON(JSONInfo, csrf);

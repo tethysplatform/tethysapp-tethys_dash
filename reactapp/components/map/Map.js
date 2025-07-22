@@ -117,8 +117,13 @@ const MapComponent = ({
 
     const mapViewConfig = new View({ projection });
     setProjection(mapViewConfig.getProjection().getCode());
+    let extent;
+    try {
+      extent = mapExtent.extent.replaceAll(" ", "");
+    } catch {
+      extent = mapExtent.replaceAll(" ", "");
+    }
 
-    const extent = mapExtent.extent.replaceAll(" ", "");
     const parts = extent.split(",").map((p) => parseFloat(p.trim()));
     if (parts.length === 3) {
       const [lon, lat, zoomLevel] = parts;
@@ -347,10 +352,13 @@ const MapComponent = ({
 
 MapComponent.propTypes = {
   mapConfig: PropTypes.object, // div element properties for the map
-  mapExtent: PropTypes.shape({
-    extent: PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
-    variable: PropTypes.string,
-  }),
+  mapExtent: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.shape({
+      extent: PropTypes.string, // e.g., "minX,minY,maxX,maxY" or "lon,lat,zoom"
+      variable: PropTypes.string,
+    }),
+  ]),
   layers: PropTypes.arrayOf(
     PropTypes.shape({
       configuration: configurationPropType,
