@@ -1257,7 +1257,7 @@ test("getLayerAttributes ImageWMS Bad Fetch", async () => {
   const layerName = layerConfigImageWMS.configuration.props.name;
 
   await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
-    "Failed to fetch attribute data. Check to make sure layers exist."
+    "Failed to fetch attribute data for layer 'topp:states'. Check if the layer exists."
   );
 });
 
@@ -1277,7 +1277,7 @@ test("getLayerAttributes ImageWMS XML Error", async () => {
   const layerName = layerConfigImageWMS.configuration.props.name;
 
   await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
-    "Failed to fetch attribute data. Check to make sure WFS extension is enabled on layers or that layer names are correct."
+    "WFS DescribeFeatureType request failed for layer 'topp:states'. Ensure WFS is enabled and the layer name is correct."
   );
 });
 

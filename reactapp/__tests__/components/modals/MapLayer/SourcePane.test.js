@@ -189,7 +189,7 @@ test("SourcePane GeoJson File Upload", async () => {
 test("SourcePane Updating Existing GeoJSON", async () => {
   const mockDownloadJSON = jest.fn();
   appAPI.downloadJSON = mockDownloadJSON;
-  mockDownloadJSON.mockResolvedValue({ data: exampleGeoJSON });
+  mockDownloadJSON.mockResolvedValue({ success: true, data: exampleGeoJSON });
 
   render(
     <TestingComponent

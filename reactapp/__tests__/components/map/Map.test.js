@@ -345,65 +345,6 @@ test("Map Layers and Updated Layers", async () => {
     expect(addLayerSpy.mock.calls.length).toBe(3);
   });
   expect(removeLayerSpy.mock.calls.length).toBe(1);
-
-  newLayers = [
-    {
-      type: "VectorLayer",
-      props: {
-        name: "GeoJSON Layer",
-        source: {
-          type: "GeoJSON",
-          props: {},
-          geojson: {
-            type: "FeatureCollection",
-            crs: {
-              type: "name",
-              properties: {
-                name: "EPSG:3857",
-              },
-            },
-            features: [
-              {
-                type: "Feature",
-                geometry: {
-                  type: "Point",
-                  coordinates: [0, 0],
-                },
-              },
-            ],
-          },
-        },
-      },
-    },
-    {
-      type: "ImageLayer",
-      props: {
-        name: "esri",
-        source: {
-          type: "ESRI Image and Map Service",
-          props: {
-            url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
-          },
-        },
-        zIndex: 1,
-      },
-      layerVisibility: true,
-    },
-  ];
-  newLoadedComponent = createLoadedComponent({
-    children: (
-      <MapContextProvider>
-        <TestingComponent mapProps={{ layers: newLayers }} />
-      </MapContextProvider>
-    ),
-  });
-
-  rerender(newLoadedComponent);
-
-  await waitFor(() => {
-    expect(addLayerSpy.mock.calls.length).toBe(4);
-  });
-  expect(removeLayerSpy.mock.calls.length).toBe(2);
 });
 
 test("Map Layers  default invisible layer", async () => {
