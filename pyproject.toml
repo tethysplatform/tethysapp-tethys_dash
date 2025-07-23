@@ -21,6 +21,7 @@ dependencies = [
     "intake==2.0.7",
     "djangorestframework",
     "alembic==1.14.0",
+    "xmltodict==0.14.2
 ]
 classifiers = [
      "Environment :: Web Environment",

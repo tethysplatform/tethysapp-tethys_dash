@@ -17,6 +17,7 @@ import { useMapContext } from "components/contexts/MapContext";
 import { fromExtent } from "ol/geom/Polygon";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import GeoJSON from "ol/format/GeoJSON";
+import { valuesEqual } from "components/modals/utilities";
 
 const StyledAlert = styled(Alert)`
   position: absolute;
@@ -61,6 +62,7 @@ const MapComponent = ({
   const mapReady = mapContext?.mapReady;
   const isFirstRender = useRef(true);
   const mapExtentVariableEvent = useRef();
+  const currentLayers = useRef([]);
   const { setVariableInputValues } = useContext(VariableInputsContext);
 
   const defaultMapConfig = {
@@ -161,16 +163,40 @@ const MapComponent = ({
     setErrorMessage(null);
     const updateLayers = async () => {
       const map = visualizationRef.current;
-      const currentLayers = map.getLayers().getArray();
-      const newLayerIds = (layers ?? []).map((l) => l.props?.name); // or use unique id
+      const currentMapLayers = map.getLayers().getArray();
 
       // Remove only layers not in the new config
-      currentLayers.forEach((layer) => {
-        const layerName = layer.get("name"); // make sure name is set via layer.set("name", ...) in moduleLoader
-        if (layerName && !newLayerIds.includes(layerName)) {
-          map.removeLayer(layer);
-        }
-      });
+      const layersToRemove = [];
+      const layersToKeep = [];
+      if (currentLayers.current.length !== 0) {
+        (layers ?? []).forEach((layer) => {
+          const matchingLayer = currentLayers.current.find((currentLayer) =>
+            valuesEqual(layer.props, currentLayer.props)
+          );
+
+          if (matchingLayer) {
+            layersToKeep.push(layer.props.name);
+          }
+        });
+
+        currentLayers.current.forEach((currentLayer) => {
+          const isStillUsed = (layers ?? []).find((layer) =>
+            valuesEqual(layer.props, currentLayer.props)
+          );
+
+          if (!isStillUsed) {
+            layersToRemove.push(currentLayer.props.name);
+          }
+        });
+
+        // Remove layers from the map that are in layersToRemove
+        currentMapLayers.forEach((layer) => {
+          const layerName = layer.get("name");
+          if (layersToRemove.includes(layerName)) {
+            map.removeLayer(layer);
+          }
+        });
+      }
 
       // setup constants for handling new layers
       const customLayers = layers ?? [];
@@ -180,43 +206,10 @@ const MapComponent = ({
       await Promise.all(
         customLayers.map(async (layerConfig) => {
           const name = layerConfig.props?.name;
-          if (!name) return;
-
-          const isGeoJSON = layerConfig.props?.source?.type === "GeoJSON";
-
-          let existingLayer = map
-            .getLayers()
-            .getArray()
-            .find((l) => l.get("name") === name);
-
-          if (existingLayer && isGeoJSON) {
-            map.removeLayer(existingLayer);
-            existingLayer = null;
-          }
-
-          if (existingLayer) {
-            // Update visibility and style in-place
-            if (
-              layerConfig.layerVisibility === false &&
-              isFirstRender.current
-            ) {
-              existingLayer.setVisible(false);
-            } else {
-              existingLayer.setVisible(true);
-            }
-
-            if (layerConfig.style) {
-              try {
-                await applyStyle(existingLayer, layerConfig.style, name);
-              } catch (err) {
-                console.log(err);
-              }
-            }
-
+          if (layersToKeep.includes(name)) {
             return;
           }
 
-          // Layer doesn't exist, so create and add it
           try {
             const newLayer = await moduleLoader(
               layerConfig,
@@ -283,6 +276,8 @@ const MapComponent = ({
       if (layers && !dataviewerViz && isFirstRender.current) {
         isFirstRender.current = false;
       }
+
+      currentLayers.current = layers ?? [];
     };
 
     updateLayers();
