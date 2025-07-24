@@ -326,9 +326,9 @@ def test_layer_configuration_builder_build():
         "omittedPopupAttributes": {},
     }
 
-    builder.add_attribute_alias("field", "Some Alias").add_attribute_variable(
-        "field", "Some Variable"
-    ).omit_popup_attribute("field")
+    builder.add_attribute_alias("field", "Some Alias", "test").add_attribute_variable(
+        "field", "Some Variable", "test"
+    ).omit_popup_attribute("field", "test")
     config = builder.build()
 
     assert config == {
@@ -364,6 +364,46 @@ def test_layer_configuration_builder_build():
             "test": [
                 "field",
             ],
+        },
+    }
+
+
+def test_layer_configuration_builder_build_required_fields():
+    builder = LayerConfigurationBuilder(name="My Layer Name", layer_source="WMS")
+    with pytest.raises(
+        ValueError,
+        match="Required fields validation failed:\nMissing required key 'url'\nMissing required key 'params.LAYERS'",  # noqa: E501
+    ):
+        builder.build()
+
+    builder = LayerConfigurationBuilder(
+        name="My Layer Name", layer_source="ESRI Feature Service"
+    )
+    with pytest.raises(
+        ValueError,
+        match="Required fields validation failed:\nMissing required key 'url'\nMissing required key 'layer'",  # noqa: E501
+    ):
+        builder.build()
+
+
+def test_get_available_source_properties():
+    builder = LayerConfigurationBuilder(name="My Layer Name", layer_source="WMS")
+    available_properties = builder.get_available_source_properties()
+
+    assert available_properties == {
+        "required": {
+            "url": "WMS service URL",
+            "params": {
+                "LAYERS": "<workspace>:<layerName>,<workspace>:<layerName>",
+            },
+        },
+        "optional": {
+            "attributions": "Attributions",
+            "params": {
+                "STYLES": "SLD (Styled Layer Descriptor) Name",
+                "TIME": "yyyy-MM-ddThh:mm:ss.SSSZ",
+            },
+            "projection": "EPSG:<Code>",
         },
     }
 

@@ -1,5 +1,73 @@
 import requests
 import xmltodict
+import copy
+
+available_source_properties = {
+    "ESRI Image and Map Service": {
+        "required": {"url": "ArcGIS Rest service URL"},
+        "optional": {
+            "attributions": "Attributions",
+            "params": {
+                "LAYERS": "[show|hide|include|exclude]:layerId1,layerId2",
+                "TIME": "<startTime>, <endTime> or <timeInstant>",
+                "LAYERDEFS": "Allows you to filter the features of individual layers",
+                "mosaicRule": "Specifies how image service should handle mosaics",
+            },
+            "projection": "EPSG:<Code>",
+        },
+    },
+    "WMS": {
+        "required": {
+            "url": "WMS service URL",
+            "params": {
+                "LAYERS": "<workspace>:<layerName>,<workspace>:<layerName>",
+            },
+        },
+        "optional": {
+            "attributions": "Attributions",
+            "params": {
+                "STYLES": "SLD (Styled Layer Descriptor) Name",
+                "TIME": "yyyy-MM-ddThh:mm:ss.SSSZ",
+            },
+            "projection": "EPSG:<Code>",
+        },
+    },
+    "Image Tile": {
+        "required": {
+            "url": "Image Tile URL",
+        },
+        "optional": {
+            "attributions": "Attributions",
+            "projection": "EPSG:<Code>",
+        },
+    },
+    "GeoJSON": {
+        "required": {},
+        "optional": {},
+    },
+    "Vector Tile": {
+        "required": {
+            "urls": "An comma separated list of URL templates. Must include {x}, {y} or {-y}, and {z} placeholders. A {?-?} template pattern, for example subdomain{a-f}.domain.com, may be used instead of defining each one separately in the urls option.",  # noqa: E501
+        },
+        "optional": {
+            "attributions": "Attributions",
+            "projection": "EPSG:<Code>",
+        },
+    },
+    "ESRI Feature Service": {
+        "required": {
+            "url": "ArcGIS Feature Service URL",
+            "layer": "the integer for the layer index",
+        },
+        "optional": {
+            "attributions": "Attributions",
+            "params": {
+                "TIME": "<startTime>, <endTime> or <timeInstant>",
+                "WHERE": "WHERE clause for the query filter",
+            },
+        },
+    },
+}
 
 
 class LayerConfigurationBuilder:
@@ -59,6 +127,21 @@ class LayerConfigurationBuilder:
             "attributeVariables": {},
             "omittedPopupAttributes": {},
         }
+
+    def get_available_source_properties(self):
+        """
+        Retrieve the available source properties (required and optional) for the
+        configured layer source type.
+
+        Returns:
+            dict: A dictionary containing the required and optional source properties
+                for the current layer source.
+
+        Raises:
+            KeyError: If the layer source type is not recognized in the
+                available_source_properties mapping.
+        """
+        return available_source_properties[self.layer_source]
 
     def set_geojson(self, geojson: dict):
         """
@@ -516,7 +599,7 @@ class LayerConfigurationBuilder:
             keys.update(f.get("properties", {}).keys())
         return {self.name: [{"name": k, "alias": k} for k in keys]}
 
-    def add_attribute_alias(self, key, alias, layer_name=None):
+    def add_attribute_alias(self, key, alias, layer_name):
         """
         Add a human-readable alias for a data attribute on a layer.
 
@@ -532,15 +615,13 @@ class LayerConfigurationBuilder:
         Example:
             builder.add_attribute_alias("elev", "Elevation (m)")
         """
-        layer_key = layer_name or self.name
+        if layer_name not in self.config["attributeAliases"]:
+            self.config["attributeAliases"][layer_name] = {}
 
-        if layer_key not in self.config["attributeAliases"]:
-            self.config["attributeAliases"][layer_key] = {}
-
-        self.config["attributeAliases"][layer_key][key] = alias
+        self.config["attributeAliases"][layer_name][key] = alias
         return self
 
-    def add_attribute_variable(self, key, variable, layer_name=None):
+    def add_attribute_variable(self, key, variable, layer_name):
         """
         Add a variable for a data attribute on a layer.
 
@@ -556,15 +637,13 @@ class LayerConfigurationBuilder:
         Example:
             builder.add_attribute_alias("elev", "Elevation")
         """
-        layer_key = layer_name or self.name
+        if layer_name not in self.config["attributeVariables"]:
+            self.config["attributeVariables"][layer_name] = {}
 
-        if layer_key not in self.config["attributeVariables"]:
-            self.config["attributeVariables"][layer_key] = {}
-
-        self.config["attributeVariables"][layer_key][key] = variable
+        self.config["attributeVariables"][layer_name][key] = variable
         return self
 
-    def omit_popup_attribute(self, key, layer_name=None):
+    def omit_popup_attribute(self, key, layer_name):
         """
         Mark an attribute key to be omitted from popups for a given layer.
 
@@ -579,15 +658,78 @@ class LayerConfigurationBuilder:
         Example:
             builder.omit_popup_attribute("internal_id")
         """
-        layer_key = layer_name or self.name
+        if layer_name not in self.config["omittedPopupAttributes"]:
+            self.config["omittedPopupAttributes"][layer_name] = []
 
-        if layer_key not in self.config["omittedPopupAttributes"]:
-            self.config["omittedPopupAttributes"][layer_key] = []
-
-        self.config["omittedPopupAttributes"][layer_key].append(key)
+        self.config["omittedPopupAttributes"][layer_name].append(key)
         return self
 
+    def _validate_required_fields(self, required, actual, path=""):
+        """
+        Recursively validate that all required fields are present in the actual source
+        configuration.
+
+        Args:
+            required (dict): A dictionary defining the required structure and keys.
+            actual (dict): The actual dictionary to validate against the required
+                structure.
+            path (str): Used internally to track the key path for nested fields
+                (default is "").
+
+        Raises:
+            ValueError: If one or more required keys or nested dictionaries are missing.
+                        The error message will include all missing fields in the format:
+                        - "Missing required key 'key'"
+                        - "Missing required dict 'parent.child'"
+        """
+        missing = []
+
+        def collect_missing(req, act, path=""):
+            for key, val in req.items():
+                current_path = f"{path}.{key}" if path else key
+
+                if isinstance(val, dict):
+                    if key not in act or not isinstance(act[key], dict):
+                        nested_required = val
+
+                        def collect_nested(nested, p):
+                            for nk, nv in nested.items():
+                                np = f"{p}.{nk}"
+                                if isinstance(nv, dict):
+                                    collect_nested(nv, np)
+                                else:
+                                    missing.append(f"Missing required key '{np}'")
+
+                        collect_nested(nested_required, current_path)
+                    else:
+                        collect_missing(val, act[key], current_path)
+                else:
+                    if key not in act:
+                        missing.append(f"Missing required key '{current_path}'")
+
+        collect_missing(required, actual, path)
+
+        if missing:
+            raise ValueError(
+                "Required fields validation failed:\n" + "\n".join(missing)
+            )
+
     def build(self):
+        required_fields = available_source_properties.get(self.layer_source)["required"]
+        source_props = self.config["configuration"]["props"]["source"]["props"]
+        self._validate_required_fields(required_fields, source_props)
+
+        built_config = copy.deepcopy(self.config)
+
+        if not self.config["attributeAliases"]:
+            del built_config["attributeAliases"]
+
+        if not self.config["attributeVariables"]:
+            del built_config["attributeVariables"]
+
+        if not self.config["omittedPopupAttributes"]:
+            del built_config["omittedPopupAttributes"]
+
         return self.config
 
 
