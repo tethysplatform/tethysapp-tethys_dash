@@ -266,6 +266,7 @@ SourcePane.propTypes = {
   sourceProps: sourcePropType,
   setSourceProps: PropTypes.func, // setter for sourceProps state
   setAttributeProps: PropTypes.func, // setter for attributeProps state
+  setErrorMessage: PropTypes.func,
 };
 
 export default SourcePane;

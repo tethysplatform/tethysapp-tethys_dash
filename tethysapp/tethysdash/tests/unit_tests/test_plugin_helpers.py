@@ -19,12 +19,12 @@ def test_layer_configuration_builder_ESRI_map(mocker):
 
     builder = LayerConfigurationBuilder("test", "ESRI Image and Map Service")
     builder.set_source_properties(
-        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer"
+        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer"  # noqa: E501
     )
     layer_names = builder.get_layer_names()
 
     mock_requests_get.assert_called_once_with(
-        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer?f=json"
+        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer?f=json"  # noqa: E501
     )
     assert layer_names == ["some layer"]
 
@@ -58,7 +58,7 @@ def test_layer_configuration_builder_ESRI_map_error(mocker):
         builder.get_layer_attributes()
 
     builder.set_source_properties(
-        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer"
+        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer"  # noqa: E501
     )
 
     with pytest.raises(requests.exceptions.HTTPError, match="404 Client Error"):
@@ -108,7 +108,7 @@ def test_layer_configuration_builder_WMS(mocker):
     mock_requests_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
     mock_response = mock_requests_get.return_value
     mock_response.raise_for_status.return_value = None
-    mock_response.text = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:topp="http://www.openplans.org/topp" xmlns:wfs="http://www.opengis.net/wfs/2.0" elementFormDefault="qualified" targetNamespace="http://www.openplans.org/topp"><xsd:import namespace="http://www.opengis.net/gml/3.2" schemaLocation="https://ahocevar.com/geoserver/schemas/gml/3.2.1/gml.xsd"/><xsd:complexType name="statesType"><xsd:complexContent><xsd:extension base="gml:AbstractFeatureType"><xsd:sequence><xsd:element maxOccurs="1" minOccurs="0" name="the_geom" nillable="true" type="gml:MultiSurfacePropertyType"/><xsd:element maxOccurs="1" minOccurs="0" name="STATE_NAME" nillable="true" type="xsd:string"/></xsd:sequence></xsd:extension></xsd:complexContent></xsd:complexType><xsd:element name="states" substitutionGroup="gml:AbstractFeature" type="topp:statesType"/></xsd:schema>'
+    mock_response.text = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:topp="http://www.openplans.org/topp" xmlns:wfs="http://www.opengis.net/wfs/2.0" elementFormDefault="qualified" targetNamespace="http://www.openplans.org/topp"><xsd:import namespace="http://www.opengis.net/gml/3.2" schemaLocation="https://ahocevar.com/geoserver/schemas/gml/3.2.1/gml.xsd"/><xsd:complexType name="statesType"><xsd:complexContent><xsd:extension base="gml:AbstractFeatureType"><xsd:sequence><xsd:element maxOccurs="1" minOccurs="0" name="the_geom" nillable="true" type="gml:MultiSurfacePropertyType"/><xsd:element maxOccurs="1" minOccurs="0" name="STATE_NAME" nillable="true" type="xsd:string"/></xsd:sequence></xsd:extension></xsd:complexContent></xsd:complexType><xsd:element name="states" substitutionGroup="gml:AbstractFeature" type="topp:statesType"/></xsd:schema>'  # noqa: E501
 
     builder = LayerConfigurationBuilder("test", "WMS")
     builder.set_source_properties(
@@ -135,7 +135,7 @@ def test_layer_configuration_builder_WMS_errors(mocker):
     with pytest.raises(
         ValueError,
         match=re.escape(
-            "layers must be provided. Set using .set_source_properties(params={'LAYERS': 'some_layers'})"
+            "layers must be provided. Set using .set_source_properties(params={'LAYERS': 'some_layers'})"  # noqa: E501
         ),
     ):
         builder.get_layer_names()
@@ -143,7 +143,7 @@ def test_layer_configuration_builder_WMS_errors(mocker):
     with pytest.raises(
         ValueError,
         match=re.escape(
-            "layers must be provided. Set using .set_source_properties(params={'LAYERS': 'some_layers'})"
+            "layers must be provided. Set using .set_source_properties(params={'LAYERS': 'some_layers'})"  # noqa: E501
         ),
     ):
         builder.get_layer_attributes()
@@ -168,7 +168,7 @@ def test_layer_configuration_builder_WMS_errors(mocker):
 
     with pytest.raises(
         RuntimeError,
-        match="Failed to fetch DescribeFeatureType for layer 'tiger:poly_landmarks': 404 Client Error",
+        match="Failed to fetch DescribeFeatureType for layer 'tiger:poly_landmarks': 404 Client Error",  # noqa: E501
     ):
         builder.get_layer_attributes()
 
@@ -177,7 +177,7 @@ def test_layer_configuration_builder_WMS_Exception_Report(mocker):
     mock_requests_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
     mock_response = mock_requests_get.return_value
     mock_response.raise_for_status.return_value = None
-    mock_response.text = '<?xml version="1.0" encoding="UTF-8" standalone="no"?><!DOCTYPE ServiceExceptionReport SYSTEM "https://ahocevar.com/geoserver/schemas/wms/1.1.1/WMS_exception_1_1_1.dtd"> <ServiceExceptionReport version="1.1.1" >   <ServiceException code="LayerNotDefined" locator="MapLayerInfoKvpParser">topp:tasmania_cities: no such layer on this server</ServiceException></ServiceExceptionReport>'
+    mock_response.text = '<?xml version="1.0" encoding="UTF-8" standalone="no"?><!DOCTYPE ServiceExceptionReport SYSTEM "https://ahocevar.com/geoserver/schemas/wms/1.1.1/WMS_exception_1_1_1.dtd"> <ServiceExceptionReport version="1.1.1" >   <ServiceException code="LayerNotDefined" locator="MapLayerInfoKvpParser">topp:tasmania_cities: no such layer on this server</ServiceException></ServiceExceptionReport>'  # noqa: E501
 
     builder = LayerConfigurationBuilder("test", "WMS")
     builder.set_source_properties(
@@ -187,7 +187,7 @@ def test_layer_configuration_builder_WMS_Exception_Report(mocker):
 
     with pytest.raises(
         RuntimeError,
-        match="WFS ExceptionReport received for layer 'tiger:poly_landmarks'. Check if WFS is enabled and layer name is correct.",
+        match="WFS ExceptionReport received for layer 'tiger:poly_landmarks'. Check if WFS is enabled and layer name is correct.",  # noqa: E501
     ):
         builder.get_layer_attributes()
 
@@ -217,7 +217,7 @@ def test_layer_configuration_builder_WMS_complexType_error(mocker):
     mock_requests_get = mocker.patch("tethysapp.tethysdash.plugin_helpers.requests.get")
     mock_response = mock_requests_get.return_value
     mock_response.raise_for_status.return_value = None
-    mock_response.text = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:topp="http://www.openplans.org/topp" xmlns:wfs="http://www.opengis.net/wfs/2.0" elementFormDefault="qualified" targetNamespace="http://www.openplans.org/topp"></xsd:schema>'
+    mock_response.text = '<?xml version="1.0" encoding="UTF-8"?><xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:gml="http://www.opengis.net/gml/3.2" xmlns:topp="http://www.openplans.org/topp" xmlns:wfs="http://www.opengis.net/wfs/2.0" elementFormDefault="qualified" targetNamespace="http://www.openplans.org/topp"></xsd:schema>'  # noqa: E501
 
     builder = LayerConfigurationBuilder("test", "WMS")
     builder.set_source_properties(
@@ -241,7 +241,7 @@ def test_layer_configuration_builder_ESRI_feature(mocker):
     layer_name = "test"
     builder = LayerConfigurationBuilder(layer_name, "ESRI Feature Service")
     builder.set_source_properties(
-        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_based_5day_max_streamflow/FeatureServer",
+        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_based_5day_max_streamflow/FeatureServer",  # noqa: E501
         layer=0,
     )
     layer_names = builder.get_layer_names()
@@ -251,7 +251,7 @@ def test_layer_configuration_builder_ESRI_feature(mocker):
     layer_attributes = builder.get_layer_attributes()
 
     mock_requests_get.assert_called_once_with(
-        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_based_5day_max_streamflow/FeatureServer/0?f=json"
+        "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_based_5day_max_streamflow/FeatureServer/0?f=json"  # noqa: E501
     )
     assert layer_attributes == {layer_name: [{"alias": "Field", "name": "field"}]}
 
@@ -269,13 +269,13 @@ def test_layer_configuration_builder_ESRI_feature_errors():
         builder.get_layer_attributes()
 
     builder.set_source_properties(
-        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_based_5day_max_streamflow/FeatureServer",
+        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_based_5day_max_streamflow/FeatureServer",  # noqa: E501
     )
 
     with pytest.raises(
         ValueError,
         match=re.escape(
-            "layer (index number) must be provided. Set using .set_source_properties(layer=0)"
+            "layer (index number) must be provided. Set using .set_source_properties(layer=0)"  # noqa: E501
         ),
     ):
         builder.get_layer_attributes()
@@ -284,7 +284,7 @@ def test_layer_configuration_builder_ESRI_feature_errors():
 def test_layer_configuration_builder_invalid_source():
     with pytest.raises(
         ValueError,
-        match="Invalid layer_source 'bad source'. Must be one of: Vector Tile, Image Tile, WMS, ESRI Image and Map Service, ESRI Feature Service, GeoJSON",
+        match="Invalid layer_source 'bad source'. Must be one of: Vector Tile, Image Tile, WMS, ESRI Image and Map Service, ESRI Feature Service, GeoJSON",  # noqa: E501
     ):
         LayerConfigurationBuilder("test", "bad source")
 
@@ -292,7 +292,7 @@ def test_layer_configuration_builder_invalid_source():
 def test_layer_configuration_builder_build():
     builder = LayerConfigurationBuilder("test", "ESRI Image and Map Service")
     builder.set_source_properties(
-        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer"
+        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer"  # noqa: E501
     ).set_opacity(0.5).set_min_resolution(10).set_max_resolution(100).set_min_zoom(
         5
     ).set_max_zoom(
@@ -316,7 +316,7 @@ def test_layer_configuration_builder_build():
                 "source": {
                     "type": "ESRI Image and Map Service",
                     "props": {
-                        "url": "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+                        "url": "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",  # noqa: E501
                     },
                 },
             },
@@ -345,7 +345,7 @@ def test_layer_configuration_builder_build():
                 "source": {
                     "type": "ESRI Image and Map Service",
                     "props": {
-                        "url": "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+                        "url": "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",  # noqa: E501
                     },
                 },
             },

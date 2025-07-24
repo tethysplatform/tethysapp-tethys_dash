@@ -4,7 +4,8 @@ import xmltodict
 
 class LayerConfigurationBuilder:
     """
-    A builder class for creating structured layer configuration dictionaries for map visualizations.
+    A builder class for creating structured layer configuration dictionaries for map
+    visualizations.
 
     Attributes:
         name (str): The name of the overall layer for the map.
@@ -82,7 +83,8 @@ class LayerConfigurationBuilder:
         Set the opacity of the layer.
 
         Args:
-            opacity (float): A number between 0.0 (fully transparent) and 1.0 (fully opaque).
+            opacity (float): A number between 0.0 (fully transparent) and 1.0
+                (fully opaque).
 
         Raises:
             ValueError: If opacity is not between 0 and 1.
@@ -149,10 +151,10 @@ class LayerConfigurationBuilder:
 
     def set_min_zoom_query(self, min_zoom_query: int):
         """
-        Set the minimum zoom needed for layer querying. If the map is zoomed out beyond the
-        minimum zoom and the layer is clicked, then the map will zoom to the configured
-        min_zoom_query value. If the map is zoomed in closer than the min_zoom_query and
-        the layer is clicked, then the layer will be queried.
+        Set the minimum zoom needed for layer querying. If the map is zoomed out beyond
+        the minimum zoom and the layer is clicked, then the map will zoom to the
+        configured min_zoom_query value. If the map is zoomed in closer than the
+        min_zoom_query and the layer is clicked, then the layer will be queried.
 
         Args:
             min_zoom_query (int)
@@ -167,14 +169,16 @@ class LayerConfigurationBuilder:
         """
         Set arbitrary properties on the layer's data source.
 
-        These properties will be added to the 'props' dictionary under the layer's 'source' configuration.
-        Useful for configuring service-specific options like URL, params, or attribution.
+        These properties will be added to the 'props' dictionary under the layer's
+        'source' configuration. Useful for configuring service-specific options like
+        URL, params, or attribution.
 
-        Check https://tethysdashdocs.readthedocs.io/en/latest/maps/source_tab.html for more
-        information on available properties
+        Check https://tethysdashdocs.readthedocs.io/en/latest/maps/source_tab.html for
+        more information on available properties
 
         Args:
-            **kwargs: Arbitrary keyword arguments representing source configuration options.
+            **kwargs: Arbitrary keyword arguments representing source configuration
+                options.
 
         Example:
             builder.set_source_properties(url="https://example.com/tiles")
@@ -186,14 +190,15 @@ class LayerConfigurationBuilder:
         """
         Retrieve the names of layers associated with the configured layer source.
 
-        This method determines how to extract layer names based on the type of data source
-        configured in the configuration.
+        This method determines how to extract layer names based on the type of data
+        source configured in the configuration.
 
         Returns:
             list[str]: A list of layer names derived from the source configuration.
 
         Raises:
-            NotImplementedError: If the layer source type does not support name extraction.
+            NotImplementedError: If the layer source type does not support name
+                extraction.
 
         Supported layer sources:
             - "ESRI Image and Map Service": Fetches layer names from the ArcGIS service.
@@ -221,9 +226,10 @@ class LayerConfigurationBuilder:
         """
         Retrieve attribute names from the configured layer source.
 
-        This method extracts and returns a list of attributes associated with the specified
-        data source, depending on the layer type. Attributes typically represent fields or
-        properties available in the data (e.g., column names in a feature layer).
+        This method extracts and returns a list of attributes associated with the
+        specified data source, depending on the layer type. Attributes typically
+        represent fields or properties available in the data (e.g., column names in a
+        feature layer).
 
         Returns:
             list[str] | dict[str, list[dict[str, str]]]:
@@ -233,13 +239,16 @@ class LayerConfigurationBuilder:
 
         Raises:
             NotImplementedError: If the configured `layer_source` is not supported.
-            ValueError: If required source properties (e.g., `layer` for ESRI Feature Service) are missing.
+            ValueError: If required source properties (e.g., `layer` for ESRI
+                Feature Service) are missing.
 
         Supported layer sources:
-            - "ESRI Image and Map Service": Extracts fields from an ArcGIS image/map service.
+            - "ESRI Image and Map Service": Extracts fields from an ArcGIS image/map
+                service.
             - "WMS": Parses WFS DescribeFeatureType to extract attributes per layer.
             - "GeoJSON": Extracts property names from features.
-            - "ESRI Feature Service": Queries fields from a specific layer in the service.
+            - "ESRI Feature Service": Queries fields from a specific layer in the
+                service.
         """
         source_props = self.config["configuration"]["props"]["source"]["props"]
 
@@ -295,8 +304,9 @@ class LayerConfigurationBuilder:
             url (str): The base URL of the ArcGIS Image or Map Service.
 
         Returns:
-            dict[str, list[dict[str, str]]]: A dictionary where each key is a layer name,
-            and each value is a list of attribute dictionaries with `name` and `alias` keys.
+            dict[str, list[dict[str, str]]]: A dictionary where each key is a layer
+                name, and each value is a list of attribute dictionaries with `name`
+                and `alias` keys.
 
         Raises:
             ValueError: If `url` is not provided.
@@ -330,12 +340,14 @@ class LayerConfigurationBuilder:
         information (name and alias).
 
         Args:
-            url (str): The base URL of the ArcGIS Feature Service (excluding layer number).
+            url (str): The base URL of the ArcGIS Feature Service
+                (excluding layer number).
             layer_number (int): The index number of the specific layer to query.
 
         Returns:
-            dict[str, list[dict[str, str]]]: A dictionary with the layer name as the key,
-            and a list of attribute dictionaries (each with `name` and `alias` keys) as the value.
+            dict[str, list[dict[str, str]]]: A dictionary with the layer name as the
+                key, and a list of attribute dictionaries (each with `name` and `alias`
+                keys) as the value.
 
         Raises:
             ValueError: If `url` or `layer_number` is not provided.
@@ -349,7 +361,7 @@ class LayerConfigurationBuilder:
 
         if layer_number is None:
             raise ValueError(
-                "layer (index number) must be provided. Set using .set_source_properties(layer=0)"
+                "layer (index number) must be provided. Set using .set_source_properties(layer=0)"  # noqa: E501
             )
 
         layer_url = f"{url.rstrip('/')}/{layer_number}?f=json"
@@ -372,13 +384,14 @@ class LayerConfigurationBuilder:
             params (dict): Dictionary containing WMS parameters.
 
         Returns:
-            list[str]: List of layer names. Returns an empty list if no layers are found.
+            list[str]: List of layer names. Returns an empty list if no layers are
+                found.
         """
         layers = params.get("layers") or params.get("LAYERS")
 
         if not layers:
             raise ValueError(
-                "layers must be provided. Set using .set_source_properties(params={'LAYERS': 'some_layers'})"
+                "layers must be provided. Set using .set_source_properties(params={'LAYERS': 'some_layers'})"  # noqa: E501
             )
 
         return layers.split(",") if layers else []
@@ -387,26 +400,29 @@ class LayerConfigurationBuilder:
         """
         Fetch and parse WMS layer attributes using WFS DescribeFeatureType requests.
 
-        This method sends a WFS DescribeFeatureType request for each layer specified in the
-        WMS parameters, parses the returned XML schema, and extracts attribute names
-        (excluding 'the_geom').
+        This method sends a WFS DescribeFeatureType request for each layer specified
+        in the WMS parameters, parses the returned XML schema, and extracts attribute
+        names (excluding 'the_geom').
 
         Args:
             url (str): Base URL of the WMS/WFS service.
-            params (dict): Dictionary of WMS parameters, typically including 'layers' or 'LAYERS'.
+            params (dict): Dictionary of WMS parameters, typically including 'layers'
+                or 'LAYERS'.
 
         Returns:
-            dict: A dictionary mapping each layer name (lowercase) to a list of attribute names.
+            dict: A dictionary mapping each layer name (lowercase) to a list of
+                attribute names.
 
         Raises:
             ValueError: If no valid layer names are provided or schema parsing fails.
-            RuntimeError: If the DescribeFeatureType request fails or returns an exception.
+            RuntimeError: If the DescribeFeatureType request fails or returns an
+                exception.
         """
 
         layers = params.get("layers") or params.get("LAYERS") or ""
         if not layers:
             raise ValueError(
-                "layers must be provided. Set using .set_source_properties(params={'LAYERS': 'some_layers'})"
+                "layers must be provided. Set using .set_source_properties(params={'LAYERS': 'some_layers'})"  # noqa: E501
             )
 
         if not url:
@@ -414,7 +430,9 @@ class LayerConfigurationBuilder:
                 "url must be provided. Set using .set_source_properties(url='some_url')"
             )
 
-        layer_names = [l.strip().lower() for l in layers.split(",") if l.strip()]
+        layer_names = [
+            layer.strip().lower() for layer in layers.split(",") if layer.strip()
+        ]  # noqa: E501
 
         all_attributes = {}
 
@@ -436,7 +454,7 @@ class LayerConfigurationBuilder:
             text = response.text
             if "ExceptionReport" in text:
                 raise RuntimeError(
-                    f"WFS ExceptionReport received for layer '{layer}'. Check if WFS is enabled and layer name is correct."
+                    f"WFS ExceptionReport received for layer '{layer}'. Check if WFS is enabled and layer name is correct."  # noqa: E501
                 )
 
             parsed = xmltodict.parse(text)
@@ -476,8 +494,8 @@ class LayerConfigurationBuilder:
         """
         Extract attribute names from a GeoJSON source.
 
-        This method parses the provided GeoJSON object (or JSON string), collects all property
-        keys from its features, and returns them as both names and aliases.
+        This method parses the provided GeoJSON object (or JSON string), collects all
+        property keys from its features, and returns them as both names and aliases.
 
         Returns:
             dict: A dictionary mapping the layer name to a list of attribute dicts.
@@ -502,8 +520,8 @@ class LayerConfigurationBuilder:
         """
         Add a human-readable alias for a data attribute on a layer.
 
-        This helps map internal attribute keys (from the data source) to more user-friendly labels
-        that can be used in popups.
+        This helps map internal attribute keys (from the data source) to more
+        user-friendly labels that can be used in popups.
 
         Args:
             key (str): The original attribute key from the data.
@@ -550,8 +568,8 @@ class LayerConfigurationBuilder:
         """
         Mark an attribute key to be omitted from popups for a given layer.
 
-        This is useful to hide less relevant or sensitive attributes from user-facing popups
-        when displaying feature information on a map.
+        This is useful to hide less relevant or sensitive attributes from user-facing
+        popups when displaying feature information on a map.
 
         Args:
             key (str): The attribute key to omit from popups.

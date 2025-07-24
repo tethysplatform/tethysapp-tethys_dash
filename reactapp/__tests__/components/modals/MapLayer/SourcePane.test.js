@@ -316,4 +316,5 @@ test("SourcePane Updating Existing VectorTiles", async () => {
 
 TestingComponent.propTypes = {
   initialSourceProps: PropTypes.object,
+  setErrorMessage: PropTypes.func,
 };

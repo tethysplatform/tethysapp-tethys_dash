@@ -195,7 +195,7 @@ def test_copy_plugin_images_unknown_type(copy_mock, print_mock, monkeypatch, bad
     copy_plugin_images(plugin_modules, "/tmp/static_out")
 
     copy_mock.assert_not_called()
-    print_mock.assert_called_once_with(f"--> PNG thumbnail not available for plugin_x")
+    print_mock.assert_called_once_with("--> PNG thumbnail not available for plugin_x")
 
 
 def test_main_collectstatic_failure(monkeypatch, capfd):
@@ -259,9 +259,6 @@ def test_main(monkeypatch, tmp_path):
 @mock.patch("tethysapp.tethysdash.collect_plugin_thumbnails.shutil.copyfile")
 def test_main_entry_point(copy_mock, monkeypatch):
     copy_mock.side_effect = lambda src, dst: None  # do nothing, avoid file not found
-
-    # Other patching as needed
-    import runpy
 
     runpy.run_module(
         "tethysapp.tethysdash.collect_plugin_thumbnails", run_name="__main__"
