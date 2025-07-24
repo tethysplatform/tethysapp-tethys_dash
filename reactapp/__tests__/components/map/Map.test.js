@@ -156,6 +156,32 @@ test("Custom Map Config and View Config", async () => {
   );
 });
 
+test("Custom bounding old map extent string", async () => {
+  const loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: "10, 20, 30, 40",
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+
+  render(loadedComponent);
+
+  const mapDiv = await screen.findByLabelText("Map Div");
+  expect(mapDiv).toBeInTheDocument();
+  expect(mapDiv).toHaveStyle("width: 50%");
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  expect(await screen.findByTestId("map-view")).toHaveTextContent(
+    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
+  );
+});
+
 test("Custom bounding box map extent", async () => {
   const loadedComponent = createLoadedComponent({
     children: (

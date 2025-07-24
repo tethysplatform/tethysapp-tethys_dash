@@ -19,6 +19,7 @@ import {
   mockedDropdownVariable,
   mockedDropdownVisualization,
   mockedDashboards,
+  layerConfigImageArcGISRest,
 } from "__tests__/utilities/constants";
 import MapContextProvider, {
   useMapContext,
@@ -283,6 +284,40 @@ test("Map GeoJSON with legend and style", async () => {
       .getGeometry() instanceof Point
   ).toBe(true);
   expect(mockedApplyStyle).toHaveBeenCalledTimes(1);
+});
+
+test("Map ESRI with default legend", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const layer = layerConfigImageArcGISRest;
+  layer.legend = "default";
+
+  const layers = [layer];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+
+  // should only add the layer because of no basemap
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  expect(
+    addLayerSpy.mock.calls[0][0].getSource() instanceof ImageArcGISRest
+  ).toBe(true);
 });
 
 test("Map click", async () => {

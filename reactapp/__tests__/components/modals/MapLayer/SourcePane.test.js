@@ -24,7 +24,7 @@ const exampleGeoJSON = {
   ],
 };
 
-const TestingComponent = ({ initialSourceProps }) => {
+const TestingComponent = ({ initialSourceProps, setErrorMessage }) => {
   const [sourceProps, setSourceProps] = useState(initialSourceProps ?? {});
   const [attributeProps, setAttributeProps] = useState({
     variables: {
@@ -41,6 +41,7 @@ const TestingComponent = ({ initialSourceProps }) => {
         sourceProps={sourceProps}
         setSourceProps={setSourceProps}
         setAttributeProps={setAttributeProps}
+        setErrorMessage={setErrorMessage}
       />
       <p data-testid="sourceProps">{JSON.stringify(sourceProps)}</p>
       <p data-testid="attributeVariables">
@@ -186,7 +187,7 @@ test("SourcePane GeoJson File Upload", async () => {
   });
 });
 
-test("SourcePane Updating Existing GeoJSON", async () => {
+test("SourcePane Updating Existing GeoJSON file", async () => {
   const mockDownloadJSON = jest.fn();
   appAPI.downloadJSON = mockDownloadJSON;
   mockDownloadJSON.mockResolvedValue({ success: true, data: exampleGeoJSON });
@@ -219,6 +220,60 @@ test("SourcePane Updating Existing GeoJSON", async () => {
       })
     );
   });
+});
+
+test("SourcePane Updating Existing GeoJSON object", async () => {
+  const mockDownloadJSON = jest.fn();
+  appAPI.downloadJSON = mockDownloadJSON;
+  mockDownloadJSON.mockResolvedValue({ success: true, data: exampleGeoJSON });
+
+  render(
+    <TestingComponent
+      initialSourceProps={{
+        type: "GeoJSON",
+        props: {},
+        geojson: exampleGeoJSON,
+      }}
+    />
+  );
+
+  expect(await screen.findByText("Source Type")).toBeInTheDocument();
+  expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+    JSON.stringify({
+      type: "GeoJSON",
+      props: {},
+      geojson: JSON.stringify(exampleGeoJSON),
+    })
+  );
+});
+
+test("SourcePane Updating Error Downloading GeoJSON", async () => {
+  const mockDownloadJSON = jest.fn();
+  appAPI.downloadJSON = mockDownloadJSON;
+  mockDownloadJSON.mockResolvedValue({ success: false });
+  const mockSetErrorMessage = jest.fn();
+
+  render(
+    <TestingComponent
+      initialSourceProps={{
+        type: "GeoJSON",
+        props: {},
+        geojson: "some_file.json",
+      }}
+      setErrorMessage={mockSetErrorMessage}
+    />
+  );
+
+  expect(await screen.findByText("Source Type")).toBeInTheDocument();
+  expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+    JSON.stringify({
+      type: "GeoJSON",
+      props: {},
+      geojson: "some_file.json",
+    })
+  );
+  expect(await screen.findByText("Upload GeoJSON file")).toBeInTheDocument();
+  expect(mockSetErrorMessage).toHaveBeenCalledWith("Failed to retrieve JSON");
 });
 
 test("SourcePane Updating Existing VectorTiles", async () => {

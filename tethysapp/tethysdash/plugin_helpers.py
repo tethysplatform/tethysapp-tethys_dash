@@ -90,7 +90,7 @@ class LayerConfigurationBuilder:
         Returns:
             LayerConfigurationBuilder: self (for chaining)
         """
-        if not (0.0 <= opacity <= 1.0):
+        if not (0.0 <= float(opacity) <= 1.0):
             raise ValueError("Opacity must be a number between 0 and 1.")
         self.config["configuration"]["props"]["opacity"] = opacity
         return self
@@ -402,21 +402,19 @@ class LayerConfigurationBuilder:
             ValueError: If no valid layer names are provided or schema parsing fails.
             RuntimeError: If the DescribeFeatureType request fails or returns an exception.
         """
-        if not url:
-            raise ValueError(
-                "url must be provided. Set using .set_source_properties(url='some_url')"
-            )
 
         layers = params.get("layers") or params.get("LAYERS") or ""
-
         if not layers:
             raise ValueError(
                 "layers must be provided. Set using .set_source_properties(params={'LAYERS': 'some_layers'})"
             )
 
+        if not url:
+            raise ValueError(
+                "url must be provided. Set using .set_source_properties(url='some_url')"
+            )
+
         layer_names = [l.strip().lower() for l in layers.split(",") if l.strip()]
-        if not layer_names:
-            raise ValueError("No valid layer names found in parameters.")
 
         all_attributes = {}
 
@@ -465,9 +463,6 @@ class LayerConfigurationBuilder:
                 )
                 elements = sequence.get("xsd:element", [])
 
-                if isinstance(elements, dict):
-                    elements = [elements]
-
                 for element in elements:
                     name = element.get("@name")
                     if name and name != "the_geom":
@@ -491,16 +486,12 @@ class LayerConfigurationBuilder:
         Raises:
             ValueError: If no GeoJSON is configured.
         """
-        geojson = self.config["configuration"]["props"]["source"]["geojson"]
+        geojson = self.config["configuration"]["props"]["source"].get("geojson")
         if not geojson:
             raise ValueError(
                 "geojson must be provided. Set the geojson using the set_geojson method"
             )
 
-        if isinstance(geojson, str):
-            import json
-
-            geojson = json.loads(geojson)
         features = geojson.get("features", [])
         keys = set()
         for f in features:
@@ -638,16 +629,17 @@ def validate_geojson(data):
         if "coordinates" not in data:
             raise ValueError(f"'{geojson_type}' object must contain 'coordinates'.")
 
-    # Optional CRS validation
     crs = data.get("crs")
-    if crs is not None:
-        if not isinstance(crs, dict):
-            raise ValueError("'crs' must be a dictionary.")
-        props = crs.get("properties")
-        if not isinstance(props, dict):
-            raise ValueError("'crs.properties' must be a dictionary.")
-        name = props.get("name")
-        if not isinstance(name, str):
-            raise ValueError("'crs.properties.name' must be a string.")
+    if crs is None:
+        raise ValueError("'crs' must be in the geojson")
+
+    if not isinstance(crs, dict):
+        raise ValueError("'crs' must be a dictionary.")
+    props = crs.get("properties")
+    if not isinstance(props, dict):
+        raise ValueError("'crs.properties' must be a dictionary.")
+    name = props.get("name")
+    if not isinstance(name, str):
+        raise ValueError("'crs.properties.name' must be a string.")
 
     return True  # Passed all checks
