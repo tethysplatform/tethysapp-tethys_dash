@@ -299,6 +299,10 @@ def test_layer_configuration_builder_build():
         50
     ).set_min_zoom_query(
         15
+    ).set_layer_visibility(
+        False
+    ).set_queryable(
+        False
     )
     config = builder.build()
 
@@ -320,7 +324,9 @@ def test_layer_configuration_builder_build():
                     },
                 },
             },
+            "layerVisibility": False,
         },
+        "queryable": False,
         "attributeAliases": {},
         "attributeVariables": {},
         "omittedPopupAttributes": {},
@@ -349,7 +355,9 @@ def test_layer_configuration_builder_build():
                     },
                 },
             },
+            "layerVisibility": False,
         },
+        "queryable": False,
         "attributeAliases": {
             "test": {
                 "field": "Some Alias",

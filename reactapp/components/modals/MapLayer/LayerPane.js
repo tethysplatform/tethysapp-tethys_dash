@@ -2,7 +2,7 @@ import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
 import { layerPropertiesOptions } from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import styled from "styled-components";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import Toggle from "components/inputs/Toggle";
@@ -122,4 +122,4 @@ LayerPane.propTypes = {
   setLayerProps: PropTypes.func,
 };
 
-export default LayerPane;
+export default memo(LayerPane);

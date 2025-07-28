@@ -161,6 +161,32 @@ class LayerConfigurationBuilder:
         self.config["configuration"]["props"]["source"]["geojson"] = geojson
         return self
 
+    def set_layer_visibility(self, visibility: bool):
+        """
+        Set the default visibility of the layer.
+
+        Args:
+            visibility (bool): Determines the default layer visibility
+
+        Returns:
+            LayerConfigurationBuilder: self (for chaining)
+        """
+        self.config["configuration"]["layerVisibility"] = visibility
+        return self
+
+    def set_queryable(self, queryable: bool):
+        """
+        Set if the layer is queryable or not.
+
+        Args:
+            queryable (bool): Determines if the layer is queryable
+
+        Returns:
+            LayerConfigurationBuilder: self (for chaining)
+        """
+        self.config["queryable"] = queryable
+        return self
+
     def set_opacity(self, opacity: float):
         """
         Set the opacity of the layer.

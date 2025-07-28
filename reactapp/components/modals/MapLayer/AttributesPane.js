@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import Alert from "react-bootstrap/Alert";
@@ -252,6 +252,7 @@ const AttributesPane = ({
     // set states and refs after processing all done
     setAttributes(layerAttributes);
     setLayerPopupSwitch(popupSwitchValues);
+    setAllowLayerQuery(attributeProps.queryable ?? true);
   }
 
   async function queryLayerAttributes() {
@@ -609,4 +610,4 @@ AttributesPane.propTypes = {
   tabKey: PropTypes.string.isRequired, // react state that tracks what tab is shown
 };
 
-export default AttributesPane;
+export default memo(AttributesPane);
