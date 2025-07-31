@@ -7,8 +7,8 @@ import runpy
 
 import pytest
 
-import tethysapp.tethysdash.collect_plugin_thumbnails
-from tethysapp.tethysdash.collect_plugin_thumbnails import (
+import tethysapp.tethysdash.collect_plugin_static
+from tethysapp.tethysdash.collect_plugin_static import (
     get_intake_plugin_modules,
     copy_plugin_images,
     main,
@@ -204,12 +204,12 @@ def test_main_collectstatic_failure(monkeypatch, capfd):
 
     # Mock get_intake_plugin_modules and copy_plugin_images to do nothing
     monkeypatch.setattr(
-        tethysapp.tethysdash.collect_plugin_thumbnails,
+        tethysapp.tethysdash.collect_plugin_static,
         "get_intake_plugin_modules",
         lambda: {},
     )
     monkeypatch.setattr(
-        tethysapp.tethysdash.collect_plugin_thumbnails,
+        tethysapp.tethysdash.collect_plugin_static,
         "copy_plugin_images",
         lambda plugins, path: None,
     )
@@ -224,7 +224,7 @@ def test_main_collectstatic_failure(monkeypatch, capfd):
     monkeypatch.setattr("subprocess.run", lambda *args, **kwargs: fake_result)
 
     # Run main()
-    tethysapp.tethysdash.collect_plugin_thumbnails.main()
+    tethysapp.tethysdash.collect_plugin_static.main()
 
     # Capture output
     out, err = capfd.readouterr()

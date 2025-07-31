@@ -156,7 +156,6 @@ const SourcePane = ({
       (geo.endsWith(".json") || geo.endsWith(".geojson"))
     ) {
       fetchGeoJSON();
-      setGeoJSONSource("url");
     } else if (typeof geo === "object" && geo !== null) {
       setGeoJSON(JSON.stringify(geo, null, 4));
       setSourceProps((prev) => ({

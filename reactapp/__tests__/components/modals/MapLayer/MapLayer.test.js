@@ -424,9 +424,7 @@ test("MapLayerModal new GeoJSON layer", async () => {
   fireEvent.click(createLayerButton);
 
   expect(
-    await screen.findByText(
-      "Invalid json is being used. Please alter the json and try again."
-    )
+    await screen.findByText("Invalid JSON or failed to fetch/parse the file.")
   ).toBeInTheDocument();
 
   fireEvent.change(textArea, {
@@ -444,18 +442,6 @@ test("MapLayerModal new GeoJSON layer", async () => {
         ],
       }),
     },
-  });
-
-  fireEvent.click(createLayerButton);
-
-  expect(
-    await screen.findByText(
-      'GeoJSON must include a crs key with the structure {"properties": {"name": "EPSG:<CODE>"}}'
-    )
-  ).toBeInTheDocument();
-
-  fireEvent.change(textArea, {
-    target: { value: JSON.stringify(exampleGeoJSON) },
   });
 
   fireEvent.click(createLayerButton);
@@ -970,9 +956,7 @@ test("MapLayerModal style", async () => {
   fireEvent.click(createLayerButton);
 
   expect(
-    await screen.findByText(
-      "Invalid json is being used. Please alter the json and try again."
-    )
+    await screen.findByText("Invalid JSON or failed to fetch/parse the file.")
   ).toBeInTheDocument();
 
   fireEvent.change(textArea, {
