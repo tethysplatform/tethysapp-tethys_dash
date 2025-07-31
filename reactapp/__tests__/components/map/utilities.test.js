@@ -4,6 +4,9 @@ import {
   transformCoordinates,
   queryLayerFeatures,
   getLayerAttributes,
+  loadLayerJSONs,
+  saveLayerJSON,
+  checkForCRS,
 } from "components/map/utilities";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
 import VectorLayer from "ol/layer/Vector.js";
@@ -13,6 +16,11 @@ import {
   layerConfigImageWMS,
   layerConfigArcGISFeatureService,
 } from "__tests__/utilities/constants";
+import appAPI from "services/api/app";
+
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
 
 test("createMarkerLayer", async () => {
   const markerLayer = createMarkerLayer([0, 0]);
@@ -1375,6 +1383,81 @@ test("getLayerAttributes GEOJSON 2", async () => {
   });
 });
 
+test("getLayerAttributes GEOJSON URL", async () => {
+  const mockfetchResults = {
+    type: "FeatureCollection",
+    totalFeatures: "unknown",
+    features: [
+      {
+        type: "Feature",
+        id: "tiger_roads.251",
+        geometry: {
+          type: "MultiLineString",
+          coordinates: [
+            [
+              [-73.989342, 40.748117],
+              [-73.992129, 40.749344],
+            ],
+          ],
+        },
+        geometry_name: "the_geom",
+        properties: {
+          CFCC: "A41",
+          NAME: "W 31st St",
+        },
+      },
+    ],
+    crs: {
+      type: "name",
+      properties: {
+        name: "urn:ogc:def:crs:EPSG::4326",
+      },
+    },
+  };
+
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify(mockfetchResults)),
+    })
+  );
+
+  const updatedlayerConfigGeoJSON = JSON.parse(
+    JSON.stringify(layerConfigGeoJSON)
+  );
+  const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
+  sourceProps.geojson = "some/url.json";
+  const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "GeoJSON Layer": [
+      { name: "CFCC", alias: "CFCC" },
+      { name: "NAME", alias: "NAME" },
+    ],
+  });
+});
+
+test("getLayerAttributes GEOJSON Missing URL", async () => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      ok: false,
+      statusText: "missing",
+    })
+  );
+
+  const updatedlayerConfigGeoJSON = JSON.parse(
+    JSON.stringify(layerConfigGeoJSON)
+  );
+  const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
+  sourceProps.geojson = "some/url.json";
+  const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
+
+  await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
+    "Failed to fetch: missing"
+  );
+});
+
 test("getLayerAttributes GEOJSON no features", async () => {
   const updatedlayerConfigGeoJSON = JSON.parse(
     JSON.stringify(layerConfigGeoJSON)
@@ -1413,4 +1496,522 @@ test("getLayerAttributes Error", async () => {
   await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
     "bad type is not currently configured to be queried"
   );
+});
+
+test("loadLayerJSONs Object", async () => {
+  const style = {
+    type: "Style",
+    props: {
+      stroke: {
+        type: "Stroke",
+        props: {
+          color: "#501020",
+          width: 1,
+        },
+      },
+    },
+  };
+
+  const geojson = {
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: [0, 0],
+    },
+  };
+
+  const mapLayer = {
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "GeoJSON Layer",
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: geojson,
+        },
+      },
+      style: style,
+    },
+  };
+
+  const response = await loadLayerJSONs(mapLayer, true);
+
+  expect(mapLayer.configuration.style).toStrictEqual(style);
+  expect(mapLayer.configuration.props.source.geojson).toStrictEqual(geojson);
+  expect(response.success).toBe(true);
+});
+
+test("loadLayerJSONs files", async () => {
+  const style = {
+    type: "Style",
+    props: {
+      stroke: {
+        type: "Stroke",
+        props: {
+          color: "#501020",
+          width: 1,
+        },
+      },
+    },
+  };
+
+  const geojson = {
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: [0, 0],
+    },
+  };
+
+  const mockDownloadJSON = jest.fn();
+  appAPI.downloadJSON = mockDownloadJSON;
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: style,
+  });
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: geojson,
+  });
+
+  const styleFile = "some_geojson.geojson";
+  const geojsonFile = "some_style.json";
+
+  const mapLayer = {
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "GeoJSON Layer",
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: geojsonFile,
+        },
+      },
+      style: styleFile,
+    },
+  };
+
+  const response = await loadLayerJSONs(mapLayer, false);
+
+  expect(mapLayer.configuration.style).toStrictEqual(style);
+  expect(mapLayer.configuration.props.source.geojson).toStrictEqual(geojson);
+  expect(response.success).toBe(true);
+});
+
+test("loadLayerJSONs files keep_urls shouldn't affect it", async () => {
+  const style = {
+    type: "Style",
+    props: {
+      stroke: {
+        type: "Stroke",
+        props: {
+          color: "#501020",
+          width: 1,
+        },
+      },
+    },
+  };
+
+  const geojson = {
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: [0, 0],
+    },
+  };
+
+  const mockDownloadJSON = jest.fn();
+  appAPI.downloadJSON = mockDownloadJSON;
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: style,
+  });
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: geojson,
+  });
+
+  const styleFile = "some_geojson.geojson";
+  const geojsonFile = "some_style.json";
+
+  const mapLayer = {
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "GeoJSON Layer",
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: geojsonFile,
+        },
+      },
+      style: styleFile,
+    },
+  };
+
+  const response = await loadLayerJSONs(mapLayer, true);
+
+  expect(mapLayer.configuration.style).toStrictEqual(style);
+  expect(mapLayer.configuration.props.source.geojson).toStrictEqual(geojson);
+  expect(response.success).toBe(true);
+});
+
+test("loadLayerJSONs urls", async () => {
+  const style = {
+    type: "Style",
+    props: {
+      stroke: {
+        type: "Stroke",
+        props: {
+          color: "#501020",
+          width: 1,
+        },
+      },
+    },
+  };
+
+  const geojson = {
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: [0, 0],
+    },
+  };
+
+  global.fetch = jest
+    .fn()
+    .mockResolvedValueOnce({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify(style)),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify(geojson)),
+    });
+
+  const styleFile = "some/file/some_geojson.geojson";
+  const geojsonFile = "https://some/url/some_style.json";
+
+  const mapLayer = {
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "GeoJSON Layer",
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: geojsonFile,
+        },
+      },
+      style: styleFile,
+    },
+  };
+
+  const response = await loadLayerJSONs(mapLayer, false);
+
+  expect(mapLayer.configuration.style).toStrictEqual(style);
+  const geoJSONWithCRS = JSON.parse(JSON.stringify(geojson));
+  geoJSONWithCRS.crs = { properties: { name: "EPSG:4326" } };
+  expect(mapLayer.configuration.props.source.geojson).toStrictEqual(
+    geoJSONWithCRS
+  );
+  expect(response.success).toBe(true);
+});
+
+test("loadLayerJSONs urls cant get crs", async () => {
+  const style = {
+    type: "Style",
+    props: {
+      stroke: {
+        type: "Stroke",
+        props: {
+          color: "#501020",
+          width: 1,
+        },
+      },
+    },
+  };
+
+  const geojson = {
+    type: "Feature",
+  };
+
+  global.fetch = jest
+    .fn()
+    .mockResolvedValueOnce({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify(style)),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      text: () => Promise.resolve(JSON.stringify(geojson)),
+    });
+
+  const styleFile = "some/file/some_geojson.geojson";
+  const geojsonFile = "https://some/url/some_style.json";
+
+  const mapLayer = {
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "GeoJSON Layer",
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: geojsonFile,
+        },
+      },
+      style: styleFile,
+    },
+  };
+
+  const response = await loadLayerJSONs(mapLayer, false);
+
+  expect(mapLayer.configuration.style).toStrictEqual(style);
+  expect(mapLayer.configuration.props.source.geojson).toStrictEqual(undefined);
+  expect(response.success).toBe(false);
+  expect(response.message).toBe(
+    "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson."
+  );
+});
+
+test("loadLayerJSONs urls keep urls", async () => {
+  const styleFile = "some/file/some_geojson.geojson";
+  const geojsonFile = "https://some/url/some_style.json";
+
+  const mapLayer = {
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "GeoJSON Layer",
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: geojsonFile,
+        },
+      },
+      style: styleFile,
+    },
+  };
+
+  const response = await loadLayerJSONs(mapLayer, true);
+
+  expect(mapLayer.configuration.style).toStrictEqual(styleFile);
+  expect(mapLayer.configuration.props.source.geojson).toStrictEqual(
+    geojsonFile
+  );
+  expect(response.success).toBe(true);
+});
+
+test("loadLayerJSONs urls failed", async () => {
+  global.fetch = jest
+    .fn()
+    .mockResolvedValueOnce({
+      ok: false,
+    })
+    .mockResolvedValueOnce({
+      ok: false,
+    });
+
+  const styleFile = "some/file/some_geojson.geojson";
+  const geojsonFile = "https://some/url/some_style.json";
+
+  const mapLayer = {
+    configuration: {
+      type: "VectorLayer",
+      props: {
+        name: "GeoJSON Layer",
+        source: {
+          type: "GeoJSON",
+          props: {},
+          geojson: geojsonFile,
+        },
+      },
+      style: styleFile,
+    },
+  };
+
+  const response = await loadLayerJSONs(mapLayer, false);
+
+  expect(mapLayer.configuration.style).toStrictEqual(undefined);
+  expect(mapLayer.configuration.props.source.geojson).toStrictEqual(undefined);
+  expect(response.success).toBe(false);
+});
+
+test("checkForCRS", async () => {
+  let CRS = await checkForCRS({
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: [0, 0],
+    },
+  });
+  expect(CRS).toBe("EPSG:4326");
+
+  CRS = await checkForCRS({
+    type: "Feature",
+    geometry: {
+      type: "Point",
+      coordinates: [123456789, 123456789],
+    },
+  });
+  expect(CRS).toBe("EPSG:3857");
+
+  CRS = await checkForCRS({
+    type: "Feature",
+    crs: { properties: { name: "EPSG:12345" } },
+    geometry: {
+      type: "Point",
+      coordinates: [123456789, 123456789],
+    },
+  });
+  expect(CRS).toBe("EPSG:12345");
+
+  CRS = await checkForCRS({
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [0, 0],
+        },
+      },
+    ],
+  });
+  expect(CRS).toBe("EPSG:4326");
+
+  CRS = await checkForCRS({
+    type: "Point",
+    coordinates: [0, 0],
+  });
+  expect(CRS).toBe("EPSG:4326");
+
+  CRS = await checkForCRS({
+    type: "MultiLineString",
+    coordinates: [[0, 0]],
+  });
+  expect(CRS).toBe("EPSG:4326");
+
+  CRS = await checkForCRS({
+    type: "Point",
+    coordinates: ["a", "a"],
+  });
+  expect(CRS).toBe(null);
+
+  CRS = await checkForCRS({
+    type: "Point",
+  });
+  expect(CRS).toBe(null);
+});
+
+test("saveLayerJSON stringified Object", async () => {
+  const mockUploadJSON = jest.fn();
+  appAPI.uploadJSON = mockUploadJSON;
+  mockUploadJSON.mockResolvedValueOnce({
+    success: true,
+    filename: "some_file.json",
+  });
+
+  const style = JSON.stringify({
+    type: "Style",
+    props: {
+      stroke: {
+        type: "Stroke",
+        props: {
+          color: "#501020",
+          width: 1,
+        },
+      },
+    },
+  });
+
+  const response = await saveLayerJSON({
+    stringJSON: style,
+    csrf: "12345",
+    check_crs: false,
+  });
+
+  expect(response.success).toBe(true);
+  expect(response.filename).toBe("some_file.json");
+});
+
+test("saveLayerJSON url", async () => {
+  const style = "some/url/file.json";
+
+  global.fetch = jest.fn().mockResolvedValueOnce({
+    ok: true,
+    text: () => Promise.resolve(JSON.stringify({})),
+  });
+
+  const response = await saveLayerJSON({
+    stringJSON: style,
+    csrf: "12345",
+    check_crs: false,
+  });
+
+  expect(response.success).toBe(true);
+  expect(response.filename).toBe("some/url/file.json");
+});
+
+test("saveLayerJSON url fail", async () => {
+  const style = "some/url/file.json";
+
+  global.fetch = jest.fn().mockResolvedValueOnce({
+    ok: false,
+  });
+
+  const response = await saveLayerJSON({
+    stringJSON: style,
+    csrf: "12345",
+    check_crs: false,
+  });
+
+  expect(response.success).toBe(false);
+  expect(response.message).toBe(
+    "Invalid JSON or failed to fetch/parse the file."
+  );
+});
+
+test("saveLayerJSON geojson crs null", async () => {
+  const geojson = JSON.stringify({
+    type: "Point",
+    coordinates: ["a", "a"],
+  });
+
+  const response = await saveLayerJSON({
+    stringJSON: geojson,
+    csrf: "12345",
+    check_crs: true,
+  });
+
+  expect(response.success).toBe(false);
+  expect(response.message).toBe(
+    "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson."
+  );
+});
+
+test("saveLayerJSON geojson", async () => {
+  const mockUploadJSON = jest.fn();
+  appAPI.uploadJSON = mockUploadJSON;
+  mockUploadJSON.mockResolvedValueOnce({
+    success: true,
+    filename: "some_file.json",
+  });
+
+  const geojson = JSON.stringify({
+    type: "Point",
+    coordinates: [0, 0],
+  });
+
+  const response = await saveLayerJSON({
+    stringJSON: geojson,
+    csrf: "12345",
+    check_crs: true,
+  });
+
+  expect(response.success).toBe(true);
+  expect(response.filename).toBe("some_file.json");
 });

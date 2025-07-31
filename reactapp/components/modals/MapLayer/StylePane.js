@@ -103,6 +103,7 @@ const StylePane = ({ style, setStyle, setErrorMessage }) => {
 StylePane.propTypes = {
   style: PropTypes.string, // stringified json for styling layer
   setStyle: PropTypes.func,
+  setErrorMessage: PropTypes.func,
 };
 
 export default memo(StylePane);

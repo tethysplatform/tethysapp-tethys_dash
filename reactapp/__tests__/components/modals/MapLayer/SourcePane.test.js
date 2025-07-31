@@ -4,6 +4,7 @@ import SourcePane from "components/modals/MapLayer/SourcePane";
 import selectEvent from "react-select-event";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
+import userEvent from "@testing-library/user-event";
 
 const exampleGeoJSON = {
   type: "FeatureCollection",
@@ -153,6 +154,94 @@ test("SourcePane GeoJson Input", async () => {
       geojson: JSON.stringify(exampleGeoJSON),
     })
   );
+});
+
+test("SourcePane GeoJson URL", async () => {
+  global.fetch = jest.fn().mockResolvedValueOnce({
+    ok: true,
+  });
+  const mockSetErrorMessage = jest.fn();
+
+  render(<TestingComponent setErrorMessage={mockSetErrorMessage} />);
+
+  expect(await screen.findByText("Source Type")).toBeInTheDocument();
+  expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+    JSON.stringify({})
+  );
+  const sourceDropdown = screen.getByRole("combobox");
+
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("GeoJSON");
+  fireEvent.click(sourceOption);
+
+  expect(await screen.findByText("GeoJSON Source")).toBeInTheDocument();
+  const UrlRadio = await screen.findByLabelText("URL");
+  await userEvent.click(UrlRadio);
+  expect(UrlRadio).toBeInTheDocument();
+
+  const UrlInput = await screen.findByLabelText("URL Input");
+  fireEvent.change(UrlInput, {
+    target: { value: "some/url/file.json" },
+  });
+  expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+    JSON.stringify({
+      type: "GeoJSON",
+      props: {},
+      geojson: "some/url/file.json",
+    })
+  );
+  await waitFor(() => {
+    expect(mockSetErrorMessage).toHaveBeenCalledTimes(0);
+  });
+
+  const CustomRadio = await screen.findByLabelText("Custom");
+  await userEvent.click(CustomRadio);
+  expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+    JSON.stringify({
+      type: "GeoJSON",
+      props: {},
+      geojson: "{}",
+    })
+  );
+});
+
+test("SourcePane GeoJson bad URL", async () => {
+  global.fetch = jest.fn().mockResolvedValueOnce({
+    ok: false,
+  });
+  const mockSetErrorMessage = jest.fn();
+
+  render(<TestingComponent setErrorMessage={mockSetErrorMessage} />);
+
+  expect(await screen.findByText("Source Type")).toBeInTheDocument();
+  expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+    JSON.stringify({})
+  );
+  const sourceDropdown = screen.getByRole("combobox");
+
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("GeoJSON");
+  fireEvent.click(sourceOption);
+
+  expect(await screen.findByText("GeoJSON Source")).toBeInTheDocument();
+  const UrlRadio = await screen.findByLabelText("URL");
+  await userEvent.click(UrlRadio);
+  expect(UrlRadio).toBeInTheDocument();
+
+  const UrlInput = await screen.findByLabelText("URL Input");
+  fireEvent.change(UrlInput, {
+    target: { value: "some/url/file.json" },
+  });
+  expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+    JSON.stringify({
+      type: "GeoJSON",
+      props: {},
+      geojson: "some/url/file.json",
+    })
+  );
+  await waitFor(() => {
+    expect(mockSetErrorMessage).toHaveBeenCalledWith("Failed to retrieve JSON");
+  });
 });
 
 test("SourcePane GeoJson File Upload", async () => {

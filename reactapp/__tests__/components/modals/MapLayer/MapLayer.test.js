@@ -396,25 +396,6 @@ test("MapLayerModal new GeoJSON layer", async () => {
   expect(await screen.findByText("Upload GeoJSON file")).toBeInTheDocument();
   expect(screen.queryByText("Source Properties")).not.toBeInTheDocument();
 
-  const exampleGeoJSON = {
-    type: "FeatureCollection",
-    crs: {
-      type: "name",
-      properties: {
-        name: "EPSG:3857",
-      },
-    },
-    features: [
-      {
-        type: "Feature",
-        geometry: {
-          type: "Point",
-          coordinates: [0, 0],
-        },
-      },
-    ],
-  };
-
   const textArea = screen.getByLabelText("geojson-source-text-area");
   fireEvent.change(textArea, {
     target: { value: "{'dd':}" },

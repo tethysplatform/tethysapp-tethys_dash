@@ -712,14 +712,15 @@ class LayerConfigurationBuilder:
             self: Returns the current instance for method chaining.
 
         Raises:
-            ValueError: If `legend` is not one of the allowed types or has an invalid structure.
+            ValueError: If `legend` is not one of the allowed types or has an invalid
+                structure.
         """
 
         if legend == "default":
             self.config["legend"] = legend
             return self
 
-        if legend == None:
+        if legend is None:
             del self.config["legend"]
             return self
 

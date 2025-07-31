@@ -164,6 +164,7 @@ const SourcePane = ({
       }));
       setGeoJSONSource("custom");
     }
+    // eslint-disable-next-line
   }, [sourceProps.geojson]);
 
   function handlePropertyChange({ newValue, rowIndex, field }) {
@@ -231,11 +232,17 @@ const SourcePane = ({
     const source = e.target.value;
     setGeoJSONSource(source);
 
+    let newGeoJSON;
     if (source === "custom") {
-      setGeoJSON("{}");
+      newGeoJSON = "{}";
     } else {
-      setGeoJSON("");
+      newGeoJSON = "";
     }
+    setGeoJSON(newGeoJSON);
+    setSourceProps((previousSourceProps) => ({
+      ...previousSourceProps,
+      ...{ geojson: newGeoJSON },
+    }));
   }
 
   return (

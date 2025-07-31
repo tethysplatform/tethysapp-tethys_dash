@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import StylePane from "components/modals/MapLayer/StylePane";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
+import userEvent from "@testing-library/user-event";
 
 const exampleStyle = {
   version: 8,
@@ -35,12 +36,16 @@ const exampleStyle = {
   ],
 };
 
-const TestingComponent = ({ initialStyle }) => {
+const TestingComponent = ({ initialStyle, setErrorMessage }) => {
   const [style, setStyle] = useState(initialStyle);
 
   return (
     <>
-      <StylePane style={style} setStyle={setStyle} />
+      <StylePane
+        style={style}
+        setStyle={setStyle}
+        setErrorMessage={setErrorMessage}
+      />
       <p data-testid="style">{style}</p>
     </>
   );
@@ -78,6 +83,62 @@ test("StylePane Json File Upload", async () => {
   });
 });
 
+test("StylePane Json URL", async () => {
+  global.fetch = jest.fn().mockResolvedValueOnce({
+    ok: true,
+  });
+  const mockSetErrorMessage = jest.fn();
+
+  render(<TestingComponent setErrorMessage={mockSetErrorMessage} />);
+
+  expect(await screen.findByText("Style Source")).toBeInTheDocument();
+
+  const UrlRadio = await screen.findByLabelText("URL");
+  await userEvent.click(UrlRadio);
+  expect(UrlRadio).toBeInTheDocument();
+
+  const UrlInput = await screen.findByLabelText("URL Input");
+  fireEvent.change(UrlInput, {
+    target: { value: "some/url/file.json" },
+  });
+  expect(await screen.findByTestId("style")).toHaveTextContent(
+    "some/url/file.json"
+  );
+  await waitFor(() => {
+    expect(mockSetErrorMessage).toHaveBeenCalledTimes(0);
+  });
+
+  const CustomRadio = await screen.findByLabelText("Custom");
+  await userEvent.click(CustomRadio);
+  expect(await screen.findByTestId("style")).toHaveTextContent("{}");
+});
+
+test("StylePane Json bad URL", async () => {
+  global.fetch = jest.fn().mockResolvedValueOnce({
+    ok: false,
+  });
+  const mockSetErrorMessage = jest.fn();
+
+  render(<TestingComponent setErrorMessage={mockSetErrorMessage} />);
+
+  expect(await screen.findByText("Style Source")).toBeInTheDocument();
+
+  const UrlRadio = await screen.findByLabelText("URL");
+  await userEvent.click(UrlRadio);
+  expect(UrlRadio).toBeInTheDocument();
+
+  const UrlInput = await screen.findByLabelText("URL Input");
+  fireEvent.change(UrlInput, {
+    target: { value: "some/url/file.json" },
+  });
+  expect(await screen.findByTestId("style")).toHaveTextContent(
+    "some/url/file.json"
+  );
+  await waitFor(() => {
+    expect(mockSetErrorMessage).toHaveBeenCalledWith("Failed to retrieve JSON");
+  });
+});
+
 test("StylePane Updating Existing GeoJSON", async () => {
   const mockDownloadJSON = jest.fn();
   appAPI.downloadJSON = mockDownloadJSON;
@@ -94,4 +155,5 @@ test("StylePane Updating Existing GeoJSON", async () => {
 
 TestingComponent.propTypes = {
   initialStyle: PropTypes.string,
+  setErrorMessage: PropTypes.func,
 };
