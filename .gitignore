@@ -22,6 +22,7 @@ data
 public
 
 tethysapp/tethysdash/public/images/plugins/*
+tethysapp/tethysdash/public/data/plugins/*
 !tethysapp/tethysdash/public/images/plugins/Variable Input.png
 !tethysapp/tethysdash/public/images/plugins/Text.png
 !tethysapp/tethysdash/public/images/plugins/Map.png

@@ -663,10 +663,19 @@ async function getGeoJSONLayerAttributes(sourceGeoJSON, layerName) {
   const attributes = [];
 
   // get the geojson features
-  const geoJSON =
-    typeof sourceGeoJSON === "object"
-      ? sourceGeoJSON
-      : JSON.parse(sourceGeoJSON);
+  let geoJSON;
+  if (typeof sourceGeoJSON === "object") {
+    geoJSON = sourceGeoJSON;
+  } else if (sourceGeoJSON.trim().startsWith("{")) {
+    geoJSON = JSON5.parse(sourceGeoJSON);
+  } else {
+    const response = await fetch(sourceGeoJSON);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch: ${response.statusText}`);
+    }
+    const jsonText = await response.text();
+    geoJSON = JSON5.parse(jsonText);
+  }
   const sourceFeatures = geoJSON?.features ?? [];
 
   // for each feature, get an array of all the available properties/fields and then flatten into a single array
@@ -689,21 +698,36 @@ async function getGeoJSONLayerAttributes(sourceGeoJSON, layerName) {
   return sourceAttributes;
 }
 
-export async function loadLayerJSONs(mapLayer) {
+export async function loadLayerJSONs(mapLayer, keep_urls = false) {
   if (
     mapLayer?.configuration?.style &&
     typeof mapLayer.configuration.style !== "object"
   ) {
-    const styleJSONResponse = await appAPI.downloadJSON({
-      filename: mapLayer.configuration.style,
-    });
-    if (styleJSONResponse.success) {
-      mapLayer.configuration.style = styleJSONResponse.data;
+    if (mapLayer.configuration.style.includes("/")) {
+      if (!keep_urls) {
+        const response = await fetch(mapLayer.configuration.style);
+        if (!response.ok) {
+          delete mapLayer.configuration.style;
+          console.error(
+            `Failed to load the style for ${mapLayer.configuration.props.name} layer`
+          );
+        }
+        const jsonText = await response.text();
+        const parsedJSON = JSON5.parse(jsonText);
+        mapLayer.configuration.style = parsedJSON;
+      }
     } else {
-      delete mapLayer.configuration.style;
-      console.error(
-        `Failed to load the style for ${mapLayer.configuration.props.name} layer`
-      );
+      const styleJSONResponse = await appAPI.downloadJSON({
+        filename: mapLayer.configuration.style,
+      });
+      if (styleJSONResponse.success) {
+        mapLayer.configuration.style = styleJSONResponse.data;
+      } else {
+        delete mapLayer.configuration.style;
+        console.error(
+          `Failed to load the style for ${mapLayer.configuration.props.name} layer`
+        );
+      }
     }
   }
 
@@ -712,50 +736,151 @@ export async function loadLayerJSONs(mapLayer) {
     mapLayer?.configuration?.props?.source?.geojson &&
     typeof mapLayer.configuration.props.source.geojson !== "object"
   ) {
-    const geoJSONResponse = await appAPI.downloadJSON({
-      filename: mapLayer.configuration.props.source.geojson,
-    });
-    if (geoJSONResponse.success) {
-      mapLayer.configuration.props.source.geojson = geoJSONResponse.data;
+    if (mapLayer.configuration.props.source.geojson.includes("/")) {
+      if (!keep_urls) {
+        const response = await fetch(
+          mapLayer.configuration.props.source.geojson
+        );
+        if (!response.ok) {
+          delete mapLayer.configuration.props.source.geojson;
+          return {
+            success: false,
+            message: `Failed to fetch: ${response.statusText}`,
+          };
+        }
+        const jsonText = await response.text();
+        const parsedJSON = JSON5.parse(jsonText);
+        const crs = checkForCRS(parsedJSON);
+
+        if (!crs) {
+          delete mapLayer.configuration.props.source.geojson;
+          return {
+            success: false,
+            message:
+              "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson.",
+          };
+        }
+
+        parsedJSON.crs = parsedJSON.crs || {};
+        parsedJSON.crs.properties = parsedJSON.crs.properties || {};
+        parsedJSON.crs.properties.name = crs;
+        mapLayer.configuration.props.source.geojson = parsedJSON;
+      }
     } else {
-      delete mapLayer.configuration.props.source.geojson;
-      return geoJSONResponse;
+      const geoJSONResponse = await appAPI.downloadJSON({
+        filename: mapLayer.configuration.props.source.geojson,
+      });
+      if (geoJSONResponse.success) {
+        mapLayer.configuration.props.source.geojson = geoJSONResponse.data;
+      } else {
+        delete mapLayer.configuration.props.source.geojson;
+        return geoJSONResponse;
+      }
     }
   }
 
   return { success: true };
 }
 
+export function checkForCRS(geojson) {
+  // 1. Check for explicit CRS
+  if (geojson?.crs?.properties?.name) {
+    return geojson.crs.properties.name;
+  }
+
+  // 2. Determine the first geometry to inspect
+  let geometry = null;
+
+  if (geojson.type === "FeatureCollection" && geojson.features?.length) {
+    geometry = geojson.features[0].geometry;
+  } else if (geojson.type === "Feature") {
+    geometry = geojson.geometry;
+  } else if (geojson.type && geojson.coordinates) {
+    geometry = geojson; // A single geometry object
+  }
+
+  if (!geometry) return null;
+
+  // 3. Extract first coordinate pair
+  const coord = getFirstCoordinate(geometry);
+  if (!coord) return null;
+
+  const [x, y] = coord;
+
+  // 4. Guess CRS
+  const is4326 = Math.abs(x) <= 180 && Math.abs(y) <= 90;
+  const is3857 = Math.abs(x) > 180 || Math.abs(y) > 90;
+
+  if (is4326) return "EPSG:4326";
+  if (is3857) return "EPSG:3857";
+  return null;
+}
+
+function getFirstCoordinate(geometry) {
+  const coords = geometry.coordinates;
+
+  function findCoord(arr) {
+    if (typeof arr[0] === "number" && typeof arr[1] === "number") {
+      return arr;
+    } else if (Array.isArray(arr[0])) {
+      return findCoord(arr[0]);
+    }
+    return null;
+  }
+
+  return findCoord(coords);
+}
+
 export async function saveLayerJSON({ stringJSON, csrf, check_crs }) {
   let parsedJSON;
+  // If it looks like a JSON string (starts with `{` or `[`), parse it directly
+  const trimmed = stringJSON.trim();
+  const looksLikeJson = trimmed.startsWith("{") || trimmed.startsWith("[");
+
   try {
-    parsedJSON = JSON5.parse(stringJSON);
+    let jsonText;
+
+    if (looksLikeJson) {
+      jsonText = trimmed;
+    } else {
+      // Otherwise, assume it's a URL or path to a remote file
+      const response = await fetch(stringJSON);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch: ${response.statusText}`);
+      }
+      jsonText = await response.text();
+    }
+
+    parsedJSON = JSON5.parse(jsonText);
   } catch (err) {
     return {
       success: false,
-      message:
-        "Invalid json is being used. Please alter the json and try again.",
+      message: "Invalid JSON or failed to fetch/parse the file.",
     };
   }
 
   if (check_crs) {
-    if (!parsedJSON?.crs?.properties?.name) {
+    if (!checkForCRS) {
       return {
         success: false,
         message:
-          'GeoJSON must include a crs key with the structure {"properties": {"name": "EPSG:<CODE>"}}',
+          "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson.",
       };
     }
   }
 
-  const JSONFilename = `${uuidv4()}.json`;
-  const JSONInfo = {
-    data: JSON.stringify(parsedJSON),
-    filename: JSONFilename,
-  };
-  const apiResponse = await appAPI.uploadJSON(JSONInfo, csrf);
+  if (looksLikeJson) {
+    const JSONFilename = `${uuidv4()}.json`;
+    const JSONInfo = {
+      data: JSON.stringify(parsedJSON),
+      filename: JSONFilename,
+    };
+    const apiResponse = await appAPI.uploadJSON(JSONInfo, csrf);
 
-  return apiResponse;
+    return apiResponse;
+  } else {
+    return { success: true, filename: stringJSON };
+  }
 }
 
 // layer attribute variable for the layer, structure is {layerName: {"field1": "Variable Name 1"}}

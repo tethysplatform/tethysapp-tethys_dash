@@ -248,7 +248,7 @@ const MapLayerModal = ({
       aliases: attributeAliases,
       queryable: queryableLayer,
     });
-    setStyle(JSON.stringify(apiResponse.data.configuration.style));
+    setStyle(apiResponse.data.configuration.style);
     setLegend(apiResponse.data.legend);
   };
 
@@ -301,7 +301,11 @@ const MapLayerModal = ({
               aria-label="layer-style-tab"
               className="layer-style-tab"
             >
-              <StylePane style={style} setStyle={setStyle} />
+              <StylePane
+                style={style}
+                setStyle={setStyle}
+                setErrorMessage={setErrorMessage}
+              />
             </Tab>
             <Tab
               eventKey="legend"

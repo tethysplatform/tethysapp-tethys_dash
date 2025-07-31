@@ -17,6 +17,7 @@ import {
 } from "components/modals/utilities";
 import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";
+import JSON5 from "json5";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -97,9 +98,12 @@ const AttributesPane = ({
       }
 
       // make sure a valid json is supplied if the source is GeoJSON
-      if (sourceProps.type === "GeoJSON") {
+      if (
+        sourceProps.type === "GeoJSON" &&
+        sourceProps.geojson.trim().startsWith("{")
+      ) {
         try {
-          JSON.parse(sourceProps.geojson);
+          JSON5.parse(sourceProps.geojson);
         } catch (err) {
           setCustomAttributes(false);
           setErrorMessage(

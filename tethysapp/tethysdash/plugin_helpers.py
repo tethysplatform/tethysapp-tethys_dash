@@ -690,6 +690,90 @@ class LayerConfigurationBuilder:
         self.config["omittedPopupAttributes"][layer_name].append(key)
         return self
 
+    def set_legend(self, legend):
+        """
+        Set the legend configuration for the map.
+
+        Accepts one of the following:
+        - The string "default" to apply a default legend.
+        - `None` to remove the legend from the configuration.
+        - A dictionary defining a custom legend structure.
+
+        If a dictionary is provided, it must include:
+        - A `title` key (any type).
+        - An `items` key whose value is a list of dictionaries.
+            Each item must contain the keys: 'label', 'color', and 'symbol'.
+
+        Args:
+            legend (str | dict | None): Legend configuration. Must be either "default",
+                None, or a dictionary with required keys and structure.
+
+        Returns:
+            self: Returns the current instance for method chaining.
+
+        Raises:
+            ValueError: If `legend` is not one of the allowed types or has an invalid structure.
+        """
+
+        if legend == "default":
+            self.config["legend"] = legend
+            return self
+
+        if legend == None:
+            del self.config["legend"]
+            return self
+
+        if not isinstance(legend, dict):
+            raise ValueError("legend must be 'default', None, or a valid dictionary.")
+
+        if "title" not in legend or "items" not in legend:
+            raise ValueError("a dictionary legend must have a title and items key")
+
+        if not isinstance(legend["items"], list):
+            raise ValueError("dictionary legend items must be a list")
+
+        required_keys = {"label", "color", "symbol"}
+        for i, item in enumerate(legend.get("items", [])):
+            if not isinstance(item, dict):
+                raise ValueError(f"Item at index {i} is not a dictionary")
+            if not required_keys.issubset(item):
+                missing = required_keys - item.keys()
+                raise ValueError(f"Item at index {i} is missing keys: {missing}")
+
+        return self
+
+    def set_style(self, style):
+        """
+        Set the MapLibre style configuration.
+
+        This method validates and assigns a MapLibre-compatible style dictionary
+        to the configuration. The style must be a dictionary containing at least
+        the keys: 'version', 'sources', and 'layers'. If the validation fails,
+        a ValueError is raised.
+
+        Args:
+            style (dict): A MapLibre style dictionary with required keys:
+                        'version', 'sources', and 'layers'.
+
+        Returns:
+            self: Returns the instance to allow method chaining.
+
+        Raises:
+            ValueError: If `style` is not a dictionary or is missing required keys.
+        """
+        if isinstance(style, str) and "/" in style:
+            self.config["configuration"]["style"] = style
+            return self
+
+        if not isinstance(style, dict):
+            raise ValueError("style must be a valid dictionary.")
+
+        if "version" not in style or "sources" not in style or "layers" not in style:
+            raise ValueError("style must have a version, sources and layers keys")
+
+        self.config["configuration"]["style"] = style
+        return self
+
     def _validate_required_fields(self, required, actual, path=""):
         """
         Recursively validate that all required fields are present in the actual source
@@ -760,8 +844,11 @@ class LayerConfigurationBuilder:
 
 
 def validate_geojson(data):
+    if isinstance(data, str) and "/" in data:
+        return True
+
     if not isinstance(data, dict):
-        raise ValueError("GeoJSON must be a dictionary.")
+        raise ValueError("GeoJSON must be a dictionary or url.")
 
     geojson_type = data.get("type")
     if not isinstance(geojson_type, str):
