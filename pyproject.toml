@@ -46,17 +46,18 @@ include = ["tethysapp*"]
 [tool.setuptools.package-data]
 # The key "" applies to all packages
 "*" = [
-    "default_dashboard.png",
-    "default_card.png",
-    "default_chart.png",
-    "default_custom.png",
-    "default_image.png",
-    "default_map.png",
-    "default_table.png",
-    "default_text.png",
-    "default_variable_input.png",
     "alembic.ini",
-    # Add more patterns or use wildcards if needed
+    "public/**/*",
+    "*.js",
+    "*.png",
+    "*.gif",
+    "*.jpg",
+    "*.html",
+    "*.css",
+    "*.gltf",
+    "*.json",
+    "*.geojson",
+    "*.svg",
 ]
 
 # Optional: for compatibility with pytest if you run tests with `pytest`
