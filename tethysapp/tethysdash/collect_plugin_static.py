@@ -14,6 +14,8 @@ def get_intake_plugin_modules():
 
 
 def copy_plugin_static(plugin_modules, static_plugin_images, static_plugin_data):
+    os.makedirs(static_plugin_images, exist_ok=True)
+    os.makedirs(static_plugin_data, exist_ok=True)
     plugins_data_collected = []
 
     for source, module in plugin_modules.items():
