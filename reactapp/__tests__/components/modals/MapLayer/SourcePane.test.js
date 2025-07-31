@@ -311,6 +311,36 @@ test("SourcePane Updating Existing GeoJSON file", async () => {
   });
 });
 
+test("SourcePane Updating Existing GeoJSON url", async () => {
+  global.fetch = jest.fn().mockResolvedValueOnce({
+    ok: true,
+  });
+
+  render(
+    <TestingComponent
+      initialSourceProps={{
+        type: "GeoJSON",
+        props: {},
+        geojson: "some/url/some_file.json",
+      }}
+    />
+  );
+
+  expect(await screen.findByText("Source Type")).toBeInTheDocument();
+  expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+    JSON.stringify({})
+  );
+
+  expect(await screen.findByText("GeoJSON Source")).toBeInTheDocument();
+  expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+    JSON.stringify({
+      type: "GeoJSON",
+      props: {},
+      geojson: "some/url/some_file.json",
+    })
+  );
+});
+
 test("SourcePane Updating Existing GeoJSON object", async () => {
   const mockDownloadJSON = jest.fn();
   appAPI.downloadJSON = mockDownloadJSON;

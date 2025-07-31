@@ -843,14 +843,16 @@ export async function saveLayerJSON({ stringJSON, csrf, check_crs }) {
 
     if (looksLikeJson) {
       jsonText = trimmed;
-      parsedJSON = JSON5.parse(jsonText);
     } else {
       // Otherwise, assume it's a URL or path to a remote file
       const response = await fetch(stringJSON);
       if (!response.ok) {
         throw new Error(`Failed to fetch: ${response.statusText}`);
       }
+      jsonText = await response.text();
     }
+
+    parsedJSON = JSON5.parse(jsonText);
   } catch (err) {
     return {
       success: false,
