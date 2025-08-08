@@ -13,6 +13,7 @@ const DataSelect = ({
   onChange,
   options,
   creatable = true,
+  divProps,
   ...props
 }) => {
   let id;
@@ -20,7 +21,7 @@ const DataSelect = ({
     id = label.toLowerCase().replace(" ", "");
   }
   return (
-    <StyledDiv>
+    <StyledDiv {...divProps}>
       {label && (
         <label htmlFor={id} className="no-caret">
           <b>{label}</b>:

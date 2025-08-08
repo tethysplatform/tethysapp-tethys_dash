@@ -7,7 +7,7 @@ import MapVisualization from "components/visualizations/Map";
 import BasePlot from "components/visualizations/BasePlot";
 import Card from "components/visualizations/Card";
 import DataTable from "components/visualizations/DataTable";
-import Slider from "components/visualizations/Slider";
+import Slider from "components/inputs/Slider";
 import ModuleLoader from "components/visualizations/ModuleLoader";
 import {
   getVisualization,
@@ -66,6 +66,7 @@ export const Visualization = memo(
             variable_name={vizData.variable_name}
             initial_value={vizData.initial_value}
             variable_options_source={vizData.variable_options_source}
+            metadata={vizData.metadata}
             onChange={vizData.onChange ?? (() => {})}
           />
         );
@@ -116,6 +117,9 @@ export const Visualization = memo(
             min={vizData.min}
             max={vizData.max}
             initialValue={vizData.initialValue}
+            dataType={vizData.dataType}
+            dateTimeDelta={vizData.dateTimeDelta}
+            onChange={vizData.onChange ?? (() => {})}
           />
         );
       case "custom":
@@ -176,6 +180,7 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
         variable_name: args.variable_name,
         initial_value: args.initial_value,
         variable_options_source: args.variable_options_source,
+        metadata: args["variable_options_source.metadata"],
       });
     } else {
       setVariableDependentVisualizations({});

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useContext } from "react";
+import { useCallback, useEffect, useState, useContext, memo } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import DataInput from "components/inputs/DataInput";
@@ -13,6 +13,7 @@ import {
 } from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
+import Slider from "components/inputs/Slider";
 
 const StyledDiv = styled.div`
   padding: 1rem;
@@ -36,6 +37,7 @@ const VariableInput = ({
   variable_name,
   initial_value,
   variable_options_source,
+  metadata,
   onChange,
 }) => {
   const [value, setValue] = useState("");
@@ -66,7 +68,11 @@ const VariableInput = ({
 
       // Sets the type to the variable_options_source if not a dropdown
       if (
-        nonDropDownVariableInputTypes.includes(variable_options_source) ||
+        nonDropDownVariableInputTypes.some(
+          (type) =>
+            (typeof type === "string" && type === variable_options_source) ||
+            (typeof type === "object" && type.value === variable_options_source)
+        ) ||
         Array.isArray(variable_options_source)
       ) {
         setType(variable_options_source);
@@ -123,7 +129,7 @@ const VariableInput = ({
     setValue(inputValue);
     onChange(inputValue);
 
-    if (Array.isArray(type) || type === "checkbox") {
+    if (Array.isArray(type) || type === "checkbox" || type === "slider") {
       if (!inDataViewerMode) {
         updateVariableInputs(e.value ?? e);
       }
@@ -143,6 +149,27 @@ const VariableInput = ({
           label={label}
           type={type}
           value={value}
+          onChange={handleInputChange}
+        />
+      </StyledDiv>
+    );
+  } else if (type === "slider") {
+    const requiredKeys = ["step", "min", "max", "initialValue", "dataType"];
+
+    if (!metadata || requiredKeys.some((key) => metadata?.[key] === null)) {
+      return null;
+    }
+
+    return (
+      <StyledDiv>
+        <Slider
+          label={label}
+          step={metadata.step}
+          min={metadata.min}
+          max={metadata.max}
+          initialValue={metadata.initialValue}
+          dataType={metadata.dataType}
+          dateTimeDelta={metadata?.dateTimeDelta}
           onChange={handleInputChange}
         />
       </StyledDiv>
@@ -185,4 +212,4 @@ VariableInput.propTypes = {
   onChange: PropTypes.func,
 };
 
-export default VariableInput;
+export default memo(VariableInput);

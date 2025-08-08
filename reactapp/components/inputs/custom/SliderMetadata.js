@@ -1,18 +1,38 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
 import DataSelect from "components/inputs/DataSelect";
 import DatePicker from "components/inputs/DatePicker";
+import { timeDeltas } from "components/inputs/Slider";
 
-export const SliderMetadata = ({ onChange, values, visualizationRef }) => {
-  const [min, setMin] = useState(values.min ?? null);
-  const [max, setMax] = useState(values.max ?? null);
-  const [step, setStep] = useState(values.step ?? null);
-  const [initialValue, setInitialValue] = useState(values.initialValue ?? null);
+const FlexDiv = styled.div`
+  display: flex;
+  width: 100%;
+  margin-top: 1rem;
+`;
+
+const TimeDeltaDiv = styled.div`
+  flex: 1;
+  margin-left: 1rem;
+  position: relative;
+`;
+
+const SliderMetadata = ({ onChange, values, visualizationRef }) => {
+  const [min, setMin] = useState(values?.min ?? null);
+  const [max, setMax] = useState(values?.max ?? null);
+  const [step, setStep] = useState(values?.step ?? null);
+  const [initialValue, setInitialValue] = useState(
+    values?.initialValue ?? null
+  );
   const [dataType, setDataType] = useState(
-    values.dataType ? { value: values.dataType, label: values.dataType } : null
+    values?.dataType ? { value: values.dataType, label: values.dataType } : null
+  );
+  const [dateTimeDelta, setDateTimeDelta] = useState(
+    values?.dateTimeDelta
+      ? { value: values.dateTimeDelta, label: values.dateTimeDelta }
+      : { value: "Days", label: "Days" }
   );
 
   useEffect(() => {
@@ -23,9 +43,19 @@ export const SliderMetadata = ({ onChange, values, visualizationRef }) => {
       step != null &&
       dataType
     ) {
-      onChange({ min, max, step, dataType, initialValue });
+      let onChangeValues = {
+        min,
+        max,
+        step,
+        dataType: dataType.value,
+        initialValue,
+      };
+      if (dataType.value === "Date") {
+        onChangeValues.dateTimeDelta = dateTimeDelta.value;
+      }
+      onChange(onChangeValues);
     }
-  }, [min, max, step, initialValue, dataType?.value]);
+  }, [min, max, step, initialValue, dataType?.value, dateTimeDelta.value]);
 
   const onDataTypeChange = (selected) => {
     setDataType(selected);
@@ -33,6 +63,7 @@ export const SliderMetadata = ({ onChange, values, visualizationRef }) => {
     setMax(null);
     setStep(null);
     setInitialValue(null);
+    onChange(null);
   };
 
   const onMinChange = (e) => {
@@ -70,8 +101,16 @@ export const SliderMetadata = ({ onChange, values, visualizationRef }) => {
     setInitialValue(newValue);
   };
 
+  const onDataTimeDeltaChange = (selected) => {
+    setDateTimeDelta(selected);
+  };
+
   const isNumber = dataType?.value === "Number";
   const isDate = dataType?.value === "Date";
+  const dateTimeDeltaOptions = Object.keys(timeDeltas).map((key) => ({
+    value: key,
+    label: key,
+  }));
 
   return (
     <>
@@ -82,7 +121,6 @@ export const SliderMetadata = ({ onChange, values, visualizationRef }) => {
         options={[
           { value: "Number", label: "Number" },
           { value: "Date", label: "Date" },
-          { value: "Date (Hour)", label: "Date (Hour)" },
           { value: "Custom", label: "Custom" },
         ]}
       />
@@ -95,12 +133,28 @@ export const SliderMetadata = ({ onChange, values, visualizationRef }) => {
                 value={min}
                 type="number"
                 onChange={onMinChange}
+                divProps={{ style: { "margin-top": "1rem" } }}
               />
               <NormalInput
                 label="Maximum"
                 value={max}
                 type="number"
                 onChange={onMaxChange}
+                divProps={{ style: { "margin-top": "1rem" } }}
+              />
+              <NormalInput
+                label="Initial Value"
+                value={initialValue}
+                type="number"
+                onChange={onInitialValueChange}
+                divProps={{ style: { "margin-top": "1rem" } }}
+              />
+              <NormalInput
+                label="Step"
+                value={step}
+                type="number"
+                onChange={onStepChange}
+                divProps={{ style: { "margin-top": "1rem" } }}
               />
             </>
           )}
@@ -109,29 +163,48 @@ export const SliderMetadata = ({ onChange, values, visualizationRef }) => {
               <DatePicker
                 label="Minimum"
                 value={min}
-                type="date"
+                type="date-hour"
                 onChange={onMinChange}
+                divProps={{ style: { "margin-top": "1rem" } }}
               />
               <DatePicker
                 label="Maximum"
                 value={max}
-                type="date"
+                type="date-hour"
                 onChange={onMaxChange}
+                divProps={{ style: { "margin-top": "1rem" } }}
               />
+              <DatePicker
+                label="Initial Value"
+                value={initialValue}
+                type="date-hour"
+                onChange={onInitialValueChange}
+                divProps={{ style: { "margin-top": "1rem" } }}
+              />
+              <FlexDiv>
+                <NormalInput
+                  label="Step"
+                  value={step}
+                  type="number"
+                  onChange={onStepChange}
+                />
+                <TimeDeltaDiv>
+                  <DataSelect
+                    selectedOption={dateTimeDelta}
+                    onChange={onDataTimeDeltaChange}
+                    options={dateTimeDeltaOptions}
+                    divProps={{
+                      style: {
+                        "margin-bottom": 0,
+                        bottom: 0,
+                        position: "absolute",
+                      },
+                    }}
+                  />
+                </TimeDeltaDiv>
+              </FlexDiv>
             </>
           )}
-          <NormalInput
-            label="Initial Value"
-            value={initialValue}
-            type="number"
-            onChange={onInitialValueChange}
-          />
-          <NormalInput
-            label="Step"
-            value={step}
-            type="number"
-            onChange={onStepChange}
-          />
         </>
       )}
     </>
@@ -159,3 +232,5 @@ SliderMetadata.propTypes = {
     PropTypes.shape({ current: PropTypes.any }),
   ]),
 };
+
+export default memo(SliderMetadata);

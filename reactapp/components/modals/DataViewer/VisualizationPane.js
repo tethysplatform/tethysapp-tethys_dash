@@ -279,7 +279,7 @@ function VisualizationPane({
 
   const handleInputChange = (newValue, key) => {
     setVizInputsValues((prev) => {
-      return { ...prev, [key]: newValue.value ?? newValue };
+      return { ...prev, [key]: newValue?.value ?? newValue };
     });
   };
 
@@ -291,6 +291,10 @@ function VisualizationPane({
         )
       ) {
         previewVisualization();
+      } else {
+        setVizType("unknown");
+        setVizData({});
+        setVizMetadata(null);
       }
     }
   }
@@ -328,6 +332,7 @@ function VisualizationPane({
           variable_name: itemData.args.variable_name,
           initial_value: itemData.args.initial_value,
           variable_options_source: itemData.args.variable_options_source,
+          metadata: itemData.args["variable_options_source.metadata"],
           onChange: (e) => setVariableInputValue(e),
         });
       } else {

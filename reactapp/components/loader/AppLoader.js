@@ -375,17 +375,6 @@ function Loader({ children }) {
             description: "A block of formattable text.",
           },
           {
-            source: "Slider",
-            value: "Slider",
-            label: "Slider",
-            type: "slider",
-            args: {
-              metadata: "custom-SliderMetadata",
-            },
-            tags: ["slider", "default"],
-            description: "A slider that tracks a value across a range",
-          },
-          {
             source: "Variable Input",
             value: "Variable Input",
             label: "Variable Input",

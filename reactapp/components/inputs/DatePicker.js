@@ -15,7 +15,7 @@ const isValidDateString = (str) => {
   });
 };
 
-const DatePicker = ({ label, value, onChange, type }) => {
+const DatePicker = ({ label, value, onChange, type, divProps }) => {
   const [placeholderText, setPlaceholderText] = useState(
     checkForVariable(value) && value
   );
@@ -44,10 +44,10 @@ const DatePicker = ({ label, value, onChange, type }) => {
   };
 
   return (
-    <div className="date-picker">
+    <div className="date-picker" {...divProps}>
       {label && (
         <label htmlFor={label} style={{ display: "block", marginBottom: 4 }}>
-          {label}
+          <b>{label}</b>:
         </label>
       )}
       <ReactDatePicker

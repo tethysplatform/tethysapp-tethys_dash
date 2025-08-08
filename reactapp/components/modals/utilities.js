@@ -6,10 +6,7 @@ export function getInitialInputValue(value) {
     inputValue = false;
   } else if (value === "multiinput" || value === "custom-AddMapLayer") {
     inputValue = [];
-  } else if (
-    value === "custom-MapDrawing" ||
-    value === "custom-SliderMetadata"
-  ) {
+  } else if (value === "custom-MapDrawing") {
     inputValue = {};
   } else {
     inputValue = null;

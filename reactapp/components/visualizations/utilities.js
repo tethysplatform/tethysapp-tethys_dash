@@ -89,16 +89,6 @@ export async function getVisualization({
     });
 
     return;
-  } else if (itemData.source === "Slider") {
-    setVizType("slider");
-    setVizData({
-      min: itemData.args?.metadata?.min,
-      max: itemData.args?.metadata?.max,
-      step: itemData.args?.metadata?.step,
-      initialValue: itemData.args?.metadata?.initialValue,
-    });
-
-    return;
   }
 
   if (sourceType !== "map") {
@@ -179,6 +169,7 @@ export async function getVisualization({
         variable_name: responseData.variable_name,
         initial_value: responseData.initial_value,
         variable_options_source: responseData.variable_options_source,
+        metadata: responseData.metadata,
       });
     } else {
       setVizType("vizWarning");
@@ -236,6 +227,11 @@ export const nonDropDownVariableInputTypes = [
   "checkbox",
   "date",
   "date-hour",
+  {
+    value: "slider",
+    label: "slider",
+    sub_args: { metadata: "custom-SliderMetadata" },
+  },
 ];
 
 export const baseMapLayers = [
