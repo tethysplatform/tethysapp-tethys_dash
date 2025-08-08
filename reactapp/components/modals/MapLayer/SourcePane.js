@@ -1,6 +1,6 @@
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import FileUpload from "components/inputs/FileUpload";
 import styled from "styled-components";
 import {
@@ -8,6 +8,8 @@ import {
   sourcePropType,
 } from "components/map/utilities";
 import InputTable from "components/inputs/InputTable";
+import DataRadioSelect from "components/inputs/DataRadioSelect";
+import NormalInput from "components/inputs/NormalInput";
 import appAPI from "services/api/app";
 import { removeEmptyValues } from "components/modals/utilities";
 import "components/modals/wideModal.css";
@@ -88,25 +90,20 @@ function parsePropertiesArray(properties) {
   }, {});
 }
 
-const SourcePane = ({ sourceProps, setSourceProps, setAttributeProps }) => {
+const SourcePane = ({
+  sourceProps,
+  setSourceProps,
+  setAttributeProps,
+  setErrorMessage,
+}) => {
   const [sourceProperties, setSourceProperties] = useState([]); // array of objects that represent properties that will be rendered in the table
   const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]); // array of objects that represent placeholders for the table inputs
   const [propertyTypes, SetPropertyTypes] = useState([]); // array of objects that represent types for the table inputs
   const [sourceType, setSourceType] = useState({}); // source type dropdown selection {value: ..., label: ...}
   const [geoJSON, setGeoJSON] = useState("{}"); // track the geojson value
+  const [geoJSONSource, setGeoJSONSource] = useState("custom"); // track the geojson value
 
   useEffect(() => {
-    const fetchGeoJSON = async () => {
-      const apiResponse = await appAPI.downloadJSON({
-        filename: sourceProps.geojson,
-      });
-      setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
-      setSourceProps((previousSourceProps) => ({
-        ...previousSourceProps,
-        ...{ geojson: JSON.stringify(apiResponse.data) },
-      }));
-    };
-
     // if loading existing layer, then set states appropriately
     if (sourceProps.type) {
       const { properties, placeholders, types } =
@@ -119,13 +116,56 @@ const SourcePane = ({ sourceProps, setSourceProps, setAttributeProps }) => {
       SetPropertyTypes(types);
       setSourceType({ value: sourceProps.type, label: sourceProps.type });
     }
+    // eslint-disable-next-line
+  }, [sourceProps.type]);
 
-    // if loading existing GeoJSON layer, then get JSON data and set states
-    if (sourceProps.type === "GeoJSON" && sourceProps?.geojson) {
+  useEffect(() => {
+    const fetchGeoJSON = async () => {
+      if (sourceProps.geojson.includes("/")) {
+        const response = await fetch(sourceProps.geojson);
+        if (!response.ok) {
+          setErrorMessage("Failed to retrieve JSON");
+        }
+        setGeoJSON(sourceProps.geojson);
+        setSourceProps((previousSourceProps) => ({
+          ...previousSourceProps,
+          ...{ geojson: sourceProps.geojson },
+        }));
+        setGeoJSONSource("url");
+      } else {
+        const apiResponse = await appAPI.downloadJSON({
+          filename: sourceProps.geojson,
+        });
+        if (apiResponse.success) {
+          setGeoJSON(JSON.stringify(apiResponse.data, null, 4));
+          setSourceProps((previousSourceProps) => ({
+            ...previousSourceProps,
+            ...{ geojson: JSON.stringify(apiResponse.data) },
+          }));
+          setGeoJSONSource("custom");
+        } else {
+          setErrorMessage("Failed to retrieve JSON");
+        }
+      }
+    };
+    if (!sourceProps.type || sourceProps.type !== "GeoJSON") return;
+
+    const geo = sourceProps.geojson;
+    if (
+      typeof geo === "string" &&
+      (geo.endsWith(".json") || geo.endsWith(".geojson"))
+    ) {
       fetchGeoJSON();
+    } else if (typeof geo === "object" && geo !== null) {
+      setGeoJSON(JSON.stringify(geo, null, 4));
+      setSourceProps((prev) => ({
+        ...prev,
+        geojson: JSON.stringify(geo),
+      }));
+      setGeoJSONSource("custom");
     }
     // eslint-disable-next-line
-  }, [sourceProps]);
+  }, [sourceProps.geojson]);
 
   function handlePropertyChange({ newValue, rowIndex, field }) {
     // update table values
@@ -188,6 +228,23 @@ const SourcePane = ({ sourceProps, setSourceProps, setAttributeProps }) => {
     }));
   }
 
+  function handleGeoJSONSourceChange(e) {
+    const source = e.target.value;
+    setGeoJSONSource(source);
+
+    let newGeoJSON;
+    if (source === "custom") {
+      newGeoJSON = "{}";
+    } else {
+      newGeoJSON = "";
+    }
+    setGeoJSON(newGeoJSON);
+    setSourceProps((previousSourceProps) => ({
+      ...previousSourceProps,
+      ...{ geojson: newGeoJSON },
+    }));
+  }
+
   return (
     <>
       <DataSelect
@@ -205,16 +262,36 @@ const SourcePane = ({ sourceProps, setSourceProps, setAttributeProps }) => {
         <>
           {sourceType.value === "GeoJSON" ? (
             <>
-              <FileUpload
-                label="Upload GeoJSON file"
-                onFileUpload={handleGeoJSONUpload}
-                extensionsAllowed={["json", "geojson"]}
+              <DataRadioSelect
+                label="GeoJSON Source"
+                selectedRadio={geoJSONSource}
+                radioOptions={[
+                  { value: "custom", label: "Custom" },
+                  { value: "url", label: "URL" },
+                ]}
+                onChange={handleGeoJSONSourceChange}
               />
-              <StyledTextInput
-                aria-label={"geojson-source-text-area"}
-                value={geoJSON}
-                onChange={handleGeoJSONChange}
-              />
+              {geoJSONSource === "custom" ? (
+                <>
+                  <FileUpload
+                    label="Upload GeoJSON file"
+                    onFileUpload={handleGeoJSONUpload}
+                    extensionsAllowed={["json", "geojson"]}
+                  />
+                  <StyledTextInput
+                    aria-label={"geojson-source-text-area"}
+                    value={geoJSON}
+                    onChange={handleGeoJSONChange}
+                  />
+                </>
+              ) : (
+                <NormalInput
+                  label="URL"
+                  value={geoJSON}
+                  type="text"
+                  onChange={handleGeoJSONChange}
+                />
+              )}
             </>
           ) : (
             <>
@@ -242,6 +319,7 @@ SourcePane.propTypes = {
   sourceProps: sourcePropType,
   setSourceProps: PropTypes.func, // setter for sourceProps state
   setAttributeProps: PropTypes.func, // setter for attributeProps state
+  setErrorMessage: PropTypes.func,
 };
 
-export default SourcePane;
+export default memo(SourcePane);

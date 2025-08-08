@@ -13,7 +13,11 @@ def get_intake_plugin_modules():
     return {ep.name: ep.module for ep in intake_eps}
 
 
-def copy_plugin_images(plugin_modules, static_plugin_images):
+def copy_plugin_static(plugin_modules, static_plugin_images, static_plugin_data):
+    os.makedirs(static_plugin_images, exist_ok=True)
+    os.makedirs(static_plugin_data, exist_ok=True)
+    plugins_data_collected = []
+
     for source, module in plugin_modules.items():
         found = False
         try:
@@ -64,12 +68,23 @@ def copy_plugin_images(plugin_modules, static_plugin_images):
             static_file = os.path.join(static_plugin_images, f"{source}.png")
             shutil.copyfile(image_path, static_file)
 
+            if str(plugin_root) not in plugins_data_collected:
+                for filename in os.listdir(static_dir):
+                    if filename.endswith(".geojson") or filename.endswith(".json"):
+                        shutil.copy2(
+                            os.path.join(static_dir, filename),
+                            os.path.join(static_plugin_data, filename),
+                        )
+
+                plugins_data_collected.append(str(plugin_root))
+
         except ModuleNotFoundError:
             continue
 
 
 def main():
     static_plugin_images = "./public/images/plugins"
+    static_plugin_data = "./public/data/plugins"
     if not os.path.exists(static_plugin_images):
         print("Creating static plugin folder")
         os.makedirs(static_plugin_images)
@@ -78,7 +93,7 @@ def main():
     plugins = get_intake_plugin_modules()
 
     print("Checking for plugin thumbnails")
-    copy_plugin_images(plugins, static_plugin_images)
+    copy_plugin_static(plugins, static_plugin_images, static_plugin_data)
 
     print("Running collect static")
     # Run a simple command and get the output

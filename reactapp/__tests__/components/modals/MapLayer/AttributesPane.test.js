@@ -630,9 +630,7 @@ test("AttributesPane bad GeoJSON", async () => {
   ).toBeInTheDocument();
 
   expect(
-    await screen.findByText(
-      /Expected property name or '}' in JSON at position 1/i
-    )
+    await screen.findByText(/JSON5: invalid character '}' at 1/i)
   ).toBeInTheDocument();
 });
 

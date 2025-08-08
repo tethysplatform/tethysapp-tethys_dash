@@ -87,7 +87,7 @@ export const handleGridItemExport = async (gridItem) => {
   if (exportedGridItem.source === "Map") {
     if ("layers" in gridItemArgs && gridItemArgs["layers"].length > 0) {
       for (const mapLayer of gridItemArgs["layers"]) {
-        const apiResponse = await loadLayerJSONs(mapLayer);
+        const apiResponse = await loadLayerJSONs(mapLayer, true);
         if (!apiResponse.success) {
           return apiResponse;
         }

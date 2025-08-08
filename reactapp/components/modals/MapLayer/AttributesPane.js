@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, memo } from "react";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
 import Alert from "react-bootstrap/Alert";
@@ -17,6 +17,7 @@ import {
 } from "components/modals/utilities";
 import InputTable from "components/inputs/InputTable";
 import "components/modals/wideModal.css";
+import JSON5 from "json5";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -97,9 +98,12 @@ const AttributesPane = ({
       }
 
       // make sure a valid json is supplied if the source is GeoJSON
-      if (sourceProps.type === "GeoJSON") {
+      if (
+        sourceProps.type === "GeoJSON" &&
+        sourceProps.geojson.trim().startsWith("{")
+      ) {
         try {
-          JSON.parse(sourceProps.geojson);
+          JSON5.parse(sourceProps.geojson);
         } catch (err) {
           setCustomAttributes(false);
           setErrorMessage(
@@ -252,6 +256,7 @@ const AttributesPane = ({
     // set states and refs after processing all done
     setAttributes(layerAttributes);
     setLayerPopupSwitch(popupSwitchValues);
+    setAllowLayerQuery(attributeProps.queryable ?? true);
   }
 
   async function queryLayerAttributes() {
@@ -609,4 +614,4 @@ AttributesPane.propTypes = {
   tabKey: PropTypes.string.isRequired, // react state that tracks what tab is shown
 };
 
-export default AttributesPane;
+export default memo(AttributesPane);

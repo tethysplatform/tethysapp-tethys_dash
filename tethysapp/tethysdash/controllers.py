@@ -275,11 +275,11 @@ def update_dashboard(request):
 
     try:
         dashboard_updates = json.loads(request.body)
-    except RequestDataTooBig as e:
+    except RequestDataTooBig:
         return JsonResponse(
             {
                 "success": False,
-                "message": f"File size too big. Total request must be less than {settings.DATA_UPLOAD_MAX_MEMORY_SIZE/1024} KB",
+                "message": f"File size too big. Total request must be less than {settings.DATA_UPLOAD_MAX_MEMORY_SIZE/1024} KB",  # noqa: E501
             }
         )
 

@@ -9,7 +9,6 @@ import userEvent from "@testing-library/user-event";
 import DashboardLayout from "components/dashboard/DashboardLayout";
 import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import appAPI from "services/api/app";
-import html2canvas from "html2canvas";
 import { useNavigate } from "react-router-dom";
 import { AppTourContext } from "components/contexts/Contexts";
 import {

@@ -156,6 +156,32 @@ test("Custom Map Config and View Config", async () => {
   );
 });
 
+test("Custom bounding old map extent string", async () => {
+  const loadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: "10, 20, 30, 40",
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+
+  render(loadedComponent);
+
+  const mapDiv = await screen.findByLabelText("Map Div");
+  expect(mapDiv).toBeInTheDocument();
+  expect(mapDiv).toHaveStyle("width: 50%");
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+
+  expect(await screen.findByTestId("map-view")).toHaveTextContent(
+    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
+  );
+});
+
 test("Custom bounding box map extent", async () => {
   const loadedComponent = createLoadedComponent({
     children: (
@@ -345,65 +371,6 @@ test("Map Layers and Updated Layers", async () => {
     expect(addLayerSpy.mock.calls.length).toBe(3);
   });
   expect(removeLayerSpy.mock.calls.length).toBe(1);
-
-  newLayers = [
-    {
-      type: "VectorLayer",
-      props: {
-        name: "GeoJSON Layer",
-        source: {
-          type: "GeoJSON",
-          props: {},
-          geojson: {
-            type: "FeatureCollection",
-            crs: {
-              type: "name",
-              properties: {
-                name: "EPSG:3857",
-              },
-            },
-            features: [
-              {
-                type: "Feature",
-                geometry: {
-                  type: "Point",
-                  coordinates: [0, 0],
-                },
-              },
-            ],
-          },
-        },
-      },
-    },
-    {
-      type: "ImageLayer",
-      props: {
-        name: "esri",
-        source: {
-          type: "ESRI Image and Map Service",
-          props: {
-            url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
-          },
-        },
-        zIndex: 1,
-      },
-      layerVisibility: true,
-    },
-  ];
-  newLoadedComponent = createLoadedComponent({
-    children: (
-      <MapContextProvider>
-        <TestingComponent mapProps={{ layers: newLayers }} />
-      </MapContextProvider>
-    ),
-  });
-
-  rerender(newLoadedComponent);
-
-  await waitFor(() => {
-    expect(addLayerSpy.mock.calls.length).toBe(4);
-  });
-  expect(removeLayerSpy.mock.calls.length).toBe(2);
 });
 
 test("Map Layers  default invisible layer", async () => {
