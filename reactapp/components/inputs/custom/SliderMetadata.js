@@ -1,61 +1,158 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
+import DataSelect from "components/inputs/DataSelect";
+import DatePicker from "components/inputs/DatePicker";
 
 export const SliderMetadata = ({ onChange, values, visualizationRef }) => {
-  const [min, setMin] = useState(values.min ?? 0);
-  const [max, setMax] = useState(values.max ?? 100);
-  const [step, setStep] = useState(values.step ?? 1);
+  const [min, setMin] = useState(values.min ?? null);
+  const [max, setMax] = useState(values.max ?? null);
+  const [step, setStep] = useState(values.step ?? null);
+  const [initialValue, setInitialValue] = useState(values.initialValue ?? null);
+  const [dataType, setDataType] = useState(
+    values.dataType ? { value: values.dataType, label: values.dataType } : null
+  );
+
+  useEffect(() => {
+    if (
+      min != null &&
+      max != null &&
+      initialValue != null &&
+      step != null &&
+      dataType
+    ) {
+      onChange({ min, max, step, dataType, initialValue });
+    }
+  }, [min, max, step, initialValue, dataType?.value]);
+
+  const onDataTypeChange = (selected) => {
+    setDataType(selected);
+    setMin(null);
+    setMax(null);
+    setStep(null);
+    setInitialValue(null);
+  };
 
   const onMinChange = (e) => {
-    const newValue = Number(e.target.value);
+    let newValue;
+    if (isNumber) {
+      newValue = Number(e.target.value);
+    } else if (isDate) {
+      newValue = e;
+    }
     setMin(newValue);
-    onChange({ max, step, min: newValue });
   };
 
   const onMaxChange = (e) => {
-    const newValue = Number(e.target.value);
+    let newValue;
+    if (isNumber) {
+      newValue = Number(e.target.value);
+    } else if (isDate) {
+      newValue = e;
+    }
     setMax(newValue);
-    onChange({ min, step, max: newValue });
   };
 
   const onStepChange = (e) => {
     const newValue = Number(e.target.value);
     setStep(newValue);
-    onChange({ min, max, step: newValue });
   };
+
+  const onInitialValueChange = (e) => {
+    let newValue;
+    if (isNumber) {
+      newValue = Number(e.target.value);
+    } else if (isDate) {
+      newValue = e;
+    }
+    setInitialValue(newValue);
+  };
+
+  const isNumber = dataType?.value === "Number";
+  const isDate = dataType?.value === "Date";
 
   return (
     <>
-      <NormalInput
-        label="Minimum"
-        value={min}
-        type="number"
-        onChange={onMinChange}
+      <DataSelect
+        label="Data Type"
+        selectedOption={dataType}
+        onChange={onDataTypeChange}
+        options={[
+          { value: "Number", label: "Number" },
+          { value: "Date", label: "Date" },
+          { value: "Date (Hour)", label: "Date (Hour)" },
+          { value: "Custom", label: "Custom" },
+        ]}
       />
-      <NormalInput
-        label="Maximum"
-        value={max}
-        type="number"
-        onChange={onMaxChange}
-      />
-      <NormalInput
-        label="Step"
-        value={step}
-        type="number"
-        onChange={onStepChange}
-      />
+      {dataType && (
+        <>
+          {isNumber && (
+            <>
+              <NormalInput
+                label="Minimum"
+                value={min}
+                type="number"
+                onChange={onMinChange}
+              />
+              <NormalInput
+                label="Maximum"
+                value={max}
+                type="number"
+                onChange={onMaxChange}
+              />
+            </>
+          )}
+          {isDate && (
+            <>
+              <DatePicker
+                label="Minimum"
+                value={min}
+                type="date"
+                onChange={onMinChange}
+              />
+              <DatePicker
+                label="Maximum"
+                value={max}
+                type="date"
+                onChange={onMaxChange}
+              />
+            </>
+          )}
+          <NormalInput
+            label="Initial Value"
+            value={initialValue}
+            type="number"
+            onChange={onInitialValueChange}
+          />
+          <NormalInput
+            label="Step"
+            value={step}
+            type="number"
+            onChange={onStepChange}
+          />
+        </>
+      )}
     </>
   );
 };
 
 SliderMetadata.propTypes = {
-  onChange: PropTypes.func,
+  onChange: PropTypes.func.isRequired,
   values: PropTypes.shape({
-    extent: PropTypes.string, // minX,minY,maxX,maxY or lon,lat,zoom
-    variable: PropTypes.string,
+    min: PropTypes.oneOfType([
+      PropTypes.number,
+      PropTypes.string,
+      PropTypes.instanceOf(Date),
+    ]),
+    max: PropTypes.oneOfType([
+      PropTypes.number,
+      PropTypes.string,
+      PropTypes.instanceOf(Date),
+    ]),
+    step: PropTypes.number,
+    dataType: PropTypes.string,
   }),
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,

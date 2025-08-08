@@ -111,7 +111,12 @@ export const Visualization = memo(
         );
       case "slider":
         return (
-          <Slider step={vizData.step} min={vizData.min} max={vizData.max} />
+          <Slider
+            step={vizData.step}
+            min={vizData.min}
+            max={vizData.max}
+            initialValue={vizData.initialValue}
+          />
         );
       case "custom":
         return (

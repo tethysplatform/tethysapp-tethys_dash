@@ -4,10 +4,10 @@ import NormalInput from "components/inputs/NormalInput";
 import { parse } from "date-fns";
 
 const Slider = ({
-  step = 1,
+  step,
   min,
   max,
-  initialValue = 50,
+  initialValue,
   speeds = [
     { label: "Slow", value: 1000 },
     { label: "Medium", value: 500 },
@@ -18,6 +18,10 @@ const Slider = ({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(speeds[1].value);
   const intervalRef = useRef(null);
+
+  useEffect(() => {
+    setValue(initialValue);
+  }, [initialValue]);
 
   useEffect(() => {
     if (playing) {

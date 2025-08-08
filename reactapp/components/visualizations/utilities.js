@@ -95,6 +95,7 @@ export async function getVisualization({
       min: itemData.args?.metadata?.min,
       max: itemData.args?.metadata?.max,
       step: itemData.args?.metadata?.step,
+      initialValue: itemData.args?.metadata?.initialValue,
     });
 
     return;
