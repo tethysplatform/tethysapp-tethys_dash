@@ -90,7 +90,7 @@ const Slider = ({
   const unit = dateTimeDelta;
   const [value, setValue] = useState(initialValue);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(speeds[1].value);
+  const [speed, setSpeed] = useState(speeds[speeds.length - 1].value);
   const intervalRef = useRef(null);
 
   useEffect(() => {
@@ -189,11 +189,21 @@ const Slider = ({
           {/* Controls */}
           <Col xs="auto" className="d-flex flex-column gap-2">
             {!playing ? (
-              <Button variant="primary" onClick={onPlayClick} title="Play">
+              <Button
+                variant="primary"
+                onClick={onPlayClick}
+                aria-label="play"
+                title="Play"
+              >
                 ▶️
               </Button>
             ) : (
-              <Button variant="danger" onClick={onStopClick} title="Stop">
+              <Button
+                variant="danger"
+                onClick={onStopClick}
+                aria-label="stop"
+                title="Stop"
+              >
                 ⏹️
               </Button>
             )}
