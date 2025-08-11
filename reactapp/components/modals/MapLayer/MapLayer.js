@@ -227,6 +227,13 @@ const MapLayerModal = ({
       args: {},
     });
 
+    if (!apiResponse.success) {
+      setErrorMessage(
+        apiResponse.data.error ?? "Failed to load layer template. Check logs."
+      );
+      return;
+    }
+
     const attributeVariables = apiResponse.data.attributeVariables ?? {};
     const attributeAliases = apiResponse.data.attributeAliases ?? {};
     const omittedPopupAttributes =

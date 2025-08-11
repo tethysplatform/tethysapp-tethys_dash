@@ -168,6 +168,7 @@ const VariableInput = ({
           min={metadata.min}
           max={metadata.max}
           initialValue={metadata.initialValue}
+          outputFormat={metadata.outputFormat}
           dataType={metadata.dataType}
           dateTimeDelta={metadata?.dateTimeDelta}
           onChange={handleInputChange}

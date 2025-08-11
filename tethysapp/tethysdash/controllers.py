@@ -24,6 +24,7 @@ from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
     get_visualization,
 )
+from tethysapp.tethysdash.exceptions import VisualizationError
 from pathlib import Path
 
 
@@ -103,8 +104,12 @@ def data(request):
 
     try:
         viz_type, data = get_visualization(viz_source, viz_args)
+    except VisualizationError as e:
+        print(f"VisualizationError: {e}")
+        data = {"error": str(e)}
+        success = False
     except Exception as e:
-        print("Failed to retrieve data")
+        data = {"error": "Failed to retrieve data"}
         print(e)
         success = False
 

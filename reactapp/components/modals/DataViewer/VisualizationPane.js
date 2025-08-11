@@ -349,6 +349,7 @@ function VisualizationPane({
           argsString: JSON.stringify(vizInputsValues),
           metadataString: JSON.stringify(settings),
           variableInputValues,
+          vizLoadingIcon: true,
         });
       }
     }

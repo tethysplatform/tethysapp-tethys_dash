@@ -23,6 +23,7 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
   const [min, setMin] = useState(values?.min ?? null);
   const [max, setMax] = useState(values?.max ?? null);
   const [step, setStep] = useState(values?.step ?? null);
+  const [outputFormat, setOutputFormat] = useState(values?.outputFormat ?? "");
   const [initialValue, setInitialValue] = useState(
     values?.initialValue ?? null
   );
@@ -41,6 +42,7 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
       max != null &&
       initialValue != null &&
       step != null &&
+      outputFormat !== "" &&
       dataType
     ) {
       let onChangeValues = {
@@ -49,13 +51,22 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
         step,
         dataType: dataType.value,
         initialValue,
+        outputFormat,
       };
       if (dataType.value === "Date") {
         onChangeValues.dateTimeDelta = dateTimeDelta.value;
       }
       onChange(onChangeValues);
     }
-  }, [min, max, step, initialValue, dataType?.value, dateTimeDelta.value]);
+  }, [
+    min,
+    max,
+    step,
+    initialValue,
+    outputFormat,
+    dataType?.value,
+    dateTimeDelta.value,
+  ]);
 
   const onDataTypeChange = (selected) => {
     setDataType(selected);
@@ -63,6 +74,7 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
     setMax(null);
     setStep(null);
     setInitialValue(null);
+    setOutputFormat("");
     onChange(null);
   };
 
@@ -89,6 +101,11 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
   const onStepChange = (e) => {
     const newValue = Number(e.target.value);
     setStep(newValue);
+  };
+
+  const onOutputFormatChange = (e) => {
+    const newValue = e.target.value;
+    setOutputFormat(newValue);
   };
 
   const onInitialValueChange = (e) => {
@@ -156,6 +173,14 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
                 onChange={onStepChange}
                 divProps={{ style: { "margin-top": "1rem" } }}
               />
+              <NormalInput
+                label="Output Format"
+                value={outputFormat}
+                type="text"
+                onChange={onOutputFormatChange}
+                placeholder="e.g., {{n}}, {{n:3}}, {{n}}Forecast"
+                divProps={{ style: { "margin-top": "1rem" } }}
+              />
             </>
           )}
           {isDate && (
@@ -203,6 +228,14 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
                   />
                 </TimeDeltaDiv>
               </FlexDiv>
+              <NormalInput
+                label="Output Format"
+                value={outputFormat}
+                type="text"
+                onChange={onOutputFormatChange}
+                placeholder="date-fns format tokens; e.g., MM/dd/yyyy, MM/dd/yyyy'T'HH:mm"
+                divProps={{ style: { "margin-top": "1rem" } }}
+              />
             </>
           )}
         </>

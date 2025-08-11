@@ -49,6 +49,7 @@ export async function getVisualization({
   metadataString,
   variableInputValues,
   dashboardView,
+  vizLoadingIcon,
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -91,7 +92,7 @@ export async function getVisualization({
     return;
   }
 
-  if (sourceType !== "map") {
+  if (vizLoadingIcon && sourceType !== "map") {
     setVizType("loader");
   }
 
@@ -182,7 +183,10 @@ export async function getVisualization({
   } else {
     setVizType("vizError");
     setVizData({
-      error: metadata.customMessaging?.error ?? "Failed to retrieve data",
+      error:
+        metadata.customMessaging?.error ??
+        apiResponse?.data?.error ??
+        "Failed to retrieve data",
     });
   }
 }

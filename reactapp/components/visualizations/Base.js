@@ -117,6 +117,7 @@ export const Visualization = memo(
             min={vizData.min}
             max={vizData.max}
             initialValue={vizData.initialValue}
+            outputFormat={vizData.outputFormat}
             dataType={vizData.dataType}
             dateTimeDelta={vizData.dateTimeDelta}
             onChange={vizData.onChange ?? (() => {})}
@@ -256,6 +257,11 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
         metadataString,
         variableInputValues,
         dashboardView: true,
+        vizLoadingIcon: findSelectOptionByValue(
+          visualizations,
+          source,
+          "source"
+        )?.loading_icon,
       });
     }
   }

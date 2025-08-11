@@ -11,6 +11,7 @@ import {
   differenceInWeeks,
   differenceInMonths,
   differenceInYears,
+  format as formatDate,
 } from "date-fns";
 
 export const timeDeltas = {
@@ -37,12 +38,37 @@ function indexToDate(index, minDate, unit) {
   return timeDeltas[unit](minDate, index);
 }
 
+function formatNumber(n, template) {
+  return template.replace(/\{\{n(:0*(\d+))?\}\}/, (_, __, pad) => {
+    if (pad) {
+      return String(n).padStart(Number(pad), "0");
+    }
+    return n;
+  });
+}
+
+function formatDateValue(date, template) {
+  return formatDate(date, template);
+}
+
+const formatValue = (val, outputFormat, isDateType) => {
+  let formattedValue;
+  if (isDateType) {
+    formattedValue = formatDateValue(val, outputFormat);
+  } else {
+    formattedValue = formatNumber(val, outputFormat);
+  }
+
+  return formattedValue;
+};
+
 const Slider = ({
   label,
   step,
   min,
   max,
   initialValue,
+  outputFormat,
   dataType,
   dateTimeDelta, // pass the unit like "Days", "Months", etc.
   onChange,
@@ -64,7 +90,8 @@ const Slider = ({
   }, [initialValue]);
 
   useEffect(() => {
-    onChange(value);
+    let formattedValue = formatValue(value, outputFormat, isDateType);
+    onChange(formattedValue);
   }, [value]);
 
   useEffect(() => {
@@ -105,7 +132,7 @@ const Slider = ({
     }
   };
 
-  const displayValue = isDateType ? new Date(value).toLocaleString() : value;
+  const displayValue = formatValue(value, outputFormat, isDateType);
 
   const sliderValue =
     isDateType && unit
@@ -130,7 +157,7 @@ const Slider = ({
         <Row className="align-items-center">
           {/* Start value */}
           <Col xs="auto" className="text-center">
-            <strong>{isDateType ? new Date(min).toLocaleString() : min}</strong>
+            <strong>{formatValue(min, outputFormat, isDateType)}</strong>
           </Col>
 
           {/* Slider */}
@@ -148,7 +175,7 @@ const Slider = ({
 
           {/* End value */}
           <Col xs="auto" className="text-center">
-            <strong>{isDateType ? new Date(max).toLocaleString() : max}</strong>
+            <strong>{formatValue(max, outputFormat, isDateType)}</strong>
           </Col>
 
           {/* Controls */}

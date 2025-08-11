@@ -116,7 +116,10 @@ function DataViewerModal({
           );
           setShowAlert(true);
           return;
-        } else if (!variableInputValue && variableInputSource !== "checkbox") {
+        } else if (
+          variableInputValue == null &&
+          variableInputSource !== "checkbox"
+        ) {
           setAlertMessage("Initial value must be selected in the dropdown");
           setShowAlert(true);
           return;
