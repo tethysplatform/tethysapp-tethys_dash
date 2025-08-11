@@ -24,8 +24,12 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
   const [max, setMax] = useState(values?.max ?? null);
   const [step, setStep] = useState(values?.step ?? null);
   const [outputFormat, setOutputFormat] = useState(values?.outputFormat ?? "");
+  const [rangeMode, setRangeMode] = useState(values?.rangeMode ?? false);
   const [initialValue, setInitialValue] = useState(
     values?.initialValue ?? null
+  );
+  const [initialRange, setInitialRange] = useState(
+    values?.initialRange ?? [null, null]
   );
   const [dataType, setDataType] = useState(
     values?.dataType ? { value: values.dataType, label: values.dataType } : null
@@ -40,7 +44,6 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
     if (
       min != null &&
       max != null &&
-      initialValue != null &&
       step != null &&
       outputFormat !== "" &&
       dataType
@@ -50,10 +53,27 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
         max,
         step,
         dataType: dataType.value,
-        initialValue,
         outputFormat,
+        rangeMode,
       };
+      if (rangeMode) {
+        if (initialRange[0] == null || initialRange[1] == null) {
+          onChange(null);
+          return;
+        }
+        onChangeValues.initialRange = initialRange;
+      } else {
+        if (initialValue == null) {
+          onChange(null);
+          return;
+        }
+        onChangeValues.initialValue = initialValue;
+      }
       if (dataType.value === "Date") {
+        if (dateTimeDelta == null) {
+          onChange(null);
+          return;
+        }
         onChangeValues.dateTimeDelta = dateTimeDelta.value;
       }
       onChange(onChangeValues);
@@ -63,6 +83,8 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
     max,
     step,
     initialValue,
+    initialRange,
+    rangeMode,
     outputFormat,
     dataType?.value,
     dateTimeDelta.value,
@@ -108,20 +130,6 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
     setOutputFormat(newValue);
   };
 
-  const onInitialValueChange = (e) => {
-    let newValue;
-    if (isNumber) {
-      newValue = Number(e.target.value);
-    } else if (isDate) {
-      newValue = e;
-    }
-    setInitialValue(newValue);
-  };
-
-  const onDataTimeDeltaChange = (selected) => {
-    setDateTimeDelta(selected);
-  };
-
   const isNumber = dataType?.value === "Number";
   const isDate = dataType?.value === "Date";
   const dateTimeDeltaOptions = Object.keys(timeDeltas).map((key) => ({
@@ -131,6 +139,15 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
 
   return (
     <>
+      <DataRadioSelect
+        label="Slider Mode"
+        radioOptions={[
+          { value: false, label: "Single Value" },
+          { value: true, label: "Range" },
+        ]}
+        selectedRadio={rangeMode}
+        onChange={(e) => setRangeMode(e.target.value === "true")}
+      />
       <DataSelect
         label="Data Type"
         selectedOption={dataType}
@@ -141,103 +158,136 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
           { value: "Custom", label: "Custom" },
         ]}
       />
-      {dataType && (
+
+      {isNumber && (
         <>
-          {isNumber && (
+          <NormalInput
+            label="Minimum"
+            value={min}
+            type="number"
+            onChange={onMinChange}
+            divProps={{ style: { "margin-top": "1rem" } }}
+          />
+          <NormalInput
+            label="Maximum"
+            value={max}
+            type="number"
+            onChange={onMaxChange}
+            divProps={{ style: { "margin-top": "1rem" } }}
+          />
+          {rangeMode ? (
             <>
               <NormalInput
-                label="Minimum"
-                value={min}
+                label="Range Start"
+                value={initialRange[0]}
                 type="number"
-                onChange={onMinChange}
-                divProps={{ style: { "margin-top": "1rem" } }}
+                onChange={(e) =>
+                  setInitialRange([Number(e.target.value), initialRange[1]])
+                }
               />
               <NormalInput
-                label="Maximum"
-                value={max}
+                label="Range End"
+                value={initialRange[1]}
                 type="number"
-                onChange={onMaxChange}
-                divProps={{ style: { "margin-top": "1rem" } }}
-              />
-              <NormalInput
-                label="Initial Value"
-                value={initialValue}
-                type="number"
-                onChange={onInitialValueChange}
-                divProps={{ style: { "margin-top": "1rem" } }}
-              />
-              <NormalInput
-                label="Step"
-                value={step}
-                type="number"
-                onChange={onStepChange}
-                divProps={{ style: { "margin-top": "1rem" } }}
-              />
-              <NormalInput
-                label="Output Format"
-                value={outputFormat}
-                type="text"
-                onChange={onOutputFormatChange}
-                placeholder="e.g., {{n}}, {{n:3}}, {{n}}Forecast"
-                divProps={{ style: { "margin-top": "1rem" } }}
+                onChange={(e) =>
+                  setInitialRange([initialRange[0], Number(e.target.value)])
+                }
               />
             </>
+          ) : (
+            <NormalInput
+              label="Initial Value"
+              value={initialValue}
+              type="number"
+              onChange={(e) => setInitialValue(Number(e.target.value))}
+            />
           )}
-          {isDate && (
+          <NormalInput
+            label="Step"
+            value={step}
+            type="number"
+            onChange={onStepChange}
+            divProps={{ style: { "margin-top": "1rem" } }}
+          />
+          <NormalInput
+            label="Output Format"
+            value={outputFormat}
+            type="text"
+            onChange={onOutputFormatChange}
+            placeholder="e.g., {{n}}, {{n:3}}, {{n}}Forecast"
+            divProps={{ style: { "margin-top": "1rem" } }}
+          />
+        </>
+      )}
+      {isDate && (
+        <>
+          <DatePicker
+            label="Minimum"
+            value={min}
+            type="date-hour"
+            onChange={onMinChange}
+            divProps={{ style: { "margin-top": "1rem" } }}
+          />
+          <DatePicker
+            label="Maximum"
+            value={max}
+            type="date-hour"
+            onChange={onMaxChange}
+            divProps={{ style: { "margin-top": "1rem" } }}
+          />
+          {rangeMode ? (
             <>
               <DatePicker
-                label="Minimum"
-                value={min}
+                label="Range Start"
+                value={initialRange[0]}
                 type="date-hour"
-                onChange={onMinChange}
-                divProps={{ style: { "margin-top": "1rem" } }}
+                onChange={(e) => setInitialRange([e, initialRange[1]])}
               />
               <DatePicker
-                label="Maximum"
-                value={max}
+                label="Range End"
+                value={initialRange[1]}
                 type="date-hour"
-                onChange={onMaxChange}
-                divProps={{ style: { "margin-top": "1rem" } }}
-              />
-              <DatePicker
-                label="Initial Value"
-                value={initialValue}
-                type="date-hour"
-                onChange={onInitialValueChange}
-                divProps={{ style: { "margin-top": "1rem" } }}
-              />
-              <FlexDiv>
-                <NormalInput
-                  label="Step"
-                  value={step}
-                  type="number"
-                  onChange={onStepChange}
-                />
-                <TimeDeltaDiv>
-                  <DataSelect
-                    selectedOption={dateTimeDelta}
-                    onChange={onDataTimeDeltaChange}
-                    options={dateTimeDeltaOptions}
-                    divProps={{
-                      style: {
-                        "margin-bottom": 0,
-                        bottom: 0,
-                        position: "absolute",
-                      },
-                    }}
-                  />
-                </TimeDeltaDiv>
-              </FlexDiv>
-              <NormalInput
-                label="Output Format"
-                value={outputFormat}
-                type="text"
-                onChange={onOutputFormatChange}
-                placeholder="date-fns format tokens; e.g., MM/dd/yyyy, MM/dd/yyyy'T'HH:mm"
-                divProps={{ style: { "margin-top": "1rem" } }}
+                onChange={(e) => setInitialRange([initialRange[0], e])}
               />
             </>
+          ) : (
+            <DatePicker
+              label="Initial Value"
+              value={initialValue}
+              type="date-hour"
+              onChange={(e) => setInitialValue(e)}
+            />
           )}
+          <FlexDiv>
+            <NormalInput
+              label="Step"
+              value={step}
+              type="number"
+              onChange={onStepChange}
+            />
+            <TimeDeltaDiv>
+              <DataSelect
+                selectedOption={dateTimeDelta}
+                onChange={setDateTimeDelta}
+                options={dateTimeDeltaOptions}
+                divProps={{
+                  style: {
+                    "margin-bottom": 0,
+                    bottom: 0,
+                    position: "absolute",
+                  },
+                }}
+              />
+            </TimeDeltaDiv>
+          </FlexDiv>
+          <NormalInput
+            label="Output Format"
+            value={outputFormat}
+            type="text"
+            onChange={onOutputFormatChange}
+            placeholder="date-fns format tokens; e.g., MM/dd/yyyy, MM/dd/yyyy'T'HH:mm"
+            divProps={{ style: { "margin-top": "1rem" } }}
+          />
         </>
       )}
     </>

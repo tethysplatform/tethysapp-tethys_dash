@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import { Button, Form, Row, Col } from "react-bootstrap";
+import SliderLib from "rc-slider";
+import "rc-slider/assets/index.css";
 import {
   addMinutes,
   addDays,
@@ -50,24 +52,17 @@ function formatNumber(n, template) {
 function formatDateValue(date, template) {
   try {
     if (!date) return "";
-
     return formatDate(date, template);
   } catch (err) {
     console.error("Date formatting error:", err.message);
-    // Return a fallback value instead of crashing
     return date.toString();
   }
 }
 
 const formatValue = (val, outputFormat, isDateType) => {
-  let formattedValue;
-  if (isDateType) {
-    formattedValue = formatDateValue(val, outputFormat);
-  } else {
-    formattedValue = formatNumber(val, outputFormat);
-  }
-
-  return formattedValue;
+  return isDateType
+    ? formatDateValue(val, outputFormat)
+    : formatNumber(val, outputFormat);
 };
 
 const Slider = ({
@@ -76,9 +71,11 @@ const Slider = ({
   min,
   max,
   initialValue,
+  initialRange,
+  rangeMode = false,
   outputFormat,
   dataType,
-  dateTimeDelta, // pass the unit like "Days", "Months", etc.
+  dateTimeDelta,
   onChange,
   speeds = [
     { label: "Slow", value: 1000 },
@@ -88,35 +85,82 @@ const Slider = ({
 }) => {
   const isDateType = dataType === "Date";
   const unit = dateTimeDelta;
-  const [value, setValue] = useState(initialValue);
+
+  const [value, setValue] = useState(rangeMode ? initialRange : initialValue);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(speeds[speeds.length - 1].value);
+  const [speed, setSpeed] = useState(speeds[1].value);
   const intervalRef = useRef(null);
 
   useEffect(() => {
-    setValue(initialValue);
-  }, [initialValue]);
+    setValue(rangeMode ? initialRange : initialValue);
+  }, [initialValue, initialRange, rangeMode]);
 
   useEffect(() => {
-    let formattedValue = formatValue(value, outputFormat, isDateType);
-    onChange(formattedValue);
-  }, [value]);
+    if (rangeMode) {
+      const formatted = value
+        .map((v) => formatValue(v, outputFormat, isDateType))
+        .join(","); // join with commas
+      onChange(formatted);
+    } else {
+      onChange(formatValue(value, outputFormat, isDateType));
+    }
+  }, [value, rangeMode, outputFormat, isDateType, onChange]);
 
   useEffect(() => {
     if (playing) {
       intervalRef.current = setInterval(() => {
         setValue((v) => {
-          if (isDateType && unit) {
-            const currentDate = new Date(v);
-            const nextDate = indexToDate(
-              dateToIndex(currentDate, new Date(min), unit) + Number(step),
-              new Date(min),
-              unit
-            );
-            return nextDate > new Date(max) ? min : nextDate.toISOString();
+          if (rangeMode) {
+            // Range mode play logic:
+            // Advance both values by step, loop when max reached
+
+            if (isDateType && unit) {
+              const minDateObj = new Date(min);
+              const maxDateObj = new Date(max);
+
+              const startIndex = dateToIndex(new Date(v[0]), minDateObj, unit);
+              const endIndex = dateToIndex(new Date(v[1]), minDateObj, unit);
+              const rangeSize = endIndex - startIndex;
+
+              let nextStart = startIndex + Number(step);
+              let nextEnd = endIndex + Number(step);
+
+              if (nextEnd > dateToIndex(maxDateObj, minDateObj, unit)) {
+                nextStart = 0;
+                nextEnd = rangeSize;
+              }
+
+              const nextRange = [
+                indexToDate(nextStart, minDateObj, unit).toISOString(),
+                indexToDate(nextEnd, minDateObj, unit).toISOString(),
+              ];
+              return nextRange;
+            } else {
+              // Numeric range mode
+              const rangeSize = v[1] - v[0];
+              let nextStart = v[0] + Number(step);
+              let nextEnd = v[1] + Number(step);
+
+              if (nextEnd > max) {
+                nextStart = min;
+                nextEnd = min + rangeSize;
+              }
+              return [nextStart, nextEnd];
+            }
           } else {
-            const next = v + Number(step);
-            return next > max ? min : next;
+            // Single value play logic
+            if (isDateType && unit) {
+              const currentDate = new Date(v);
+              const nextDate = indexToDate(
+                dateToIndex(currentDate, new Date(min), unit) + Number(step),
+                new Date(min),
+                unit
+              );
+              return nextDate > new Date(max) ? min : nextDate.toISOString();
+            } else {
+              const next = v + Number(step);
+              return next > max ? min : next;
+            }
           }
         });
       }, speed);
@@ -124,35 +168,48 @@ const Slider = ({
       clearInterval(intervalRef.current);
     }
     return () => clearInterval(intervalRef.current);
-  }, [playing, speed, step, min, max, isDateType, unit]);
+  }, [playing, speed, step, min, max, isDateType, unit, rangeMode]);
 
-  const onRangeChange = (e) => {
-    let rawIndex = Number(e.target.value);
-
-    // Snap to nearest multiple of step
-    const snappedIndex = Math.round(rawIndex / step) * step;
-
-    if (isDateType && unit) {
-      const newDate = indexToDate(snappedIndex, new Date(min), unit);
-      setValue(newDate.toISOString());
+  const onRangeChange = (val) => {
+    if (rangeMode) {
+      const snapped = val.map((n) => Math.round(n / step) * step);
+      if (isDateType && unit) {
+        const newDates = snapped.map((idx) =>
+          indexToDate(idx, new Date(min), unit).toISOString()
+        );
+        setValue(newDates);
+      } else {
+        setValue(snapped);
+      }
     } else {
-      setValue(snappedIndex);
+      const snapped = Math.round(val / step) * step;
+      if (isDateType && unit) {
+        const newDate = indexToDate(snapped, new Date(min), unit);
+        setValue(newDate.toISOString());
+      } else {
+        setValue(snapped);
+      }
     }
   };
 
-  const displayValue = formatValue(value, outputFormat, isDateType);
-
-  const sliderValue =
-    isDateType && unit
+  const sliderValue = (() => {
+    if (rangeMode) {
+      return isDateType && unit
+        ? value.map((v) => dateToIndex(new Date(v), new Date(min), unit))
+        : value;
+    }
+    return isDateType && unit
       ? dateToIndex(new Date(value), new Date(min), unit)
       : value;
+  })();
 
   const sliderMin = isDateType && unit ? 0 : min;
   const sliderMax =
     isDateType && unit ? dateToIndex(new Date(max), new Date(min), unit) : max;
 
-  const onPlayClick = () => setPlaying(true);
-  const onStopClick = () => setPlaying(false);
+  const displayValue = rangeMode
+    ? value.map((v) => formatValue(v, outputFormat, isDateType)).join(" - ")
+    : formatValue(value, outputFormat, isDateType);
 
   return (
     <>
@@ -170,13 +227,26 @@ const Slider = ({
 
           {/* Slider */}
           <Col>
-            <Form.Range
+            <SliderLib
+              range={rangeMode}
               min={sliderMin}
               max={sliderMax}
               step={1}
               value={sliderValue}
               onChange={onRangeChange}
-              disabled={playing}
+              disabled={playing && !rangeMode ? true : false}
+              styles={{
+                handle: {
+                  borderColor: "#0d6efd",
+                  backgroundColor: "#fff",
+                },
+                track: {
+                  backgroundColor: "#0d6efd",
+                },
+                rail: {
+                  backgroundColor: "#ddd",
+                },
+              }}
             />
             <div className="text-center fw-bold mt-2">{displayValue}</div>
           </Col>
@@ -191,8 +261,7 @@ const Slider = ({
             {!playing ? (
               <Button
                 variant="primary"
-                onClick={onPlayClick}
-                aria-label="play"
+                onClick={() => setPlaying(true)}
                 title="Play"
               >
                 ▶️
@@ -200,14 +269,12 @@ const Slider = ({
             ) : (
               <Button
                 variant="danger"
-                onClick={onStopClick}
-                aria-label="stop"
+                onClick={() => setPlaying(false)}
                 title="Stop"
               >
                 ⏹️
               </Button>
             )}
-
             <Form.Select
               value={speed}
               onChange={(e) => setSpeed(Number(e.target.value))}
@@ -227,4 +294,4 @@ const Slider = ({
   );
 };
 
-export default Slider;
+export default memo(Slider);

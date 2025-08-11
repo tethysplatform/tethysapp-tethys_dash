@@ -121,20 +121,29 @@ const VariableInput = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variableInputValues]);
 
-  function handleInputChange(e) {
-    let inputValue = e;
-    if (variable_options_source === "number") {
-      inputValue = parseInt(e);
-    }
-    setValue(inputValue);
-    onChange(inputValue);
-
-    if (Array.isArray(type) || type === "checkbox" || type === "slider") {
-      if (!inDataViewerMode) {
-        updateVariableInputs(e.value ?? e);
+  const handleInputChange = useCallback(
+    (e) => {
+      let inputValue = e;
+      if (variable_options_source === "number") {
+        inputValue = parseInt(e);
       }
-    }
-  }
+      setValue(inputValue);
+      onChange(inputValue);
+
+      if (Array.isArray(type) || type === "checkbox" || type === "slider") {
+        if (!inDataViewerMode) {
+          updateVariableInputs(e.value ?? e);
+        }
+      }
+    },
+    [
+      variable_options_source,
+      onChange,
+      type,
+      inDataViewerMode,
+      updateVariableInputs,
+    ]
+  );
 
   function handleInputRefresh() {
     if (!inDataViewerMode) {
@@ -168,6 +177,8 @@ const VariableInput = ({
           min={metadata.min}
           max={metadata.max}
           initialValue={metadata.initialValue}
+          initialRange={metadata.initialRange}
+          rangeMode={metadata.rangeMode}
           outputFormat={metadata.outputFormat}
           dataType={metadata.dataType}
           dateTimeDelta={metadata?.dateTimeDelta}
