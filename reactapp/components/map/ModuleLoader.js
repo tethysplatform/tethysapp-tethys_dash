@@ -9,6 +9,17 @@ import { createXYZ } from "ol/tilegrid.js";
 const moduleCache = {};
 
 const moduleLoader = async (config, mapProjection) => {
+  if (config.type.includes("ESRI")) {
+    if (config.props?.params?.TIME) {
+      config.props.params.TIME = config.props.params.TIME.split(",")
+        .map((dateStr) => {
+          const d = new Date(dateStr.trim());
+          return isNaN(d) ? dateStr.trim() : d.getTime();
+        })
+        .join(",");
+    }
+  }
+
   const { type, props } = config;
 
   try {

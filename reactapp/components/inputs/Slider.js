@@ -48,7 +48,15 @@ function formatNumber(n, template) {
 }
 
 function formatDateValue(date, template) {
-  return formatDate(date, template);
+  try {
+    if (!date) return "";
+
+    return formatDate(date, template);
+  } catch (err) {
+    console.error("Date formatting error:", err.message);
+    // Return a fallback value instead of crashing
+    return date.toString();
+  }
 }
 
 const formatValue = (val, outputFormat, isDateType) => {
