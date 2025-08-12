@@ -96,22 +96,34 @@ const Slider = ({
   useEffect(() => {
     let newValue = value;
 
-    if (rangeMode && !Array.isArray(value)) {
-      newValue = [min, max];
-      setValue(newValue);
-    } else if (!rangeMode && Array.isArray(value)) {
-      newValue = min;
-      setValue(newValue);
+    if (rangeMode) {
+      if (Array.isArray(initialRange)) {
+        newValue = initialRange;
+      } else {
+        newValue = [min, max];
+      }
+    } else {
+      if (
+        typeof initialValue === "number" ||
+        typeof initialValue === "string"
+      ) {
+        newValue = initialValue;
+      } else {
+        newValue = min;
+      }
     }
+    setValue(newValue);
+  }, [rangeMode, isDateType, onChange, initialRange, initialValue, min, max]);
 
+  useEffect(() => {
     if (rangeMode) {
       onChange(
-        newValue.map((v) => formatValue(v, outputFormat, isDateType)).join(",")
+        value.map((v) => formatValue(v, outputFormat, isDateType)).join(",")
       );
     } else {
-      onChange(formatValue(newValue, outputFormat, isDateType));
+      onChange(formatValue(value, outputFormat, isDateType));
     }
-  }, [rangeMode, value, outputFormat, isDateType, onChange]);
+  }, [value, outputFormat]);
 
   useEffect(() => {
     if (playing) {
@@ -231,7 +243,7 @@ const Slider = ({
       <Form>
         <Row className="align-items-center">
           {/* Start value */}
-          <Col xs="auto" className="text-center">
+          <Col xs="auto" className="text-center" aria-label="Min Value">
             <strong>{formatValue(min, outputFormat, isDateType)}</strong>
           </Col>
 
@@ -267,7 +279,7 @@ const Slider = ({
           </Col>
 
           {/* End value */}
-          <Col xs="auto" className="text-center">
+          <Col xs="auto" className="text-center" aria-label="Max Value">
             <strong>{formatValue(max, outputFormat, isDateType)}</strong>
           </Col>
 
