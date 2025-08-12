@@ -60,6 +60,9 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
         showTimeInput={type === "date-hour"}
         dateFormat={type === "date-hour" ? "MM/dd/yyyy h:mm aa" : "MM/dd/yyyy"}
         timeInputLabel="Time:"
+        showYearDropdown={true}
+        showMonthDropdown={true}
+        scrollableYearDropdown={true}
       />
     </div>
   );

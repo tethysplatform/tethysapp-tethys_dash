@@ -767,6 +767,7 @@ export const mockedDropdownVisualization = [
     options: [
       {
         source: "plugin_source",
+        loading_icon: true,
         value: "plugin_value",
         label: "Some Visualization Name",
         args: {

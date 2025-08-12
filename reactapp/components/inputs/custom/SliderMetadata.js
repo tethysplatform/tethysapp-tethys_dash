@@ -120,16 +120,6 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
     setMax(newValue);
   };
 
-  const onStepChange = (e) => {
-    const newValue = Number(e.target.value);
-    setStep(newValue);
-  };
-
-  const onOutputFormatChange = (e) => {
-    const newValue = e.target.value;
-    setOutputFormat(newValue);
-  };
-
   const isNumber = dataType?.value === "Number";
   const isDate = dataType?.value === "Date";
   const dateTimeDeltaOptions = Object.keys(timeDeltas).map((key) => ({
@@ -206,14 +196,14 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
             label="Step"
             value={step}
             type="number"
-            onChange={onStepChange}
+            onChange={(e) => setStep(Number(e.target.value))}
             divProps={{ style: { "margin-top": "1rem" } }}
           />
           <NormalInput
             label="Output Format"
             value={outputFormat}
             type="text"
-            onChange={onOutputFormatChange}
+            onChange={(e) => setOutputFormat(e.target.value)}
             placeholder="e.g., {{n}}, {{n:3}}, {{n}}Forecast"
             divProps={{ style: { "margin-top": "1rem" } }}
           />
@@ -263,7 +253,7 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
               label="Step"
               value={step}
               type="number"
-              onChange={onStepChange}
+              onChange={(e) => setStep(Number(e.target.value))}
             />
             <TimeDeltaDiv>
               <DataSelect
@@ -284,7 +274,7 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
             label="Output Format"
             value={outputFormat}
             type="text"
-            onChange={onOutputFormatChange}
+            onChange={(e) => setOutputFormat(e.target.value)}
             placeholder="date-fns format tokens; e.g., MM/dd/yyyy, MM/dd/yyyy'T'HH:mm"
             divProps={{ style: { "margin-top": "1rem" } }}
           />

@@ -322,13 +322,11 @@ test("renders date-hour", async () => {
   const input = screen.getByRole("textbox");
   await userEvent.click(input);
 
-  // pick first available day in calendar (simulate)
-  const days = await screen.findAllByRole("option", { name: /1/i });
-  await userEvent.click(days[0]);
+  const expectedDateString = "01/01/2020 12:00 AM";
+  fireEvent.change(input, {
+    target: { value: expectedDateString },
+  });
 
-  const now = new Date();
-  const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  let expectedDateString = format(firstOfMonth, "MM/dd/yyyy h:mm aa");
   expect(mockOnChange).toHaveBeenCalledWith(expectedDateString);
 });
 

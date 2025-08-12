@@ -86,25 +86,32 @@ const Slider = ({
   const isDateType = dataType === "Date";
   const unit = dateTimeDelta;
 
-  const [value, setValue] = useState(rangeMode ? initialRange : initialValue);
+  const [value, setValue] = useState(() =>
+    rangeMode ? (initialRange ?? [min, max]) : (initialValue ?? min)
+  );
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(speeds[1].value);
+  const [speed, setSpeed] = useState(speeds[0].value);
   const intervalRef = useRef(null);
 
   useEffect(() => {
-    setValue(rangeMode ? initialRange : initialValue);
-  }, [initialValue, initialRange, rangeMode]);
+    let newValue = value;
 
-  useEffect(() => {
-    if (rangeMode) {
-      const formatted = value
-        .map((v) => formatValue(v, outputFormat, isDateType))
-        .join(","); // join with commas
-      onChange(formatted);
-    } else {
-      onChange(formatValue(value, outputFormat, isDateType));
+    if (rangeMode && !Array.isArray(value)) {
+      newValue = [min, max];
+      setValue(newValue);
+    } else if (!rangeMode && Array.isArray(value)) {
+      newValue = min;
+      setValue(newValue);
     }
-  }, [value, rangeMode, outputFormat, isDateType, onChange]);
+
+    if (rangeMode) {
+      onChange(
+        newValue.map((v) => formatValue(v, outputFormat, isDateType)).join(",")
+      );
+    } else {
+      onChange(formatValue(newValue, outputFormat, isDateType));
+    }
+  }, [rangeMode, value, outputFormat, isDateType, onChange]);
 
   useEffect(() => {
     if (playing) {
@@ -192,6 +199,9 @@ const Slider = ({
     }
   };
 
+  if (rangeMode && !Array.isArray(value)) return null; // or a loading state
+  if (!rangeMode && Array.isArray(value)) return null;
+
   const sliderValue = (() => {
     if (rangeMode) {
       return isDateType && unit
@@ -248,7 +258,12 @@ const Slider = ({
                 },
               }}
             />
-            <div className="text-center fw-bold mt-2">{displayValue}</div>
+            <div
+              aria-label="Display Value"
+              className="text-center fw-bold mt-2"
+            >
+              {displayValue}
+            </div>
           </Col>
 
           {/* End value */}
@@ -263,6 +278,7 @@ const Slider = ({
                 variant="primary"
                 onClick={() => setPlaying(true)}
                 title="Play"
+                aria-label="play"
               >
                 ▶️
               </Button>
@@ -271,6 +287,7 @@ const Slider = ({
                 variant="danger"
                 onClick={() => setPlaying(false)}
                 title="Stop"
+                aria-label="stop"
               >
                 ⏹️
               </Button>

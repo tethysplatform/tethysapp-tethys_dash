@@ -208,6 +208,11 @@ test("AppLoader", async () => {
                 "date",
                 "date-hour",
                 {
+                  value: "slider",
+                  label: "slider",
+                  sub_args: { metadata: "custom-SliderMetadata" },
+                },
+                {
                   label: "Existing Visualization Inputs",
                   options: [
                     {

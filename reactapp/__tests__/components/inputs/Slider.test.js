@@ -1,6 +1,7 @@
 // Slider.test.jsx
 import { act } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import Slider from "components/inputs/Slider";
 
 // Helper to advance timers in a controlled way
@@ -44,10 +45,10 @@ describe("Slider Component", () => {
     expect(handleChange).toHaveBeenCalledWith("5");
   });
 
-  it("changes value when slider moved (number mode)", () => {
+  it("changes value when slider moved (number mode)", async () => {
     const handleChange = jest.fn();
 
-    render(
+    const { container } = render(
       <Slider
         step={1}
         min={0}
@@ -59,12 +60,12 @@ describe("Slider Component", () => {
       />
     );
 
-    const range = screen.getByRole("slider");
-    fireEvent.change(range, { target: { value: "3" } });
+    fireEvent.mouseDown(container.querySelector(".rc-slider"), {
+      clientX: 5,
+    });
 
-    // Value should snap to step (1) and call onChange with string
-    expect(handleChange).toHaveBeenLastCalledWith("3");
-    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(handleChange).toHaveBeenLastCalledWith("10");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("10");
   });
 
   it("wraps to min when exceeding max in play mode (number mode)", async () => {

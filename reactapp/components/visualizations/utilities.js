@@ -49,7 +49,7 @@ export async function getVisualization({
   metadataString,
   variableInputValues,
   dashboardView,
-  vizLoadingIcon,
+  vizLoadingIcon = true,
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({

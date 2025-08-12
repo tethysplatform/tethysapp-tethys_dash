@@ -269,9 +269,9 @@ test("Visualization Pane Variable Input", async () => {
     "Cell updated to show Variable Input"
   );
   expect(mockSetVizType).toHaveBeenCalledWith("variableInput");
-  expect(mockSetVizData.mock.calls[1][0].initial_value).toBe("");
-  expect(mockSetVizData.mock.calls[1][0].variable_name).toBe("Test Variable");
-  expect(mockSetVizData.mock.calls[1][0].variable_options_source).toBe("text");
+  expect(mockSetVizData.mock.calls[3][0].initial_value).toBe("");
+  expect(mockSetVizData.mock.calls[3][0].variable_name).toBe("Test Variable");
+  expect(mockSetVizData.mock.calls[3][0].variable_options_source).toBe("text");
 
   await userEvent.click(variableOptionsSourceSelect);
   const numberOption = await screen.findByText("number");
@@ -289,9 +289,9 @@ test("Visualization Pane Variable Input", async () => {
     "Cell updated to show Variable Input"
   );
   expect(mockSetVizType).toHaveBeenCalledWith("variableInput");
-  expect(mockSetVizData.mock.calls[2][0].initial_value).toBe("0");
-  expect(mockSetVizData.mock.calls[2][0].variable_name).toBe("Test Variable");
-  expect(mockSetVizData.mock.calls[2][0].variable_options_source).toBe(
+  expect(mockSetVizData.mock.calls[4][0].initial_value).toBe("0");
+  expect(mockSetVizData.mock.calls[4][0].variable_name).toBe("Test Variable");
+  expect(mockSetVizData.mock.calls[4][0].variable_options_source).toBe(
     "number"
   );
 
@@ -311,9 +311,9 @@ test("Visualization Pane Variable Input", async () => {
     "Cell updated to show Variable Input"
   );
   expect(mockSetVizType).toHaveBeenCalledWith("variableInput");
-  expect(mockSetVizData.mock.calls[3][0].initial_value).toBe(null);
-  expect(mockSetVizData.mock.calls[3][0].variable_name).toBe("Test Variable");
-  expect(mockSetVizData.mock.calls[3][0].variable_options_source).toBe(
+  expect(mockSetVizData.mock.calls[5][0].initial_value).toBe(null);
+  expect(mockSetVizData.mock.calls[5][0].variable_name).toBe("Test Variable");
+  expect(mockSetVizData.mock.calls[5][0].variable_options_source).toBe(
     "checkbox"
   );
 });
@@ -492,6 +492,7 @@ test("Visualization Pane Other Type Checkbox", async () => {
           type: "some type",
           tags: [],
           description: "",
+          loading_icon: true,
         },
       ],
     },
@@ -893,6 +894,7 @@ test("Visualization Pane Use Existing Args Viz with True checkbox", async () => 
           type: "some type",
           tags: [],
           description: "",
+          loading_icon: true,
         },
       ],
     },
@@ -978,6 +980,7 @@ test("Visualization Pane Use Existing Args Viz with False checkbox", async () =>
           type: "some type",
           tags: [],
           description: "",
+          loading_icon: true,
         },
       ],
     },
@@ -1102,6 +1105,7 @@ test("Visualization Pane Use Existing Subs Args", async () => {
           type: "some type",
           tags: [],
           description: "",
+          loading_icon: true,
         },
       ],
     },
@@ -1245,6 +1249,7 @@ test("Visualization Pane Subs Args", async () => {
           type: "some type",
           tags: [],
           description: "",
+          loading_icon: true,
         },
       ],
     },
@@ -1371,7 +1376,7 @@ test("Visualization Pane Subs Args", async () => {
   expect(mockSetGridItemMessage).toHaveBeenCalledWith(
     "Cell updated to show plugin_label"
   );
-  expect(mockSetVizType).toHaveBeenCalledTimes(6);
+  expect(mockSetVizType).toHaveBeenCalledTimes(10);
   expect(mockSetVizType).toHaveBeenCalledWith("plotly");
   expect(mockSetVizData).toHaveBeenCalledWith({
     config: undefined,
@@ -1392,7 +1397,7 @@ test("Visualization Pane Subs Args", async () => {
   const newSubArg1AOption = await screen.findByText("Sub Arg 1A");
   fireEvent.click(newSubArg1AOption);
 
-  expect(mockSetVizType).toHaveBeenCalledTimes(8);
+  expect(mockSetVizType).toHaveBeenCalledTimes(12);
   expect(mockSetShowingSubModal).toHaveBeenCalledWith(false);
 });
 
@@ -1427,6 +1432,7 @@ test("Visualization Pane Use Existing Args and switch type with same arg", async
           type: "some type",
           tags: [],
           description: "",
+          loading_icon: true,
         },
         {
           source: "plugin_source2",
@@ -1436,6 +1442,7 @@ test("Visualization Pane Use Existing Args and switch type with same arg", async
           type: "some type",
           tags: [],
           description: "",
+          loading_icon: true,
         },
       ],
     },
