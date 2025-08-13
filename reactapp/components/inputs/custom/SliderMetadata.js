@@ -70,10 +70,6 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
         onChangeValues.initialValue = initialValue;
       }
       if (dataType.value === "Date") {
-        if (dateTimeDelta == null) {
-          onChange(null);
-          return;
-        }
         onChangeValues.dateTimeDelta = dateTimeDelta.value;
       }
       onChange(onChangeValues);
@@ -104,7 +100,7 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
     let newValue;
     if (isNumber) {
       newValue = Number(e.target.value);
-    } else if (isDate) {
+    } else {
       newValue = e;
     }
     setMin(newValue);
@@ -114,7 +110,7 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
     let newValue;
     if (isNumber) {
       newValue = Number(e.target.value);
-    } else if (isDate) {
+    } else {
       newValue = e;
     }
     setMax(newValue);
@@ -140,12 +136,12 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
       />
       <DataSelect
         label="Data Type"
+        aria-label="Data Type Input"
         selectedOption={dataType}
         onChange={onDataTypeChange}
         options={[
           { value: "Number", label: "Number" },
           { value: "Date", label: "Date" },
-          { value: "Custom", label: "Custom" },
         ]}
       />
 
@@ -257,6 +253,7 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
             />
             <TimeDeltaDiv>
               <DataSelect
+                aria-label="Time Delta Input"
                 selectedOption={dateTimeDelta}
                 onChange={setDateTimeDelta}
                 options={dateTimeDeltaOptions}
