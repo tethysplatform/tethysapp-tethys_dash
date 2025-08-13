@@ -7,7 +7,6 @@ import MapVisualization from "components/visualizations/Map";
 import BasePlot from "components/visualizations/BasePlot";
 import Card from "components/visualizations/Card";
 import DataTable from "components/visualizations/DataTable";
-import Slider from "components/inputs/Slider";
 import ModuleLoader from "components/visualizations/ModuleLoader";
 import {
   getVisualization,

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, memo } from "react";
 import { Button, Form, Row, Col } from "react-bootstrap";
+import PropTypes from "prop-types";
 import SliderLib from "rc-slider";
 import "rc-slider/assets/index.css";
 import {
@@ -113,6 +114,7 @@ const Slider = ({
       }
     }
     setValue(newValue);
+    // eslint-disable-next-line
   }, [rangeMode, isDateType, onChange, initialRange, initialValue, min, max]);
 
   useEffect(() => {
@@ -123,6 +125,7 @@ const Slider = ({
     } else {
       onChange(formatValue(value, outputFormat, isDateType));
     }
+    // eslint-disable-next-line
   }, [value, outputFormat]);
 
   useEffect(() => {
@@ -321,6 +324,28 @@ const Slider = ({
       </Form>
     </>
   );
+};
+
+Slider.propTypes = {
+  label: PropTypes.string,
+  step: PropTypes.number.isRequired,
+  min: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  max: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  initialValue: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  initialRange: PropTypes.arrayOf(
+    PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+  ),
+  rangeMode: PropTypes.bool,
+  outputFormat: PropTypes.string.isRequired,
+  dataType: PropTypes.string.isRequired,
+  dateTimeDelta: PropTypes.string,
+  onChange: PropTypes.func.isRequired,
+  speeds: PropTypes.arrayOf(
+    PropTypes.shape({
+      label: PropTypes.string.isRequired,
+      value: PropTypes.number.isRequired,
+    })
+  ),
 };
 
 export default memo(Slider);

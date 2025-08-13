@@ -73,6 +73,7 @@ DatePicker.propTypes = {
   type: PropTypes.oneOfType([PropTypes.string, PropTypes.array]),
   onChange: PropTypes.func,
   value: PropTypes.string,
+  divProps: PropTypes.object,
 };
 
 export default DatePicker;

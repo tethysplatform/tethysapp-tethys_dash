@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, memo } from "react";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
 import styled from "styled-components";
@@ -74,6 +74,7 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
       }
       onChange(onChangeValues);
     }
+    // eslint-disable-next-line
   }, [
     min,
     max,
@@ -296,6 +297,13 @@ SliderMetadata.propTypes = {
     ]),
     step: PropTypes.number,
     dataType: PropTypes.string,
+    initialValue: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    initialRange: PropTypes.arrayOf(
+      PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+    ),
+    rangeMode: PropTypes.string,
+    outputFormat: PropTypes.string,
+    dateTimeDelta: PropTypes.string, // For slider metadata
   }),
   visualizationRef: PropTypes.oneOfType([
     PropTypes.func,

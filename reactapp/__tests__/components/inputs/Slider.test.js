@@ -151,6 +151,7 @@ describe("Slider Component", () => {
       />
     );
 
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     fireEvent.mouseDown(container.querySelector(".rc-slider"), {
       clientX: 100,
     });
@@ -177,6 +178,7 @@ describe("Slider Component", () => {
       />
     );
 
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     fireEvent.mouseDown(container.querySelector(".rc-slider"), {
       clientX: 100,
     });
@@ -208,6 +210,7 @@ describe("Slider Component", () => {
       />
     );
 
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     fireEvent.mouseDown(container.querySelector(".rc-slider"), {
       clientX: 100,
     });
@@ -238,6 +241,7 @@ describe("Slider Component", () => {
       />
     );
 
+    // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
     fireEvent.mouseDown(container.querySelector(".rc-slider"), {
       clientX: 100,
     });

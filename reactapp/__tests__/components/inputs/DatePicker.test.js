@@ -1,6 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { format } from "date-fns";
 import DatePicker from "components/inputs/DatePicker";
 
 test("DatePicker date", async () => {

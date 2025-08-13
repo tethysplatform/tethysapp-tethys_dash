@@ -8,7 +8,6 @@ import {
   mockedDashboards,
   layerConfigImageArcGISRest,
 } from "__tests__/utilities/constants";
-import { format } from "date-fns";
 
 describe("DataInput Component", () => {
   const mockOnChange = jest.fn();

@@ -222,6 +222,27 @@ VariableInput.propTypes = {
   variable_name: PropTypes.string,
   variable_options_source: PropTypes.string, // This is where the name of the source comes in like in the dropdown
   onChange: PropTypes.func,
+  metadata: PropTypes.shape({
+    min: PropTypes.oneOfType([
+      PropTypes.number,
+      PropTypes.string,
+      PropTypes.instanceOf(Date),
+    ]),
+    max: PropTypes.oneOfType([
+      PropTypes.number,
+      PropTypes.string,
+      PropTypes.instanceOf(Date),
+    ]),
+    step: PropTypes.number,
+    dataType: PropTypes.string,
+    initialValue: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    initialRange: PropTypes.arrayOf(
+      PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+    ),
+    rangeMode: PropTypes.string,
+    outputFormat: PropTypes.string,
+    dateTimeDelta: PropTypes.string, // For slider metadata
+  }),
 };
 
 export default memo(VariableInput);

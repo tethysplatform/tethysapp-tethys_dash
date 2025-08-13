@@ -75,6 +75,7 @@ DataSelect.propTypes = {
   selectedOption: PropTypes.object,
   options: PropTypes.array,
   creatable: PropTypes.bool,
+  divProps: PropTypes.object,
 };
 
 export default DataSelect;
