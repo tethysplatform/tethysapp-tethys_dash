@@ -229,7 +229,7 @@ const MapLayerModal = ({
 
     if (!apiResponse.success) {
       setErrorMessage(
-        apiResponse.data.error ?? "Failed to load layer template. Check logs."
+        apiResponse.data?.error ?? "Failed to load layer template. Check logs."
       );
       return;
     }

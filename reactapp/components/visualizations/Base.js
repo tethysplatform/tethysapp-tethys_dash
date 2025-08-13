@@ -110,21 +110,6 @@ export const Visualization = memo(
             visualizationRef={vizRef}
           />
         );
-      case "slider":
-        return (
-          <Slider
-            step={vizData.step}
-            min={vizData.min}
-            max={vizData.max}
-            initialValue={vizData.initialValue}
-            initialRange={vizData.initialRange}
-            rangeMode={vizData.rangeMode}
-            outputFormat={vizData.outputFormat}
-            dataType={vizData.dataType}
-            dateTimeDelta={vizData.dateTimeDelta}
-            onChange={vizData.onChange ?? (() => {})}
-          />
-        );
       case "custom":
         return (
           <ModuleLoader

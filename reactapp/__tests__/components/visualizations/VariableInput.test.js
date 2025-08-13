@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-
+import { act } from "react";
 import VariableInput from "components/visualizations/VariableInput";
 import {
   mockedCheckboxVariable,
@@ -10,13 +10,18 @@ import {
   mockedTextVariable,
   mockedDropdownVisualization,
   mockedDashboards,
+  mockedSliderVariable,
 } from "__tests__/utilities/constants";
 import { select } from "react-select-event";
 import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
 
-// check map visualization tests for coverage of use effect dependent on variableInputValues
+const advanceTimers = async (ms) => {
+  await act(async () => {
+    jest.advanceTimersByTime(ms);
+  });
+};
 
 it("Creates a Text Input for a Variable Input", async () => {
   const user = userEvent.setup();
@@ -63,6 +68,51 @@ it("Creates a Text Input for a Variable Input", async () => {
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({ "Test Variable": "Hello World" })
   );
+});
+
+it("Creates a Slider Input for a Variable Input", async () => {
+  jest.useFakeTimers();
+
+  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  dashboard.gridItems = [mockedSliderVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedSliderVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            metadata={varInputArgs["variable_options_source.metadata"]}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { user: [dashboard], public: [] } },
+    })
+  );
+
+  const playBtn = await screen.findByRole("button", { name: /play/i });
+  fireEvent.click(playBtn);
+
+  expect(handleChange).toHaveBeenLastCalledWith("50");
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "50" })
+  );
+
+  await advanceTimers(1500);
+  expect(handleChange).toHaveBeenLastCalledWith("51");
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "51" })
+  );
+
+  jest.useRealTimers();
 });
 
 it("Creates a Number Input for a Variable Input", async () => {

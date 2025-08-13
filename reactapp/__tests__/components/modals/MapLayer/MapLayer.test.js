@@ -237,6 +237,83 @@ test("MapLayerModal layer template partial map layer", async () => {
   });
 });
 
+test("MapLayerModal layer template error response", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data/", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: false,
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  const handleModalClose = jest.fn();
+  const addMapLayer = jest.fn();
+  const layerInfo = {};
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={handleModalClose}
+      addMapLayer={addMapLayer}
+      layerInfo={layerInfo}
+    />
+  );
+
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+  const layerTemplatesDropdown = screen.getByLabelText("Layer Templates Input");
+
+  selectEvent.openMenu(layerTemplatesDropdown);
+  const templateOption = await screen.findByText("Map Layer Template Example");
+  fireEvent.click(templateOption);
+
+  expect(
+    await screen.findByText("Failed to load layer template. Check logs.")
+  ).toBeInTheDocument();
+});
+
+test("MapLayerModal layer template error response, custom error", async () => {
+  server.use(
+    rest.get("http://api.test/apps/tethysdash/data/", (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: false,
+          data: { error: "Error loading layer template" },
+        }),
+        ctx.set("Content-Type", "application/json")
+      );
+    })
+  );
+
+  const handleModalClose = jest.fn();
+  const addMapLayer = jest.fn();
+  const layerInfo = {};
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={handleModalClose}
+      addMapLayer={addMapLayer}
+      layerInfo={layerInfo}
+    />
+  );
+
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+  const layerTemplatesDropdown = screen.getByLabelText("Layer Templates Input");
+
+  selectEvent.openMenu(layerTemplatesDropdown);
+  const templateOption = await screen.findByText("Map Layer Template Example");
+  fireEvent.click(templateOption);
+
+  expect(
+    await screen.findByText("Error loading layer template")
+  ).toBeInTheDocument();
+});
+
 test("MapLayerModal new ImageArcGISRest layer", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();

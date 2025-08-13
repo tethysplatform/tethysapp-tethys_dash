@@ -11,7 +11,6 @@ import "jest-location-mock";
 import { createMocks } from "react-idle-timer";
 
 // Make .env files accessible to tests (path relative to project root)
-require("dotenv").config({ path: "./reactapp/__tests__/test.env" });
 const originalError = console.error.bind(console.error);
 const originalEnv = process.env;
 

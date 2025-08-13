@@ -1,3 +1,5 @@
+import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
+
 export const mockedLandingPageDashboards = {
   user: [
     {
@@ -226,13 +228,13 @@ export const mockedVisualizationsWithDefaults = [
         args: {
           variable_name: "text",
           variable_options_source: [
-            "text",
-            "number",
-            "checkbox",
-            {
-              label: "Existing Visualization Inputs",
-              options: mockedVisualizationArgs,
-            },
+            ...nonDropDownVariableInputTypes,
+            ...[
+              {
+                label: "Existing Visualization Inputs",
+                options: mockedVisualizationArgs,
+              },
+            ],
           ],
         },
         tags: ["variable", "default", "dynamic"],
@@ -664,6 +666,32 @@ export const mockedTextBase = {
   source: "Text",
   args_string: JSON.stringify({
     text: "Custom Text",
+  }),
+  metadata_string: JSON.stringify({
+    refreshRate: 0,
+  }),
+};
+
+export const mockedSliderVariable = {
+  i: "1",
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Variable Input",
+  args_string: JSON.stringify({
+    initial_value: "0",
+    variable_name: "Test Variable",
+    variable_options_source: "slider",
+    "variable_options_source.metadata": {
+      dataType: "Number",
+      rangeMode: false,
+      min: 0,
+      max: 100,
+      initialValue: 50,
+      step: 1,
+      outputFormat: "{{n}}",
+    },
   }),
   metadata_string: JSON.stringify({
     refreshRate: 0,

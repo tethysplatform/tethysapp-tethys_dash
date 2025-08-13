@@ -152,7 +152,8 @@
       "!reactapp/__tests__/**/*"
     ],
     "setupFiles": [
-      "react-app-polyfill/jsdom"
+      "react-app-polyfill/jsdom",
+      "<rootDir>/reactapp/__tests__/loadEnv.js"
     ],
     "setupFilesAfterEnv": [
       "<rootDir>/reactapp/__tests__/setupTests.js"
@@ -164,7 +165,8 @@
     "testPathIgnorePatterns": [
       "<rootDir>/reactapp/__tests__/utilities/*",
       "<rootDir>/reactapp/__tests__/transforms/*",
-      "<rootDir>/reactapp/__tests__/setupTests.js"
+      "<rootDir>/reactapp/__tests__/setupTests.js",
+      "<rootDir>/reactapp/__tests__/loadEnv.js"
     ],
     "testEnvironment": "jsdom",
     "transform": {
