@@ -9,6 +9,7 @@ from django.conf import settings
 from django.test import override_settings
 from datetime import datetime, timedelta
 import types
+from tethysapp.tethysdash.exceptions import VisualizationError
 
 
 @pytest.mark.django_db
@@ -46,7 +47,28 @@ def test_data_failed(client, mock_app, mocker):
     mock_gv.assert_called_once()
     assert response.status_code == 200
     assert response.json()["success"] is False
-    assert response.json()["data"] is None
+    assert response.json()["data"] == {"error": "Failed to retrieve data"}
+    assert response.json()["viz_type"] is None
+
+
+@pytest.mark.django_db
+def test_data_failed_custom_error(client, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:data")
+    mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
+    mock_gv.side_effect = [VisualizationError("some custom error message")]
+
+    itemData = {
+        "source": "usace_time_series",
+        "args": json.dumps({"location": "CREC1", "year": 2025}),
+    }
+
+    response = client.get(url, itemData)
+
+    mock_gv.assert_called_once()
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert response.json()["data"] == {"error": "some custom error message"}
     assert response.json()["viz_type"] is None
 
 

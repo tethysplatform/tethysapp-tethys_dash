@@ -154,6 +154,7 @@ def mock_plugin(mocker):
         visualization_type="image",
         visualization_tags=["some tag"],
         visualization_description="some description",
+        visualization_loading_icon=False,
     )
     plugin.name = "package_name"
 
@@ -163,6 +164,8 @@ def mock_plugin(mocker):
 @pytest.fixture(scope="function")
 def mock_plugin2(mocker):
     plugin = MagicMock(
+        spec=[],
+        autospec=True,
         visualization_group="package_group",
         visualization_label="Some Package2",
         visualization_args={"package_arg": "text"},
@@ -186,6 +189,7 @@ def mock_plugin_visualization(mock_plugin):
                 "type": mock_plugin.visualization_type,
                 "tags": mock_plugin.visualization_tags,
                 "description": mock_plugin.visualization_description,
+                "loading_icon": mock_plugin.visualization_loading_icon,
             }
         ],
     }
@@ -206,6 +210,7 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "type": mock_plugin.visualization_type,
                 "tags": mock_plugin.visualization_tags,
                 "description": mock_plugin.visualization_description,
+                "loading_icon": mock_plugin.visualization_loading_icon,
             },
             {
                 "source": mock_plugin2.name,
@@ -215,6 +220,7 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "type": mock_plugin2.visualization_type,
                 "tags": [],
                 "description": "",
+                "loading_icon": True,
             },
         ],
     }

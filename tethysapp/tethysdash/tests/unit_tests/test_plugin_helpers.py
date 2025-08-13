@@ -327,9 +327,6 @@ def test_layer_configuration_builder_build():
             "layerVisibility": False,
         },
         "queryable": False,
-        "attributeAliases": {},
-        "attributeVariables": {},
-        "omittedPopupAttributes": {},
     }
 
     builder.add_attribute_alias("field", "Some Alias", "test").add_attribute_variable(
@@ -522,6 +519,11 @@ def test_validate_geojson_GeometryCollection():
     )
 
 
+def test_validate_geojson_url():
+
+    assert validate_geojson("https://example.com/some.geojson")
+
+
 def test_validate_geojson_Point():
     with pytest.raises(ValueError, match="'Point' object must contain 'coordinates'."):
         validate_geojson({"type": "Point"})
@@ -578,3 +580,184 @@ def test_validate_geojson_crs():
             "coordinates": [0, 1],
         }
     )
+
+
+def test_layer_configuration_builder_legend():
+    builder = LayerConfigurationBuilder("test", "ESRI Image and Map Service")
+    builder.set_source_properties(
+        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer"  # noqa: E501
+    ).set_legend("default")
+    config = builder.build()
+
+    assert config == {
+        "configuration": {
+            "type": "ImageLayer",
+            "props": {
+                "name": "test",
+                "source": {
+                    "type": "ESRI Image and Map Service",
+                    "props": {
+                        "url": "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",  # noqa: E501
+                    },
+                },
+            },
+        },
+        "legend": "default",
+    }
+
+    builder.set_legend(None)
+    config = builder.build()
+    assert config == {
+        "configuration": {
+            "type": "ImageLayer",
+            "props": {
+                "name": "test",
+                "source": {
+                    "type": "ESRI Image and Map Service",
+                    "props": {
+                        "url": "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",  # noqa: E501
+                    },
+                },
+            },
+        }
+    }
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape("legend must be 'default', None, or a valid dictionary."),
+    ):
+        builder.set_legend("bad legend")
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape("a dictionary legend must have a title and items key"),
+    ):
+        builder.set_legend({"title": "My Legend"})
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape("dictionary legend items must be a list"),
+    ):
+        builder.set_legend({"title": "My Legend", "items": "not a list"})
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Item at index 0 is not a dictionary"),
+    ):
+        builder.set_legend({"title": "My Legend", "items": ["not a dict"]})
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape("Item at index 0 is missing keys: {'color'}"),
+    ):
+        builder.set_legend(
+            {"title": "My Legend", "items": [{"label": "Item 1", "symbol": "circle"}]}
+        )
+
+    builder.set_legend(
+        {
+            "title": "My Legend",
+            "items": [{"label": "Item 1", "symbol": "circle", "color": "#FF0000"}],
+        }
+    )
+    config = builder.build()
+    assert config == {
+        "configuration": {
+            "type": "ImageLayer",
+            "props": {
+                "name": "test",
+                "source": {
+                    "type": "ESRI Image and Map Service",
+                    "props": {
+                        "url": "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",  # noqa: E501
+                    },
+                },
+            },
+        }
+    }
+
+
+def test_layer_configuration_builder_style():
+    builder = LayerConfigurationBuilder("test", "ESRI Image and Map Service")
+    builder.set_source_properties(
+        url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer"  # noqa: E501
+    ).set_style("some/url/style.json")
+    config = builder.build()
+
+    assert config == {
+        "configuration": {
+            "type": "ImageLayer",
+            "props": {
+                "name": "test",
+                "source": {
+                    "type": "ESRI Image and Map Service",
+                    "props": {
+                        "url": "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",  # noqa: E501
+                    },
+                },
+            },
+            "style": "some/url/style.json",
+        },
+    }
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape("style must be a valid dictionary."),
+    ):
+        builder.set_style("bad legend")
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape("style must have a version, sources and layers keys"),
+    ):
+        builder.set_style({})
+
+    builder.set_style(
+        {
+            "version": 8,
+            "sources": {
+                "my_source": {
+                    "type": "raster",
+                    "tiles": ["https://example.com/tiles/{z}/{x}/{y}.png"],
+                }
+            },
+            "layers": [
+                {
+                    "id": "my_layer",
+                    "type": "raster",
+                    "source": "my_source",
+                }
+            ],
+        }
+    )
+    config = builder.build()
+    assert config == {
+        "configuration": {
+            "type": "ImageLayer",
+            "props": {
+                "name": "test",
+                "source": {
+                    "type": "ESRI Image and Map Service",
+                    "props": {
+                        "url": "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",  # noqa: E501
+                    },
+                },
+            },
+            "style": {
+                "version": 8,
+                "sources": {
+                    "my_source": {
+                        "type": "raster",
+                        "tiles": ["https://example.com/tiles/{z}/{x}/{y}.png"],
+                    }
+                },
+                "layers": [
+                    {
+                        "id": "my_layer",
+                        "type": "raster",
+                        "source": "my_source",
+                    }
+                ],
+            },
+        },
+    }

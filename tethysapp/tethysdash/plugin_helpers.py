@@ -831,7 +831,6 @@ class LayerConfigurationBuilder:
         self._validate_required_fields(required_fields, source_props)
 
         built_config = copy.deepcopy(self.config)
-
         if not self.config["attributeAliases"]:
             del built_config["attributeAliases"]
 
@@ -841,7 +840,7 @@ class LayerConfigurationBuilder:
         if not self.config["omittedPopupAttributes"]:
             del built_config["omittedPopupAttributes"]
 
-        return self.config
+        return built_config
 
 
 def validate_geojson(data):
