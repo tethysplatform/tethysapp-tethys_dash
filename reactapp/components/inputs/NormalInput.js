@@ -9,6 +9,7 @@ const NormalInput = ({
   ariaLabel,
   placeholder,
   divProps,
+  inputRef,
 }) => {
   return (
     <div {...divProps}>
@@ -18,6 +19,7 @@ const NormalInput = ({
         </Form.Label>
       )}
       <Form.Control
+        ref={inputRef}
         aria-label={ariaLabel || label + " Input"}
         type={type}
         onChange={onChange}

@@ -79,7 +79,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
     return (
       <DatePicker
         label={label}
-        onChange={(date) => onChange(date)}
+        onChange={onChange}
         value={value}
         inputProps={inputProps}
         type={type}

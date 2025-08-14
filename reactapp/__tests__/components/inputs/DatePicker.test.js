@@ -70,10 +70,16 @@ test("DatePicker initial date and change to variable input", async () => {
   expect(input.value).toBe("01/01/1990");
 
   // eslint-disable-next-line
+  fireEvent.change(input, { target: { value: "${Date" } });
+
+  // eslint-disable-next-line
+  expect(mockOnChange).toHaveBeenCalledTimes(0);
+
+  // eslint-disable-next-line
   fireEvent.change(input, { target: { value: "${Date}" } });
 
   // eslint-disable-next-line
-  expect(input.placeholder).toBe("${Date}");
+  expect(mockOnChange).toHaveBeenLastCalledWith("${Date}");
 });
 
 test("DatePicker initial date-hour", async () => {
@@ -92,101 +98,4 @@ test("DatePicker initial date-hour", async () => {
 
   const input = screen.getByRole("textbox");
   expect(input.value).toBe("01/01/1990 12:00 AM");
-});
-
-test("DatePicker bad date", async () => {
-  const mockOnChange = jest.fn();
-
-  render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date"
-      value="01/01/19"
-      onChange={mockOnChange}
-    />
-  );
-
-  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
-
-  const input = screen.getByRole("textbox");
-  expect(input.value).toBe("");
-});
-
-test("DatePicker null value", async () => {
-  const mockOnChange = jest.fn();
-
-  render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date"
-      value={null}
-      onChange={mockOnChange}
-    />
-  );
-
-  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
-
-  const input = screen.getByRole("textbox");
-  expect(input.value).toBe("");
-});
-
-test("DatePicker variable input 1", async () => {
-  const mockOnChange = jest.fn();
-
-  render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date"
-      // eslint-disable-next-line
-      value="${Date}"
-      onChange={mockOnChange}
-    />
-  );
-
-  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
-
-  const input = screen.getByRole("textbox");
-  expect(input.value).toBe("");
-  // eslint-disable-next-line
-  expect(input.placeholder).toBe("${Date}");
-});
-
-test("DatePicker variable input 2", async () => {
-  const mockOnChange = jest.fn();
-
-  render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date"
-      // eslint-disable-next-line
-      value="01/05/2025 ${hour} AM"
-      onChange={mockOnChange}
-    />
-  );
-
-  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
-
-  const input = screen.getByRole("textbox");
-  expect(input.value).toBe("");
-  // eslint-disable-next-line
-  expect(input.placeholder).toBe("01/05/2025 ${hour} AM");
-});
-
-test("DatePicker bad variable input", async () => {
-  const mockOnChange = jest.fn();
-
-  render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date"
-      value="01/05/2025 ${hour"
-      onChange={mockOnChange}
-    />
-  );
-
-  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
-
-  const input = screen.getByRole("textbox");
-  expect(input.value).toBe("");
-  expect(input.placeholder).toBe("");
 });

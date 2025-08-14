@@ -229,12 +229,14 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
                 value={initialRange[0]}
                 type="date-hour"
                 onChange={(e) => setInitialRange([e, initialRange[1]])}
+                divProps={{ style: { "margin-top": "1rem" } }}
               />
               <DatePicker
                 label="Range End"
                 value={initialRange[1]}
                 type="date-hour"
                 onChange={(e) => setInitialRange([initialRange[0], e])}
+                divProps={{ style: { "margin-top": "1rem" } }}
               />
             </>
           ) : (
@@ -243,6 +245,7 @@ const SliderMetadata = ({ onChange, values, visualizationRef }) => {
               value={initialValue}
               type="date-hour"
               onChange={(e) => setInitialValue(e)}
+              divProps={{ style: { "margin-top": "1rem" } }}
             />
           )}
           <FlexDiv>

@@ -14,6 +14,7 @@ import {
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
 import Slider from "components/inputs/Slider";
+import { parseDateMath } from "components/inputs/DatePicker";
 
 const StyledDiv = styled.div`
   padding: 1rem;
@@ -52,6 +53,15 @@ const VariableInput = ({
   const updateVariableInputs = useCallback(
     (new_value) => {
       if (new_value || new_value === false || new_value === 0) {
+        if (["date", "date-hour"].includes(variable_options_source)) {
+          const parsedDate = parseDateMath({
+            value: new_value,
+            type: variable_options_source,
+          });
+          if (parsedDate) {
+            new_value = parsedDate;
+          }
+        }
         setVariableInputValues((prevVariableInputValues) => ({
           ...prevVariableInputValues,
           [variable_name]: new_value,
