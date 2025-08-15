@@ -68,6 +68,7 @@ const VariableInput = ({
         }));
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [variable_name, setVariableInputValues]
   );
 
@@ -175,8 +176,8 @@ const VariableInput = ({
   } else if (type === "slider") {
     const requiredKeys = ["step", "min", "max", "initialValue", "dataType"];
 
-    if (!metadata || requiredKeys.some((key) => metadata?.[key] === null)) {
-      return null;
+    if (!metadata || requiredKeys.some((key) => metadata?.[key] == null)) {
+      return <div data-testid="slider-missing-metadata" />;
     }
 
     return (
@@ -213,6 +214,7 @@ const VariableInput = ({
               tooltipText={"Refresh variable input"}
               variant={"warning"}
               style={{ height: "100%" }}
+              aria-label={"Refresh variable input"}
             >
               <BsArrowClockwise />
             </TooltipButton>

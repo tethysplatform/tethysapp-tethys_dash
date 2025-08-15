@@ -1,5 +1,11 @@
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 
+export function getOrdinal(n) {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
+
 export const mockedLandingPageDashboards = {
   user: [
     {
@@ -692,6 +698,40 @@ export const mockedSliderVariable = {
       step: 1,
       outputFormat: "{{n}}",
     },
+  }),
+  metadata_string: JSON.stringify({
+    refreshRate: 0,
+  }),
+};
+
+export const mockedDateVariable = {
+  i: "1",
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Variable Input",
+  args_string: JSON.stringify({
+    initial_value: "",
+    variable_name: "Test Variable",
+    variable_options_source: "date",
+  }),
+  metadata_string: JSON.stringify({
+    refreshRate: 0,
+  }),
+};
+
+export const mockedDateHourVariable = {
+  i: "1",
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Variable Input",
+  args_string: JSON.stringify({
+    initial_value: "",
+    variable_name: "Test Variable",
+    variable_options_source: "date-hour",
   }),
   metadata_string: JSON.stringify({
     refreshRate: 0,

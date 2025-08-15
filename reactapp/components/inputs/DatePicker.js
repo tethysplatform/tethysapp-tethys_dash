@@ -1,5 +1,5 @@
 import { parse, format } from "date-fns";
-import { useState, useRef, forwardRef, memo } from "react";
+import { useState, useRef, memo } from "react";
 import PropTypes from "prop-types";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -29,7 +29,7 @@ const StyledButton = styled.button`
 `;
 
 // Relative date parser
-export const parseDateMath = ({ value, type = "date" }) => {
+export const parseDateMath = ({ value, type }) => {
   if (!value || typeof value !== "string") return null;
   let date;
 
@@ -56,6 +56,7 @@ export const parseDateMath = ({ value, type = "date" }) => {
     const amount = parseInt(match[2], 10) * sign;
     const unit = match[3];
 
+    // eslint-disable-next-line
     switch (unit) {
       case "Y":
         date.setFullYear(date.getFullYear() + amount);
@@ -155,7 +156,11 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
           />
 
           {/* Calendar icon */}
-          <StyledButton type="button" onClick={openCalendar}>
+          <StyledButton
+            aria-label="Calendar Icon"
+            type="button"
+            onClick={openCalendar}
+          >
             <FaRegCalendarAlt size={18} />
           </StyledButton>
 
