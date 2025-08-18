@@ -1,3 +1,4 @@
+import enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (
     Column,
@@ -8,6 +9,7 @@ from sqlalchemy import (
     ARRAY,
     ForeignKey,
     UniqueConstraint,
+    Enum,
 )
 from sqlalchemy.orm import relationship
 import json
@@ -41,8 +43,11 @@ class Dashboard(Base):
     name = Column(String)
     notes = Column(String)
     owner = Column(String)
-    access_groups = Column(ARRAY(String))
     unrestricted_placement = Column(Boolean)
+    public = Column(Boolean)
+    permissions = relationship(
+        "DashboardPermission", cascade="delete", back_populates="dashboard"
+    )
     grid_items = relationship("GridItem", cascade="delete", order_by="GridItem.order")
     last_updated = Column(DateTime, default=datetime.now(timezone.utc))
 
@@ -69,13 +74,35 @@ class GridItem(Base):
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
+class PermissionLevel(enum.Enum):
+    admin = "admin"
+    editor = "editor"
+    viewer = "viewer"
+
+
+class DashboardPermission(Base):
+    __tablename__ = "dashboard_permissions"
+    id = Column(Integer, primary_key=True)
+    dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
+    user = Column(String, nullable=True)  # username or user id
+    group = Column(String, nullable=True)  # group name or id
+    permission = Column(Enum(PermissionLevel), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("dashboard_id", "user", name="_dashboard_user_perm"),
+        UniqueConstraint("dashboard_id", "group", name="_dashboard_group_perm"),
+    )
+
+    dashboard = relationship("Dashboard", back_populates="permissions")
+
+
 def add_new_dashboard(
     owner,
     uuid,
     name,
     description,
     notes,
-    access_groups,
+    public,
     unrestricted_placement,
     grid_items,
 ):
@@ -90,8 +117,8 @@ def add_new_dashboard(
             description=description,
             name=name,
             notes=notes,
+            public=public,
             owner=owner,
-            access_groups=access_groups,
             unrestricted_placement=unrestricted_placement,
         )
 
@@ -99,6 +126,15 @@ def add_new_dashboard(
         session.commit()
         session.refresh(new_dashboard)
         new_dashboard_id = new_dashboard.id
+
+        # Add default admin permission for owner
+        owner_permission = DashboardPermission(
+            dashboard_id=new_dashboard_id,
+            user=owner,
+            permission=PermissionLevel.admin,
+        )
+        session.add(owner_permission)
+        session.commit()
 
         if grid_items:
             for index, grid_item in enumerate(grid_items):
@@ -201,6 +237,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             description=original_dashboard.description,
             name=new_name,
             notes=original_dashboard.notes,
+            public=original_dashboard.public,
             owner=user,
             access_groups=[],
             unrestricted_placement=original_dashboard.unrestricted_placement,
@@ -284,13 +321,13 @@ def update_named_dashboard(user, id, dashboard_updates):
             )
 
         db_name = dashboard_updates.get("name", db_dashboard.name)
-        db_access = dashboard_updates.get("accessGroups", db_dashboard.access_groups)
+        db_public = dashboard_updates.get("public", db_dashboard.public)
 
         if db_name != db_dashboard.name:
             check_existing_user_dashboard_names(
                 session, user, dashboard_updates["name"]
             )
-            if "public" in db_access:
+            if db_public:
                 check_existing_public_dashboards(session, dashboard_updates["name"])
             db_dashboard.name = dashboard_updates["name"]
 
@@ -300,10 +337,10 @@ def update_named_dashboard(user, id, dashboard_updates):
         if "notes" in dashboard_updates:
             db_dashboard.notes = sanitize_html(dashboard_updates["notes"])
 
-        if db_access != db_dashboard.access_groups:
-            if "public" in dashboard_updates["accessGroups"]:
+        if db_public != db_dashboard.public:
+            if dashboard_updates["public"]:
                 check_existing_public_dashboards(session, db_name)
-            db_dashboard.access_groups = dashboard_updates["accessGroups"]
+            db_dashboard.public = dashboard_updates["public"]
 
         if "unrestrictedPlacement" in dashboard_updates:
             db_dashboard.unrestricted_placement = dashboard_updates[
@@ -389,14 +426,16 @@ def update_named_dashboard(user, id, dashboard_updates):
         # Commit the session and close the connection
         session.commit()
 
-        parsed_dashboard = parse_db_dashboard([db_dashboard], dashboard_view=True)[0]
+        parsed_dashboard = parse_db_dashboard(
+            [db_dashboard], user, dashboard_view=True
+        )[0]
     finally:
         session.close()
 
     return parsed_dashboard
 
 
-def parse_db_dashboard(dashboards, dashboard_view):
+def parse_db_dashboard(dashboards, user, dashboard_view):
     dashboard_list = []
 
     for dashboard in dashboards:
@@ -407,12 +446,20 @@ def parse_db_dashboard(dashboards, dashboard_view):
         if not os.path.exists(os.path.join(app_media.path, f"{dashboard.uuid}.png")):
             dashboard_image = "/static/tethysdash/images/dashboard_thumbnail.png"
 
+        # Find the user's permission level for this dashboard
+        user_permission = None
+        for perm in dashboard.permissions:
+            if perm.user == user:
+                user_permission = perm.permission.value if perm.permission else None
+                break
+
         dashboard_dict = {
             "id": dashboard.id,
             "uuid": dashboard.uuid,
             "name": dashboard.name,
             "description": dashboard.description,
-            "accessGroups": (["public"] if "public" in dashboard.access_groups else []),
+            "publicDashboard": dashboard.public,
+            "permission": user_permission,
             "unrestrictedPlacement": dashboard.unrestricted_placement,
             "image": dashboard_image,
         }
@@ -456,17 +503,21 @@ def get_dashboards(user, dashboard_view=False, id=None):
         user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user)
         if id:
             dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-            return parse_db_dashboard([dashboard], dashboard_view)[0]
+            return parse_db_dashboard([dashboard], user, dashboard_view)[0]
 
-        dashboard_dict["user"] = parse_db_dashboard(user_dashboards, dashboard_view)
+        dashboard_dict["user"] = parse_db_dashboard(
+            user_dashboards, user, dashboard_view
+        )
 
         public_dashboards = (
             session.query(Dashboard)
             .filter(Dashboard.owner != user)
-            .filter(Dashboard.access_groups.any("public"))
+            .filter(Dashboard.public == True)
         )
 
-        dashboard_dict["public"] = parse_db_dashboard(public_dashboards, dashboard_view)
+        dashboard_dict["public"] = parse_db_dashboard(
+            public_dashboards, user, dashboard_view
+        )
 
     finally:
         session.close()
@@ -484,9 +535,7 @@ def check_existing_user_dashboard_names(session, user, dashboard_name):
 
 
 def check_existing_public_dashboards(session, dashboard_name):
-    public_dashboards = (
-        session.query(Dashboard).filter(Dashboard.access_groups.any("public")).all()
-    )
+    public_dashboards = session.query(Dashboard).filter(Dashboard.public == True).all()
     public_dashboard_names = [dashboard.name for dashboard in public_dashboards]
     if dashboard_name in public_dashboard_names:
         raise Exception(

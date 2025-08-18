@@ -160,14 +160,14 @@ const DashboardCard = ({
   name,
   editable,
   description,
-  accessGroups,
+  publicDashboard,
   image,
 }) => {
   const navigate = useNavigate();
   const { deleteDashboard, copyDashboard, updateDashboard, exportDashboard } =
     useContext(AvailableDashboardsContext);
   const [errorMessage, setErrorMessage] = useState(null);
-  const [shared, setShared] = useState(accessGroups.includes("public"));
+  const [shared, setShared] = useState(publicDashboard);
   const [showThumbnailModal, setShowThumbnailModal] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -233,7 +233,7 @@ const DashboardCard = ({
     const apiResponse = await updateDashboard({
       id,
       newProperties: {
-        accessGroups: !shared ? ["public"] : [],
+        public: !shared,
       },
     });
     if (apiResponse["success"]) {
@@ -477,7 +477,7 @@ DashboardCard.propTypes = {
   name: PropTypes.string,
   editable: PropTypes.bool,
   description: PropTypes.string,
-  accessGroups: PropTypes.arrayOf(PropTypes.string),
+  publicDashboard: PropTypes.bool,
   image: PropTypes.string,
 };
 

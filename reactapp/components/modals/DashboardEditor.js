@@ -71,7 +71,7 @@ const UrlDiv = styled.div`
 `;
 
 function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
-  const [selectedSharingStatus, setSelectedSharingStatus] = useState("private");
+  const [publicStatus, setPublicStatus] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
@@ -80,7 +80,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     name,
     description,
     editable,
-    accessGroups,
+    publicDashboard,
     unrestrictedPlacement,
     notes,
     saveLayoutContext,
@@ -97,9 +97,9 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const navigate = useNavigate();
 
-  const sharingStatusOptions = [
-    { label: "Public", value: "public" },
-    { label: "Private", value: "private" },
+  const publicStatusOptions = [
+    { label: "Public", value: true },
+    { label: "Private", value: false },
   ];
 
   const unrestrictedPlacementOptions = [
@@ -108,16 +108,16 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   ];
 
   useEffect(() => {
-    if (accessGroups.includes("public")) {
-      setSelectedSharingStatus("public");
+    if (publicDashboard) {
+      setPublicStatus(true);
     } else {
-      setSelectedSharingStatus("private");
+      setPublicStatus(false);
     }
     // eslint-disable-next-line
-  }, [accessGroups]);
+  }, [publicDashboard]);
 
-  function onSharingChange(e) {
-    setSelectedSharingStatus(e.target.value);
+  function onPublicChange(e) {
+    setPublicStatus(e.target.value === "true");
   }
 
   function onUnrestrictedPlacementChange(e) {
@@ -145,7 +145,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     setSuccessMessage("");
     setErrorMessage("");
     const newProperties = {
-      accessGroups: selectedSharingStatus === "public" ? ["public"] : [],
+      public: publicStatus,
       notes: localNotes,
       name: localName,
       description: localDescription,
@@ -258,10 +258,10 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
               </WideLabel>
             </PaddedDiv>
             <DataRadioSelect
-              label={"Sharing Status"}
-              selectedRadio={selectedSharingStatus}
-              radioOptions={sharingStatusOptions}
-              onChange={onSharingChange}
+              label={"Public Status"}
+              selectedRadio={publicStatus}
+              radioOptions={publicStatusOptions}
+              onChange={onPublicChange}
             />
             <DataRadioSelect
               label={"Unrestricted Grid Item Placement"}
@@ -278,7 +278,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
             <p>{description}</p>
           </>
         )}
-        {selectedSharingStatus === "public" && (
+        {publicStatus && (
           <>
             <label>
               <b>Public URL</b>:

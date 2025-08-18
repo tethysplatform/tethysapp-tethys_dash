@@ -54,7 +54,7 @@ function setupRoutes(dashboards) {
       />
     );
 
-    if (dashboardMetadata.accessGroups.includes("public")) {
+    if (dashboardMetadata.publicDashboard) {
       dashboardRoutes.push(
         <Route
           path={`/dashboard/public/${dashboardMetadata.name}`}

@@ -18,7 +18,7 @@ const DashboardLoader = ({
   id,
   name,
   editable,
-  accessGroups,
+  publicDashboard,
   unrestrictedPlacement,
   description,
 }) => {
@@ -131,7 +131,7 @@ const DashboardLoader = ({
             notes,
             gridItems,
             editable,
-            accessGroups,
+            publicDashboard,
             unrestrictedPlacement,
             description,
           }}
@@ -169,7 +169,7 @@ DashboardLoader.propTypes = {
   name: PropTypes.string,
   notes: PropTypes.string,
   editable: PropTypes.bool,
-  accessGroups: PropTypes.arrayOf(PropTypes.string),
+  publicDashboard: PropTypes.bool,
   description: PropTypes.string,
   unrestrictedPlacement: PropTypes.bool,
 };

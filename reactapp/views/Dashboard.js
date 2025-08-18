@@ -23,7 +23,7 @@ DashboardView.propTypes = {
   description: PropTypes.string,
   notes: PropTypes.string,
   editable: PropTypes.bool,
-  accessGroups: PropTypes.arrayOf(PropTypes.string),
+  publicDashboard: PropTypes.bool,
   gridItems: PropTypes.arrayOf(
     PropTypes.shape({
       id: PropTypes.number,

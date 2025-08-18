@@ -165,7 +165,7 @@ def add_dashboard(request, app_media):
     name = dashboard_metadata["name"]
     description = dashboard_metadata.get("description", "")
     notes = dashboard_metadata.get("notes", "")
-    access_groups = dashboard_metadata.get("accessGroups", [])
+    public = dashboard_metadata.get("public", False)
     unrestricted_placement = dashboard_metadata.get("unrestrictedPlacement", False)
     grid_items = dashboard_metadata.get("gridItems", [])
     owner = str(request.user)
@@ -179,7 +179,7 @@ def add_dashboard(request, app_media):
             name,
             description,
             notes,
-            access_groups,
+            public,
             unrestricted_placement,
             grid_items,
         )
