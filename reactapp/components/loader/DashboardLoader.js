@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useState, useEffect, useContext, useRef } from "react";
+import { useState, useEffect, useContext, useRef, memo } from "react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 import appAPI from "services/api/app";
 import {
@@ -17,10 +17,13 @@ const DashboardLoader = ({
   children,
   id,
   name,
-  editable,
+  uuid,
   publicDashboard,
+  userPermission,
+  permissions,
   unrestrictedPlacement,
   description,
+  owner,
 }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -32,6 +35,7 @@ const DashboardLoader = ({
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
   const { updateDashboard } = useContext(AvailableDashboardsContext);
   const originalGridItems = useRef({});
+  const editable = ["admin", "editor"].includes(userPermission);
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -127,13 +131,17 @@ const DashboardLoader = ({
             resetGridItems,
             saveLayoutContext,
             id,
+            uuid,
             name,
             notes,
             gridItems,
             editable,
             publicDashboard,
+            userPermission,
+            permissions,
             unrestrictedPlacement,
             description,
+            owner,
           }}
         >
           <EditingContext.Provider value={{ isEditing, setIsEditing }}>
@@ -174,4 +182,4 @@ DashboardLoader.propTypes = {
   unrestrictedPlacement: PropTypes.bool,
 };
 
-export default DashboardLoader;
+export default memo(DashboardLoader);

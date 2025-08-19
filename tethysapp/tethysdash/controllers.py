@@ -124,7 +124,7 @@ def dashboards(request):
     dashboards = get_dashboards(user)
     clean_up_jsons(user)
 
-    return JsonResponse(dashboards)
+    return JsonResponse({"dashboards": dashboards})
 
 
 @api_view(["GET"])

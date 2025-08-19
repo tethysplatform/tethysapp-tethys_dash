@@ -5,7 +5,11 @@ import {
   AppContext,
   AvailableDashboardsContext,
 } from "components/contexts/Contexts";
-import { mockedDashboards } from "__tests__/utilities/constants";
+import {
+  mockedDashboards,
+  publicDashboard,
+  userDashboard,
+} from "__tests__/utilities/constants";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { baseMapLayers } from "components/visualizations/utilities";
@@ -135,8 +139,8 @@ test("AppLoader", async () => {
     JSON.stringify([
       "route-home",
       "dashboard-not-found",
-      "route-user-editable",
-      "route-public-noneditable",
+      "route-user-uuid",
+      "route-public-uuid",
     ])
   );
 
@@ -268,7 +272,7 @@ test("AppLoader", async () => {
   );
 
   expect(await screen.findByTestId("availableDashboards")).toHaveTextContent(
-    JSON.stringify(mockedDashboards)
+    JSON.stringify(mockedDashboards.dashboards)
   );
 });
 
@@ -284,7 +288,7 @@ test("AppLoader, public session and continue", async () => {
     rest.get("http://api.test/apps/tethysdash/dashboards/", (req, res, ctx) => {
       return res(
         ctx.status(200),
-        ctx.json({ user: [], public: mockedDashboards.public }),
+        ctx.json({ dashboards: [publicDashboard] }),
         ctx.set("Content-Type", "application/json")
       );
     }),
@@ -359,11 +363,7 @@ test("AppLoader, public session and continue", async () => {
   expect(await screen.findByTestId("csrf")).toHaveTextContent("");
 
   expect(await screen.findByTestId("routes")).toHaveTextContent(
-    JSON.stringify([
-      "route-home",
-      "dashboard-not-found",
-      "route-public-noneditable",
-    ])
+    JSON.stringify(["route-home", "dashboard-not-found", "route-public-uuid"])
   );
 
   expect(await screen.findByTestId("visualizations")).toHaveTextContent([]);
@@ -371,7 +371,7 @@ test("AppLoader, public session and continue", async () => {
   expect(await screen.findByTestId("visualizationArgs")).toHaveTextContent([]);
 
   expect(await screen.findByTestId("availableDashboards")).toHaveTextContent(
-    JSON.stringify({ user: [], public: mockedDashboards.public })
+    JSON.stringify(publicDashboard)
   );
 });
 

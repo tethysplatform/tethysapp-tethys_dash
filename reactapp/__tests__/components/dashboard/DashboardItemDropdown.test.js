@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import createLoadedComponent from "__tests__/utilities/customRender";
-import { mockedDashboards } from "__tests__/utilities/constants";
+import { mockedDashboards, userDashboard } from "__tests__/utilities/constants";
 
 it("DashboardItemDropdown", async () => {
   const deleteGridItem = jest.fn();
@@ -62,7 +62,7 @@ it("DashboardItemDropdown", async () => {
 
 it("DashboardItemDropdown order not overflowing submenu", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.unrestrictedPlacement = true;
 
   const deleteGridItem = jest.fn();
@@ -117,7 +117,7 @@ it("DashboardItemDropdown order not overflowing submenu", async () => {
 
 it("ContextMenu overflowing submenu", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.unrestrictedPlacement = true;
 
   const deleteGridItem = jest.fn();

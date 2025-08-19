@@ -14,7 +14,7 @@ import {
   mockedCustomData,
   mockedTextVariable,
   mockedUnknownBase,
-  mockedDashboards,
+  userDashboard,
   mockedMapBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization from "components/visualizations/Base";
@@ -203,7 +203,7 @@ it("Creates an Base Item with a Map", async () => {
 });
 
 it("Creates an Base Item with a variable input text box", async () => {
-  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.gridItems = [mockedTextVariable];
   const user = userEvent.setup();
 

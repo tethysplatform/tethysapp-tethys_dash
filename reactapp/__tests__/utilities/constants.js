@@ -29,58 +29,157 @@ export const mockedLandingPageDashboards = {
   ],
 };
 
+export const userDashboard = {
+  id: 1,
+  owner: "admin",
+  uuid: "user-uuid",
+  name: "User Dashboard",
+  description: "A dashboard for user",
+  publicDashboard: false,
+  permissions: [{ username: "admin", permission: "admin" }],
+  userPermission: "admin",
+  unrestrictedPlacement: false,
+  image: "user_image.png",
+  notes: "user_notes",
+  gridItems: [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ],
+};
+
+export const publicDashboard = {
+  id: 2,
+  owner: "admin",
+  uuid: "public-uuid",
+  name: "Public Dashboard",
+  description: "A dashboard for public",
+  publicDashboard: true,
+  permissions: [{ username: "admin", permission: "admin" }],
+  userPermission: null,
+  unrestrictedPlacement: false,
+  image: "public_image.png",
+  notes: "public_notes",
+  gridItems: [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ],
+};
+
+export const viewerDashboard = {
+  id: 3,
+  owner: "admin",
+  uuid: "viewer-uuid",
+  name: "Viewer Dashboard",
+  description: "A dashboard for viewers",
+  publicDashboard: false,
+  permissions: [
+    { username: "admin", permission: "admin" },
+    { username: "some_user", permission: "viewer" },
+  ],
+  userPermission: "viewer",
+  unrestrictedPlacement: false,
+  image: "viewer_image.png",
+  notes: "viewer_notes",
+  gridItems: [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ],
+};
+
+export const editorDashboard = {
+  id: 4,
+  owner: "admin",
+  uuid: "editor-uuid",
+  name: "Editor Dashboard",
+  description: "A dashboard for editors",
+  publicDashboard: false,
+  permissions: [
+    { username: "admin", permission: "admin" },
+    { username: "some_user", permission: "editor" },
+  ],
+  userPermission: "editor",
+  unrestrictedPlacement: false,
+  image: "editor_image.png",
+  notes: "editor_notes",
+  gridItems: [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ],
+};
+
+export const adminDashboard = {
+  id: 5,
+  owner: "admin",
+  uuid: "admin-uuid",
+  name: "Admin Dashboard",
+  description: "A dashboard for admins",
+  publicDashboard: false,
+  permissions: [
+    { username: "admin", permission: "admin" },
+    { username: "some_user", permission: "admin" },
+  ],
+  userPermission: "admin",
+  unrestrictedPlacement: false,
+  image: "admin_image.png",
+  notes: "admin_notes",
+  gridItems: [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  ],
+};
+
 export const mockedDashboards = {
-  user: [
-    {
-      id: 1,
-      uuid: "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
-      name: "editable",
-      description: "test_description",
-      accessGroups: [],
-      unrestrictedPlacement: false,
-      image: "my_image.png",
-      notes: "test_notes",
-      gridItems: [
-        {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
-        },
-      ],
-    },
-  ],
-  public: [
-    {
-      id: 2,
-      uuid: "acde070d-8c4c-4f0d-9d8a-162843c10333",
-      name: "noneditable",
-      description: "test_description2",
-      accessGroups: ["public"],
-      image: "public_image.png",
-      notes: "test_notes2",
-      gridItems: [
-        {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
-        },
-      ],
-    },
-  ],
+  dashboards: [userDashboard, publicDashboard],
 };
 
 export const mockedVisualizations = [

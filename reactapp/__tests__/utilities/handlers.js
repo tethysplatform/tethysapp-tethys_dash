@@ -75,7 +75,7 @@ const handlers = [
     (req, res, ctx) => {
       return res(
         ctx.status(200),
-        ctx.json({ success: true, dashboard: mockedDashboards.user[0] }),
+        ctx.json({ success: true, dashboard: userDashboard }),
         ctx.set("Content-Type", "application/json")
       );
     }

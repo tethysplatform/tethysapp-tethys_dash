@@ -3,7 +3,7 @@ import { screen, render } from "@testing-library/react";
 import { useContext } from "react";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import {
-  mockedDashboards,
+  userDashboard,
   mockedTextVariable,
   mockedCheckboxVariable,
 } from "__tests__/utilities/constants";
@@ -72,7 +72,7 @@ test("DashboardLoader", async () => {
         return res(
           ctx.delay(500),
           ctx.status(200),
-          ctx.json({ success: true, dashboard: mockedDashboards.user[0] }),
+          ctx.json({ success: true, dashboard: userDashboard }),
           ctx.set("Content-Type", "application/json")
         );
       }
@@ -205,12 +205,12 @@ test("DashboardLoader updateGridItems and then reset", async () => {
       value={{ updateDashboard: mockUpdateDashboard }}
     >
       <DashboardLoader
-        id={mockedDashboards.user[0].id}
-        name={mockedDashboards.user[0].name}
-        notes={mockedDashboards.user[0].notes}
+        id={userDashboard.id}
+        name={userDashboard.name}
+        notes={userDashboard.notes}
         editable={true}
-        accessGroups={mockedDashboards.user[0].accessGroups}
-        description={mockedDashboards.user[0].description}
+        accessGroups={userDashboard.accessGroups}
+        description={userDashboard.description}
       >
         <TestingComponent updatedGridItems={[]} />
       </DashboardLoader>
@@ -288,7 +288,7 @@ test("DashboardLoader updateGridItems and then reset", async () => {
 
 test("DashboardLoader updateGridItems existing variable input", async () => {
   const mockUpdateDashboard = jest.fn();
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   mockedDashboard.gridItems = [mockedTextVariable];
 
   const updatedTextVariable = JSON.parse(
@@ -406,12 +406,12 @@ test("DashboardLoader updateGridItems add variable input", async () => {
       value={{ updateDashboard: mockUpdateDashboard }}
     >
       <DashboardLoader
-        id={mockedDashboards.user[0].id}
-        name={mockedDashboards.user[0].name}
-        notes={mockedDashboards.user[0].notes}
+        id={userDashboard.id}
+        name={userDashboard.name}
+        notes={userDashboard.notes}
         editable={true}
-        accessGroups={mockedDashboards.user[0].accessGroups}
-        description={mockedDashboards.user[0].description}
+        accessGroups={userDashboard.accessGroups}
+        description={userDashboard.description}
       >
         <TestingComponent updatedGridItems={[mockedTextVariable]} />
       </DashboardLoader>
@@ -499,12 +499,12 @@ test("DashboardLoader updateGridItems add checkbox variable input", async () => 
       value={{ updateDashboard: mockUpdateDashboard }}
     >
       <DashboardLoader
-        id={mockedDashboards.user[0].id}
-        name={mockedDashboards.user[0].name}
-        notes={mockedDashboards.user[0].notes}
+        id={userDashboard.id}
+        name={userDashboard.name}
+        notes={userDashboard.notes}
         editable={true}
-        accessGroups={mockedDashboards.user[0].accessGroups}
-        description={mockedDashboards.user[0].description}
+        accessGroups={userDashboard.accessGroups}
+        description={userDashboard.description}
       >
         <TestingComponent updatedGridItems={[updatedTextVariable]} />
       </DashboardLoader>
@@ -594,12 +594,12 @@ test("DashboardLoader save layout", async () => {
     >
       <DashboardLoader>
         <DashboardLoader
-          id={mockedDashboards.user[0].id}
-          name={mockedDashboards.user[0].name}
-          notes={mockedDashboards.user[0].notes}
+          id={userDashboard.id}
+          name={userDashboard.name}
+          notes={userDashboard.notes}
           editable={true}
-          accessGroups={mockedDashboards.user[0].accessGroups}
-          description={mockedDashboards.user[0].description}
+          accessGroups={userDashboard.accessGroups}
+          description={userDashboard.description}
         >
           <TestingComponent newProperties={{ name: "some new name" }} />
         </DashboardLoader>
@@ -639,12 +639,12 @@ test("DashboardLoader save layout with griditems", async () => {
     >
       <DashboardLoader>
         <DashboardLoader
-          id={mockedDashboards.user[0].id}
-          name={mockedDashboards.user[0].name}
-          notes={mockedDashboards.user[0].notes}
+          id={userDashboard.id}
+          name={userDashboard.name}
+          notes={userDashboard.notes}
           editable={true}
-          accessGroups={mockedDashboards.user[0].accessGroups}
-          description={mockedDashboards.user[0].description}
+          accessGroups={userDashboard.accessGroups}
+          description={userDashboard.description}
         >
           <TestingComponent newProperties={{ gridItems: [] }} />
         </DashboardLoader>

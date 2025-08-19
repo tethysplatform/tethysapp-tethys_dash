@@ -1,6 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import DashboardLayout from "components/dashboard/DashboardLayout";
-import { mockedDashboards } from "__tests__/utilities/constants";
+import { userDashboard } from "__tests__/utilities/constants";
 import createLoadedComponent, {
   ContextLayoutPComponent,
 } from "__tests__/utilities/customRender";
@@ -27,7 +27,7 @@ test("Dashboard Layout resize and update layout", async () => {
         </>
       ),
       options: {
-        initialDashboard: mockedDashboards.user[0],
+        initialDashboard: userDashboard,
         inEditing: true,
       },
     })

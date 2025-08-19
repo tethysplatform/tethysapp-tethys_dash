@@ -18,7 +18,7 @@ import {
   mockedTextVariable,
   mockedDropdownVariable,
   mockedDropdownVisualization,
-  mockedDashboards,
+  userDashboard,
   layerConfigImageArcGISRest,
 } from "__tests__/utilities/constants";
 import MapContextProvider, {
@@ -780,7 +780,7 @@ test("Map click attribute variables update text variable input", async () => {
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
   const handleChange = jest.fn();
-  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.gridItems = [mockedTextVariable];
   const varInputArgs = JSON.parse(mockedTextVariable.args_string);
 
@@ -868,7 +868,7 @@ test("Map click attribute variables update dropdown variable input", async () =>
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
   const handleChange = jest.fn();
-  const dashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.gridItems = [mockedDropdownVariable];
   const varInputArgs = JSON.parse(mockedDropdownVariable.args_string);
 

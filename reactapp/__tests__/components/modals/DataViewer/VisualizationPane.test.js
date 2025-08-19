@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import VisualizationPane from "components/modals/DataViewer/VisualizationPane";
-import { mockedDashboards } from "__tests__/utilities/constants";
+import { mockedDashboards, userDashboard } from "__tests__/utilities/constants";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 import { server } from "__tests__/utilities/server";
@@ -59,7 +59,7 @@ const TestingComponent = ({
 };
 
 test("Visualization Pane Custom Image", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];
   const mockSetGridItemMessage = jest.fn();
   const mockSetVizType = jest.fn();
@@ -128,7 +128,7 @@ test("Visualization Pane Custom Image", async () => {
 });
 
 test("Visualization Pane Custom Image through Dropdown", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];
   const mockSetGridItemMessage = jest.fn();
   const mockSetVizType = jest.fn();
@@ -191,7 +191,7 @@ test("Visualization Pane Custom Image through Dropdown", async () => {
 });
 
 test("Visualization Pane Variable Input", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];
   const mockSetGridItemMessage = jest.fn();
   const mockSetVizType = jest.fn();
@@ -319,7 +319,7 @@ test("Visualization Pane Variable Input", async () => {
 });
 
 test("Visualization Pane Other Type", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];
   const mockSetGridItemMessage = jest.fn();
   const mockSetVizType = jest.fn();
@@ -459,7 +459,7 @@ test("Visualization Pane Other Type", async () => {
 });
 
 test("Visualization Pane Other Type Checkbox", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];
   const mockSetGridItemMessage = jest.fn();
   const mockSetVizType = jest.fn();
@@ -589,7 +589,7 @@ test("Visualization Pane Other Type Checkbox", async () => {
 
 test("Visualization Pane Use Existing Bad Type", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -644,7 +644,7 @@ test("Visualization Pane Use Existing Bad Type", async () => {
 
 test("Visualization Pane Use Existing Args Map", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -728,7 +728,7 @@ test("Visualization Pane Use Existing Args Map", async () => {
 
 test("Visualization Pane Use Existing Args Variable Input", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -799,7 +799,7 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
 
 test("Visualization Pane Use Existing Args Custom Image", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -865,7 +865,7 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
 
 test("Visualization Pane Use Existing Args Viz with True checkbox", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -951,7 +951,7 @@ test("Visualization Pane Use Existing Args Viz with True checkbox", async () => 
 
 test("Visualization Pane Use Existing Args Viz with False checkbox", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -1037,7 +1037,7 @@ test("Visualization Pane Use Existing Args Viz with False checkbox", async () =>
 
 test("Visualization Pane Use Existing Subs Args", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -1187,7 +1187,7 @@ test("Visualization Pane Use Existing Subs Args", async () => {
 
 test("Visualization Pane Subs Args", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -1403,7 +1403,7 @@ test("Visualization Pane Subs Args", async () => {
 
 test("Visualization Pane Use Existing Args and switch type with same arg", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",

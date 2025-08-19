@@ -2,7 +2,7 @@ import { screen, render } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import createLoadedComponent from "__tests__/utilities/customRender";
-import { mockedDashboards } from "__tests__/utilities/constants";
+import { userDashboard } from "__tests__/utilities/constants";
 
 test("DashboardItemDropdown for editable item but already in edit mode", async () => {
   const mockDeleteGridItem = jest.fn();
@@ -19,7 +19,7 @@ test("DashboardItemDropdown for editable item but already in edit mode", async (
         />
       ),
       options: {
-        initialDashboard: mockedDashboards.user[0],
+        initialDashboard: userDashboard,
         editableDashboard: true,
       },
     })
@@ -60,7 +60,7 @@ test("DashboardItemDropdown for editable item and not in edit mode", async () =>
         />
       ),
       options: {
-        initialDashboard: mockedDashboards.user[0],
+        initialDashboard: userDashboard,
         editableDashboard: true,
       },
     })

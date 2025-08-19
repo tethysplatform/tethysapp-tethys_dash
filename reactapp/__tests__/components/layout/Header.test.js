@@ -14,6 +14,7 @@ import { AppTourContext } from "components/contexts/Contexts";
 import {
   mockedDashboards,
   mockedTextVariable,
+  userDashboard,
 } from "__tests__/utilities/constants";
 
 jest.mock("html2canvas");
@@ -356,7 +357,7 @@ test("DashboardHeader, show info", async () => {
 
 test("DashboardHeader, import gridItem", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -785,7 +786,7 @@ test("DashboardHeader, editable, edit and cancel", async () => {
 
 test("DashboardHeader, editable, edit and save", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -1077,7 +1078,7 @@ test("DashboardHeader, editable, edit, save and error with unrestricted movement
     success: false,
   });
   appAPI.updateDashboard = mockUpdateDashboard;
-  updatedMockedDashboards.user[0].unrestrictedPlacement = true;
+  updateduserDashboard.unrestrictedPlacement = true;
 
   render(
     createLoadedComponent({

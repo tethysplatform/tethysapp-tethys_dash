@@ -10,7 +10,7 @@ import { useNavigate } from "react-router-dom";
 import appAPI from "services/api/app";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import AppTour from "components/appTour/AppTour";
-import { mockedDashboards } from "__tests__/utilities/constants";
+import { mockedDashboards, userDashboard } from "__tests__/utilities/constants";
 import * as utils from "components/visualizations/utilities";
 import { useContext } from "react";
 import PropTypes from "prop-types";
@@ -1001,7 +1001,7 @@ test("DashboardCard editable, copy", async () => {
         <MemoryRouter initialEntries={["/"]}>
           <DashboardCard
             id={1}
-            name={mockedDashboards.user[0].name}
+            name={userDashboard.name}
             editable={true}
             description="some description"
             accessGroups={["public"]}
@@ -1026,7 +1026,7 @@ test("DashboardCard editable, copy", async () => {
     expect(mockCopyDashboard).toHaveBeenCalledWith(
       {
         id: 1,
-        newName: `${mockedDashboards.user[0].name} - Copy`,
+        newName: `${userDashboard.name} - Copy`,
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
     );
@@ -1035,9 +1035,7 @@ test("DashboardCard editable, copy", async () => {
 
 test("DashboardCard editable, copy (2)", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = JSON.parse(
-    JSON.stringify(updatedMockedDashboards.user[0])
-  );
+  const mockedDashboard = JSON.parse(JSON.stringify(updateduserDashboard));
   updatedMockedDashboards.user.unshift(mockedDashboard);
   updatedMockedDashboards.user[1].name = `${mockedDashboard.name} - Copy`;
   const mockCopyDashboard = jest.fn();
@@ -1060,7 +1058,7 @@ test("DashboardCard editable, copy (2)", async () => {
         <MemoryRouter initialEntries={["/"]}>
           <DashboardCard
             id={1}
-            name={mockedDashboards.user[0].name}
+            name={userDashboard.name}
             editable={true}
             description="some description"
             accessGroups={["public"]}
@@ -1089,7 +1087,7 @@ test("DashboardCard editable, copy (2)", async () => {
     expect(mockCopyDashboard).toHaveBeenCalledWith(
       {
         id: 1,
-        newName: `${mockedDashboards.user[0].name} - Copy (2)`,
+        newName: `${userDashboard.name} - Copy (2)`,
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
     );
@@ -1109,7 +1107,7 @@ test("DashboardCard editable, copy fail", async () => {
         <MemoryRouter initialEntries={["/"]}>
           <DashboardCard
             id={1}
-            name={mockedDashboards.user[0].name}
+            name={userDashboard.name}
             editable={true}
             description="some description"
             accessGroups={["public"]}
@@ -1134,7 +1132,7 @@ test("DashboardCard editable, copy fail", async () => {
     expect(mockCopyDashboard).toHaveBeenCalledWith(
       {
         id: 1,
-        newName: `${mockedDashboards.user[0].name} - Copy`,
+        newName: `${userDashboard.name} - Copy`,
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
     );
@@ -1156,7 +1154,7 @@ test("DashboardCard editable, export", async () => {
         <MemoryRouter initialEntries={["/"]}>
           <DashboardCard
             id={1}
-            name={mockedDashboards.user[0].name}
+            name={userDashboard.name}
             editable={true}
             description="some description"
             accessGroups={["public"]}
@@ -1209,7 +1207,7 @@ test("DashboardCard editable, export fail to get dashboard", async () => {
     .spyOn(appAPI, "getDashboard")
     .mockResolvedValueOnce({
       success: true,
-      dashboard: mockedDashboards.user[0],
+      dashboard: userDashboard,
     })
     .mockResolvedValueOnce({
       success: false,
@@ -1222,7 +1220,7 @@ test("DashboardCard editable, export fail to get dashboard", async () => {
         <MemoryRouter initialEntries={["/"]}>
           <DashboardCard
             id={1}
-            name={mockedDashboards.user[0].name}
+            name={userDashboard.name}
             editable={true}
             description="some description"
             accessGroups={["public"]}
@@ -1261,7 +1259,7 @@ test("DashboardCard editable, export fail", async () => {
         <MemoryRouter initialEntries={["/"]}>
           <DashboardCard
             id={1}
-            name={mockedDashboards.user[0].name}
+            name={userDashboard.name}
             editable={true}
             description="some description"
             accessGroups={["public"]}
@@ -1623,9 +1621,7 @@ test("DashboardCard editable, copy public link", async () => {
 
 test("DashboardCard editable, delete and confirm", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = JSON.parse(
-    JSON.stringify(updatedMockedDashboards.user[0])
-  );
+  const mockedDashboard = JSON.parse(JSON.stringify(updateduserDashboard));
   updatedMockedDashboards.user.unshift(mockedDashboard);
   updatedMockedDashboards.user[1].name = `${mockedDashboard.name} - Copy`;
   updatedMockedDashboards.user[1].id = 2;

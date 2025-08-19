@@ -110,8 +110,6 @@ def add_new_dashboard(
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
     try:
-        check_existing_user_dashboard_names(session, owner, name)
-
         new_dashboard = Dashboard(
             uuid=uuid,
             description=description,
@@ -309,26 +307,30 @@ def update_named_dashboard(user, id, dashboard_updates):
     session = Session()
 
     try:
-        db_dashboard = (
-            session.query(Dashboard)
-            .filter(Dashboard.owner == user)
-            .filter(Dashboard.id == id)
-            .first()
-        )
+        db_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
         if not db_dashboard:
             raise Exception(
                 f"A dashboard with the id {id} does not exist for this user"  # noqa: E501
+            )
+
+        # Check if user has editor or admin permission
+        if not (
+            check_for_editor_permission(db_dashboard, user)
+            or check_for_admin_permission(db_dashboard, user)
+        ):
+            raise Exception(
+                "User does not have editor permission to update the dashboard."
             )
 
         db_name = dashboard_updates.get("name", db_dashboard.name)
         db_public = dashboard_updates.get("public", db_dashboard.public)
 
         if db_name != db_dashboard.name:
-            check_existing_user_dashboard_names(
-                session, user, dashboard_updates["name"]
-            )
-            if db_public:
-                check_existing_public_dashboards(session, dashboard_updates["name"])
+            # Check if user has admin permission
+            if not check_for_admin_permission(db_dashboard, user):
+                raise Exception(
+                    "User does not have admin permission to change the name of the dashboard."
+                )
             db_dashboard.name = dashboard_updates["name"]
 
         if "description" in dashboard_updates:
@@ -338,14 +340,22 @@ def update_named_dashboard(user, id, dashboard_updates):
             db_dashboard.notes = sanitize_html(dashboard_updates["notes"])
 
         if db_public != db_dashboard.public:
-            if dashboard_updates["public"]:
-                check_existing_public_dashboards(session, db_name)
+            # Check if user has admin permission
+            if not check_for_admin_permission(db_dashboard, user):
+                raise Exception(
+                    "User does not have admin permission to change the public status of the dashboard."
+                )
             db_dashboard.public = dashboard_updates["public"]
 
         if "unrestrictedPlacement" in dashboard_updates:
             db_dashboard.unrestricted_placement = dashboard_updates[
                 "unrestrictedPlacement"
             ]
+
+        if "permissions" in dashboard_updates:
+            update_permissions(
+                session, db_dashboard, user, dashboard_updates["permissions"]
+            )
 
         if "gridItems" in dashboard_updates:
             updated_grid_items = dashboard_updates["gridItems"]
@@ -435,6 +445,87 @@ def update_named_dashboard(user, id, dashboard_updates):
     return parsed_dashboard
 
 
+def check_for_admin_permission(dashboard, user):
+    """
+    Check if the user has admin permission for the given dashboard.
+    """
+    return any(
+        p.user == user and p.permission == PermissionLevel.admin
+        for p in dashboard.permissions
+    )
+
+
+def check_for_editor_permission(dashboard, user):
+    """
+    Check if the user has editor permission for the given dashboard.
+    """
+    return any(
+        p.user == user and p.permission == PermissionLevel.editor
+        for p in dashboard.permissions
+    )
+
+
+def check_for_viewer_permission(dashboard, user):
+    """
+    Check if the user has viewer permission for the given dashboard.
+    """
+    return any(
+        p.user == user and p.permission == PermissionLevel.viewer
+        for p in dashboard.permissions
+    )
+
+
+def update_permissions(session, db_dashboard, user, updated_permissions):
+    """
+    Update dashboard permissions for a given dashboard.
+    Only allow if the user has admin permission for the dashboard.
+    updated_permissions: list of dicts [{username: str, permission: str}]
+    """
+
+    # Check if user has admin permission
+    if not check_for_admin_permission(db_dashboard, user):
+        raise Exception(
+            "User does not have admin permission to change the public status of the dashboard."
+        )
+
+    # Build lookup for updated permissions
+    updated_lookup = {p["username"]: p["permission"] for p in updated_permissions}
+
+    # Existing permissions (excluding owner/admin)
+    existing_perms = {p.user: p for p in db_dashboard.permissions if p.user}
+
+    # Add or update permissions
+    for username, perm_level in updated_lookup.items():
+        if username == user:
+            continue  # Don't allow changing own admin permission
+        if username == db_dashboard.owner:
+            continue  # Don't allow changing owner permission
+        if username in existing_perms:
+            # Update if changed
+            perm_obj = existing_perms[username]
+            if perm_obj.permission.value != perm_level:
+                perm_obj.permission = PermissionLevel(perm_level)
+        else:
+            # Add new permission
+            new_perm = DashboardPermission(
+                dashboard_id=db_dashboard.id,
+                user=username,
+                permission=PermissionLevel(perm_level),
+            )
+            session.add(new_perm)
+
+    # Delete permissions not in updated list (except owner/admin)
+    to_delete = [
+        p
+        for uname, p in existing_perms.items()
+        if uname not in updated_lookup and uname != user and uname != db_dashboard.owner
+    ]
+    for perm_obj in to_delete:
+        session.delete(perm_obj)
+
+    session.commit()
+
+
 def parse_db_dashboard(dashboards, user, dashboard_view):
     dashboard_list = []
 
@@ -448,10 +539,19 @@ def parse_db_dashboard(dashboards, user, dashboard_view):
 
         # Find the user's permission level for this dashboard
         user_permission = None
+        permissions_list = []
         for perm in dashboard.permissions:
+            if perm.user:
+                permissions_list.append(
+                    {
+                        "username": perm.user,
+                        "permission": (
+                            perm.permission.value if perm.permission else "viewer"
+                        ),
+                    }
+                )
             if perm.user == user:
-                user_permission = perm.permission.value if perm.permission else None
-                break
+                user_permission = perm.permission.value if perm.permission else "viewer"
 
         dashboard_dict = {
             "id": dashboard.id,
@@ -459,9 +559,11 @@ def parse_db_dashboard(dashboards, user, dashboard_view):
             "name": dashboard.name,
             "description": dashboard.description,
             "publicDashboard": dashboard.public,
-            "permission": user_permission,
+            "userPermission": user_permission,
+            "permissions": permissions_list,
             "unrestrictedPlacement": dashboard.unrestricted_placement,
             "image": dashboard_image,
+            "owner": dashboard.owner,
         }
 
         if dashboard_view:
@@ -493,54 +595,33 @@ def get_dashboards(user, dashboard_view=False, id=None):
     """
     Get all persisted dashboards.
     """
-    dashboard_dict = {"user": {}, "public": {}}
     # Get connection/session to database
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
 
     try:
-        # Query for all records
-        user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user)
         if id:
             dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
             return parse_db_dashboard([dashboard], user, dashboard_view)[0]
 
-        dashboard_dict["user"] = parse_db_dashboard(
-            user_dashboards, user, dashboard_view
-        )
+        # Dashboards user has permissions for
+        user_dashboards = (
+            session.query(Dashboard)
+            .join(DashboardPermission)
+            .filter(DashboardPermission.user == user)
+        ).all()
 
+        # Public dashboards (not already included)
         public_dashboards = (
             session.query(Dashboard)
-            .filter(Dashboard.owner != user)
             .filter(Dashboard.public == True)
-        )
+            .filter(~Dashboard.permissions.any(DashboardPermission.user == user))
+        ).all()
 
-        dashboard_dict["public"] = parse_db_dashboard(
-            public_dashboards, user, dashboard_view
-        )
-
+        dashboards = user_dashboards + public_dashboards
+        return parse_db_dashboard(dashboards, user, dashboard_view)
     finally:
         session.close()
-
-    return dashboard_dict
-
-
-def check_existing_user_dashboard_names(session, user, dashboard_name):
-    user_dashboards = session.query(Dashboard).filter(Dashboard.owner == user).all()
-    user_dashboard_names = [dashboard.name for dashboard in user_dashboards]
-    if dashboard_name in user_dashboard_names:
-        raise Exception(
-            f"A dashboard with the name {dashboard_name} already exists. Change the name before attempting again."  # noqa: E501
-        )
-
-
-def check_existing_public_dashboards(session, dashboard_name):
-    public_dashboards = session.query(Dashboard).filter(Dashboard.public == True).all()
-    public_dashboard_names = [dashboard.name for dashboard in public_dashboards]
-    if dashboard_name in public_dashboard_names:
-        raise Exception(
-            f"A dashboard with the name {dashboard_name} is already public. Change the name before attempting again."  # noqa: E501
-        )
 
 
 def clean_up_jsons(user):

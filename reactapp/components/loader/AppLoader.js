@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo } from "react";
 import Form from "react-bootstrap/Form";
 import { useIdleTimer } from "react-idle-timer";
 import { spaceAndCapitalize } from "components/modals/utilities";
@@ -45,32 +45,12 @@ function setupRoutes(dashboards) {
   ];
 
   const dashboardRoutes = [];
-  for (const dashboardMetadata of dashboards.user) {
+  for (const dashboard of dashboards) {
     dashboardRoutes.push(
       <Route
-        path={`/dashboard/user/${dashboardMetadata.name}`}
-        element={<DashboardView editable={true} {...dashboardMetadata} />}
-        key={`route-user-${dashboardMetadata.name}`}
-      />
-    );
-
-    if (dashboardMetadata.publicDashboard) {
-      dashboardRoutes.push(
-        <Route
-          path={`/dashboard/public/${dashboardMetadata.name}`}
-          element={<DashboardView editable={false} {...dashboardMetadata} />}
-          key={`route-public-${dashboardMetadata.name}`}
-        />
-      );
-    }
-  }
-
-  for (const dashboardMetadata of dashboards.public) {
-    dashboardRoutes.push(
-      <Route
-        path={`/dashboard/public/${dashboardMetadata.name}`}
-        element={<DashboardView editable={false} {...dashboardMetadata} />}
-        key={`route-public-${dashboardMetadata.name}`}
+        path={`/dashboard/${dashboard.uuid}`}
+        element={<DashboardView {...dashboard} />}
+        key={`route-${dashboard.uuid}`}
       />
     );
   }
@@ -89,7 +69,7 @@ function Loader({ children }) {
     useState(false);
   const [checked, setChecked] = useState(false);
   const [appContext, setAppContext] = useState(null);
-  const [availableDashboards, setAvailableDashboards] = useState(null);
+  const [availableDashboards, setAvailableDashboards] = useState([]);
   const [isTimerEnabled, setIsTimerEnabled] = useState(true);
   const [sessionState, setSessionState] = useState("Active");
   const [count, setCount] = useState(0);
@@ -219,7 +199,7 @@ function Loader({ children }) {
   };
 
   useEffect(() => {
-    if (availableDashboards) {
+    if (availableDashboards.length > 0) {
       setAppContext((existingAppContext) => ({
         ...existingAppContext,
         routes: setupRoutes(availableDashboards),
@@ -402,12 +382,12 @@ function Loader({ children }) {
         tethysApp,
         user,
         csrf,
-        routes: setupRoutes(dashboards),
+        routes: setupRoutes(dashboards.dashboards),
         visualizations: allVisualizations,
         mapLayerTemplates,
         visualizationArgs,
       });
-      setAvailableDashboards(dashboards);
+      setAvailableDashboards(dashboards.dashboards);
 
       // Allow for minimum delay to display loader
       setTimeout(() => {
@@ -420,52 +400,15 @@ function Loader({ children }) {
     // eslint-disable-next-line
   }, []);
 
-  function getUniqueDashboardName(name) {
-    const existingNames = availableDashboards.user.map((obj) => obj.name);
-    if (!existingNames.includes(name)) {
-      return name;
-    }
-
-    let newName = `${name} - Copy`;
-    let count = 2;
-    while (existingNames.includes(newName)) {
-      newName = `${name} - Copy (${count})`;
-      count++;
-    }
-
-    return newName;
-  }
-
-  function removeDashboardById({ id, replacementDashboard }) {
-    // Reconstruct the object while replacing the matching dashboard
-    const newUserDashboards = [];
-    for (const dashboard of availableDashboards.user) {
-      if (dashboard.id === id) {
-        if (replacementDashboard) {
-          newUserDashboards.push(replacementDashboard); // Replace with new object
-        }
-      } else {
-        newUserDashboards.push(dashboard); // Keep existing
-      }
-    }
-
-    return newUserDashboards;
-  }
-
   async function copyDashboard(id, name) {
-    const newName = getUniqueDashboardName(name);
-
+    // let the user input a new name
     const apiResponse = await appAPI.copyDashboard(
-      { id, newName },
+      { id, name },
       appContext.csrf
     );
     if (apiResponse.success) {
-      const newDashboard = apiResponse["new_dashboard"];
-      let newAvailableDashboards = JSON.parse(
-        JSON.stringify(availableDashboards)
-      );
-      newAvailableDashboards["user"].push(newDashboard);
-      setAvailableDashboards(newAvailableDashboards);
+      const newDashboard = apiResponse.new_dashboard;
+      setAvailableDashboards([...availableDashboards, newDashboard]);
     }
     return apiResponse;
   }
@@ -476,12 +419,8 @@ function Loader({ children }) {
       appContext.csrf
     );
     if (apiResponse.success) {
-      const newDashboard = apiResponse["new_dashboard"];
-      let newAvailableDashboards = JSON.parse(
-        JSON.stringify(availableDashboards)
-      );
-      newAvailableDashboards["user"].unshift(newDashboard);
-      setAvailableDashboards(newAvailableDashboards);
+      const newDashboard = apiResponse.new_dashboard;
+      setAvailableDashboards([...availableDashboards, newDashboard]);
     }
     return apiResponse;
   }
@@ -489,8 +428,7 @@ function Loader({ children }) {
   async function deleteDashboard(id) {
     const apiResponse = await appAPI.deleteDashboard({ id }, appContext.csrf);
     if (apiResponse["success"]) {
-      const userDashboards = removeDashboardById({ id });
-      setAvailableDashboards({ ...availableDashboards, user: userDashboards });
+      setAvailableDashboards(availableDashboards.filter((d) => d.id !== id));
     }
     return apiResponse;
   }
@@ -499,8 +437,6 @@ function Loader({ children }) {
     if (!("name" in dashboardContext)) {
       return { success: false, message: "Dashboards must include a name" };
     }
-    const newName = getUniqueDashboardName(dashboardContext.name);
-    dashboardContext.name = newName;
 
     if (dashboardContext.gridItems && dashboardContext.gridItems.length > 0) {
       const updatedGridItems = [];
@@ -553,13 +489,12 @@ function Loader({ children }) {
       appContext.csrf
     );
     if (apiResponse.success) {
-      const updatedDashboard = apiResponse["updated_dashboard"];
-      const userDashboards = removeDashboardById({
-        id,
-        replacementDashboard: updatedDashboard,
-      });
-
-      setAvailableDashboards({ ...availableDashboards, user: userDashboards });
+      const updatedDashboard = apiResponse.updated_dashboard;
+      setAvailableDashboards(
+        availableDashboards.map((d) =>
+          d.id === updatedDashboard.id ? updatedDashboard : d
+        )
+      );
     }
     return apiResponse;
   }
@@ -647,4 +582,4 @@ Loader.propTypes = {
   children: PropTypes.arrayOf(PropTypes.object),
 };
 
-export default Loader;
+export default memo(Loader);

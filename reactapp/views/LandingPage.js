@@ -31,13 +31,6 @@ const StyledCol = styled(Col)`
 const LandingPage = () => {
   const { availableDashboards } = useContext(AvailableDashboardsContext);
   const { user } = useContext(AppContext);
-  const [userDashboards, setUserDashboards] = useState([]);
-  const [publicDashboards, setPublicDashboards] = useState([]);
-
-  useEffect(() => {
-    setUserDashboards(availableDashboards.user);
-    setPublicDashboards(availableDashboards.public);
-  }, [availableDashboards]);
 
   return (
     <LayoutAlertContextProvider>
@@ -50,17 +43,12 @@ const LandingPage = () => {
               <NewDashboardCard />
             </StyledCol>
           )}
-          {userDashboards.map((dashboardMetadata) => (
+          {availableDashboards.map((dashboardMetadata) => (
             <StyledCol key={dashboardMetadata.id}>
-              <DashboardCard editable={true} {...dashboardMetadata} />
+              <DashboardCard {...dashboardMetadata} />
             </StyledCol>
           ))}
-          {publicDashboards.map((dashboardMetadata) => (
-            <StyledCol key={dashboardMetadata.id}>
-              <DashboardCard editable={false} {...dashboardMetadata} />
-            </StyledCol>
-          ))}
-          {!user?.username && publicDashboards.length === 0 && (
+          {!user?.username && availableDashboards.length === 0 && (
             <StyledCol key="no-content">
               <NoDashboardCard />
             </StyledCol>

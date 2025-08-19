@@ -2,7 +2,7 @@ import Offcanvas from "react-bootstrap/Offcanvas";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import Button from "react-bootstrap/Button";
 import Alert from "react-bootstrap/Alert";
-import { useState, useEffect, useContext } from "react";
+import { useState, useContext, memo } from "react";
 import {
   LayoutContext,
   AvailableDashboardsContext,
@@ -10,15 +10,19 @@ import {
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import styled from "styled-components";
-import { getPublicUrl } from "services/utilities";
-import TooltipButton from "components/buttons/TooltipButton";
 import PropTypes from "prop-types";
 import TextEditor from "components/inputs/TextEditor";
 import NormalInput from "components/inputs/NormalInput";
 import Text from "components/visualizations/Text";
 import { confirm } from "components/inputs/DeleteConfirmation";
-import { BsClipboard } from "react-icons/bs";
 import { useNavigate } from "react-router-dom";
+import {
+  BsFloppy,
+  BsFillTrashFill,
+  BsCopy,
+  BsPeopleFill,
+} from "react-icons/bs";
+import PermissionsModal from "components/modals/Permissions";
 
 const StyledOffcanvas = styled(Offcanvas)`
   height: 100vh;
@@ -32,7 +36,7 @@ const StyledButton = styled(Button)`
 `;
 const StyledFooter = styled.footer`
   display: flex;
-  justify-content: space-between;
+  justify-content: end;
   flex-wrap: wrap;
   padding: 15px;
   border-top: 1px solid #ccc;
@@ -56,31 +60,17 @@ const WideLabel = styled.label`
   width: 100%;
 `;
 
-const FlexDiv = styled.div`
-  display: flex;
-  width: 100%;
-`;
-
-const ButtonDiv = styled.div`
-  margin-bottom: 1rem;
-`;
-
-const UrlDiv = styled.div`
-  flex: 1;
-  margin-right: 1rem;
-`;
-
 function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
-  const [publicStatus, setPublicStatus] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
-  const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
   const {
     id,
     name,
     description,
     editable,
     publicDashboard,
+    userPermission,
+    permissions,
     unrestrictedPlacement,
     notes,
     saveLayoutContext,
@@ -96,43 +86,16 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [localDescription, setLocalDescription] = useState(description);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const navigate = useNavigate();
-
-  const publicStatusOptions = [
-    { label: "Public", value: true },
-    { label: "Private", value: false },
-  ];
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
 
   const unrestrictedPlacementOptions = [
     { label: "On", value: true },
     { label: "Off", value: false },
   ];
 
-  useEffect(() => {
-    if (publicDashboard) {
-      setPublicStatus(true);
-    } else {
-      setPublicStatus(false);
-    }
-    // eslint-disable-next-line
-  }, [publicDashboard]);
-
-  function onPublicChange(e) {
-    setPublicStatus(e.target.value === "true");
-  }
-
   function onUnrestrictedPlacementChange(e) {
     setSelectedUnrestrictedPlacement(e.target.value === "true");
   }
-
-  const handleCopyURLClick = async () => {
-    const dashboardPublicUrl = getPublicUrl(name);
-    try {
-      await window.navigator.clipboard.writeText(dashboardPublicUrl);
-      setCopyClipboardSuccess(true);
-    } catch (err) {
-      setCopyClipboardSuccess(false);
-    }
-  };
 
   const handleClose = () => {
     setShowCanvas(false);
@@ -145,7 +108,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     setSuccessMessage("");
     setErrorMessage("");
     const newProperties = {
-      public: publicStatus,
       notes: localNotes,
       name: localName,
       description: localDescription,
@@ -200,164 +162,145 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   }
 
   return (
-    <StyledOffcanvas
-      show={showCanvas}
-      onHide={handleClose}
-      placement={"end"}
-      className="dashboard-settings-editor"
-    >
-      <StyledHeader closeButton>
-        <Offcanvas.Title className="ms-auto">
-          Dashboard Settings
-        </Offcanvas.Title>
-      </StyledHeader>
-      <Offcanvas.Body>
-        {errorMessage && (
-          <Alert
-            key="danger"
-            variant="danger"
-            onClose={() => setErrorMessage("")}
-            dismissible={true}
-          >
-            {errorMessage}
-          </Alert>
-        )}
-        {successMessage && (
-          <Alert
-            key="success"
-            variant="success"
-            onClose={() => setSuccessMessage("")}
-            dismissible={true}
-          >
-            {successMessage}
-          </Alert>
-        )}
-        {editable ? (
-          <>
-            <PaddedDiv>
-              <NormalInput
-                label={"Name"}
-                type={"text"}
-                value={localName}
-                onChange={(e) => {
-                  setLocalName(e.target.value);
-                }}
-              />
-            </PaddedDiv>
-            <PaddedDiv>
-              <WideLabel>
-                <b>Description</b>:
-                <div>
-                  <WideTextArea
-                    value={localDescription}
-                    rows={4}
-                    onChange={(e) => setLocalDescription(e.target.value)}
-                    aria-label="Description Input"
-                  />
-                </div>
-              </WideLabel>
-            </PaddedDiv>
-            <DataRadioSelect
-              label={"Public Status"}
-              selectedRadio={publicStatus}
-              radioOptions={publicStatusOptions}
-              onChange={onPublicChange}
-            />
-            <DataRadioSelect
-              label={"Unrestricted Grid Item Placement"}
-              selectedRadio={selectedUnrestrictedPlacement}
-              radioOptions={unrestrictedPlacementOptions}
-              onChange={onUnrestrictedPlacementChange}
-            />
-          </>
-        ) : (
-          <>
-            <b>Name</b>:<br></br>
-            <p>{name}</p>
-            <b>Description</b>:<br></br>
-            <p>{description}</p>
-          </>
-        )}
-        {publicStatus && (
-          <>
-            <label>
-              <b>Public URL</b>:
-            </label>
-            <FlexDiv>
-              <ButtonDiv>
-                <TooltipButton
-                  tooltipPlacement={"right"}
-                  tooltipText={
-                    copyClipboardSuccess === null
-                      ? "Copy to clipboard"
-                      : copyClipboardSuccess
-                        ? "Copied"
-                        : "Failed to Copy"
-                  }
-                  variant={"warning"}
-                  onClick={handleCopyURLClick}
-                  aria-label={"Copy Clipboard Button"}
-                  style={{ display: "flex" }}
-                >
-                  <BsClipboard />
-                </TooltipButton>
-              </ButtonDiv>
-              <UrlDiv>{getPublicUrl(name)}</UrlDiv>
-            </FlexDiv>
-          </>
-        )}
-        <TextEditorDiv>
-          <b>Notes</b>:<br></br>
-          {editable ? (
-            <TextEditor textValue={localNotes} onChange={onNotesChange} />
-          ) : (
-            <TextDiv>
-              <Text textValue={localNotes} />
-            </TextDiv>
+    <>
+      <StyledOffcanvas
+        show={showCanvas}
+        onHide={handleClose}
+        placement={"end"}
+        className="dashboard-settings-editor"
+      >
+        <StyledHeader closeButton>
+          <Offcanvas.Title className="ms-auto">
+            Dashboard Settings
+          </Offcanvas.Title>
+        </StyledHeader>
+        <Offcanvas.Body>
+          {errorMessage && (
+            <Alert
+              key="danger"
+              variant="danger"
+              onClose={() => setErrorMessage("")}
+              dismissible={true}
+            >
+              {errorMessage}
+            </Alert>
           )}
-        </TextEditorDiv>
-      </Offcanvas.Body>
-      {user?.username && (
-        <StyledFooter>
-          <StyledButton
-            variant="secondary"
-            onClick={handleClose}
-            className="cancel-dashboard-editor-button"
-            aria-label="Cancel Dashboard Editor Button"
-          >
-            Close
-          </StyledButton>
-          <StyledButton
-            variant="info"
-            onClick={onCopy}
-            aria-label="Copy Dashboard Button"
-            className="copy-dashboard-button"
-          >
-            Copy dashboard
-          </StyledButton>
-          {editable && (
+          {successMessage && (
+            <Alert
+              key="success"
+              variant="success"
+              onClose={() => setSuccessMessage("")}
+              dismissible={true}
+            >
+              {successMessage}
+            </Alert>
+          )}
+          {editable ? (
             <>
-              <StyledButton
-                variant="danger"
-                onClick={onDelete}
-                aria-label="Delete Dashboard Button"
-                className="delete-dashboard-button"
-              >
-                Delete dashboard
-              </StyledButton>
-              <StyledButton
-                variant="success"
-                onClick={onSave}
-                aria-label="Save Dashboard Button"
-                className="save-dashboard-button"
-              >
-                Save changes
-              </StyledButton>
+              <PaddedDiv>
+                <NormalInput
+                  label={"Name"}
+                  type={"text"}
+                  value={localName}
+                  onChange={(e) => {
+                    setLocalName(e.target.value);
+                  }}
+                />
+              </PaddedDiv>
+              <PaddedDiv>
+                <WideLabel>
+                  <b>Description</b>:
+                  <div>
+                    <WideTextArea
+                      value={localDescription}
+                      rows={4}
+                      onChange={(e) => setLocalDescription(e.target.value)}
+                      aria-label="Description Input"
+                    />
+                  </div>
+                </WideLabel>
+              </PaddedDiv>
+              <DataRadioSelect
+                label={"Unrestricted Grid Item Placement"}
+                selectedRadio={selectedUnrestrictedPlacement}
+                radioOptions={unrestrictedPlacementOptions}
+                onChange={onUnrestrictedPlacementChange}
+              />
+            </>
+          ) : (
+            <>
+              <b>Name</b>:<br></br>
+              <p>{name}</p>
+              <b>Description</b>:<br></br>
+              <p>{description}</p>
             </>
           )}
-        </StyledFooter>
+          <TextEditorDiv>
+            <b>Notes</b>:<br></br>
+            {editable ? (
+              <TextEditor textValue={localNotes} onChange={onNotesChange} />
+            ) : (
+              <TextDiv>
+                <Text textValue={localNotes} />
+              </TextDiv>
+            )}
+          </TextEditorDiv>
+        </Offcanvas.Body>
+        {user?.username && (
+          <StyledFooter>
+            <StyledButton
+              variant="info"
+              onClick={onCopy}
+              aria-label="Copy Dashboard Button"
+              className="copy-dashboard-button"
+              title="Copy Dashboard"
+            >
+              <BsCopy />
+            </StyledButton>
+            {userPermission && (
+              <StyledButton
+                variant="warning"
+                onClick={() => setShowPermissionsModal(true)}
+                aria-label="Manage Dashboard Permissions Button"
+                className="manage-permissions-button"
+                title="Manage Dashboard Permissions"
+              >
+                <BsPeopleFill />
+              </StyledButton>
+            )}
+            {editable && userPermission === "admin" && (
+              <>
+                <StyledButton
+                  variant="danger"
+                  onClick={onDelete}
+                  aria-label="Delete Dashboard Button"
+                  className="delete-dashboard-button"
+                  title="Delete Dashboard"
+                >
+                  <BsFillTrashFill />
+                </StyledButton>
+                <StyledButton
+                  variant="success"
+                  onClick={onSave}
+                  aria-label="Save Dashboard Button"
+                  className="save-dashboard-button"
+                  title="Save Dashboard"
+                >
+                  <BsFloppy />
+                </StyledButton>
+              </>
+            )}
+          </StyledFooter>
+        )}
+      </StyledOffcanvas>
+      {userPermission && (
+        <PermissionsModal
+          showModal={showPermissionsModal}
+          setShowModal={setShowPermissionsModal}
+          permissions={permissions}
+        />
       )}
-    </StyledOffcanvas>
+    </>
   );
 }
 
@@ -366,4 +309,4 @@ DashboardEditorCanvas.propTypes = {
   setShowCanvas: PropTypes.func,
 };
 
-export default DashboardEditorCanvas;
+export default memo(DashboardEditorCanvas);

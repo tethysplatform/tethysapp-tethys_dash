@@ -8,7 +8,7 @@ import {
   within,
 } from "@testing-library/react";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
-import { mockedDashboards } from "__tests__/utilities/constants";
+import { mockedDashboards, userDashboard } from "__tests__/utilities/constants";
 import createLoadedComponent, {
   InputVariablePComponent,
   ContextLayoutPComponent,
@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 test("Dashboard Viewer Modal Custom Image", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];
   const mockhandleModalClose = jest.fn();
   const mocksetGridItemMessage = jest.fn();
@@ -53,7 +53,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
           setShowGridItemMessage={mocksetShowGridItemMessage}
         />
       ),
-      options: { initialDashboard: mockedDashboards.user[0] },
+      options: { initialDashboard: userDashboard },
     })
   );
 
@@ -97,7 +97,7 @@ test("Dashboard Viewer Modal Custom Image", async () => {
 });
 
 test("Dashboard Viewer Modal Text", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];
   const mockhandleModalClose = jest.fn();
   const mocksetGridItemMessage = jest.fn();
@@ -118,7 +118,7 @@ test("Dashboard Viewer Modal Text", async () => {
           setShowGridItemMessage={mocksetShowGridItemMessage}
         />
       ),
-      options: { initialDashboard: mockedDashboards.user[0] },
+      options: { initialDashboard: userDashboard },
     })
   );
 
@@ -171,7 +171,7 @@ test("Dashboard Viewer Modal Text", async () => {
 });
 
 test("Dashboard Viewer Modal Variable Input", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];
   const mockhandleModalClose = jest.fn();
   const mocksetGridItemMessage = jest.fn();
@@ -192,7 +192,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
           setShowGridItemMessage={mocksetShowGridItemMessage}
         />
       ),
-      options: { initialDashboard: mockedDashboards.user[0] },
+      options: { initialDashboard: userDashboard },
     })
   );
 
@@ -250,7 +250,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
 
 test("Dashboard Viewer Modal Variable Input already exists", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -366,7 +366,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
 
 test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updatedMockedDashboards.user[0];
+  const mockedDashboard = updateduserDashboard;
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -471,7 +471,7 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
 });
 
 test("Dashboard Viewer Modal Switch tabs", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];
   const mockhandleModalClose = jest.fn();
   const mocksetGridItemMessage = jest.fn();
@@ -496,7 +496,7 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
         </>
       ),
       options: {
-        initialDashboard: mockedDashboards.user[0],
+        initialDashboard: userDashboard,
         inDataViewerMode: true,
       },
     })
@@ -517,7 +517,7 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
 });
 
 test("Dashboard Viewer Modal Map False layer control", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];
   const mockhandleModalClose = jest.fn();
   const mocksetGridItemMessage = jest.fn();
@@ -541,7 +541,7 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
           <ContextLayoutPComponent />
         </>
       ),
-      options: { initialDashboard: mockedDashboards.user[0] },
+      options: { initialDashboard: userDashboard },
     })
   );
 
@@ -610,7 +610,7 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
 });
 
 test("Dashboard Viewer Modal Text Options", async () => {
-  const mockedDashboard = JSON.parse(JSON.stringify(mockedDashboards.user[0]));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];
   const mockhandleModalClose = jest.fn();
   const mocksetGridItemMessage = jest.fn();
@@ -635,7 +635,7 @@ test("Dashboard Viewer Modal Text Options", async () => {
         </>
       ),
       options: {
-        initialDashboard: mockedDashboards.user[0],
+        initialDashboard: userDashboard,
         inDataViewerMode: true,
       },
     })

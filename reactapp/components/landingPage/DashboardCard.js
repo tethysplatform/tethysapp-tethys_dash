@@ -157,6 +157,7 @@ const FlexDiv = styled.div`
 
 const DashboardCard = ({
   id,
+  uuid,
   name,
   editable,
   description,
@@ -206,11 +207,7 @@ const DashboardCard = ({
   }
 
   function viewDashboard() {
-    if (editable) {
-      navigate("/dashboard/user/" + name);
-    } else {
-      navigate("/dashboard/public/" + name);
-    }
+    navigate("/dashboard/" + uuid);
   }
 
   function onCopy() {
@@ -244,7 +241,7 @@ const DashboardCard = ({
   }
 
   const onCopyPublicLink = async () => {
-    const dashboardPublicUrl = getPublicUrl(name);
+    const dashboardPublicUrl = getPublicUrl(uuid);
     try {
       await window.navigator.clipboard.writeText(dashboardPublicUrl);
     } catch (err) {
@@ -474,6 +471,7 @@ export const NoDashboardCard = () => {
 
 DashboardCard.propTypes = {
   id: PropTypes.number,
+  uuid: PropTypes.string,
   name: PropTypes.string,
   editable: PropTypes.bool,
   description: PropTypes.string,
