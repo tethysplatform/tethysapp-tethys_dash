@@ -82,7 +82,6 @@ test("Dashboard Editor Canvas edit and save", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: userDashboard,
-        editableDashboard: true,
       },
     })
   );
@@ -148,7 +147,6 @@ test("Dashboard Editor Canvas edit desription only and save", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: userDashboard,
-        editableDashboard: true,
       },
     })
   );
@@ -203,7 +201,6 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: userDashboard,
-        editableDashboard: true,
       },
     })
   );
@@ -244,7 +241,6 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: userDashboard,
-        editableDashboard: true,
       },
     })
   );
@@ -283,7 +279,6 @@ test("Dashboard Editor Canvas delete success", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: userDashboard,
-        editableDashboard: true,
       },
     })
   );
@@ -311,7 +306,6 @@ test("Dashboard Editor Canvas delete fail", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: userDashboard,
-        editableDashboard: true,
       },
     })
   );
@@ -346,7 +340,6 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
       children: <TestingComponent />,
       options: {
         initialDashboard: userDashboard,
-        editableDashboard: true,
       },
     })
   );
@@ -390,7 +383,7 @@ test("Dashboard Editor Canvas copy and success", async () => {
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
   expect(mockCopyDashboard).toHaveBeenCalledWith(
-    { id: 1, name: "User Dashboard" },
+    { id: userDashboard.id, newName: `${userDashboard.name} - Copy` },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
 
@@ -419,7 +412,7 @@ test("Dashboard Editor Canvas copy and fail with message", async () => {
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
   expect(mockCopyDashboard).toHaveBeenCalledWith(
-    { id: 1, name: "User Dashboard" },
+    { id: userDashboard.id, newName: `${userDashboard.name} - Copy` },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
   expect(
@@ -450,7 +443,7 @@ test("Dashboard Editor Canvas copy and fail without message", async () => {
   const copyButton = await screen.findByLabelText("Copy Dashboard Button");
   await userEvent.click(copyButton);
   expect(mockCopyDashboard).toHaveBeenCalledWith(
-    { id: 1, name: "User Dashboard" },
+    { id: userDashboard.id, newName: `${userDashboard.name} - Copy` },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
   expect(

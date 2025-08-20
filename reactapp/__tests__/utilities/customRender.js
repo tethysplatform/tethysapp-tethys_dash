@@ -43,11 +43,16 @@ const TestingComponent = ({ children, options = {} }) => {
 };
 
 const createLoadedComponent = ({ children, options = {} }) => {
-  const dashboards = options.dashboards ?? mockedDashboards;
-  const initialDashboard = options.initialDashboard ?? dashboards.user[0];
+  const dashboards = JSON.parse(
+    JSON.stringify(options.dashboards ?? mockedDashboards)
+  );
+  const initialDashboard = JSON.parse(
+    JSON.stringify(options.initialDashboard ?? dashboards.dashboards[0])
+  );
 
   if (options.user) {
     if (options.user.username === null) {
+      initialDashboard.userPermission = null;
       server.use(
         rest.get("http://api.test/api/session/", (req, res, ctx) => {
           return res(
@@ -117,10 +122,7 @@ const createLoadedComponent = ({ children, options = {} }) => {
 
   return (
     <Loader>
-      <DashboardLoader
-        editable={options.editableDashboard}
-        {...initialDashboard}
-      >
+      <DashboardLoader {...initialDashboard}>
         <TestingComponent options={options}>{children}</TestingComponent>
       </DashboardLoader>
     </Loader>
@@ -128,19 +130,36 @@ const createLoadedComponent = ({ children, options = {} }) => {
 };
 
 export const ContextLayoutPComponent = () => {
-  const { id, name, notes, gridItems, editable, accessGroups, description } =
-    useContext(LayoutContext);
+  const {
+    id,
+    uuid,
+    name,
+    notes,
+    gridItems,
+    editable,
+    publicDashboard,
+    userPermission,
+    permissions,
+    unrestrictedPlacement,
+    description,
+    owner,
+  } = useContext(LayoutContext);
 
   return (
     <p data-testid="layout-context">
       {JSON.stringify({
         id,
+        owner,
+        uuid,
         name,
+        description,
+        publicDashboard,
+        permissions,
+        userPermission,
+        unrestrictedPlacement,
         notes,
         gridItems,
         editable,
-        accessGroups,
-        description,
       })}
     </p>
   );

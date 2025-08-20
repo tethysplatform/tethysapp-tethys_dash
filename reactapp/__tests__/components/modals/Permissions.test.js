@@ -4,7 +4,7 @@
 //       children: <TestingComponent />,
 //       options: {
 //         initialDashboard: userDashboard,
-//         editableDashboard: true,
+//
 //       },
 //     })
 //   );

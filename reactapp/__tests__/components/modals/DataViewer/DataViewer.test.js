@@ -250,7 +250,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
 
 test("Dashboard Viewer Modal Variable Input already exists", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updateduserDashboard;
+  const mockedDashboard = updatedMockedDashboards.dashboards[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -366,7 +366,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
 
 test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updateduserDashboard;
+  const mockedDashboard = updatedMockedDashboards.dashboards[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -579,33 +579,19 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
   );
   fireEvent.click(dataviewerSaveButton);
 
+  const updatedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  updatedDashboard.gridItems[0].source = "Map";
+  updatedDashboard.gridItems[0].args_string = JSON.stringify({
+    baseMap:
+      "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+    layerControl: false,
+    layers: [],
+    map_extent: { extent: "-10686671.12,4721671.57,4.5" },
+    mapDrawing: {},
+  });
+  updatedDashboard.gridItems[0].metadata_string = "{}";
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({
-      id: 1,
-      name: "editable",
-      notes: "test_notes",
-      gridItems: [
-        {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "Map",
-          args_string: JSON.stringify({
-            baseMap:
-              "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
-            layerControl: false,
-            layers: [],
-            map_extent: { extent: "-10686671.12,4721671.57,4.5" },
-            mapDrawing: {},
-          }),
-          metadata_string: "{}",
-        },
-      ],
-      accessGroups: [],
-      description: "test_description",
-    })
+    JSON.stringify({ ...updatedDashboard, editable: true })
   );
 });
 

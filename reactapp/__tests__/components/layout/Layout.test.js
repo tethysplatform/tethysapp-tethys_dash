@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import Layout from "components/layout/Layout";
 import Loader from "components/loader/AppLoader";
 import { MemoryRouter } from "react-router-dom";
+import { userDashboard } from "__tests__/utilities/constants";
 
 // eslint-disable-next-line
 jest.mock("views/Dashboard", () => (props) => (
@@ -37,7 +38,7 @@ test("Layout not found", async () => {
 
 test("Layout loading valid dashboard", async () => {
   render(
-    <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+    <MemoryRouter initialEntries={[`/dashboard/${userDashboard.uuid}`]}>
       <Loader>
         <Layout />
       </Loader>

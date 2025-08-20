@@ -46,7 +46,7 @@ it("Creates a Date Hour Input for a Variable Input", async () => {
           <InputVariablePComponent />
         </>
       ),
-      options: { dashboards: { user: [dashboard], public: [] } },
+      options: { dashboards: { dashboards: [dashboard] } },
     })
   );
 
@@ -114,7 +114,7 @@ it("Creates a Date Input for a Variable Input", async () => {
           <InputVariablePComponent />
         </>
       ),
-      options: { dashboards: { user: [dashboard], public: [] } },
+      options: { dashboards: { dashboards: [dashboard] } },
     })
   );
 
@@ -181,7 +181,7 @@ it("Creates a Text Input for a Variable Input", async () => {
           <InputVariablePComponent />
         </>
       ),
-      options: { dashboards: { user: [dashboard], public: [] } },
+      options: { dashboards: { dashboards: [dashboard] } },
     })
   );
 
@@ -230,7 +230,7 @@ it("Creates a Slider Input for a Variable Input", async () => {
           <InputVariablePComponent />
         </>
       ),
-      options: { dashboards: { user: [dashboard], public: [] } },
+      options: { dashboards: { dashboards: [dashboard] } },
     })
   );
 
@@ -274,7 +274,7 @@ it("Creates a Slider Input for a Variable Input, missing metadata", async () => 
           <InputVariablePComponent />
         </>
       ),
-      options: { dashboards: { user: [dashboard], public: [] } },
+      options: { dashboards: { dashboards: [dashboard] } },
     })
   );
 
@@ -305,7 +305,7 @@ it("Creates a Slider Input for a Variable Input, missing metadata key", async ()
           <InputVariablePComponent />
         </>
       ),
-      options: { dashboards: { user: [dashboard], public: [] } },
+      options: { dashboards: { dashboards: [dashboard] } },
     })
   );
 
@@ -335,7 +335,7 @@ it("Creates a Number Input for a Variable Input", async () => {
           <InputVariablePComponent />
         </>
       ),
-      options: { dashboards: { user: [dashboard], public: [] } },
+      options: { dashboards: { dashboards: [dashboard] } },
     })
   );
 
@@ -382,7 +382,7 @@ it("Creates a Checkbox Input for a Variable Input", async () => {
           <InputVariablePComponent />
         </>
       ),
-      options: { dashboards: { user: [dashboard], public: [] } },
+      options: { dashboards: { dashboards: [dashboard] } },
     })
   );
 
@@ -419,7 +419,7 @@ it("Creates a Checkbox Input for a Variable Input with a null value", async () =
           <InputVariablePComponent />
         </>
       ),
-      options: { dashboards: { user: [dashboard], public: [] } },
+      options: { dashboards: { dashboards: [dashboard] } },
     })
   );
 
@@ -460,7 +460,7 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
         </>
       ),
       options: {
-        dashboards: { user: [dashboard], public: [] },
+        dashboards: { dashboards: [dashboard] },
         visualizations: mockedDropdownVisualization,
       },
     })
@@ -527,7 +527,7 @@ it("Creates a Dropdown Input for a Variable Input from array", async () => {
         </>
       ),
       options: {
-        dashboards: { user: [dashboard], public: [] },
+        dashboards: { dashboards: [dashboard] },
       },
     })
   );
@@ -567,7 +567,7 @@ it("Creates a Dropdown Input for a Variable Input, not signed in", async () => {
         </>
       ),
       options: {
-        dashboards: { user: [dashboard], public: [] },
+        dashboards: { dashboards: [dashboard] },
         visualizations: mockedDropdownVisualization,
         user: { username: null, isAuthenticated: true, isStaff: false },
       },
@@ -623,7 +623,7 @@ describe("When inDataViewerMode", () => {
           </>
         ),
         options: {
-          dashboards: { user: [dashboard], public: [] },
+          dashboards: { dashboards: [dashboard] },
           inDataViewerMode: true,
         },
       })
@@ -673,7 +673,7 @@ describe("When inDataViewerMode", () => {
           </>
         ),
         options: {
-          dashboards: { user: [dashboard], public: [] },
+          dashboards: { dashboards: [dashboard] },
           inDataViewerMode: true,
         },
       })
@@ -724,7 +724,7 @@ describe("When inDataViewerMode", () => {
           </>
         ),
         options: {
-          dashboards: { user: [dashboard], public: [] },
+          dashboards: { dashboards: [dashboard] },
           inDataViewerMode: true,
         },
       })
@@ -772,7 +772,7 @@ describe("When inDataViewerMode", () => {
           </>
         ),
         options: {
-          dashboards: { user: [dashboard], public: [] },
+          dashboards: { dashboards: [dashboard] },
           inDataViewerMode: true,
         },
       })
@@ -818,7 +818,7 @@ describe("When inDataViewerMode", () => {
           </>
         ),
         options: {
-          dashboards: { user: [dashboard], public: [] },
+          dashboards: { dashboards: [dashboard] },
           inDataViewerMode: true,
           visualizations: mockedDropdownVisualization,
         },

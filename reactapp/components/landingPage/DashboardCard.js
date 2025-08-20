@@ -159,7 +159,7 @@ const DashboardCard = ({
   id,
   uuid,
   name,
-  editable,
+  userPermission,
   description,
   publicDashboard,
   image,
@@ -178,6 +178,7 @@ const DashboardCard = ({
   const nameInput = useRef();
   const descriptionInput = useRef();
   const { activeAppTour } = useAppTourContext();
+  const editable = ["admin", "editor"].includes(userPermission);
 
   useEffect(() => {
     if (isEditingTitle) {

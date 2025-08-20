@@ -62,7 +62,7 @@ it("DashboardItemDropdown", async () => {
 
 it("DashboardItemDropdown order not overflowing submenu", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updateduserDashboard;
+  const mockedDashboard = updatedMockedDashboards.dashboards[0];
   mockedDashboard.unrestrictedPlacement = true;
 
   const deleteGridItem = jest.fn();
@@ -94,7 +94,6 @@ it("DashboardItemDropdown order not overflowing submenu", async () => {
         />
       ),
       options: {
-        editableDashboard: true,
         dashboards: updatedMockedDashboards,
       },
     })
@@ -117,7 +116,7 @@ it("DashboardItemDropdown order not overflowing submenu", async () => {
 
 it("ContextMenu overflowing submenu", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updateduserDashboard;
+  const mockedDashboard = updatedMockedDashboards.dashboards[0];
   mockedDashboard.unrestrictedPlacement = true;
 
   const deleteGridItem = jest.fn();
@@ -149,7 +148,6 @@ it("ContextMenu overflowing submenu", async () => {
         />
       ),
       options: {
-        editableDashboard: true,
         dashboards: updatedMockedDashboards,
       },
     })

@@ -43,11 +43,12 @@ const LandingPage = () => {
               <NewDashboardCard />
             </StyledCol>
           )}
-          {availableDashboards.map((dashboardMetadata) => (
-            <StyledCol key={dashboardMetadata.id}>
-              <DashboardCard {...dashboardMetadata} />
-            </StyledCol>
-          ))}
+          {availableDashboards.length > 0 &&
+            availableDashboards.map((dashboardMetadata) => (
+              <StyledCol key={dashboardMetadata.id}>
+                <DashboardCard {...dashboardMetadata} />
+              </StyledCol>
+            ))}
           {!user?.username && availableDashboards.length === 0 && (
             <StyledCol key="no-content">
               <NoDashboardCard />

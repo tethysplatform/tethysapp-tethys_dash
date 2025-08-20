@@ -2,6 +2,7 @@ import { rest } from "msw";
 import {
   mockedVisualizations,
   mockedDashboards,
+  userDashboard,
 } from "__tests__/utilities/constants";
 
 const handlers = [

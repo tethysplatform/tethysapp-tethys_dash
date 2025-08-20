@@ -824,7 +824,7 @@ test("Map click attribute variables update text variable input", async () => {
         />
       </MapContextProvider>
     ),
-    options: { dashboards: { user: [dashboard], public: [] } },
+    options: { dashboards: { dashboards: [dashboard] } },
   });
   render(LoadedComponent);
 
@@ -913,7 +913,7 @@ test("Map click attribute variables update dropdown variable input", async () =>
       </MapContextProvider>
     ),
     options: {
-      dashboards: { user: [dashboard], public: [] },
+      dashboards: { dashboards: [dashboard] },
       visualizations: mockedDropdownVisualization,
     },
   });

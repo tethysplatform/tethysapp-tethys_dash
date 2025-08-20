@@ -43,26 +43,21 @@ test("Dashboard Layout resize and update layout", async () => {
   fireEvent.mouseMove(resizeSpan, { clientX: 100, clientY: 0 });
   fireEvent.mouseUp(resizeSpan);
 
+  const expectedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  expectedDashboard.gridItems = [
+    {
+      args_string: "{}",
+      h: 20,
+      i: "1",
+      source: "",
+      metadata_string: '{"refreshRate":0}',
+      w: 28,
+      x: 0,
+      y: 0,
+    },
+  ];
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({
-      id: 1,
-      name: "editable",
-      notes: "test_notes",
-      gridItems: [
-        {
-          args_string: "{}",
-          h: 20,
-          i: "1",
-          source: "",
-          metadata_string: JSON.stringify({ refreshRate: 0 }),
-          w: 28,
-          x: 0,
-          y: 0,
-        },
-      ],
-      accessGroups: [],
-      description: "test_description",
-    })
+    JSON.stringify({ ...expectedDashboard, editable: true })
   );
 });
 
@@ -72,8 +67,10 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
     name: "editable",
     label: "test_label",
     notes: "test_notes",
-    editable: true,
-    accessGroups: [],
+    publicDashboard: false,
+    permissions: [{ username: "admin", permission: "admin" }],
+    userPermission: "admin",
+    unrestrictedPlacement: false,
     gridItems: [
       {
         i: "1",
@@ -87,7 +84,7 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
       },
     ],
   };
-  const dashboards = { user: [mockedDashboard], public: [] };
+  const dashboards = { dashboards: [mockedDashboard] };
 
   const { container } = render(
     createLoadedComponent({
@@ -120,6 +117,10 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
     JSON.stringify({
       id: 1,
       name: "editable",
+      publicDashboard: false,
+      permissions: [{ username: "admin", permission: "admin" }],
+      userPermission: "admin",
+      unrestrictedPlacement: false,
       notes: "test_notes",
       gridItems: [
         {
@@ -134,7 +135,6 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
         },
       ],
       editable: true,
-      accessGroups: [],
     })
   );
 });
@@ -145,8 +145,10 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
     name: "editable",
     label: "test_label",
     notes: "test_notes",
-    editable: true,
-    accessGroups: [],
+    publicDashboard: false,
+    permissions: [{ username: "admin", permission: "admin" }],
+    userPermission: "admin",
+    unrestrictedPlacement: false,
     gridItems: [
       {
         i: "1",
@@ -163,7 +165,7 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
       },
     ],
   };
-  const dashboards = { user: [mockedDashboard], public: [] };
+  const dashboards = { dashboards: [mockedDashboard] };
 
   const { container } = render(
     createLoadedComponent({
@@ -197,6 +199,10 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
     JSON.stringify({
       id: 1,
       name: "editable",
+      publicDashboard: false,
+      permissions: [{ username: "admin", permission: "admin" }],
+      userPermission: "admin",
+      unrestrictedPlacement: false,
       notes: "test_notes",
       gridItems: [
         {
@@ -214,7 +220,6 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
         },
       ],
       editable: true,
-      accessGroups: [],
     })
   );
 
@@ -226,6 +231,10 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
     JSON.stringify({
       id: 1,
       name: "editable",
+      publicDashboard: false,
+      permissions: [{ username: "admin", permission: "admin" }],
+      userPermission: "admin",
+      unrestrictedPlacement: false,
       notes: "test_notes",
       gridItems: [
         {
@@ -243,7 +252,6 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
         },
       ],
       editable: true,
-      accessGroups: [],
     })
   );
 });

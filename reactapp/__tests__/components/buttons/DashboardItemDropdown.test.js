@@ -20,7 +20,6 @@ test("DashboardItemDropdown for editable item but already in edit mode", async (
       ),
       options: {
         initialDashboard: userDashboard,
-        editableDashboard: true,
       },
     })
   );
@@ -61,7 +60,6 @@ test("DashboardItemDropdown for editable item and not in edit mode", async () =>
       ),
       options: {
         initialDashboard: userDashboard,
-        editableDashboard: true,
       },
     })
   );

@@ -39,7 +39,6 @@ export const userDashboard = {
   permissions: [{ username: "admin", permission: "admin" }],
   userPermission: "admin",
   unrestrictedPlacement: false,
-  image: "user_image.png",
   notes: "user_notes",
   gridItems: [
     {
@@ -67,7 +66,6 @@ export const publicDashboard = {
   permissions: [{ username: "admin", permission: "admin" }],
   userPermission: null,
   unrestrictedPlacement: false,
-  image: "public_image.png",
   notes: "public_notes",
   gridItems: [
     {
@@ -98,7 +96,6 @@ export const viewerDashboard = {
   ],
   userPermission: "viewer",
   unrestrictedPlacement: false,
-  image: "viewer_image.png",
   notes: "viewer_notes",
   gridItems: [
     {
@@ -129,7 +126,6 @@ export const editorDashboard = {
   ],
   userPermission: "editor",
   unrestrictedPlacement: false,
-  image: "editor_image.png",
   notes: "editor_notes",
   gridItems: [
     {
@@ -160,7 +156,6 @@ export const adminDashboard = {
   ],
   userPermission: "admin",
   unrestrictedPlacement: false,
-  image: "admin_image.png",
   notes: "admin_notes",
   gridItems: [
     {

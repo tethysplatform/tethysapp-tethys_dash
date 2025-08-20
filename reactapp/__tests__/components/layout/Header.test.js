@@ -14,6 +14,7 @@ import { AppTourContext } from "components/contexts/Contexts";
 import {
   mockedDashboards,
   mockedTextVariable,
+  publicDashboard,
   userDashboard,
 } from "__tests__/utilities/constants";
 
@@ -259,9 +260,6 @@ test("DashboardHeader, user and editable", async () => {
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-      options: {
-        editableDashboard: true,
-      },
     })
   );
 
@@ -287,7 +285,7 @@ test("DashboardHeader, user and not editable", async () => {
         </MemoryRouter>
       ),
       options: {
-        editableDashboard: false,
+        initialDashboard: publicDashboard,
       },
     })
   );
@@ -345,7 +343,6 @@ test("DashboardHeader, show info", async () => {
       ),
       options: {
         user: { isAuthenticated: true, isStaff: false },
-        editableDashboard: true,
       },
     })
   );
@@ -357,7 +354,7 @@ test("DashboardHeader, show info", async () => {
 
 test("DashboardHeader, import gridItem", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updateduserDashboard;
+  const mockedDashboard = updatedMockedDashboards.dashboards[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -413,7 +410,6 @@ test("DashboardHeader, import gridItem", async () => {
       ),
       options: {
         user: { isAuthenticated: true, isStaff: false },
-        editableDashboard: true,
         dashboards: updatedMockedDashboards,
       },
     })
@@ -521,7 +517,6 @@ test("DashboardHeader, signin", async () => {
       ),
       options: {
         user: { username: null, isAuthenticated: true, isStaff: false },
-        editableDashboard: true,
       },
     })
   );
@@ -544,14 +539,18 @@ test("DashboardHeader, not editable, no show info", async () => {
   render(
     createLoadedComponent({
       children: (
-        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+        <MemoryRouter initialEntries={["/dashboard/123456789"]}>
           <LayoutAlertContextProvider>
             <DashboardHeader />
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
       options: {
-        user: { isAuthenticated: true, isStaff: false },
+        user: {
+          isAuthenticated: true,
+          isStaff: false,
+        },
+        initialDashboard: publicDashboard,
       },
     })
   );
@@ -563,6 +562,9 @@ test("DashboardHeader, not editable, no show info", async () => {
     await screen.findByLabelText("dashboardSettingButton")
   ).toBeInTheDocument();
   expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("importDashboardButton")
+  ).not.toBeInTheDocument();
 });
 
 test("DashboardHeader, show settings", async () => {
@@ -578,7 +580,6 @@ test("DashboardHeader, show settings", async () => {
       ),
       options: {
         user: { isAuthenticated: true, isStaff: false },
-        editableDashboard: true,
       },
     })
   );
@@ -611,7 +612,6 @@ test("DashboardHeader, show settings in App Tour", async () => {
       ),
       options: {
         user: { isAuthenticated: true, isStaff: false },
-        editableDashboard: true,
       },
     })
   );
@@ -638,7 +638,6 @@ test("DashboardHeader, editable, lock movement", async () => {
           <DisabledMovementPComponent />
         </MemoryRouter>
       ),
-      options: { editableDashboard: true },
     })
   );
 
@@ -647,7 +646,7 @@ test("DashboardHeader, editable, lock movement", async () => {
   ).toBeInTheDocument();
 
   const editButton = await screen.findByLabelText("editButton");
-  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
   expect(editButton).toBeInTheDocument();
   expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
@@ -683,6 +682,7 @@ test("DashboardHeader, not editable and return to landing page", async () => {
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
+      options: { initialDashboard: publicDashboard },
     })
   );
 
@@ -690,7 +690,7 @@ test("DashboardHeader, not editable and return to landing page", async () => {
     "dashboardExitButton"
   );
   expect(dashboardExitButton).toBeInTheDocument();
-  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(await screen.findByText(publicDashboard.name)).toBeInTheDocument();
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
@@ -718,7 +718,6 @@ test("DashboardHeader, editable, edit in app tour", async () => {
           </AppTourContext.Provider>
         </MemoryRouter>
       ),
-      options: { editableDashboard: true },
     })
   );
 
@@ -741,7 +740,6 @@ test("DashboardHeader, editable, edit and cancel", async () => {
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-      options: { editableDashboard: true },
     })
   );
 
@@ -750,7 +748,7 @@ test("DashboardHeader, editable, edit and cancel", async () => {
   ).toBeInTheDocument();
 
   const editButton = await screen.findByLabelText("editButton");
-  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
   expect(editButton).toBeInTheDocument();
   expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
@@ -786,7 +784,7 @@ test("DashboardHeader, editable, edit and cancel", async () => {
 
 test("DashboardHeader, editable, edit and save", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockedDashboard = updateduserDashboard;
+  const mockedDashboard = updatedMockedDashboards.dashboards[0];
   mockedDashboard.gridItems = [
     {
       i: "1",
@@ -899,7 +897,7 @@ test("DashboardHeader, editable, edit and save", async () => {
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-      options: { editableDashboard: true, dashboards: updatedMockedDashboards },
+      options: { dashboards: updatedMockedDashboards },
     })
   );
 
@@ -908,7 +906,7 @@ test("DashboardHeader, editable, edit and save", async () => {
   ).toBeInTheDocument();
 
   const editButton = await screen.findByLabelText("editButton");
-  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
   expect(editButton).toBeInTheDocument();
   expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
@@ -1008,7 +1006,6 @@ test("DashboardHeader, editable, edit, save and error", async () => {
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-      options: { editableDashboard: true },
     })
   );
 
@@ -1017,7 +1014,7 @@ test("DashboardHeader, editable, edit, save and error", async () => {
   ).toBeInTheDocument();
 
   const editButton = await screen.findByLabelText("editButton");
-  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
   expect(editButton).toBeInTheDocument();
   expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
@@ -1078,12 +1075,12 @@ test("DashboardHeader, editable, edit, save and error with unrestricted movement
     success: false,
   });
   appAPI.updateDashboard = mockUpdateDashboard;
-  updateduserDashboard.unrestrictedPlacement = true;
+  updatedMockedDashboards.dashboards[0].unrestrictedPlacement = true;
 
   render(
     createLoadedComponent({
       children: (
-        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+        <MemoryRouter initialEntries={["/dashboard/123456789"]}>
           <LayoutAlertContextProvider>
             <DashboardHeader />
             <DashboardLayoutAlerts />
@@ -1091,7 +1088,7 @@ test("DashboardHeader, editable, edit, save and error with unrestricted movement
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-      options: { editableDashboard: true, dashboards: updatedMockedDashboards },
+      options: { dashboards: updatedMockedDashboards },
     })
   );
 
@@ -1100,7 +1097,7 @@ test("DashboardHeader, editable, edit, save and error with unrestricted movement
   ).toBeInTheDocument();
 
   const editButton = await screen.findByLabelText("editButton");
-  expect(await screen.findByText("editable")).toBeInTheDocument();
+  expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
   expect(editButton).toBeInTheDocument();
   expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();

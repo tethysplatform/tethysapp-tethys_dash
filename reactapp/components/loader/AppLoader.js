@@ -403,7 +403,7 @@ function Loader({ children }) {
   async function copyDashboard(id, name) {
     // let the user input a new name
     const apiResponse = await appAPI.copyDashboard(
-      { id, name },
+      { id, newName: `${name} - Copy` },
       appContext.csrf
     );
     if (apiResponse.success) {

@@ -219,7 +219,7 @@ it("Creates an Base Item with a variable input text box", async () => {
           <InputVariablePComponent />
         </>
       ),
-      options: { dashboards: { user: [dashboard], public: [] } },
+      options: { dashboards: { dashboards: [dashboard] } },
     })
   );
 
@@ -590,7 +590,7 @@ it("Base - update variable input", async () => {
     accessGroups: [],
     gridItems: [textVariable, apiImageBase],
   };
-  const dashboards = { user: [mockedDashboard], public: [] };
+  const dashboards = { dashboards: [mockedDashboard] };
 
   server.use(
     rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
