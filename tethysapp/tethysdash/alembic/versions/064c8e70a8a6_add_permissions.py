@@ -10,6 +10,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -57,11 +58,15 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Restore the access_groups column to dashboards
     op.add_column(
-        "dashboards", sa.Column("access_groups", sa.ARRAY(sa.String()), nullable=True)
+        "dashboards",
+        sa.Column("access_groups", postgresql.ARRAY(sa.String()), nullable=True),
     )
-    # Add 'public' to access_groups for dashboards where public is True
+    # Set access_groups to [] if public is FALSE, ['public'] if public is TRUE
     op.execute(
         "UPDATE dashboards SET access_groups = ARRAY['public'] WHERE public = TRUE"
+    )
+    op.execute(
+        "UPDATE dashboards SET access_groups = ARRAY[]::varchar[] WHERE public = FALSE"
     )
     # Remove the public boolean column from dashboards
     op.drop_column("dashboards", "public")
