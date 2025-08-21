@@ -579,7 +579,7 @@ function Loader({ children }) {
 }
 
 Loader.propTypes = {
-  children: PropTypes.arrayOf(PropTypes.object),
+  children: PropTypes.node,
 };
 
 export default memo(Loader);

@@ -53,7 +53,7 @@ Confirmation.propTypes = {
   okLabel: PropTypes.string,
   cancelLabel: PropTypes.string,
   title: PropTypes.string,
-  confirmation: PropTypes.string,
+  confirmation: PropTypes.object,
   show: PropTypes.bool,
   proceed: PropTypes.func, // called when ok button is clicked.
   enableEscape: PropTypes.bool,

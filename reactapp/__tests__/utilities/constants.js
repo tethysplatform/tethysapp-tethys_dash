@@ -92,7 +92,7 @@ export const viewerDashboard = {
   publicDashboard: false,
   permissions: [
     { username: "admin", permission: "admin" },
-    { username: "some_user", permission: "viewer" },
+    { username: "jsmith", permission: "viewer" },
   ],
   userPermission: "viewer",
   unrestrictedPlacement: false,
@@ -122,7 +122,7 @@ export const editorDashboard = {
   publicDashboard: false,
   permissions: [
     { username: "admin", permission: "admin" },
-    { username: "some_user", permission: "editor" },
+    { username: "jsmith", permission: "editor" },
   ],
   userPermission: "editor",
   unrestrictedPlacement: false,
@@ -152,7 +152,7 @@ export const adminDashboard = {
   publicDashboard: false,
   permissions: [
     { username: "admin", permission: "admin" },
-    { username: "some_user", permission: "admin" },
+    { username: "jsmith", permission: "admin" },
   ],
   userPermission: "admin",
   unrestrictedPlacement: false,

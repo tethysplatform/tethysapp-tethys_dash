@@ -37,7 +37,6 @@ const TableContainer = styled.div`
 
 function PermissionsModal({ showModal, setShowModal }) {
   const {
-    name,
     uuid,
     publicDashboard,
     userPermission,
@@ -46,10 +45,10 @@ function PermissionsModal({ showModal, setShowModal }) {
     owner,
   } = useContext(LayoutContext);
   const { user } = useContext(AppContext);
-  const [publicStatus, setPublicStatus] = useState(false);
+  const [publicStatus, setPublicStatus] = useState(publicDashboard);
   const [usernameInput, setUsernameInput] = useState("");
-  const [errorMessage, setErrorMessage] = useState(null);
-  const [successMessage, setSuccessMessage] = useState(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const [dashboardPermissions, setDashboardPermissions] = useState(permissions);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
 
@@ -61,15 +60,6 @@ function PermissionsModal({ showModal, setShowModal }) {
     { label: "Public", value: true },
     { label: "Private", value: false },
   ];
-
-  useEffect(() => {
-    if (publicDashboard) {
-      setPublicStatus(true);
-    } else {
-      setPublicStatus(false);
-    }
-    // eslint-disable-next-line
-  }, [publicDashboard]);
 
   function onPublicChange(e) {
     setPublicStatus(e.target.value === "true");
@@ -104,7 +94,7 @@ function PermissionsModal({ showModal, setShowModal }) {
   };
 
   const handlePermissionChange = (index, newPermission) => {
-    const updated = permissions.map((perm, i) =>
+    const updated = dashboardPermissions.map((perm, i) =>
       i === index ? { ...perm, permission: newPermission } : perm
     );
     setDashboardPermissions(updated);
@@ -113,7 +103,6 @@ function PermissionsModal({ showModal, setShowModal }) {
   const handleSave = () => {
     setSuccessMessage("");
     setErrorMessage("");
-    console.log(dashboardPermissions, publicStatus);
     const newProperties = {
       permissions: dashboardPermissions,
       public: publicStatus,
@@ -175,11 +164,13 @@ function PermissionsModal({ showModal, setShowModal }) {
                 onChange={(e) => setUsernameInput(e.target.value)}
                 placeholder="Enter username"
                 style={{ flexGrow: 1 }}
+                aria-label="Username Input"
               />
               <Button
                 variant="primary"
                 type="submit"
                 style={{ whiteSpace: "nowrap" }}
+                aria-label="Add User Button"
               >
                 Add User
               </Button>
@@ -215,6 +206,7 @@ function PermissionsModal({ showModal, setShowModal }) {
                           onChange={(e) =>
                             handlePermissionChange(idx, e.target.value)
                           }
+                          aria-label={`Permission level for ${perm.username}`}
                         >
                           {PERMISSION_LEVELS.map((level) => (
                             <option key={level} value={level}>
@@ -288,13 +280,15 @@ function PermissionsModal({ showModal, setShowModal }) {
         >
           Close
         </Button>
-        <Button
-          variant="success"
-          onClick={handleSave}
-          aria-label="Save Permissions Button"
-        >
-          Save
-        </Button>
+        {userPermission === "admin" && (
+          <Button
+            variant="success"
+            onClick={handleSave}
+            aria-label="Save Permissions Button"
+          >
+            Save
+          </Button>
+        )}
       </Modal.Footer>
     </Modal>
   );
@@ -303,8 +297,6 @@ function PermissionsModal({ showModal, setShowModal }) {
 PermissionsModal.propTypes = {
   showModal: PropTypes.bool.isRequired,
   setShowModal: PropTypes.func.isRequired,
-  permissions: PropTypes.array.isRequired,
-  setPermissions: PropTypes.func.isRequired,
 };
 
 export default memo(PermissionsModal);

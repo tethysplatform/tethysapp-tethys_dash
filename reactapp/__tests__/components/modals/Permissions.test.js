@@ -1,141 +1,377 @@
-// test("Dashboard Editor Canvas editable dashboard change sharing status", async () => {
-//   render(
-//     createLoadedComponent({
-//       children: <TestingComponent />,
-//       options: {
-//         initialDashboard: userDashboard,
-//
-//       },
-//     })
-//   );
+import PermissionsModal from "components/modals/Permissions";
+import { render, screen, fireEvent, within } from "@testing-library/react";
+import { userDashboard, adminDashboard } from "__tests__/utilities/constants";
+import createLoadedComponent from "__tests__/utilities/customRender";
+import userEvent from "@testing-library/user-event";
+import appAPI from "services/api/app";
 
-//   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
-//   expect(await screen.findByText("Name")).toBeInTheDocument();
-//   expect(await screen.findByLabelText("Name Input")).toBeInTheDocument();
-//   expect(await screen.findByText("Description")).toBeInTheDocument();
-//   expect(await screen.findByLabelText("Description Input")).toBeInTheDocument();
-//   expect(await screen.findByText("Sharing Status")).toBeInTheDocument();
-//   expect(await screen.findByText("Notes")).toBeInTheDocument();
-//   expect(await screen.findByLabelText("textEditor")).toBeInTheDocument();
-//   expect(await screen.findByText("Close")).toBeInTheDocument();
-//   expect(await screen.findByText("Copy dashboard")).toBeInTheDocument();
-//   expect(await screen.findByText("Delete dashboard")).toBeInTheDocument();
-//   expect(await screen.findByText("Save changes")).toBeInTheDocument();
+test("Permissions Modal", async () => {
+  const mockSetShowModal = jest.fn();
 
-//   const publicRadioButton = screen.getByLabelText("Public");
-//   const privateRadioButton = screen.getByLabelText("Private");
-//   expect(publicRadioButton).toBeInTheDocument();
-//   expect(privateRadioButton).toBeInTheDocument();
+  render(
+    createLoadedComponent({
+      children: (
+        <PermissionsModal showModal={true} setShowModal={mockSetShowModal} />
+      ),
+    })
+  );
 
-//   expect(publicRadioButton).not.toBeChecked();
-//   expect(privateRadioButton).toBeChecked();
-//   expect(screen.queryByText("Public URL")).not.toBeInTheDocument();
+  expect(await screen.findByText("Manage Permissions")).toBeInTheDocument();
 
-//   fireEvent.click(publicRadioButton);
+  expect(screen.getByLabelText("Username Input")).toBeInTheDocument();
+  expect(screen.getByLabelText("Add User Button")).toBeInTheDocument();
 
-//   expect(publicRadioButton).toBeChecked();
-//   expect(privateRadioButton).not.toBeChecked();
-//   expect(await screen.findByText("Public URL")).toBeInTheDocument();
-//   expect(
-//     await screen.findByText(
-//       "http://api.test/apps/tethysdash/dashboard/public/editable"
-//     )
-//   ).toBeInTheDocument();
-// });test("Dashboard Editor Canvas copy public url failed", async () => {
-//   render(
-//     createLoadedComponent({
-//       children: <TestingComponent />,
-//       options: {
-//         initialDashboard: publicDashboard,
-//       },
-//     })
-//   );
+  expect(screen.getByRole("table")).toBeInTheDocument();
+  const rows = screen.getAllByRole("row");
+  expect(rows.length).toBe(2);
+  expect(rows[1].cells[0]).toHaveTextContent("admin");
+  const permissionLevelInput = within(rows[1].cells[1]).queryByRole("combobox");
+  expect(permissionLevelInput).not.toBeInTheDocument();
+  expect(rows[1].cells[1]).toHaveTextContent("Owner");
 
-//   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
-//   expect(await screen.findByText("Name")).toBeInTheDocument();
-//   expect(screen.queryByLabelText("Name Input")).not.toBeInTheDocument();
-//   expect(await screen.findByText("Description")).toBeInTheDocument();
-//   expect(screen.queryByLabelText("Description Input")).not.toBeInTheDocument();
-//   expect(screen.queryByText("Sharing Status")).not.toBeInTheDocument();
-//   expect(await screen.findByText("Notes")).toBeInTheDocument();
-//   expect(screen.queryByLabelText("textEditor")).not.toBeInTheDocument();
-//   expect(await screen.findByText("Close")).toBeInTheDocument();
-//   expect(await screen.findByText("Copy dashboard")).toBeInTheDocument();
-//   expect(screen.queryByText("Delete dashboard")).not.toBeInTheDocument();
-//   expect(screen.queryByText("Save changes")).not.toBeInTheDocument();
+  expect(screen.getByText("URL")).toBeInTheDocument();
+  expect(screen.getByLabelText("Copy Clipboard Button")).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      `http://api.test/apps/tethysdash/dashboard/${userDashboard.uuid}`
+    )
+  ).toBeInTheDocument();
 
-//   expect(screen.queryByLabelText("Public")).not.toBeInTheDocument();
-//   expect(screen.queryByLabelText("Private")).not.toBeInTheDocument();
-//   expect(await screen.findByText("Public URL")).toBeInTheDocument();
-//   expect(
-//     await screen.findByText(
-//       "http://api.test/apps/tethysdash/dashboard/public/noneditable"
-//     )
-//   ).toBeInTheDocument();
+  const closeModalButton = screen.getByLabelText("Close Modal Button");
+  expect(closeModalButton).toBeInTheDocument();
+  expect(screen.getByLabelText("Save Permissions Button")).toBeInTheDocument();
 
-//   const copyClipboardButton = await screen.findByLabelText(
-//     "Copy Clipboard Button"
-//   );
-//   expect(copyClipboardButton).toBeInTheDocument();
-//   fireEvent.click(copyClipboardButton);
-//   await userEvent.hover(copyClipboardButton);
-//   expect(await screen.findByRole("tooltip")).toHaveTextContent(
-//     "Failed to Copy"
-//   );
-// });
+  fireEvent.click(closeModalButton);
+  expect(mockSetShowModal).toHaveBeenCalledWith(false);
+});
 
-// test("Dashboard Editor Canvas noneditable and copy public url", async () => {
-//   const mockWriteText = jest.fn();
-//   Object.defineProperty(navigator, "clipboard", {
-//     value: {
-//       writeText: mockWriteText,
-//     },
-//   });
+test("Permissions Modal add user and update", async () => {
+  const updatedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const newPermissions = [
+    { username: "admin", permission: "admin" },
+    { username: "newuser", permission: "editor" },
+  ];
+  updatedDashboard.permissions = newPermissions;
 
-//   render(
-//     createLoadedComponent({
-//       children: <TestingComponent />,
-//       options: {
-//         initialDashboard: publicDashboard,
-//       },
-//     })
-//   );
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
+    success: true,
+    updated_dashboard: updatedDashboard,
+  });
+  appAPI.updateDashboard = mockUpdateDashboard;
 
-//   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
-//   expect(await screen.findByText("Name")).toBeInTheDocument();
-//   expect(screen.queryByLabelText("Name Input")).not.toBeInTheDocument();
-//   expect(await screen.findByText("Description")).toBeInTheDocument();
-//   expect(screen.queryByLabelText("Description Input")).not.toBeInTheDocument();
-//   expect(screen.queryByText("Sharing Status")).not.toBeInTheDocument();
-//   expect(await screen.findByText("Notes")).toBeInTheDocument();
-//   expect(screen.queryByLabelText("textEditor")).not.toBeInTheDocument();
-//   expect(await screen.findByText("Close")).toBeInTheDocument();
-//   expect(await screen.findByText("Copy dashboard")).toBeInTheDocument();
-//   expect(screen.queryByText("Delete dashboard")).not.toBeInTheDocument();
-//   expect(screen.queryByText("Save changes")).not.toBeInTheDocument();
+  render(
+    createLoadedComponent({
+      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+    })
+  );
 
-//   expect(screen.queryByLabelText("Public")).not.toBeInTheDocument();
-//   expect(screen.queryByLabelText("Private")).not.toBeInTheDocument();
-//   expect(await screen.findByText("Public URL")).toBeInTheDocument();
-//   expect(
-//     await screen.findByText(
-//       "http://api.test/apps/tethysdash/dashboard/public/noneditable"
-//     )
-//   ).toBeInTheDocument();
+  let rows = await screen.findAllByRole("row");
+  expect(rows.length).toBe(2);
+  expect(rows[1].cells[0]).toHaveTextContent("admin");
+  expect(rows[1].cells[1]).toHaveTextContent("Owner");
 
-//   const copyClipboardButton = await screen.findByLabelText(
-//     "Copy Clipboard Button"
-//   );
-//   await userEvent.hover(copyClipboardButton);
+  const usernameInput = screen.getByLabelText("Username Input");
+  const addUserButton = screen.getByLabelText("Add User Button");
 
-//   const tooltip = screen.getByRole("tooltip");
-//   expect(tooltip).toBeInTheDocument();
-//   expect(tooltip).toHaveTextContent("Copy to clipboard");
-//   expect(copyClipboardButton).toBeInTheDocument();
-//   fireEvent.click(copyClipboardButton);
-//   expect(mockWriteText).toHaveBeenCalledWith(
-//     "http://api.test/apps/tethysdash/dashboard/public/noneditable"
-//   );
-//   await userEvent.hover(copyClipboardButton);
-//   expect(screen.getByRole("tooltip")).toHaveTextContent("Copied");
-// });
+  fireEvent.change(usernameInput, { target: { value: "newuser" } });
+  fireEvent.click(addUserButton);
+
+  rows = await screen.findAllByRole("row");
+  expect(rows.length).toBe(3);
+  expect(rows[2].cells[0]).toHaveTextContent("newuser");
+  const permissionLevelDropdown = screen.getByLabelText(
+    "Permission level for newuser"
+  );
+  expect(permissionLevelDropdown.value).toBe("viewer");
+
+  await userEvent.selectOptions(permissionLevelDropdown, "Editor");
+  expect(permissionLevelDropdown.value).toBe("editor");
+
+  const saveButton = screen.getByLabelText("Save Permissions Button");
+  fireEvent.click(saveButton);
+
+  expect(mockUpdateDashboard).toHaveBeenCalledWith(
+    {
+      id: userDashboard.id,
+      permissions: newPermissions,
+      public: userDashboard.publicDashboard,
+    },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+  );
+
+  expect(
+    await screen.findByText("Successfully updated dashboard settings")
+  ).toBeInTheDocument();
+
+  const closeAlert = await screen.findByLabelText("Close alert");
+  fireEvent.click(closeAlert);
+
+  expect(
+    screen.queryByText("Successfully updated dashboard settings")
+  ).not.toBeInTheDocument();
+});
+
+test("Permissions Modal add user but empty", async () => {
+  render(
+    createLoadedComponent({
+      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+    })
+  );
+
+  let rows = await screen.findAllByRole("row");
+  expect(rows.length).toBe(2);
+  expect(rows[1].cells[0]).toHaveTextContent("admin");
+  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+
+  const usernameInput = screen.getByLabelText("Username Input");
+  const addUserButton = screen.getByLabelText("Add User Button");
+
+  fireEvent.change(usernameInput, { target: { value: "" } });
+  fireEvent.click(addUserButton);
+
+  expect(
+    await screen.findByText("Username cannot be empty.")
+  ).toBeInTheDocument();
+});
+
+test("Permissions Modal, add user but already exists", async () => {
+  render(
+    createLoadedComponent({
+      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      options: {
+        initialDashboard: adminDashboard,
+        user: { username: "admin" },
+      },
+    })
+  );
+
+  let rows = await screen.findAllByRole("row");
+  expect(rows.length).toBe(3);
+  expect(rows[1].cells[0]).toHaveTextContent("admin");
+  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+
+  expect(rows[2].cells[0]).toHaveTextContent("jsmith");
+  expect(rows[2].cells[1]).toHaveTextContent("Admin");
+
+  expect(
+    screen.getByLabelText("Permission level for jsmith")
+  ).toBeInTheDocument();
+
+  const usernameInput = screen.getByLabelText("Username Input");
+  const addUserButton = screen.getByLabelText("Add User Button");
+
+  fireEvent.change(usernameInput, { target: { value: "jsmith" } });
+  fireEvent.click(addUserButton);
+
+  expect(
+    await screen.findByText("This user is already in the list.")
+  ).toBeInTheDocument();
+
+  const closeAlert = await screen.findByLabelText("Close alert");
+  fireEvent.click(closeAlert);
+
+  expect(
+    screen.queryByText("This user is already in the list.")
+  ).not.toBeInTheDocument();
+});
+
+test("Permissions Modal, delete user", async () => {
+  const updatedDashboard = JSON.parse(JSON.stringify(adminDashboard));
+  const newPermissions = [{ username: "admin", permission: "admin" }];
+  updatedDashboard.permissions = newPermissions;
+
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
+    success: true,
+    updated_dashboard: updatedDashboard,
+  });
+  appAPI.updateDashboard = mockUpdateDashboard;
+
+  render(
+    createLoadedComponent({
+      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      options: {
+        initialDashboard: adminDashboard,
+        user: { username: "admin" },
+      },
+    })
+  );
+
+  let rows = await screen.findAllByRole("row");
+  expect(rows.length).toBe(3);
+  expect(rows[1].cells[0]).toHaveTextContent("admin");
+  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+
+  expect(rows[2].cells[0]).toHaveTextContent("jsmith");
+  expect(rows[2].cells[1]).toHaveTextContent("Admin");
+
+  const deleteButton = screen.getByLabelText("Delete permission for jsmith");
+  await userEvent.click(deleteButton);
+
+  rows = await screen.findAllByRole("row");
+  expect(rows.length).toBe(2);
+
+  const saveButton = screen.getByLabelText("Save Permissions Button");
+  fireEvent.click(saveButton);
+
+  expect(mockUpdateDashboard).toHaveBeenCalledWith(
+    {
+      id: adminDashboard.id,
+      permissions: newPermissions,
+      public: adminDashboard.publicDashboard,
+    },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+  );
+});
+
+test("Permissions Modal, admin permission, not owner", async () => {
+  render(
+    createLoadedComponent({
+      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      options: {
+        initialDashboard: adminDashboard,
+      },
+    })
+  );
+
+  let rows = await screen.findAllByRole("row");
+  expect(rows.length).toBe(3);
+  expect(rows[1].cells[0]).toHaveTextContent("admin");
+  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+
+  expect(rows[2].cells[0]).toHaveTextContent("jsmith");
+  expect(rows[2].cells[1]).toHaveTextContent("Admin");
+
+  const permissionDropdowns = screen.queryAllByRole("combobox");
+  expect(permissionDropdowns).toHaveLength(0);
+});
+
+test("Permissions Modal, change public status", async () => {
+  render(
+    createLoadedComponent({
+      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+    })
+  );
+
+  expect(await screen.findByText("Public")).toBeInTheDocument();
+  expect(await screen.findByText("Private")).toBeInTheDocument();
+
+  const publicRadioButton = screen.getByLabelText("Public");
+  const privateRadioButton = screen.getByLabelText("Private");
+  expect(publicRadioButton).toBeInTheDocument();
+  expect(privateRadioButton).toBeInTheDocument();
+
+  expect(publicRadioButton).not.toBeChecked();
+  expect(privateRadioButton).toBeChecked();
+
+  fireEvent.click(publicRadioButton);
+
+  expect(publicRadioButton).toBeChecked();
+  expect(privateRadioButton).not.toBeChecked();
+  expect(await screen.findByText("URL")).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      `http://api.test/apps/tethysdash/dashboard/${userDashboard.uuid}`
+    )
+  ).toBeInTheDocument();
+});
+
+test("Permissions Modal fail save, default message", async () => {
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
+    success: false,
+  });
+  appAPI.updateDashboard = mockUpdateDashboard;
+
+  render(
+    createLoadedComponent({
+      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+    })
+  );
+
+  const saveButton = await screen.findByLabelText("Save Permissions Button");
+  fireEvent.click(saveButton);
+
+  expect(
+    await screen.findByText(
+      "Failed to update dashboard settings. Check server logs."
+    )
+  ).toBeInTheDocument();
+  expect(mockUpdateDashboard).toHaveBeenCalledTimes(1);
+});
+
+test("Permissions Modal fail save, custom message", async () => {
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
+    success: false,
+    message: "Custom error message",
+  });
+  appAPI.updateDashboard = mockUpdateDashboard;
+
+  render(
+    createLoadedComponent({
+      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+    })
+  );
+
+  const saveButton = await screen.findByLabelText("Save Permissions Button");
+  fireEvent.click(saveButton);
+
+  expect(await screen.findByText("Custom error message")).toBeInTheDocument();
+  expect(mockUpdateDashboard).toHaveBeenCalledTimes(1);
+});
+
+test("Permissions Modal URL copy fail", async () => {
+  render(
+    createLoadedComponent({
+      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+    })
+  );
+
+  const copyClipboardButton = await screen.findByLabelText(
+    "Copy Clipboard Button"
+  );
+  await userEvent.hover(copyClipboardButton);
+
+  const tooltip = screen.getByRole("tooltip");
+  expect(tooltip).toBeInTheDocument();
+  expect(tooltip).toHaveTextContent("Copy to clipboard");
+  expect(copyClipboardButton).toBeInTheDocument();
+  fireEvent.click(copyClipboardButton);
+  await userEvent.hover(copyClipboardButton);
+  expect(await screen.findByRole("tooltip")).toHaveTextContent(
+    "Failed to Copy"
+  );
+});
+
+test("Permissions Modal URL copy", async () => {
+  const mockWriteText = jest.fn();
+  Object.defineProperty(navigator, "clipboard", {
+    value: {
+      writeText: mockWriteText,
+    },
+  });
+
+  render(
+    createLoadedComponent({
+      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+    })
+  );
+
+  const copyClipboardButton = await screen.findByLabelText(
+    "Copy Clipboard Button"
+  );
+  await userEvent.hover(copyClipboardButton);
+
+  const tooltip = screen.getByRole("tooltip");
+  expect(tooltip).toBeInTheDocument();
+  expect(tooltip).toHaveTextContent("Copy to clipboard");
+  expect(copyClipboardButton).toBeInTheDocument();
+  fireEvent.click(copyClipboardButton);
+  expect(mockWriteText).toHaveBeenCalledWith(
+    `http://api.test/apps/tethysdash/dashboard/${userDashboard.uuid}`
+  );
+  await userEvent.hover(copyClipboardButton);
+  expect(screen.getByRole("tooltip")).toHaveTextContent("Copied");
+});
