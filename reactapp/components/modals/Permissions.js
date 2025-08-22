@@ -162,7 +162,7 @@ function PermissionsModal({ showModal, setShowModal }) {
                 type="text"
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder="Enter username"
+                placeholder="Add people or groups"
                 style={{ flexGrow: 1 }}
                 aria-label="Username Input"
               />
@@ -181,14 +181,18 @@ function PermissionsModal({ showModal, setShowModal }) {
           <Table bordered hover>
             <thead>
               <tr>
-                <th>Username</th>
+                <th>Username/Group</th>
                 <th>Permission Level</th>
               </tr>
             </thead>
             <tbody>
               {dashboardPermissions.map((perm, idx) => (
                 <tr key={perm.username}>
-                  <td>{perm.username}</td>
+                  <td>
+                    {perm.username === owner
+                      ? `${perm.username} (you)`
+                      : perm.username}
+                  </td>
                   <td
                     style={{
                       display: "flex",

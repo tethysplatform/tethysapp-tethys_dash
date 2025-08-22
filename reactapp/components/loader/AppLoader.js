@@ -14,6 +14,7 @@ import LoadingAnimation from "components/loader/LoadingAnimation";
 import {
   AppContext,
   AvailableDashboardsContext,
+  PermissionGroupContext,
 } from "components/contexts/Contexts";
 import { Route } from "react-router-dom";
 import NotFound from "components/error/NotFound";
@@ -70,6 +71,7 @@ function Loader({ children }) {
   const [checked, setChecked] = useState(false);
   const [appContext, setAppContext] = useState(null);
   const [availableDashboards, setAvailableDashboards] = useState([]);
+  const [permissionGroups, setPermissionGroups] = useState([]);
   const [isTimerEnabled, setIsTimerEnabled] = useState(true);
   const [sessionState, setSessionState] = useState("Active");
   const [count, setCount] = useState(0);
@@ -387,6 +389,7 @@ function Loader({ children }) {
         mapLayerTemplates,
         visualizationArgs,
       });
+      setPermissionGroups(dashboards.permission_groups);
       setAvailableDashboards(dashboards.dashboards);
 
       // Allow for minimum delay to display loader
@@ -499,6 +502,39 @@ function Loader({ children }) {
     return apiResponse;
   }
 
+  async function updatePermissionGroup(updatedPermissionGroup) {
+    const apiResponse = await appAPI.updatePermissionGroup(
+      updatedPermissionGroup,
+      appContext.csrf
+    );
+    if (apiResponse.success) {
+      const responsePermissionGroup = apiResponse.updated_permission_group;
+      setPermissionGroups((existingPermissionGroups) => {
+        if (updatedPermissionGroup.id) {
+          return existingPermissionGroups.map((g) =>
+            g.id === responsePermissionGroup.id ? responsePermissionGroup : g
+          );
+        } else {
+          return [...existingPermissionGroups, responsePermissionGroup];
+        }
+      });
+    }
+    return apiResponse;
+  }
+
+  async function deletePermissionGroup(id) {
+    const apiResponse = await appAPI.deletePermissionGroup(
+      { id },
+      appContext.csrf
+    );
+    if (apiResponse.success) {
+      setPermissionGroups((existingPermissionGroups) =>
+        existingPermissionGroups.filter((g) => g.id !== id)
+      );
+    }
+    return apiResponse;
+  }
+
   if (error) {
     // Throw error so it will be caught by the ErrorBoundary
     throw error;
@@ -538,40 +574,48 @@ function Loader({ children }) {
     return (
       <>
         <AppContext.Provider value={appContext}>
-          <AvailableDashboardsContext.Provider
+          <PermissionGroupContext.Provider
             value={{
-              availableDashboards,
-              setAvailableDashboards,
-              addDashboard,
-              deleteDashboard,
-              copyDashboard,
-              updateDashboard,
-              exportDashboard,
-              importDashboard,
+              permissionGroups,
+              updatePermissionGroup,
+              deletePermissionGroup,
             }}
           >
-            <AppTourContextProvider>
-              {children}
-              <Confirmation
-                show={showActivePrompt}
-                okLabel="Stay Signed In"
-                cancelLabel="Sign out"
-                title="Are you still here?"
-                confirmation={
-                  <>
-                    <div style={{ marginTop: ".75rem" }}>
-                      {/* remaining - 1 to kinda fake the timer
+            <AvailableDashboardsContext.Provider
+              value={{
+                availableDashboards,
+                setAvailableDashboards,
+                addDashboard,
+                deleteDashboard,
+                copyDashboard,
+                updateDashboard,
+                exportDashboard,
+                importDashboard,
+              }}
+            >
+              <AppTourContextProvider>
+                {children}
+                <Confirmation
+                  show={showActivePrompt}
+                  okLabel="Stay Signed In"
+                  cancelLabel="Sign out"
+                  title="Are you still here?"
+                  confirmation={
+                    <>
+                      <div style={{ marginTop: ".75rem" }}>
+                        {/* remaining - 1 to kinda fake the timer
                       since there's a race condition with the backend logout */}
-                      Logging out in {remaining - 1} seconds.
-                    </div>
-                  </>
-                }
-                proceed={handleStillHere}
-                backdrop={"static"}
-                noCancel
-              />
-            </AppTourContextProvider>
-          </AvailableDashboardsContext.Provider>
+                        Logging out in {remaining - 1} seconds.
+                      </div>
+                    </>
+                  }
+                  proceed={handleStillHere}
+                  backdrop={"static"}
+                  noCancel
+                />
+              </AppTourContextProvider>
+            </AvailableDashboardsContext.Provider>
+          </PermissionGroupContext.Provider>
         </AppContext.Provider>
       </>
     );

@@ -19,6 +19,9 @@ from tethysapp.tethysdash.model import (
     delete_named_dashboard,
     update_named_dashboard,
     clean_up_jsons,
+    get_user_permission_groups,
+    update_permission_groups,
+    delete_permission_groups,
 )
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
@@ -122,9 +125,12 @@ def dashboards(request):
     """API controller for the dashboards page."""
     user = str(request.user)
     dashboards = get_dashboards(user)
+    permission_groups = get_user_permission_groups(user)
     clean_up_jsons(user)
 
-    return JsonResponse({"dashboards": dashboards})
+    return JsonResponse(
+        {"dashboards": dashboards, "permission_groups": permission_groups}
+    )
 
 
 @api_view(["GET"])
@@ -296,6 +302,84 @@ def update_dashboard(request):
         print(f"Successfully updated the dashboard {id}")
 
         return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
+    except Exception as e:
+        print(e)
+        try:
+            message = e.args[0]
+        except Exception:
+            message = f"Failed to update the dashboard {id}. Check server for logs."
+
+        return JsonResponse({"success": False, "message": message})
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/permission_groups/update", login_required=True)
+def update_permission_group(request):
+    """API controller for the permission groups page."""
+    permission_group_updates = json.loads(request.body)
+    user = str(request.user)
+    existing_permission_group = True if permission_group_updates.get("id") else False
+
+    try:
+        updated_permission_group = update_permission_groups(
+            user, permission_group_updates
+        )
+
+        if updated_permission_group["status"] == "error":
+            return JsonResponse(
+                {
+                    "success": False,
+                    "message": updated_permission_group["message"],
+                }
+            )
+
+        if existing_permission_group:
+            print(
+                f"Successfully updated the permission group {permission_group_updates['name']}"
+            )
+        else:
+            print(
+                f"Successfully created a new permission group {updated_permission_group['updated_permission_group']['name']}"
+            )
+
+        return JsonResponse(
+            {
+                "success": True,
+                "updated_permission_group": updated_permission_group[
+                    "updated_permission_group"
+                ],
+            }
+        )
+    except Exception as e:
+        print(e)
+        try:
+            message = e.args[0]
+        except Exception:
+            message = f"Failed to update the dashboard {id}. Check server for logs."
+
+        return JsonResponse({"success": False, "message": message})
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/permission_groups/delete", login_required=True)
+def delete_permission_group(request):
+    """API controller for the permission groups page."""
+    request_body = json.loads(request.body)
+    user = str(request.user)
+    permission_group_id = request_body.get("id")
+
+    try:
+        deleteResponse = delete_permission_groups(user, permission_group_id)
+
+        if deleteResponse["status"] == "error":
+            return JsonResponse(
+                {
+                    "success": False,
+                    "message": deleteResponse["message"],
+                }
+            )
+
+        return JsonResponse({"success": True})
     except Exception as e:
         print(e)
         try:

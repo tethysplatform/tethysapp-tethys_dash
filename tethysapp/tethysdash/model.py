@@ -74,7 +74,7 @@ class GridItem(Base):
     __table_args__ = (UniqueConstraint("dashboard_id", "i", name="_dashboard_i"),)
 
 
-class PermissionLevel(enum.Enum):
+class DashboardPermissionLevel(enum.Enum):
     admin = "admin"
     editor = "editor"
     viewer = "viewer"
@@ -86,7 +86,7 @@ class DashboardPermission(Base):
     dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
     user = Column(String, nullable=True)  # username or user id
     group = Column(String, nullable=True)  # group name or id
-    permission = Column(Enum(PermissionLevel), nullable=False)
+    permission = Column(Enum(DashboardPermissionLevel), nullable=False)
 
     __table_args__ = (
         UniqueConstraint("dashboard_id", "user", name="_dashboard_user_perm"),
@@ -94,6 +94,31 @@ class DashboardPermission(Base):
     )
 
     dashboard = relationship("Dashboard", back_populates="permissions")
+
+
+class GroupPermissionLevel(enum.Enum):
+    admin = "admin"
+    member = "member"
+
+
+class PermissionGroup(Base):
+    __tablename__ = "permission_groups"
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)
+    description = Column(String)
+    owner = Column(String, nullable=False)
+
+    members = relationship("PermissionGroupUser", back_populates="group")
+
+
+class PermissionGroupUser(Base):
+    __tablename__ = "permission_group_user"
+    id = Column(Integer, primary_key=True)
+    user = Column(String, nullable=False)
+    group_id = Column(Integer, ForeignKey("permission_groups.id"), nullable=False)
+    permission = Column(Enum(GroupPermissionLevel), nullable=False)
+
+    group = relationship("PermissionGroup", back_populates="members")
 
 
 def add_new_dashboard(
@@ -129,7 +154,7 @@ def add_new_dashboard(
         owner_permission = DashboardPermission(
             dashboard_id=new_dashboard_id,
             user=owner,
-            permission=PermissionLevel.admin,
+            permission=DashboardPermissionLevel.admin,
         )
         session.add(owner_permission)
         session.commit()
@@ -312,14 +337,15 @@ def update_named_dashboard(user, id, dashboard_updates):
             raise Exception(
                 f"A dashboard with the id {id} does not exist for this user"  # noqa: E501
             )
+        user_permission = get_dashboard_user_permission(session, db_dashboard, user)
 
         # Check if user has editor or admin permission
-        if not (
-            check_for_editor_permission(db_dashboard, user)
-            or check_for_admin_permission(db_dashboard, user)
+        if (
+            user_permission != DashboardPermissionLevel.editor
+            and user_permission != DashboardPermissionLevel.admin
         ):
             raise Exception(
-                "User does not have editor permission to update the dashboard."
+                "User does not have admin or editor permissions to update the dashboard."
             )
 
         db_name = dashboard_updates.get("name", db_dashboard.name)
@@ -327,7 +353,7 @@ def update_named_dashboard(user, id, dashboard_updates):
 
         if db_name != db_dashboard.name:
             # Check if user has admin permission
-            if not check_for_admin_permission(db_dashboard, user):
+            if user_permission != DashboardPermissionLevel.admin:
                 raise Exception(
                     "User does not have admin permission to change the name of the dashboard."
                 )
@@ -341,7 +367,7 @@ def update_named_dashboard(user, id, dashboard_updates):
 
         if db_public != db_dashboard.public:
             # Check if user has admin permission
-            if not check_for_admin_permission(db_dashboard, user):
+            if user_permission != DashboardPermissionLevel.admin:
                 raise Exception(
                     "User does not have admin permission to change the public status of the dashboard."
                 )
@@ -353,7 +379,7 @@ def update_named_dashboard(user, id, dashboard_updates):
             ]
 
         if "permissions" in dashboard_updates:
-            update_permissions(
+            update_dashboard_permissions(
                 session, db_dashboard, user, dashboard_updates["permissions"]
             )
 
@@ -437,7 +463,7 @@ def update_named_dashboard(user, id, dashboard_updates):
         session.commit()
 
         parsed_dashboard = parse_db_dashboard(
-            [db_dashboard], user, dashboard_view=True
+            session, [db_dashboard], user, dashboard_view=True
         )[0]
     finally:
         session.close()
@@ -445,37 +471,43 @@ def update_named_dashboard(user, id, dashboard_updates):
     return parsed_dashboard
 
 
-def check_for_admin_permission(dashboard, user):
+def get_dashboard_user_permission(session, dashboard, user):
     """
-    Check if the user has admin permission for the given dashboard.
+    Returns the highest permission level (admin > editor > viewer) the user has for the given dashboard,
+    either directly or via group membership. Returns None if no permission.
     """
-    return any(
-        p.user == user and p.permission == PermissionLevel.admin
-        for p in dashboard.permissions
+
+    # Should we have a specific dashboard user permission override a group dashboard permission
+
+    # Get all group names the user belongs to
+    user_groups = (
+        session.query(PermissionGroup.name)
+        .join(PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id)
+        .filter(PermissionGroupUser.user == user)
+        .all()
     )
+    user_group_names = [g[0] for g in user_groups]
+
+    # Collect all permissions for user and their groups
+    perms = []
+    for p in dashboard.permissions:
+        if p.user == user:
+            perms.append(p.permission)
+        elif p.group and p.group in user_group_names:
+            perms.append(p.permission)
+
+    # Determine highest permission
+    if DashboardPermissionLevel.admin in perms:
+        return DashboardPermissionLevel.admin
+    elif DashboardPermissionLevel.editor in perms:
+        return DashboardPermissionLevel.editor
+    elif DashboardPermissionLevel.viewer in perms:
+        return DashboardPermissionLevel.viewer
+    else:
+        return None
 
 
-def check_for_editor_permission(dashboard, user):
-    """
-    Check if the user has editor permission for the given dashboard.
-    """
-    return any(
-        p.user == user and p.permission == PermissionLevel.editor
-        for p in dashboard.permissions
-    )
-
-
-def check_for_viewer_permission(dashboard, user):
-    """
-    Check if the user has viewer permission for the given dashboard.
-    """
-    return any(
-        p.user == user and p.permission == PermissionLevel.viewer
-        for p in dashboard.permissions
-    )
-
-
-def update_permissions(session, db_dashboard, user, updated_permissions):
+def update_dashboard_permissions(session, db_dashboard, user, updated_permissions):
     """
     Update dashboard permissions for a given dashboard.
     Only allow if the user has admin permission for the dashboard.
@@ -483,50 +515,264 @@ def update_permissions(session, db_dashboard, user, updated_permissions):
     """
 
     # Check if user has admin permission
-    if not check_for_admin_permission(db_dashboard, user):
+    user_permission = get_dashboard_user_permission(session, db_dashboard, user)
+    if user_permission != DashboardPermissionLevel.admin:
         raise Exception(
             "User does not have admin permission to change the public status of the dashboard."
         )
 
     # Build lookup for updated permissions
-    updated_lookup = {p["username"]: p["permission"] for p in updated_permissions}
+    updated_user_lookup = {p["username"]: p["permission"] for p in updated_permissions}
+    updated_group_lookup = {
+        p["group"]: p["permission"] for p in updated_permissions if "group" in p
+    }
 
-    # Existing permissions (excluding owner/admin)
-    existing_perms = {p.user: p for p in db_dashboard.permissions if p.user}
+    # Existing permissions
+    existing_user_perms = {p.user: p for p in db_dashboard.permissions if p.user}
+    existing_group_perms = {p.group: p for p in db_dashboard.permissions if p.group}
 
-    # Add or update permissions
-    for username, perm_level in updated_lookup.items():
-        if username == user:
-            continue  # Don't allow changing own admin permission
-        if username == db_dashboard.owner:
-            continue  # Don't allow changing owner permission
-        if username in existing_perms:
-            # Update if changed
-            perm_obj = existing_perms[username]
+    # Add or update user permissions
+    for username, perm_level in updated_user_lookup.items():
+        if username == user or username == db_dashboard.owner:
+            continue
+        if username in existing_user_perms:
+            perm_obj = existing_user_perms[username]
             if perm_obj.permission.value != perm_level:
-                perm_obj.permission = PermissionLevel(perm_level)
+                perm_obj.permission = DashboardPermissionLevel(perm_level)
         else:
-            # Add new permission
             new_perm = DashboardPermission(
                 dashboard_id=db_dashboard.id,
                 user=username,
-                permission=PermissionLevel(perm_level),
+                permission=DashboardPermissionLevel(perm_level),
             )
             session.add(new_perm)
 
-    # Delete permissions not in updated list (except owner/admin)
-    to_delete = [
+    # Add or update group permissions
+    for groupname, perm_level in updated_group_lookup.items():
+        if groupname in existing_group_perms:
+            perm_obj = existing_group_perms[groupname]
+            if perm_obj.permission.value != perm_level:
+                perm_obj.permission = DashboardPermissionLevel(perm_level)
+        else:
+            new_perm = DashboardPermission(
+                dashboard_id=db_dashboard.id,
+                group=groupname,
+                permission=DashboardPermissionLevel(perm_level),
+            )
+            session.add(new_perm)
+
+    # Delete user permissions not in updated list
+    to_delete_users = [
         p
-        for uname, p in existing_perms.items()
-        if uname not in updated_lookup and uname != user and uname != db_dashboard.owner
+        for uname, p in existing_user_perms.items()
+        if uname not in updated_user_lookup
+        and uname != user
+        and uname != db_dashboard.owner
     ]
-    for perm_obj in to_delete:
+    for perm_obj in to_delete_users:
+        session.delete(perm_obj)
+
+    # Delete group permissions not in updated list
+    to_delete_groups = [
+        p
+        for gname, p in existing_group_perms.items()
+        if gname not in updated_group_lookup
+    ]
+    for perm_obj in to_delete_groups:
         session.delete(perm_obj)
 
     session.commit()
 
 
-def parse_db_dashboard(dashboards, user, dashboard_view):
+def get_user_permission_groups(user):
+    """
+    Returns a list of all permission groups the user belongs to, with all users, their permissions, and the owner.
+    """
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+    try:
+        # Get all groups the user belongs to
+        groups = (
+            session.query(PermissionGroup)
+            .join(
+                PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
+            )
+            .filter(PermissionGroupUser.user == user)
+            .all()
+        )
+        result = []
+        for group in groups:
+            result.append(parse_group_permissions(user, group))
+
+        return result
+    finally:
+        session.close()
+
+
+def update_permission_groups(user, group_data):
+    """
+    Create or update a permission group.
+    group_data: dict like {'id': None, 'name': 'a', 'description': 'a', 'members': [{'username': 'admin', 'permission': 'admin'}]}
+    If id is None, create a new group. If not None, update if user is owner or admin in the group.
+    """
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+    try:
+        group_id = group_data.get("id")
+        name = group_data.get("name")
+        description = group_data.get("description")
+        members = group_data.get("members", [])
+
+        if group_id is None:
+            # Check if group name already exists
+            existing_group = (
+                session.query(PermissionGroup)
+                .filter(PermissionGroup.name == name)
+                .first()
+            )
+            if existing_group:
+                return {"status": "error", "message": "Group name already exists"}
+            # Create new group
+            group = PermissionGroup(name=name, description=description, owner=user)
+            session.add(group)
+            session.flush()  # get group.id
+
+            # Add members
+            for member in members:
+                session.add(
+                    PermissionGroupUser(
+                        user=member["username"],
+                        group_id=group.id,
+                        permission=member["permission"],
+                    )
+                )
+            session.commit()
+        else:
+            # Update existing group
+            group = (
+                session.query(PermissionGroup)
+                .filter(PermissionGroup.id == group_id)
+                .first()
+            )
+            if not group:
+                return {"status": "error", "message": "Group not found"}
+            # Check if new name is taken by another group
+            existing_group = (
+                session.query(PermissionGroup)
+                .filter(PermissionGroup.name == name, PermissionGroup.id != group_id)
+                .first()
+            )
+            if existing_group:
+                return {"status": "error", "message": "Group name already exists"}
+            # Only owner or admin can update
+            if group.owner != user:
+                # Check if user is admin in group (by permission level in members)
+                admin_in_group = False
+                for member in members:
+                    if (
+                        member["username"] == user
+                        and member.get("permission") == GroupPermissionLevel.admin
+                    ):
+                        admin_in_group = True
+                        break
+                if not admin_in_group:
+                    return {
+                        "status": "error",
+                        "message": "User is not owner or admin in group",
+                    }
+
+            # Update group info
+            group.name = name
+            group.description = description
+
+            # Update members
+            session.query(PermissionGroupUser).filter(
+                PermissionGroupUser.group_id == group.id
+            ).delete()
+            for member in members:
+                session.add(
+                    PermissionGroupUser(
+                        user=member["username"],
+                        group_id=group.id,
+                        permission=member["permission"],
+                    )
+                )
+            session.commit()
+
+        session.flush()
+        permission_group_dict = parse_group_permissions(user, group)
+
+        return {"status": "updated", "updated_permission_group": permission_group_dict}
+    finally:
+        session.close()
+
+
+def delete_permission_groups(user, permission_group_id):
+    """
+    Delete a permission group if the user is the owner or an admin in the group.
+    Returns a dict with status and message.
+    """
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+    try:
+        group = (
+            session.query(PermissionGroup)
+            .filter(PermissionGroup.id == permission_group_id)
+            .first()
+        )
+        if not group:
+            return {"status": "error", "message": "Group not found"}
+        # Only owner or admin can delete
+        if group.owner != user:
+            # Check if user is admin in group
+            admin_member = (
+                session.query(PermissionGroupUser)
+                .filter(
+                    PermissionGroupUser.group_id == group.id,
+                    PermissionGroupUser.user == user,
+                    PermissionGroupUser.permission == GroupPermissionLevel.admin,
+                )
+                .first()
+            )
+            if not admin_member:
+                return {
+                    "status": "error",
+                    "message": "User is not owner or admin in group",
+                }
+        # Delete all members first
+        session.query(PermissionGroupUser).filter(
+            PermissionGroupUser.group_id == group.id
+        ).delete()
+        session.delete(group)
+        session.commit()
+        return {"status": "deleted"}
+    finally:
+        session.close()
+
+
+def parse_group_permissions(user, group):
+    members = [
+        {"username": member.user, "permission": member.permission.value}
+        for member in group.members
+    ]
+    user_permission = next(
+        (m["permission"] for m in members if m["username"] == user), None
+    )
+
+    return {
+        "id": group.id,
+        "name": group.name,
+        "description": group.description,
+        "owner": group.owner,
+        "members": [
+            {"username": member.user, "permission": member.permission.value}
+            for member in group.members
+        ],
+        "user_permission": user_permission,
+    }
+
+
+def parse_db_dashboard(session, dashboards, user, dashboard_view):
     dashboard_list = []
 
     for dashboard in dashboards:
@@ -538,20 +784,26 @@ def parse_db_dashboard(dashboards, user, dashboard_view):
             dashboard_image = "/static/tethysdash/images/dashboard_thumbnail.png"
 
         # Find the user's permission level for this dashboard
-        user_permission = None
+        user_permission = get_dashboard_user_permission(session, dashboard, user)
+        if user_permission:
+            user_permission = user_permission.value
+
         permissions_list = []
         for perm in dashboard.permissions:
             if perm.user:
                 permissions_list.append(
                     {
                         "username": perm.user,
-                        "permission": (
-                            perm.permission.value if perm.permission else "viewer"
-                        ),
+                        "permission": perm.permission.value,
                     }
                 )
-            if perm.user == user:
-                user_permission = perm.permission.value if perm.permission else "viewer"
+            elif perm.group:
+                permissions_list.append(
+                    {
+                        "group": perm.group,
+                        "permission": perm.permission.value,
+                    }
+                )
 
         dashboard_dict = {
             "id": dashboard.id,
@@ -602,13 +854,27 @@ def get_dashboards(user, dashboard_view=False, id=None):
     try:
         if id:
             dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
-            return parse_db_dashboard([dashboard], user, dashboard_view)[0]
+            return parse_db_dashboard(session, [dashboard], user, dashboard_view)[0]
 
-        # Dashboards user has permissions for
+        # Get all group names the user belongs to
+        user_groups = (
+            session.query(PermissionGroup.name)
+            .join(
+                PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
+            )
+            .filter(PermissionGroupUser.user == user)
+            .all()
+        )
+        user_group_names = [g[0] for g in user_groups]
+
+        # Dashboards user has direct or group permissions for
         user_dashboards = (
             session.query(Dashboard)
             .join(DashboardPermission)
-            .filter(DashboardPermission.user == user)
+            .filter(
+                (DashboardPermission.user == user)
+                | (DashboardPermission.group.in_(user_group_names))
+            )
         ).all()
 
         # Public dashboards (not already included)
@@ -616,10 +882,15 @@ def get_dashboards(user, dashboard_view=False, id=None):
             session.query(Dashboard)
             .filter(Dashboard.public == True)
             .filter(~Dashboard.permissions.any(DashboardPermission.user == user))
+            .filter(
+                ~Dashboard.permissions.any(
+                    DashboardPermission.group.in_(user_group_names)
+                )
+            )
         ).all()
 
         dashboards = user_dashboards + public_dashboards
-        return parse_db_dashboard(dashboards, user, dashboard_view)
+        return parse_db_dashboard(session, dashboards, user, dashboard_view)
     finally:
         session.close()
 

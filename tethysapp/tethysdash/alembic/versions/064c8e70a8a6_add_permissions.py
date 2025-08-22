@@ -54,6 +54,29 @@ def upgrade() -> None:
         "SELECT id, owner, 'admin' FROM dashboards WHERE owner IS NOT NULL"
     )
 
+    # Create the permission_groups table
+    op.create_table(
+        "permission_groups",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("name", sa.String(), unique=True, nullable=False),
+        sa.Column("description", sa.String()),
+        sa.Column("owner", sa.String(), nullable=False),
+    )
+
+    # Create the permission_group_user table
+    op.create_table(
+        "permission_group_user",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("user", sa.String(), nullable=False),
+        sa.Column(
+            "group_id",
+            sa.Integer(),
+            sa.ForeignKey("permission_groups.id"),
+            nullable=False,
+        ),
+        sa.Column("permission", sa.String(), nullable=False),
+    )
+
 
 def downgrade() -> None:
     # Restore the access_groups column to dashboards
@@ -71,3 +94,5 @@ def downgrade() -> None:
     # Remove the public boolean column from dashboards
     op.drop_column("dashboards", "public")
     op.drop_table("dashboard_permissions")
+    op.execute("DROP TABLE permission_group_user CASCADE")
+    op.execute("DROP TABLE permission_groups CASCADE")

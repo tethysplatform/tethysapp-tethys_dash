@@ -16,6 +16,7 @@ import TooltipButton from "components/buttons/TooltipButton";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import AppInfoModal from "components/modals/AppInfo";
 import DashboardImportModal from "components/modals/DashboardImport";
+import { PermissionGroupsSummaryModal } from "components/modals/PermissionGroups";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import {
   useLayoutSuccessAlertContext,
@@ -33,6 +34,7 @@ import {
   BsFillPersonFill,
   BsUpload,
 } from "react-icons/bs";
+import { HiUserGroup } from "react-icons/hi";
 import { CiUndo } from "react-icons/ci";
 import { FaPlus } from "react-icons/fa6";
 import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
@@ -96,6 +98,8 @@ export const LandingPageHeader = () => {
     dontShowLandingPageInfoOnStart !== "true"
   );
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showPermissionGroupsModal, setShowPermissionGroupsModal] =
+    useState(false);
 
   return (
     <>
@@ -107,6 +111,14 @@ export const LandingPageHeader = () => {
           <div>
             {user?.username ? (
               <>
+                <TooltipButton
+                  onClick={() => setShowPermissionGroupsModal(true)}
+                  tooltipPlacement="bottom"
+                  tooltipText="Manage Groups"
+                  aria-label="ManageGroupsButton"
+                >
+                  <HiUserGroup size="1.5rem" />
+                </TooltipButton>
                 <TooltipButton
                   onClick={() => setShowImportModal(true)}
                   tooltipPlacement="bottom"
@@ -169,6 +181,12 @@ export const LandingPageHeader = () => {
         <DashboardImportModal
           showModal={showImportModal}
           setShowModal={setShowImportModal}
+        />
+      )}
+      {showPermissionGroupsModal && (
+        <PermissionGroupsSummaryModal
+          showModal={showPermissionGroupsModal}
+          setShowModal={setShowPermissionGroupsModal}
         />
       )}
     </>

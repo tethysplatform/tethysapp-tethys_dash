@@ -70,6 +70,16 @@ const appAPI = {
       headers: { "x-csrftoken": csrf },
     });
   },
+  updatePermissionGroup: (data, csrf) => {
+    return apiClient.post(`${APP_ROOT_URL}permission_groups/update/`, data, {
+      headers: { "x-csrftoken": csrf },
+    });
+  },
+  deletePermissionGroup: (data, csrf) => {
+    return apiClient.post(`${APP_ROOT_URL}permission_groups/delete/`, data, {
+      headers: { "x-csrftoken": csrf },
+    });
+  },
   uploadJSON: (data, csrf) => {
     return apiClient.post(`${APP_ROOT_URL}json/upload/`, data, {
       headers: { "x-csrftoken": csrf },
