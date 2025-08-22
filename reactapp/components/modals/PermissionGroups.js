@@ -92,9 +92,30 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
                   {permissionGroups && permissionGroups.length > 0 ? (
                     permissionGroups.map((group) => (
                       <tr key={group.id}>
-                        <td>{group.name}</td>
-                        <td>{group.description}</td>
-                        <td>{group.user_permission}</td>
+                        <td
+                          style={{
+                            wordBreak: "break-word",
+                            whiteSpace: "normal",
+                          }}
+                        >
+                          {group.name}
+                        </td>
+                        <td
+                          style={{
+                            wordBreak: "break-word",
+                            whiteSpace: "normal",
+                          }}
+                        >
+                          {group.description}
+                        </td>
+                        <td
+                          style={{
+                            wordBreak: "break-word",
+                            whiteSpace: "normal",
+                          }}
+                        >
+                          {group.user_permission}
+                        </td>
                         <td
                           style={{
                             width: "1%",
@@ -115,6 +136,7 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
                             size="sm"
                             onClick={() => onDelete(group.id, group.name)}
                             aria-label={`Delete group ${group.name}`}
+                            style={{ marginLeft: "10px" }}
                           >
                             Delete
                           </Button>
@@ -181,6 +203,16 @@ const PermissionGroupsManageModal = ({
 
   // Handle saving changes to an existing group
   const handleSaveGroup = async () => {
+    if (newGroupName.length > 100) {
+      setErrorMessage("Group name cannot exceed 100 characters.");
+      return;
+    }
+    if (newGroupDesc.length > 200) {
+      setErrorMessage("Description cannot exceed 200 characters.");
+      return;
+    }
+    setErrorMessage("");
+
     const response = await updatePermissionGroup({
       id: selectedGroup?.id ?? null,
       name: newGroupName,
@@ -262,9 +294,17 @@ const PermissionGroupsManageModal = ({
               type="text"
               className="form-control"
               value={newGroupName}
-              onChange={(e) => setNewGroupName(e.target.value)}
+              onChange={(e) => {
+                if (e.target.value.length <= 100) {
+                  setNewGroupName(e.target.value);
+                }
+              }}
               placeholder="Enter group name"
+              maxLength={100}
             />
+            <div style={{ fontSize: "0.8em", color: "#888" }}>
+              {newGroupName.length}/100
+            </div>
           </div>
           <div className="mb-2">
             <label>Description</label>
@@ -272,9 +312,17 @@ const PermissionGroupsManageModal = ({
               type="text"
               className="form-control"
               value={newGroupDesc}
-              onChange={(e) => setNewGroupDesc(e.target.value)}
+              onChange={(e) => {
+                if (e.target.value.length <= 200) {
+                  setNewGroupDesc(e.target.value);
+                }
+              }}
               placeholder="Enter group description"
+              maxLength={200}
             />
+            <div style={{ fontSize: "0.8em", color: "#888" }}>
+              {newGroupDesc.length}/200
+            </div>
           </div>
           {errorMessage && (
             <Alert
