@@ -522,7 +522,9 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
         )
 
     # Build lookup for updated permissions
-    updated_user_lookup = {p["username"]: p["permission"] for p in updated_permissions}
+    updated_user_lookup = {
+        p["username"]: p["permission"] for p in updated_permissions if "username" in p
+    }
     updated_group_lookup = {
         p["group"]: p["permission"] for p in updated_permissions if "group" in p
     }
@@ -664,18 +666,19 @@ def update_permission_groups(user, group_data):
             )
             if existing_group:
                 return {"status": "error", "message": "Group name already exists"}
+
             # Only owner or admin can update
             if group.owner != user:
-                # Check if user is admin in group (by permission level in members)
-                admin_in_group = False
-                for member in members:
-                    if (
-                        member["username"] == user
-                        and member.get("permission") == GroupPermissionLevel.admin
-                    ):
-                        admin_in_group = True
-                        break
-                if not admin_in_group:
+                admin_member = (
+                    session.query(PermissionGroupUser)
+                    .filter(
+                        PermissionGroupUser.group_id == group.id,
+                        PermissionGroupUser.user == user,
+                        PermissionGroupUser.permission == GroupPermissionLevel.admin,
+                    )
+                    .first()
+                )
+                if not admin_member:
                     return {
                         "status": "error",
                         "message": "User is not owner or admin in group",

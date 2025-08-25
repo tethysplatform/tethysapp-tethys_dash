@@ -342,7 +342,7 @@ const PermissionGroupsManageModal = ({
                 className="form-control"
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder="Add people or groups"
+                placeholder="Add people"
                 style={{ flexGrow: 1 }}
                 aria-label="Username Input"
               />
@@ -360,7 +360,7 @@ const PermissionGroupsManageModal = ({
             <Table bordered hover>
               <thead>
                 <tr>
-                  <th>Username/Group</th>
+                  <th>Username</th>
                   <th>Permission Level</th>
                 </tr>
               </thead>
@@ -424,15 +424,15 @@ const PermissionGroupsManageModal = ({
       <Modal.Footer>
         {selectedGroup ? (
           <>
+            <Button variant="danger" onClick={handleDeleteGroup}>
+              Delete Group
+            </Button>
             <Button
               variant="success"
               className="me-2"
               onClick={handleSaveGroup}
             >
               Save Changes
-            </Button>
-            <Button variant="outline-danger" onClick={handleDeleteGroup}>
-              Delete Group
             </Button>
           </>
         ) : (

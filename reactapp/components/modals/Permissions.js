@@ -9,6 +9,8 @@ import { useState, useEffect, useContext, memo } from "react";
 import { LayoutContext, AppContext } from "components/contexts/Contexts";
 import styled from "styled-components";
 import TooltipButton from "components/buttons/TooltipButton";
+import Dropdown from "react-bootstrap/Dropdown";
+import DropdownButton from "react-bootstrap/DropdownButton";
 import { getPublicUrl } from "services/utilities";
 import { BsClipboard } from "react-icons/bs";
 
@@ -46,7 +48,7 @@ function PermissionsModal({ showModal, setShowModal }) {
   } = useContext(LayoutContext);
   const { user } = useContext(AppContext);
   const [publicStatus, setPublicStatus] = useState(publicDashboard);
-  const [usernameInput, setUsernameInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [dashboardPermissions, setDashboardPermissions] = useState(permissions);
@@ -68,29 +70,34 @@ function PermissionsModal({ showModal, setShowModal }) {
   const handleModalClose = () => {
     setShowModal(false);
     setErrorMessage(null);
-    setUsernameInput("");
+    setNameInput("");
   };
 
-  const handleAddUser = (e) => {
-    e.preventDefault();
+  const handleAdd = (type) => {
     setErrorMessage(null);
-    if (!usernameInput.trim()) {
+    if (!nameInput.trim()) {
       setErrorMessage("Username cannot be empty.");
       return;
     }
+
     if (
-      dashboardPermissions.some(
-        (perm) => perm.username === usernameInput.trim()
+      dashboardPermissions.some((perm) =>
+        type === "user"
+          ? perm.name === nameInput.trim()
+          : perm.group === nameInput.trim()
       )
     ) {
-      setErrorMessage("This user is already in the list.");
+      setErrorMessage(`This ${type} is already in the list.`);
       return;
     }
-    setDashboardPermissions([
-      ...dashboardPermissions,
-      { username: usernameInput.trim(), permission: "viewer" },
-    ]);
-    setUsernameInput("");
+
+    const newPermission =
+      type === "user"
+        ? { username: nameInput.trim(), permission: "viewer" }
+        : { group: nameInput.trim(), permission: "viewer" };
+
+    setDashboardPermissions([...dashboardPermissions, newPermission]);
+    setNameInput("");
   };
 
   const handlePermissionChange = (index, newPermission) => {
@@ -156,26 +163,31 @@ function PermissionsModal({ showModal, setShowModal }) {
           </Alert>
         )}
         {userPermission === "admin" && (
-          <Form onSubmit={handleAddUser} className="mb-3">
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <Form.Control
-                type="text"
-                value={usernameInput}
-                onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder="Add people or groups"
-                style={{ flexGrow: 1 }}
-                aria-label="Username Input"
-              />
-              <Button
-                variant="primary"
-                type="submit"
-                style={{ whiteSpace: "nowrap" }}
-                aria-label="Add User Button"
-              >
-                Add User
-              </Button>
-            </div>
-          </Form>
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              marginBottom: "1rem",
+            }}
+          >
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              placeholder="Add people or groups"
+              style={{ flexGrow: 1 }}
+              aria-label="Username Input"
+              className="form-control"
+            />
+            <DropdownButton id="dropdown-basic-button" title="Add">
+              <Dropdown.Item onClick={() => handleAdd("user")}>
+                User
+              </Dropdown.Item>
+              <Dropdown.Item onClick={() => handleAdd("group")}>
+                Group
+              </Dropdown.Item>
+            </DropdownButton>
+          </div>
         )}
         <TableContainer>
           <Table bordered hover>
@@ -189,9 +201,11 @@ function PermissionsModal({ showModal, setShowModal }) {
               {dashboardPermissions.map((perm, idx) => (
                 <tr key={perm.username}>
                   <td>
-                    {perm.username === owner
-                      ? `${perm.username} (you)`
-                      : perm.username}
+                    {perm.group
+                      ? `${perm.group} (group)`
+                      : perm.username === user.username
+                        ? `${perm.username} (you)`
+                        : perm.username}
                   </td>
                   <td
                     style={{
