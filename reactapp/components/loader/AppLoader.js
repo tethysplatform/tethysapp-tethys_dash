@@ -1,7 +1,5 @@
 import PropTypes from "prop-types";
-import { useState, useEffect, useRef, memo } from "react";
-import Form from "react-bootstrap/Form";
-import { useIdleTimer } from "react-idle-timer";
+import { useState, useEffect, memo } from "react";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import {
   nonDropDownVariableInputTypes,
@@ -21,18 +19,14 @@ import NotFound from "components/error/NotFound";
 import DashboardView from "views/Dashboard";
 import LandingPage from "views/LandingPage";
 import AppTourContextProvider from "components/contexts/AppTourContext";
-import { Confirmation } from "components/inputs/Confirmation";
-import { getTethysPortalHost } from "services/utilities";
 import {
   handleGridItemExport,
   handleGridItemImport,
 } from "components/dashboard/DashboardItem";
+import IdleTimerManager from "components/loader/IdleTimerManager";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
-
-// This controls how often the API is called for activity
-const SESSION_PING_FREQUENCY = process.env.REACT_SESSION_PING_FREQUENCY;
 
 function setupRoutes(dashboards) {
   const PATH_HOME = "/";
@@ -61,138 +55,11 @@ function setupRoutes(dashboards) {
 }
 
 function Loader({ children }) {
-  const dontShowPublicLoginOnStart = localStorage.getItem(
-    "dontShowPublicLoginOnStart"
-  );
   const [error, setError] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [showRedirectPublicUserModal, setShowRedirectPublicUserModal] =
-    useState(false);
-  const [checked, setChecked] = useState(false);
   const [appContext, setAppContext] = useState(null);
   const [availableDashboards, setAvailableDashboards] = useState([]);
   const [permissionGroups, setPermissionGroups] = useState([]);
-  const [isTimerEnabled, setIsTimerEnabled] = useState(true);
-  const [sessionState, setSessionState] = useState("Active");
-  const [count, setCount] = useState(0);
-  const [sessionSecurityWarn, setSessionSecurityWarn] = useState(540);
-  const [sessionSecurityExpire, setSessionSecurityExpire] = useState(600);
-  const [remaining, setRemaining] = useState(1000 * sessionSecurityWarn);
-  const [showActivePrompt, setShowActivePrompt] = useState(false);
-  const lastCountRef = useRef(0);
-  const renderedOnce = useRef(false);
-  const TETHYS_PORTAL_HOST = getTethysPortalHost();
-
-  const onAction = (event) => {
-    setCount((prevCount) => {
-      return prevCount + 1;
-    });
-  };
-
-  const onIdle = () => {
-    setSessionState("Idle");
-    // TODO Figure out how to forcefully log out
-    window.location.assign(
-      `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
-    );
-    setShowActivePrompt(false);
-  };
-
-  const onActive = () => {
-    setSessionState("Active");
-    setShowActivePrompt(false);
-  };
-
-  const onPrompt = () => {
-    setSessionState("Prompted");
-    setCount(0);
-    setShowActivePrompt(true);
-  };
-
-  const { getRemainingTime, activate, pause } = useIdleTimer({
-    disabled: !isTimerEnabled,
-    onActive,
-    onAction,
-    onIdle,
-    onPrompt,
-    timeout: 1000 * sessionSecurityExpire,
-    throttle: 1000 * SESSION_PING_FREQUENCY, // This controls how often the API is called for activity
-    promptBeforeIdle: 1000 * (sessionSecurityExpire - sessionSecurityWarn),
-  });
-
-  useEffect(() => {
-    if (!isTimerEnabled) return;
-
-    const interval = setInterval(() => {
-      setRemaining(Math.ceil(getRemainingTime() / 1000));
-    }, 500);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [getRemainingTime, isTimerEnabled]);
-
-  useEffect(() => {
-    if (
-      sessionState === "Active" ||
-      (sessionState === "Active" && count > lastCountRef.current)
-    ) {
-      lastCountRef.current = count;
-      const callAPI = async () => {
-        try {
-          const idleFor = 0;
-          const response = await appAPI.getActivityData({ idleFor });
-
-          if (response.status === -2) {
-            // The user has been signed out
-            window.location.assign(
-              `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
-            );
-          } else if (response.status === 2 || response.status === -1) {
-            // (2) Pause the IdleTimer as it's not going to do anything for a public user
-            // (-1) Also pauses if the user doesn't have a session security in the first place
-            // aka django-session-security not being installed.
-            pause();
-          }
-          if (!renderedOnce.current) {
-            renderedOnce.current = true;
-            if (parseInt(response.EXPIRE_AFTER) === 0) {
-              setIsTimerEnabled(false);
-            } else {
-              setSessionSecurityExpire(response.EXPIRE_AFTER);
-              setSessionSecurityWarn(response.WARN_AFTER);
-            }
-          }
-        } catch (error) {
-          console.error("API call failed:", error);
-        }
-      };
-
-      callAPI();
-    }
-  }, [TETHYS_PORTAL_HOST, sessionState, count, pause]);
-
-  const handleStillHere = (active) => {
-    if (active) {
-      onActive();
-      activate();
-    }
-  };
-
-  const handlePublicUser = (confirmation) => {
-    if (!confirmation) {
-      window.location.assign(
-        `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
-      );
-      return;
-    }
-    setShowRedirectPublicUserModal(false);
-  };
-
-  const handleDontShow = (e) => {
-    setChecked(e.target.checked);
-    localStorage.setItem("dontShowPublicLoginOnStart", e.target.checked);
-  };
 
   const handleError = (error) => {
     setTimeout(() => {
@@ -232,14 +99,7 @@ function Loader({ children }) {
       try {
         tethysSession = await tethysAPI.getSession();
       } catch (error) {
-        if (error.response.status === 401) {
-          if (
-            dontShowPublicLoginOnStart === "false" ||
-            !dontShowPublicLoginOnStart
-          ) {
-            setShowRedirectPublicUserModal(true);
-          }
-        } else {
+        if (error.response.status !== 401) {
           handleError(error);
           return;
         }
@@ -540,36 +400,6 @@ function Loader({ children }) {
     throw error;
   } else if (!isLoaded) {
     return <LoadingAnimation />;
-  } else if (showRedirectPublicUserModal) {
-    return (
-      <Confirmation
-        show={showRedirectPublicUserModal}
-        okLabel="Proceed Without Signing in"
-        cancelLabel="Sign in"
-        title="Public User Login"
-        confirmation={
-          <>
-            <div>
-              You are not signed in. Sign in to create and update dashboards.
-            </div>
-            <div style={{ marginTop: ".75rem" }}>
-              If you'd like to continue, you will only have access to public
-              dashboards
-            </div>
-            <Form.Check
-              onChange={handleDontShow}
-              type="checkbox"
-              label="Don't show on startup"
-              checked={checked}
-              aria-label="dont-show-public-user-on-startup"
-              style={{ marginTop: ".75rem" }}
-            />
-          </>
-        }
-        proceed={handlePublicUser}
-        backdrop={"static"}
-      />
-    );
   } else {
     return (
       <>
@@ -595,24 +425,7 @@ function Loader({ children }) {
             >
               <AppTourContextProvider>
                 {children}
-                <Confirmation
-                  show={showActivePrompt}
-                  okLabel="Stay Signed In"
-                  cancelLabel="Sign out"
-                  title="Are you still here?"
-                  confirmation={
-                    <>
-                      <div style={{ marginTop: ".75rem" }}>
-                        {/* remaining - 1 to kinda fake the timer
-                      since there's a race condition with the backend logout */}
-                        Logging out in {remaining - 1} seconds.
-                      </div>
-                    </>
-                  }
-                  proceed={handleStillHere}
-                  backdrop={"static"}
-                  noCancel
-                />
+                <IdleTimerManager />
               </AppTourContextProvider>
             </AvailableDashboardsContext.Provider>
           </PermissionGroupContext.Provider>
