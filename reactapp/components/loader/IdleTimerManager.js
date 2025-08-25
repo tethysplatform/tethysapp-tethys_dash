@@ -15,8 +15,8 @@ function IdleTimerManager({}) {
     useState(false);
   const [checked, setChecked] = useState(false);
   const [showActivePrompt, setShowActivePrompt] = useState(false);
-  const [sessionSecurityWarn, setSessionSecurityWarn] = useState(5);
-  const [sessionSecurityExpire, setSessionSecurityExpire] = useState(10);
+  const [sessionSecurityWarn, setSessionSecurityWarn] = useState(540);
+  const [sessionSecurityExpire, setSessionSecurityExpire] = useState(600);
   const [remaining, setRemaining] = useState(sessionSecurityWarn);
   const [isTimerEnabled, setIsTimerEnabled] = useState(true);
   const lastCountRef = useRef(0);

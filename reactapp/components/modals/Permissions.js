@@ -6,7 +6,11 @@ import Form from "react-bootstrap/Form";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
 import { useState, useEffect, useContext, memo } from "react";
-import { LayoutContext, AppContext } from "components/contexts/Contexts";
+import {
+  LayoutContext,
+  AppContext,
+  PermissionGroupContext,
+} from "components/contexts/Contexts";
 import styled from "styled-components";
 import TooltipButton from "components/buttons/TooltipButton";
 import Dropdown from "react-bootstrap/Dropdown";
@@ -46,6 +50,7 @@ function PermissionsModal({ showModal, setShowModal }) {
     saveLayoutContext,
     owner,
   } = useContext(LayoutContext);
+  const { permissionGroups } = useContext(PermissionGroupContext);
   const { user } = useContext(AppContext);
   const [publicStatus, setPublicStatus] = useState(publicDashboard);
   const [nameInput, setNameInput] = useState("");
@@ -53,6 +58,8 @@ function PermissionsModal({ showModal, setShowModal }) {
   const [successMessage, setSuccessMessage] = useState("");
   const [dashboardPermissions, setDashboardPermissions] = useState(permissions);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
+
+  console.log(permissionGroups);
 
   useEffect(() => {
     setDashboardPermissions(permissions);
@@ -199,10 +206,26 @@ function PermissionsModal({ showModal, setShowModal }) {
             </thead>
             <tbody>
               {dashboardPermissions.map((perm, idx) => (
-                <tr key={perm.username}>
+                <tr
+                  key={
+                    perm.group
+                      ? `group-${perm.group}`
+                      : `user-${perm.username}-${idx}`
+                  }
+                >
                   <td>
                     {perm.group
-                      ? `${perm.group} (group)`
+                      ? `${perm.group} (group)${
+                          permissionGroups.some(
+                            (g) =>
+                              g.name === perm.group &&
+                              g.members.some(
+                                (m) => m.username === user.username
+                              )
+                          )
+                            ? " (you)"
+                            : ""
+                        }`
                       : perm.username === user.username
                         ? `${perm.username} (you)`
                         : perm.username}
