@@ -116,9 +116,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     saveLayoutContext(newProperties).then((response) => {
       if (response["success"]) {
         setSuccessMessage("Successfully updated dashboard settings");
-        if (name !== localName) {
-          navigate("/dashboard/user/" + localName);
-        }
       } else {
         setErrorMessage(
           response["message"] ??
@@ -150,7 +147,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     setErrorMessage("");
     copyDashboard(id, name).then((response) => {
       if (response["success"]) {
-        navigate(`/dashboard/user/${response["new_dashboard"].name}`);
+        navigate(`/dashboard/${response["new_dashboard"].uuid}`);
       } else {
         setErrorMessage(response["message"] ?? "Failed to copy dashboard");
       }
@@ -195,7 +192,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
               {successMessage}
             </Alert>
           )}
-          {editable ? (
+          {userPermission === "admin" ? (
             <>
               <PaddedDiv>
                 <NormalInput

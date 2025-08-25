@@ -262,7 +262,6 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             notes=original_dashboard.notes,
             public=original_dashboard.public,
             owner=user,
-            access_groups=[],
             unrestricted_placement=original_dashboard.unrestricted_placement,
         )
 
@@ -290,6 +289,15 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             new_grid_items.append(new_item)
 
         new_dashboard.grid_items = new_grid_items  # Assign the new items
+
+        # Only add admin permission for the user
+        admin_permission = DashboardPermission(
+            dashboard_id=new_dashboard.id,
+            user=user,
+            permission=DashboardPermissionLevel.admin,
+        )
+        session.add(admin_permission)
+        new_dashboard.permissions = [admin_permission]
 
         session.commit()  # Save everything
     finally:
