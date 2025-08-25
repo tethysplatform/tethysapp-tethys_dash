@@ -39,6 +39,7 @@ const TableContainer = styled.div`
   max-height: 40vh;
   overflow-y: auto;
   margin-bottom: 1rem;
+  width: 100%;
 `;
 
 function PermissionsModal({ showModal, setShowModal }) {
@@ -197,10 +198,12 @@ function PermissionsModal({ showModal, setShowModal }) {
           </div>
         )}
         <TableContainer>
-          <Table bordered hover>
+          <Table bordered hover style={{ tableLayout: 'fixed', maxWidth: '100%' }}>
             <thead>
               <tr>
-                <th>Username/Group</th>
+                <th style={{ maxWidth: "50%", width: "50%" }}>
+                  Username/Group
+                </th>
                 <th>Permission Level</th>
               </tr>
             </thead>
@@ -213,22 +216,30 @@ function PermissionsModal({ showModal, setShowModal }) {
                       : `user-${perm.username}-${idx}`
                   }
                 >
-                  <td>
-                    {perm.group
-                      ? `${perm.group} (group)${
-                          permissionGroups.some(
-                            (g) =>
-                              g.name === perm.group &&
-                              g.members.some(
-                                (m) => m.username === user.username
-                              )
-                          )
-                            ? " (you)"
-                            : ""
-                        }`
-                      : perm.username === user.username
-                        ? `${perm.username} (you)`
-                        : perm.username}
+                  <td style={{ maxWidth: "50%", width: "50%" }}>
+                    <div
+                      style={{
+                        maxWidth: "100%",
+                        overflowX: "auto",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {perm.group
+                        ? `${perm.group} (group)${
+                            permissionGroups.some(
+                              (g) =>
+                                g.name === perm.group &&
+                                g.members.some(
+                                  (m) => m.username === user.username
+                                )
+                            )
+                              ? " (you)"
+                              : ""
+                          }`
+                        : perm.username === user.username
+                          ? `${perm.username} (you)`
+                          : perm.username}
+                    </div>
                   </td>
                   <td
                     style={{
