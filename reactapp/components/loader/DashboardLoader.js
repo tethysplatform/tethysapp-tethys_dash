@@ -180,6 +180,16 @@ DashboardLoader.propTypes = {
   publicDashboard: PropTypes.bool,
   description: PropTypes.string,
   unrestrictedPlacement: PropTypes.bool,
+  uuid: PropTypes.string,
+  userPermission: PropTypes.string,
+  permissions: PropTypes.arrayOf(
+    PropTypes.shape({
+      username: PropTypes.string,
+      group: PropTypes.string,
+      permission: PropTypes.string.isRequired,
+    })
+  ),
+  owner: PropTypes.string,
 };
 
 export default memo(DashboardLoader);

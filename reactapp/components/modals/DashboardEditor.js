@@ -68,7 +68,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     name,
     description,
     editable,
-    publicDashboard,
     userPermission,
     permissions,
     unrestrictedPlacement,

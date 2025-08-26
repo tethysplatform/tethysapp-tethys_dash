@@ -10,7 +10,7 @@ import tethysAPI from "services/api/tethys";
 // This controls how often the API is called for activity
 const SESSION_PING_FREQUENCY = process.env.REACT_SESSION_PING_FREQUENCY;
 
-function IdleTimerManager({}) {
+function IdleTimerManager() {
   const [showRedirectPublicUserModal, setShowRedirectPublicUserModal] =
     useState(false);
   const [checked, setChecked] = useState(false);
@@ -95,6 +95,7 @@ function IdleTimerManager({}) {
     return () => {
       clearInterval(interval);
     };
+    // eslint-disable-next-line
   }, [isTimerEnabled, showActivePrompt]);
 
   useEffect(() => {
@@ -131,6 +132,7 @@ function IdleTimerManager({}) {
     };
 
     callAPI();
+    // eslint-disable-next-line
   }, []);
 
   const handleDontShow = (e) => {

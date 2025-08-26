@@ -8,7 +8,6 @@ import {
 import {
   mockedDashboards,
   publicDashboard,
-  userDashboard,
 } from "__tests__/utilities/constants";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";

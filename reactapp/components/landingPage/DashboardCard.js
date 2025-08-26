@@ -478,6 +478,7 @@ DashboardCard.propTypes = {
   description: PropTypes.string,
   publicDashboard: PropTypes.bool,
   image: PropTypes.string,
+  userPermission: PropTypes.string,
 };
 
 export default memo(DashboardCard);

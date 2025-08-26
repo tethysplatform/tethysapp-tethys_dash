@@ -1,4 +1,4 @@
-import { useEffect, useState, useContext } from "react";
+import { useState, useContext } from "react";
 import { Modal, Button, Table } from "react-bootstrap";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
@@ -7,7 +7,7 @@ import {
   AppContext,
 } from "components/contexts/Contexts";
 import Form from "react-bootstrap/Form";
-import { BsPencilSquare, BsTrash } from "react-icons/bs";
+import PropTypes from "prop-types";
 
 const PERMISSION_LEVELS = ["admin", "member"];
 
@@ -458,6 +458,29 @@ const PermissionGroupsManageModal = ({
       </Modal.Footer>
     </Modal>
   );
+};
+
+PermissionGroupsSummaryModal.propTypes = {
+  showModal: PropTypes.bool.isRequired,
+  setShowModal: PropTypes.func.isRequired,
+};
+
+PermissionGroupsManageModal.propTypes = {
+  show: PropTypes.bool.isRequired,
+  onHide: PropTypes.func.isRequired,
+  selectedGroup: PropTypes.shape({
+    id: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    description: PropTypes.string.isRequired,
+    members: PropTypes.arrayOf(
+      PropTypes.shape({
+        username: PropTypes.string,
+        permission: PropTypes.string.isRequired,
+      })
+    ).isRequired,
+    owner: PropTypes.string.isRequired,
+  }),
+  setSuccessMessage: PropTypes.func.isRequired,
 };
 
 export { PermissionGroupsSummaryModal, PermissionGroupsManageModal };
