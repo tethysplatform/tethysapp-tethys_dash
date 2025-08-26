@@ -13,7 +13,7 @@ export const mockedLandingPageDashboards = {
       uuid: "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
       name: "editable",
       description: "test_description",
-      accessGroups: [],
+      publicDashboard: false,
       image: "my_image.png",
     },
   ],
@@ -23,7 +23,7 @@ export const mockedLandingPageDashboards = {
       uuid: "acde070d-8c4c-4f0d-9d8a-162843c10333",
       name: "noneditable",
       description: "test_description2",
-      accessGroups: ["public"],
+      publicDashboard: true,
       image: "public_image.png",
     },
   ],
@@ -351,7 +351,7 @@ export const updatedDashboard = {
   label: "test_label_updated",
   notes: "test_notes",
   editable: true,
-  accessGroups: [],
+  publicDashboard: false,
   gridItems: [
     {
       id: 1,
@@ -375,7 +375,7 @@ export const newDashboard = {
   label: "test_label3",
   notes: "test_notes3",
   editable: true,
-  accessGroups: [],
+  publicDashboard: false,
   gridItems: [
     {
       id: 1,
@@ -399,7 +399,7 @@ export const copiedDashboard = {
   label: "test_label Copy",
   notes: "test_notes",
   editable: true,
-  accessGroups: [],
+  publicDashboard: false,
   gridItems: [
     {
       id: 1,

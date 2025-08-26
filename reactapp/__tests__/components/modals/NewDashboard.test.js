@@ -32,7 +32,7 @@ test("New Dashboard Modal add dashboard success", async () => {
               label: "test_label Copy",
               notes: "test_notes",
               editable: true,
-              accessGroups: [],
+              publicDashboard: false,
               gridItems: [
                 {
                   i: "1",
@@ -107,7 +107,7 @@ test("New Dashboard Modal add dashboard success with app tour", async () => {
       label: "test_label Copy",
       notes: "test_notes",
       editable: true,
-      accessGroups: [],
+      publicDashboard: false,
       gridItems: [
         {
           i: "1",

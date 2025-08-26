@@ -153,7 +153,7 @@ test("LandingPageHeader, import dashboard", async () => {
       description: "this is a new description",
       notes: "",
       editable: true,
-      accessGroups: [],
+      publicDashboard: false,
       gridItems: [],
     },
   });
@@ -377,7 +377,7 @@ test("DashboardHeader, import gridItem", async () => {
       id: 1,
       name: "some dashboard updated",
       description: "some description",
-      accessGroups: ["public"],
+      publicDashboard: true,
       image: "some_image.png",
       gridItems: [
         {
@@ -831,7 +831,7 @@ test("DashboardHeader, editable, edit and save", async () => {
       id: 1,
       name: "some dashboard updated",
       description: "some description",
-      accessGroups: ["public"],
+      publicDashboard: true,
       image: "some_image.png",
       gridItems: [
         {

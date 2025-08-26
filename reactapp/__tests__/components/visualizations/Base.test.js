@@ -587,7 +587,7 @@ it("Base - update variable input", async () => {
     label: "test_label",
     notes: "test_notes",
     editable: true,
-    accessGroups: [],
+    publicDashboard: false,
     gridItems: [textVariable, apiImageBase],
   };
   const dashboards = { dashboards: [mockedDashboard] };

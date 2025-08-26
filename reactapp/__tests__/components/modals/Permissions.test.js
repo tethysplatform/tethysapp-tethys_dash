@@ -19,7 +19,11 @@ test("Permissions Modal", async () => {
   expect(await screen.findByText("Manage Permissions")).toBeInTheDocument();
 
   expect(screen.getByLabelText("Username Input")).toBeInTheDocument();
-  expect(screen.getByLabelText("Add User Button")).toBeInTheDocument();
+  const toggle = screen.getByRole("button", { name: /add/i });
+  await userEvent.click(toggle);
+
+  expect(screen.getByRole("button", { name: /user/i })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /group/i })).toBeInTheDocument();
 
   expect(screen.getByRole("table")).toBeInTheDocument();
   const rows = screen.getAllByRole("row");
@@ -72,10 +76,13 @@ test("Permissions Modal add user and update", async () => {
   expect(rows[1].cells[1]).toHaveTextContent("Owner");
 
   const usernameInput = screen.getByLabelText("Username Input");
-  const addUserButton = screen.getByLabelText("Add User Button");
-
   fireEvent.change(usernameInput, { target: { value: "newuser" } });
-  fireEvent.click(addUserButton);
+
+  const toggle = screen.getByRole("button", { name: /add/i });
+  await userEvent.click(toggle);
+
+  const userItem = screen.getByRole("button", { name: /user/i });
+  await userEvent.click(userItem);
 
   rows = await screen.findAllByRole("row");
   expect(rows.length).toBe(3);
@@ -125,10 +132,13 @@ test("Permissions Modal add user but empty", async () => {
   expect(rows[1].cells[1]).toHaveTextContent("Owner");
 
   const usernameInput = screen.getByLabelText("Username Input");
-  const addUserButton = screen.getByLabelText("Add User Button");
-
   fireEvent.change(usernameInput, { target: { value: "" } });
-  fireEvent.click(addUserButton);
+
+  const toggle = screen.getByRole("button", { name: /add/i });
+  await userEvent.click(toggle);
+
+  const userItem = screen.getByRole("button", { name: /user/i });
+  await userEvent.click(userItem);
 
   expect(
     await screen.findByText("Username cannot be empty.")
@@ -159,10 +169,13 @@ test("Permissions Modal, add user but already exists", async () => {
   ).toBeInTheDocument();
 
   const usernameInput = screen.getByLabelText("Username Input");
-  const addUserButton = screen.getByLabelText("Add User Button");
-
   fireEvent.change(usernameInput, { target: { value: "jsmith" } });
-  fireEvent.click(addUserButton);
+
+  const toggle = screen.getByRole("button", { name: /add/i });
+  await userEvent.click(toggle);
+
+  const userItem = screen.getByRole("button", { name: /user/i });
+  await userEvent.click(userItem);
 
   expect(
     await screen.findByText("This user is already in the list.")

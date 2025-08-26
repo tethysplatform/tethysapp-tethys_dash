@@ -455,7 +455,7 @@ test("DashboardCard editable, edit description with blur", async () => {
       id: userDashboard.id,
       name: "some dashboard",
       description: "some description updated",
-      accessGroups: ["public"],
+      publicDashboard: true,
       image: "some_image.png",
     },
   });
@@ -749,7 +749,7 @@ test("DashboardCard editable, edit thumbnail and cancel", async () => {
       id: userDashboard.id,
       name: "some dashboard",
       description: "some description",
-      accessGroups: ["public"],
+      publicDashboard: true,
       image: "some_image_updated.png",
     },
   });
@@ -802,7 +802,7 @@ test("DashboardCard editable, edit thumbnail", async () => {
       id: userDashboard.id,
       name: "some dashboard",
       description: "some description",
-      accessGroups: ["public"],
+      publicDashboard: true,
       image: "some_image_updated.png",
     },
   });

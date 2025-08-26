@@ -399,7 +399,7 @@ test("DashboardLoader save layout", async () => {
       id: 1,
       name: "some dashboard updated",
       description: "some description",
-      accessGroups: ["public"],
+      publicDashboard: true,
       image: "some_image.png",
     },
   });

@@ -55,7 +55,7 @@ const TestingComponent = () => {
   const [showCanvas, setShowCanvas] = useState(true);
 
   return (
-    <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+    <MemoryRouter initialEntries={[`/dashboard/${userDashboard.uuid}`]}>
       <DashboardEditorCanvas
         showCanvas={showCanvas}
         setShowCanvas={setShowCanvas}
@@ -128,7 +128,7 @@ test("Dashboard Editor Canvas edit and save", async () => {
     screen.queryByText("Successfully updated dashboard settings")
   ).not.toBeInTheDocument();
 
-  expect(navigateMock).toHaveBeenCalledWith("/dashboard/user/new_name");
+  expect(navigateMock).toHaveBeenCalledTimes(0);
 });
 
 test("Dashboard Editor Canvas edit desription only and save", async () => {
@@ -365,7 +365,7 @@ test("Dashboard Editor Canvas copy and success", async () => {
       description: "test_description",
       notes: "test_notes",
       editable: true,
-      accessGroups: [],
+      uuid: 123456789,
     },
   });
   appAPI.copyDashboard = mockCopyDashboard;
@@ -387,7 +387,7 @@ test("Dashboard Editor Canvas copy and success", async () => {
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
 
-  expect(navigateMock).toHaveBeenCalledWith("/dashboard/user/editable_copy");
+  expect(navigateMock).toHaveBeenCalledWith("/dashboard/123456789");
 });
 
 test("Dashboard Editor Canvas copy and fail with message", async () => {

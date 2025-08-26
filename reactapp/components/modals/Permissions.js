@@ -60,8 +60,6 @@ function PermissionsModal({ showModal, setShowModal }) {
   const [dashboardPermissions, setDashboardPermissions] = useState(permissions);
   const [copyClipboardSuccess, setCopyClipboardSuccess] = useState(null);
 
-  console.log(permissionGroups);
-
   useEffect(() => {
     setDashboardPermissions(permissions);
   }, [permissions]);
@@ -91,7 +89,7 @@ function PermissionsModal({ showModal, setShowModal }) {
     if (
       dashboardPermissions.some((perm) =>
         type === "user"
-          ? perm.name === nameInput.trim()
+          ? perm.username === nameInput.trim()
           : perm.group === nameInput.trim()
       )
     ) {
@@ -187,7 +185,7 @@ function PermissionsModal({ showModal, setShowModal }) {
               aria-label="Username Input"
               className="form-control"
             />
-            <DropdownButton id="dropdown-basic-button" title="Add">
+            <DropdownButton aria-label="Add Button" title="Add">
               <Dropdown.Item onClick={() => handleAdd("user")}>
                 User
               </Dropdown.Item>
