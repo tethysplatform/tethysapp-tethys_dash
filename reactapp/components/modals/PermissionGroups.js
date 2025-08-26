@@ -20,18 +20,12 @@ const TableContainer = styled.div`
 // Summary Modal: shows all groups and a button to open manage modal
 const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
   const [showManageModal, setShowManageModal] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState(false);
+  const [selectedGroup, setSelectedGroup] = useState();
   const { permissionGroups, deletePermissionGroup } = useContext(
     PermissionGroupContext
   );
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    if (selectedGroup !== false) {
-      setShowManageModal(true);
-    }
-  }, [selectedGroup]);
 
   const onDelete = async (id, name) => {
     const deleteResponse = await deletePermissionGroup(id);
@@ -43,9 +37,29 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
     setSelectedGroup(false);
   };
 
+  const onCreate = () => {
+    setSelectedGroup(null);
+    setShowManageModal(true);
+  };
+
+  const onEdit = (group) => {
+    setSelectedGroup(group);
+    setShowManageModal(true);
+  };
+
+  const onHide = () => {
+    setShowManageModal(false);
+  };
+
   return (
     <>
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered>
+      <Modal
+        show={showModal}
+        onHide={() => setShowModal(false)}
+        size="lg"
+        centered
+        style={showManageModal && { zIndex: 1050 }}
+      >
         <Modal.Header closeButton>
           <Modal.Title>Permission Groups</Modal.Title>
         </Modal.Header>
@@ -126,7 +140,7 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
                           <Button
                             variant="warning"
                             size="sm"
-                            onClick={() => setSelectedGroup(group)}
+                            onClick={() => onEdit(group)}
                             aria-label={`Edit group ${group.name}`}
                           >
                             Edit
@@ -154,7 +168,7 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
               </Table>
             </TableContainer>
             <div className="d-flex justify-content-end">
-              <Button variant="primary" onClick={() => setSelectedGroup(null)}>
+              <Button variant="primary" onClick={onCreate}>
                 Create New Group
               </Button>
             </div>
@@ -164,7 +178,7 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
       {showManageModal && (
         <PermissionGroupsManageModal
           show={showManageModal}
-          onHide={() => setShowManageModal(false)}
+          onHide={onHide}
           selectedGroup={selectedGroup}
           setSuccessMessage={setSuccessMessage}
         />
@@ -219,6 +233,7 @@ const PermissionGroupsManageModal = ({
       description: newGroupDesc,
       members: groupUsers,
     });
+    // TODO: update permissionGroups context so that when a group is created or updated, it reflects in the context
     if (response.success) {
       // Reset modal state for new group creation
       if (!selectedGroup) {
@@ -282,7 +297,7 @@ const PermissionGroupsManageModal = ({
   };
 
   return (
-    <Modal show={show} onHide={onHide} size="xl" centered>
+    <Modal show={show} onHide={onHide} size="lg" centered>
       <Modal.Header closeButton>
         <Modal.Title>Manage Permission Groups</Modal.Title>
       </Modal.Header>

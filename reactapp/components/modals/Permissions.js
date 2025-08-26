@@ -198,7 +198,11 @@ function PermissionsModal({ showModal, setShowModal }) {
           </div>
         )}
         <TableContainer>
-          <Table bordered hover style={{ tableLayout: 'fixed', maxWidth: '100%' }}>
+          <Table
+            bordered
+            hover
+            style={{ tableLayout: "fixed", maxWidth: "100%" }}
+          >
             <thead>
               <tr>
                 <th style={{ maxWidth: "50%", width: "50%" }}>
