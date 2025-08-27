@@ -83,7 +83,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [localNotes, setLocalNotes] = useState(notes);
   const [localName, setLocalName] = useState(name);
   const [localDescription, setLocalDescription] = useState(description);
-  const { setAppTourStep, activeAppTour } = useAppTourContext();
   const navigate = useNavigate();
   const [showPermissionsModal, setShowPermissionsModal] = useState(false);
 
@@ -98,9 +97,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
 
   const handleClose = () => {
     setShowCanvas(false);
-    if (activeAppTour) {
-      setAppTourStep(33);
-    }
   };
 
   function onSave(e) {

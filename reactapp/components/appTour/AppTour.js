@@ -27,6 +27,8 @@ const AppTour = () => {
       } else if (step.data.callbackNext) {
         const nextStepIndex = index + 1;
         setAppTourStep(nextStepIndex);
+      } else if (step.data.nextStep) {
+        setAppTourStep(step.data.nextStep);
       } else {
         setActiveAppTour(false);
       }
@@ -694,11 +696,6 @@ const AppTour = () => {
             </li>
             <br />
             <li>
-              <b>Sharing Status</b>: Determines if the dashboard is publicly
-              available.
-            </li>
-            <br />
-            <li>
               <b>Unrestricted Grid Item Movement</b>: This allows grid items to
               be placed in any location in the dashboard and overlap.
             </li>
@@ -735,12 +732,9 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".copy-dashboard-button", // 44
+      target: ".manage-permissions-button", // 44
       content: (
-        <div>
-          Copy with the same settings and dashboard items. The new dashboard
-          will have the name with "_copy" at the end.
-        </div>
+        <div>Manage the dashboard's permissions and access controls.</div>
       ),
       disableBeacon: true,
       disableOverlayClose: true,
@@ -749,17 +743,17 @@ const AppTour = () => {
       spotlightPadding: 5,
     },
     {
-      target: ".cancel-dashboard-editor-button", // 45
+      target: ".copy-dashboard-button", // 45
       content: (
         <div>
-          Click on the "Close" button to exit the settings editor and continue
-          with the App Tour.
+          Copy with the same settings and dashboard items. The new dashboard
+          will have the name with "_copy" at the end.
         </div>
       ),
       disableBeacon: true,
       disableOverlayClose: true,
-      spotlightClicks: true,
-      hideFooter: true,
+      data: { nextStep: 33 },
+      placement: "top",
       spotlightPadding: 5,
     },
   ];
@@ -773,7 +767,7 @@ const AppTour = () => {
       steps={steps}
       stepIndex={appTourStep}
       run={activeAppTour}
-      locale={{ skip: "End App Tour", last: "End App Tour" }}
+      locale={{ skip: "End App Tour", last: "Next" }}
       styles={{
         options: {
           zIndex: 10000,
