@@ -130,6 +130,13 @@ test("Dashboard Editor Canvas edit and save", async () => {
   ).not.toBeInTheDocument();
 
   expect(navigateMock).toHaveBeenCalledTimes(0);
+
+  const closeButton = screen.getByLabelText("Close");
+  await userEvent.click(closeButton);
+
+  await waitFor(() => {
+    expect(screen.queryByText("Dashboard Settings")).not.toBeInTheDocument();
+  });
 });
 
 test("Dashboard Editor Canvas edit desription only and save", async () => {
@@ -456,35 +463,64 @@ test("Dashboard Editor Canvas copy and fail without message", async () => {
   expect(navigateMock).toHaveBeenCalledTimes(0);
 });
 
-// test("Dashboard Editor Canvas close in app tour", async () => {
-//   const mockSetAppTourStep = jest.fn();
+test("Dashboard Editor Canvas show permissions modal", async () => {
+  const navigateMock = jest.fn();
+  useNavigate.mockReturnValue(navigateMock);
+  const mockDeleteDashboard = jest.fn();
 
-//   render(
-//     createLoadedComponent({
-//       children: (
-//         <AppTourContext.Provider
-//           value={{
-//             activeAppTour: true,
-//             setAppTourStep: mockSetAppTourStep,
-//           }}
-//         >
-//           <TestingComponent />
-//         </AppTourContext.Provider>
-//       ),
-//       options: {
-//         initialDashboard: userDashboard,
-//       },
-//     })
-//   );
+  mockDeleteDashboard.mockResolvedValue({
+    success: true,
+  });
+  jest.spyOn(appAPI, "deleteDashboard").mockImplementation(mockDeleteDashboard);
+  mockedConfirm.mockResolvedValue(true);
 
-//   const cancelDashboardEditorButton = await screen.findByLabelText(
-//     "Cancel Dashboard Editor Button"
-//   );
-//   await userEvent.click(cancelDashboardEditorButton);
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: userDashboard,
+      },
+    })
+  );
 
-//   await waitFor(() => {
-//     expect(screen.queryByText("Dashboard Settings")).not.toBeInTheDocument();
-//   });
+  const managePermissionsButton = await screen.findByLabelText(
+    "Manage Dashboard Permissions Button"
+  );
+  await userEvent.click(managePermissionsButton);
 
-//   expect(mockSetAppTourStep).toHaveBeenCalledWith(33);
-// });
+  expect(await screen.findByText("Manage Permissions")).toBeInTheDocument();
+});
+
+test("Dashboard Editor Canvas non admin", async () => {
+  render(
+    createLoadedComponent({
+      children: <TestingComponent />,
+      options: {
+        initialDashboard: publicDashboard,
+      },
+    })
+  );
+
+  expect(
+    screen.queryByLabelText("Unrestricted Grid Item Placement")
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Description Input")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Name Input")).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Save Dashboard Button")
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Delete Dashboard Button")
+  ).not.toBeInTheDocument();
+  expect(
+    await screen.findByLabelText("Copy Dashboard Button")
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Manage Dashboard Permissions Button")
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("textEditor")).not.toBeInTheDocument();
+
+  expect(screen.getByText(publicDashboard.name)).toBeInTheDocument();
+  expect(screen.getByText(publicDashboard.description)).toBeInTheDocument();
+  expect(screen.getByText(publicDashboard.notes)).toBeInTheDocument();
+});

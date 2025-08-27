@@ -774,12 +774,8 @@ test("Landing Page App Tour", async () => {
   ).toBeInTheDocument();
   const startTourButton = await screen.findByText("Start Landing Page Tour");
   expect(startTourButton).toBeInTheDocument();
-  userEvent.click(startTourButton);
-  await waitFor(() => {
-    expect(
-      screen.queryByText("Start Landing Page Tour")
-    ).not.toBeInTheDocument();
-  });
+  await userEvent.click(startTourButton);
+  expect(screen.queryByText("Start Landing Page Tour")).not.toBeInTheDocument();
 
   ////////////
   // STEP 0 //
