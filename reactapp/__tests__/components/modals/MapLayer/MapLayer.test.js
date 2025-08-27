@@ -434,7 +434,7 @@ test("MapLayerModal new ImageWMS layer", async () => {
 
 test("MapLayerModal new GeoJSON layer", async () => {
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
   mockUploadJSON.mockResolvedValue({
     success: true,
     filename: "12345678.json",
@@ -870,7 +870,7 @@ test("MapLayerModal legend", async () => {
 
 test("MapLayerModal new GeoJSON layer api fail", async () => {
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
   mockUploadJSON.mockResolvedValue({ success: false });
 
   const handleModalClose = jest.fn();
@@ -935,7 +935,7 @@ test("MapLayerModal new GeoJSON layer api fail", async () => {
 
 test("MapLayerModal style", async () => {
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
   mockUploadJSON.mockResolvedValue({
     success: true,
     filename: "12345678.json",
@@ -1044,7 +1044,7 @@ test("MapLayerModal style", async () => {
 
 test("MapLayerModal style api fail", async () => {
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
   mockUploadJSON.mockResolvedValue({ success: false });
 
   const handleModalClose = jest.fn();

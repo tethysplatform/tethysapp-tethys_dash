@@ -4,6 +4,7 @@ import { useContext } from "react";
 import {
   AppContext,
   AvailableDashboardsContext,
+  PermissionGroupContext,
 } from "components/contexts/Contexts";
 import {
   mockedDashboards,
@@ -14,6 +15,7 @@ import { rest } from "msw";
 import { baseMapLayers } from "components/visualizations/utilities";
 import ErrorBoundary from "components/error/ErrorBoundary";
 import userEvent from "@testing-library/user-event";
+import appAPI from "services/api/app";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -31,6 +33,7 @@ const TestingComponent = () => {
     visualizationArgs,
     mapLayerTemplates,
   } = useContext(AppContext);
+  const { permissionGroups } = useContext(PermissionGroupContext);
   const { availableDashboards } = useContext(AvailableDashboardsContext);
 
   return (
@@ -47,6 +50,7 @@ const TestingComponent = () => {
       <p data-testid="availableDashboards">
         {JSON.stringify(availableDashboards)}
       </p>
+      <p data-testid="permissionGroups">{JSON.stringify(permissionGroups)}</p>
     </>
   );
 };
@@ -272,6 +276,10 @@ test("AppLoader", async () => {
 
   expect(await screen.findByTestId("availableDashboards")).toHaveTextContent(
     JSON.stringify(mockedDashboards.dashboards)
+  );
+
+  expect(await screen.findByTestId("permissionGroups")).toHaveTextContent(
+    JSON.stringify(mockedDashboards.permission_groups)
   );
 });
 

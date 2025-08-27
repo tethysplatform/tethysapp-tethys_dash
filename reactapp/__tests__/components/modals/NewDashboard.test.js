@@ -98,7 +98,7 @@ test("New Dashboard Modal add dashboard success", async () => {
 
 test("New Dashboard Modal add dashboard success with app tour", async () => {
   const mockAddDashboard = jest.fn();
-  appAPI.addDashboard = mockAddDashboard;
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
   mockAddDashboard.mockResolvedValue({
     success: true,
     new_dashboard: {
@@ -174,7 +174,7 @@ test("New Dashboard Modal add dashboard success with app tour", async () => {
 
 test("New Dashboard Modal add dashboard fail", async () => {
   const mockAddDashboard = jest.fn();
-  appAPI.addDashboard = mockAddDashboard;
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
   mockAddDashboard.mockResolvedValue({
     success: false,
     message: "failed to add",

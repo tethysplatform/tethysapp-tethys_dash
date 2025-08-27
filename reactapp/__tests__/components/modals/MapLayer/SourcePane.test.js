@@ -278,7 +278,7 @@ test("SourcePane GeoJson File Upload", async () => {
 
 test("SourcePane Updating Existing GeoJSON file", async () => {
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
   mockDownloadJSON.mockResolvedValue({ success: true, data: exampleGeoJSON });
 
   render(
@@ -343,7 +343,7 @@ test("SourcePane Updating Existing GeoJSON url", async () => {
 
 test("SourcePane Updating Existing GeoJSON object", async () => {
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
   mockDownloadJSON.mockResolvedValue({ success: true, data: exampleGeoJSON });
 
   render(
@@ -368,7 +368,7 @@ test("SourcePane Updating Existing GeoJSON object", async () => {
 
 test("SourcePane Updating Error Downloading GeoJSON", async () => {
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
   mockDownloadJSON.mockResolvedValue({ success: false });
   const mockSetErrorMessage = jest.fn();
 
@@ -397,7 +397,7 @@ test("SourcePane Updating Error Downloading GeoJSON", async () => {
 
 test("SourcePane Updating Existing VectorTiles", async () => {
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
   mockDownloadJSON.mockResolvedValue({ data: exampleGeoJSON });
 
   render(

@@ -1565,7 +1565,7 @@ test("loadLayerJSONs files", async () => {
   };
 
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
   mockDownloadJSON.mockResolvedValueOnce({
     success: true,
     data: style,
@@ -1623,7 +1623,7 @@ test("loadLayerJSONs files keep_urls shouldn't affect it", async () => {
   };
 
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
   mockDownloadJSON.mockResolvedValueOnce({
     success: true,
     data: style,
@@ -1909,7 +1909,7 @@ test("checkForCRS", async () => {
 
 test("saveLayerJSON stringified Object", async () => {
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
   mockUploadJSON.mockResolvedValueOnce({
     success: true,
     filename: "some_file.json",
@@ -1995,7 +1995,7 @@ test("saveLayerJSON geojson crs null", async () => {
 
 test("saveLayerJSON geojson", async () => {
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
   mockUploadJSON.mockResolvedValueOnce({
     success: true,
     filename: "some_file.json",

@@ -1262,7 +1262,6 @@ test("handleGridItemExport with map and no layers", async () => {
 
 test("handleGridItemExport with map and geojson layer", async () => {
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
   mockDownloadJSON.mockResolvedValueOnce({
     success: true,
     data: exampleStyle,
@@ -1271,6 +1270,7 @@ test("handleGridItemExport with map and geojson layer", async () => {
     success: true,
     data: exampleGeoJSON,
   });
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
 
   const gridItem = {
     i: "1",
@@ -1337,12 +1337,12 @@ test("handleGridItemExport with map and geojson layer", async () => {
 
 test("handleGridItemExport bad load", async () => {
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
   const apiResponse = {
     success: false,
     message: "some error",
   };
   mockDownloadJSON.mockResolvedValueOnce(apiResponse);
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
 
   const gridItem = {
     i: "1",
@@ -1467,7 +1467,6 @@ test("handleGridItemImport with map and no layers", async () => {
 
 test("handleGridItemImport with map geojson layer and style", async () => {
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
   mockUploadJSON.mockResolvedValueOnce({
     success: true,
     filename: "geojson.json",
@@ -1476,6 +1475,7 @@ test("handleGridItemImport with map geojson layer and style", async () => {
     success: true,
     filename: "style.json",
   });
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
 
   const gridItem = {
     i: "1",
@@ -1545,11 +1545,11 @@ test("handleGridItemImport with map geojson layer and style", async () => {
 
 test("handleGridItemImport with map geojson layer and no style", async () => {
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
   mockUploadJSON.mockResolvedValueOnce({
     success: true,
     filename: "geojson.json",
   });
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
 
   const gridItem = {
     i: "1",
@@ -1618,7 +1618,7 @@ test("handleGridItemImport with map geojson layer and no style", async () => {
 
 test("handleGridItemImport with map arcgis layer and no style", async () => {
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
 
   const gridItem = {
     i: "1",
@@ -1697,12 +1697,12 @@ test("handleGridItemImport with map geojson layer missing props", async () => {
 
 test("handleGridItemImport bad geojson load", async () => {
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
   const apiResponse = {
     success: false,
     message: "some error",
   };
   mockUploadJSON.mockResolvedValueOnce(apiResponse);
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
 
   const gridItem = {
     i: "1",
@@ -1741,7 +1741,6 @@ test("handleGridItemImport bad geojson load", async () => {
 
 test("handleGridItemImport bad style load", async () => {
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
   mockUploadJSON.mockResolvedValueOnce({
     success: true,
     filename: "geojson.json",
@@ -1751,6 +1750,7 @@ test("handleGridItemImport bad style load", async () => {
     message: "some error",
   };
   mockUploadJSON.mockResolvedValueOnce(apiResponse);
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
 
   const gridItem = {
     i: "1",

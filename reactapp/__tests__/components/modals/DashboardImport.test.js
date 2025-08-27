@@ -148,7 +148,7 @@ test("DashboardImportModal Landing Page with griditems", async () => {
     ],
   };
   const mockAddDashboard = jest.fn();
-  appAPI.addDashboard = mockAddDashboard;
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
   mockAddDashboard.mockResolvedValue({
     success: true,
     new_dashboard: importedDashboard,

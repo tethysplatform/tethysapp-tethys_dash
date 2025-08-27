@@ -115,7 +115,7 @@ export const LandingPageHeader = () => {
                   onClick={() => setShowPermissionGroupsModal(true)}
                   tooltipPlacement="bottom"
                   tooltipText="Manage Groups"
-                  aria-label="ManageGroupsButton"
+                  aria-label="manageGroupsButton"
                 >
                   <HiUserGroup size="1.5rem" />
                 </TooltipButton>
@@ -292,18 +292,17 @@ export const DashboardHeader = () => {
     setShowErrorMessage(false);
     setIsSaving(true);
 
-    saveLayoutContext({ gridItems }).then((response) => {
-      if (response.success) {
-        setSuccessMessage("Change have been saved.");
-        setShowSuccessMessage(true);
-        setIsEditing(false);
-      } else {
-        setErrorMessage(
-          "Failed to save changes. Check server logs for more information."
-        );
-        setShowErrorMessage(true);
-      }
-    });
+    const response = await saveLayoutContext({ gridItems });
+    if (response.success) {
+      setSuccessMessage("Change have been saved.");
+      setShowSuccessMessage(true);
+      setIsEditing(false);
+    } else {
+      setErrorMessage(
+        "Failed to save changes. Check server logs for more information."
+      );
+      setShowErrorMessage(true);
+    }
 
     setIsSaving(false);
   }
@@ -332,7 +331,7 @@ export const DashboardHeader = () => {
                   <>
                     {isSaving && (
                       <StyledSpinner
-                        data-testid="Loading..."
+                        data-testid="header-loading"
                         animation="border"
                         variant="info"
                       />

@@ -218,7 +218,7 @@ test("Map default and update layers", async () => {
 
 test("Map GeoJSON with legend and style", async () => {
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
   mockDownloadJSON.mockResolvedValueOnce({
     success: true,
     data: exampleStyle,
@@ -1274,7 +1274,7 @@ test("Map bad basemap", async () => {
 
 test("Map bad GeoJSON", async () => {
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
   mockDownloadJSON.mockResolvedValueOnce({
     success: false,
   });
@@ -1329,7 +1329,7 @@ test("Map bad GeoJSON", async () => {
 
 test("Map bad style", async () => {
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
   mockDownloadJSON.mockResolvedValueOnce({
     success: false,
   });

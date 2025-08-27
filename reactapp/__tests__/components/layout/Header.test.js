@@ -17,6 +17,8 @@ import {
   publicDashboard,
   userDashboard,
 } from "__tests__/utilities/constants";
+import { server } from "__tests__/utilities/server";
+import { rest } from "msw";
 
 jest.mock("html2canvas");
 
@@ -24,6 +26,11 @@ jest.mock("react-router-dom", () => ({
   ...jest.requireActual("react-router-dom"),
   useNavigate: jest.fn(),
 }));
+
+afterEach(() => {
+  server.resetHandlers();
+  jest.restoreAllMocks();
+});
 
 window.matchMedia =
   window.matchMedia ||
@@ -144,7 +151,8 @@ test("LandingPageHeader, import dashboard", async () => {
     description: "this is a new description",
   };
   const mockAddDashboard = jest.fn();
-  appAPI.addDashboard = mockAddDashboard;
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
+
   mockAddDashboard.mockResolvedValue({
     success: true,
     new_dashboard: {
@@ -248,6 +256,24 @@ test("LandingPageHeader, public user and not show info", async () => {
     screen.getByRole("button", { name: "dashboardLoginButton" })
   ).toBeInTheDocument();
   expect(screen.getByLabelText("appExitButton")).toBeInTheDocument();
+});
+
+test("LandingPageHeader, permission group modal", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <LandingPageHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    })
+  );
+
+  const manageGroupsButton = await screen.findByLabelText("manageGroupsButton");
+  await userEvent.click(manageGroupsButton);
+  expect(await screen.findByText("Permission Groups")).toBeInTheDocument();
 });
 
 test("DashboardHeader, user and editable", async () => {
@@ -396,7 +422,7 @@ test("DashboardHeader, import gridItem", async () => {
       ],
     },
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -824,68 +850,133 @@ test("DashboardHeader, editable, edit and save", async () => {
     },
   ];
 
-  const mockUpdateDashboard = jest.fn();
-  mockUpdateDashboard.mockResolvedValue({
-    success: true,
-    updated_dashboard: {
-      id: 1,
-      name: "some dashboard updated",
-      description: "some description",
-      publicDashboard: true,
-      image: "some_image.png",
-      gridItems: [
-        {
-          i: "4",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
+  const expectedRequestCall = {
+    gridItems: [
+      {
+        i: "4",
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "",
+        args_string: "{}",
+        metadata_string: JSON.stringify({
+          refreshRate: 0,
+        }),
+      },
+      {
+        i: "1",
+        x: 0,
+        y: 20,
+        w: 20,
+        h: 20,
+        source: "",
+        args_string: "{}",
+        metadata_string: JSON.stringify({
+          refreshRate: 0,
+        }),
+      },
+      {
+        i: "3",
+        x: 0,
+        y: 40,
+        w: 20,
+        h: 20,
+        source: "",
+        args_string: "{}",
+        metadata_string: JSON.stringify({
+          refreshRate: 0,
+        }),
+      },
+      {
+        i: "2",
+        x: 0,
+        y: 60,
+        w: 20,
+        h: 20,
+        source: "",
+        args_string: "{}",
+        metadata_string: JSON.stringify({
+          refreshRate: 0,
+        }),
+      },
+    ],
+    id: 1,
+  };
+
+  server.use(
+    rest.post(
+      "http://api.test/apps/tethysdash/dashboards/update/",
+      async (req, res, ctx) => {
+        expect(await req.json()).toEqual(expectedRequestCall);
+        return res(
+          ctx.delay(200),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            updated_dashboard: {
+              id: 1,
+              name: "some dashboard updated",
+              description: "some description",
+              publicDashboard: true,
+              image: "some_image.png",
+              gridItems: [
+                {
+                  i: "4",
+                  x: 0,
+                  y: 0,
+                  w: 20,
+                  h: 20,
+                  source: "",
+                  args_string: "{}",
+                  metadata_string: JSON.stringify({
+                    refreshRate: 0,
+                  }),
+                },
+                {
+                  i: "1",
+                  x: 0,
+                  y: 0,
+                  w: 20,
+                  h: 20,
+                  source: "",
+                  args_string: "{}",
+                  metadata_string: JSON.stringify({
+                    refreshRate: 0,
+                  }),
+                },
+                {
+                  i: "3",
+                  x: 0,
+                  y: 0,
+                  w: 20,
+                  h: 20,
+                  source: "",
+                  args_string: "{}",
+                  metadata_string: JSON.stringify({
+                    refreshRate: 0,
+                  }),
+                },
+                {
+                  i: "2",
+                  x: 0,
+                  y: 0,
+                  w: 20,
+                  h: 20,
+                  source: "",
+                  args_string: "{}",
+                  metadata_string: JSON.stringify({
+                    refreshRate: 0,
+                  }),
+                },
+              ],
+            },
           }),
-        },
-        {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
-        },
-        {
-          i: "3",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
-        },
-        {
-          i: "2",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
-        },
-      ],
-    },
-  });
-  appAPI.updateDashboard = mockUpdateDashboard;
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
 
   render(
     createLoadedComponent({
@@ -921,69 +1012,12 @@ test("DashboardHeader, editable, edit and save", async () => {
   expect(screen.getByLabelText("Disable Movement Button")).toBeInTheDocument();
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
 
+  expect(screen.queryByTestId("header-loading")).not.toBeInTheDocument();
+
   await userEvent.click(addGridItemButton);
-  userEvent.click(saveButton);
+  await userEvent.click(saveButton);
 
-  expect(await screen.findByTestId("Loading...")).toBeInTheDocument();
-
-  await waitFor(() => {
-    expect(mockUpdateDashboard).toHaveBeenCalledWith(
-      {
-        gridItems: [
-          {
-            i: "4",
-            x: 0,
-            y: 0,
-            w: 20,
-            h: 20,
-            source: "",
-            args_string: "{}",
-            metadata_string: JSON.stringify({
-              refreshRate: 0,
-            }),
-          },
-          {
-            i: "1",
-            x: 0,
-            y: 20,
-            w: 20,
-            h: 20,
-            source: "",
-            args_string: "{}",
-            metadata_string: JSON.stringify({
-              refreshRate: 0,
-            }),
-          },
-          {
-            i: "3",
-            x: 0,
-            y: 40,
-            w: 20,
-            h: 20,
-            source: "",
-            args_string: "{}",
-            metadata_string: JSON.stringify({
-              refreshRate: 0,
-            }),
-          },
-          {
-            i: "2",
-            x: 0,
-            y: 60,
-            w: 20,
-            h: 20,
-            source: "",
-            args_string: "{}",
-            metadata_string: JSON.stringify({
-              refreshRate: 0,
-            }),
-          },
-        ],
-        id: 1,
-      },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
-    );
-  });
+  expect(await screen.findByTestId("header-loading")).toBeInTheDocument();
 
   expect(screen.queryByTestId("Loading...")).not.toBeInTheDocument();
 });
@@ -993,7 +1027,8 @@ test("DashboardHeader, editable, edit, save and error", async () => {
   mockUpdateDashboard.mockResolvedValue({
     success: false,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -1074,7 +1109,8 @@ test("DashboardHeader, editable, edit, save and error with unrestricted movement
   mockUpdateDashboard.mockResolvedValue({
     success: false,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
   updatedMockedDashboards.dashboards[0].unrestrictedPlacement = true;
 
   render(

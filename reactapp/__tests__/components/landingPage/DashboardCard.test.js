@@ -56,7 +56,7 @@ test("DashboardCard editable, open and edit name", async () => {
     success: true,
     updated_dashboard: updatedDashboard,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -133,7 +133,8 @@ test("DashboardCard editable, edit name with blur", async () => {
     success: true,
     updated_dashboard: updatedDashboard,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -182,7 +183,8 @@ test("DashboardCard editable, edit name with blur", async () => {
 
 test("DashboardCard editable, edit name but cancel", async () => {
   const mockUpdateDashboard = jest.fn();
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -222,7 +224,8 @@ test("DashboardCard editable, edit name but cancel", async () => {
 
 test("DashboardCard editable, edit name and no change", async () => {
   const mockUpdateDashboard = jest.fn();
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
   const imageDashboard = JSON.parse(JSON.stringify(userDashboard));
   imageDashboard.image = "some_image.png";
 
@@ -395,7 +398,8 @@ test("DashboardCard editable, edit description", async () => {
     success: true,
     updated_dashboard: updatedDashboard,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -459,7 +463,8 @@ test("DashboardCard editable, edit description with blur", async () => {
       image: "some_image.png",
     },
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -521,7 +526,8 @@ test("DashboardCard editable, edit description new line", async () => {
     success: true,
     updated_dashboard: updatedDashboard,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -579,7 +585,8 @@ test("DashboardCard editable, edit description new line", async () => {
 
 test("DashboardCard editable, edit description but cancel", async () => {
   const mockUpdateDashboard = jest.fn();
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -627,7 +634,8 @@ test("DashboardCard editable, edit description fail", async () => {
   mockUpdateDashboard.mockResolvedValue({
     success: false,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -691,7 +699,8 @@ test("DashboardCard editable, edit description fail with message", async () => {
     success: false,
     message: "some failure message",
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -753,7 +762,8 @@ test("DashboardCard editable, edit thumbnail and cancel", async () => {
       image: "some_image_updated.png",
     },
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   global.FileReader = class {
     readAsDataURL() {
@@ -806,7 +816,8 @@ test("DashboardCard editable, edit thumbnail", async () => {
       image: "some_image_updated.png",
     },
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   global.FileReader = class {
     readAsDataURL() {
@@ -869,7 +880,8 @@ test("DashboardCard editable, edit thumbnail fail", async () => {
   mockUpdateDashboard.mockResolvedValue({
     success: false,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   global.FileReader = class {
     readAsDataURL() {
@@ -940,7 +952,7 @@ test("DashboardCard editable, copy", async () => {
     success: true,
     new_dashboard: copiedDashboard,
   });
-  appAPI.copyDashboard = mockCopyDashboard;
+  jest.spyOn(appAPI, "copyDashboard").mockImplementation(mockCopyDashboard);
 
   render(
     createLoadedComponent({
@@ -978,7 +990,7 @@ test("DashboardCard editable, copy fail", async () => {
   mockCopyDashboard.mockResolvedValue({
     success: false,
   });
-  appAPI.copyDashboard = mockCopyDashboard;
+  jest.spyOn(appAPI, "copyDashboard").mockImplementation(mockCopyDashboard);
 
   render(
     createLoadedComponent({
@@ -1147,7 +1159,8 @@ test("DashboardCard editable, share", async () => {
     success: true,
     updated_dashboard: updatedDashboard,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -1200,7 +1213,8 @@ test("DashboardCard editable, make private", async () => {
     success: true,
     updated_dashboard: privateDashboard,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -1247,7 +1261,8 @@ test("DashboardCard editable, share fail", async () => {
   mockUpdateDashboard.mockResolvedValue({
     success: false,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -1297,7 +1312,8 @@ test("DashboardCard editable, share fail with message", async () => {
     success: false,
     message: "some failure message",
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -1420,7 +1436,7 @@ test("DashboardCard editable, delete and confirm", async () => {
   mockDeleteDashboard.mockResolvedValue({
     success: true,
   });
-  appAPI.deleteDashboard = mockDeleteDashboard;
+  jest.spyOn(appAPI, "deleteDashboard").mockImplementation(mockDeleteDashboard);
 
   render(
     createLoadedComponent({
@@ -1463,7 +1479,7 @@ test("DashboardCard editable, delete and confirm", async () => {
 test("DashboardCard editable, delete and not confirm", async () => {
   const mockDeleteDashboard = jest.fn();
   mockedConfirm.mockResolvedValueOnce(false);
-  appAPI.deleteDashboard = mockDeleteDashboard;
+  jest.spyOn(appAPI, "deleteDashboard").mockImplementation(mockDeleteDashboard);
 
   render(
     createLoadedComponent({
@@ -1489,7 +1505,7 @@ test("DashboardCard editable, delete and fail", async () => {
   const mockDeleteDashboard = jest.fn();
   mockDeleteDashboard.mockResolvedValue({ success: false });
   mockedConfirm.mockResolvedValueOnce(true);
-  appAPI.deleteDashboard = mockDeleteDashboard;
+  jest.spyOn(appAPI, "deleteDashboard").mockImplementation(mockDeleteDashboard);
 
   render(
     createLoadedComponent({

@@ -45,7 +45,6 @@ test("Dashboard App Tour", async () => {
   let backButton;
   let endTourButton;
   const mockAddDashboard = jest.fn();
-  appAPI.addDashboard = mockAddDashboard;
   mockAddDashboard.mockResolvedValue({
     success: true,
     new_dashboard: {
@@ -71,6 +70,7 @@ test("Dashboard App Tour", async () => {
       ],
     },
   });
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
 
   render(
     createLoadedComponent({
@@ -611,7 +611,6 @@ test("Dashboard App Tour", async () => {
 
 test("Dashboard App Tour while editing and then exit", async () => {
   const mockAddDashboard = jest.fn();
-  appAPI.addDashboard = mockAddDashboard;
   mockAddDashboard.mockResolvedValue({
     success: true,
     new_dashboard: {
@@ -637,6 +636,7 @@ test("Dashboard App Tour while editing and then exit", async () => {
       ],
     },
   });
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
   mockedConfirm.mockResolvedValueOnce(false);
   mockedConfirm.mockResolvedValueOnce(true);
 
@@ -717,7 +717,6 @@ test("Landing Page App Tour", async () => {
   let nextButton;
   let endTourButton;
   const mockAddDashboard = jest.fn();
-  appAPI.addDashboard = mockAddDashboard;
   mockAddDashboard.mockResolvedValue({
     success: true,
     new_dashboard: {
@@ -743,6 +742,7 @@ test("Landing Page App Tour", async () => {
       ],
     },
   });
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
 
   render(
     createLoadedComponent({

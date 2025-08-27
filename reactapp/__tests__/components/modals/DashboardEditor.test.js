@@ -75,7 +75,8 @@ test("Dashboard Editor Canvas edit and save", async () => {
     success: true,
     updated_dashboard: updatedDashboard,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -140,7 +141,8 @@ test("Dashboard Editor Canvas edit desription only and save", async () => {
     success: true,
     updated_dashboard: updatedDashboard,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -194,7 +196,8 @@ test("Dashboard Editor Canvas edit and save fail without message", async () => {
   const mockUpdateDashboard = jest.fn();
 
   mockUpdateDashboard.mockResolvedValue({ success: false });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -234,7 +237,8 @@ test("Dashboard Editor Canvas edit and save fail with message", async () => {
     success: false,
     message: "failed to update",
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -271,7 +275,7 @@ test("Dashboard Editor Canvas delete success", async () => {
   mockDeleteDashboard.mockResolvedValue({
     success: true,
   });
-  appAPI.deleteDashboard = mockDeleteDashboard;
+  jest.spyOn(appAPI, "deleteDashboard").mockImplementation(mockDeleteDashboard);
   mockedConfirm.mockResolvedValue(true);
 
   render(
@@ -298,7 +302,7 @@ test("Dashboard Editor Canvas delete fail", async () => {
   mockDeleteDashboard.mockResolvedValue({
     success: false,
   });
-  appAPI.deleteDashboard = mockDeleteDashboard;
+  jest.spyOn(appAPI, "deleteDashboard").mockImplementation(mockDeleteDashboard);
   mockedConfirm.mockResolvedValue(true);
 
   render(
@@ -332,7 +336,7 @@ test("Dashboard Editor Canvas delete not confirm", async () => {
   const navigateMock = jest.fn();
   useNavigate.mockReturnValue(navigateMock);
   const mockDeleteDashboard = jest.fn();
-  appAPI.deleteDashboard = mockDeleteDashboard;
+  jest.spyOn(appAPI, "deleteDashboard").mockImplementation(mockDeleteDashboard);
   mockedConfirm.mockResolvedValue(false);
 
   render(
@@ -368,7 +372,7 @@ test("Dashboard Editor Canvas copy and success", async () => {
       uuid: 123456789,
     },
   });
-  appAPI.copyDashboard = mockCopyDashboard;
+  jest.spyOn(appAPI, "copyDashboard").mockImplementation(mockCopyDashboard);
   mockedConfirm.mockResolvedValue(true);
 
   render(
@@ -398,7 +402,7 @@ test("Dashboard Editor Canvas copy and fail with message", async () => {
     success: false,
     message: "failed to copy for some reason",
   });
-  appAPI.copyDashboard = mockCopyDashboard;
+  jest.spyOn(appAPI, "copyDashboard").mockImplementation(mockCopyDashboard);
 
   render(
     createLoadedComponent({
@@ -428,7 +432,7 @@ test("Dashboard Editor Canvas copy and fail without message", async () => {
   mockCopyDashboard.mockResolvedValue({
     success: false,
   });
-  appAPI.copyDashboard = mockCopyDashboard;
+  jest.spyOn(appAPI, "copyDashboard").mockImplementation(mockCopyDashboard);
   mockedConfirm.mockResolvedValue(true);
 
   render(

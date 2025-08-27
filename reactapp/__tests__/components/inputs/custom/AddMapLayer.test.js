@@ -21,17 +21,18 @@ jest.mock("uuid", () => ({
 
 it("AddMapLayer update existing", async () => {
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
   mockDownloadJSON.mockResolvedValueOnce({
     success: true,
     data: exampleStyle,
   });
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
+
   const mockUploadJSON = jest.fn();
-  appAPI.uploadJSON = mockUploadJSON;
   mockUploadJSON.mockResolvedValueOnce({
     success: true,
     filename: "geojson.json",
   });
+  jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
 
   const layerConfiguration = JSON.parse(
     JSON.stringify(layerConfigImageArcGISRest)

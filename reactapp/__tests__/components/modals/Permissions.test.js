@@ -62,7 +62,8 @@ test("Permissions Modal add user and update", async () => {
     success: true,
     updated_dashboard: updatedDashboard,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -199,7 +200,8 @@ test("Permissions Modal, delete user", async () => {
     success: true,
     updated_dashboard: updatedDashboard,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -295,7 +297,8 @@ test("Permissions Modal fail save, default message", async () => {
   mockUpdateDashboard.mockResolvedValue({
     success: false,
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({
@@ -320,7 +323,8 @@ test("Permissions Modal fail save, custom message", async () => {
     success: false,
     message: "Custom error message",
   });
-  appAPI.updateDashboard = mockUpdateDashboard;
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
 
   render(
     createLoadedComponent({

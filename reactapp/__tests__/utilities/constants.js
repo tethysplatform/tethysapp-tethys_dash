@@ -173,8 +173,59 @@ export const adminDashboard = {
   ],
 };
 
+export const permissionGroups = [
+  {
+    id: 1,
+    name: "solo admin group",
+    description: "",
+    owner: "admin",
+    members: [
+      {
+        username: "admin",
+        permission: "admin",
+      },
+    ],
+    user_permission: "admin",
+  },
+  {
+    id: 2,
+    name: "all admin group",
+    description: "",
+    owner: "admin",
+    members: [
+      {
+        username: "admin",
+        permission: "admin",
+      },
+      {
+        username: "jsmith",
+        permission: "admin",
+      },
+    ],
+    user_permission: "admin",
+  },
+  {
+    id: 3,
+    name: "mixed group",
+    description: "",
+    owner: "admin",
+    members: [
+      {
+        username: "admin",
+        permission: "admin",
+      },
+      {
+        username: "jsmith",
+        permission: "viewer",
+      },
+    ],
+    user_permission: "admin",
+  },
+];
+
 export const mockedDashboards = {
   dashboards: [userDashboard, publicDashboard],
+  permission_groups: permissionGroups,
 };
 
 export const mockedVisualizations = [

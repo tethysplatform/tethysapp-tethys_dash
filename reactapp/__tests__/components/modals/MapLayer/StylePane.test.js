@@ -141,7 +141,7 @@ test("StylePane Json bad URL", async () => {
 
 test("StylePane Updating Existing GeoJSON", async () => {
   const mockDownloadJSON = jest.fn();
-  appAPI.downloadJSON = mockDownloadJSON;
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
   mockDownloadJSON.mockResolvedValue({ data: exampleStyle });
 
   render(<TestingComponent initialStyle={"some_file.json"} />);
