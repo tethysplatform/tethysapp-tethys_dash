@@ -42,7 +42,7 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
     setShowManageModal(true);
   };
 
-  const onEdit = (group) => {
+  const onView = (group) => {
     setSelectedGroup(group);
     setShowManageModal(true);
   };
@@ -138,22 +138,30 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
                           }}
                         >
                           <Button
-                            variant="warning"
+                            variant={
+                              group.user_permission === "admin"
+                                ? "warning"
+                                : "primary"
+                            }
                             size="sm"
-                            onClick={() => onEdit(group)}
+                            onClick={() => onView(group)}
                             aria-label={`Edit group ${group.name}`}
                           >
-                            Edit
+                            {group.user_permission === "admin"
+                              ? "Edit"
+                              : "View"}
                           </Button>
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={() => onDelete(group.id, group.name)}
-                            aria-label={`Delete group ${group.name}`}
-                            style={{ marginLeft: "10px" }}
-                          >
-                            Delete
-                          </Button>
+                          {group.user_permission === "admin" && (
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              onClick={() => onDelete(group.id, group.name)}
+                              aria-label={`Delete group ${group.name}`}
+                              style={{ marginLeft: "10px" }}
+                            >
+                              Delete
+                            </Button>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -304,40 +312,56 @@ const PermissionGroupsManageModal = ({
       <Modal.Body>
         <form>
           <div className="mb-2">
-            <label>Name</label>
-            <input
-              type="text"
-              className="form-control"
-              value={newGroupName}
-              onChange={(e) => {
-                if (e.target.value.length <= 100) {
-                  setNewGroupName(e.target.value);
-                }
-              }}
-              placeholder="Enter group name"
-              maxLength={100}
-            />
-            <div style={{ fontSize: "0.8em", color: "#888" }}>
-              {newGroupName.length}/100
-            </div>
+            {!selectedGroup || selectedGroup?.user_permission === "admin" ? (
+              <>
+                <label>Name</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={newGroupName}
+                  onChange={(e) => {
+                    if (e.target.value.length <= 100) {
+                      setNewGroupName(e.target.value);
+                    }
+                  }}
+                  placeholder="Enter group name"
+                  maxLength={100}
+                />
+                <div style={{ fontSize: "0.8em", color: "#888" }}>
+                  {newGroupName.length}/100
+                </div>
+              </>
+            ) : (
+              <h5>
+                <b>Name:</b> {selectedGroup.name}
+              </h5>
+            )}
           </div>
           <div className="mb-2">
-            <label>Description</label>
-            <input
-              type="text"
-              className="form-control"
-              value={newGroupDesc}
-              onChange={(e) => {
-                if (e.target.value.length <= 200) {
-                  setNewGroupDesc(e.target.value);
-                }
-              }}
-              placeholder="Enter group description"
-              maxLength={200}
-            />
-            <div style={{ fontSize: "0.8em", color: "#888" }}>
-              {newGroupDesc.length}/200
-            </div>
+            {!selectedGroup || selectedGroup?.user_permission === "admin" ? (
+              <>
+                <label>Description</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={newGroupDesc}
+                  onChange={(e) => {
+                    if (e.target.value.length <= 200) {
+                      setNewGroupDesc(e.target.value);
+                    }
+                  }}
+                  placeholder="Enter group description"
+                  maxLength={200}
+                />
+                <div style={{ fontSize: "0.8em", color: "#888" }}>
+                  {newGroupDesc.length}/200
+                </div>
+              </>
+            ) : (
+              <h5>
+                <b>Description:</b> {selectedGroup.description}
+              </h5>
+            )}
           </div>
           {errorMessage && (
             <Alert
@@ -349,28 +373,32 @@ const PermissionGroupsManageModal = ({
               {errorMessage}
             </Alert>
           )}
-          <div className="mb-2">
-            <label>Add Users</label>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <input
-                type="text"
-                className="form-control"
-                value={usernameInput}
-                onChange={(e) => setUsernameInput(e.target.value)}
-                placeholder="Add people"
-                style={{ flexGrow: 1 }}
-                aria-label="Username Input"
-              />
-              <Button
-                variant="primary"
-                onClick={handleAddUser}
-                style={{ whiteSpace: "nowrap" }}
-                aria-label="Add User Button"
+          {(!selectedGroup || selectedGroup?.user_permission === "admin") && (
+            <div className="mb-2">
+              <label>Add Users</label>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
               >
-                Add User
-              </Button>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={usernameInput}
+                  onChange={(e) => setUsernameInput(e.target.value)}
+                  placeholder="Add people"
+                  style={{ flexGrow: 1 }}
+                  aria-label="Username Input"
+                />
+                <Button
+                  variant="primary"
+                  onClick={handleAddUser}
+                  style={{ whiteSpace: "nowrap" }}
+                  aria-label="Add User Button"
+                >
+                  Add User
+                </Button>
+              </div>
             </div>
-          </div>
+          )}
           <TableContainer>
             <Table bordered hover>
               <thead>
@@ -436,26 +464,29 @@ const PermissionGroupsManageModal = ({
           </TableContainer>
         </form>
       </Modal.Body>
-      <Modal.Footer>
-        {selectedGroup ? (
-          <>
-            <Button variant="danger" onClick={handleDeleteGroup}>
-              Delete Group
+
+      {(!selectedGroup || selectedGroup?.user_permission === "admin") && (
+        <Modal.Footer>
+          {selectedGroup ? (
+            <>
+              <Button variant="danger" onClick={handleDeleteGroup}>
+                Delete Group
+              </Button>
+              <Button
+                variant="success"
+                className="me-2"
+                onClick={handleSaveGroup}
+              >
+                Save Changes
+              </Button>
+            </>
+          ) : (
+            <Button variant="primary" onClick={handleSaveGroup}>
+              Create Group
             </Button>
-            <Button
-              variant="success"
-              className="me-2"
-              onClick={handleSaveGroup}
-            >
-              Save Changes
-            </Button>
-          </>
-        ) : (
-          <Button variant="primary" onClick={handleSaveGroup}>
-            Create Group
-          </Button>
-        )}
-      </Modal.Footer>
+          )}
+        </Modal.Footer>
+      )}
     </Modal>
   );
 };

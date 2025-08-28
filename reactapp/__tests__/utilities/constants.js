@@ -219,7 +219,7 @@ export const permissionGroups = [
         permission: "viewer",
       },
     ],
-    user_permission: "admin",
+    user_permission: "viewer",
   },
 ];
 
