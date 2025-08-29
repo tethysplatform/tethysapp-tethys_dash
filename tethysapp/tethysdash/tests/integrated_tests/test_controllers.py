@@ -1,7 +1,7 @@
 import pytest
 import json
 from django.urls import reverse
-from tethysapp.tethysdash.model import Dashboard
+from tethysapp.tethysdash.model import Dashboard, PermissionGroup
 from unittest.mock import MagicMock
 import os
 import shutil
@@ -1219,3 +1219,135 @@ def test_ping_with_session_security_and_name_error(mocker, client, mock_app):
     assert response.json()["status"] == -1
     assert response.json()["EXPIRE_AFTER"] == 0
     assert response.json()["WARN_AFTER"] == 0
+
+
+@pytest.mark.django_db
+def test_update_permission_group(
+    client,
+    admin_user,
+    mock_app,
+    mock_app_get_ps_db,
+    permission_group,
+    permission_group_table,
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+
+    url = reverse("tethysdash:update_permission_group")
+    client.force_login(admin_user)
+
+    new_members = [
+        {
+            "username": "admin",
+            "permission": "admin",
+        },
+        {
+            "username": "jsmith",
+            "permission": "member",
+        },
+    ]
+    permission_group["members"] = new_members
+    permission_group["id"] = permission_group_table.id
+
+    response = client.generic("POST", url, json.dumps(permission_group))
+
+    assert response.status_code == 200
+    assert response.json()["updated_permission_group"]["members"] == new_members
+
+
+@pytest.mark.django_db
+def test_create_permission_group(
+    client,
+    admin_user,
+    mock_app,
+    mock_app_get_ps_db,
+    permission_group,
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+
+    url = reverse("tethysdash:update_permission_group")
+    client.force_login(admin_user)
+
+    response = client.generic("POST", url, json.dumps(permission_group))
+
+    assert response.status_code == 200
+
+    response_json = response.json()
+    permission_group["id"] = response_json["updated_permission_group"]["id"]
+    assert response_json == {
+        "updated_permission_group": permission_group,
+        "success": True,
+    }
+
+
+@pytest.mark.django_db
+def test_create_permission_group_error(
+    client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_update_permission_groups = mocker.patch(
+        "tethysapp.tethysdash.controllers.update_permission_groups"
+    )
+    mock_update_permission_groups.return_value = {
+        "status": "error",
+        "message": "failed to create",
+    }
+
+    url = reverse("tethysdash:update_permission_group")
+    client.force_login(admin_user)
+
+    response = client.generic("POST", url, json.dumps(permission_group))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "failed to create",
+        "success": False,
+    }
+
+
+@pytest.mark.django_db
+def test_create_permission_group_exception(
+    client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_update_permission_groups = mocker.patch(
+        "tethysapp.tethysdash.controllers.update_permission_groups"
+    )
+    mock_update_permission_groups.side_effect = Exception("failed to create")
+
+    url = reverse("tethysdash:update_permission_group")
+    client.force_login(admin_user)
+
+    response = client.generic("POST", url, json.dumps(permission_group))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "failed to create",
+        "success": False,
+    }
+
+
+@pytest.mark.django_db
+def test_create_permission_group_exception_with_message(
+    client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_update_permission_groups = mocker.patch(
+        "tethysapp.tethysdash.controllers.update_permission_groups"
+    )
+    mock_update_permission_groups.side_effect = Exception()
+
+    url = reverse("tethysdash:update_permission_group")
+    client.force_login(admin_user)
+
+    response = client.generic("POST", url, json.dumps(permission_group))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": f"Failed to update the permission group {permission_group['name']}. Check server for logs.",
+        "success": False,
+    }

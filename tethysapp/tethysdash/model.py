@@ -48,7 +48,12 @@ class Dashboard(Base):
     permissions = relationship(
         "DashboardPermission", cascade="delete", back_populates="dashboard"
     )
-    grid_items = relationship("GridItem", cascade="delete", order_by="GridItem.order")
+    grid_items = relationship(
+        "GridItem",
+        back_populates="dashboard",
+        cascade="all, delete-orphan",
+        order_by="GridItem.order",
+    )
     last_updated = Column(DateTime, default=datetime.now(timezone.utc))
 
 
@@ -62,6 +67,7 @@ class GridItem(Base):
     # Columns
     id = Column(Integer, primary_key=True)
     dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
+    dashboard = relationship("Dashboard", back_populates="grid_items")
     i = Column(String, nullable=False)
     x = Column(Integer, nullable=False)
     y = Column(Integer, nullable=False)
@@ -108,7 +114,9 @@ class PermissionGroup(Base):
     description = Column(String)
     owner = Column(String, nullable=False)
 
-    members = relationship("PermissionGroupUser", back_populates="group")
+    members = relationship(
+        "PermissionGroupUser", back_populates="group", cascade="all, delete-orphan"
+    )
 
 
 class PermissionGroupUser(Base):

@@ -10,6 +10,8 @@ from tethysapp.tethysdash.model import (
     Dashboard,
     DashboardPermission,
     DashboardPermissionLevel,
+    PermissionGroup,
+    PermissionGroupUser,
 )
 
 
@@ -71,6 +73,50 @@ def mock_app_get_ps_db(session_maker, mocker):
         return mock_app
 
     return mock_app_factory
+
+
+@pytest.fixture(scope="function")
+def permission_group():
+    return {
+        "name": "solo admin group",
+        "description": "",
+        "owner": "admin",
+        "members": [
+            {
+                "username": "admin",
+                "permission": "admin",
+            },
+        ],
+        "user_permission": "admin",
+    }
+
+
+@pytest.fixture(scope="function")
+def permission_group_table(db_session, permission_group):
+    group = PermissionGroup(
+        name=permission_group["name"],
+        description=permission_group["description"],
+        owner=permission_group["owner"],
+    )
+    db_session.add(group)
+    db_session.flush()  # get group.id
+
+    # Add members
+    for member in permission_group["members"]:
+        db_session.add(
+            PermissionGroupUser(
+                user=member["username"],
+                group_id=group.id,
+                permission=member["permission"],
+            )
+        )
+    db_session.commit()
+
+    yield group
+
+    db_session.delete(group)
+
+    db_session.commit()
 
 
 @pytest.fixture(scope="function")

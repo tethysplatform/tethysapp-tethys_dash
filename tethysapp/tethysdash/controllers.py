@@ -355,7 +355,7 @@ def update_permission_group(request):
         try:
             message = e.args[0]
         except Exception:
-            message = f"Failed to update the dashboard {id}. Check server for logs."
+            message = f"Failed to update the permission group {permission_group_updates['name']}. Check server for logs."
 
         return JsonResponse({"success": False, "message": message})
 
