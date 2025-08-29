@@ -10,6 +10,7 @@ from django.test import override_settings
 from datetime import datetime, timedelta
 import types
 from tethysapp.tethysdash.exceptions import VisualizationError
+import uuid
 
 
 @pytest.mark.django_db
@@ -137,18 +138,21 @@ def test_dashboards(
 
     assert response.status_code == 200
     assert response.json() == {
-        "user": [
+        "dashboards": [
             {
-                "accessGroups": dashboard.access_groups,
                 "description": dashboard.description,
                 "id": dashboard.id,
                 "name": dashboard.name,
                 "uuid": dashboard.uuid,
                 "image": "/static/tethysdash/images/dashboard_thumbnail.png",
-                "unrestrictedPlacement": False,
+                "unrestrictedPlacement": dashboard.unrestricted_placement,
+                "owner": dashboard.owner,
+                "permissions": [{"permission": "admin", "username": dashboard.owner}],
+                "publicDashboard": dashboard.public,
+                "userPermission": "admin",
             }
         ],
-        "public": [],
+        "permission_groups": [],
     }
 
 
@@ -172,7 +176,6 @@ def test_get_dashboard(
     assert response.status_code == 200
     assert response.json() == {
         "dashboard": {
-            "accessGroups": dashboard.access_groups,
             "description": dashboard.description,
             "id": dashboard.id,
             "name": dashboard.name,
@@ -180,7 +183,11 @@ def test_get_dashboard(
             "uuid": dashboard.uuid,
             "notes": "some notes",
             "image": "/static/tethysdash/images/dashboard_thumbnail.png",
-            "unrestrictedPlacement": False,
+            "unrestrictedPlacement": dashboard.unrestricted_placement,
+            "owner": dashboard.owner,
+            "permissions": [{"permission": "admin", "username": dashboard.owner}],
+            "publicDashboard": dashboard.public,
+            "userPermission": "admin",
         },
         "success": True,
     }
@@ -274,13 +281,16 @@ def test_add_dashboard(
     assert response.json()["success"]
     new_dashboard = response.json()["new_dashboard"]
     expected_result = {
-        "accessGroups": [],
         "description": "description",
         "id": new_dashboard["id"],
         "name": "some_new_dashboard_name",
         "image": "/media/app_root/app/123e4567-e89b-12d3-a456-426614174000.png",
         "uuid": "123e4567-e89b-12d3-a456-426614174000",
         "unrestrictedPlacement": False,
+        "owner": "admin",
+        "permissions": [{"permission": "admin", "username": "admin"}],
+        "publicDashboard": False,
+        "userPermission": "admin",
     }
     assert response.json()["new_dashboard"] == expected_result
 
@@ -317,7 +327,7 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker, tmp_path):
         itemData["name"],
         itemData["description"],
         "",
-        [],
+        False,
         False,
         [],
     )
@@ -355,7 +365,7 @@ def test_add_dashboard_failed_unknown_exception(
         itemData["name"],
         itemData["description"],
         "",
-        [],
+        False,
         False,
         [],
     )
@@ -520,7 +530,6 @@ def test_update_dashboard(
 
     response = client.generic("POST", url, json.dumps(itemData))
     expected_dashboard = {
-        "accessGroups": dashboard.access_groups,
         "description": dashboard.description,
         "gridItems": dashboard.grid_items,
         "id": dashboard.id,
@@ -528,7 +537,11 @@ def test_update_dashboard(
         "notes": dashboard.notes,
         "image": "/static/tethysdash/images/dashboard_thumbnail.png",
         "uuid": "some_user_dashboard_uuid",
-        "unrestrictedPlacement": False,
+        "unrestrictedPlacement": dashboard.unrestricted_placement,
+        "owner": dashboard.owner,
+        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "publicDashboard": dashboard.public,
+        "userPermission": "admin",
     }
 
     assert response.status_code == 200
@@ -644,8 +657,9 @@ def test_copy_dashboard(
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
     mock_get_app_media2 = mocker.patch("tethys_apps.base.paths.get_app_media")
     mock_get_app_media2.return_value = MagicMock(path=app_media_path)
+    dashboard_uuid = str(uuid.uuid4())
     mock_uuid = mocker.patch("tethysapp.tethysdash.controllers.uuid")
-    mock_uuid.uuid4.return_value = "123e4567-e89b-12d3-a456-426614174000"
+    mock_uuid.uuid4.return_value = dashboard_uuid
 
     itemData = {
         "id": dashboard.id,
@@ -661,13 +675,16 @@ def test_copy_dashboard(
     assert response.json()["success"]
     new_dashboard = response.json()["new_dashboard"]
     expected_result = {
-        "accessGroups": [],
-        "description": "test_dashboard",
+        "description": dashboard.description,
         "id": new_dashboard["id"],
         "name": "some_new_dashboard_name",
         "image": "/static/tethysdash/images/dashboard_thumbnail.png",
-        "uuid": "123e4567-e89b-12d3-a456-426614174000",
-        "unrestrictedPlacement": False,
+        "uuid": dashboard_uuid,
+        "unrestrictedPlacement": dashboard.unrestricted_placement,
+        "owner": dashboard.owner,
+        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "publicDashboard": dashboard.public,
+        "userPermission": "admin",
     }
     assert response.json()["new_dashboard"] == expected_result
 
@@ -720,13 +737,16 @@ def test_copy_dashboard_with_thumbnail(
     assert response.json()["success"]
     new_dashboard = response.json()["new_dashboard"]
     expected_result = {
-        "accessGroups": [],
-        "description": "test_dashboard",
+        "description": dashboard.description,
         "id": new_dashboard["id"],
         "name": "some_new_dashboard_name",
         "image": "/media/app_root/app/123e4567-e89b-12d3-a456-426614174001.png",
         "uuid": "123e4567-e89b-12d3-a456-426614174001",
-        "unrestrictedPlacement": False,
+        "unrestrictedPlacement": dashboard.unrestricted_placement,
+        "owner": dashboard.owner,
+        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "publicDashboard": dashboard.public,
+        "userPermission": "admin",
     }
     assert response.json()["new_dashboard"] == expected_result
 
