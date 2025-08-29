@@ -15,6 +15,7 @@ const TableContainer = styled.div`
   max-height: 40vh;
   overflow-y: auto;
   margin-bottom: 1rem;
+  width: 100%;
 `;
 
 // Summary Modal: shows all groups and a button to open manage modal
@@ -45,10 +46,6 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
   const onView = (group) => {
     setSelectedGroup(group);
     setShowManageModal(true);
-  };
-
-  const onHide = () => {
-    setShowManageModal(false);
   };
 
   return (
@@ -145,7 +142,11 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
                             }
                             size="sm"
                             onClick={() => onView(group)}
-                            aria-label={`Edit group ${group.name}`}
+                            aria-label={`${
+                              group.user_permission === "admin"
+                                ? "Edit"
+                                : "View"
+                            } group ${group.name}`}
                           >
                             {group.user_permission === "admin"
                               ? "Edit"
@@ -176,7 +177,11 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
               </Table>
             </TableContainer>
             <div className="d-flex justify-content-end">
-              <Button variant="primary" onClick={onCreate}>
+              <Button
+                aria-label="Create new permission group"
+                variant="primary"
+                onClick={onCreate}
+              >
                 Create New Group
               </Button>
             </div>
@@ -185,8 +190,8 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
       </Modal>
       {showManageModal && (
         <PermissionGroupsManageModal
-          show={showManageModal}
-          onHide={onHide}
+          showModal={showManageModal}
+          setShowModal={setShowManageModal}
           selectedGroup={selectedGroup}
           setSuccessMessage={setSuccessMessage}
         />
@@ -197,8 +202,8 @@ const PermissionGroupsSummaryModal = ({ showModal, setShowModal }) => {
 
 // Manage Modal: create/edit/delete groups and members
 const PermissionGroupsManageModal = ({
-  show,
-  onHide,
+  showModal,
+  setShowModal,
   selectedGroup,
   setSuccessMessage,
 }) => {
@@ -225,16 +230,6 @@ const PermissionGroupsManageModal = ({
 
   // Handle saving changes to an existing group
   const handleSaveGroup = async () => {
-    if (newGroupName.length > 100) {
-      setErrorMessage("Group name cannot exceed 100 characters.");
-      return;
-    }
-    if (newGroupDesc.length > 200) {
-      setErrorMessage("Description cannot exceed 200 characters.");
-      return;
-    }
-    setErrorMessage("");
-
     const response = await updatePermissionGroup({
       id: selectedGroup?.id ?? null,
       name: newGroupName,
@@ -260,7 +255,7 @@ const PermissionGroupsManageModal = ({
           `Permission group "${newGroupName}" created successfully.`
         );
       }
-      onHide();
+      setShowModal(false);
     } else {
       setErrorMessage(response.message);
     }
@@ -273,7 +268,7 @@ const PermissionGroupsManageModal = ({
       setSuccessMessage(
         `Permission group "${selectedGroup.name}" deleted successfully.`
       );
-      onHide();
+      setShowModal(false);
     } else {
       setErrorMessage(deleteResponse.message);
     }
@@ -305,7 +300,12 @@ const PermissionGroupsManageModal = ({
   };
 
   return (
-    <Modal show={show} onHide={onHide} size="lg" centered>
+    <Modal
+      show={showModal}
+      onHide={() => setShowModal(false)}
+      size="lg"
+      centered
+    >
       <Modal.Header closeButton>
         <Modal.Title>Manage Permission Groups</Modal.Title>
       </Modal.Header>
@@ -320,12 +320,11 @@ const PermissionGroupsManageModal = ({
                   className="form-control"
                   value={newGroupName}
                   onChange={(e) => {
-                    if (e.target.value.length <= 100) {
-                      setNewGroupName(e.target.value);
-                    }
+                    setNewGroupName(e.target.value);
                   }}
                   placeholder="Enter group name"
                   maxLength={100}
+                  aria-label="Name Input"
                 />
                 <div style={{ fontSize: "0.8em", color: "#888" }}>
                   {newGroupName.length}/100
@@ -346,12 +345,11 @@ const PermissionGroupsManageModal = ({
                   className="form-control"
                   value={newGroupDesc}
                   onChange={(e) => {
-                    if (e.target.value.length <= 200) {
-                      setNewGroupDesc(e.target.value);
-                    }
+                    setNewGroupDesc(e.target.value);
                   }}
                   placeholder="Enter group description"
                   maxLength={200}
+                  aria-label="Description Input"
                 />
                 <div style={{ fontSize: "0.8em", color: "#888" }}>
                   {newGroupDesc.length}/200
@@ -400,20 +398,32 @@ const PermissionGroupsManageModal = ({
             </div>
           )}
           <TableContainer>
-            <Table bordered hover>
+            <Table
+              bordered
+              hover
+              style={{ tableLayout: "fixed", maxWidth: "100%" }}
+            >
               <thead>
                 <tr>
-                  <th>Username</th>
+                  <th style={{ maxWidth: "50%", width: "50%" }}>Username</th>
                   <th>Permission Level</th>
                 </tr>
               </thead>
               <tbody>
                 {groupUsers.map((groupUser, idx) => (
                   <tr key={groupUser.username}>
-                    <td>
-                      {groupUser.username === user.username
-                        ? `${groupUser.username} (you)`
-                        : groupUser.username}
+                    <td style={{ maxWidth: "50%", width: "50%" }}>
+                      <div
+                        style={{
+                          maxWidth: "100%",
+                          overflowX: "auto",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {groupUser.username === user.username
+                          ? `${groupUser.username} (you)`
+                          : groupUser.username}
+                      </div>
                     </td>
                     <td
                       style={{
@@ -469,10 +479,15 @@ const PermissionGroupsManageModal = ({
         <Modal.Footer>
           {selectedGroup ? (
             <>
-              <Button variant="danger" onClick={handleDeleteGroup}>
+              <Button
+                aria-label="Delete Group"
+                variant="danger"
+                onClick={handleDeleteGroup}
+              >
                 Delete Group
               </Button>
               <Button
+                aria-label="Save Changes"
                 variant="success"
                 className="me-2"
                 onClick={handleSaveGroup}
@@ -481,7 +496,11 @@ const PermissionGroupsManageModal = ({
               </Button>
             </>
           ) : (
-            <Button variant="primary" onClick={handleSaveGroup}>
+            <Button
+              aria-label="Create Group"
+              variant="primary"
+              onClick={handleSaveGroup}
+            >
               Create Group
             </Button>
           )}
@@ -497,10 +516,10 @@ PermissionGroupsSummaryModal.propTypes = {
 };
 
 PermissionGroupsManageModal.propTypes = {
-  show: PropTypes.bool.isRequired,
-  onHide: PropTypes.func.isRequired,
+  showModal: PropTypes.bool.isRequired,
+  setShowModal: PropTypes.func.isRequired,
   selectedGroup: PropTypes.shape({
-    id: PropTypes.string.isRequired,
+    id: PropTypes.number.isRequired,
     name: PropTypes.string.isRequired,
     description: PropTypes.string.isRequired,
     members: PropTypes.arrayOf(
@@ -510,6 +529,7 @@ PermissionGroupsManageModal.propTypes = {
       })
     ).isRequired,
     owner: PropTypes.string.isRequired,
+    user_permission: PropTypes.string.isRequired,
   }),
   setSuccessMessage: PropTypes.func.isRequired,
 };

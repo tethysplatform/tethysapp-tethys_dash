@@ -178,11 +178,11 @@ export const permissionGroups = [
     id: 1,
     name: "solo admin group",
     description: "",
-    owner: "admin",
+    owner: "jsmith",
     members: [
       {
-        username: "admin",
-        permission: "admin",
+        username: "jsmith",
+        permission: "jsmith",
       },
     ],
     user_permission: "admin",
@@ -191,7 +191,7 @@ export const permissionGroups = [
     id: 2,
     name: "all admin group",
     description: "",
-    owner: "admin",
+    owner: "jsmith",
     members: [
       {
         username: "admin",
@@ -207,7 +207,7 @@ export const permissionGroups = [
   {
     id: 3,
     name: "mixed group",
-    description: "",
+    description: "some description",
     owner: "admin",
     members: [
       {
