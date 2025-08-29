@@ -385,7 +385,7 @@ def delete_permission_group(request):
         try:
             message = e.args[0]
         except Exception:
-            message = f"Failed to update the dashboard {id}. Check server for logs."
+            message = f"Failed to delete the permission group {permission_group_id}. Check server for logs."
 
         return JsonResponse({"success": False, "message": message})
 

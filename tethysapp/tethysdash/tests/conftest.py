@@ -1,5 +1,6 @@
 import pytest
 import json
+import uuid
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from tethysapp.tethysdash.tests.integrated_tests import TEST_DB_URL
@@ -77,8 +78,9 @@ def mock_app_get_ps_db(session_maker, mocker):
 
 @pytest.fixture(scope="function")
 def permission_group():
+    unique_name = f"solo admin group {uuid.uuid4()}"
     return {
-        "name": "solo admin group",
+        "name": unique_name,
         "description": "",
         "owner": "admin",
         "members": [
@@ -114,9 +116,11 @@ def permission_group_table(db_session, permission_group):
 
     yield group
 
-    db_session.delete(group)
-
-    db_session.commit()
+    # Clean up: delete group if it still exists
+    refreshed_group = db_session.get(PermissionGroup, group.id)
+    if refreshed_group:
+        db_session.delete(refreshed_group)
+        db_session.commit()
 
 
 @pytest.fixture(scope="function")

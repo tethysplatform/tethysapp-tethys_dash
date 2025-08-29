@@ -1331,7 +1331,7 @@ def test_create_permission_group_exception(
 
 
 @pytest.mark.django_db
-def test_create_permission_group_exception_with_message(
+def test_create_permission_group_exception_without_message(
     client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
@@ -1351,3 +1351,96 @@ def test_create_permission_group_exception_with_message(
         "message": f"Failed to update the permission group {permission_group['name']}. Check server for logs.",
         "success": False,
     }
+
+
+@pytest.mark.django_db
+def test_delete_permission_group(
+    client,
+    admin_user,
+    mock_app,
+    mock_app_get_ps_db,
+    permission_group_table,
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+
+    url = reverse("tethysdash:delete_permission_group")
+    client.force_login(admin_user)
+
+    response = client.generic("POST", url, json.dumps({"id": permission_group_table.id}))
+
+    assert response.status_code == 200
+    assert response.json()["success"]
+
+
+@pytest.mark.django_db
+def test_delete_permission_group_error(
+    client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker, permission_group_table
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_delete_permission_groups = mocker.patch(
+        "tethysapp.tethysdash.controllers.delete_permission_groups"
+    )
+    mock_delete_permission_groups.return_value = {
+        "status": "error",
+        "message": "failed to create",
+    }
+
+    url = reverse("tethysdash:delete_permission_group")
+    client.force_login(admin_user)
+
+    response = client.generic("POST", url, json.dumps({"id": permission_group_table.id}))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "failed to create",
+        "success": False,
+    }
+
+
+@pytest.mark.django_db
+def test_delete_permission_group_exception(
+    client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker, permission_group_table
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_delete_permission_groups = mocker.patch(
+        "tethysapp.tethysdash.controllers.delete_permission_groups"
+    )
+    mock_delete_permission_groups.side_effect = Exception("failed to create")
+
+    url = reverse("tethysdash:delete_permission_group")
+    client.force_login(admin_user)
+
+    response = client.generic("POST", url, json.dumps({"id": permission_group_table.id}))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "failed to create",
+        "success": False,
+    }
+
+
+@pytest.mark.django_db
+def test_delete_permission_group_exception_without_message(
+    client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker, permission_group_table
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_delete_permission_groups = mocker.patch(
+        "tethysapp.tethysdash.controllers.delete_permission_groups"
+    )
+    mock_delete_permission_groups.side_effect = Exception()
+
+    url = reverse("tethysdash:delete_permission_group")
+    client.force_login(admin_user)
+
+    response = client.generic("POST", url, json.dumps({"id": permission_group_table.id}))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": f"Failed to delete the permission group {permission_group_table.id}. Check server for logs.",
+        "success": False,
+    }
+
