@@ -236,10 +236,7 @@ test("Permission Groups, no groups", async () => {
         />
       ),
       options: {
-        dashboards: {
-          dashboards: [userDashboard],
-          permission_groups: [],
-        },
+        permissionGroups: [],
       },
     })
   );

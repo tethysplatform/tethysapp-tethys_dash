@@ -49,6 +49,12 @@ const createLoadedComponent = ({ children, options = {} }) => {
   const initialDashboard = JSON.parse(
     JSON.stringify(options.initialDashboard ?? dashboards.dashboards[0])
   );
+  const permissionGroups = JSON.parse(
+    JSON.stringify(
+      options.permissionGroups ?? mockedDashboards.permission_groups
+    )
+  );
+  dashboards.permission_groups = permissionGroups;
 
   if (options.user) {
     if (options.user.username === null) {
@@ -75,7 +81,11 @@ const createLoadedComponent = ({ children, options = {} }) => {
     }
   }
 
-  if (options.dashboards || options.initialDashboard) {
+  if (
+    options.dashboards ||
+    options.initialDashboard ||
+    options.permissionGroups
+  ) {
     server.use(
       rest.get(
         "http://api.test/apps/tethysdash/dashboards/",

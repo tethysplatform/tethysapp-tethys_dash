@@ -236,7 +236,7 @@ const PermissionGroupsManageModal = ({
       description: newGroupDesc,
       members: groupUsers,
     });
-    // TODO: update permissionGroups context so that when a group is created or updated, it reflects in the context
+
     if (response.success) {
       // Reset modal state for new group creation
       if (!selectedGroup) {

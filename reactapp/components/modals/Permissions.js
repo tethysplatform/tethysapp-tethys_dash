@@ -186,10 +186,16 @@ function PermissionsModal({ showModal, setShowModal }) {
               className="form-control"
             />
             <DropdownButton aria-label="Add Button" title="Add">
-              <Dropdown.Item onClick={() => handleAdd("user")}>
+              <Dropdown.Item
+                aria-label="Add User"
+                onClick={() => handleAdd("user")}
+              >
                 User
               </Dropdown.Item>
-              <Dropdown.Item onClick={() => handleAdd("group")}>
+              <Dropdown.Item
+                aria-label="Add Group"
+                onClick={() => handleAdd("group")}
+              >
                 Group
               </Dropdown.Item>
             </DropdownButton>
@@ -260,7 +266,7 @@ function PermissionsModal({ showModal, setShowModal }) {
                           onChange={(e) =>
                             handlePermissionChange(idx, e.target.value)
                           }
-                          aria-label={`Permission level for ${perm.username}`}
+                          aria-label={`Permission level for ${perm.username ? perm.username + " user" : perm.group + " group"}`}
                         >
                           {PERMISSION_LEVELS.map((level) => (
                             <option key={level} value={level}>
@@ -276,7 +282,7 @@ function PermissionsModal({ showModal, setShowModal }) {
                               dashboardPermissions.filter((_, i) => i !== idx)
                             );
                           }}
-                          aria-label={`Delete permission for ${perm.username}`}
+                          aria-label={`Delete permission for ${perm.username ? perm.username + " user" : perm.group + " group"}`}
                         >
                           Delete
                         </Button>
