@@ -117,7 +117,14 @@ def test_visualizations(
 
 @pytest.mark.django_db
 def test_dashboards(
-    client, admin_user, mock_app, mock_app_get_ps_db, dashboard, mocker, tmp_path
+    client,
+    admin_user,
+    mock_app,
+    mock_app_get_ps_db,
+    dashboard,
+    mocker,
+    tmp_path,
+    permission_group,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
@@ -137,28 +144,39 @@ def test_dashboards(
     response = client.get(url)
 
     assert response.status_code == 200
-    assert response.json() == {
-        "dashboards": [
-            {
-                "description": dashboard.description,
-                "id": dashboard.id,
-                "name": dashboard.name,
-                "uuid": dashboard.uuid,
+    response_json = response.json()
+    assert response_json["dashboards"] == [
+        {
+            "description": dashboard.description,
+            "id": dashboard.id,
+            "name": dashboard.name,
+            "uuid": dashboard.uuid,
                 "image": "/static/tethysdash/images/dashboard_thumbnail.png",
                 "unrestrictedPlacement": dashboard.unrestricted_placement,
                 "owner": dashboard.owner,
-                "permissions": [{"permission": "admin", "username": dashboard.owner}],
+                "permissions": [
+                    {"permission": "admin", "username": dashboard.owner},
+                    {"permission": "editor", "username": "editor"},
+                    {"permission": "viewer", "group": permission_group["name"]},
+                ],
                 "publicDashboard": dashboard.public,
                 "userPermission": "admin",
             }
-        ],
-        "permission_groups": [],
-    }
+        ]
+    assert response_json["permission_groups"][0]['name'] == permission_group["name"]
+    assert response_json["permission_groups"][0]['members'] == permission_group["members"]
+
 
 
 @pytest.mark.django_db
 def test_get_dashboard(
-    client, admin_user, mock_app_get_ps_db, dashboard, mocker, tmp_path
+    client,
+    admin_user,
+    mock_app_get_ps_db,
+    dashboard,
+    mocker,
+    tmp_path,
+    permission_group,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     app_media_path = tmp_path
@@ -185,7 +203,11 @@ def test_get_dashboard(
             "image": "/static/tethysdash/images/dashboard_thumbnail.png",
             "unrestrictedPlacement": dashboard.unrestricted_placement,
             "owner": dashboard.owner,
-            "permissions": [{"permission": "admin", "username": dashboard.owner}],
+            "permissions": [
+                {"permission": "admin", "username": dashboard.owner},
+                {"permission": "editor", "username": "editor"},
+                {"permission": "viewer", "group": permission_group["name"]},
+            ],
             "publicDashboard": dashboard.public,
             "userPermission": "admin",
         },
@@ -513,7 +535,14 @@ def test_delete_dashboard_failed_unknown_exception(
 
 @pytest.mark.django_db
 def test_update_dashboard(
-    client, admin_user, mock_app, mock_app_get_ps_db, dashboard, mocker, tmp_path
+    client,
+    admin_user,
+    mock_app,
+    mock_app_get_ps_db,
+    dashboard,
+    mocker,
+    tmp_path,
+    permission_group,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
@@ -539,7 +568,11 @@ def test_update_dashboard(
         "uuid": "some_user_dashboard_uuid",
         "unrestrictedPlacement": dashboard.unrestricted_placement,
         "owner": dashboard.owner,
-        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "permissions": [
+            {"permission": "admin", "username": dashboard.owner},
+            {"permission": "editor", "username": "editor"},
+            {"permission": "viewer", "group": permission_group["name"]},
+        ],
         "publicDashboard": dashboard.public,
         "userPermission": "admin",
     }
@@ -1367,7 +1400,9 @@ def test_delete_permission_group(
     url = reverse("tethysdash:delete_permission_group")
     client.force_login(admin_user)
 
-    response = client.generic("POST", url, json.dumps({"id": permission_group_table.id}))
+    response = client.generic(
+        "POST", url, json.dumps({"id": permission_group_table.id})
+    )
 
     assert response.status_code == 200
     assert response.json()["success"]
@@ -1375,7 +1410,12 @@ def test_delete_permission_group(
 
 @pytest.mark.django_db
 def test_delete_permission_group_error(
-    client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker, permission_group_table
+    client,
+    admin_user,
+    mock_app,
+    mock_app_get_ps_db,
+    mocker,
+    permission_group_table,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
@@ -1390,7 +1430,9 @@ def test_delete_permission_group_error(
     url = reverse("tethysdash:delete_permission_group")
     client.force_login(admin_user)
 
-    response = client.generic("POST", url, json.dumps({"id": permission_group_table.id}))
+    response = client.generic(
+        "POST", url, json.dumps({"id": permission_group_table.id})
+    )
 
     assert response.status_code == 200
     assert response.json() == {
@@ -1401,7 +1443,12 @@ def test_delete_permission_group_error(
 
 @pytest.mark.django_db
 def test_delete_permission_group_exception(
-    client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker, permission_group_table
+    client,
+    admin_user,
+    mock_app,
+    mock_app_get_ps_db,
+    mocker,
+    permission_group_table,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
@@ -1413,7 +1460,9 @@ def test_delete_permission_group_exception(
     url = reverse("tethysdash:delete_permission_group")
     client.force_login(admin_user)
 
-    response = client.generic("POST", url, json.dumps({"id": permission_group_table.id}))
+    response = client.generic(
+        "POST", url, json.dumps({"id": permission_group_table.id})
+    )
 
     assert response.status_code == 200
     assert response.json() == {
@@ -1424,7 +1473,12 @@ def test_delete_permission_group_exception(
 
 @pytest.mark.django_db
 def test_delete_permission_group_exception_without_message(
-    client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker, permission_group_table
+    client,
+    admin_user,
+    mock_app,
+    mock_app_get_ps_db,
+    mocker,
+    permission_group_table,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
@@ -1436,11 +1490,12 @@ def test_delete_permission_group_exception_without_message(
     url = reverse("tethysdash:delete_permission_group")
     client.force_login(admin_user)
 
-    response = client.generic("POST", url, json.dumps({"id": permission_group_table.id}))
+    response = client.generic(
+        "POST", url, json.dumps({"id": permission_group_table.id})
+    )
 
     assert response.status_code == 200
     assert response.json() == {
         "message": f"Failed to delete the permission group {permission_group_table.id}. Check server for logs.",
         "success": False,
     }
-

@@ -10,9 +10,11 @@ from tethysapp.tethysdash.model import (
     delete_grid_item,
     Dashboard,
     GridItem,
+    DashboardPermissionLevel,
     parse_db_dashboard,
     clean_up_jsons,
     init_primary_db,
+    get_dashboard_user_permission,
 )
 from unittest.mock import MagicMock
 import base64
@@ -274,6 +276,9 @@ def test_update_named_dashboard(
             "public": True,
             "gridItems": grid_items,
             "unrestrictedPlacement": True,
+            "permissions": [
+                {"permission": "admin", "username": dashboard.owner},
+            ],
         },
     )
 
@@ -285,6 +290,9 @@ def test_update_named_dashboard(
     assert dashboard.grid_items[0].metadata_string == json.dumps({"refreshRate": 0})
     assert dashboard.public == True
     assert dashboard.unrestricted_placement
+    assert len(dashboard.permissions) == 1
+    assert dashboard.permissions[0].permission == DashboardPermissionLevel.admin
+    assert dashboard.permissions[0].user == dashboard.owner
 
     grid_item1 = dashboard.grid_items[0]
 
@@ -357,7 +365,7 @@ def test_update_named_dashboard_image(
 
 
 @pytest.mark.django_db
-def test_update_named_dashboard_not_allowed(dashboard, db_session, mock_app_get_ps_db):
+def test_update_named_dashboard_not_exist(mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
 
     with pytest.raises(Exception) as excinfo:
@@ -375,8 +383,80 @@ def test_update_named_dashboard_not_allowed(dashboard, db_session, mock_app_get_
 
 
 @pytest.mark.django_db
+def test_update_named_dashboard_no_edit_permissions(
+    dashboard, mock_app_get_ps_db, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+    new_dashboard_name = "new_name"
+
+    with pytest.raises(Exception) as excinfo:
+        update_named_dashboard(
+            "viewer",
+            dashboard.id,
+            {
+                "name": new_dashboard_name,
+            },
+        )
+
+    assert (
+        f"User does not have admin or editor permissions to update the dashboard."
+        in str(excinfo.value)
+    )
+
+
+@pytest.mark.django_db
+def test_update_named_dashboard_no_admin_permissions_for_name(
+    dashboard, mock_app_get_ps_db, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+    new_dashboard_name = "new_name"
+
+    with pytest.raises(Exception) as excinfo:
+        update_named_dashboard(
+            "editor",
+            dashboard.id,
+            {
+                "name": new_dashboard_name,
+            },
+        )
+
+    assert (
+        f"User does not have admin permission to change the name of the dashboard."
+        in str(excinfo.value)
+    )
+
+
+@pytest.mark.django_db
+def test_update_named_dashboard_no_admin_permissions_for_public(
+    dashboard, mock_app_get_ps_db, mocker, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+    new_dashboard_name = "new_name"
+
+    with pytest.raises(Exception) as excinfo:
+        update_named_dashboard(
+            "editor",
+            dashboard.id,
+            {
+                "public": True,
+            },
+        )
+
+    assert (
+        f"User does not have admin permission to change the public status of the dashboard."
+        in str(excinfo.value)
+    )
+
+
+@pytest.mark.django_db
 def test_get_dashboards_all(
-    dashboard, public_dashboard, mock_app_get_ps_db, mocker, tmp_path
+    dashboard, public_dashboard, mock_app_get_ps_db, mocker, tmp_path, permission_group
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
@@ -391,7 +471,11 @@ def test_get_dashboards_all(
             "description": dashboard.description,
             "publicDashboard": dashboard.public,
             "userPermission": "admin",
-            "permissions": [{"permission": "admin", "username": dashboard.owner}],
+            "permissions": [
+                {"permission": "admin", "username": dashboard.owner},
+                {"permission": "editor", "username": "editor"},
+                {"permission": "viewer", "group": permission_group["name"]},
+            ],
             "unrestrictedPlacement": dashboard.unrestricted_placement,
             "image": "/static/tethysdash/images/dashboard_thumbnail.png",
             "owner": dashboard.owner,
@@ -415,7 +499,7 @@ def test_get_dashboards_all(
 
 @pytest.mark.django_db
 def test_get_dashboards_specific_dashboard_view(
-    dashboard, mock_app_get_ps_db, mocker, tmp_path
+    dashboard, mock_app_get_ps_db, mocker, tmp_path, permission_group
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
@@ -434,7 +518,11 @@ def test_get_dashboards_specific_dashboard_view(
         "uuid": "some_user_dashboard_uuid",
         "unrestrictedPlacement": False,
         "owner": dashboard.owner,
-        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "permissions": [
+            {"permission": "admin", "username": dashboard.owner},
+            {"permission": "editor", "username": "editor"},
+            {"permission": "viewer", "group": permission_group["name"]},
+        ],
         "publicDashboard": False,
         "userPermission": "admin",
     }
@@ -442,7 +530,7 @@ def test_get_dashboards_specific_dashboard_view(
 
 @pytest.mark.django_db
 def test_get_dashboards_specific_landing_page_view(
-    dashboard, mock_app_get_ps_db, mocker, tmp_path
+    dashboard, mock_app_get_ps_db, mocker, tmp_path, permission_group
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
@@ -457,7 +545,11 @@ def test_get_dashboards_specific_landing_page_view(
         "uuid": "some_user_dashboard_uuid",
         "unrestrictedPlacement": False,
         "owner": dashboard.owner,
-        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "permissions": [
+            {"permission": "admin", "username": dashboard.owner},
+            {"permission": "editor", "username": "editor"},
+            {"permission": "viewer", "group": permission_group["name"]},
+        ],
         "publicDashboard": False,
         "userPermission": "admin",
     }
@@ -518,7 +610,7 @@ def test_copy_named_dashboard(
 
 @pytest.mark.django_db
 def test_parse_db_dashboard_landing_page_view(
-    dashboard, mock_app_get_ps_db, mocker, tmp_path, db_session
+    dashboard, mock_app_get_ps_db, mocker, tmp_path, db_session, permission_group
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
@@ -535,7 +627,11 @@ def test_parse_db_dashboard_landing_page_view(
         "image": "/static/tethysdash/images/dashboard_thumbnail.png",
         "unrestrictedPlacement": False,
         "owner": dashboard.owner,
-        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "permissions": [
+            {"permission": "admin", "username": dashboard.owner},
+            {"permission": "editor", "username": "editor"},
+            {"permission": "viewer", "group": permission_group["name"]},
+        ],
         "publicDashboard": False,
         "userPermission": "admin",
     }
@@ -543,7 +639,7 @@ def test_parse_db_dashboard_landing_page_view(
 
 @pytest.mark.django_db
 def test_parse_db_dashboard_dashboard_view(
-    dashboard, mock_app_get_ps_db, mocker, tmp_path, db_session
+    dashboard, mock_app_get_ps_db, mocker, tmp_path, db_session, permission_group
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
@@ -562,7 +658,11 @@ def test_parse_db_dashboard_dashboard_view(
         "gridItems": [],
         "unrestrictedPlacement": False,
         "owner": dashboard.owner,
-        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "permissions": [
+            {"permission": "admin", "username": dashboard.owner},
+            {"permission": "editor", "username": "editor"},
+            {"permission": "viewer", "group": permission_group["name"]},
+        ],
         "publicDashboard": False,
         "userPermission": "admin",
     }
@@ -728,3 +828,19 @@ def test_init_primary_db_raises_unexpected_error(mocker, mock_alembic):
         init_primary_db(engine=mocker.Mock(), first_time=True)
 
     mock_alembic.stamp.assert_not_called()
+
+
+def test_get_dashboard_user_permission(dashboard, db_session):
+    user_permission = get_dashboard_user_permission(
+        db_session, dashboard, dashboard.owner
+    )
+    assert user_permission == DashboardPermissionLevel.admin
+
+    user_permission = get_dashboard_user_permission(db_session, dashboard, "editor")
+    assert user_permission == DashboardPermissionLevel.editor
+
+    user_permission = get_dashboard_user_permission(db_session, dashboard, "viewer")
+    assert user_permission == DashboardPermissionLevel.viewer
+
+    user_permission = get_dashboard_user_permission(db_session, dashboard, "bad_user")
+    assert user_permission == None

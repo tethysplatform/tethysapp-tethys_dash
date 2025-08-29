@@ -78,7 +78,7 @@ def mock_app_get_ps_db(session_maker, mocker):
 
 @pytest.fixture(scope="function")
 def permission_group():
-    unique_name = f"solo admin group {uuid.uuid4()}"
+    unique_name = f"{uuid.uuid4()}"
     return {
         "name": unique_name,
         "description": "",
@@ -87,6 +87,10 @@ def permission_group():
             {
                 "username": "admin",
                 "permission": "admin",
+            },
+            {
+                "username": "viewer",
+                "permission": "member",
             },
         ],
         "user_permission": "admin",
@@ -166,7 +170,7 @@ def grid_item():
 
 
 @pytest.fixture(scope="function")
-def dashboard(db_session, dashboard_data):
+def dashboard(db_session, dashboard_data, permission_group_table):
     dashboard = Dashboard(**dashboard_data)
     db_session.add(dashboard)
     db_session.commit()
@@ -179,6 +183,22 @@ def dashboard(db_session, dashboard_data):
         permission=DashboardPermissionLevel.admin,
     )
     db_session.add(owner_permission)
+    db_session.commit()
+
+    editor_permission = DashboardPermission(
+        dashboard_id=dashboard_id,
+        user="editor",
+        permission=DashboardPermissionLevel.editor,
+    )
+    db_session.add(editor_permission)
+    db_session.commit()
+
+    viewer_permission = DashboardPermission(
+        dashboard_id=dashboard_id,
+        group=permission_group_table.name,
+        permission=DashboardPermissionLevel.viewer,
+    )
+    db_session.add(viewer_permission)
     db_session.commit()
 
     yield dashboard

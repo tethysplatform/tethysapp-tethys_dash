@@ -477,7 +477,6 @@ def update_named_dashboard(user, id, dashboard_updates):
 
         # Commit the session and close the connection
         session.commit()
-
         parsed_dashboard = parse_db_dashboard(
             session, [db_dashboard], user, dashboard_view=True
         )[0]
