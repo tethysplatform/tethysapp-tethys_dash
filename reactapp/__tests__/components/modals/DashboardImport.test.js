@@ -139,7 +139,6 @@ test("DashboardImportModal Landing Page with griditems", async () => {
           initial_value: "",
           variable_name: "Test Variable",
           variable_options_source: "text",
-          variable_input_type: "text",
         },
         metadata_string: {
           refreshRate: 0,
@@ -314,7 +313,6 @@ test("DashboardImportModal Dashboard View", async () => {
       initial_value: "",
       variable_name: "Test Variable",
       variable_options_source: "text",
-      variable_input_type: "text",
     },
     metadata_string: {
       refreshRate: 0,

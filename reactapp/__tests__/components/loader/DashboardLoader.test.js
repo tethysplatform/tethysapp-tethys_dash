@@ -248,7 +248,6 @@ test("DashboardLoader updateGridItems existing variable input", async () => {
     initial_value: "New initial value",
     variable_name: "Test Variable",
     variable_options_source: "text",
-    variable_input_type: "text",
   });
   updatedDashboard.gridItems = [updatedTextVariable];
 
@@ -351,8 +350,7 @@ test("DashboardLoader updateGridItems add checkbox variable input", async () => 
   updatedTextVariable.args_string = JSON.stringify({
     initial_value: null,
     variable_name: "Test Variable",
-    variable_options_source: "checkbox", // TODO Change this to be an empty string or null
-    variable_input_type: "number",
+    variable_options_source: "checkbox",
   });
   updatedDashboard.gridItems = [updatedTextVariable];
 

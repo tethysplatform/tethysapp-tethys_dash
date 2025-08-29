@@ -893,8 +893,7 @@ export const mockedTextVariable = {
   args_string: JSON.stringify({
     initial_value: "",
     variable_name: "Test Variable",
-    variable_options_source: "text", // TODO Change this to be an empty string or null
-    variable_input_type: "text",
+    variable_options_source: "text",
   }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
@@ -911,8 +910,7 @@ export const mockedNumberVariable = {
   args_string: JSON.stringify({
     initial_value: 0,
     variable_name: "Test Variable",
-    variable_options_source: "number", // TODO Change this to be an empty string or null
-    variable_input_type: "number",
+    variable_options_source: "number",
   }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
@@ -929,8 +927,7 @@ export const mockedCheckboxVariable = {
   args_string: JSON.stringify({
     initial_value: true,
     variable_name: "Test Variable",
-    variable_options_source: "checkbox", // TODO Change this to be an empty string or null
-    variable_input_type: "number",
+    variable_options_source: "checkbox",
   }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
@@ -947,8 +944,7 @@ export const mockedNullCheckboxVariable = {
   args_string: JSON.stringify({
     initial_value: null,
     variable_name: "Test Variable",
-    variable_options_source: "checkbox", // TODO Change this to be an empty string or null
-    variable_input_type: "number",
+    variable_options_source: "checkbox",
   }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
@@ -967,7 +963,6 @@ export const mockedDropdownVariable = {
     variable_name: "Test Variable",
     variable_options_source:
       "Some Visualization Group Name: Some Visualization Name - Some Visualization Arg",
-    variable_input_type: "dropdown",
   }),
   metadata_string: JSON.stringify({
     refreshRate: 0,

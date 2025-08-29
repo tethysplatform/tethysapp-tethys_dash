@@ -465,7 +465,6 @@ test("DashboardHeader, import gridItem", async () => {
           initial_value: "",
           variable_name: "Test Variable",
           variable_options_source: "text",
-          variable_input_type: "text",
         },
         metadata_string: {
           refreshRate: 0,
@@ -502,7 +501,6 @@ test("DashboardHeader, import gridItem", async () => {
               initial_value: "",
               variable_name: "Test Variable",
               variable_options_source: "text",
-              variable_input_type: "text",
             }),
             metadata_string: JSON.stringify({
               refreshRate: 0,

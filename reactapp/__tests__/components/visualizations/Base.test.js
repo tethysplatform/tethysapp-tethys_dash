@@ -577,8 +577,7 @@ it("Base - update variable input", async () => {
   textVariable.args_string = JSON.stringify({
     initial_value: "https://www.aquaveo.com/images/aquaveo_logo.svg",
     variable_name: "Test Variable",
-    variable_options_source: "text", // TODO Change this to be an empty string or null
-    variable_input_type: "text",
+    variable_options_source: "text",
   });
 
   const mockedDashboard = {
