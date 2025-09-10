@@ -187,17 +187,24 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
             </Alert>
           )}
           {userPermission === "admin" ? (
+            <PaddedDiv>
+              <NormalInput
+                label={"Name"}
+                type={"text"}
+                value={localName}
+                onChange={(e) => {
+                  setLocalName(e.target.value);
+                }}
+              />
+            </PaddedDiv>
+          ) : (
             <>
-              <PaddedDiv>
-                <NormalInput
-                  label={"Name"}
-                  type={"text"}
-                  value={localName}
-                  onChange={(e) => {
-                    setLocalName(e.target.value);
-                  }}
-                />
-              </PaddedDiv>
+              <b>Name</b>:<br></br>
+              <p>{name}</p>
+            </>
+          )}
+          {editable ? (
+            <>
               <PaddedDiv>
                 <WideLabel>
                   <b>Description</b>:
@@ -217,25 +224,22 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
                 radioOptions={unrestrictedPlacementOptions}
                 onChange={onUnrestrictedPlacementChange}
               />
+              <TextEditorDiv>
+                <b>Notes</b>:<br></br>
+                <TextEditor textValue={localNotes} onChange={onNotesChange} />
+              </TextEditorDiv>
             </>
           ) : (
             <>
-              <b>Name</b>:<br></br>
-              <p>{name}</p>
               <b>Description</b>:<br></br>
               <p>{description}</p>
+              <TextEditorDiv>
+                <TextDiv>
+                  <Text textValue={localNotes} />
+                </TextDiv>
+              </TextEditorDiv>
             </>
           )}
-          <TextEditorDiv>
-            <b>Notes</b>:<br></br>
-            {editable ? (
-              <TextEditor textValue={localNotes} onChange={onNotesChange} />
-            ) : (
-              <TextDiv>
-                <Text textValue={localNotes} />
-              </TextDiv>
-            )}
-          </TextEditorDiv>
         </Offcanvas.Body>
         {user?.username && (
           <StyledFooter>

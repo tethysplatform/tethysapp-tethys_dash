@@ -38,6 +38,7 @@ const Submenu = styled.div`
 
 const ContextMenu = ({
   editable,
+  userPermission,
   setIsEditingTitle,
   setIsEditingDescription,
   onDelete,
@@ -99,12 +100,15 @@ const ContextMenu = ({
         </Dropdown.Item>
         {editable && (
           <>
-            <Dropdown.Item
-              onClick={() => setIsEditingTitle(true)}
-              className="card-rename-option"
-            >
-              Rename
-            </Dropdown.Item>
+            {userPermission === "admin" && (
+              <Dropdown.Item
+                onClick={() => setIsEditingTitle(true)}
+                className="card-rename-option"
+              >
+                Rename
+              </Dropdown.Item>
+            )}
+
             <Dropdown.Item
               onClick={() => setIsEditingDescription(true)}
               className="card-update-description-option"
@@ -119,40 +123,42 @@ const ContextMenu = ({
             </Dropdown.Item>
           </>
         )}
-        <SubmenuWrapper>
-          <Dropdown.Item
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-            className="card-share-option"
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
-          >
-            Share <BsFillCaretRightFill style={{ marginLeft: "auto" }} />
-          </Dropdown.Item>
-          <Submenu
-            className="submenu"
-            aria-label="Context Menu Submenu"
-            position={submenuPosition}
-            isVisible={submenuVisible}
-            ref={submenuRef}
-            onMouseEnter={onMouseEnter}
-            onMouseLeave={onMouseLeave}
-          >
-            {editable && (
-              <Dropdown.Item onClick={onShare}>
-                {shared ? "Make Private" : "Make Public"}
-              </Dropdown.Item>
-            )}
-            {shared && (
-              <Dropdown.Item onClick={onCopyPublicLink}>
-                Copy Public URL
-              </Dropdown.Item>
-            )}
-          </Submenu>
-        </SubmenuWrapper>
+        {(userPermission === "admin" || shared) && (
+          <SubmenuWrapper>
+            <Dropdown.Item
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+              className="card-share-option"
+              onMouseEnter={onMouseEnter}
+              onMouseLeave={onMouseLeave}
+            >
+              Share <BsFillCaretRightFill style={{ marginLeft: "auto" }} />
+            </Dropdown.Item>
+            <Submenu
+              className="submenu"
+              aria-label="Context Menu Submenu"
+              position={submenuPosition}
+              isVisible={submenuVisible}
+              ref={submenuRef}
+              onMouseEnter={onMouseEnter}
+              onMouseLeave={onMouseLeave}
+            >
+              {userPermission === "admin" && (
+                <Dropdown.Item onClick={onShare}>
+                  {shared ? "Make Private" : "Make Public"}
+                </Dropdown.Item>
+              )}
+              {shared && (
+                <Dropdown.Item onClick={onCopyPublicLink}>
+                  Copy Public URL
+                </Dropdown.Item>
+              )}
+            </Submenu>
+          </SubmenuWrapper>
+        )}
         {user?.username && (
           <Dropdown.Item onClick={onCopy} className="card-copy-option">
             Copy
@@ -161,7 +167,7 @@ const ContextMenu = ({
         <Dropdown.Item onClick={onExport} className="card-export-option">
           Export
         </Dropdown.Item>
-        {editable && (
+        {userPermission === "admin" && (
           <>
             <Dropdown.Item onClick={onDelete} className="card-delete-option">
               Delete

@@ -354,6 +354,7 @@ const DashboardCard = ({
           </CardTitleDiv>
           <ContextMenu
             editable={editable}
+            userPermission={userPermission}
             setIsEditingTitle={setIsEditingTitle}
             setIsEditingDescription={setIsEditingDescription}
             onDelete={onDelete}
