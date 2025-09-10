@@ -259,17 +259,19 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
                 <BsPeopleFill />
               </StyledButton>
             )}
-            {editable && userPermission === "admin" && (
+            {editable && (
               <>
-                <StyledButton
-                  variant="danger"
-                  onClick={onDelete}
-                  aria-label="Delete Dashboard Button"
-                  className="delete-dashboard-button"
-                  title="Delete Dashboard"
-                >
-                  <BsFillTrashFill />
-                </StyledButton>
+                {userPermission === "admin" && (
+                  <StyledButton
+                    variant="danger"
+                    onClick={onDelete}
+                    aria-label="Delete Dashboard Button"
+                    className="delete-dashboard-button"
+                    title="Delete Dashboard"
+                  >
+                    <BsFillTrashFill />
+                  </StyledButton>
+                )}
                 <StyledButton
                   variant="success"
                   onClick={onSave}
