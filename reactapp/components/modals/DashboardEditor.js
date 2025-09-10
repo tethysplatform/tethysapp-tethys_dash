@@ -8,7 +8,6 @@ import {
   AvailableDashboardsContext,
   AppContext,
 } from "components/contexts/Contexts";
-import { useAppTourContext } from "components/contexts/AppTourContext";
 import styled from "styled-components";
 import PropTypes from "prop-types";
 import TextEditor from "components/inputs/TextEditor";

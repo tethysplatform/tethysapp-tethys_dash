@@ -111,7 +111,7 @@ def permission_group_table(db_session, permission_group):
     for member in permission_group["members"]:
         db_session.add(
             PermissionGroupUser(
-                user=member["username"],
+                username=member["username"],
                 group_id=group.id,
                 permission=member["permission"],
             )
@@ -179,7 +179,7 @@ def dashboard(db_session, dashboard_data, permission_group_table):
 
     owner_permission = DashboardPermission(
         dashboard_id=dashboard_id,
-        user=dashboard.owner,
+        username=dashboard.owner,
         permission=DashboardPermissionLevel.admin,
     )
     db_session.add(owner_permission)
@@ -187,7 +187,7 @@ def dashboard(db_session, dashboard_data, permission_group_table):
 
     editor_permission = DashboardPermission(
         dashboard_id=dashboard_id,
-        user="editor",
+        username="editor",
         permission=DashboardPermissionLevel.editor,
     )
     db_session.add(editor_permission)
@@ -210,7 +210,7 @@ def dashboard(db_session, dashboard_data, permission_group_table):
 
     refreshed_owner_permission = (
         db_session.query(DashboardPermission)
-        .filter_by(dashboard_id=dashboard.id, user=dashboard.owner)
+        .filter_by(dashboard_id=dashboard.id, username=dashboard.owner)
         .first()
     )
     if refreshed_owner_permission:
@@ -229,7 +229,7 @@ def public_dashboard(db_session, public_dashboard_data):
 
     owner_permission = DashboardPermission(
         dashboard_id=dashboard_id,
-        user=dashboard.owner,
+        username=dashboard.owner,
         permission=DashboardPermissionLevel.admin,
     )
     db_session.add(owner_permission)
@@ -244,7 +244,7 @@ def public_dashboard(db_session, public_dashboard_data):
 
     refreshed_owner_permission = (
         db_session.query(DashboardPermission)
-        .filter_by(dashboard_id=dashboard.id, user=dashboard.owner)
+        .filter_by(dashboard_id=dashboard.id, username=dashboard.owner)
         .first()
     )
     if refreshed_owner_permission:

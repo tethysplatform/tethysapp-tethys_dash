@@ -325,7 +325,7 @@ def update_permission_group(request):
             user, permission_group_updates
         )
 
-        if updated_permission_group["status"] == "error":
+        if updated_permission_group.get("status") == "error":
             return JsonResponse(
                 {
                     "success": False,
@@ -339,15 +339,13 @@ def update_permission_group(request):
             )
         else:
             print(
-                f"Successfully created a new permission group {updated_permission_group['updated_permission_group']['name']}"
+                f"Successfully created a new permission group {updated_permission_group['name']}"
             )
 
         return JsonResponse(
             {
                 "success": True,
-                "updated_permission_group": updated_permission_group[
-                    "updated_permission_group"
-                ],
+                "updated_permission_group": updated_permission_group,
             }
         )
     except Exception as e:

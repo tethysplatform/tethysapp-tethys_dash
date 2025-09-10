@@ -1,10 +1,6 @@
 import PermissionsModal from "components/modals/Permissions";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import {
-  userDashboard,
-  adminDashboard,
-  permissionGroups,
-} from "__tests__/utilities/constants";
+import { userDashboard, adminDashboard } from "__tests__/utilities/constants";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import userEvent from "@testing-library/user-event";
 import appAPI from "services/api/app";

@@ -3,7 +3,7 @@ import {
   PermissionGroupsManageModal,
 } from "components/modals/PermissionGroups";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { permissionGroups, userDashboard } from "__tests__/utilities/constants";
+import { permissionGroups } from "__tests__/utilities/constants";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import userEvent from "@testing-library/user-event";
 import appAPI from "services/api/app";

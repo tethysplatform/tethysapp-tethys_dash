@@ -90,12 +90,12 @@ class DashboardPermission(Base):
     __tablename__ = "dashboard_permissions"
     id = Column(Integer, primary_key=True)
     dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
-    user = Column(String, nullable=True)  # username or user id
+    username = Column(String, nullable=True)  # username or user id
     group = Column(String, nullable=True)  # group name or id
     permission = Column(Enum(DashboardPermissionLevel), nullable=False)
 
     __table_args__ = (
-        UniqueConstraint("dashboard_id", "user", name="_dashboard_user_perm"),
+        UniqueConstraint("dashboard_id", "username", name="_dashboard_user_perm"),
         UniqueConstraint("dashboard_id", "group", name="_dashboard_group_perm"),
     )
 
@@ -115,15 +115,22 @@ class PermissionGroup(Base):
     owner = Column(String, nullable=False)
 
     members = relationship(
-        "PermissionGroupUser", back_populates="group", cascade="all, delete-orphan"
+        "PermissionGroupUser",
+        back_populates="group",
+        cascade="all, delete-orphan",
+        passive_deletes=True,  # Let DB handle ON DELETE CASCADE
     )
 
 
 class PermissionGroupUser(Base):
     __tablename__ = "permission_group_user"
     id = Column(Integer, primary_key=True)
-    user = Column(String, nullable=False)
-    group_id = Column(Integer, ForeignKey("permission_groups.id"), nullable=False)
+    username = Column(String, nullable=False)
+    group_id = Column(
+        Integer,
+        ForeignKey("permission_groups.id", ondelete="CASCADE"),
+        nullable=False,
+    )
     permission = Column(Enum(GroupPermissionLevel), nullable=False)
 
     group = relationship("PermissionGroup", back_populates="members")
@@ -161,7 +168,7 @@ def add_new_dashboard(
         # Add default admin permission for owner
         owner_permission = DashboardPermission(
             dashboard_id=new_dashboard_id,
-            user=owner,
+            username=owner,
             permission=DashboardPermissionLevel.admin,
         )
         session.add(owner_permission)
@@ -301,7 +308,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
         # Only add admin permission for the user
         admin_permission = DashboardPermission(
             dashboard_id=new_dashboard.id,
-            user=user,
+            username=user,
             permission=DashboardPermissionLevel.admin,
         )
         session.add(admin_permission)
@@ -498,7 +505,7 @@ def get_dashboard_user_permission(session, dashboard, user):
     user_groups = (
         session.query(PermissionGroup.name)
         .join(PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id)
-        .filter(PermissionGroupUser.user == user)
+        .filter(PermissionGroupUser.username == user)
         .all()
     )
     user_group_names = [g[0] for g in user_groups]
@@ -506,7 +513,7 @@ def get_dashboard_user_permission(session, dashboard, user):
     # Collect all permissions for user and their groups
     perms = []
     for p in dashboard.permissions:
-        if p.user == user:
+        if p.username == user:
             perms.append(p.permission)
         elif p.group and p.group in user_group_names:
             perms.append(p.permission)
@@ -533,7 +540,7 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
     user_permission = get_dashboard_user_permission(session, db_dashboard, user)
     if user_permission != DashboardPermissionLevel.admin:
         raise Exception(
-            "User does not have admin permission to change the public status of the dashboard."
+            "User does not have admin permission to change the permissions of the dashboard."
         )
 
     # Build lookup for updated permissions
@@ -545,7 +552,9 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
     }
 
     # Existing permissions
-    existing_user_perms = {p.user: p for p in db_dashboard.permissions if p.user}
+    existing_user_perms = {
+        p.username: p for p in db_dashboard.permissions if p.username
+    }
     existing_group_perms = {p.group: p for p in db_dashboard.permissions if p.group}
 
     # Add or update user permissions
@@ -559,7 +568,7 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
         else:
             new_perm = DashboardPermission(
                 dashboard_id=db_dashboard.id,
-                user=username,
+                username=username,
                 permission=DashboardPermissionLevel(perm_level),
             )
             session.add(new_perm)
@@ -614,7 +623,7 @@ def get_user_permission_groups(user):
             .join(
                 PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
             )
-            .filter(PermissionGroupUser.user == user)
+            .filter(PermissionGroupUser.username == user)
             .all()
         )
         result = []
@@ -648,7 +657,10 @@ def update_permission_groups(user, group_data):
                 .first()
             )
             if existing_group:
-                return {"status": "error", "message": "Group name already exists"}
+                return {
+                    "status": "error",
+                    "message": f"The group name {name} already exists",
+                }
             # Create new group
             group = PermissionGroup(name=name, description=description, owner=user)
             session.add(group)
@@ -658,7 +670,7 @@ def update_permission_groups(user, group_data):
             for member in members:
                 session.add(
                     PermissionGroupUser(
-                        user=member["username"],
+                        username=member["username"],
                         group_id=group.id,
                         permission=member["permission"],
                     )
@@ -680,7 +692,10 @@ def update_permission_groups(user, group_data):
                 .first()
             )
             if existing_group:
-                return {"status": "error", "message": "Group name already exists"}
+                return {
+                    "status": "error",
+                    "message": f"The group name {name} already exists",
+                }
 
             # Only owner or admin can update
             if group.owner != user:
@@ -688,7 +703,7 @@ def update_permission_groups(user, group_data):
                     session.query(PermissionGroupUser)
                     .filter(
                         PermissionGroupUser.group_id == group.id,
-                        PermissionGroupUser.user == user,
+                        PermissionGroupUser.username == user,
                         PermissionGroupUser.permission == GroupPermissionLevel.admin,
                     )
                     .first()
@@ -710,19 +725,18 @@ def update_permission_groups(user, group_data):
             for member in members:
                 session.add(
                     PermissionGroupUser(
-                        user=member["username"],
+                        username=member["username"],
                         group_id=group.id,
                         permission=member["permission"],
                     )
                 )
             session.commit()
-
-        session.flush()
         permission_group_dict = parse_group_permissions(user, group)
 
-        return {"status": "updated", "updated_permission_group": permission_group_dict}
     finally:
         session.close()
+
+    return permission_group_dict
 
 
 def delete_permission_groups(user, permission_group_id):
@@ -747,7 +761,7 @@ def delete_permission_groups(user, permission_group_id):
                 session.query(PermissionGroupUser)
                 .filter(
                     PermissionGroupUser.group_id == group.id,
-                    PermissionGroupUser.user == user,
+                    PermissionGroupUser.username == user,
                     PermissionGroupUser.permission == GroupPermissionLevel.admin,
                 )
                 .first()
@@ -770,7 +784,7 @@ def delete_permission_groups(user, permission_group_id):
 
 def parse_group_permissions(user, group):
     members = [
-        {"username": member.user, "permission": member.permission.value}
+        {"username": member.username, "permission": member.permission.value}
         for member in group.members
     ]
     user_permission = next(
@@ -783,7 +797,7 @@ def parse_group_permissions(user, group):
         "description": group.description,
         "owner": group.owner,
         "members": [
-            {"username": member.user, "permission": member.permission.value}
+            {"username": member.username, "permission": member.permission.value}
             for member in group.members
         ],
         "user_permission": user_permission,
@@ -808,10 +822,10 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
 
         permissions_list = []
         for perm in dashboard.permissions:
-            if perm.user:
+            if perm.username:
                 permissions_list.append(
                     {
-                        "username": perm.user,
+                        "username": perm.username,
                         "permission": perm.permission.value,
                     }
                 )
@@ -880,7 +894,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
             .join(
                 PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
             )
-            .filter(PermissionGroupUser.user == user)
+            .filter(PermissionGroupUser.username == user)
             .all()
         )
         user_group_names = [g[0] for g in user_groups]
@@ -890,7 +904,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
             session.query(Dashboard)
             .join(DashboardPermission)
             .filter(
-                (DashboardPermission.user == user)
+                (DashboardPermission.username == user)
                 | (DashboardPermission.group.in_(user_group_names))
             )
         ).all()
@@ -899,7 +913,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
         public_dashboards = (
             session.query(Dashboard)
             .filter(Dashboard.public == True)
-            .filter(~Dashboard.permissions.any(DashboardPermission.user == user))
+            .filter(~Dashboard.permissions.any(DashboardPermission.username == user))
             .filter(
                 ~Dashboard.permissions.any(
                     DashboardPermission.group.in_(user_group_names)

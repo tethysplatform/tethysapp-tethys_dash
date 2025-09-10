@@ -14,7 +14,6 @@ import createLoadedComponent, {
 import appAPI from "services/api/app";
 import { MemoryRouter } from "react-router-dom";
 import { useNavigate } from "react-router-dom";
-import { AppTourContext } from "components/contexts/Contexts";
 
 jest.mock("components/inputs/DeleteConfirmation", () => {
   return {

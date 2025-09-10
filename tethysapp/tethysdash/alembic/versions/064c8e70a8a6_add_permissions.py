@@ -43,14 +43,14 @@ def upgrade() -> None:
         sa.Column(
             "dashboard_id", sa.Integer(), sa.ForeignKey("dashboards.id"), nullable=False
         ),
-        sa.Column("user", sa.String(), nullable=True),
+        sa.Column("username", sa.String(), nullable=True),
         sa.Column("group", sa.String(), nullable=True),
         sa.Column("permission", sa.String(), nullable=False),
     )
 
     # Add admin permission for each dashboard owner
     op.execute(
-        'INSERT INTO dashboard_permissions (dashboard_id, "user", permission) '
+        "INSERT INTO dashboard_permissions (dashboard_id, username, permission) "
         "SELECT id, owner, 'admin' FROM dashboards WHERE owner IS NOT NULL"
     )
 
@@ -63,15 +63,15 @@ def upgrade() -> None:
         sa.Column("owner", sa.String(), nullable=False),
     )
 
-    # Create the permission_group_user table
+    # Create the permission_group_user table with ON DELETE CASCADE
     op.create_table(
         "permission_group_user",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user", sa.String(), nullable=False),
+        sa.Column("username", sa.String(), nullable=False),
         sa.Column(
             "group_id",
             sa.Integer(),
-            sa.ForeignKey("permission_groups.id"),
+            sa.ForeignKey("permission_groups.id", ondelete="CASCADE"),
             nullable=False,
         ),
         sa.Column("permission", sa.String(), nullable=False),
