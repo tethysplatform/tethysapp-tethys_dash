@@ -14,6 +14,7 @@ from tethysapp.tethysdash.model import (
     PermissionGroup,
     PermissionGroupUser,
 )
+from django.contrib.auth import get_user_model
 
 
 @pytest.fixture(scope="module")
@@ -76,20 +77,31 @@ def mock_app_get_ps_db(session_maker, mocker):
     return mock_app_factory
 
 
+@pytest.fixture
+def test_admin_user(db):
+    User = get_user_model()
+    user = User.objects.create_user(username="admin_user", password="password123")
+    return user
+
+
 @pytest.fixture(scope="function")
 def permission_group():
     unique_name = f"{uuid.uuid4()}"
     return {
         "name": unique_name,
         "description": "",
-        "owner": "admin",
+        "owner": "owner_user",
         "members": [
             {
-                "username": "admin",
+                "username": "owner_user",
                 "permission": "admin",
             },
             {
-                "username": "viewer",
+                "username": "admin_user",
+                "permission": "admin",
+            },
+            {
+                "username": "member_user",
                 "permission": "member",
             },
         ],
@@ -106,13 +118,14 @@ def permission_group_table(db_session, permission_group):
     )
     db_session.add(group)
     db_session.flush()  # get group.id
+    group_id = group.id
 
     # Add members
     for member in permission_group["members"]:
         db_session.add(
             PermissionGroupUser(
                 username=member["username"],
-                group_id=group.id,
+                group_id=group_id,
                 permission=member["permission"],
             )
         )
@@ -121,7 +134,7 @@ def permission_group_table(db_session, permission_group):
     yield group
 
     # Clean up: delete group if it still exists
-    refreshed_group = db_session.get(PermissionGroup, group.id)
+    refreshed_group = db_session.get(PermissionGroup, group_id)
     if refreshed_group:
         db_session.delete(refreshed_group)
         db_session.commit()

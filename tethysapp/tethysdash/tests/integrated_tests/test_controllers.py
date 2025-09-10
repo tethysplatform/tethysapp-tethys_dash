@@ -145,27 +145,23 @@ def test_dashboards(
 
     assert response.status_code == 200
     response_json = response.json()
-    assert response_json["dashboards"] == [
-        {
-            "description": dashboard.description,
-            "id": dashboard.id,
-            "name": dashboard.name,
-            "uuid": dashboard.uuid,
-                "image": "/static/tethysdash/images/dashboard_thumbnail.png",
-                "unrestrictedPlacement": dashboard.unrestricted_placement,
-                "owner": dashboard.owner,
-                "permissions": [
-                    {"permission": "admin", "username": dashboard.owner},
-                    {"permission": "editor", "username": "editor"},
-                    {"permission": "viewer", "group": permission_group["name"]},
-                ],
-                "publicDashboard": dashboard.public,
-                "userPermission": "admin",
-            }
-        ]
-    assert response_json["permission_groups"][0]['name'] == permission_group["name"]
-    assert response_json["permission_groups"][0]['members'] == permission_group["members"]
-
+    assert response_json["dashboards"][0]["description"] == dashboard.description
+    assert response_json["dashboards"][0]["id"] == dashboard.id
+    assert response_json["dashboards"][0]["name"] == dashboard.name
+    assert response_json["dashboards"][0]["uuid"] == dashboard.uuid
+    assert (
+        response_json["dashboards"][0]["unrestrictedPlacement"]
+        == dashboard.unrestricted_placement
+    )
+    assert response_json["dashboards"][0]["owner"] == dashboard.owner
+    assert response_json["dashboards"][0]["publicDashboard"] == dashboard.public
+    assert response_json["dashboards"][0]["userPermission"] == "admin"
+    assert response_json["dashboards"][0]["permissions"] == [
+        {"permission": "admin", "username": dashboard.owner},
+        {"permission": "editor", "username": "editor"},
+        {"permission": "viewer", "group": permission_group["name"]},
+    ]
+    assert len(response_json["permission_groups"]) == 0
 
 
 @pytest.mark.django_db
@@ -1257,7 +1253,7 @@ def test_ping_with_session_security_and_name_error(mocker, client, mock_app):
 @pytest.mark.django_db
 def test_update_permission_group(
     client,
-    admin_user,
+    test_admin_user,
     mock_app,
     mock_app_get_ps_db,
     permission_group,
@@ -1267,11 +1263,11 @@ def test_update_permission_group(
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
 
     url = reverse("tethysdash:update_permission_group")
-    client.force_login(admin_user)
+    client.force_login(test_admin_user)
 
     new_members = [
         {
-            "username": "admin",
+            "username": test_admin_user.username,
             "permission": "admin",
         },
         {
@@ -1291,7 +1287,7 @@ def test_update_permission_group(
 @pytest.mark.django_db
 def test_create_permission_group(
     client,
-    admin_user,
+    test_admin_user,
     mock_app,
     mock_app_get_ps_db,
     permission_group,
@@ -1300,7 +1296,7 @@ def test_create_permission_group(
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
 
     url = reverse("tethysdash:update_permission_group")
-    client.force_login(admin_user)
+    client.force_login(test_admin_user)
 
     response = client.generic("POST", url, json.dumps(permission_group))
 
@@ -1308,6 +1304,7 @@ def test_create_permission_group(
 
     response_json = response.json()
     permission_group["id"] = response_json["updated_permission_group"]["id"]
+    permission_group["owner"] = test_admin_user.username
     assert response_json == {
         "updated_permission_group": permission_group,
         "success": True,
@@ -1389,7 +1386,7 @@ def test_create_permission_group_exception_without_message(
 @pytest.mark.django_db
 def test_delete_permission_group(
     client,
-    admin_user,
+    test_admin_user,
     mock_app,
     mock_app_get_ps_db,
     permission_group_table,
@@ -1398,7 +1395,7 @@ def test_delete_permission_group(
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
 
     url = reverse("tethysdash:delete_permission_group")
-    client.force_login(admin_user)
+    client.force_login(test_admin_user)
 
     response = client.generic(
         "POST", url, json.dumps({"id": permission_group_table.id})
