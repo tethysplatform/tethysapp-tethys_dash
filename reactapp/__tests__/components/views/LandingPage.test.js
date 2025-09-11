@@ -7,6 +7,7 @@ import LandingPage from "views/LandingPage";
 import {
   AppContext,
   AvailableDashboardsContext,
+  PermissionGroupContext,
 } from "components/contexts/Contexts";
 import AppTourContextProvider from "components/contexts/AppTourContext";
 import { MemoryRouter } from "react-router-dom";
@@ -49,18 +50,24 @@ describe("LandingPage", () => {
             tethysApp: { exitUrl: "/home" },
           }}
         >
-          <AvailableDashboardsContext.Provider
+          <PermissionGroupContext.Provider
             value={{
-              availableDashboards: mockedDashboards.dashboards,
-              deleteDashboard: jest.fn(),
-              copyDashboard: jest.fn(),
-              updateDashboard: jest.fn(),
+              permissionGroups: [],
             }}
           >
-            <AppTourContextProvider>
-              <LandingPage />
-            </AppTourContextProvider>
-          </AvailableDashboardsContext.Provider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                availableDashboards: mockedDashboards.dashboards,
+                deleteDashboard: jest.fn(),
+                copyDashboard: jest.fn(),
+                updateDashboard: jest.fn(),
+              }}
+            >
+              <AppTourContextProvider>
+                <LandingPage />
+              </AppTourContextProvider>
+            </AvailableDashboardsContext.Provider>
+          </PermissionGroupContext.Provider>
         </AppContext.Provider>
       </MemoryRouter>
     );

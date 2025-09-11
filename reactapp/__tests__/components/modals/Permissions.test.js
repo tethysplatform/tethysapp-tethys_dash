@@ -11,7 +11,16 @@ test("Permissions Modal", async () => {
   render(
     createLoadedComponent({
       children: (
-        <PermissionsModal showModal={true} setShowModal={mockSetShowModal} />
+        <PermissionsModal
+          showModal={true}
+          setShowModal={mockSetShowModal}
+          uuid={userDashboard.uuid}
+          publicDashboard={userDashboard.publicDashboard}
+          userPermission={userDashboard.userPermission}
+          permissions={userDashboard.permissions}
+          id={userDashboard.id}
+          owner={userDashboard.owner}
+        />
       ),
     })
   );
@@ -67,7 +76,18 @@ test("Permissions Modal add user and update", async () => {
 
   render(
     createLoadedComponent({
-      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      children: (
+        <PermissionsModal
+          showModal={true}
+          setShowModal={jest.fn()}
+          uuid={userDashboard.uuid}
+          publicDashboard={userDashboard.publicDashboard}
+          userPermission={userDashboard.userPermission}
+          permissions={userDashboard.permissions}
+          id={userDashboard.id}
+          owner={userDashboard.owner}
+        />
+      ),
     })
   );
 
@@ -138,7 +158,18 @@ test("Permissions Modal add group and update", async () => {
 
   render(
     createLoadedComponent({
-      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      children: (
+        <PermissionsModal
+          showModal={true}
+          setShowModal={jest.fn()}
+          uuid={userDashboard.uuid}
+          publicDashboard={userDashboard.publicDashboard}
+          userPermission={userDashboard.userPermission}
+          permissions={userDashboard.permissions}
+          id={userDashboard.id}
+          owner={userDashboard.owner}
+        />
+      ),
     })
   );
 
@@ -194,7 +225,18 @@ test("Permissions Modal add group and update", async () => {
 test("Permissions Modal add user but empty", async () => {
   render(
     createLoadedComponent({
-      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      children: (
+        <PermissionsModal
+          showModal={true}
+          setShowModal={jest.fn()}
+          uuid={userDashboard.uuid}
+          publicDashboard={userDashboard.publicDashboard}
+          userPermission={userDashboard.userPermission}
+          permissions={userDashboard.permissions}
+          id={userDashboard.id}
+          owner={userDashboard.owner}
+        />
+      ),
     })
   );
 
@@ -220,7 +262,18 @@ test("Permissions Modal add user but empty", async () => {
 test("Permissions Modal, add user but already exists", async () => {
   render(
     createLoadedComponent({
-      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      children: (
+        <PermissionsModal
+          showModal={true}
+          setShowModal={jest.fn()}
+          uuid={adminDashboard.uuid}
+          publicDashboard={adminDashboard.publicDashboard}
+          userPermission={adminDashboard.userPermission}
+          permissions={adminDashboard.permissions}
+          id={adminDashboard.id}
+          owner={adminDashboard.owner}
+        />
+      ),
       options: {
         initialDashboard: adminDashboard,
         user: { username: "admin" },
@@ -276,7 +329,18 @@ test("Permissions Modal, delete user", async () => {
 
   render(
     createLoadedComponent({
-      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      children: (
+        <PermissionsModal
+          showModal={true}
+          setShowModal={jest.fn()}
+          uuid={adminDashboard.uuid}
+          publicDashboard={adminDashboard.publicDashboard}
+          userPermission={adminDashboard.userPermission}
+          permissions={adminDashboard.permissions}
+          id={adminDashboard.id}
+          owner={adminDashboard.owner}
+        />
+      ),
       options: {
         initialDashboard: adminDashboard,
         user: { username: "admin" },
@@ -316,7 +380,18 @@ test("Permissions Modal, delete user", async () => {
 test("Permissions Modal, admin permission, not owner", async () => {
   render(
     createLoadedComponent({
-      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      children: (
+        <PermissionsModal
+          showModal={true}
+          setShowModal={jest.fn()}
+          uuid={adminDashboard.uuid}
+          publicDashboard={adminDashboard.publicDashboard}
+          userPermission={adminDashboard.userPermission}
+          permissions={adminDashboard.permissions}
+          id={adminDashboard.id}
+          owner={adminDashboard.owner}
+        />
+      ),
       options: {
         initialDashboard: adminDashboard,
       },
@@ -338,7 +413,18 @@ test("Permissions Modal, admin permission, not owner", async () => {
 test("Permissions Modal, change public status", async () => {
   render(
     createLoadedComponent({
-      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      children: (
+        <PermissionsModal
+          showModal={true}
+          setShowModal={jest.fn()}
+          uuid={userDashboard.uuid}
+          publicDashboard={userDashboard.publicDashboard}
+          userPermission={userDashboard.userPermission}
+          permissions={userDashboard.permissions}
+          id={userDashboard.id}
+          owner={userDashboard.owner}
+        />
+      ),
     })
   );
 
@@ -375,7 +461,18 @@ test("Permissions Modal fail save, default message", async () => {
 
   render(
     createLoadedComponent({
-      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      children: (
+        <PermissionsModal
+          showModal={true}
+          setShowModal={jest.fn()}
+          uuid={userDashboard.uuid}
+          publicDashboard={userDashboard.publicDashboard}
+          userPermission={userDashboard.userPermission}
+          permissions={userDashboard.permissions}
+          id={userDashboard.id}
+          owner={userDashboard.owner}
+        />
+      ),
     })
   );
 
@@ -401,7 +498,18 @@ test("Permissions Modal fail save, custom message", async () => {
 
   render(
     createLoadedComponent({
-      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      children: (
+        <PermissionsModal
+          showModal={true}
+          setShowModal={jest.fn()}
+          uuid={userDashboard.uuid}
+          publicDashboard={userDashboard.publicDashboard}
+          userPermission={userDashboard.userPermission}
+          permissions={userDashboard.permissions}
+          id={userDashboard.id}
+          owner={userDashboard.owner}
+        />
+      ),
     })
   );
 
@@ -415,7 +523,18 @@ test("Permissions Modal fail save, custom message", async () => {
 test("Permissions Modal URL copy fail", async () => {
   render(
     createLoadedComponent({
-      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      children: (
+        <PermissionsModal
+          showModal={true}
+          setShowModal={jest.fn()}
+          uuid={userDashboard.uuid}
+          publicDashboard={userDashboard.publicDashboard}
+          userPermission={userDashboard.userPermission}
+          permissions={userDashboard.permissions}
+          id={userDashboard.id}
+          owner={userDashboard.owner}
+        />
+      ),
     })
   );
 
@@ -445,7 +564,18 @@ test("Permissions Modal URL copy", async () => {
 
   render(
     createLoadedComponent({
-      children: <PermissionsModal showModal={true} setShowModal={jest.fn()} />,
+      children: (
+        <PermissionsModal
+          showModal={true}
+          setShowModal={jest.fn()}
+          uuid={userDashboard.uuid}
+          publicDashboard={userDashboard.publicDashboard}
+          userPermission={userDashboard.userPermission}
+          permissions={userDashboard.permissions}
+          id={userDashboard.id}
+          owner={userDashboard.owner}
+        />
+      ),
     })
   );
 
@@ -478,7 +608,16 @@ test("Permissions Modal group member access", async () => {
   render(
     createLoadedComponent({
       children: (
-        <PermissionsModal showModal={true} setShowModal={mockSetShowModal} />
+        <PermissionsModal
+          showModal={true}
+          setShowModal={mockSetShowModal}
+          uuid={mockedDashboard.uuid}
+          publicDashboard={mockedDashboard.public}
+          userPermission={mockedDashboard.userPermission}
+          permissions={mockedDashboard.permissions}
+          id={mockedDashboard.id}
+          owner={mockedDashboard.owner}
+        />
       ),
       options: {
         dashboards: { dashboards: [mockedDashboard] },

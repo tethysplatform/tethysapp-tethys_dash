@@ -7,7 +7,7 @@ import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
 import { useState, useEffect, useContext, memo } from "react";
 import {
-  LayoutContext,
+  AvailableDashboardsContext,
   AppContext,
   PermissionGroupContext,
 } from "components/contexts/Contexts";
@@ -42,16 +42,19 @@ const TableContainer = styled.div`
   width: 100%;
 `;
 
-function PermissionsModal({ showModal, setShowModal }) {
-  const {
-    uuid,
-    publicDashboard,
-    userPermission,
-    permissions,
-    saveLayoutContext,
-    owner,
-  } = useContext(LayoutContext);
+function PermissionsModal({
+  showModal,
+  setShowModal,
+  uuid,
+  publicDashboard,
+  userPermission,
+  permissions,
+  id,
+  owner,
+  onSave = () => {},
+}) {
   const { permissionGroups } = useContext(PermissionGroupContext);
+  const { updateDashboard } = useContext(AvailableDashboardsContext);
   const { user } = useContext(AppContext);
   const [publicStatus, setPublicStatus] = useState(publicDashboard);
   const [nameInput, setNameInput] = useState("");
@@ -63,6 +66,10 @@ function PermissionsModal({ showModal, setShowModal }) {
   useEffect(() => {
     setDashboardPermissions(permissions);
   }, [permissions]);
+
+  useEffect(() => {
+    setPublicStatus(publicDashboard);
+  }, [publicDashboard]);
 
   const publicStatusOptions = [
     { label: "Public", value: true },
@@ -113,23 +120,23 @@ function PermissionsModal({ showModal, setShowModal }) {
     setDashboardPermissions(updated);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSuccessMessage("");
     setErrorMessage("");
     const newProperties = {
       permissions: dashboardPermissions,
       public: publicStatus,
     };
-    saveLayoutContext(newProperties).then((response) => {
-      if (response["success"]) {
-        setSuccessMessage("Successfully updated dashboard settings");
-      } else {
-        setErrorMessage(
-          response["message"] ??
-            "Failed to update dashboard settings. Check server logs."
-        );
-      }
-    });
+    const apiResponse = await updateDashboard({ id, newProperties });
+    if (apiResponse["success"]) {
+      setSuccessMessage("Successfully updated dashboard settings");
+      onSave(newProperties);
+    } else {
+      setErrorMessage(
+        apiResponse["message"] ??
+          "Failed to update dashboard settings. Check server logs."
+      );
+    }
   };
 
   const handleCopyURLClick = async () => {
@@ -357,6 +364,19 @@ function PermissionsModal({ showModal, setShowModal }) {
 PermissionsModal.propTypes = {
   showModal: PropTypes.bool.isRequired,
   setShowModal: PropTypes.func.isRequired,
+  uuid: PropTypes.string.isRequired,
+  publicDashboard: PropTypes.bool.isRequired,
+  userPermission: PropTypes.oneOf(["admin", "editor", "viewer"]).isRequired,
+  permissions: PropTypes.arrayOf(
+    PropTypes.shape({
+      username: PropTypes.string,
+      group: PropTypes.string,
+      permission: PropTypes.oneOf(["admin", "editor", "viewer"]).isRequired,
+    })
+  ).isRequired,
+  id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  owner: PropTypes.string.isRequired,
+  onSave: PropTypes.func,
 };
 
 export default memo(PermissionsModal);

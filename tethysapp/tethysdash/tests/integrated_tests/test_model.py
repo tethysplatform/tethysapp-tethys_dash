@@ -13,7 +13,6 @@ from tethysapp.tethysdash.model import (
     DashboardPermission,
     DashboardPermissionLevel,
     PermissionGroup,
-    PermissionGroupUser,
     GroupPermissionLevel,
     parse_db_dashboard,
     clean_up_jsons,
@@ -224,14 +223,32 @@ def test_delete_named_dashboard(dashboard, db_session, mock_app_get_ps_db):
 
 
 @pytest.mark.django_db
+def test_delete_named_dashboard_id_doesnt_exist(
+    dashboard, db_session, mock_app_get_ps_db
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+
+    with pytest.raises(Exception) as excinfo:
+        delete_named_dashboard("admin", 1000000000000000000)
+    assert "A dashboard with the id 1000000000000000000 does not exist." in str(
+        excinfo.value
+    )
+
+    db_dashboard = (
+        db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).all()
+    )
+    assert len(db_dashboard) == 1
+    assert db_dashboard[0].name == dashboard.name
+
+
+@pytest.mark.django_db
 def test_delete_named_dashboard_not_allowed(dashboard, db_session, mock_app_get_ps_db):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
 
     with pytest.raises(Exception) as excinfo:
         delete_named_dashboard("test_not_valid_user", dashboard.id)
-    assert (
-        f"A dashboard with the id {dashboard.id} does not exist for this user"
-        in str(excinfo.value)
+    assert "User does not have admin permission to delete the dashboard." in str(
+        excinfo.value
     )
 
     db_dashboard = (
@@ -296,7 +313,7 @@ def test_update_named_dashboard(
     assert len(dashboard.grid_items) == 2
     assert dashboard.grid_items[0].args_string == json.dumps({"uri": "some_path"})
     assert dashboard.grid_items[0].metadata_string == json.dumps({"refreshRate": 0})
-    assert dashboard.public == True
+    assert dashboard.public is True
     assert dashboard.unrestricted_placement
     assert len(dashboard.permissions) == 1
     assert dashboard.permissions[0].permission == DashboardPermissionLevel.admin
@@ -385,7 +402,7 @@ def test_update_named_dashboard_not_exist(mock_app_get_ps_db):
             {"notes": updated_notes, "accessGroups": updated_access_groups},
         )
     assert (
-        f"A dashboard with the id 12345678912345678912346789 does not exist for this user"
+        "A dashboard with the id 12345678912345678912346789 does not exist for this user"  # noqa: E501
         in str(excinfo.value)
     )
 
@@ -409,7 +426,7 @@ def test_update_named_dashboard_no_edit_permissions(
         )
 
     assert (
-        f"User does not have admin or editor permissions to update the dashboard."
+        "User does not have admin or editor permissions to update the dashboard."
         in str(excinfo.value)
     )
 
@@ -433,7 +450,7 @@ def test_update_named_dashboard_no_admin_permissions_for_name(
         )
 
     assert (
-        f"User does not have admin permission to change the name of the dashboard."
+        "User does not have admin permission to change the name of the dashboard."
         in str(excinfo.value)
     )
 
@@ -445,7 +462,6 @@ def test_update_named_dashboard_no_admin_permissions_for_public(
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
-    new_dashboard_name = "new_name"
 
     with pytest.raises(Exception) as excinfo:
         update_named_dashboard(
@@ -457,7 +473,7 @@ def test_update_named_dashboard_no_admin_permissions_for_public(
         )
 
     assert (
-        f"User does not have admin permission to change the public status of the dashboard."
+        "User does not have admin permission to change the public status of the dashboard."  # noqa: E501
         in str(excinfo.value)
     )
 
@@ -853,7 +869,7 @@ def test_get_dashboard_user_permission(dashboard, db_session):
     assert user_permission == DashboardPermissionLevel.viewer
 
     user_permission = get_dashboard_user_permission(db_session, dashboard, "bad_user")
-    assert user_permission == None
+    assert user_permission is None
 
 
 def test_update_dashboard_permissions(dashboard, db_session, permission_group):
@@ -910,7 +926,7 @@ def test_update_dashboard_permissions_not_admin(dashboard, db_session):
     with pytest.raises(Exception) as excinfo:
         update_dashboard_permissions(db_session, dashboard, "editor", [])
     assert (
-        "User does not have admin permission to change the permissions of the dashboard."
+        "User does not have admin permission to change the permissions of the dashboard."  # noqa: E501
         in str(excinfo.value)
     )
 

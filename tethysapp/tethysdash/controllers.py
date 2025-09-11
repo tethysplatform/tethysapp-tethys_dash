@@ -335,11 +335,11 @@ def update_permission_group(request):
 
         if existing_permission_group:
             print(
-                f"Successfully updated the permission group {permission_group_updates['name']}"
+                f"Successfully updated the permission group {permission_group_updates['name']}"  # noqa: E501
             )
         else:
             print(
-                f"Successfully created a new permission group {updated_permission_group['name']}"
+                f"Successfully created a new permission group {updated_permission_group['name']}"  # noqa: E501
             )
 
         return JsonResponse(
@@ -353,7 +353,7 @@ def update_permission_group(request):
         try:
             message = e.args[0]
         except Exception:
-            message = f"Failed to update the permission group {permission_group_updates['name']}. Check server for logs."
+            message = f"Failed to update the permission group {permission_group_updates['name']}. Check server for logs."  # noqa: E501
 
         return JsonResponse({"success": False, "message": message})
 
@@ -383,7 +383,7 @@ def delete_permission_group(request):
         try:
             message = e.args[0]
         except Exception:
-            message = f"Failed to delete the permission group {permission_group_id}. Check server for logs."
+            message = f"Failed to delete the permission group {permission_group_id}. Check server for logs."  # noqa: E501
 
         return JsonResponse({"success": False, "message": message})
 

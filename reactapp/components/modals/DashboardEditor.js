@@ -64,6 +64,9 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [successMessage, setSuccessMessage] = useState(null);
   const {
     id,
+    uuid,
+    owner,
+    publicDashboard,
     name,
     description,
     editable,
@@ -294,7 +297,12 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
         <PermissionsModal
           showModal={showPermissionsModal}
           setShowModal={setShowPermissionsModal}
+          uuid={uuid}
+          publicDashboard={publicDashboard}
+          userPermission={userPermission}
           permissions={permissions}
+          id={id}
+          owner={owner}
         />
       )}
     </>

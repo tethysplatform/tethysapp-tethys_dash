@@ -6,7 +6,6 @@ from sqlalchemy import (
     String,
     DateTime,
     Boolean,
-    ARRAY,
     ForeignKey,
     UniqueConstraint,
     Enum,
@@ -327,15 +326,16 @@ def delete_named_dashboard(user, id):
     session = Session()
 
     try:
-        db_dashboard = (
-            session.query(Dashboard)
-            .filter(Dashboard.owner == user)
-            .filter(Dashboard.id == id)
-            .first()
-        )
+        db_dashboard = session.query(Dashboard).filter(Dashboard.id == id).first()
         if not db_dashboard:
+            raise Exception(f"A dashboard with the id {id} does not exist.")
+
+        user_permission = get_dashboard_user_permission(session, db_dashboard, user)
+
+        # Check if user has admin permission
+        if user_permission != DashboardPermissionLevel.admin:
             raise Exception(
-                f"A dashboard with the id {id} does not exist for this user"
+                "User does not have admin permission to delete the dashboard."
             )
 
         db_dashboard_uuid = db_dashboard.uuid
@@ -368,7 +368,7 @@ def update_named_dashboard(user, id, dashboard_updates):
             and user_permission != DashboardPermissionLevel.admin
         ):
             raise Exception(
-                "User does not have admin or editor permissions to update the dashboard."
+                "User does not have admin or editor permissions to update the dashboard."  # noqa: E501
             )
 
         db_name = dashboard_updates.get("name", db_dashboard.name)
@@ -378,7 +378,7 @@ def update_named_dashboard(user, id, dashboard_updates):
             # Check if user has admin permission
             if user_permission != DashboardPermissionLevel.admin:
                 raise Exception(
-                    "User does not have admin permission to change the name of the dashboard."
+                    "User does not have admin permission to change the name of the dashboard."  # noqa: E501
                 )
             db_dashboard.name = dashboard_updates["name"]
 
@@ -392,7 +392,7 @@ def update_named_dashboard(user, id, dashboard_updates):
             # Check if user has admin permission
             if user_permission != DashboardPermissionLevel.admin:
                 raise Exception(
-                    "User does not have admin permission to change the public status of the dashboard."
+                    "User does not have admin permission to change the public status of the dashboard."  # noqa: E501
                 )
             db_dashboard.public = dashboard_updates["public"]
 
@@ -495,11 +495,11 @@ def update_named_dashboard(user, id, dashboard_updates):
 
 def get_dashboard_user_permission(session, dashboard, user):
     """
-    Returns the highest permission level (admin > editor > viewer) the user has for the given dashboard,
-    either directly or via group membership. Returns None if no permission.
-    """
+    Returns the highest permission level (admin > editor > viewer) the user has
+    for the given dashboard, either directly or via group membership.
 
-    # Should we have a specific dashboard user permission override a group dashboard permission
+    Returns None if no permission.
+    """
 
     # Get all group names the user belongs to
     user_groups = (
@@ -540,7 +540,7 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
     user_permission = get_dashboard_user_permission(session, db_dashboard, user)
     if user_permission != DashboardPermissionLevel.admin:
         raise Exception(
-            "User does not have admin permission to change the permissions of the dashboard."
+            "User does not have admin permission to change the permissions of the dashboard."  # noqa: E501
         )
 
     # Build lookup for updated permissions
@@ -612,7 +612,8 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
 
 def get_user_permission_groups(user):
     """
-    Returns a list of all permission groups the user belongs to, with all users, their permissions, and the owner.
+    Returns a list of all permission groups the user belongs to,
+    with all users, their permissions, and the owner.
     """
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -638,8 +639,14 @@ def get_user_permission_groups(user):
 def update_permission_groups(user, group_data):
     """
     Create or update a permission group.
-    group_data: dict like {'id': None, 'name': 'a', 'description': 'a', 'members': [{'username': 'admin', 'permission': 'admin'}]}
-    If id is None, create a new group. If not None, update if user is owner or admin in the group.
+    group_data: dict like {
+        'id': None,
+        'name': 'a',
+        'description': 'a',
+        'members': [{'username': 'admin', 'permission': 'admin'}]}
+
+    If id is None, create a new group.
+    If not None, update if user is owner or admin in the group.
     """
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -912,7 +919,7 @@ def get_dashboards(user, dashboard_view=False, id=None):
         # Public dashboards (not already included)
         public_dashboards = (
             session.query(Dashboard)
-            .filter(Dashboard.public == True)
+            .filter(Dashboard.public == True)  # noqa: E712
             .filter(~Dashboard.permissions.any(DashboardPermission.username == user))
             .filter(
                 ~Dashboard.permissions.any(

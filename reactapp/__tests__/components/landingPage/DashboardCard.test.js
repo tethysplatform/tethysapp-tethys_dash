@@ -1203,6 +1203,84 @@ test("DashboardCard editable, share", async () => {
   });
 });
 
+test("DashboardCard editable, share and update permissions", async () => {
+  const updatedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  updatedDashboard.publicDashboard = true;
+  const mockUpdateDashboard = jest.fn();
+
+  mockUpdateDashboard.mockResolvedValue({
+    success: true,
+    updated_dashboard: updatedDashboard,
+  });
+
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <DashboardCard {...userDashboard} />
+        </MemoryRouter>
+      ),
+    })
+  );
+  expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
+
+  const contextMenuButton = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(contextMenuButton);
+
+  const shareOption = await screen.findByText("Share");
+  expect(shareOption).toBeInTheDocument();
+  fireEvent.mouseEnter(shareOption);
+
+  const updatePermissionsOption = await screen.findByText("Update Permissions");
+  expect(updatePermissionsOption).toBeInTheDocument();
+  await userEvent.click(updatePermissionsOption);
+
+  expect(await screen.findByText("Manage Permissions")).toBeInTheDocument();
+  expect(screen.getByText("Public")).toBeInTheDocument();
+  expect(screen.getByText("Private")).toBeInTheDocument();
+
+  const publicRadioButton = screen.getByLabelText("Public");
+  const privateRadioButton = screen.getByLabelText("Private");
+  expect(publicRadioButton).toBeInTheDocument();
+  expect(privateRadioButton).toBeInTheDocument();
+
+  expect(publicRadioButton).not.toBeChecked();
+  expect(privateRadioButton).toBeChecked();
+
+  fireEvent.click(publicRadioButton);
+
+  const saveButton = screen.getByLabelText("Save Permissions Button");
+  await userEvent.click(saveButton);
+
+  await waitFor(async () => {
+    expect(mockUpdateDashboard).toHaveBeenCalledWith(
+      {
+        id: userDashboard.id,
+        permissions: [
+          {
+            permission: "admin",
+            username: "admin",
+          },
+        ],
+        public: true,
+      },
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    );
+  });
+  expect(await screen.findByLabelText("Owner Icon")).toBeInTheDocument();
+  await waitFor(async () => {
+    expect(screen.getByLabelText("Public Icon")).toBeInTheDocument();
+  });
+
+  fireEvent.mouseEnter(shareOption);
+  expect(await screen.findByText("Make Private")).toBeInTheDocument();
+});
+
 test("DashboardCard editable, make private", async () => {
   const updatedDashboard = JSON.parse(JSON.stringify(publicDashboard));
   updatedDashboard.userPermission = "admin";

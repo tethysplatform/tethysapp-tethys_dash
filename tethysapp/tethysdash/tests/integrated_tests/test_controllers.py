@@ -1,7 +1,7 @@
 import pytest
 import json
 from django.urls import reverse
-from tethysapp.tethysdash.model import Dashboard, PermissionGroup
+from tethysapp.tethysdash.model import Dashboard
 from unittest.mock import MagicMock
 import os
 import shutil
@@ -1378,7 +1378,7 @@ def test_create_permission_group_exception_without_message(
 
     assert response.status_code == 200
     assert response.json() == {
-        "message": f"Failed to update the permission group {permission_group['name']}. Check server for logs.",
+        "message": f"Failed to update the permission group {permission_group['name']}. Check server for logs.",  # noqa: E501
         "success": False,
     }
 
@@ -1493,6 +1493,6 @@ def test_delete_permission_group_exception_without_message(
 
     assert response.status_code == 200
     assert response.json() == {
-        "message": f"Failed to delete the permission group {permission_group_table.id}. Check server for logs.",
+        "message": f"Failed to delete the permission group {permission_group_table.id}. Check server for logs.",  # noqa: E501
         "success": False,
     }

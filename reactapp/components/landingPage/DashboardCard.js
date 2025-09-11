@@ -14,6 +14,7 @@ import NewDashboardModal from "components/modals/NewDashboard";
 import { FaRegUserCircle } from "react-icons/fa";
 import ContextMenu from "components/landingPage/ContextMenu";
 import DashboardThumbnailModal from "components/modals/DashboardThumbnail";
+import PermissionsModal from "components/modals/Permissions";
 
 const StyledBsPeopleFill = styled(BsPeopleFill)`
   margin-left: 0.3rem;
@@ -160,6 +161,8 @@ const DashboardCard = ({
   uuid,
   name,
   userPermission,
+  permissions,
+  owner,
   description,
   publicDashboard,
   image,
@@ -179,6 +182,7 @@ const DashboardCard = ({
   const descriptionInput = useRef();
   const { activeAppTour } = useAppTourContext();
   const editable = ["admin", "editor"].includes(userPermission);
+  const [showPermissionsModal, setShowPermissionsModal] = useState(false);
 
   useEffect(() => {
     if (isEditingTitle) {
@@ -311,6 +315,10 @@ const DashboardCard = ({
     }
   };
 
+  const onSavePermission = (sharingProperties) => {
+    setShared(sharingProperties.public);
+  };
+
   return (
     <>
       <CustomCard
@@ -363,6 +371,7 @@ const DashboardCard = ({
             viewDashboard={viewDashboard}
             onShare={onShare}
             onCopyPublicLink={onCopyPublicLink}
+            onUpdatePermission={() => setShowPermissionsModal(true)}
             shared={shared}
             setShowThumbnailModal={setShowThumbnailModal}
           />
@@ -417,6 +426,19 @@ const DashboardCard = ({
           showModal={showThumbnailModal}
           setShowModal={setShowThumbnailModal}
           onUpdateThumbnail={onUpdateThumbnail}
+        />
+      )}
+      {userPermission === "admin" && (
+        <PermissionsModal
+          showModal={showPermissionsModal}
+          setShowModal={setShowPermissionsModal}
+          uuid={uuid}
+          publicDashboard={shared}
+          userPermission={userPermission}
+          permissions={permissions}
+          id={id}
+          owner={owner}
+          onSave={onSavePermission}
         />
       )}
     </>
@@ -480,6 +502,14 @@ DashboardCard.propTypes = {
   publicDashboard: PropTypes.bool,
   image: PropTypes.string,
   userPermission: PropTypes.string,
+  permissions: PropTypes.arrayOf(
+    PropTypes.shape({
+      username: PropTypes.string,
+      group: PropTypes.string,
+      permission: PropTypes.oneOf(["admin", "editor", "viewer"]).isRequired,
+    })
+  ).isRequired,
+  owner: PropTypes.string.isRequired,
 };
 
 export default memo(DashboardCard);

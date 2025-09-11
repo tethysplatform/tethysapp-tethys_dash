@@ -49,6 +49,7 @@ const ContextMenu = ({
   onCopyPublicLink,
   shared,
   setShowThumbnailModal,
+  onUpdatePermission,
 }) => {
   const { user } = useContext(AppContext);
   const [showMenu, setShowMenu] = useState(false);
@@ -147,9 +148,14 @@ const ContextMenu = ({
               onMouseLeave={onMouseLeave}
             >
               {userPermission === "admin" && (
-                <Dropdown.Item onClick={onShare}>
-                  {shared ? "Make Private" : "Make Public"}
-                </Dropdown.Item>
+                <>
+                  <Dropdown.Item onClick={onUpdatePermission}>
+                    {"Update Permissions"}
+                  </Dropdown.Item>
+                  <Dropdown.Item onClick={onShare}>
+                    {shared ? "Make Private" : "Make Public"}
+                  </Dropdown.Item>
+                </>
               )}
               {shared && (
                 <Dropdown.Item onClick={onCopyPublicLink}>
@@ -192,6 +198,7 @@ ContextMenu.propTypes = {
   shared: PropTypes.bool,
   editable: PropTypes.bool,
   userPermission: PropTypes.string,
+  onUpdatePermission: PropTypes.func,
 };
 
 export default ContextMenu;
