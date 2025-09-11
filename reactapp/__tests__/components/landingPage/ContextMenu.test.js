@@ -18,6 +18,7 @@ it("ContextMenu editable and shared", async () => {
       children: (
         <ContextMenu
           editable={true}
+          userPermission={"admin"}
           setIsEditingTitle={setIsEditingTitle}
           setIsEditingDescription={setIsEditingDescription}
           onDelete={onDelete}
@@ -82,6 +83,77 @@ it("ContextMenu editable and shared", async () => {
   expect(onCopyPublicLink).toHaveBeenCalled();
 });
 
+it("ContextMenu editable and editor permission", async () => {
+  const setIsEditingTitle = jest.fn();
+  const setIsEditingDescription = jest.fn();
+  const onDelete = jest.fn();
+  const onCopy = jest.fn();
+  const viewDashboard = jest.fn();
+  const onShare = jest.fn();
+  const onCopyPublicLink = jest.fn();
+  const setShowThumbnailModal = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <ContextMenu
+          editable={true}
+          userPermission={"editor"}
+          setIsEditingTitle={setIsEditingTitle}
+          setIsEditingDescription={setIsEditingDescription}
+          onDelete={onDelete}
+          onCopy={onCopy}
+          viewDashboard={viewDashboard}
+          onShare={onShare}
+          onCopyPublicLink={onCopyPublicLink}
+          shared={true}
+          setShowThumbnailModal={setShowThumbnailModal}
+        />
+      ),
+    })
+  );
+
+  const contextMenuButton = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(contextMenuButton);
+
+  const openOption = await screen.findByText("Open");
+  expect(openOption).toBeInTheDocument();
+  await userEvent.click(openOption);
+  expect(viewDashboard).toHaveBeenCalled();
+
+  expect(screen.queryByText("Rename")).not.toBeInTheDocument();
+
+  const updateDescriptionOption = await screen.findByText("Update Description");
+  expect(updateDescriptionOption).toBeInTheDocument();
+  await userEvent.click(updateDescriptionOption);
+  expect(setIsEditingDescription).toHaveBeenCalledWith(true);
+
+  const updateThumbnailOption = await screen.findByText("Update Thumbnail");
+  expect(updateThumbnailOption).toBeInTheDocument();
+  await userEvent.click(updateThumbnailOption);
+  expect(setShowThumbnailModal).toHaveBeenCalledWith(true);
+
+  const copyOption = await screen.findByText("Copy");
+  expect(copyOption).toBeInTheDocument();
+  await userEvent.click(copyOption);
+  expect(onCopy).toHaveBeenCalled();
+
+  expect(screen.queryByText("Delete")).not.toBeInTheDocument();
+
+  const shareOption = await screen.findByText("Share");
+  expect(shareOption).toBeInTheDocument();
+  await userEvent.hover(shareOption);
+
+  expect(screen.queryByText("Make Private")).not.toBeInTheDocument();
+
+  const copyPublicURLOption = await screen.findByText("Copy Public URL");
+  expect(copyPublicURLOption).toBeInTheDocument();
+  await userEvent.click(copyPublicURLOption);
+  expect(onCopyPublicLink).toHaveBeenCalled();
+});
+
 it("ContextMenu editable and not shared", async () => {
   const setIsEditingTitle = jest.fn();
   const setIsEditingDescription = jest.fn();
@@ -97,6 +169,7 @@ it("ContextMenu editable and not shared", async () => {
       children: (
         <ContextMenu
           editable={true}
+          userPermission={"admin"}
           setIsEditingTitle={setIsEditingTitle}
           setIsEditingDescription={setIsEditingDescription}
           onDelete={onDelete}
@@ -177,6 +250,7 @@ it("ContextMenu not editable and shared", async () => {
       children: (
         <ContextMenu
           editable={false}
+          userPermission={null}
           setIsEditingTitle={setIsEditingTitle}
           setIsEditingDescription={setIsEditingDescription}
           onDelete={onDelete}
@@ -240,6 +314,7 @@ it("ContextMenu not overflowing submenu", async () => {
       children: (
         <ContextMenu
           editable={false}
+          userPermission={null}
           setIsEditingTitle={setIsEditingTitle}
           setIsEditingDescription={setIsEditingDescription}
           onDelete={onDelete}
@@ -288,6 +363,7 @@ it("ContextMenu overflowing submenu", async () => {
       children: (
         <ContextMenu
           editable={false}
+          userPermission={null}
           setIsEditingTitle={setIsEditingTitle}
           setIsEditingDescription={setIsEditingDescription}
           onDelete={onDelete}

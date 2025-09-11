@@ -191,6 +191,7 @@ ContextMenu.propTypes = {
   onCopyPublicLink: PropTypes.func,
   shared: PropTypes.bool,
   editable: PropTypes.bool,
+  userPermission: PropTypes.string,
 };
 
 export default ContextMenu;

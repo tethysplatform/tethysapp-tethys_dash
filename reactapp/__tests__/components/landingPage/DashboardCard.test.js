@@ -347,7 +347,8 @@ test("DashboardCard viewer permission, open", async () => {
   expect(screen.queryByText("Update Thumbnail")).not.toBeInTheDocument();
   expect(screen.queryByText("Delete")).not.toBeInTheDocument();
   expect(await screen.findByText("Copy")).toBeInTheDocument();
-  expect(await screen.findByText("Share")).toBeInTheDocument();
+  // cant make it public and its not public already
+  expect(screen.queryByText("Share")).not.toBeInTheDocument();
 
   // open with context menu
   await userEvent.click(openOption);
