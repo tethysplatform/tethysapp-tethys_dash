@@ -20,6 +20,34 @@ const StyledBody = styled(Modal.Body)`
   text-align: center;
 `;
 
+const LogoImg = styled.img`
+  vertical-align: middle;
+`;
+
+const SingleLogoImg = styled(LogoImg)`
+  width: 15%;
+`;
+
+const StackedLogosDiv = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 15%;
+`;
+
+const InfoSpan = styled.span`
+  display: inline;
+  font-size: 1em;
+`;
+
+const AttributionDiv = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+`;
+
 function AppInfoModal({ showModal, setShowModal, view }) {
   const layoutContext = useContext(LayoutContext);
   const editingContext = useContext(EditingContext);
@@ -91,7 +119,7 @@ function AppInfoModal({ showModal, setShowModal, view }) {
         </Modal.Header>
         <StyledBody>
           {view === "dashboard" ? (
-            <>
+            <p>
               TethysDash dashboards provide a customizable dataviewer for a
               variety of user defined data sources. For more information about
               the application and developing visualizations, check the official{" "}
@@ -103,9 +131,9 @@ function AppInfoModal({ showModal, setShowModal, view }) {
                 TethysDash documentation
               </a>
               .
-            </>
+            </p>
           ) : (
-            <>
+            <p>
               Welcome to TethysDash, a customizable data viewer and dashboard
               application. The landing page provides a summary of all available
               dashboards, including publicly available dashboards. For more
@@ -119,16 +147,14 @@ function AppInfoModal({ showModal, setShowModal, view }) {
                 TethysDash documentation
               </a>
               .
-            </>
+            </p>
           )}
           {user?.username && (
             <>
-              <br />
-              <br />
-              If you would like to take a tour of the application, click on the
-              button below to begin.
-              <br />
-              <br />
+              <p>
+                If you would like to take a tour of the application, click on
+                the button below to begin.
+              </p>
               <Button onClick={startAppTour} variant="info">
                 {view === "dashboard"
                   ? "Start Dashboard Tour"
@@ -136,6 +162,35 @@ function AppInfoModal({ showModal, setShowModal, view }) {
               </Button>
             </>
           )}
+          <hr />
+          <AttributionDiv>
+            <SingleLogoImg
+              src="/static/tethysdash/images/cw3e_logo.png"
+              alt="CW3E Logo"
+            />
+            <InfoSpan>
+              Initial funding for Tethys Dash provided by CW3E for the Forecast
+              Informed Reservoir Operations (FIRO) project. Visit{" "}
+              <a
+                target="_blank"
+                rel="noopener noreferrer"
+                href="https://cw3e.ucsd.edu/firo/"
+              >
+                the CW3E FIRO page
+              </a>{" "}
+              to learn more.
+            </InfoSpan>
+            <StackedLogosDiv>
+              <LogoImg
+                src="/static/tethysdash/images/ERDCLogo.png"
+                alt="ERDC Logo"
+              />
+              <LogoImg
+                src="/static/tethysdash/images/USACE_logo.png"
+                alt="USACE Logo"
+              />
+            </StackedLogosDiv>
+          </AttributionDiv>
         </StyledBody>
         <Modal.Footer>
           <StyledCheck

@@ -27,3 +27,5 @@ tethysapp/tethysdash/public/data/plugins/*
 !tethysapp/tethysdash/public/images/plugins/Text.png
 !tethysapp/tethysdash/public/images/plugins/Map.png
 !tethysapp/tethysdash/public/images/plugins/Custom Image.png
+!tethysapp/tethysdash/public/images/cw3e_logo.png
+!tethysapp/tethysdash/public/images/USACE_logo.png
