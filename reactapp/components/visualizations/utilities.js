@@ -28,6 +28,17 @@ export function checkForEmptyVariableInputs({
   return warnings.length > 0 ? warnings : null;
 }
 
+export function findVisualizationBySource(data, targetSource) {
+  for (const group of data) {
+    for (const option of group.options) {
+      if (option.source === targetSource) {
+        return option;
+      }
+    }
+  }
+  return null;
+}
+
 function getDependentVariableInputs(args) {
   const regex = /\${(.*?)}/g; // Matches ${...}
   const uniqueValues = new Set();

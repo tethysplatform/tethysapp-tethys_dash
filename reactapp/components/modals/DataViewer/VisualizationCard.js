@@ -82,6 +82,7 @@ const VisualizationCard = ({
   type,
   description,
   tags,
+  attribution,
   onClick,
 }) => {
   const cardRef = useRef();
@@ -136,9 +137,16 @@ const VisualizationCard = ({
               <InfoItem>
                 <b>Type</b>: {type}
               </InfoItem>
-              <InfoItem>
-                <b>Tags</b>: {tags.join(", ")}
-              </InfoItem>
+              {tags && tags.length > 0 && (
+                <InfoItem>
+                  <b>Tags</b>: {tags.join(", ")}
+                </InfoItem>
+              )}
+              {attribution && (
+                <InfoItem>
+                  <b>Attribution</b>: {attribution}
+                </InfoItem>
+              )}
             </div>
           </Popover.Body>
         </Popover>

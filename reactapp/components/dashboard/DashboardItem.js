@@ -2,11 +2,13 @@ import PropTypes from "prop-types";
 import styled, { css } from "styled-components";
 import Container from "react-bootstrap/Container";
 import { memo, useState, useContext, useEffect } from "react";
+import { BsInfoCircle } from "react-icons/bs";
 import {
   LayoutContext,
   EditingContext,
   VariableInputsContext,
   DataViewerModeContext,
+  AppContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
@@ -16,6 +18,7 @@ import { confirm } from "components/inputs/DeleteConfirmation";
 import {
   getGridItem,
   downloadJSONFile,
+  findVisualizationBySource,
 } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
 import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
@@ -51,6 +54,33 @@ const StyledDiv = styled.div`
       : props.$isEditing
         ? "0 4px 8px rgba(0, 0, 0, 0.1)"
         : "none"};
+  position: relative;
+`;
+
+const InfoIconWrapper = styled.div`
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+`;
+
+const AttributionTooltip = styled.div`
+  display: ${(props) => (props.show ? "block" : "none")};
+  position: absolute;
+  top: 2.2rem;
+  left: 0.5rem;
+  background: rgba(255, 255, 255, 0.97);
+  color: #222;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-size: 0.95em;
+  min-width: 220px;
+  max-width: 320px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  z-index: 100;
 `;
 
 export const minMapLayerStructure = `Map layers must have at minimum, the following structure:
@@ -193,7 +223,19 @@ const DashboardItem = ({
     VariableInputsContext
   );
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
+  const { visualizations } = useContext(AppContext);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
+  const [attribution, setAttribution] = useState(
+    findVisualizationBySource(visualizations, gridItemSource)?.attribution
+  );
+  const [showAttribution, setShowAttribution] = useState(false);
+
+  useEffect(() => {
+    setAttribution(
+      findVisualizationBySource(visualizations, gridItemSource)?.attribution
+    );
+    // eslint-disable-next-line
+  }, [gridItemSource]);
 
   useEffect(() => {
     setGridItemStyling(JSON.parse(gridItemMetadataString));
@@ -306,6 +348,21 @@ const DashboardItem = ({
         aria-label="gridItemDiv"
         className="no-caret"
       >
+        {attribution && (
+          <InfoIconWrapper
+            onMouseEnter={() => setShowAttribution(true)}
+            onMouseLeave={() => setShowAttribution(false)}
+          >
+            <BsInfoCircle
+              size={22}
+              color="#007bff"
+              style={{ cursor: "pointer" }}
+            />
+            <AttributionTooltip show={showAttribution}>
+              {attribution}
+            </AttributionTooltip>
+          </InfoIconWrapper>
+        )}
         <StyledContainer
           fluid
           className="h-100 gridVisualization"

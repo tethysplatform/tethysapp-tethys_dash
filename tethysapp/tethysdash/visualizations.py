@@ -31,6 +31,7 @@ def get_available_visualizations():
             "args": plugin.visualization_args,
             "type": plugin.visualization_type,
             "tags": getattr(plugin, "visualization_tags", []),
+            "attribution": getattr(plugin, "visualization_attribution", ""),
             "description": getattr(plugin, "visualization_description", ""),
             "loading_icon": getattr(plugin, "visualization_loading_icon", True),
         }

@@ -20,6 +20,7 @@ import Tabs from "react-bootstrap/Tabs";
 import TextEditor from "components/inputs/TextEditor";
 import { Visualization } from "components/visualizations/Base";
 import MapContextProvider from "components/contexts/MapContext";
+import { findVisualizationBySource } from "components/visualizations/utilities";
 import "components/modals/wideModal.css";
 import "components/modals/DataViewer/DataViewer.css";
 
@@ -54,17 +55,6 @@ const StyledVizCol = styled(Col)`
   overflow-y: auto;
 `;
 
-function findBySource(data, targetSource) {
-  for (const group of data) {
-    for (const option of group.options) {
-      if (option.source === targetSource) {
-        return option;
-      }
-    }
-  }
-  return null;
-}
-
 function DataViewerModal({
   gridItemIndex,
   source,
@@ -77,7 +67,7 @@ function DataViewerModal({
 }) {
   const { visualizations } = useContext(AppContext);
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(
-    findBySource(visualizations, source)
+    findVisualizationBySource(visualizations, source)
   );
   const [vizType, setVizType] = useState("unknown");
   const [vizData, setVizData] = useState({});
