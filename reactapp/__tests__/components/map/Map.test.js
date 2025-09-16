@@ -231,9 +231,11 @@ test("Custom bounding box map extent with variable", async () => {
   expect(mapDiv).toHaveStyle("width: 50%");
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
-  expect(await screen.findByTestId("map-view")).toHaveTextContent(
-    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
-  );
+  await waitFor(async () => {
+    expect(await screen.findByTestId("map-view")).toHaveTextContent(
+      JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
+    );
+  });
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({

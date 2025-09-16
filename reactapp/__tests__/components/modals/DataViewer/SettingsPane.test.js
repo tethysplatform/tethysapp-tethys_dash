@@ -413,11 +413,13 @@ test("Settings with backgroundColor", async () => {
   await userEvent.type(hexInput, "#0000ff");
   await userEvent.tab();
 
-  expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({
-      backgroundColor: "#0000ff",
-    })
-  );
+  await waitFor(async () => {
+    expect(await screen.findByTestId("settings")).toHaveTextContent(
+      JSON.stringify({
+        backgroundColor: "#0000ff",
+      })
+    );
+  });
 
   // change to transparent
   await userEvent.clear(hexInput);
@@ -439,7 +441,9 @@ test("Settings with box shadow", async () => {
     })
   );
 
-  const boxShadowCheckbox = await screen.findByRole("checkbox");
+  const boxShadowCheckbox = await screen.findByLabelText(
+    "Use Box Shadow Styling Input"
+  );
   expect(boxShadowCheckbox).toBeInTheDocument();
 
   await userEvent.click(boxShadowCheckbox);
@@ -471,7 +475,9 @@ test("Settings with box shadow and border", async () => {
     })
   );
 
-  const boxShadowCheckbox = await screen.findByRole("checkbox");
+  const boxShadowCheckbox = await screen.findByLabelText(
+    "Use Box Shadow Styling Input"
+  );
   expect(boxShadowCheckbox).toBeInTheDocument();
 
   await userEvent.click(boxShadowCheckbox);
@@ -511,7 +517,9 @@ test("Settings with box shadow and top and bottom border", async () => {
     })
   );
 
-  const boxShadowCheckbox = await screen.findByRole("checkbox");
+  const boxShadowCheckbox = await screen.findByLabelText(
+    "Use Box Shadow Styling Input"
+  );
   expect(boxShadowCheckbox).toBeInTheDocument();
 
   await userEvent.click(boxShadowCheckbox);
@@ -546,7 +554,9 @@ test("Settings with box shadow and left and right border", async () => {
     })
   );
 
-  const boxShadowCheckbox = await screen.findByRole("checkbox");
+  const boxShadowCheckbox = await screen.findByLabelText(
+    "Use Box Shadow Styling Input"
+  );
   expect(boxShadowCheckbox).toBeInTheDocument();
 
   await userEvent.click(boxShadowCheckbox);
@@ -583,7 +593,9 @@ test("Settings with box shadow and change border", async () => {
 
   const leftBorderButton = await screen.findByLabelText("left Border Button");
   expect(leftBorderButton).toBeInTheDocument();
-  const boxShadowCheckbox = await screen.findByRole("checkbox");
+  const boxShadowCheckbox = await screen.findByLabelText(
+    "Use Box Shadow Styling Input"
+  );
   expect(boxShadowCheckbox).toBeInTheDocument();
 
   await userEvent.click(boxShadowCheckbox);

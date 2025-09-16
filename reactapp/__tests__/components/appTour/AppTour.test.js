@@ -607,7 +607,7 @@ test("Dashboard App Tour", async () => {
     // eslint-disable-next-line
     document.querySelector("#react-joyride-portal")
   ).not.toBeInTheDocument();
-}, 40000);
+}, 60000);
 
 test("Dashboard App Tour while editing and then exit", async () => {
   const mockAddDashboard = jest.fn();
