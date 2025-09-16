@@ -354,6 +354,7 @@ const DashboardItem = ({
           <InfoIconWrapper
             onMouseEnter={() => setShowAttribution(true)}
             onMouseLeave={() => setShowAttribution(false)}
+            aria-label="attribution-info-icon"
           >
             <BsInfoCircle
               size={22}
@@ -362,6 +363,7 @@ const DashboardItem = ({
             />
             <AttributionTooltip
               show={showAttribution}
+              aria-label="attribution-tooltip"
               onMouseLeave={() => setShowAttribution(false)}
             >
               {attribution}

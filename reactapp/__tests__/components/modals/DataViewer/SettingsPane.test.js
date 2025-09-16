@@ -631,6 +631,64 @@ test("Settings with box shadow and change border", async () => {
   });
 });
 
+test("Settings with attribution", async () => {
+  render(
+    createLoadedComponent({
+      children: <TestingComponent currentSettings={{}} />,
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
+
+  const attributionCheckbox = await screen.findByLabelText(
+    "Show Attribution Input"
+  );
+  expect(attributionCheckbox).toBeInTheDocument();
+  expect(attributionCheckbox.checked).toBe(true);
+
+  await userEvent.click(attributionCheckbox);
+
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({ attribution: false })
+  );
+  expect(attributionCheckbox.checked).toBe(false);
+
+  await userEvent.click(attributionCheckbox);
+
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({})
+  );
+  expect(attributionCheckbox.checked).toBe(true);
+});
+
+test("Settings with existing attribution", async () => {
+  render(
+    createLoadedComponent({
+      children: <TestingComponent currentSettings={{ attribution: false }} />,
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
+
+  const attributionCheckbox = await screen.findByLabelText(
+    "Show Attribution Input"
+  );
+  expect(attributionCheckbox).toBeInTheDocument();
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({ attribution: false })
+  );
+  expect(attributionCheckbox.checked).toBe(false);
+
+  await userEvent.click(attributionCheckbox);
+
+  expect(await screen.findByTestId("settings")).toHaveTextContent(
+    JSON.stringify({})
+  );
+  expect(attributionCheckbox.checked).toBe(true);
+});
+
 test("Settings with custom messaging", async () => {
   render(
     createLoadedComponent({

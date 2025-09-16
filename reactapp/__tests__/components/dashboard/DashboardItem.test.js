@@ -26,6 +26,7 @@ import {
   exampleStyle,
 } from "__tests__/utilities/constants";
 import * as utils from "components/visualizations/utilities";
+import selectEvent from "react-select-event";
 
 // eslint-disable-next-line
 jest.mock("components/modals/DataViewer/VisualizationPane", () => () => (
@@ -47,6 +48,20 @@ const mockedConfirm = jest.mocked(confirm);
 jest.mock("uuid", () => ({
   v4: () => 12345678,
 }));
+
+beforeEach(() => {
+  delete window.ResizeObserver;
+  window.ResizeObserver = jest.fn().mockImplementation(() => ({
+    observe: jest.fn(),
+    unobserve: jest.fn(),
+    disconnect: jest.fn(),
+  }));
+});
+
+afterEach(() => {
+  window.ResizeObserver = ResizeObserver;
+  jest.restoreAllMocks();
+});
 
 const exampleGeoJSON = {
   type: "FeatureCollection",
@@ -102,6 +117,9 @@ test("Dashboard Item not editing", async () => {
 
   expect(
     screen.queryByLabelText("dashboard-item-dropdown-toggle")
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("attribution-info-icon")
   ).not.toBeInTheDocument();
 });
 
@@ -1198,6 +1216,137 @@ test("Dashboard Item export fail", async () => {
   expect(
     await screen.findByText("Failed to export grid item.")
   ).toBeInTheDocument();
+});
+
+test("Dashboard attribution and show", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.gridItems[0];
+  gridItem.source = "plugin_source_checkbox";
+  mockedConfirm.mockResolvedValue(true);
+
+  const availableVisualizations = [
+    {
+      label: "Other",
+      options: [
+        {
+          source: "plugin_source_checkbox",
+          value: "plugin_value_checkbox",
+          label: "plugin_label_checkbox",
+          args: {},
+          type: "text",
+          tags: [],
+          description: "",
+          loading_icon: true,
+          attribution: "Some Attribution Text",
+        },
+      ],
+    },
+  ];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: userDashboard,
+        visualizations: availableVisualizations,
+      },
+    })
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  expect(dashboardGridItem).toBeInTheDocument();
+
+  const attributionIcon = await screen.findByLabelText("attribution-info-icon");
+  expect(attributionIcon).toBeInTheDocument();
+
+  const tooltip = screen.getByLabelText("attribution-tooltip");
+  expect(tooltip).not.toBeVisible();
+
+  fireEvent.mouseEnter(attributionIcon);
+
+  expect(tooltip).toBeVisible();
+
+  fireEvent.mouseLeave(attributionIcon);
+
+  expect(tooltip).not.toBeVisible();
+
+  fireEvent.mouseEnter(attributionIcon);
+
+  expect(tooltip).toBeVisible();
+
+  fireEvent.mouseEnter(tooltip);
+
+  expect(tooltip).toBeVisible();
+
+  fireEvent.mouseLeave(tooltip);
+
+  expect(tooltip).not.toBeVisible();
+});
+
+test("Dashboard attribution and not show", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.gridItems[0];
+  gridItem.metadata_string = JSON.stringify({ attribution: false });
+  gridItem.source = "plugin_source_checkbox";
+  mockedConfirm.mockResolvedValue(true);
+
+  const availableVisualizations = [
+    {
+      label: "Other",
+      options: [
+        {
+          source: "plugin_source_checkbox",
+          value: "plugin_value_checkbox",
+          label: "plugin_label_checkbox",
+          args: {},
+          type: "text",
+          tags: [],
+          description: "",
+          loading_icon: true,
+          attribution: "Some Attribution Text",
+        },
+      ],
+    },
+  ];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: userDashboard,
+        visualizations: availableVisualizations,
+      },
+    })
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  expect(dashboardGridItem).toBeInTheDocument();
+
+  expect(
+    screen.queryByLabelText("attribution-info-icon")
+  ).not.toBeInTheDocument();
 });
 
 test("handleGridItemExport", async () => {
