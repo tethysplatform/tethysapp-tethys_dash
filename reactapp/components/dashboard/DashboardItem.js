@@ -340,6 +340,33 @@ const DashboardItem = ({
     setInDataViewerMode(false);
   }
 
+  function renderAttributionWithLinks(text) {
+    if (!text) return null;
+    // Regex to match URLs (http, https, www)
+    const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
+    const parts = text.split(urlRegex);
+    return parts.map((part, i) => {
+      if (urlRegex.test(part)) {
+        let href = part;
+        if (!href.startsWith("http")) {
+          href = "http://" + href;
+        }
+        return (
+          <a
+            key={i}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: "#007bff", wordBreak: "break-all" }}
+          >
+            {part}
+          </a>
+        );
+      }
+      return <span key={i}>{part}</span>;
+    });
+  }
+
   return (
     <>
       <StyledDiv
@@ -366,7 +393,7 @@ const DashboardItem = ({
               aria-label="attribution-tooltip"
               onMouseLeave={() => setShowAttribution(false)}
             >
-              {attribution}
+              {renderAttributionWithLinks(attribution)}
             </AttributionTooltip>
           </InfoIconWrapper>
         )}

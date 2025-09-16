@@ -1293,6 +1293,150 @@ test("Dashboard attribution and show", async () => {
   expect(tooltip).not.toBeVisible();
 });
 
+test("Dashboard attribution www link and show", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.gridItems[0];
+  gridItem.source = "plugin_source_checkbox";
+  mockedConfirm.mockResolvedValue(true);
+
+  const availableVisualizations = [
+    {
+      label: "Other",
+      options: [
+        {
+          source: "plugin_source_checkbox",
+          value: "plugin_value_checkbox",
+          label: "plugin_label_checkbox",
+          args: {},
+          type: "text",
+          tags: [],
+          description: "",
+          loading_icon: true,
+          attribution: "Some Attribution Text www.example.com",
+        },
+      ],
+    },
+  ];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: userDashboard,
+        visualizations: availableVisualizations,
+      },
+    })
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  expect(dashboardGridItem).toBeInTheDocument();
+
+  const attributionIcon = await screen.findByLabelText("attribution-info-icon");
+  expect(attributionIcon).toBeInTheDocument();
+
+  const tooltip = screen.getByLabelText("attribution-tooltip");
+  expect(tooltip).not.toBeVisible();
+
+  fireEvent.mouseEnter(attributionIcon);
+
+  // Tooltip should now be visible
+  const tooltipAfter = await screen.findByLabelText("attribution-tooltip");
+  expect(tooltipAfter).toBeVisible();
+
+  // Check that the attribution text contains a link with the correct URL and text
+  const link = within(tooltipAfter).getByRole("link", {
+    name: "www.example.com",
+  });
+  expect(link).toBeInTheDocument();
+  expect(link).toHaveAttribute("href", "http://www.example.com");
+
+  // Optionally, check that the rest of the text is present
+  expect(tooltipAfter).toHaveTextContent("Some Attribution Text");
+});
+
+test("Dashboard attribution https link and show", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.gridItems[0];
+  gridItem.source = "plugin_source_checkbox";
+  mockedConfirm.mockResolvedValue(true);
+
+  const availableVisualizations = [
+    {
+      label: "Other",
+      options: [
+        {
+          source: "plugin_source_checkbox",
+          value: "plugin_value_checkbox",
+          label: "plugin_label_checkbox",
+          args: {},
+          type: "text",
+          tags: [],
+          description: "",
+          loading_icon: true,
+          attribution: "Some Attribution Text https://example.com",
+        },
+      ],
+    },
+  ];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <DashboardItem
+            gridItemSource={gridItem.source}
+            gridItemI={gridItem.i}
+            gridItemArgsString={gridItem.args_string}
+            gridItemMetadataString={gridItem.metadata_string}
+            gridItemIndex={0}
+          />
+          <EditingPComponent />
+        </>
+      ),
+      options: {
+        initialDashboard: userDashboard,
+        visualizations: availableVisualizations,
+      },
+    })
+  );
+
+  const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
+  expect(dashboardGridItem).toBeInTheDocument();
+
+  const attributionIcon = await screen.findByLabelText("attribution-info-icon");
+  expect(attributionIcon).toBeInTheDocument();
+
+  const tooltip = screen.getByLabelText("attribution-tooltip");
+  expect(tooltip).not.toBeVisible();
+
+  fireEvent.mouseEnter(attributionIcon);
+
+  // Tooltip should now be visible
+  const tooltipAfter = await screen.findByLabelText("attribution-tooltip");
+  expect(tooltipAfter).toBeVisible();
+
+  // Check that the attribution text contains a link with the correct URL and text
+  const link = within(tooltipAfter).getByRole("link", {
+    name: "https://example.com",
+  });
+  expect(link).toBeInTheDocument();
+  expect(link).toHaveAttribute("href", "https://example.com");
+
+  // Optionally, check that the rest of the text is present
+  expect(tooltipAfter).toHaveTextContent("Some Attribution Text");
+});
+
 test("Dashboard attribution and not show", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.gridItems[0];

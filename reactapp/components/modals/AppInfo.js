@@ -62,8 +62,8 @@ function AppInfoModal({ showModal, setShowModal, view }) {
   const [showingConfirm, setShowingConfirm] = useState(false);
   const [checked, setChecked] = useState(
     view === "dashboard"
-      ? (dontShowDashboardInfoOnStart ?? false)
-      : (dontShowLandingPageInfoOnStart ?? false)
+      ? dontShowDashboardInfoOnStart === "true"
+      : dontShowLandingPageInfoOnStart === "true"
   );
 
   const handleClose = () => setShowModal(false);
