@@ -285,6 +285,7 @@ def mock_plugin(mocker):
         visualization_type="image",
         visualization_tags=["some tag"],
         visualization_description="some description",
+        visualization_attribution="some attribution",
         visualization_loading_icon=False,
     )
     plugin.name = "package_name"
@@ -320,6 +321,7 @@ def mock_plugin_visualization(mock_plugin):
                 "type": mock_plugin.visualization_type,
                 "tags": mock_plugin.visualization_tags,
                 "description": mock_plugin.visualization_description,
+                "attribution": mock_plugin.visualization_attribution,
                 "loading_icon": mock_plugin.visualization_loading_icon,
             }
         ],
@@ -341,6 +343,7 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "type": mock_plugin.visualization_type,
                 "tags": mock_plugin.visualization_tags,
                 "description": mock_plugin.visualization_description,
+                "attribution": mock_plugin.visualization_attribution,
                 "loading_icon": mock_plugin.visualization_loading_icon,
             },
             {
@@ -351,6 +354,7 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "type": mock_plugin2.visualization_type,
                 "tags": [],
                 "description": "",
+                "attribution": "",
                 "loading_icon": True,
             },
         ],
