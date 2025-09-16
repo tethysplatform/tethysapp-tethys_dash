@@ -127,6 +127,18 @@ function SettingsPane({
     });
   };
 
+  const onAttributionChange = (e) => {
+    const checked = e.target.checked;
+    setSettings((prev) => {
+      if (checked) {
+        const { attribution, ...rest } = prev;
+        return rest;
+      } else {
+        return { ...prev, attribution: false };
+      }
+    });
+  };
+
   const onBackgroundColorChange = (color) => {
     setSettings((prev) => {
       const isTransparent = checkTransparency(color);
@@ -207,6 +219,13 @@ function SettingsPane({
         type="checkbox"
         value={!!settings.boxShadow}
         onChange={onBoxShadowChange}
+        divProps={{ style: { marginBottom: ".5rem" } }}
+      />
+      <CheckboxInput
+        label="Show Attribution"
+        type="checkbox"
+        value={settings.attribution !== false}
+        onChange={onAttributionChange}
         divProps={{ style: { marginBottom: ".5rem" } }}
       />
       <CustomMessaging

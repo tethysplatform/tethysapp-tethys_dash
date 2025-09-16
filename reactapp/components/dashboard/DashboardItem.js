@@ -67,20 +67,22 @@ const InfoIconWrapper = styled.div`
 `;
 
 const AttributionTooltip = styled.div`
+  max-height: 50vh;
+  overflow-y: auto;
   display: ${(props) => (props.show ? "block" : "none")};
   position: absolute;
-  top: 2.2rem;
+  top: 0.5rem;
   left: 0.5rem;
   background: rgba(255, 255, 255, 0.97);
   color: #222;
   border: 1px solid #ccc;
   border-radius: 6px;
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 1.5rem 0.75rem 1rem;
   font-size: 0.95em;
-  min-width: 220px;
-  max-width: 320px;
+  max-width: 25vw;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
   z-index: 100;
+  scrollbar-gutter: stable both-edges;
 `;
 
 export const minMapLayerStructure = `Map layers must have at minimum, the following structure:
@@ -348,7 +350,7 @@ const DashboardItem = ({
         aria-label="gridItemDiv"
         className="no-caret"
       >
-        {attribution && (
+        {gridItemStyling?.attribution !== false && attribution && (
           <InfoIconWrapper
             onMouseEnter={() => setShowAttribution(true)}
             onMouseLeave={() => setShowAttribution(false)}
@@ -358,7 +360,10 @@ const DashboardItem = ({
               color="#007bff"
               style={{ cursor: "pointer" }}
             />
-            <AttributionTooltip show={showAttribution}>
+            <AttributionTooltip
+              show={showAttribution}
+              onMouseLeave={() => setShowAttribution(false)}
+            >
               {attribution}
             </AttributionTooltip>
           </InfoIconWrapper>
