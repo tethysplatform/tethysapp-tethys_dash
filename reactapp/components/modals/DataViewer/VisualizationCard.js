@@ -160,6 +160,7 @@ VisualizationCard.propTypes = {
   label: PropTypes.string,
   type: PropTypes.string,
   description: PropTypes.string,
+  attribution: PropTypes.string,
   tags: PropTypes.arrayOf(PropTypes.string),
   onClick: PropTypes.func,
 };

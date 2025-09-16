@@ -26,7 +26,6 @@ import {
   exampleStyle,
 } from "__tests__/utilities/constants";
 import * as utils from "components/visualizations/utilities";
-import selectEvent from "react-select-event";
 
 // eslint-disable-next-line
 jest.mock("components/modals/DataViewer/VisualizationPane", () => () => (
