@@ -33,6 +33,9 @@ function replaceHtmlEntitiesInExpressions(obj) {
 }
 
 const appAPI = {
+  getUserAppPermissions: () => {
+    return apiClient.get(`${APP_ROOT_URL}permissions/`);
+  },
   getActivityData: (activity) => {
     return apiClient.get(`${APP_ROOT_URL}ping/`, { params: activity });
   },

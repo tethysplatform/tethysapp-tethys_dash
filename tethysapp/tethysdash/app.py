@@ -1,5 +1,6 @@
 from tethys_sdk.base import TethysAppBase
 from tethys_sdk.app_settings import PersistentStoreDatabaseSetting
+from tethys_sdk.permissions import Permission
 
 
 class App(TethysAppBase):
@@ -33,3 +34,12 @@ class App(TethysAppBase):
         )
 
         return ps_settings
+
+    def permissions(self):
+        manage_visualizations = Permission(
+            name="manage_visualizations", description="Manage visualizations"
+        )
+
+        permissions = (manage_visualizations,)
+
+        return permissions

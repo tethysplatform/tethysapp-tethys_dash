@@ -16,6 +16,7 @@ import TooltipButton from "components/buttons/TooltipButton";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import AppInfoModal from "components/modals/AppInfo";
 import DashboardImportModal from "components/modals/DashboardImport";
+import VisualizationSettingsModal from "components/modals/VisualizationSettings";
 import { PermissionGroupsSummaryModal } from "components/modals/PermissionGroups";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import {
@@ -90,7 +91,7 @@ function LockedIcon({ locked }) {
 }
 
 export const LandingPageHeader = () => {
-  const { tethysApp, user } = useContext(AppContext);
+  const { tethysApp, user, userAppPermissions } = useContext(AppContext);
   const dontShowLandingPageInfoOnStart = localStorage.getItem(
     "dontShowLandingPageInfoOnStart"
   );
@@ -100,6 +101,11 @@ export const LandingPageHeader = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showPermissionGroupsModal, setShowPermissionGroupsModal] =
     useState(false);
+  const [showVisualizationSettingsModal, setShowVisualizationSettingsModal] =
+    useState(false);
+  const allowedToManageVisualizations =
+    Array.isArray(userAppPermissions) &&
+    userAppPermissions.includes("manage_visualizations");
 
   return (
     <>
@@ -111,6 +117,20 @@ export const LandingPageHeader = () => {
           <div>
             {user?.username ? (
               <>
+                {allowedToManageVisualizations && (
+                  <TooltipButton
+                    onClick={() => setShowVisualizationSettingsModal(true)}
+                    tooltipPlacement="bottom"
+                    tooltipText="Manage Visualization Settings"
+                    aria-label="manageVisualizationSettingsButton"
+                  >
+                    <img
+                      src="/static/tethysdash/images/visualization_settings.png"
+                      alt="Visualization Settings"
+                      style={{ height: "1.5rem" }}
+                    />
+                  </TooltipButton>
+                )}
                 <TooltipButton
                   onClick={() => setShowPermissionGroupsModal(true)}
                   tooltipPlacement="bottom"
@@ -187,6 +207,12 @@ export const LandingPageHeader = () => {
         <PermissionGroupsSummaryModal
           showModal={showPermissionGroupsModal}
           setShowModal={setShowPermissionGroupsModal}
+        />
+      )}
+      {allowedToManageVisualizations && (
+        <VisualizationSettingsModal
+          showModal={showVisualizationSettingsModal}
+          setShowModal={setShowVisualizationSettingsModal}
         />
       )}
     </>

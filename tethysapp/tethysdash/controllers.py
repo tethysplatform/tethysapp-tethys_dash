@@ -40,6 +40,18 @@ def home(request):
 
 @api_view(["GET"])
 @controller(login_required=False)
+def permissions(request):
+    """Controller for getting user permissions."""
+    user_permissions = [
+        perm.split(":")[-1]
+        for perm in request.user.get_all_permissions()
+        if perm.startswith(f"tethys_apps.{App.package}")
+    ]
+    return JsonResponse({"permissions": user_permissions})
+
+
+@api_view(["GET"])
+@controller(login_required=False)
 def ping(request):
     """
     Controller for the app activity
@@ -123,7 +135,7 @@ def data(request):
 @controller(login_required=False)
 def dashboards(request):
     """API controller for the dashboards page."""
-    user = str(request.user)
+    user = request.user
     dashboards = get_dashboards(user)
     permission_groups = get_user_permission_groups(user)
     clean_up_jsons(user)
@@ -146,7 +158,7 @@ def visualizations(request):
 @controller(url="tethysdash/dashboards/get", login_required=False)
 def get_dashboard(request):
     """API controller for the dashboards page."""
-    user = str(request.user)
+    user = request.user
     dashboard_id = request.GET["id"]
 
     try:
@@ -174,7 +186,7 @@ def add_dashboard(request, app_media):
     public = dashboard_metadata.get("public", False)
     unrestricted_placement = dashboard_metadata.get("unrestrictedPlacement", False)
     grid_items = dashboard_metadata.get("gridItems", [])
-    owner = str(request.user)
+    owner = request.user
     dashboard_uuid = str(uuid.uuid4())
     print(f"Creating a dashboard named {name}")
 
@@ -220,7 +232,7 @@ def copy_dashboard(request, app_media):
     dashboard_metadata = json.loads(request.body)
     id = dashboard_metadata["id"]
     new_name = dashboard_metadata["newName"]
-    user = str(request.user)
+    user = request.user
     dashboard_uuid = str(uuid.uuid4())
     print(f"Creating a dashboard {id}")
 
@@ -258,7 +270,7 @@ def delete_dashboard(request, app_media):
 
     dashboard_metadata = json.loads(request.body)
     id = dashboard_metadata["id"]
-    user = str(request.user)
+    user = request.user
 
     try:
         dashboard_uuid = delete_named_dashboard(user, id)
@@ -295,7 +307,7 @@ def update_dashboard(request):
         )
 
     id = dashboard_updates.pop("id")
-    user = str(request.user)
+    user = request.user
 
     try:
         updated_dashboard = update_named_dashboard(user, id, dashboard_updates)
@@ -317,7 +329,7 @@ def update_dashboard(request):
 def update_permission_group(request):
     """API controller for the permission groups page."""
     permission_group_updates = json.loads(request.body)
-    user = str(request.user)
+    user = request.user
     existing_permission_group = True if permission_group_updates.get("id") else False
 
     try:
@@ -363,7 +375,7 @@ def update_permission_group(request):
 def delete_permission_group(request):
     """API controller for the permission groups page."""
     request_body = json.loads(request.body)
-    user = str(request.user)
+    user = request.user
     permission_group_id = request_body.get("id")
 
     try:
@@ -394,7 +406,7 @@ def upload_json(request, app_workspace):
     """API controller for the dashboards page."""
 
     json_data = json.loads(request.body)
-    user = str(request.user)
+    user = request.user
 
     data = json_data["data"]
     filename = json_data["filename"]
