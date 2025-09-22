@@ -274,7 +274,7 @@ def test_get_dashboard_failed_unknown_exception(
 
 @pytest.mark.django_db
 def test_add_dashboard(
-    client, admin_user, mock_app, db_session, mock_app_get_ps_db, mocker, tmp_path
+    client, mock_app, db_session, mocker, tmp_path, test_admin_user, mock_app_get_ps_db
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
@@ -291,7 +291,7 @@ def test_add_dashboard(
     }
 
     url = reverse("tethysdash:add_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_admin_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -305,8 +305,8 @@ def test_add_dashboard(
         "image": "/media/app_root/app/123e4567-e89b-12d3-a456-426614174000.png",
         "uuid": "123e4567-e89b-12d3-a456-426614174000",
         "unrestrictedPlacement": False,
-        "owner": "admin",
-        "permissions": [{"permission": "admin", "username": "admin"}],
+        "owner": test_admin_user.username,
+        "permissions": [{"permission": "admin", "username": test_admin_user.username}],
         "publicDashboard": False,
         "userPermission": "admin",
     }
@@ -865,7 +865,7 @@ def test_copy_dashboard_failed_unknown_exception(
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_copy_named_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         itemData["id"],
         "some_new_dashboard_name",
         "123e4567-e89b-12d3-a456-426614174000",
@@ -1254,6 +1254,7 @@ def test_ping_with_session_security_and_name_error(mocker, client, mock_app):
 def test_update_permission_group(
     client,
     test_admin_user,
+    test_member_user,
     mock_app,
     mock_app_get_ps_db,
     permission_group,
@@ -1271,8 +1272,8 @@ def test_update_permission_group(
             "permission": "admin",
         },
         {
-            "username": "jsmith",
-            "permission": "member",
+            "username": test_member_user.username,
+            "permission": "admin",
         },
     ]
     permission_group["members"] = new_members
@@ -1310,6 +1311,41 @@ def test_create_permission_group(
         "success": True,
     }
 
+
+@pytest.mark.django_db
+def test_create_permission_group_nonexistent_users(
+    client,
+    test_admin_user,
+    mock_app,
+    mock_app_get_ps_db,
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+
+    url = reverse("tethysdash:update_permission_group")
+    client.force_login(test_admin_user)
+
+    response = client.generic("POST", url, json.dumps({
+        "name": "some name",
+        "description": "",
+        "owner": test_admin_user.username,
+        "members": [
+            {
+                "username": "nonexistent_user",
+                "permission": "admin",
+            },
+            {
+                "username": test_admin_user.username,
+                "permission": "admin",
+            },
+        ],
+        "user_permission": "admin",
+    }))
+
+    assert response.status_code == 200
+
+    response_json = response.json()
+    assert response_json == {'success': False, 'message': "Users don't exist: nonexistent_user"}
 
 @pytest.mark.django_db
 def test_create_permission_group_error(

@@ -423,7 +423,7 @@ def upload_json(request, app_workspace):
         with open(json_file, "w") as outfile:
             outfile.write(clean_data)
 
-        json_user_folder = os.path.join(json_folder, user)
+        json_user_folder = os.path.join(json_folder, user.username)
         if not os.path.exists(json_user_folder):
             os.mkdir(json_user_folder)
 

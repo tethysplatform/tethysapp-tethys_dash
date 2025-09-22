@@ -3,10 +3,11 @@ import json
 import uuid
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from tethysapp.tethysdash.tests.integrated_tests import TEST_DB_URL
+from django.conf import settings
 from django.http import HttpResponse
 from unittest.mock import MagicMock
 from tethysapp.tethysdash.model import (
+    GroupPermissionLevel,
     init_primary_db,
     Dashboard,
     DashboardPermission,
@@ -19,7 +20,10 @@ from django.contrib.auth import get_user_model
 
 @pytest.fixture(scope="module")
 def db_url():
-    return TEST_DB_URL
+    db_settings = settings.DATABASES["default"]
+    # Django sets "NAME" to the test DB name when running tests
+    url = f"postgresql+psycopg2://{db_settings['USER']}:{db_settings['PASSWORD']}@{db_settings['HOST']}:{db_settings['PORT']}/{db_settings['NAME']}"
+    return url
 
 
 @pytest.fixture(scope="module")
@@ -29,7 +33,7 @@ def db_connection(db_url):
     connection = engine.connect()
     transaction = connection.begin()
 
-    # Create ATCore-related tables (e.g.: Resources)
+    # Run alembic migrations if needed
     init_primary_db(engine, first_time=True)
 
     yield connection
@@ -84,24 +88,38 @@ def test_admin_user(db):
     return user
 
 
+@pytest.fixture
+def test_member_user(db):
+    User = get_user_model()
+    user = User.objects.create_user(username="member_user", password="password123")
+    return user
+
+
+@pytest.fixture
+def test_owner_user(db):
+    User = get_user_model()
+    user = User.objects.create_user(username="owner_user", password="password123")
+    return user
+
+
 @pytest.fixture(scope="function")
-def permission_group():
+def permission_group(test_admin_user, test_member_user, test_owner_user):
     unique_name = f"{uuid.uuid4()}"
     return {
         "name": unique_name,
         "description": "",
-        "owner": "owner_user",
+        "owner": test_owner_user.username,
         "members": [
             {
-                "username": "owner_user",
+                "username": test_owner_user.username,
                 "permission": "admin",
             },
             {
-                "username": "admin_user",
+                "username": test_admin_user.username,
                 "permission": "admin",
             },
             {
-                "username": "member_user",
+                "username": test_member_user.username,
                 "permission": "member",
             },
         ],
@@ -126,7 +144,7 @@ def permission_group_table(db_session, permission_group):
             PermissionGroupUser(
                 username=member["username"],
                 group_id=group_id,
-                permission=member["permission"],
+                permission=GroupPermissionLevel[member["permission"]],
             )
         )
     db_session.commit()
@@ -208,7 +226,7 @@ def dashboard(db_session, dashboard_data, permission_group_table):
 
     viewer_permission = DashboardPermission(
         dashboard_id=dashboard_id,
-        group=permission_group_table.name,
+        group_id=permission_group_table.id,
         permission=DashboardPermissionLevel.viewer,
     )
     db_session.add(viewer_permission)
