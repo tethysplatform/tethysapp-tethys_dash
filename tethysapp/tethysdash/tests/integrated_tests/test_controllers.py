@@ -1535,3 +1535,21 @@ def test_delete_permission_group_exception_without_message(
         "message": f"Failed to delete the permission group {permission_group_table.id}. Check server for logs.",  # noqa: E501
         "success": False,
     }
+
+@pytest.mark.django_db
+def test_permissions(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:permissions")
+
+    # Patch get_all_permissions at the class level
+    from django.contrib.auth.models import User
+    mock_get_perms = mocker.patch.object(User, "get_all_permissions")
+    mock_get_perms.return_value = [
+        "tethys_apps.tethysdash:manage_visualizations",
+    ]
+
+    client.force_login(admin_user)
+
+    response = client.get(url)
+    assert response.status_code == 200
+    assert set(response.json()["permissions"]) == {"manage_visualizations"}

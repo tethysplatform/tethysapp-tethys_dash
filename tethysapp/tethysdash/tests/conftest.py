@@ -99,6 +99,8 @@ def test_member_user(db):
 def test_owner_user(db):
     User = get_user_model()
     user = User.objects.create_user(username="owner_user", password="password123")
+    user.get_all_permissions = lambda: {"tethys_apps.tethysdash:manage_visualizations"}
+
     return user
 
 
@@ -289,6 +291,7 @@ def mock_app(mocker):
         mock_app = mocker.patch(mock_path)
         mock_app.render.return_value = HttpResponse("Success")
         mock_app.root_url = "app_root"
+        mock_app.package = "tethysdash"
         return mock_app
 
     return mocked_path

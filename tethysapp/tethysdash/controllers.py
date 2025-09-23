@@ -47,6 +47,7 @@ def permissions(request):
         for perm in request.user.get_all_permissions()
         if perm.startswith(f"tethys_apps.{App.package}")
     ]
+
     return JsonResponse({"permissions": user_permissions})
 
 
