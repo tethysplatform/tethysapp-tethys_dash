@@ -118,7 +118,8 @@ def test_visualizations(
 @pytest.mark.django_db
 def test_dashboards(
     client,
-    admin_user,
+    test_owner_user,
+    test_admin_user,
     mock_app,
     mock_app_get_ps_db,
     dashboard,
@@ -140,7 +141,7 @@ def test_dashboards(
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
     url = reverse("tethysdash:dashboards")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
     response = client.get(url)
 
     assert response.status_code == 200
@@ -157,17 +158,18 @@ def test_dashboards(
     assert response_json["dashboards"][0]["publicDashboard"] == dashboard.public
     assert response_json["dashboards"][0]["userPermission"] == "admin"
     assert response_json["dashboards"][0]["permissions"] == [
-        {"permission": "admin", "username": dashboard.owner},
-        {"permission": "editor", "username": "editor"},
+        {"permission": "admin", "username": test_owner_user.username},
+        {"permission": "editor", "username": test_admin_user.username},
         {"permission": "viewer", "group": permission_group["name"]},
     ]
-    assert len(response_json["permission_groups"]) == 0
+    assert len(response_json["permission_groups"]) == 1
 
 
 @pytest.mark.django_db
 def test_get_dashboard(
     client,
-    admin_user,
+    test_owner_user,
+    test_admin_user,
     mock_app_get_ps_db,
     dashboard,
     mocker,
@@ -180,7 +182,7 @@ def test_get_dashboard(
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
 
     url = reverse("tethysdash:get_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
 
     itemData = {
         "id": dashboard.id,
@@ -200,8 +202,8 @@ def test_get_dashboard(
             "unrestrictedPlacement": dashboard.unrestricted_placement,
             "owner": dashboard.owner,
             "permissions": [
-                {"permission": "admin", "username": dashboard.owner},
-                {"permission": "editor", "username": "editor"},
+                {"permission": "admin", "username": test_owner_user.username},
+                {"permission": "editor", "username": test_admin_user.username},
                 {"permission": "viewer", "group": permission_group["name"]},
             ],
             "publicDashboard": dashboard.public,
@@ -233,7 +235,7 @@ def test_get_dashboard_failed(
     response = client.get(url, itemData)
 
     mock_get_dashboards.assert_called_with(
-        "admin", id=str(itemData["id"]), dashboard_view=True
+        admin_user, id=str(itemData["id"]), dashboard_view=True
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
@@ -262,7 +264,7 @@ def test_get_dashboard_failed_unknown_exception(
     response = client.get(url, itemData)
 
     mock_get_dashboards.assert_called_with(
-        "admin", id=str(itemData["id"]), dashboard_view=True
+        admin_user, id=str(itemData["id"]), dashboard_view=True
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
@@ -340,7 +342,7 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker, tmp_path):
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_add_new_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         "123e4567-e89b-12d3-a456-426614174000",
         itemData["name"],
         itemData["description"],
@@ -378,7 +380,7 @@ def test_add_dashboard_failed_unknown_exception(
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_add_new_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         "123e4567-e89b-12d3-a456-426614174000",
         itemData["name"],
         itemData["description"],
@@ -398,7 +400,7 @@ def test_add_dashboard_failed_unknown_exception(
 @pytest.mark.django_db
 def test_delete_dashboard(
     client,
-    admin_user,
+    test_owner_user,
     mock_app,
     db_session,
     mock_app_get_ps_db,
@@ -415,7 +417,7 @@ def test_delete_dashboard(
     }
 
     url = reverse("tethysdash:delete_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -434,7 +436,7 @@ def test_delete_dashboard(
 @pytest.mark.django_db
 def test_delete_dashboard_with_thumbnail(
     client,
-    admin_user,
+    test_owner_user,
     mock_app,
     db_session,
     mock_app_get_ps_db,
@@ -460,7 +462,7 @@ def test_delete_dashboard_with_thumbnail(
     )
 
     url = reverse("tethysdash:delete_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -494,7 +496,7 @@ def test_delete_dashboard_failed(client, admin_user, mock_app, mocker, tmp_path)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_delete_named_dashboard.assert_called_with("admin", itemData["id"])
+    mock_delete_named_dashboard.assert_called_with(admin_user, itemData["id"])
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert response.json()["message"] == "failed to delete"
@@ -520,7 +522,7 @@ def test_delete_dashboard_failed_unknown_exception(
 
     response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_delete_named_dashboard.assert_called_with("admin", itemData["id"])
+    mock_delete_named_dashboard.assert_called_with(admin_user, itemData["id"])
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert (
@@ -532,7 +534,8 @@ def test_delete_dashboard_failed_unknown_exception(
 @pytest.mark.django_db
 def test_update_dashboard(
     client,
-    admin_user,
+    test_owner_user,
+    test_admin_user,
     mock_app,
     mock_app_get_ps_db,
     dashboard,
@@ -551,7 +554,7 @@ def test_update_dashboard(
     }
 
     url = reverse("tethysdash:update_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
     expected_dashboard = {
@@ -565,8 +568,8 @@ def test_update_dashboard(
         "unrestrictedPlacement": dashboard.unrestricted_placement,
         "owner": dashboard.owner,
         "permissions": [
-            {"permission": "admin", "username": dashboard.owner},
-            {"permission": "editor", "username": "editor"},
+            {"permission": "admin", "username": test_owner_user.username},
+            {"permission": "editor", "username": test_admin_user.username},
             {"permission": "viewer", "group": permission_group["name"]},
         ],
         "publicDashboard": dashboard.public,
@@ -596,7 +599,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_update_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         itemData["id"],
         {"name": "dashboard_name"},
     )
@@ -656,7 +659,7 @@ def test_update_dashboard_failed_unknown_exception(
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_update_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         itemData["id"],
         {"name": "dashboard_name"},
     )
@@ -710,8 +713,8 @@ def test_copy_dashboard(
         "image": "/static/tethysdash/images/dashboard_thumbnail.png",
         "uuid": dashboard_uuid,
         "unrestrictedPlacement": dashboard.unrestricted_placement,
-        "owner": dashboard.owner,
-        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "owner": admin_user.username,
+        "permissions": [{"permission": "admin", "username": admin_user.username}],
         "publicDashboard": dashboard.public,
         "userPermission": "admin",
     }
@@ -772,8 +775,8 @@ def test_copy_dashboard_with_thumbnail(
         "image": "/media/app_root/app/123e4567-e89b-12d3-a456-426614174001.png",
         "uuid": "123e4567-e89b-12d3-a456-426614174001",
         "unrestrictedPlacement": dashboard.unrestricted_placement,
-        "owner": dashboard.owner,
-        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "owner": admin_user.username,
+        "permissions": [{"permission": "admin", "username": admin_user.username}],
         "publicDashboard": dashboard.public,
         "userPermission": "admin",
     }
@@ -820,7 +823,7 @@ def test_copy_dashboard_failed(
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_copy_named_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         itemData["id"],
         "some_new_dashboard_name",
         "123e4567-e89b-12d3-a456-426614174000",

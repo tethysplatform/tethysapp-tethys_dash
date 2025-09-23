@@ -196,7 +196,7 @@ def add_new_dashboard(
         # Add default admin permission for owner
         owner_permission = DashboardPermission(
             dashboard_id=new_dashboard_id,
-            username=owner.id,
+            username=owner.username,
             permission=DashboardPermissionLevel.admin,
         )
         session.add(owner_permission)
@@ -572,26 +572,56 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
             "User does not have admin permission to change the permissions of the dashboard."  # noqa: E501
         )
 
-    # Build lookup for updated permissions
-    updated_user_lookup = {
-        p["username"]: p["permission"] for p in updated_permissions if "username" in p
-    }
-    updated_group_lookup = {
-        p["group_id"]: p["permission"] for p in updated_permissions if "group_id" in p
-    }
-
     # Existing permissions
     existing_user_perms = {
         p.username: p for p in db_dashboard.permissions if p.username
     }
     existing_group_perms = {
-        p.group_id: p for p in db_dashboard.permissions if p.group_id
+        p.group.name: p for p in db_dashboard.permissions if p.group_id
     }
+
+    # Build lookup for updated permissions
+    updated_user_lookup = {}
+    updated_group_lookup = {}
+    nonexistent_users = []
+    nonexistent_groups = []
+
+    User = get_user_model()
+
+    for p in updated_permissions:
+        if "username" in p:
+            try:
+                User.objects.get(username=p["username"])
+            except User.DoesNotExist:
+                nonexistent_users.append(p["username"])
+                continue
+
+            updated_user_lookup[p["username"]] = p["permission"]
+        if "group" in p:
+            if p["group"] not in existing_group_perms:
+                nonexistent_groups.append(p["group"])
+                continue
+
+            updated_group_lookup[p["group"]] = p["permission"]
+
+    if nonexistent_users and nonexistent_groups:
+        raise Exception(
+            f"The following users do not exist: {', '.join(nonexistent_users)}; The following groups do not exist: {', '.join(nonexistent_groups)}"  # noqa: E501
+        )
+    elif nonexistent_users:
+        raise Exception(
+            f"The following users do not exist: {', '.join(nonexistent_users)}"
+        )
+    elif nonexistent_groups:
+        raise Exception(
+            f"The following groups do not exist: {', '.join(nonexistent_groups)}"
+        )
 
     # Add or update user permissions
     for username, perm_level in updated_user_lookup.items():
         if username == user.username or username == db_dashboard.owner:
             continue
+
         if username in existing_user_perms:
             perm_obj = existing_user_perms[username]
             if perm_obj.permission.value != perm_level:
@@ -605,18 +635,10 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
             session.add(new_perm)
 
     # Add or update group permissions
-    for group_id, perm_level in updated_group_lookup.items():
-        if group_id in existing_group_perms:
-            perm_obj = existing_group_perms[group_id]
-            if perm_obj.permission.value != perm_level:
-                perm_obj.permission = DashboardPermissionLevel(perm_level)
-        else:
-            new_perm = DashboardPermission(
-                dashboard_id=db_dashboard.id,
-                group_id=group_id,
-                permission=DashboardPermissionLevel(perm_level),
-            )
-            session.add(new_perm)
+    for group_name, perm_level in updated_group_lookup.items():
+        perm_obj = existing_group_perms[group_name]
+        if perm_obj.permission.value != perm_level:
+            perm_obj.permission = DashboardPermissionLevel(perm_level)
 
     # Delete user permissions not in updated list
     to_delete_users = [

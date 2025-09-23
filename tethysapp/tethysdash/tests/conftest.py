@@ -159,13 +159,13 @@ def permission_group_table(db_session, permission_group):
 
 
 @pytest.fixture(scope="function")
-def dashboard_data():
+def dashboard_data(test_owner_user):
     return {
         "name": "test_dashboard",
         "description": "test_dashboard",
         "uuid": "some_user_dashboard_uuid",
         "notes": "some notes",
-        "owner": "admin",
+        "owner": test_owner_user.username,
         "public": False,
         "unrestricted_placement": False,
     }
@@ -201,7 +201,7 @@ def grid_item():
 
 
 @pytest.fixture(scope="function")
-def dashboard(db_session, dashboard_data, permission_group_table):
+def dashboard(db_session, dashboard_data, permission_group_table, test_admin_user):
     dashboard = Dashboard(**dashboard_data)
     db_session.add(dashboard)
     db_session.commit()
@@ -218,7 +218,7 @@ def dashboard(db_session, dashboard_data, permission_group_table):
 
     editor_permission = DashboardPermission(
         dashboard_id=dashboard_id,
-        username="editor",
+        username=test_admin_user.username,
         permission=DashboardPermissionLevel.editor,
     )
     db_session.add(editor_permission)
