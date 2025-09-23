@@ -34,9 +34,7 @@ def get_available_visualizations():
             "attribution": getattr(plugin, "visualization_attribution", ""),
             "description": getattr(plugin, "visualization_description", ""),
             "loading_icon": getattr(plugin, "visualization_loading_icon", True),
-            "visualization_restricted": getattr(
-                plugin, "visualization_restricted", False
-            ),
+            "restricted": getattr(plugin, "visualization_restricted", False),
         }
 
         existing_group = [
