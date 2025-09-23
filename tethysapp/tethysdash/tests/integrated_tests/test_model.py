@@ -989,6 +989,87 @@ def test_update_dashboard_permissions(
     assert permissions[3].permission == DashboardPermissionLevel.viewer
 
 
+def test_update_dashboard_permissions_nonexisting_user(
+    dashboard,
+    db_session,
+    test_owner_user,
+):
+    updated_permissions = [
+        {
+            "username": test_owner_user.username,
+            "permission": DashboardPermissionLevel.admin.value,
+        },
+        {
+            "username": "nonexisting_user",
+            "permission": DashboardPermissionLevel.viewer.value,
+        },
+    ]
+
+    with pytest.raises(Exception) as excinfo:
+        update_dashboard_permissions(
+            db_session,
+            dashboard,
+            test_owner_user,
+            updated_permissions,
+        )
+    assert "The following users do not exist: nonexisting_user" in str(excinfo.value)
+
+
+def test_update_dashboard_permissions_nonexisting_group(
+    dashboard,
+    db_session,
+    test_owner_user,
+):
+    updated_permissions = [
+        {
+            "group": "nonexisting_group",
+            "permission": DashboardPermissionLevel.editor.value,
+        },
+    ]
+
+    with pytest.raises(Exception) as excinfo:
+        update_dashboard_permissions(
+            db_session,
+            dashboard,
+            test_owner_user,
+            updated_permissions,
+        )
+    assert "The following groups do not exist: nonexisting_group" in str(excinfo.value)
+
+
+def test_update_dashboard_permissions_nonexisting_users_and_groups(
+    dashboard,
+    db_session,
+    test_owner_user,
+):
+    updated_permissions = [
+        {
+            "username": test_owner_user.username,
+            "permission": DashboardPermissionLevel.admin.value,
+        },
+        {
+            "username": "nonexisting_user",
+            "permission": DashboardPermissionLevel.viewer.value,
+        },
+        {
+            "group": "nonexisting_group",
+            "permission": DashboardPermissionLevel.editor.value,
+        },
+    ]
+
+    with pytest.raises(Exception) as excinfo:
+        update_dashboard_permissions(
+            db_session,
+            dashboard,
+            test_owner_user,
+            updated_permissions,
+        )
+    assert (
+        "The following users do not exist: nonexisting_user; The following groups do not exist: nonexisting_group"  # noqa: E501
+        in str(excinfo.value)
+    )
+
+
 def test_update_dashboard_permissions_not_admin(
     dashboard, db_session, test_member_user
 ):
@@ -1087,6 +1168,34 @@ def test_update_permission_group(
         permission_group_dict["members"][0]["permission"]
         == GroupPermissionLevel.admin.value
     )
+
+
+@pytest.mark.django_db
+def test_update_permission_group_nonexistent_user(
+    mock_app_get_ps_db,
+    permission_group,
+    permission_group_table,
+    test_owner_user,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    updated_members = [
+        {
+            "username": "nonexistent_user",
+            "permission": GroupPermissionLevel.admin.value,
+        },
+    ]
+    updated_permission_group = permission_group
+    updated_permission_group["members"] = updated_members
+    updated_permission_group["description"] = "some new description"
+    updated_permission_group["id"] = permission_group_table.id
+
+    permission_group_dict = update_permission_groups(
+        test_owner_user,
+        updated_permission_group,
+    )
+
+    assert permission_group_dict["status"] == "error"
+    assert permission_group_dict["message"] == "Users don't exist: nonexistent_user"
 
 
 @pytest.mark.django_db
