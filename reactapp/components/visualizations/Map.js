@@ -4,6 +4,7 @@ import MapComponent from "components/map/Map";
 import {
   queryLayerFeatures,
   createHighlightLayer,
+  addHighlightFeatures,
   createMarkerLayer,
   configurationPropType,
   mapDrawingPropType,
@@ -160,18 +161,27 @@ const MapVisualization = ({
   const [mapLayers, setMapLayers] = useState();
   const [popupContent, setPopupContent] = useState(null);
   const markerLayer = useRef();
-  const highlightLayer = useRef([]);
+  const highlightLayer = useRef();
   const currentLayers = useRef([]);
   const currentBaseMap = useRef();
   const { setVariableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
   const spinnerOverlayRef = useRef(null);
+  // Create a spinner element for the overlay
+  const spinnerElement = document.createElement("div");
+  spinnerElement.style.display = "flex";
+  spinnerElement.style.justifyContent = "center";
+  spinnerElement.style.alignItems = "center";
+  spinnerElement.style.width = "48px";
+  spinnerElement.style.height = "48px";
+  spinnerElement.innerHTML = `<div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 32px; height: 32px; animation: spin 1s linear infinite;"></div><style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>`;
   const popupOverlayRef = useRef(null);
   const popupContainerRef = useRef(document.createElement("div"));
   const popupRootRef = useRef(null);
 
   const drawing = useRef(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Mount the React popup inside the container div
   useEffect(() => {
@@ -183,7 +193,7 @@ const MapVisualization = ({
     });
 
     spinnerOverlayRef.current = new Overlay({
-      element: document.createElement("div"),
+      element: spinnerElement,
       positioning: "center-center",
     });
 
@@ -282,7 +292,8 @@ const MapVisualization = ({
   }, [layers, baseMap]);
 
   const onMapClick = async (map, evt) => {
-    if (drawing.current) return;
+    if (drawing.current || isProcessing) return;
+    setIsProcessing(true);
 
     const coordinate = evt.coordinate;
     const pixel = evt.pixel;
@@ -295,10 +306,11 @@ const MapVisualization = ({
     if (markerLayer.current) {
       map.removeLayer(markerLayer.current);
     }
-    if (highlightLayer.current.length > 0) {
-      highlightLayer.current.forEach((highlight) => {
-        map.removeLayer(highlight);
-      });
+    if (highlightLayer.current) {
+      highlightLayer.current.getSource().clear();
+    } else {
+      highlightLayer.current = createHighlightLayer();
+      map.addLayer(highlightLayer.current);
     }
     markerLayer.current = newMarkerLayer;
     map.addLayer(newMarkerLayer);
@@ -362,11 +374,10 @@ const MapVisualization = ({
           ) {
             let updatedVariableInputs = {};
             for (const layerFeature of layerFeatures) {
-              const newHighlightLayer = createHighlightLayer(
+              addHighlightFeatures(
+                highlightLayer.current,
                 layerFeature.geometry
               );
-              highlightLayer.current.push(newHighlightLayer);
-              map.addLayer(newHighlightLayer);
 
               const layerName = layerFeature.layerName;
 
@@ -424,6 +435,7 @@ const MapVisualization = ({
     if (spinnerOverlayRef.current) {
       spinnerOverlayRef.current.setPosition(null);
     }
+    setIsProcessing(false);
 
     const nonEmptyLayers = queryLayerFeaturesResults.filter(
       (arr) => (arr && Array.isArray(arr) && arr.length > 0) || arr === "zoomed"

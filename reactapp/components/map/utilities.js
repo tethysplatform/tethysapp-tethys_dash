@@ -183,13 +183,34 @@ export function createMarkerLayer(coordinate) {
     source: new VectorSource({
       features: [marker],
     }),
-    name: "ClickMarkerLayer",
+    name: "Marker",
   });
 
   return markerLayer;
 }
 
-export function createHighlightLayer(geometries) {
+export function createHighlightLayer() {
+  const stroke = new Stroke({
+    color: "#00008b",
+    width: 3,
+  });
+  const highlightLayer = new VectorLayer({
+    source: new VectorSource({}),
+    style: new Style({
+      stroke: stroke,
+      image: new Circle({
+        stroke: stroke,
+        radius: 5,
+      }),
+    }),
+    zIndex: 100,
+    name: "Highlighted Layer",
+  });
+
+  return highlightLayer;
+}
+
+export function addHighlightFeatures(highlightLayer, geometries) {
   let features;
   if ("paths" in geometries || geometries?.type === "MultiLineString") {
     const paths = geometries.paths || geometries.coordinates;
@@ -235,26 +256,8 @@ export function createHighlightLayer(geometries) {
       }),
     ];
   }
-  const stroke = new Stroke({
-    color: "#00008b",
-    width: 3,
-  });
-  const highlightLayer = new VectorLayer({
-    source: new VectorSource({
-      features: features,
-    }),
-    style: new Style({
-      stroke: stroke,
-      image: new Circle({
-        stroke: stroke,
-        radius: 5,
-      }),
-    }),
-    zIndex: 100,
-    name: "ClickHighlighterLayer",
-  });
 
-  return highlightLayer;
+  highlightLayer.getSource().addFeatures(features);
 }
 
 export function transformCoordinates(coords, sourceProj, destProj) {
@@ -282,6 +285,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   const sourceUrl = layerInfo.configuration.props.source.props?.url ?? "";
   const sourceParams = layerInfo.configuration.props.source.props.params;
   const sourceType = layerInfo.configuration.props.source.type;
+  const LayerName = layerInfo.configuration.props.name;
 
   const mapZoom = map.getView().getZoom();
   if (layerInfo.configuration.props.minZoomQuery >= mapZoom) {
@@ -305,7 +309,12 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
       sourceType === "GeoJSON" ||
       sourceType === "ESRI Feature Service"
     ) {
-      features = await getGeoJSONLayerFeatures(map, pixel, coordinate);
+      features = await getGeoJSONLayerFeatures(
+        map,
+        pixel,
+        coordinate,
+        LayerName
+      );
     } else {
       throw Error(`${sourceType} is not currently configured to be queried`);
     }
@@ -411,16 +420,13 @@ async function getImageWMSLayerFeatures(sourceUrl, sourceParams, map, pixel) {
   return features;
 }
 
-async function getGeoJSONLayerFeatures(map, pixel, coordinate) {
+async function getGeoJSONLayerFeatures(map, pixel, coordinate, LayerName) {
   const features = [];
 
   // loop through the feature layers that are found at the clicked pixel
   map.forEachFeatureAtPixel(pixel, function (feature, layer) {
     // dont get any features that are highlights or markers
-    if (
-      layer.get("name") === "ClickHighlighterLayer" ||
-      layer.get("name") === "ClickMarkerLayer"
-    ) {
+    if (layer.get("name") !== LayerName) {
       return;
     }
 

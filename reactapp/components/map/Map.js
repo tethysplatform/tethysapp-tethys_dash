@@ -329,17 +329,13 @@ const MapComponent = ({
             drawing={drawing}
           />
         )}
-        <div>
-          {layerControl && (
-            <LayersControl
-              visualizationRef={visualizationRef}
-              updater={layerControlUpdate}
-            />
-          )}
-          {legend && legend.length > 0 && (
-            <LegendControl legendItems={legend} />
-          )}
-        </div>
+        {layerControl && (
+          <LayersControl
+            visualizationRef={visualizationRef}
+            updater={layerControlUpdate}
+          />
+        )}
+        {legend && legend.length > 0 && <LegendControl legendItems={legend} />}
       </div>
     </>
   );
