@@ -558,6 +558,71 @@ def get_dashboard_user_permission(session, dashboard, user):
         return None
 
 
+def get_visualization_user_permission(session, visualization, user):
+    """
+    Returns if the user has permission to use the given visualization, either directly or via group membership.
+
+    Returns None if no permission.
+    """
+
+    permission = False
+
+    # Get all group ids the user belongs to
+    user_groups = (
+        session.query(PermissionGroup.id)
+        .join(PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id)
+        .filter(PermissionGroupUser.username == user.username)
+        .all()
+    )
+    user_group_ids = [g[0] for g in user_groups]
+
+    visualization_permissions = (
+        session.query(VisualizationPermission)
+        .filter(VisualizationPermission.visualization == visualization)
+        .all()
+    )
+
+    # Collect all permissions for user and their groups
+    for p in visualization_permissions:
+        if p.username == user.username:
+            permission = True
+        elif p.group_id and p.group_id in user_group_ids:
+            permission = True
+
+    return permission
+
+
+def get_visualization_permissions():
+
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+    visualization_permissions = {}
+
+    try:
+        visualizations = session.query(VisualizationPermission).all()
+        for vp in visualizations:
+            vis = vp.visualization
+            if vis not in visualization_permissions:
+                visualization_permissions[vis] = {"users": set(), "groups": set()}
+            if vp.username:
+                visualization_permissions[vis]["users"].add(vp.username)
+            if vp.group_id and vp.group:
+                visualization_permissions[vis]["groups"].add(vp.group.name)
+
+        # Convert sets to lists for serialization
+        for vis in visualization_permissions:
+            visualization_permissions[vis]["users"] = list(
+                visualization_permissions[vis]["users"]
+            )
+            visualization_permissions[vis]["groups"] = list(
+                visualization_permissions[vis]["groups"]
+            )
+    finally:
+        session.close()
+
+    return visualization_permissions
+
+
 def update_dashboard_permissions(session, db_dashboard, user, updated_permissions):
     """
     Update dashboard permissions for a given dashboard.
@@ -1061,6 +1126,16 @@ def clean_up_jsons(user):
 
 def flatten(xss):
     return [x for xs in xss for x in xs]
+
+
+def get_user_app_permissions(user):
+    user_permissions = [
+        perm.split(":")[-1]
+        for perm in user.get_all_permissions()
+        if perm.startswith(f"tethys_apps.{App.package}")
+    ]
+
+    return user_permissions
 
 
 def init_primary_db(engine, first_time):

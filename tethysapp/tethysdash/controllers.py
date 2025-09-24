@@ -7,7 +7,7 @@ from rest_framework.decorators import api_view
 import uuid
 from datetime import datetime
 from django.core.exceptions import RequestDataTooBig
-
+from tethys_sdk.permissions import has_permission
 from django.contrib.sessions.backends.db import SessionStore
 from django.conf import settings
 from tethys_sdk.routing import controller
@@ -22,6 +22,8 @@ from tethysapp.tethysdash.model import (
     get_user_permission_groups,
     update_permission_groups,
     delete_permission_groups,
+    get_visualization_permissions,
+    get_user_app_permissions,
 )
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
@@ -39,14 +41,10 @@ def home(request):
 
 
 @api_view(["GET"])
-@controller(login_required=False)
+@controller(url="tethysdash/app/permissions", login_required=False)
 def permissions(request):
     """Controller for getting user permissions."""
-    user_permissions = [
-        perm.split(":")[-1]
-        for perm in request.user.get_all_permissions()
-        if perm.startswith(f"tethys_apps.{App.package}")
-    ]
+    user_permissions = get_user_app_permissions(request.user)
 
     return JsonResponse({"permissions": user_permissions})
 
@@ -109,8 +107,8 @@ def ping(request):
 
 
 @api_view(["GET"])
-@controller(login_required=False)
-def data(request):
+@controller(url="tethysdash/visualizations/get", login_required=False)
+def visualization(request):
     """API controller for the plot page."""
     viz_source = request.GET["source"]
     viz_args = json.loads(request.GET["args"])
@@ -119,7 +117,7 @@ def data(request):
     success = True
 
     try:
-        viz_type, data = get_visualization(viz_source, viz_args)
+        viz_type, data = get_visualization(viz_source, viz_args, request.user)
     except VisualizationError as e:
         print(f"VisualizationError: {e}")
         data = {"error": str(e)}
@@ -133,7 +131,7 @@ def data(request):
 
 
 @api_view(["GET"])
-@controller(login_required=False)
+@controller(url="tethysdash/dashboards/list", login_required=False)
 def dashboards(request):
     """API controller for the dashboards page."""
     user = request.user
@@ -147,12 +145,24 @@ def dashboards(request):
 
 
 @api_view(["GET"])
-@controller(login_required=False)
+@controller(url="tethysdash/visualizations/list", login_required=False)
 def visualizations(request):
     """API controller for the visualizations page."""
-    visualizations = get_available_visualizations()
+    visualizations = get_available_visualizations(request.user)
 
     return JsonResponse(visualizations)
+
+
+@api_view(["GET"])
+@controller(url="tethysdash/visualizations/permissions", login_required=True)
+def visualization_permissions(request):
+    """API controller for the visualizations page."""
+
+    visualization_permissions = {}
+    if has_permission(request, "manage_visualizations"):
+        visualization_permissions = get_visualization_permissions(request.user)
+
+    return JsonResponse(visualization_permissions)
 
 
 @api_view(["GET"])

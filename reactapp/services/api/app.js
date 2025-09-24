@@ -34,24 +34,29 @@ function replaceHtmlEntitiesInExpressions(obj) {
 
 const appAPI = {
   getUserAppPermissions: () => {
-    return apiClient.get(`${APP_ROOT_URL}permissions/`);
+    return apiClient.get(`${APP_ROOT_URL}app/permissions/`);
   },
   getActivityData: (activity) => {
     return apiClient.get(`${APP_ROOT_URL}ping/`, { params: activity });
   },
-  getPlotData: (itemData) => {
-    return apiClient.get(`${APP_ROOT_URL}data/`, { params: itemData });
+  getVisualizationData: (itemData) => {
+    return apiClient.get(`${APP_ROOT_URL}visualizations/get/`, {
+      params: itemData,
+    });
   },
-  getDashboards: () => {
-    return apiClient.get(`${APP_ROOT_URL}dashboards/`);
+  listVisualizations: () => {
+    return apiClient.get(`${APP_ROOT_URL}visualizations/list/`);
   },
-  getVisualizations: () => {
-    return apiClient.get(`${APP_ROOT_URL}visualizations/`);
+  getVisualizationPermissions: () => {
+    return apiClient.get(`${APP_ROOT_URL}visualizations/permissions/`);
   },
   getDashboard: ({ id }) => {
     return apiClient.get(`${APP_ROOT_URL}dashboards/get/`, {
       params: { id },
     });
+  },
+  listDashboards: () => {
+    return apiClient.get(`${APP_ROOT_URL}dashboards/list/`);
   },
   addDashboard: (data, csrf) => {
     return apiClient.post(`${APP_ROOT_URL}dashboards/add/`, data, {

@@ -119,15 +119,15 @@ function Loader({ children }) {
             tethysAPI.getAppData(APP_ID),
             tethysAPI.getUserData(),
             tethysAPI.getCSRF(),
-            appAPI.getDashboards(),
-            appAPI.getVisualizations(),
+            appAPI.listDashboards(),
+            appAPI.listVisualizations(),
             appAPI.getUserAppPermissions(),
           ]);
         } else {
           [tethysApp, dashboards, visualizations] = await Promise.all([
             tethysAPI.getAppData(APP_ID),
-            appAPI.getDashboards(),
-            appAPI.getVisualizations(),
+            appAPI.listDashboards(),
+            appAPI.listVisualizations(),
           ]);
         }
       } catch (error) {
