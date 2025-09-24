@@ -14,6 +14,7 @@ from tethysapp.tethysdash.model import (
     DashboardPermissionLevel,
     PermissionGroup,
     PermissionGroupUser,
+    VisualizationPermission,
 )
 from django.contrib.auth import get_user_model
 
@@ -316,6 +317,45 @@ def mock_plugin(mocker):
 
 
 @pytest.fixture(scope="function")
+def visualization_permission(
+    db_session, mock_plugin, test_owner_user, permission_group_table
+):
+    user_permission = VisualizationPermission(
+        visualization=mock_plugin.name, username=test_owner_user.username
+    )
+    db_session.add(user_permission)
+    db_session.commit()
+    db_session.refresh(user_permission)
+    user_permission_id = user_permission.id
+
+    group_permission = VisualizationPermission(
+        visualization=mock_plugin.name, group_id=permission_group_table.id
+    )
+    db_session.add(group_permission)
+    db_session.commit()
+    db_session.refresh(group_permission)
+    group_permission_id = group_permission.id
+
+    yield [user_permission, group_permission]
+
+    # Only delete if user_permission still exists
+    refreshed_user_permission = db_session.get(
+        VisualizationPermission, user_permission_id
+    )
+    if refreshed_user_permission:
+        db_session.delete(refreshed_user_permission)
+
+    # Only delete if user_permission still exists
+    refreshed_group_permission = db_session.get(
+        VisualizationPermission, group_permission_id
+    )
+    if refreshed_group_permission:
+        db_session.delete(refreshed_group_permission)
+
+    db_session.commit()
+
+
+@pytest.fixture(scope="function")
 def mock_plugin2(mocker):
     plugin = MagicMock(
         spec=[],
@@ -359,18 +399,6 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
         "label": mock_plugin.visualization_group,
         "options": [
             {
-                "source": mock_plugin.name,
-                "value": mock_plugin.visualization_label,
-                "label": mock_plugin.visualization_label,
-                "args": mock_plugin.visualization_args,
-                "type": mock_plugin.visualization_type,
-                "tags": mock_plugin.visualization_tags,
-                "description": mock_plugin.visualization_description,
-                "attribution": mock_plugin.visualization_attribution,
-                "loading_icon": mock_plugin.visualization_loading_icon,
-                "restricted": mock_plugin.visualization_restricted,
-            },
-            {
                 "source": mock_plugin2.name,
                 "value": mock_plugin2.visualization_label,
                 "label": mock_plugin2.visualization_label,
@@ -381,6 +409,18 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "attribution": "",
                 "loading_icon": True,
                 "restricted": False,
+            },
+            {
+                "source": mock_plugin.name,
+                "value": mock_plugin.visualization_label,
+                "label": mock_plugin.visualization_label,
+                "args": mock_plugin.visualization_args,
+                "type": mock_plugin.visualization_type,
+                "tags": mock_plugin.visualization_tags,
+                "description": mock_plugin.visualization_description,
+                "attribution": mock_plugin.visualization_attribution,
+                "loading_icon": mock_plugin.visualization_loading_icon,
+                "restricted": mock_plugin.visualization_restricted,
             },
         ],
     }

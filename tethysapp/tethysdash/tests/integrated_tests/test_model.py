@@ -22,6 +22,8 @@ from tethysapp.tethysdash.model import (
     update_permission_groups,
     get_user_permission_groups,
     delete_permission_groups,
+    get_visualization_user_permission,
+    get_visualization_permissions,
 )
 from unittest.mock import MagicMock
 import base64
@@ -1428,3 +1430,51 @@ def test_delete_permission_groups_id_not_found(mock_app_get_ps_db, db_session):
     db_session.expire_all()
     assert delete_status["status"] == "error"
     assert delete_status["message"] == "Group not found"
+
+
+@pytest.mark.django_db
+def test_get_visualization_user_permission(
+    mock_plugin,
+    db_session,
+    admin_user,
+    test_owner_user,
+    test_member_user,
+    visualization_permission,
+    permission_group_table,
+):
+    # direct permission
+    user_permission = get_visualization_user_permission(
+        db_session, mock_plugin.name, test_owner_user
+    )
+    assert user_permission is True
+
+    # group permission
+    user_permission = get_visualization_user_permission(
+        db_session, mock_plugin.name, test_member_user
+    )
+    assert user_permission is True
+
+    user_permission = get_visualization_user_permission(
+        db_session, mock_plugin.name, admin_user
+    )
+    assert user_permission is False
+
+
+@pytest.mark.django_db
+def test_get_visualization_permissions(
+    mock_app_get_ps_db,
+    mock_plugin,
+    db_session,
+    admin_user,
+    test_owner_user,
+    test_member_user,
+    visualization_permission,
+    permission_group_table,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    permissions = get_visualization_permissions()
+
+    assert mock_plugin.name in permissions
+    permissions = permissions[mock_plugin.name]
+    assert permissions["users"] == [test_owner_user.username]
+    assert permissions["groups"] == [permission_group_table.name]

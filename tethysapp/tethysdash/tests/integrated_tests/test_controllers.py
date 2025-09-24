@@ -34,7 +34,7 @@ def test_home_logged_in(client, admin_user, mock_app):
 @pytest.mark.django_db
 def test_data_failed(client, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:data")
+    url = reverse("tethysdash:visualization")
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     mock_gv.side_effect = [Exception("Failed data retrieval")]
 
@@ -55,7 +55,7 @@ def test_data_failed(client, mock_app, mocker):
 @pytest.mark.django_db
 def test_data_failed_custom_error(client, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:data")
+    url = reverse("tethysdash:visualization")
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     mock_gv.side_effect = [VisualizationError("some custom error message")]
 
@@ -76,7 +76,7 @@ def test_data_failed_custom_error(client, mock_app, mocker):
 @pytest.mark.django_db
 def test_data(client, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:data")
+    url = reverse("tethysdash:visualization")
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     plot_data = {"data": [], "layout": {}}
     mock_gv.return_value = ["plotly", plot_data]
@@ -1553,3 +1553,43 @@ def test_permissions(client, admin_user, mock_app, mocker):
     response = client.get(url)
     assert response.status_code == 200
     assert set(response.json()["permissions"]) == {"manage_visualizations"}
+
+@pytest.mark.django_db
+def test_visualization_permissions_has_permission(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_get_visualization_permissions = mocker.patch(
+        "tethysapp.tethysdash.controllers.get_visualization_permissions"
+    )
+    perms = {"some_plugin": {"users": ["user1"], "groups": ["group1"]}}
+    mock_get_visualization_permissions.return_value = perms
+
+    mock_has_permission = mocker.patch("tethysapp.tethysdash.controllers.has_permission")
+    mock_has_permission.return_value = True
+    
+    url = reverse("tethysdash:visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.json()["visualization_permissions"] == perms
+
+
+@pytest.mark.django_db
+def test_visualization_permissions_no_permission(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_get_visualization_permissions = mocker.patch(
+        "tethysapp.tethysdash.controllers.get_visualization_permissions"
+    )
+
+    mock_has_permission = mocker.patch("tethysapp.tethysdash.controllers.has_permission")
+    mock_has_permission.return_value = False
+    
+    url = reverse("tethysdash:visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.json()["visualization_permissions"] == {}
+    mock_get_visualization_permissions.assert_not_called()

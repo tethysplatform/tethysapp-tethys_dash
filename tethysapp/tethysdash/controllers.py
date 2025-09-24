@@ -162,7 +162,7 @@ def visualization_permissions(request):
     if has_permission(request, "manage_visualizations"):
         visualization_permissions = get_visualization_permissions(request.user)
 
-    return JsonResponse(visualization_permissions)
+    return JsonResponse({"visualization_permissions": visualization_permissions})
 
 
 @api_view(["GET"])
