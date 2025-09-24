@@ -344,6 +344,10 @@ test("Map click", async () => {
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
 
+  // Mock the clear method on VectorSource to test it's called
+  const mockClear = jest.fn();
+  jest.spyOn(VectorSource.prototype, "clear").mockImplementation(mockClear);
+
   const layers = [
     {
       configuration: {
@@ -395,19 +399,19 @@ test("Map click", async () => {
     addLayerSpy.mock.calls[2][0].getSource() instanceof ImageArcGISRest
   ).toBe(true);
 
-  // marker layer
-  expect(addLayerSpy.mock.calls[0][0].getSource() instanceof VectorSource).toBe(
-    true
-  );
-  expect(
-    addLayerSpy.mock.calls[0][0]
-      .getSource()
-      .getFeatures()[0]
-      .getGeometry()
-      .getCoordinates()
-  ).toStrictEqual(clickCoordinates);
-
   // highlight layer
+  const highLightLayer = addLayerSpy.mock.calls[0][0];
+  expect(highLightLayer.get("name")).toBe("Highlighted Layer");
+  expect(highLightLayer.getSource() instanceof VectorSource).toBe(true);
+  expect(
+    highLightLayer.getSource().getFeatures()[0].getGeometry().getCoordinates()
+  ).toStrictEqual([
+    [0, 0],
+    [0, 1],
+  ]);
+
+  // marker layer
+  expect(addLayerSpy.mock.calls[1][0].get("name")).toBe("Marker");
   expect(addLayerSpy.mock.calls[1][0].getSource() instanceof VectorSource).toBe(
     true
   );
@@ -417,10 +421,7 @@ test("Map click", async () => {
       .getFeatures()[0]
       .getGeometry()
       .getCoordinates()
-  ).toStrictEqual([
-    [0, 0],
-    [0, 1],
-  ]);
+  ).toStrictEqual(clickCoordinates);
 
   // popup
   expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
@@ -432,6 +433,8 @@ test("Map click", async () => {
   expect(await screen.findByText("some value")).toBeInTheDocument();
 
   addLayerSpy.mockClear(); // Reset the call count
+  mockClear.mockClear(); // Reset the clear call count
+
   const newClickCoordinates = [20, 10];
   const NewLoadedComponent = createLoadedComponent({
     children: (
@@ -452,14 +455,17 @@ test("Map click", async () => {
   });
   rerender(NewLoadedComponent);
 
-  // new marker and new highlight layer
+  // new marker layer
   await waitFor(() => {
-    expect(addLayerSpy.mock.calls.length).toBe(2);
+    expect(addLayerSpy.mock.calls.length).toBe(1);
   });
-  // remove old marker and highlight layer
+  // remove old marker layer
   await waitFor(() => {
-    expect(removeLayerSpy.mock.calls.length).toBe(2);
+    expect(removeLayerSpy.mock.calls.length).toBe(1);
   });
+
+  // Verify that the highlight layer's clear method was called on the second click
+  expect(mockClear).toHaveBeenCalledTimes(1);
 
   // marker layer
   expect(addLayerSpy.mock.calls[0][0].getSource() instanceof VectorSource).toBe(
@@ -472,21 +478,6 @@ test("Map click", async () => {
       .getGeometry()
       .getCoordinates()
   ).toStrictEqual(newClickCoordinates);
-
-  // highlight layer
-  expect(addLayerSpy.mock.calls[1][0].getSource() instanceof VectorSource).toBe(
-    true
-  );
-  expect(
-    addLayerSpy.mock.calls[1][0]
-      .getSource()
-      .getFeatures()[0]
-      .getGeometry()
-      .getCoordinates()
-  ).toStrictEqual([
-    [0, 0],
-    [0, 1],
-  ]);
 });
 
 test("Map click with aliases", async () => {
@@ -649,10 +640,8 @@ test("Map click no queryable layer", async () => {
     expect(addLayerSpy.mock.calls.length).toBe(4);
   });
 
-  expect(addLayerSpy.mock.calls[0][0].values_.name).toBe("ClickMarkerLayer");
-  expect(addLayerSpy.mock.calls[1][0].values_.name).toBe(
-    "ClickHighlighterLayer"
-  );
+  expect(addLayerSpy.mock.calls[0][0].values_.name).toBe("Highlighted Layer");
+  expect(addLayerSpy.mock.calls[1][0].values_.name).toBe("Marker");
   expect(addLayerSpy.mock.calls[2][0].values_.name).toBe("NWC not queryable");
   expect(addLayerSpy.mock.calls[3][0].values_.name).toBe("NWC");
 

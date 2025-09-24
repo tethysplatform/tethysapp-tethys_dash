@@ -1,6 +1,7 @@
 import {
   createMarkerLayer,
   createHighlightLayer,
+  addHighlightFeatures,
   transformCoordinates,
   queryLayerFeatures,
   getLayerAttributes,
@@ -45,7 +46,8 @@ test("createHighlightLayer MultiLineString", async () => {
       ],
     ],
   };
-  const highlightLayer = createHighlightLayer(geometries);
+  const highlightLayer = createHighlightLayer();
+  addHighlightFeatures(highlightLayer, geometries);
 
   expect(highlightLayer instanceof VectorLayer).toBe(true);
   expect(highlightLayer.getZIndex()).toBe(100);
@@ -73,7 +75,8 @@ test("createHighlightLayer MultiLineString 2", async () => {
       ],
     ],
   };
-  const highlightLayer = createHighlightLayer(geometries);
+  const highlightLayer = createHighlightLayer();
+  addHighlightFeatures(highlightLayer, geometries);
 
   expect(highlightLayer instanceof VectorLayer).toBe(true);
   expect(highlightLayer.getZIndex()).toBe(100);
@@ -95,7 +98,8 @@ test("createHighlightLayer LineString", async () => {
       [0, 1],
     ],
   };
-  const highlightLayer = createHighlightLayer(geometries);
+  const highlightLayer = createHighlightLayer();
+  addHighlightFeatures(highlightLayer, geometries);
 
   expect(highlightLayer instanceof VectorLayer).toBe(true);
   expect(highlightLayer.getZIndex()).toBe(100);
@@ -123,7 +127,8 @@ test("createHighlightLayer MultiPolygon", async () => {
       ],
     ],
   };
-  const highlightLayer = createHighlightLayer(geometries);
+  const highlightLayer = createHighlightLayer();
+  addHighlightFeatures(highlightLayer, geometries);
 
   expect(highlightLayer instanceof VectorLayer).toBe(true);
   expect(highlightLayer.getZIndex()).toBe(100);
@@ -147,7 +152,8 @@ test("createHighlightLayer Polygon", async () => {
       [0, 1],
     ],
   };
-  const highlightLayer = createHighlightLayer(geometries);
+  const highlightLayer = createHighlightLayer();
+  addHighlightFeatures(highlightLayer, geometries);
 
   expect(highlightLayer instanceof VectorLayer).toBe(true);
   expect(highlightLayer.getZIndex()).toBe(100);
@@ -166,7 +172,7 @@ test("createHighlightLayer Point Coords", async () => {
     type: "Point",
     coordinates: [0, 0],
   };
-  const highlightLayer = createHighlightLayer(geometries);
+  const highlightLayer = createHighlightLayer();
 
   expect(highlightLayer instanceof VectorLayer).toBe(true);
   expect(highlightLayer.getZIndex()).toBe(100);
@@ -174,6 +180,10 @@ test("createHighlightLayer Point Coords", async () => {
   const highlightLayerStyleStroke = highlightLayer.getStyle().getStroke();
   expect(highlightLayerStyleStroke.getColor()).toBe("#00008b");
   expect(highlightLayerStyleStroke.getWidth()).toBe(3);
+  expect(highlightLayer.getSource().getFeatures().length).toBe(0);
+
+  addHighlightFeatures(highlightLayer, geometries);
+
   expect(highlightLayer.getSource().getFeatures().length).toBe(1);
   const highlightLayerFeature = highlightLayer.getSource().getFeatures()[0];
 
@@ -185,7 +195,8 @@ test("createHighlightLayer Point X,Y", async () => {
     x: 0,
     y: 0,
   };
-  const highlightLayer = createHighlightLayer(geometries);
+  const highlightLayer = createHighlightLayer();
+  addHighlightFeatures(highlightLayer, geometries);
 
   expect(highlightLayer instanceof VectorLayer).toBe(true);
   expect(highlightLayer.getZIndex()).toBe(100);
@@ -250,9 +261,9 @@ test("queryLayerFeatures No Feature Found", async () => {
     forEachFeatureAtPixel: jest.fn((pixel, callback) => {
       // Simulate features found at the given pixel
       const mockLayer = {
-        get: jest.fn(() => "ClickHighlighterLayer"),
+        get: jest.fn(() => "Highlighted Layer"),
         getProperties: () => ({
-          name: "ClickHighlighterLayer",
+          name: "Highlighted Layer",
         }),
       };
       callback(null, mockLayer); // Call the callback with the mock feature
@@ -292,9 +303,9 @@ test("queryLayerFeatures Highlight Layer Found", async () => {
         }),
       }; // Mocked feature object
       const mockLayer = {
-        get: jest.fn(() => "ClickHighlighterLayer"),
+        get: jest.fn(() => "Highlighted Layer"),
         getProperties: () => ({
-          name: "ClickHighlighterLayer",
+          name: "Highlighted Layer",
         }),
       };
       callback(mockFeature, mockLayer); // Call the callback with the mock feature
