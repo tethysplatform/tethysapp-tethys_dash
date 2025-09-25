@@ -11,6 +11,7 @@ from tethysapp.tethysdash.model import (
     Dashboard,
     GridItem,
     DashboardPermission,
+    VisualizationPermission,
     DashboardPermissionLevel,
     PermissionGroup,
     GroupPermissionLevel,
@@ -24,6 +25,7 @@ from tethysapp.tethysdash.model import (
     delete_permission_groups,
     get_visualization_user_permission,
     get_visualization_permissions,
+    update_visualization_permissions,
 )
 from unittest.mock import MagicMock
 import base64
@@ -937,6 +939,16 @@ def test_update_dashboard_permissions(
     test_admin_user,
     test_member_user,
 ):
+    assert len(dashboard.permissions) == 3
+    assert dashboard.permissions[0].username == test_owner_user.username
+    assert dashboard.permissions[0].permission == DashboardPermissionLevel.admin
+
+    assert dashboard.permissions[1].username == test_admin_user.username
+    assert dashboard.permissions[1].permission == DashboardPermissionLevel.editor
+
+    assert dashboard.permissions[2].group.name == permission_group["name"]
+    assert dashboard.permissions[2].permission == DashboardPermissionLevel.viewer
+
     updated_permissions = [
         {
             "username": test_owner_user.username,
@@ -955,16 +967,6 @@ def test_update_dashboard_permissions(
             "permission": DashboardPermissionLevel.editor.value,
         },
     ]
-
-    assert len(dashboard.permissions) == 3
-    assert dashboard.permissions[0].username == test_owner_user.username
-    assert dashboard.permissions[0].permission == DashboardPermissionLevel.admin
-
-    assert dashboard.permissions[1].username == test_admin_user.username
-    assert dashboard.permissions[1].permission == DashboardPermissionLevel.editor
-
-    assert dashboard.permissions[2].group.name == permission_group["name"]
-    assert dashboard.permissions[2].permission == DashboardPermissionLevel.viewer
 
     update_dashboard_permissions(
         db_session,
@@ -989,6 +991,66 @@ def test_update_dashboard_permissions(
 
     assert permissions[3].username == test_member_user.username
     assert permissions[3].permission == DashboardPermissionLevel.viewer
+
+    updated_permissions = []
+
+    update_dashboard_permissions(
+        db_session,
+        dashboard,
+        test_owner_user,
+        updated_permissions,
+    )
+
+    permissions = (
+        db_session.query(DashboardPermission).filter_by(dashboard_id=dashboard.id).all()
+    )
+
+    assert len(permissions) == 1
+    assert permissions[0].username == test_owner_user.username
+    assert permissions[0].permission == DashboardPermissionLevel.admin
+
+    updated_permissions = [
+        {
+            "username": test_owner_user.username,
+            "permission": DashboardPermissionLevel.admin.value,
+        },
+        {
+            "username": test_admin_user.username,
+            "permission": DashboardPermissionLevel.viewer.value,
+        },
+        {
+            "username": test_member_user.username,
+            "permission": DashboardPermissionLevel.viewer.value,
+        },
+        {
+            "group": permission_group["name"],
+            "permission": DashboardPermissionLevel.editor.value,
+        },
+    ]
+
+    update_dashboard_permissions(
+        db_session,
+        dashboard,
+        test_owner_user,
+        updated_permissions,
+    )
+
+    permissions = (
+        db_session.query(DashboardPermission).filter_by(dashboard_id=dashboard.id).all()
+    )
+
+    assert len(permissions) == 4
+    assert permissions[0].username == test_owner_user.username
+    assert permissions[0].permission == DashboardPermissionLevel.admin
+
+    assert permissions[1].username == test_admin_user.username
+    assert permissions[1].permission == DashboardPermissionLevel.viewer
+
+    assert permissions[2].username == test_member_user.username
+    assert permissions[2].permission == DashboardPermissionLevel.viewer
+
+    assert permissions[3].group.name == permission_group["name"]
+    assert permissions[3].permission == DashboardPermissionLevel.editor
 
 
 def test_update_dashboard_permissions_nonexisting_user(
@@ -1478,3 +1540,111 @@ def test_get_visualization_permissions(
     permissions = permissions[mock_plugin.name]
     assert permissions["users"] == [test_owner_user.username]
     assert permissions["groups"] == [permission_group_table.name]
+
+
+@pytest.mark.django_db
+def test_update_visualization_permissions(
+    mock_app_get_ps_db,
+    mock_plugin,
+    db_session,
+    test_owner_user,
+    test_admin_user,
+    test_member_user,
+    permission_group,
+    permission_group_table,
+    visualization_permission,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    updated_permissions = {
+        mock_plugin.name: {
+            "users": [],
+            "groups": [],
+        }
+    }
+
+    permissions = (
+        db_session.query(VisualizationPermission)
+        .filter_by(visualization=mock_plugin.name)
+        .all()
+    )
+    assert len(permissions) == 2
+    assert permissions[0].username == test_owner_user.username
+    assert permissions[1].group.name == permission_group["name"]
+
+    update_visualization_permissions(
+        updated_permissions,
+    )
+
+    permissions = (
+        db_session.query(VisualizationPermission)
+        .filter_by(visualization=mock_plugin.name)
+        .all()
+    )
+
+    assert len(permissions) == 0
+
+    updated_permissions = {
+        mock_plugin.name: {
+            "users": [test_owner_user.username, test_admin_user.username],
+            "groups": [permission_group["name"]],
+        }
+    }
+
+    update_visualization_permissions(
+        updated_permissions,
+    )
+
+    permissions = (
+        db_session.query(VisualizationPermission)
+        .filter_by(visualization=mock_plugin.name)
+        .all()
+    )
+
+    assert len(permissions) == 3
+    assert permissions[0].username == test_owner_user.username
+    assert permissions[1].username == test_admin_user.username
+    assert permissions[2].group.name == permission_group["name"]
+
+
+@pytest.mark.django_db
+def test_update_visualization_permissions_nonexistent_user_and_groups(
+    mock_app_get_ps_db,
+    mock_plugin,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+
+    updated_permissions = {
+        mock_plugin.name: {
+            "users": ["bad_user"],
+            "groups": [],
+        }
+    }
+
+    with pytest.raises(Exception) as excinfo:
+        update_visualization_permissions(updated_permissions)
+    assert "The following users do not exist: bad_user" in str(excinfo.value)
+
+    updated_permissions = {
+        mock_plugin.name: {
+            "users": [],
+            "groups": ["bad_group"],
+        }
+    }
+
+    with pytest.raises(Exception) as excinfo:
+        update_visualization_permissions(updated_permissions)
+    assert "The following groups do not exist: bad_group" in str(excinfo.value)
+
+    updated_permissions = {
+        mock_plugin.name: {
+            "users": ["bad_user"],
+            "groups": ["bad_group"],
+        }
+    }
+
+    with pytest.raises(Exception) as excinfo:
+        update_visualization_permissions(updated_permissions)
+    assert (
+        "The following users do not exist: bad_user; The following groups do not exist: bad_group"
+        in str(excinfo.value)
+    )
