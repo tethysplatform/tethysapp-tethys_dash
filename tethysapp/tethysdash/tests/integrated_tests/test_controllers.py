@@ -1608,5 +1608,98 @@ def test_visualization_permissions_no_permission(client, admin_user, mock_app, m
 
     response = client.get(url)
     assert response.status_code == 200
-    assert response.json()["visualization_permissions"] == {}
+    assert response.json()["success"] == False
+    assert response.json()["message"] == "User doesn't have permission to view visualization permissions."
     mock_get_visualization_permissions.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_visualization_permissions_error(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_get_visualization_permissions = mocker.patch(
+        "tethysapp.tethysdash.controllers.get_visualization_permissions"
+    )
+    mock_get_visualization_permissions.side_effect = [Exception("failed to get visualization")]
+
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
+    mock_has_permission.return_value = True
+
+    url = reverse("tethysdash:visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.json()["success"] == False
+    assert response.json()["message"] == "Failed to get visualization permissions: failed to get visualization"
+
+@pytest.mark.django_db
+def test_update_visualization_permissions(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.update_viz_perms"
+    )
+
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
+    mock_has_permission.return_value = True
+
+    url = reverse("tethysdash:update_visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.generic(
+        "POST", url, json.dumps({})
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] == True
+
+@pytest.mark.django_db
+def test_update_visualization_permissions_no_permission(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.update_viz_perms"
+    )
+
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
+    mock_has_permission.return_value = False
+
+    url = reverse("tethysdash:update_visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.generic(
+        "POST", url, json.dumps({})
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] == False
+    assert response.json()["message"] == "User does not have permission to manage visualization permissions."
+
+@pytest.mark.django_db
+def test_update_visualization_permissions_error(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_update_viz_perms = mocker.patch(
+        "tethysapp.tethysdash.controllers.update_viz_perms"
+    )
+    mock_update_viz_perms.side_effect = Exception("failed to update visualization permissions")
+
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
+    mock_has_permission.return_value = True
+
+    url = reverse("tethysdash:update_visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.generic(
+        "POST", url, json.dumps({})
+    )
+    assert response.status_code == 200
+    assert response.json()["success"] == False
+    assert response.json()["message"] == "Failed to update visualization permissions: failed to update visualization permissions"

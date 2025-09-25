@@ -261,11 +261,11 @@ def visualization_permissions(request):
             metadata = get_specific_visualization(viz_name)
             visualization_permissions[viz_name]["info"] = metadata
 
-    except Exception:
+    except Exception as e:
         return JsonResponse(
             {
                 "success": False,
-                "message": "Failed to get visualization permissions.",
+                "message": f"Failed to get visualization permissions: {str(e)}",
             }
         )
 
@@ -302,7 +302,6 @@ def update_visualization_permissions(request):
 
     try:
         permission_updates = json.loads(request.body)
-
         update_viz_perms(permission_updates.get("permissions", {}))
 
         return JsonResponse({"success": True})
