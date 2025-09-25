@@ -253,7 +253,7 @@ def visualization_permissions(request):
             return JsonResponse(
                 {
                     "success": False,
-                    "message": "User doesn't have permission to view visualization permissions.",
+                    "message": "User doesn't have permission to view visualization permissions.",  # noqa: E501
                 }
             )
 
@@ -261,7 +261,7 @@ def visualization_permissions(request):
             metadata = get_specific_visualization(viz_name)
             visualization_permissions[viz_name]["info"] = metadata
 
-    except Exception as e:
+    except Exception:
         return JsonResponse(
             {
                 "success": False,
@@ -296,13 +296,12 @@ def update_visualization_permissions(request):
         return JsonResponse(
             {
                 "success": False,
-                "message": "User does not have permission to manage visualization permissions.",
+                "message": "User does not have permission to manage visualization permissions.",  # noqa: E501
             }
         )
 
     try:
         permission_updates = json.loads(request.body)
-        user = request.user
 
         update_viz_perms(permission_updates.get("permissions", {}))
 

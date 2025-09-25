@@ -1,3 +1,10 @@
+"""SQLAlchemy models for TethysDash application.
+
+This module defines the database models for the TethysDash application,
+including dashboards, grid items, permissions, and permission groups.
+It also provides functions for creating, updating, and managing these entities.
+"""
+
 import enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (
@@ -43,7 +50,7 @@ class Dashboard(Base):
         description (str): Optional description of the dashboard
         name (str): Display name of the dashboard
         notes (str): Optional notes about the dashboard
-        owner (int): Username of the dashboard owner
+        owner (str): Username of the dashboard owner
         unrestricted_placement (bool): Whether grid items can be placed anywhere
         public (bool): Whether the dashboard is publicly accessible
         last_updated (datetime): Timestamp of last modification
@@ -59,7 +66,7 @@ class Dashboard(Base):
     description = Column(String)
     name = Column(String, nullable=False)
     notes = Column(String)
-    owner = Column(Integer, nullable=False)
+    owner = Column(String, nullable=False)
     unrestricted_placement = Column(Boolean)
     public = Column(Boolean, nullable=False, default=False)
     last_updated = Column(DateTime, default=datetime.now(timezone.utc))
@@ -119,6 +126,14 @@ class GridItem(Base):
 
 
 class DashboardPermissionLevel(enum.Enum):
+    """Enumeration of dashboard permission levels.
+
+    Defines the three levels of access that can be granted for dashboards:
+    - admin: Full control including editing, deleting, and managing permissions
+    - editor: Can edit dashboard content but cannot manage permissions or delete
+    - viewer: Read-only access to view the dashboard
+    """
+
     admin = "admin"
     editor = "editor"
     viewer = "viewer"
@@ -194,6 +209,13 @@ class VisualizationPermission(Base):
 
 
 class GroupPermissionLevel(enum.Enum):
+    """Enumeration of permission group membership levels.
+
+    Defines the levels of access within a permission group:
+    - admin: Can manage group membership and permissions
+    - member: Basic membership in the group
+    """
+
     admin = "admin"
     member = "member"
 
@@ -862,7 +884,8 @@ def update_visualization_permissions(updated_permissions):
     """
     Update visualization permissions in the system.
 
-    Only users with 'manage_visualizations' permission can update visualization permissions.
+    Only users with 'manage_visualizations' permission can update visualization
+    permissions.
 
     Args:
         user: The user attempting to update permissions
