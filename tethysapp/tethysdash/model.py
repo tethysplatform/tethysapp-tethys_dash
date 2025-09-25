@@ -31,7 +31,24 @@ Base = declarative_base()
 
 class Dashboard(Base):
     """
-    SQLAlchemy Dashboard DB Model
+    SQLAlchemy model for dashboard entities.
+
+    Represents a dashboard with its metadata, permissions, and associated grid items.
+    Each dashboard has an owner, can be public or private, and contains multiple
+    visualization components arranged in a grid layout.
+
+    Attributes:
+        id (int): Primary key identifier
+        uuid (str): Unique identifier for the dashboard
+        description (str): Optional description of the dashboard
+        name (str): Display name of the dashboard
+        notes (str): Optional notes about the dashboard
+        owner (int): Username of the dashboard owner
+        unrestricted_placement (bool): Whether grid items can be placed anywhere
+        public (bool): Whether the dashboard is publicly accessible
+        last_updated (datetime): Timestamp of last modification
+        permissions (relationship): Related dashboard permissions
+        grid_items (relationship): Related grid items in the dashboard
     """
 
     __tablename__ = "dashboards"
@@ -63,7 +80,24 @@ class Dashboard(Base):
 
 class GridItem(Base):
     """
-    SQLAlchemy GridItem DB Model
+    SQLAlchemy model for grid items within dashboards.
+
+    Represents individual visualization components positioned within a dashboard's
+    grid layout. Each grid item has position, size, and visualization configuration.
+
+    Attributes:
+        id (int): Primary key identifier
+        dashboard_id (int): Foreign key to parent dashboard
+        dashboard (relationship): Reference to parent dashboard
+        i (str): Unique identifier within the dashboard grid
+        x (int): Horizontal position in grid units
+        y (int): Vertical position in grid units
+        w (int): Width in grid units
+        h (int): Height in grid units
+        source (str): Type of visualization/component
+        args_string (str): JSON string containing visualization arguments
+        metadata_string (str): JSON string containing component metadata
+        order (int): Display order within the dashboard
     """
 
     __tablename__ = "griditems"
@@ -91,6 +125,23 @@ class DashboardPermissionLevel(enum.Enum):
 
 
 class DashboardPermission(Base):
+    """
+    SQLAlchemy model for dashboard access permissions.
+
+    Manages user and group permissions for dashboards, supporting three permission
+    levels: admin, editor, and viewer. Permissions can be granted to individual
+    users or to permission groups.
+
+    Attributes:
+        id (int): Primary key identifier
+        dashboard_id (int): Foreign key to the dashboard
+        username (str): Username for user-specific permissions (nullable)
+        group_id (int): Foreign key to permission group (nullable)
+        permission (DashboardPermissionLevel): Permission level enum
+        dashboard (relationship): Reference to the dashboard
+        group (relationship): Reference to the permission group
+    """
+
     __tablename__ = "dashboard_permissions"
 
     id = Column(Integer, primary_key=True)
@@ -111,6 +162,20 @@ class DashboardPermission(Base):
 
 
 class VisualizationPermission(Base):
+    """
+    SQLAlchemy model for visualization access permissions.
+
+    Controls access to specific visualization types within the application.
+    Permissions can be granted to individual users or to permission groups.
+
+    Attributes:
+        id (int): Primary key identifier
+        visualization (str): Name/identifier of the visualization type
+        username (str): Username for user-specific permissions (nullable)
+        group_id (int): Foreign key to permission group (nullable)
+        group (relationship): Reference to the permission group
+    """
+
     __tablename__ = "visualization_permissions"
 
     id = Column(Integer, primary_key=True)
@@ -134,6 +199,21 @@ class GroupPermissionLevel(enum.Enum):
 
 
 class PermissionGroup(Base):
+    """
+    SQLAlchemy model for permission groups.
+
+    Represents groups of users that can be granted permissions collectively.
+    Each group has an owner and can contain multiple members with different
+    permission levels within the group.
+
+    Attributes:
+        id (int): Primary key identifier
+        name (str): Unique name of the permission group
+        description (str): Optional description of the group's purpose
+        owner (str): Username of the group owner
+        members (relationship): Related group members with their permissions
+    """
+
     __tablename__ = "permission_groups"
 
     id = Column(Integer, primary_key=True)
@@ -150,6 +230,20 @@ class PermissionGroup(Base):
 
 
 class PermissionGroupUser(Base):
+    """
+    SQLAlchemy model for permission group membership.
+
+    Represents the many-to-many relationship between users and permission groups,
+    including each user's permission level within the group (admin or member).
+
+    Attributes:
+        id (int): Primary key identifier
+        username (str): Username of the group member
+        group_id (int): Foreign key to the permission group
+        permission (GroupPermissionLevel): User's permission level in the group
+        group (relationship): Reference to the permission group
+    """
+
     __tablename__ = "permission_group_user"
 
     id = Column(Integer, primary_key=True)
@@ -174,6 +268,29 @@ def add_new_dashboard(
     unrestricted_placement,
     grid_items,
 ):
+    """
+    Create a new dashboard in the database.
+
+    Creates a new dashboard with the provided metadata and grid items.
+    Automatically grants admin permission to the owner and sanitizes
+    any text content in grid items.
+
+    Args:
+        owner: User object representing the dashboard owner
+        uuid (str): Unique identifier for the dashboard
+        name (str): Display name of the dashboard
+        description (str): Optional description
+        notes (str): Optional notes
+        public (bool): Whether the dashboard should be publicly accessible
+        unrestricted_placement (bool): Whether grid items can be placed anywhere
+        grid_items (list): List of grid item dictionaries to add
+
+    Returns:
+        int: ID of the newly created dashboard
+
+    Raises:
+        Exception: If dashboard creation fails
+    """
     # Get connection/session to database
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -257,6 +374,28 @@ def add_new_grid_item(
     grid_item_metadata_string,
     grid_item_order,
 ):
+    """
+    Add a new grid item to a dashboard.
+
+    Creates and persists a new grid item with the specified position,
+    size, and configuration within the given dashboard.
+
+    Args:
+        session: SQLAlchemy database session
+        dashboard_id (int): ID of the parent dashboard
+        grid_item_i (str): Unique identifier within the dashboard
+        grid_item_x (int): Horizontal position in grid units
+        grid_item_y (int): Vertical position in grid units
+        grid_item_w (int): Width in grid units
+        grid_item_h (int): Height in grid units
+        grid_item_source (str): Type of visualization/component
+        grid_item_args_string (str): JSON string with visualization arguments
+        grid_item_metadata_string (str): JSON string with component metadata
+        grid_item_order (int): Display order within dashboard
+
+    Returns:
+        GridItem: The newly created grid item object
+    """
     new_grid_item = GridItem(
         dashboard_id=dashboard_id,
         i=grid_item_i,
@@ -277,6 +416,16 @@ def add_new_grid_item(
 
 
 def delete_grid_item(session, dashboard_id, i):
+    """
+    Delete a grid item from a dashboard.
+
+    Removes the specified grid item from the database.
+
+    Args:
+        session: SQLAlchemy database session
+        dashboard_id (int): ID of the parent dashboard
+        i (str): Unique identifier of the grid item to delete
+    """
     db_grid_item = (
         session.query(GridItem)
         .filter(GridItem.dashboard_id == dashboard_id)
@@ -290,6 +439,24 @@ def delete_grid_item(session, dashboard_id, i):
 
 
 def copy_named_dashboard(user, id, new_name, dashboard_uuid):
+    """
+    Create a copy of an existing dashboard.
+
+    Duplicates a dashboard with all its grid items, creating a new dashboard
+    owned by the specified user. Only grants admin permission to the new owner.
+
+    Args:
+        user: User object who will own the copied dashboard
+        id (int): ID of the dashboard to copy
+        new_name (str): Name for the new dashboard
+        dashboard_uuid (str): UUID for the new dashboard
+
+    Returns:
+        list: [new_dashboard_id, original_dashboard_uuid]
+
+    Raises:
+        Exception: If the original dashboard doesn't exist or copy fails
+    """
     # Get connection/session to database
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -350,6 +517,22 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
 
 
 def delete_named_dashboard(user, id):
+    """
+    Delete a dashboard if the user has admin permission.
+
+    Removes the specified dashboard and all associated data from the database.
+    Only users with admin permission can delete dashboards.
+
+    Args:
+        user: User object attempting to delete the dashboard
+        id (int): ID of the dashboard to delete
+
+    Returns:
+        str: UUID of the deleted dashboard
+
+    Raises:
+        Exception: If dashboard doesn't exist or user lacks admin permission
+    """
     # Get connection/session to database
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -379,6 +562,25 @@ def delete_named_dashboard(user, id):
 
 
 def update_named_dashboard(user, id, dashboard_updates):
+    """
+    Update an existing dashboard with new data.
+
+    Updates dashboard properties based on user permissions. Editor permission
+    allows most updates, but admin permission is required for name changes,
+    public status changes, and permission modifications.
+
+    Args:
+        user: User object attempting to update the dashboard
+        id (int): ID of the dashboard to update
+        dashboard_updates (dict): Dictionary containing fields to update
+
+    Returns:
+        dict: Updated dashboard data in dictionary format
+
+    Raises:
+        Exception: If dashboard doesn't exist, user lacks permission,
+                  or update fails
+    """
     # Get connection/session to database
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -524,10 +726,19 @@ def update_named_dashboard(user, id, dashboard_updates):
 
 def get_dashboard_user_permission(session, dashboard, user):
     """
-    Returns the highest permission level (admin > editor > viewer) the user has
-    for the given dashboard, either directly or via group membership.
+    Get the highest permission level a user has for a dashboard.
 
-    Returns None if no permission.
+    Checks both direct user permissions and permissions inherited through
+    group membership. Returns the highest level found, with admin > editor > viewer.
+
+    Args:
+        session: SQLAlchemy database session
+        dashboard: Dashboard object to check permissions for
+        user: User object to check permissions for
+
+    Returns:
+        DashboardPermissionLevel or None: Highest permission level found,
+                                         or None if no permission exists
     """
 
     # Get all group ids the user belongs to
@@ -560,9 +771,18 @@ def get_dashboard_user_permission(session, dashboard, user):
 
 def get_visualization_user_permission(session, visualization, user):
     """
-    Returns if the user has permission to use the given visualization, either directly or via group membership.
+    Check if a user has permission to use a specific visualization.
 
-    Returns None if no permission.
+    Checks both direct user permissions and permissions inherited through
+    group membership for the specified visualization type.
+
+    Args:
+        session: SQLAlchemy database session
+        visualization (str): Name/identifier of the visualization type
+        user: User object to check permissions for
+
+    Returns:
+        bool: True if user has permission, False otherwise
     """
 
     permission = False
@@ -593,6 +813,21 @@ def get_visualization_user_permission(session, visualization, user):
 
 
 def get_visualization_permissions():
+    """
+    Retrieve all visualization permissions in the system.
+
+    Gets a comprehensive mapping of all visualization types and their
+    associated user and group permissions.
+
+    Returns:
+        dict: Dictionary mapping visualization names to permission data:
+              {
+                  'visualization_name': {
+                      'users': [list of usernames],
+                      'groups': [list of group names]
+                  }
+              }
+    """
 
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -625,9 +860,22 @@ def get_visualization_permissions():
 
 def update_dashboard_permissions(session, db_dashboard, user, updated_permissions):
     """
-    Update dashboard permissions for a given dashboard.
-    Only allow if the user has admin permission for the dashboard.
-    updated_permissions: list of dicts [{username: str, permission: str}]
+    Update permissions for a dashboard.
+
+    Modifies user and group permissions for the specified dashboard.
+    Only users with admin permission can update dashboard permissions.
+    Validates that all referenced users and groups exist.
+
+    Args:
+        session: SQLAlchemy database session
+        db_dashboard: Dashboard object to update permissions for
+        user: User object attempting to update permissions
+        updated_permissions (list): List of permission dictionaries containing
+                                   username/group and permission level
+
+    Raises:
+        Exception: If user lacks admin permission, or if referenced users
+                  or groups don't exist
     """
 
     # Check if user has admin permission
@@ -728,8 +976,27 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
 
 def get_user_permission_groups(user):
     """
-    Returns a list of all permission groups the user belongs to,
-    with all users, their permissions, and the owner.
+    Get all permission groups a user belongs to.
+
+    Retrieves detailed information about all permission groups the user
+    is a member of, including group metadata, all members, and the user's
+    permission level within each group.
+
+    Args:
+        user: User object to get groups for
+
+    Returns:
+        list: List of dictionaries containing group information:
+              [
+                  {
+                      'id': group_id,
+                      'name': group_name,
+                      'description': group_description,
+                      'owner': owner_username,
+                      'members': [{'username': str, 'permission': str}],
+                      'user_permission': user's_permission_in_group
+                  }
+              ]
     """
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -755,14 +1022,26 @@ def get_user_permission_groups(user):
 def update_permission_groups(user, group_data):
     """
     Create or update a permission group.
-    group_data: dict like {
-        'id': None,
-        'name': 'a',
-        'description': 'a',
-        'members': [{'username': 'admin', 'permission': 'admin'}]}
 
-    If id is None, create a new group.
-    If not None, update if user is owner or admin in the group.
+    Creates a new permission group if no ID is provided, or updates an existing
+    group if the user has appropriate permissions (owner or admin). Validates
+    that all member usernames exist in the system.
+
+    Args:
+        user: User object creating or updating the group
+        group_data (dict): Group data containing:
+            - id: Group ID (None for new groups)
+            - name: Group name
+            - description: Group description
+            - members: List of member dictionaries with username and permission
+
+    Returns:
+        dict: Updated group information or error status:
+              - If successful: parsed group data
+              - If error: {'status': 'error', 'message': error_description}
+
+    Raises:
+        Exception: If group update fails for unexpected reasons
     """
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -859,6 +1138,22 @@ def update_permission_groups(user, group_data):
 
 
 def add_permission_group_members(session, group, members):
+    """
+    Add members to a permission group.
+
+    Validates that all usernames exist in the system and adds them to the
+    specified permission group with their assigned permission levels.
+
+    Args:
+        session: SQLAlchemy database session
+        group: PermissionGroup object to add members to
+        members (list): List of member dictionaries containing:
+                       - username: Username to add
+                       - permission: Permission level ('admin' or 'member')
+
+    Returns:
+        list: List of usernames that don't exist in the system
+    """
     nonexistent_users = []
     User = get_user_model()
 
@@ -884,8 +1179,20 @@ def add_permission_group_members(session, group, members):
 
 def delete_permission_groups(user, permission_group_id):
     """
-    Delete a permission group if the user is the owner or an admin in the group.
-    Returns a dict with status and message.
+    Delete a permission group.
+
+    Removes the specified permission group if the user has appropriate
+    permissions (owner or admin in the group). Also removes all group
+    memberships and related permissions.
+
+    Args:
+        user: User object attempting to delete the group
+        permission_group_id (int): ID of the group to delete
+
+    Returns:
+        dict: Status dictionary:
+              - If successful: {'status': 'deleted'}
+              - If error: {'status': 'error', 'message': error_description}
     """
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -926,6 +1233,25 @@ def delete_permission_groups(user, permission_group_id):
 
 
 def parse_group_permissions(user, group):
+    """
+    Convert a PermissionGroup object to a dictionary format.
+
+    Transforms the group data into a dictionary suitable for API responses,
+    including the user's permission level within the group.
+
+    Args:
+        user: User object to determine permission level for
+        group: PermissionGroup object to parse
+
+    Returns:
+        dict: Dictionary containing:
+              - id: Group ID
+              - name: Group name
+              - description: Group description
+              - owner: Owner username
+              - members: List of member dictionaries
+              - user_permission: User's permission level in the group
+    """
     members = [
         {"username": member.username, "permission": member.permission.value}
         for member in group.members
@@ -945,6 +1271,23 @@ def parse_group_permissions(user, group):
 
 
 def parse_db_dashboard(session, dashboards, user, dashboard_view):
+    """
+    Convert Dashboard objects to dictionary format for API responses.
+
+    Transforms dashboard database objects into dictionaries suitable for
+    frontend consumption, including permission information and grid items
+    if in dashboard view mode.
+
+    Args:
+        session: SQLAlchemy database session
+        dashboards (list): List of Dashboard objects to parse
+        user: User object to determine permissions for
+        dashboard_view (bool): Whether to include detailed grid item data
+
+    Returns:
+        list: List of dashboard dictionaries containing metadata,
+              permissions, and optionally grid items
+    """
     dashboard_list = []
 
     for dashboard in dashboards:
@@ -1017,7 +1360,20 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
 
 def get_dashboards(user, dashboard_view=False, id=None):
     """
-    Get all persisted dashboards.
+    Retrieve dashboards accessible to a user.
+
+    Gets dashboards that the user can access through direct permissions,
+    group membership, or public availability. Can retrieve a specific
+    dashboard by ID or all accessible dashboards.
+
+    Args:
+        user: User object to get dashboards for
+        dashboard_view (bool): Whether to include detailed grid item data
+        id (int, optional): Specific dashboard ID to retrieve
+
+    Returns:
+        dict or list: Single dashboard dict if ID provided,
+                     otherwise list of dashboard dicts
     """
     # Get connection/session to database
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
@@ -1072,6 +1428,16 @@ def get_dashboards(user, dashboard_view=False, id=None):
 
 
 def clean_up_jsons(user):
+    """
+    Remove unused JSON files from the workspace.
+
+    Identifies and removes JSON files that are no longer referenced by any
+    of the user's dashboards, particularly GeoJSON and style files used
+    in map visualizations.
+
+    Args:
+        user: User object to clean up files for
+    """
     print("Checking to see if there are any unused json files to remove")
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -1125,10 +1491,31 @@ def clean_up_jsons(user):
 
 
 def flatten(xss):
+    """
+    Flatten a list of lists into a single list.
+
+    Args:
+        xss (list): List of lists to flatten
+
+    Returns:
+        list: Flattened list containing all elements
+    """
     return [x for xs in xss for x in xs]
 
 
 def get_user_app_permissions(user):
+    """
+    Get application-specific permissions for a user.
+
+    Extracts permissions specific to the TethysDash application from
+    the user's complete permission set.
+
+    Args:
+        user: User object to get permissions for
+
+    Returns:
+        list: List of permission strings specific to this application
+    """
     user_permissions = [
         perm.split(":")[-1]
         for perm in user.get_all_permissions()
@@ -1140,7 +1527,19 @@ def get_user_app_permissions(user):
 
 def init_primary_db(engine, first_time):
     """
-    Initializer for the primary database.
+    Initialize and upgrade the primary database schema.
+
+    Sets up the database schema using Alembic migrations, handling both
+    initial setup and upgrades from existing versions. Manages migration
+    conflicts for existing installations.
+
+    Args:
+        engine: SQLAlchemy database engine
+        first_time (bool): Whether this is the first time setup
+
+    Raises:
+        ProgrammingError: If migration fails due to schema conflicts
+        OperationalError: If database operation fails
     """
     # Load Alembic configuration
     tethysdash_directory = Path(__file__).resolve().parent

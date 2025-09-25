@@ -23,7 +23,7 @@ from django.contrib.auth import get_user_model
 def db_url():
     db_settings = settings.DATABASES["default"]
     # Django sets "NAME" to the test DB name when running tests
-    url = f"postgresql+psycopg2://{db_settings['USER']}:{db_settings['PASSWORD']}@{db_settings['HOST']}:{db_settings['PORT']}/{db_settings['NAME']}"
+    url = f"postgresql+psycopg2://{db_settings['USER']}:{db_settings['PASSWORD']}@{db_settings['HOST']}:{db_settings['PORT']}/{db_settings['NAME']}"  # noqa: E501
     return url
 
 

@@ -1328,27 +1328,37 @@ def test_create_permission_group_nonexistent_users(
     url = reverse("tethysdash:update_permission_group")
     client.force_login(test_admin_user)
 
-    response = client.generic("POST", url, json.dumps({
-        "name": "some name",
-        "description": "",
-        "owner": test_admin_user.username,
-        "members": [
+    response = client.generic(
+        "POST",
+        url,
+        json.dumps(
             {
-                "username": "nonexistent_user",
-                "permission": "admin",
-            },
-            {
-                "username": test_admin_user.username,
-                "permission": "admin",
-            },
-        ],
-        "user_permission": "admin",
-    }))
+                "name": "some name",
+                "description": "",
+                "owner": test_admin_user.username,
+                "members": [
+                    {
+                        "username": "nonexistent_user",
+                        "permission": "admin",
+                    },
+                    {
+                        "username": test_admin_user.username,
+                        "permission": "admin",
+                    },
+                ],
+                "user_permission": "admin",
+            }
+        ),
+    )
 
     assert response.status_code == 200
 
     response_json = response.json()
-    assert response_json == {'success': False, 'message': "Users don't exist: nonexistent_user"}
+    assert response_json == {
+        "success": False,
+        "message": "Users don't exist: nonexistent_user",
+    }
+
 
 @pytest.mark.django_db
 def test_create_permission_group_error(
@@ -1536,6 +1546,7 @@ def test_delete_permission_group_exception_without_message(
         "success": False,
     }
 
+
 @pytest.mark.django_db
 def test_permissions(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
@@ -1543,6 +1554,7 @@ def test_permissions(client, admin_user, mock_app, mocker):
 
     # Patch get_all_permissions at the class level
     from django.contrib.auth.models import User
+
     mock_get_perms = mocker.patch.object(User, "get_all_permissions")
     mock_get_perms.return_value = [
         "tethys_apps.tethysdash:manage_visualizations",
@@ -1554,6 +1566,7 @@ def test_permissions(client, admin_user, mock_app, mocker):
     assert response.status_code == 200
     assert set(response.json()["permissions"]) == {"manage_visualizations"}
 
+
 @pytest.mark.django_db
 def test_visualization_permissions_has_permission(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
@@ -1563,9 +1576,11 @@ def test_visualization_permissions_has_permission(client, admin_user, mock_app, 
     perms = {"some_plugin": {"users": ["user1"], "groups": ["group1"]}}
     mock_get_visualization_permissions.return_value = perms
 
-    mock_has_permission = mocker.patch("tethysapp.tethysdash.controllers.has_permission")
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
     mock_has_permission.return_value = True
-    
+
     url = reverse("tethysdash:visualization_permissions")
 
     client.force_login(admin_user)
@@ -1582,9 +1597,11 @@ def test_visualization_permissions_no_permission(client, admin_user, mock_app, m
         "tethysapp.tethysdash.controllers.get_visualization_permissions"
     )
 
-    mock_has_permission = mocker.patch("tethysapp.tethysdash.controllers.has_permission")
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
     mock_has_permission.return_value = False
-    
+
     url = reverse("tethysdash:visualization_permissions")
 
     client.force_login(admin_user)
