@@ -1585,7 +1585,7 @@ def test_update_visualization_permissions(
 
     updated_permissions = {
         mock_plugin.name: {
-            "users": [test_owner_user.username, test_admin_user.username],
+            "users": [test_owner_user.username],
             "groups": [permission_group["name"]],
         }
     }
@@ -1602,8 +1602,7 @@ def test_update_visualization_permissions(
 
     assert len(permissions) == 3
     assert permissions[0].username == test_owner_user.username
-    assert permissions[1].username == test_admin_user.username
-    assert permissions[2].group.name == permission_group["name"]
+    assert permissions[1].group.name == permission_group["name"]
 
 
 @pytest.mark.django_db

@@ -1,6 +1,7 @@
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
     get_visualization,
+    get_specific_visualization,
 )
 import pytest
 
@@ -101,3 +102,36 @@ def test_get_visualization_not_restricted(mock_plugin2, mocker, test_owner_user)
     mock_intake.open_package_name2.assert_called_with(some_arg="test")
     assert viz_type == mock_plugin2.visualization_type
     assert viz_data == "some_data"
+
+
+def test_get_specific_visualization(mock_plugin, mocker):
+    mock_intake = mocker.patch("tethysapp.tethysdash.visualizations.intake")
+    mock_intake.open_package_name = mock_plugin
+
+    metadata = get_specific_visualization(mock_plugin.name)
+
+    assert metadata == {
+        "source": mock_plugin.name,
+        "value": mock_plugin.visualization_label,
+        "label": mock_plugin.visualization_label,
+        "args": mock_plugin.visualization_args,
+        "type": mock_plugin.visualization_type,
+        "tags": mock_plugin.visualization_tags,
+        "attribution": mock_plugin.visualization_attribution,
+        "description": mock_plugin.visualization_description,
+        "loading_icon": mock_plugin.visualization_loading_icon,
+        "restricted": mock_plugin.visualization_restricted,
+    }
+
+
+def test_get_specific_visualization_error(mock_plugin, mocker):
+    mock_intake = mocker.patch("tethysapp.tethysdash.visualizations.intake")
+    mock_build_plugin_metadata = mocker.patch(
+        "tethysapp.tethysdash.visualizations.build_plugin_metadata"
+    )
+    mock_build_plugin_metadata.side_effect = Exception("failed to build metadata")
+    mock_intake.open_package_name = mock_plugin
+
+    metadata = get_specific_visualization(mock_plugin.name)
+
+    assert metadata == {}
