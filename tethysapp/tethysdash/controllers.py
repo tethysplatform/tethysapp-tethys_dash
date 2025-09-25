@@ -24,9 +24,11 @@ from tethysapp.tethysdash.model import (
     delete_permission_groups,
     get_visualization_permissions,
     get_user_app_permissions,
+    update_visualization_permissions as update_viz_perms,
 )
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
+    get_specific_visualization,
     get_visualization,
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
@@ -243,10 +245,76 @@ def visualization_permissions(request):
     """
 
     visualization_permissions = {}
-    if has_permission(request, "manage_visualizations"):
-        visualization_permissions = get_visualization_permissions(request.user)
 
-    return JsonResponse({"visualization_permissions": visualization_permissions})
+    try:
+        if has_permission(request, "manage_visualizations"):
+            visualization_permissions = get_visualization_permissions()
+        else:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "message": "User doesn't have permission to view visualization permissions.",
+                }
+            )
+
+        for viz_name in visualization_permissions.keys():
+            metadata = get_specific_visualization(viz_name)
+            visualization_permissions[viz_name]["info"] = metadata
+
+    except Exception as e:
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "Failed to get visualization permissions.",
+            }
+        )
+
+    return JsonResponse(
+        {"success": True, "visualization_permissions": visualization_permissions}
+    )
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/visualizations/permissions/update", login_required=True)
+def update_visualization_permissions(request):
+    """
+    API controller for updating visualization permissions.
+
+    Updates visualization permissions for users who have the 'manage_visualizations'
+    permission. Expects JSON data with permissions structure.
+
+    Args:
+        request: Django HTTP request object with JSON body containing:
+            - permissions: Dictionary mapping visualization names to permission data
+
+    Returns:
+        JsonResponse: Dictionary containing:
+            - success: Boolean indicating operation success
+            - message: Success or error message
+    """
+    if not has_permission(request, "manage_visualizations"):
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "User does not have permission to manage visualization permissions.",
+            }
+        )
+
+    try:
+        permission_updates = json.loads(request.body)
+        user = request.user
+
+        update_viz_perms(permission_updates.get("permissions", {}))
+
+        return JsonResponse({"success": True})
+
+    except Exception as e:
+        return JsonResponse(
+            {
+                "success": False,
+                "message": f"Failed to update visualization permissions: {str(e)}",
+            }
+        )
 
 
 @api_view(["GET"])

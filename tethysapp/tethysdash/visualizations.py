@@ -4,6 +4,43 @@ from tethysapp.tethysdash.app import App
 from tethysapp.tethysdash.exceptions import VisualizationError
 
 
+def build_plugin_metadata(plugin, source):
+    """
+    Extract metadata from a visualization plugin.
+
+    Args:
+        plugin: Intake plugin object
+        source (str): Source identifier for the plugin
+
+    Returns:
+        dict: Plugin metadata dictionary
+    """
+    return {
+        "source": source,
+        "value": plugin.visualization_label,
+        "label": plugin.visualization_label,
+        "args": plugin.visualization_args,
+        "type": plugin.visualization_type,
+        "tags": getattr(plugin, "visualization_tags", []),
+        "attribution": getattr(plugin, "visualization_attribution", ""),
+        "description": getattr(plugin, "visualization_description", ""),
+        "loading_icon": getattr(plugin, "visualization_loading_icon", True),
+        "restricted": getattr(plugin, "visualization_restricted", False),
+    }
+
+
+def get_specific_visualization(visualization):
+    metadata = {}
+
+    try:
+        plugin = getattr(intake, f"open_{visualization}")
+        metadata = build_plugin_metadata(plugin, visualization)
+    except Exception as e:
+        print(f"Error retrieving visualization '{visualization}': {e}")
+
+    return metadata
+
+
 def get_available_visualizations(user):
     """
     Get all visualization types available to a user.
@@ -54,30 +91,6 @@ def get_available_visualizations(user):
         s for s in intake.source.registry if s not in default_intake_sources
     ]
 
-    def build_metadata(plugin, source):
-        """
-        Extract metadata from a visualization plugin.
-
-        Args:
-            plugin: Intake plugin object
-            source (str): Source identifier for the plugin
-
-        Returns:
-            dict: Plugin metadata dictionary
-        """
-        return {
-            "source": source,
-            "value": plugin.visualization_label,
-            "label": plugin.visualization_label,
-            "args": plugin.visualization_args,
-            "type": plugin.visualization_type,
-            "tags": getattr(plugin, "visualization_tags", []),
-            "attribution": getattr(plugin, "visualization_attribution", ""),
-            "description": getattr(plugin, "visualization_description", ""),
-            "loading_icon": getattr(plugin, "visualization_loading_icon", True),
-            "restricted": getattr(plugin, "visualization_restricted", False),
-        }
-
     def add_to_group(groups, group_label, metadata):
         """
         Add visualization metadata to the appropriate group.
@@ -100,7 +113,7 @@ def get_available_visualizations(user):
 
     for source in valid_intake_sources:
         plugin = getattr(intake, f"open_{source}")
-        metadata = build_metadata(plugin, source)
+        metadata = build_plugin_metadata(plugin, source)
         if metadata["restricted"]:
             restricted_visualizations.append((plugin, metadata))
         else:

@@ -16,7 +16,7 @@ import TooltipButton from "components/buttons/TooltipButton";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
 import AppInfoModal from "components/modals/AppInfo";
 import DashboardImportModal from "components/modals/DashboardImport";
-import VisualizationSettingsModal from "components/modals/VisualizationSettings";
+import VisualizationPermissionsModal from "components/modals/VisualizationPermissions";
 import { PermissionGroupsSummaryModal } from "components/modals/PermissionGroups";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import {
@@ -101,8 +101,10 @@ export const LandingPageHeader = () => {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showPermissionGroupsModal, setShowPermissionGroupsModal] =
     useState(false);
-  const [showVisualizationSettingsModal, setShowVisualizationSettingsModal] =
-    useState(false);
+  const [
+    showVisualizationPermissionsModal,
+    setShowVisualizationPermissionsModal,
+  ] = useState(false);
   const allowedToManageVisualizations =
     Array.isArray(userAppPermissions) &&
     userAppPermissions.includes("manage_visualizations");
@@ -119,10 +121,10 @@ export const LandingPageHeader = () => {
               <>
                 {allowedToManageVisualizations && (
                   <TooltipButton
-                    onClick={() => setShowVisualizationSettingsModal(true)}
+                    onClick={() => setShowVisualizationPermissionsModal(true)}
                     tooltipPlacement="bottom"
-                    tooltipText="Manage Visualization Settings"
-                    aria-label="manageVisualizationSettingsButton"
+                    tooltipText="Manage Visualization Permissions"
+                    aria-label="manageVisualizationPermissionsButton"
                   >
                     <img
                       src="/static/tethysdash/images/visualization_settings.png"
@@ -210,9 +212,9 @@ export const LandingPageHeader = () => {
         />
       )}
       {allowedToManageVisualizations && (
-        <VisualizationSettingsModal
-          showModal={showVisualizationSettingsModal}
-          setShowModal={setShowVisualizationSettingsModal}
+        <VisualizationPermissionsModal
+          showModal={showVisualizationPermissionsModal}
+          setShowModal={setShowVisualizationPermissionsModal}
         />
       )}
     </>

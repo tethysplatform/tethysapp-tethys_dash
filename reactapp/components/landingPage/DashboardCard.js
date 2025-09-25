@@ -7,7 +7,10 @@ import { BsPeopleFill } from "react-icons/bs";
 import { FaPlus } from "react-icons/fa";
 import { useNavigate } from "react-router-dom";
 import { confirm } from "components/inputs/DeleteConfirmation";
-import { AvailableDashboardsContext } from "components/contexts/Contexts";
+import {
+  AvailableDashboardsContext,
+  AppContext,
+} from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import Alert from "react-bootstrap/Alert";
 import NewDashboardModal from "components/modals/NewDashboard";
@@ -170,6 +173,7 @@ const DashboardCard = ({
   const navigate = useNavigate();
   const { deleteDashboard, copyDashboard, updateDashboard, exportDashboard } =
     useContext(AvailableDashboardsContext);
+  const { user } = useContext(AppContext);
   const [errorMessage, setErrorMessage] = useState(null);
   const [shared, setShared] = useState(publicDashboard);
   const [showThumbnailModal, setShowThumbnailModal] = useState(false);
@@ -328,7 +332,7 @@ const DashboardCard = ({
       >
         <CardHeader>
           <FlexDiv className="card-header-icons">
-            {editable && (
+            {owner === user.username && (
               <FaRegUserCircle
                 size={"1.2rem"}
                 title={"You are the owner"}

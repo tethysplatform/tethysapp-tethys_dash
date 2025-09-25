@@ -858,6 +858,125 @@ def get_visualization_permissions():
     return visualization_permissions
 
 
+def update_visualization_permissions(updated_permissions):
+    """
+    Update visualization permissions in the system.
+
+    Only users with 'manage_visualizations' permission can update visualization permissions.
+
+    Args:
+        user: The user attempting to update permissions
+        updated_permissions: Dictionary mapping visualization names to permission data:
+                           {
+                               'visualization_name': {
+                                   'users': [list of usernames],
+                                   'groups': [list of group names]
+                               }
+                           }
+
+    Returns:
+        dict: Result with success status and message
+    """
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+
+    User = get_user_model()
+    nonexistent_users = []
+    nonexistent_groups = []
+
+    try:
+        # First, get all existing visualization permissions
+        existing_perms = session.query(VisualizationPermission).all()
+
+        # Create lookup for existing permissions
+        existing_by_viz = {}
+        for perm in existing_perms:
+            if perm.visualization not in existing_by_viz:
+                existing_by_viz[perm.visualization] = {"users": [], "groups": []}
+            if perm.username:
+                existing_by_viz[perm.visualization]["users"].append(perm)
+            elif perm.group_id:
+                existing_by_viz[perm.visualization]["groups"].append(perm)
+
+        # Process each visualization in the updated permissions
+        for viz_name, new_perms in updated_permissions.items():
+            existing_viz_perms = existing_by_viz.get(
+                viz_name, {"users": [], "groups": []}
+            )
+
+            # Handle user permissions
+            new_usernames = set(new_perms.get("users", []))
+            existing_usernames = {perm.username for perm in existing_viz_perms["users"]}
+
+            # Remove users that are no longer in the new list
+            for perm in existing_viz_perms["users"]:
+                if perm.username not in new_usernames:
+                    session.delete(perm)
+
+            # Add new users
+            for username in new_usernames - existing_usernames:
+                try:
+                    User.objects.get(username=username)
+                except User.DoesNotExist:
+                    nonexistent_users.append(username)
+                    continue
+
+                new_perm = VisualizationPermission(
+                    visualization=viz_name, username=username
+                )
+                session.add(new_perm)
+
+            # Handle group permissions
+            new_group_names = set(new_perms.get("groups", []))
+            existing_groups = {
+                perm.group.name: perm
+                for perm in existing_viz_perms["groups"]
+                if perm.group
+            }
+            existing_group_names = set(existing_groups.keys())
+
+            # Remove groups that are no longer in the new list
+            for group_name in existing_group_names - new_group_names:
+                if group_name in existing_groups:
+                    session.delete(existing_groups[group_name])
+
+            # Add new groups
+            for group_name in new_group_names - existing_group_names:
+                # Find the group by name
+                group = (
+                    session.query(PermissionGroup).filter_by(name=group_name).first()
+                )
+                if group:
+                    new_perm = VisualizationPermission(
+                        visualization=viz_name, group_id=group.id
+                    )
+                    session.add(new_perm)
+                else:
+                    nonexistent_groups.append(group_name)
+                    continue
+
+        if nonexistent_users and nonexistent_groups:
+            raise Exception(
+                f"The following users do not exist: {', '.join(nonexistent_users)}; The following groups do not exist: {', '.join(nonexistent_groups)}"  # noqa: E501
+            )
+        elif nonexistent_users:
+            raise Exception(
+                f"The following users do not exist: {', '.join(nonexistent_users)}"
+            )
+        elif nonexistent_groups:
+            raise Exception(
+                f"The following groups do not exist: {', '.join(nonexistent_groups)}"
+            )
+
+        session.commit()
+
+    except Exception as e:
+        session.rollback()
+        raise e
+    finally:
+        session.close()
+
+
 def update_dashboard_permissions(session, db_dashboard, user, updated_permissions):
     """
     Update permissions for a dashboard.
@@ -911,7 +1030,10 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
 
             updated_user_lookup[p["username"]] = p["permission"]
         if "group" in p:
-            if p["group"] not in existing_group_perms:
+            if (
+                session.query(PermissionGroup).filter_by(name=p["group"]).first()
+                is None
+            ):  # noqa: E501
                 nonexistent_groups.append(p["group"])
                 continue
 
@@ -949,9 +1071,19 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
 
     # Add or update group permissions
     for group_name, perm_level in updated_group_lookup.items():
-        perm_obj = existing_group_perms[group_name]
-        if perm_obj.permission.value != perm_level:
-            perm_obj.permission = DashboardPermissionLevel(perm_level)
+
+        if group_name in existing_group_perms:
+            perm_obj = existing_group_perms[group_name]
+            if perm_obj.permission.value != perm_level:
+                perm_obj.permission = DashboardPermissionLevel(perm_level)
+        else:
+            group = session.query(PermissionGroup).filter_by(name=group_name).first()
+            new_perm = DashboardPermission(
+                dashboard_id=db_dashboard.id,
+                group_id=group.id,
+                permission=DashboardPermissionLevel(perm_level),
+            )
+            session.add(new_perm)
 
     # Delete user permissions not in updated list
     to_delete_users = [

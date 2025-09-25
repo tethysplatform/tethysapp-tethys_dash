@@ -16,7 +16,7 @@ import TooltipButton from "components/buttons/TooltipButton";
 import Dropdown from "react-bootstrap/Dropdown";
 import DropdownButton from "react-bootstrap/DropdownButton";
 import { getPublicUrl } from "services/utilities";
-import { BsClipboard } from "react-icons/bs";
+import { BsClipboard, BsFillTrashFill } from "react-icons/bs";
 
 const PERMISSION_LEVELS = ["admin", "editor", "viewer"];
 
@@ -216,10 +216,13 @@ function PermissionsModal({
           >
             <thead>
               <tr>
-                <th style={{ maxWidth: "50%", width: "50%" }}>
+                <th
+                  style={{ maxWidth: "40%", width: "40%", textAlign: "center" }}
+                >
                   Username/Group
                 </th>
-                <th>Permission Level</th>
+                <th style={{ width: "20%", textAlign: "center" }}>Type</th>
+                <th style={{ textAlign: "center" }}>Permission Level</th>
               </tr>
             </thead>
             <tbody>
@@ -231,7 +234,7 @@ function PermissionsModal({
                       : `user-${perm.username}-${idx}`
                   }
                 >
-                  <td style={{ maxWidth: "50%", width: "50%" }}>
+                  <td style={{ maxWidth: "40%", width: "40%" }}>
                     <div
                       style={{
                         maxWidth: "100%",
@@ -240,7 +243,7 @@ function PermissionsModal({
                       }}
                     >
                       {perm.group
-                        ? `${perm.group} (group)${
+                        ? `${perm.group}${
                             permissionGroups.some(
                               (g) =>
                                 g.name === perm.group &&
@@ -255,6 +258,9 @@ function PermissionsModal({
                           ? `${perm.username} (you)`
                           : perm.username}
                     </div>
+                  </td>
+                  <td style={{ width: "20%" }}>
+                    {perm.group ? "Group" : "User"}
                   </td>
                   <td
                     style={{
@@ -291,7 +297,7 @@ function PermissionsModal({
                           }}
                           aria-label={`Delete permission for ${perm.username ? perm.username + " user" : perm.group + " group"}`}
                         >
-                          Delete
+                          <BsFillTrashFill />
                         </Button>
                       </>
                     ) : (

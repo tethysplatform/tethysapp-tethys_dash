@@ -50,6 +50,15 @@ const appAPI = {
   getVisualizationPermissions: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/permissions/`);
   },
+  updateVisualizationPermissions: (data, csrf) => {
+    return apiClient.post(
+      `${APP_ROOT_URL}visualizations/permissions/update/`,
+      data,
+      {
+        headers: { "x-csrftoken": csrf },
+      }
+    );
+  },
   getDashboard: ({ id }) => {
     return apiClient.get(`${APP_ROOT_URL}dashboards/get/`, {
       params: { id },
