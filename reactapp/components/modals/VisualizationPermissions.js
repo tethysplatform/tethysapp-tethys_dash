@@ -30,6 +30,23 @@ const TableContainer = styled.div`
   width: 100%;
 `;
 
+const TableHeader = styled.th`
+  width: ${(props) => props.width || "auto"};
+  text-align: center;
+`;
+
+const TableCell = styled.td`
+  display: ${(props) => (props.flex ? "flex" : "table-cell")};
+  align-items: ${(props) => (props.flex ? "center" : "inherit")};
+  justify-content: ${(props) => (props.flex ? "space-between" : "inherit")};
+`;
+
+const AccordionHeaderContent = styled.div`
+  .text-muted {
+    color: #6c757d;
+  }
+`;
+
 function VisualizationPermissionsModal({ showModal, setShowModal }) {
   const { permissionGroups } = useContext(PermissionGroupContext);
   const { user, csrf } = useContext(AppContext);
@@ -217,7 +234,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
               return (
                 <Accordion.Item key={vizName} eventKey={vizName}>
                   <Accordion.Header>
-                    <div>
+                    <AccordionHeaderContent>
                       <strong>{vizInfo?.label || vizName}</strong>
                       <br />
                       <small className="text-muted">
@@ -225,7 +242,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
                           currentPermissions.groups.length}{" "}
                         permission(s)
                       </small>
-                    </div>
+                    </AccordionHeaderContent>
                   </Accordion.Header>
                   <Accordion.Body>
                     {vizInfo?.description && (
@@ -262,10 +279,8 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
                         <Table striped bordered hover size="sm">
                           <thead>
                             <tr>
-                              <th style={{ width: "75%", textAlign: "center" }}>
-                                User/Group
-                              </th>
-                              <th style={{ textAlign: "center" }}>Type</th>
+                              <TableHeader width="75%">User/Group</TableHeader>
+                              <TableHeader>Type</TableHeader>
                             </tr>
                           </thead>
                           <tbody>
@@ -276,13 +291,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
                                     ? `${username} (you)`
                                     : username}
                                 </td>
-                                <td
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "space-between",
-                                  }}
-                                >
+                                <TableCell flex>
                                   User
                                   <Button
                                     variant="danger"
@@ -293,7 +302,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
                                   >
                                     <BsFillTrashFill />
                                   </Button>
-                                </td>
+                                </TableCell>
                               </tr>
                             ))}
                             {currentPermissions.groups.map((groupName) => {
@@ -309,13 +318,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
                                     {groupName}
                                     {userInGroup ? " (you)" : ""}
                                   </td>
-                                  <td
-                                    style={{
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "space-between",
-                                    }}
-                                  >
+                                  <TableCell flex>
                                     Group
                                     <Button
                                       variant="danger"
@@ -326,7 +329,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
                                     >
                                       <BsFillTrashFill />
                                     </Button>
-                                  </td>
+                                  </TableCell>
                                 </tr>
                               );
                             })}
