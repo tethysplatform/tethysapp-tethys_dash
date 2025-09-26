@@ -42,11 +42,16 @@ describe("LandingPage", () => {
   });
 
   it("Shows both public and user dashboard cards when they are available", () => {
+    const customDashboards = JSON.parse(
+      JSON.stringify(mockedDashboards.dashboards)
+    );
+    customDashboards[1].owner = "random_owner";
+
     render(
       <MemoryRouter initialEntries={["/"]}>
         <AppContext.Provider
           value={{
-            user: { username: "johnSmith" },
+            user: { username: "admin" },
             tethysApp: { exitUrl: "/home" },
           }}
         >
@@ -57,7 +62,7 @@ describe("LandingPage", () => {
           >
             <AvailableDashboardsContext.Provider
               value={{
-                availableDashboards: mockedDashboards.dashboards,
+                availableDashboards: customDashboards,
                 deleteDashboard: jest.fn(),
                 copyDashboard: jest.fn(),
                 updateDashboard: jest.fn(),

@@ -66,18 +66,21 @@ it("Initializes a Base Item with an empty div", async () => {
 
 it("Initializes a Base Item with an empty div and updates it with an image", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.delay(5),
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-          viz_type: "image",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(5),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+            viz_type: "image",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   render(
@@ -247,18 +250,21 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
   jest.useFakeTimers();
   jest.spyOn(utilities, "getVisualization");
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.delay(5),
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-          viz_type: "image",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(5),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+            viz_type: "image",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
@@ -307,17 +313,20 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
 it("Creates an Base Item with an image obtained from the api, no refresh when editing", async () => {
   jest.useFakeTimers();
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
-          viz_type: "image",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
+            viz_type: "image",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
@@ -360,18 +369,21 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
 
 it("Creates an Base Item with a plot obtained from the api", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.delay(5),
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: mockedPlotData,
-          viz_type: "plotly",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(5),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: mockedPlotData,
+            viz_type: "plotly",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   render(
@@ -395,18 +407,21 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
 
 it("Creates an Base Item with a custom module obtained from the api", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.delay(5),
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: mockedCustomData,
-          viz_type: "custom",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(5),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: mockedCustomData,
+            viz_type: "custom",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   render(
@@ -430,18 +445,21 @@ it("Creates an Base Item with a custom module obtained from the api", async () =
 
 it("Creates an Base Item with a table obtained from the api", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.delay(5),
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: mockedTableData,
-          viz_type: "table",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(5),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: mockedTableData,
+            viz_type: "table",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   render(
@@ -465,18 +483,21 @@ it("Creates an Base Item with a table obtained from the api", async () => {
 
 it("Creates an Base Item with a card obtained from the api", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.delay(5),
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: mockedCardData,
-          viz_type: "card",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(5),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: mockedCardData,
+            viz_type: "card",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   render(
@@ -500,18 +521,21 @@ it("Creates an Base Item with a card obtained from the api", async () => {
 
 it("Gives the user an error message if an unknown viz type is obtained from the api", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.delay(5),
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: {},
-          viz_type: "random_viz_type",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(5),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: {},
+            viz_type: "random_viz_type",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   render(
@@ -537,17 +561,20 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
 
 it("Gives the user an error message if the api couldn't retrieve data", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: false,
-          data: {},
-          viz_type: "",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: false,
+            data: {},
+            viz_type: "",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   render(
@@ -592,19 +619,22 @@ it("Base - update variable input", async () => {
   const dashboards = { dashboards: [mockedDashboard] };
 
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.delay(5),
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          // eslint-disable-next-line
-          data: "${Test Variable}",
-          viz_type: "image",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(5),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            // eslint-disable-next-line
+            data: "${Test Variable}",
+            viz_type: "image",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   render(

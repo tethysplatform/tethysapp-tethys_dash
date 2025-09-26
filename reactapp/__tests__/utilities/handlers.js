@@ -75,6 +75,16 @@ const handlers = [
     );
   }),
   rest.get(
+    "http://api.test/apps/tethysdash/app/permissions/",
+    (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({ success: true, permissions: ["manage_visualizations"] }),
+        ctx.set("Content-Type", "application/json")
+      );
+    }
+  ),
+  rest.get(
     "http://api.test/apps/tethysdash/dashboards/get/",
     (req, res, ctx) => {
       return res(
@@ -118,7 +128,7 @@ const handlers = [
     return res(
       ctx.status(200),
       ctx.json({
-        username: "jsmith",
+        username: "admin",
         firstName: "John",
         lastName: "Smith",
         email: "jsmith@tethys.org",

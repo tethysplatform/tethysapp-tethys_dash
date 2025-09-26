@@ -73,16 +73,19 @@ const TestingComponent = ({
 
 test("MapLayerModal layer template full map layer", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data/", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: fullMapLayer,
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: fullMapLayer,
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const handleModalClose = jest.fn();
@@ -161,30 +164,33 @@ test("MapLayerModal layer template full map layer", async () => {
 
 test("MapLayerModal layer template partial map layer", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data/", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: {
-            configuration: {
-              type: "ImageLayer",
-              props: {
-                name: "NWC",
-                source: {
-                  type: "ESRI Image and Map Service",
-                  props: {
-                    url: "some_url",
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: {
+              configuration: {
+                type: "ImageLayer",
+                props: {
+                  name: "NWC",
+                  source: {
+                    type: "ESRI Image and Map Service",
+                    props: {
+                      url: "some_url",
+                    },
                   },
                 },
               },
+              queryable: false,
             },
-            queryable: false,
-          },
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const handleModalClose = jest.fn();
@@ -239,15 +245,18 @@ test("MapLayerModal layer template partial map layer", async () => {
 
 test("MapLayerModal layer template error response", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data/", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: false,
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: false,
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const handleModalClose = jest.fn();
@@ -277,16 +286,19 @@ test("MapLayerModal layer template error response", async () => {
 
 test("MapLayerModal layer template error response, custom error", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data/", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: false,
-          data: { error: "Error loading layer template" },
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: false,
+            data: { error: "Error loading layer template" },
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const handleModalClose = jest.fn();

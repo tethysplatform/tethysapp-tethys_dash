@@ -33,7 +33,7 @@ function initAndRender(props) {
   return {
     user,
     CardRender,
-    rerender
+    rerender,
   };
 }
 
@@ -61,9 +61,9 @@ it("Creates a Card with actual data", async () => {
 
   await sleep(100);
 
-  const icon1 = screen.getByTestId(data[0].label);
-  const icon2 = screen.getByTestId(data[1].label);
-  const icon3 = screen.getByTestId(data[2].label);
+  const icon1 = await screen.findByTestId(data[0].label);
+  const icon2 = await screen.findByTestId(data[1].label);
+  const icon3 = await screen.findByTestId(data[2].label);
   expect(icon1).toBeInTheDocument();
   expect(icon2).toBeInTheDocument();
   expect(icon3).toBeInTheDocument();

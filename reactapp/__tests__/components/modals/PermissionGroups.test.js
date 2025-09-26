@@ -280,6 +280,7 @@ test("Permission Groups Manage Modal, new Group and save New User", async () => 
           setSuccessMessage={mockSetSuccessMessage}
         />
       ),
+      options: { user: { username: "jsmith" } },
     })
   );
 
@@ -378,6 +379,7 @@ test("Permission Groups Manage, admin and edit group", async () => {
           setSuccessMessage={mockSetSuccessMessage}
         />
       ),
+      options: { user: { username: "jsmith" } },
     })
   );
 
