@@ -5,7 +5,6 @@ import createLoadedComponent from "__tests__/utilities/customRender";
 import { mockVisualizationPermissions } from "__tests__/utilities/constants";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
-import appAPI from "services/api/app";
 
 test("renders modal with title and content when showModal is true", async () => {
   render(
