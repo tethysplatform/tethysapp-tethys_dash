@@ -149,6 +149,7 @@ const CardImage = styled(Card.Img)`
   opacity: 1; /* Default visibility */
   width: 100%;
   height: 100%;
+  object-fit: contain;
 
   ${CardBody}:hover & {
     opacity: 0.5; /* Dim the image on hover */

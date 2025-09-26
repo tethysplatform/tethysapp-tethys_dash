@@ -17,12 +17,14 @@ const LayerControlContainer = styled.div`
   border-radius: 4px;
   min-width: ${(props) => (props.$isexpanded ? "13vw" : "40px")};
   max-width: "20vw";
+  max-height: 35vh;
   height: ${(props) => (props.$isexpanded ? "auto" : "40px")};
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-start;
+  justify-content: flex-start;
   position: relative;
+  overflow: ${(props) => props.$isexpanded && "auto"};
 `;
 
 const ControlButton = styled.button`
