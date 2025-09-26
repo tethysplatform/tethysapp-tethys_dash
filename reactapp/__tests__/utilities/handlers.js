@@ -3,6 +3,7 @@ import {
   mockedVisualizations,
   mockedDashboards,
   userDashboard,
+  mockVisualizationPermissions,
 } from "__tests__/utilities/constants";
 
 const handlers = [
@@ -80,6 +81,19 @@ const handlers = [
       return res(
         ctx.status(200),
         ctx.json({ success: true, permissions: ["manage_visualizations"] }),
+        ctx.set("Content-Type", "application/json")
+      );
+    }
+  ),
+  rest.get(
+    "http://api.test/apps/tethysdash/visualizations/permissions/list/",
+    (req, res, ctx) => {
+      return res(
+        ctx.status(200),
+        ctx.json({
+          success: true,
+          visualization_permissions: mockVisualizationPermissions,
+        }),
         ctx.set("Content-Type", "application/json")
       );
     }

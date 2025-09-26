@@ -276,6 +276,59 @@ test("LandingPageHeader, permission group modal", async () => {
   expect(await screen.findByText("Permission Groups")).toBeInTheDocument();
 });
 
+test("LandingPageHeader, manage visualization permissions", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <LandingPageHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    })
+  );
+
+  const manageVisualizationPermissionsButton = await screen.findByLabelText(
+    "manageVisualizationPermissionsButton"
+  );
+  await userEvent.click(manageVisualizationPermissionsButton);
+  expect(
+    await screen.findByText("Manage Visualization Permissions")
+  ).toBeInTheDocument();
+});
+
+test("LandingPageHeader, no manage visualization permission", async () => {
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/app/permissions/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({ success: true, permissions: [] }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <LandingPageHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    })
+  );
+
+  expect(
+    screen.queryByLabelText("manageVisualizationPermissionsButton")
+  ).not.toBeInTheDocument();
+});
+
 test("DashboardHeader, user and editable", async () => {
   render(
     createLoadedComponent({

@@ -47,8 +47,8 @@ const appAPI = {
   listVisualizations: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/list/`);
   },
-  getVisualizationPermissions: () => {
-    return apiClient.get(`${APP_ROOT_URL}visualizations/permissions/`);
+  listVisualizationPermissions: () => {
+    return apiClient.get(`${APP_ROOT_URL}visualizations/permissions/list/`);
   },
   updateVisualizationPermissions: (data, csrf) => {
     return apiClient.post(

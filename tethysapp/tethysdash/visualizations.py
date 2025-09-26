@@ -29,16 +29,27 @@ def build_plugin_metadata(plugin, source):
     }
 
 
-def get_specific_visualization(visualization):
-    metadata = {}
+def get_restricted_visualizations():
+    """
+    Get a list of all restricted visualization sources.
 
-    try:
-        plugin = getattr(intake, f"open_{visualization}")
-        metadata = build_plugin_metadata(plugin, visualization)
-    except Exception as e:
-        print(f"Error retrieving visualization '{visualization}': {e}")
+    Returns:
+        list: List of restricted visualization source identifiers
+    """
+    restricted_visualizations = {}
+    for source in intake.source.registry:
+        plugin = getattr(intake, f"open_{source}")
+        if getattr(plugin, "visualization_restricted", False):
+            restricted_visualizations[source] = {
+                "info": {
+                    "label": plugin.visualization_label,
+                    "description": getattr(plugin, "visualization_description", ""),
+                },
+                "users": [],
+                "groups": [],
+            }
 
-    return metadata
+    return restricted_visualizations
 
 
 def get_available_visualizations(user):

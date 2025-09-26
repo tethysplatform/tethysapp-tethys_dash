@@ -36,9 +36,9 @@ const TableHeader = styled.th`
 `;
 
 const TableCell = styled.td`
-  display: ${(props) => (props.flex ? "flex" : "table-cell")};
-  align-items: ${(props) => (props.flex ? "center" : "inherit")};
-  justify-content: ${(props) => (props.flex ? "space-between" : "inherit")};
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 `;
 
 const AccordionHeaderContent = styled.div`
@@ -60,9 +60,13 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
     const fetchPermissions = async () => {
       setLoading(true);
       try {
-        const response = await appAPI.getVisualizationPermissions();
+        const response = await appAPI.listVisualizationPermissions();
         if (response.success) {
-          setVisualizationPermissions(response.visualization_permissions || {});
+          setVisualizationPermissions(response.visualization_permissions);
+        } else {
+          setErrorMessage(
+            response.message || "Failed to fetch visualization permissions"
+          );
         }
       } catch (error) {
         console.error("Failed to fetch visualization permissions:", error);
@@ -92,10 +96,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
       return;
     }
 
-    const currentViz = visualizationPermissions[visualizationName] || {
-      users: [],
-      groups: [],
-    };
+    const currentViz = visualizationPermissions[visualizationName];
 
     if (currentViz.users.includes(nameInput.trim())) {
       setErrorMessage("This user already has access to this visualization.");
@@ -119,10 +120,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
       return;
     }
 
-    const currentViz = visualizationPermissions[visualizationName] || {
-      users: [],
-      groups: [],
-    };
+    const currentViz = visualizationPermissions[visualizationName];
 
     if (currentViz.groups.includes(nameInput.trim())) {
       setErrorMessage("This group already has access to this visualization.");
@@ -189,7 +187,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
 
   return (
     <>
-      <Modal show={showModal} onHide={handleModalClose} centered>
+      <Modal size="lg" show={showModal} onHide={handleModalClose} centered>
         <Modal.Header closeButton>
           <Modal.Title>Manage Visualization Permissions</Modal.Title>
         </Modal.Header>
@@ -224,18 +222,14 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
 
           <Accordion>
             {Object.keys(visualizationPermissions).map((vizName) => {
-              const currentPermissions = visualizationPermissions[vizName] || {
-                users: [],
-                groups: [],
-                info: {},
-              };
+              const currentPermissions = visualizationPermissions[vizName];
               const vizInfo = currentPermissions.info;
 
               return (
                 <Accordion.Item key={vizName} eventKey={vizName}>
                   <Accordion.Header>
                     <AccordionHeaderContent>
-                      <strong>{vizInfo?.label || vizName}</strong>
+                      <strong>{vizInfo.label}</strong>
                       <br />
                       <small className="text-muted">
                         {currentPermissions.users.length +
@@ -245,9 +239,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
                     </AccordionHeaderContent>
                   </Accordion.Header>
                   <Accordion.Body>
-                    {vizInfo?.description && (
-                      <p className="text-muted">{vizInfo.description}</p>
-                    )}
+                    <p className="text-muted">{vizInfo.description}</p>
 
                     {/* Add User/Group Section */}
                     <FlexDiv>

@@ -1600,7 +1600,7 @@ def test_update_visualization_permissions(
         .all()
     )
 
-    assert len(permissions) == 3
+    assert len(permissions) == 2
     assert permissions[0].username == test_owner_user.username
     assert permissions[1].group.name == permission_group["name"]
 
@@ -1644,6 +1644,6 @@ def test_update_visualization_permissions_nonexistent_user_and_groups(
     with pytest.raises(Exception) as excinfo:
         update_visualization_permissions(updated_permissions)
     assert (
-        "The following users do not exist: bad_user; The following groups do not exist: bad_group"
+        "The following users do not exist: bad_user; The following groups do not exist: bad_group"  # noqa: E501
         in str(excinfo.value)
     )

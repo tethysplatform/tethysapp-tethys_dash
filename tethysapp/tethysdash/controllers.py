@@ -28,8 +28,8 @@ from tethysapp.tethysdash.model import (
 )
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
-    get_specific_visualization,
     get_visualization,
+    get_restricted_visualizations,
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
 from pathlib import Path
@@ -227,7 +227,7 @@ def visualizations(request):
 
 
 @api_view(["GET"])
-@controller(url="tethysdash/visualizations/permissions", login_required=True)
+@controller(url="tethysdash/visualizations/permissions/list", login_required=True)
 def visualization_permissions(request):
     """
     API controller for retrieving visualization permissions.
@@ -243,12 +243,10 @@ def visualization_permissions(request):
             - visualization_permissions: Dictionary of visualization permissions
               (empty if user lacks manage_visualizations permission)
     """
-
-    visualization_permissions = {}
-
     try:
         if has_permission(request, "manage_visualizations"):
-            visualization_permissions = get_visualization_permissions()
+            visualization_permissions = get_restricted_visualizations()
+            db_perms = get_visualization_permissions()
         else:
             return JsonResponse(
                 {
@@ -257,9 +255,9 @@ def visualization_permissions(request):
                 }
             )
 
-        for viz_name in visualization_permissions.keys():
-            metadata = get_specific_visualization(viz_name)
-            visualization_permissions[viz_name]["info"] = metadata
+        for viz_name in db_perms.keys():
+            visualization_permissions[viz_name]["users"] = db_perms[viz_name]["users"]
+            visualization_permissions[viz_name]["groups"] = db_perms[viz_name]["groups"]
 
     except Exception as e:
         return JsonResponse(
