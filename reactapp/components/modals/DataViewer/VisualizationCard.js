@@ -5,6 +5,9 @@ import styled from "styled-components";
 import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";
 
+const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(/(^\/+|\/+?$)/g, "");
+const pluginsImageBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/plugins/`;
+
 const CustomCard = styled(Card)`
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -108,7 +111,7 @@ const VisualizationCard = ({
           <ImageWrapper>
             <CardImage
               variant="top"
-              src={`/static/tethysdash/images/plugins/${source}.png`}
+              src={`${pluginsImageBasePath}${source}.png`}
               aria-label="Dashboard Card Image"
             />
           </ImageWrapper>

@@ -3,6 +3,12 @@ import { useAppTourContext } from "components/contexts/AppTourContext";
 import { FaRegUserCircle } from "react-icons/fa";
 import { BsPeopleFill } from "react-icons/bs";
 
+const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
+  /(^\/+|\/+?$)/g,
+  ""
+);
+const samplePluginImagePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/tethys_dash.png`;
+
 const AppTour = () => {
   const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
     useAppTourContext();
@@ -598,8 +604,7 @@ const AppTour = () => {
           argument is asking for an publicly accessible image url.
           <br />
           <br />
-          You can use <b>/static/tethysdash/images/tethys_dash.png</b> as an
-          example.
+          You can use <b>{samplePluginImagePath}</b> as an example.
         </div>
       ),
       disableBeacon: true,
