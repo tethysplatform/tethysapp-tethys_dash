@@ -6,6 +6,33 @@ export function getOrdinal(n) {
   return s[(v - 20) % 10] || s[v] || s[0];
 }
 
+export const mockVisualizationPermissions = {
+  plugin_label: {
+    users: ["admin", "testuser"],
+    groups: ["all admin group"],
+    info: {
+      label: "Plugin Label",
+      description: "A test plugin visualization",
+    },
+  },
+  plugin_label2: {
+    users: ["admin"],
+    groups: ["mixed group"],
+    info: {
+      label: "Plugin Label 2",
+      description: "Another test plugin visualization",
+    },
+  },
+  plugin_label3: {
+    users: [],
+    groups: [],
+    info: {
+      label: "Plugin Label 3",
+      description: "Third test plugin visualization",
+    },
+  },
+};
+
 export const mockedLandingPageDashboards = {
   user: [
     {

@@ -270,12 +270,14 @@ test("DashboardCard editable, edit name and no change", async () => {
 test("DashboardCard not editable, open", async () => {
   const navigateMock = jest.fn();
   useNavigate.mockReturnValue(navigateMock);
+  const customPublicDashboard = JSON.parse(JSON.stringify(publicDashboard));
+  customPublicDashboard.owner = "jsmith";
 
   render(
     createLoadedComponent({
       children: (
         <MemoryRouter initialEntries={["/"]}>
-          <DashboardCard {...publicDashboard} />
+          <DashboardCard {...customPublicDashboard} />
         </MemoryRouter>
       ),
     })
@@ -331,7 +333,7 @@ test("DashboardCard viewer permission, open", async () => {
   );
 
   expect(await screen.findByText(viewerDashboard.name)).toBeInTheDocument();
-  expect(screen.queryByLabelText("Owner Icon")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Owner Icon")).toBeInTheDocument();
   expect(screen.queryByLabelText("Public Icon")).not.toBeInTheDocument();
 
   const contextMenuButton = await screen.findByLabelText(

@@ -3,23 +3,28 @@ import json
 import uuid
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from tethysapp.tethysdash.tests.integrated_tests import TEST_DB_URL
+from django.conf import settings
 from django.http import HttpResponse
 from unittest.mock import MagicMock
 from tethysapp.tethysdash.model import (
+    GroupPermissionLevel,
     init_primary_db,
     Dashboard,
     DashboardPermission,
     DashboardPermissionLevel,
     PermissionGroup,
     PermissionGroupUser,
+    VisualizationPermission,
 )
 from django.contrib.auth import get_user_model
 
 
 @pytest.fixture(scope="module")
 def db_url():
-    return TEST_DB_URL
+    db_settings = settings.DATABASES["default"]
+    # Django sets "NAME" to the test DB name when running tests
+    url = f"postgresql+psycopg2://{db_settings['USER']}:{db_settings['PASSWORD']}@{db_settings['HOST']}:{db_settings['PORT']}/{db_settings['NAME']}"  # noqa: E501
+    return url
 
 
 @pytest.fixture(scope="module")
@@ -29,7 +34,7 @@ def db_connection(db_url):
     connection = engine.connect()
     transaction = connection.begin()
 
-    # Create ATCore-related tables (e.g.: Resources)
+    # Run alembic migrations if needed
     init_primary_db(engine, first_time=True)
 
     yield connection
@@ -84,24 +89,40 @@ def test_admin_user(db):
     return user
 
 
+@pytest.fixture
+def test_member_user(db):
+    User = get_user_model()
+    user = User.objects.create_user(username="member_user", password="password123")
+    return user
+
+
+@pytest.fixture
+def test_owner_user(db):
+    User = get_user_model()
+    user = User.objects.create_user(username="owner_user", password="password123")
+    user.get_all_permissions = lambda: {"tethys_apps.tethysdash:manage_visualizations"}
+
+    return user
+
+
 @pytest.fixture(scope="function")
-def permission_group():
+def permission_group(test_admin_user, test_member_user, test_owner_user):
     unique_name = f"{uuid.uuid4()}"
     return {
         "name": unique_name,
         "description": "",
-        "owner": "owner_user",
+        "owner": test_owner_user.username,
         "members": [
             {
-                "username": "owner_user",
+                "username": test_owner_user.username,
                 "permission": "admin",
             },
             {
-                "username": "admin_user",
+                "username": test_admin_user.username,
                 "permission": "admin",
             },
             {
-                "username": "member_user",
+                "username": test_member_user.username,
                 "permission": "member",
             },
         ],
@@ -126,7 +147,7 @@ def permission_group_table(db_session, permission_group):
             PermissionGroupUser(
                 username=member["username"],
                 group_id=group_id,
-                permission=member["permission"],
+                permission=GroupPermissionLevel[member["permission"]],
             )
         )
     db_session.commit()
@@ -141,13 +162,13 @@ def permission_group_table(db_session, permission_group):
 
 
 @pytest.fixture(scope="function")
-def dashboard_data():
+def dashboard_data(test_owner_user):
     return {
         "name": "test_dashboard",
         "description": "test_dashboard",
         "uuid": "some_user_dashboard_uuid",
         "notes": "some notes",
-        "owner": "admin",
+        "owner": test_owner_user.username,
         "public": False,
         "unrestricted_placement": False,
     }
@@ -183,7 +204,7 @@ def grid_item():
 
 
 @pytest.fixture(scope="function")
-def dashboard(db_session, dashboard_data, permission_group_table):
+def dashboard(db_session, dashboard_data, permission_group_table, test_admin_user):
     dashboard = Dashboard(**dashboard_data)
     db_session.add(dashboard)
     db_session.commit()
@@ -200,7 +221,7 @@ def dashboard(db_session, dashboard_data, permission_group_table):
 
     editor_permission = DashboardPermission(
         dashboard_id=dashboard_id,
-        username="editor",
+        username=test_admin_user.username,
         permission=DashboardPermissionLevel.editor,
     )
     db_session.add(editor_permission)
@@ -208,7 +229,7 @@ def dashboard(db_session, dashboard_data, permission_group_table):
 
     viewer_permission = DashboardPermission(
         dashboard_id=dashboard_id,
-        group=permission_group_table.name,
+        group_id=permission_group_table.id,
         permission=DashboardPermissionLevel.viewer,
     )
     db_session.add(viewer_permission)
@@ -271,6 +292,7 @@ def mock_app(mocker):
         mock_app = mocker.patch(mock_path)
         mock_app.render.return_value = HttpResponse("Success")
         mock_app.root_url = "app_root"
+        mock_app.package = "tethysdash"
         return mock_app
 
     return mocked_path
@@ -287,10 +309,50 @@ def mock_plugin(mocker):
         visualization_description="some description",
         visualization_attribution="some attribution",
         visualization_loading_icon=False,
+        visualization_restricted=True,
     )
     plugin.name = "package_name"
 
     return plugin
+
+
+@pytest.fixture(scope="function")
+def visualization_permission(
+    db_session, mock_plugin, test_owner_user, permission_group_table
+):
+    user_permission = VisualizationPermission(
+        visualization=mock_plugin.name, username=test_owner_user.username
+    )
+    db_session.add(user_permission)
+    db_session.commit()
+    db_session.refresh(user_permission)
+    user_permission_id = user_permission.id
+
+    group_permission = VisualizationPermission(
+        visualization=mock_plugin.name, group_id=permission_group_table.id
+    )
+    db_session.add(group_permission)
+    db_session.commit()
+    db_session.refresh(group_permission)
+    group_permission_id = group_permission.id
+
+    yield [user_permission, group_permission]
+
+    # Only delete if user_permission still exists
+    refreshed_user_permission = db_session.get(
+        VisualizationPermission, user_permission_id
+    )
+    if refreshed_user_permission:
+        db_session.delete(refreshed_user_permission)
+
+    # Only delete if user_permission still exists
+    refreshed_group_permission = db_session.get(
+        VisualizationPermission, group_permission_id
+    )
+    if refreshed_group_permission:
+        db_session.delete(refreshed_group_permission)
+
+    db_session.commit()
 
 
 @pytest.fixture(scope="function")
@@ -323,6 +385,7 @@ def mock_plugin_visualization(mock_plugin):
                 "description": mock_plugin.visualization_description,
                 "attribution": mock_plugin.visualization_attribution,
                 "loading_icon": mock_plugin.visualization_loading_icon,
+                "restricted": mock_plugin.visualization_restricted,
             }
         ],
     }
@@ -336,17 +399,6 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
         "label": mock_plugin.visualization_group,
         "options": [
             {
-                "source": mock_plugin.name,
-                "value": mock_plugin.visualization_label,
-                "label": mock_plugin.visualization_label,
-                "args": mock_plugin.visualization_args,
-                "type": mock_plugin.visualization_type,
-                "tags": mock_plugin.visualization_tags,
-                "description": mock_plugin.visualization_description,
-                "attribution": mock_plugin.visualization_attribution,
-                "loading_icon": mock_plugin.visualization_loading_icon,
-            },
-            {
                 "source": mock_plugin2.name,
                 "value": mock_plugin2.visualization_label,
                 "label": mock_plugin2.visualization_label,
@@ -356,6 +408,19 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "description": "",
                 "attribution": "",
                 "loading_icon": True,
+                "restricted": False,
+            },
+            {
+                "source": mock_plugin.name,
+                "value": mock_plugin.visualization_label,
+                "label": mock_plugin.visualization_label,
+                "args": mock_plugin.visualization_args,
+                "type": mock_plugin.visualization_type,
+                "tags": mock_plugin.visualization_tags,
+                "description": mock_plugin.visualization_description,
+                "attribution": mock_plugin.visualization_attribution,
+                "loading_icon": mock_plugin.visualization_loading_icon,
+                "restricted": mock_plugin.visualization_restricted,
             },
         ],
     }

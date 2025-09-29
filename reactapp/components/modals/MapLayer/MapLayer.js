@@ -222,7 +222,7 @@ const MapLayerModal = ({
 
   const onLayoutChange = async (e) => {
     setSelectedOption(e);
-    const apiResponse = await appAPI.getPlotData({
+    const apiResponse = await appAPI.getVisualizationData({
       source: e.source,
       args: {},
     });

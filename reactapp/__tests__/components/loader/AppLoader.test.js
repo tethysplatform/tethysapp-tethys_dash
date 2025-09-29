@@ -78,7 +78,7 @@ test("AppLoader", async () => {
 
   server.use(
     rest.get(
-      "http://api.test/apps/tethysdash/visualizations/",
+      "http://api.test/apps/tethysdash/visualizations/list/",
       (req, res, ctx) => {
         return res(
           ctx.status(200),
@@ -114,7 +114,7 @@ test("AppLoader", async () => {
 
   expect(await screen.findByTestId("user")).toHaveTextContent(
     JSON.stringify({
-      username: "jsmith",
+      username: "admin",
       firstName: "John",
       lastName: "Smith",
       email: "jsmith@tethys.org",
@@ -299,7 +299,7 @@ test("AppLoader, load session error", async () => {
 test("AppLoader, load visualization error", async () => {
   server.use(
     rest.get(
-      "http://api.test/apps/tethysdash/visualizations/",
+      "http://api.test/apps/tethysdash/visualizations/list/",
       (req, res, ctx) => {
         return res(
           ctx.status(500),

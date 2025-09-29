@@ -40,7 +40,8 @@ test("Permissions Modal", async () => {
   expect(rows[1].cells[0]).toHaveTextContent("admin");
   const permissionLevelInput = within(rows[1].cells[1]).queryByRole("combobox");
   expect(permissionLevelInput).not.toBeInTheDocument();
-  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+  expect(rows[1].cells[1]).toHaveTextContent("User");
+  expect(rows[1].cells[2]).toHaveTextContent("Owner");
 
   expect(screen.getByText("URL")).toBeInTheDocument();
   expect(screen.getByLabelText("Copy Clipboard Button")).toBeInTheDocument();
@@ -94,7 +95,8 @@ test("Permissions Modal add user and update", async () => {
   let rows = await screen.findAllByRole("row");
   expect(rows.length).toBe(2);
   expect(rows[1].cells[0]).toHaveTextContent("admin");
-  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+  expect(rows[1].cells[1]).toHaveTextContent("User");
+  expect(rows[1].cells[2]).toHaveTextContent("Owner");
 
   const usernameInput = screen.getByLabelText("Username Input");
   fireEvent.change(usernameInput, { target: { value: "newuser" } });
@@ -176,7 +178,8 @@ test("Permissions Modal add group and update", async () => {
   let rows = await screen.findAllByRole("row");
   expect(rows.length).toBe(2);
   expect(rows[1].cells[0]).toHaveTextContent("admin");
-  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+  expect(rows[1].cells[1]).toHaveTextContent("User");
+  expect(rows[1].cells[2]).toHaveTextContent("Owner");
 
   const usernameInput = screen.getByLabelText("Username Input");
   fireEvent.change(usernameInput, { target: { value: "newgroup" } });
@@ -243,7 +246,8 @@ test("Permissions Modal add user but empty", async () => {
   let rows = await screen.findAllByRole("row");
   expect(rows.length).toBe(2);
   expect(rows[1].cells[0]).toHaveTextContent("admin");
-  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+  expect(rows[1].cells[1]).toHaveTextContent("User");
+  expect(rows[1].cells[2]).toHaveTextContent("Owner");
 
   const usernameInput = screen.getByLabelText("Username Input");
   fireEvent.change(usernameInput, { target: { value: "" } });
@@ -284,10 +288,12 @@ test("Permissions Modal, add user but already exists", async () => {
   let rows = await screen.findAllByRole("row");
   expect(rows.length).toBe(3);
   expect(rows[1].cells[0]).toHaveTextContent("admin");
-  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+  expect(rows[1].cells[1]).toHaveTextContent("User");
+  expect(rows[1].cells[2]).toHaveTextContent("Owner");
 
   expect(rows[2].cells[0]).toHaveTextContent("jsmith");
-  expect(rows[2].cells[1]).toHaveTextContent("Admin");
+  expect(rows[2].cells[1]).toHaveTextContent("User");
+  expect(rows[2].cells[2]).toHaveTextContent("Admin");
 
   expect(
     screen.getByLabelText("Permission level for jsmith user")
@@ -351,10 +357,12 @@ test("Permissions Modal, delete user", async () => {
   let rows = await screen.findAllByRole("row");
   expect(rows.length).toBe(3);
   expect(rows[1].cells[0]).toHaveTextContent("admin");
-  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+  expect(rows[1].cells[1]).toHaveTextContent("User");
+  expect(rows[1].cells[2]).toHaveTextContent("Owner");
 
   expect(rows[2].cells[0]).toHaveTextContent("jsmith");
-  expect(rows[2].cells[1]).toHaveTextContent("Admin");
+  expect(rows[2].cells[1]).toHaveTextContent("User");
+  expect(rows[2].cells[2]).toHaveTextContent("Admin");
 
   const deleteButton = screen.getByLabelText(
     "Delete permission for jsmith user"
@@ -394,6 +402,7 @@ test("Permissions Modal, admin permission, not owner", async () => {
       ),
       options: {
         initialDashboard: adminDashboard,
+        user: { username: "jsmith" },
       },
     })
   );
@@ -401,10 +410,12 @@ test("Permissions Modal, admin permission, not owner", async () => {
   let rows = await screen.findAllByRole("row");
   expect(rows.length).toBe(3);
   expect(rows[1].cells[0]).toHaveTextContent("admin");
-  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+  expect(rows[1].cells[1]).toHaveTextContent("User");
+  expect(rows[1].cells[2]).toHaveTextContent("Owner");
 
   expect(rows[2].cells[0]).toHaveTextContent("jsmith");
-  expect(rows[2].cells[1]).toHaveTextContent("Admin");
+  expect(rows[1].cells[1]).toHaveTextContent("User");
+  expect(rows[2].cells[2]).toHaveTextContent("Admin");
 
   const permissionDropdowns = screen.queryAllByRole("combobox");
   expect(permissionDropdowns).toHaveLength(0);
@@ -636,10 +647,12 @@ test("Permissions Modal group member access", async () => {
   expect(rows[1].cells[0]).toHaveTextContent("admin");
   let permissionLevelInput = within(rows[1].cells[1]).queryByRole("combobox");
   expect(permissionLevelInput).not.toBeInTheDocument();
-  expect(rows[1].cells[1]).toHaveTextContent("Owner");
+  expect(rows[1].cells[1]).toHaveTextContent("User");
+  expect(rows[1].cells[2]).toHaveTextContent("Owner");
 
-  expect(rows[2].cells[0]).toHaveTextContent("mixed group (group) (you)");
+  expect(rows[2].cells[0]).toHaveTextContent("mixed group (you)");
   permissionLevelInput = within(rows[2].cells[1]).queryByRole("combobox");
   expect(permissionLevelInput).not.toBeInTheDocument();
-  expect(rows[2].cells[1]).toHaveTextContent("Viewer");
+  expect(rows[1].cells[1]).toHaveTextContent("User");
+  expect(rows[2].cells[2]).toHaveTextContent("Viewer");
 });

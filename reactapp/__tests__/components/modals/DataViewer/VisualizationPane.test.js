@@ -327,17 +327,20 @@ test("Visualization Pane Other Type", async () => {
   const mockSetVizMetadata = jest.fn();
   const mockSetShowingSubModal = jest.fn();
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: {},
-          viz_type: "some_type",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: {},
+            viz_type: "some_type",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   render(
@@ -467,17 +470,20 @@ test("Visualization Pane Other Type Checkbox", async () => {
   const mockSetVizMetadata = jest.fn();
   const mockSetShowingSubModal = jest.fn();
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: {},
-          viz_type: "some_type",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: {},
+            viz_type: "some_type",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const availableVisualizations = [

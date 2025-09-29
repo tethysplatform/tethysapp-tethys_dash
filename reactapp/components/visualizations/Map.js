@@ -214,6 +214,7 @@ const MapVisualization = ({
         }
       }
     };
+    // eslint-disable-next-line
   }, [visualizationRef]);
 
   useEffect(() => {

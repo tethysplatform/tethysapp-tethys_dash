@@ -19,15 +19,18 @@ jest.mock("components/visualizations/Map", () => {
 
 test("getVisualization bad response", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: false,
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: false,
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -53,15 +56,18 @@ test("getVisualization bad response", async () => {
 
 test("getVisualization bad response with custom messaging", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: false,
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: false,
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -91,17 +97,20 @@ test("getVisualization bad response with custom messaging", async () => {
 
 test("getVisualization bad type", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: {},
-          viz_type: "some random type",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: {},
+            viz_type: "some random type",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -128,17 +137,20 @@ test("getVisualization bad type", async () => {
 test("getVisualization plotly", async () => {
   const plotData = { data: {}, layout: {} };
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          viz_type: "plotly",
-          data: plotData,
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "plotly",
+            data: plotData,
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -166,17 +178,20 @@ test("getVisualization plotly", async () => {
 
 test("getVisualization image", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          viz_type: "image",
-          data: "some_path",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "image",
+            data: "some_path",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -204,17 +219,20 @@ test("getVisualization image", async () => {
 
 test("getVisualization, empty variable and no custom messaging", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          viz_type: "image",
-          data: "some_path",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "image",
+            data: "some_path",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -240,17 +258,20 @@ test("getVisualization, empty variable and no custom messaging", async () => {
 
 test("getVisualization, empty variable and custom messaging", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          viz_type: "image",
-          data: "some_path",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "image",
+            data: "some_path",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -285,17 +306,20 @@ test("getVisualization table", async () => {
     subtitle: "Some Subtitle",
   };
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          viz_type: "table",
-          data: tableData,
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "table",
+            data: tableData,
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -328,17 +352,20 @@ test("getVisualization card", async () => {
     description: "Some Description",
   };
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          viz_type: "card",
-          data: cardData,
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "card",
+            data: cardData,
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -372,17 +399,20 @@ test("getVisualization map", async () => {
     legend: [],
   };
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          viz_type: "map",
-          data: mapData,
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "map",
+            data: mapData,
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -417,17 +447,20 @@ test("getVisualization custom", async () => {
     props: {},
   };
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: customData,
-          viz_type: "custom",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: customData,
+            viz_type: "custom",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -456,17 +489,20 @@ test("getVisualization custom", async () => {
 
 test("getVisualization text", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: { text: "some text" },
-          viz_type: "text",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: { text: "some text" },
+            viz_type: "text",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();
@@ -492,21 +528,24 @@ test("getVisualization text", async () => {
 
 test("getVisualization variable input", async () => {
   server.use(
-    rest.get("http://api.test/apps/tethysdash/data", (req, res, ctx) => {
-      return res(
-        ctx.status(200),
-        ctx.json({
-          success: true,
-          data: {
-            variable_name: "some variable_name",
-            initial_value: "some initial_value",
-            variable_options_source: "some variable_options_source",
-          },
-          viz_type: "variable_input",
-        }),
-        ctx.set("Content-Type", "application/json")
-      );
-    })
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: {
+              variable_name: "some variable_name",
+              initial_value: "some initial_value",
+              variable_options_source: "some variable_options_source",
+            },
+            viz_type: "variable_input",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
   );
 
   const mockSetVizType = jest.fn();

@@ -341,7 +341,6 @@ const DashboardItem = ({
   }
 
   function renderAttributionWithLinks(text) {
-    if (!text) return null;
     // Regex to match URLs (http, https, www)
     const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+)/g;
     const parts = text.split(urlRegex);

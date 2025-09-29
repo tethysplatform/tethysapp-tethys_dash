@@ -95,6 +95,7 @@ function Loader({ children }) {
       let allVisualizations = [];
       let mapLayerTemplates = [];
       let visualizationArgs = [];
+      let userAppPermissions = [];
 
       try {
         tethysSession = await tethysAPI.getSession();
@@ -107,19 +108,26 @@ function Loader({ children }) {
 
       try {
         if (tethysSession) {
-          [tethysApp, user, csrf, dashboards, visualizations] =
-            await Promise.all([
-              tethysAPI.getAppData(APP_ID),
-              tethysAPI.getUserData(),
-              tethysAPI.getCSRF(),
-              appAPI.getDashboards(),
-              appAPI.getVisualizations(),
-            ]);
+          [
+            tethysApp,
+            user,
+            csrf,
+            dashboards,
+            visualizations,
+            userAppPermissions,
+          ] = await Promise.all([
+            tethysAPI.getAppData(APP_ID),
+            tethysAPI.getUserData(),
+            tethysAPI.getCSRF(),
+            appAPI.listDashboards(),
+            appAPI.listVisualizations(),
+            appAPI.getUserAppPermissions(),
+          ]);
         } else {
           [tethysApp, dashboards, visualizations] = await Promise.all([
             tethysAPI.getAppData(APP_ID),
-            appAPI.getDashboards(),
-            appAPI.getVisualizations(),
+            appAPI.listDashboards(),
+            appAPI.listVisualizations(),
           ]);
         }
       } catch (error) {
@@ -248,6 +256,7 @@ function Loader({ children }) {
         visualizations: allVisualizations,
         mapLayerTemplates,
         visualizationArgs,
+        userAppPermissions: userAppPermissions.permissions,
       });
       setPermissionGroups(dashboards.permission_groups);
       setAvailableDashboards(dashboards.dashboards);

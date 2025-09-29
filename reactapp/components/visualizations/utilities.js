@@ -107,7 +107,7 @@ export async function getVisualization({
     setVizType("loader");
   }
 
-  const apiResponse = await appAPI.getPlotData(itemData);
+  const apiResponse = await appAPI.getVisualizationData(itemData);
   if (apiResponse.success === true) {
     let responseData = JSON.parse(JSON.stringify(apiResponse.data));
     if (typeof apiResponse.data === "string") {

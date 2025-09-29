@@ -16,7 +16,7 @@ import TooltipButton from "components/buttons/TooltipButton";
 import Dropdown from "react-bootstrap/Dropdown";
 import DropdownButton from "react-bootstrap/DropdownButton";
 import { getPublicUrl } from "services/utilities";
-import { BsClipboard } from "react-icons/bs";
+import { BsClipboard, BsFillTrashFill } from "react-icons/bs";
 
 const PERMISSION_LEVELS = ["admin", "editor", "viewer"];
 
@@ -40,6 +40,41 @@ const TableContainer = styled.div`
   overflow-y: auto;
   margin-bottom: 1rem;
   width: 100%;
+`;
+
+const AddUserContainer = styled.div`
+  display: flex;
+  gap: 10px;
+  margin-bottom: 1rem;
+`;
+
+const UserInput = styled.input`
+  flex-grow: 1;
+`;
+
+const StyledTable = styled(Table)`
+  table-layout: fixed;
+  max-width: 100%;
+`;
+
+const TableHeader = styled.th`
+  max-width: ${(props) => props.maxWidth || "auto"};
+  width: ${(props) => props.width || "auto"};
+  text-align: center;
+`;
+
+const TableCell = styled.td`
+  max-width: ${(props) => props.maxWidth || "auto"};
+  width: ${(props) => props.width || "auto"};
+  display: ${(props) => (props.flex ? "flex" : "table-cell")};
+  align-items: ${(props) => (props.flex ? "center" : "inherit")};
+  gap: ${(props) => props.gap || "0"};
+`;
+
+const UsernameContainer = styled.div`
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
 `;
 
 function PermissionsModal({
@@ -176,19 +211,12 @@ function PermissionsModal({
           </Alert>
         )}
         {userPermission === "admin" && (
-          <div
-            style={{
-              display: "flex",
-              gap: "10px",
-              marginBottom: "1rem",
-            }}
-          >
-            <input
+          <AddUserContainer>
+            <UserInput
               type="text"
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
               placeholder="Add people or groups"
-              style={{ flexGrow: 1 }}
               aria-label="Username Input"
               className="form-control"
             />
@@ -206,20 +234,17 @@ function PermissionsModal({
                 Group
               </Dropdown.Item>
             </DropdownButton>
-          </div>
+          </AddUserContainer>
         )}
         <TableContainer>
-          <Table
-            bordered
-            hover
-            style={{ tableLayout: "fixed", maxWidth: "100%" }}
-          >
+          <StyledTable bordered hover>
             <thead>
               <tr>
-                <th style={{ maxWidth: "50%", width: "50%" }}>
+                <TableHeader maxWidth="40%" width="40%">
                   Username/Group
-                </th>
-                <th>Permission Level</th>
+                </TableHeader>
+                <TableHeader width="20%">Type</TableHeader>
+                <TableHeader>Permission Level</TableHeader>
               </tr>
             </thead>
             <tbody>
@@ -231,16 +256,10 @@ function PermissionsModal({
                       : `user-${perm.username}-${idx}`
                   }
                 >
-                  <td style={{ maxWidth: "50%", width: "50%" }}>
-                    <div
-                      style={{
-                        maxWidth: "100%",
-                        overflowX: "auto",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                  <TableCell maxWidth="40%" width="40%">
+                    <UsernameContainer>
                       {perm.group
-                        ? `${perm.group} (group)${
+                        ? `${perm.group}${
                             permissionGroups.some(
                               (g) =>
                                 g.name === perm.group &&
@@ -254,15 +273,12 @@ function PermissionsModal({
                         : perm.username === user.username
                           ? `${perm.username} (you)`
                           : perm.username}
-                    </div>
-                  </td>
-                  <td
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
+                    </UsernameContainer>
+                  </TableCell>
+                  <TableCell width="20%">
+                    {perm.group ? "Group" : "User"}
+                  </TableCell>
+                  <TableCell flex gap="8px">
                     {perm.username === owner ? (
                       <span>Owner</span>
                     ) : userPermission === "admin" &&
@@ -291,7 +307,7 @@ function PermissionsModal({
                           }}
                           aria-label={`Delete permission for ${perm.username ? perm.username + " user" : perm.group + " group"}`}
                         >
-                          Delete
+                          <BsFillTrashFill />
                         </Button>
                       </>
                     ) : (
@@ -300,11 +316,11 @@ function PermissionsModal({
                           perm.permission.slice(1)}
                       </span>
                     )}
-                  </td>
+                  </TableCell>
                 </tr>
               ))}
             </tbody>
-          </Table>
+          </StyledTable>
         </TableContainer>
         {userPermission === "admin" && (
           <DataRadioSelect
@@ -331,7 +347,6 @@ function PermissionsModal({
               variant={"warning"}
               onClick={handleCopyURLClick}
               aria-label={"Copy Clipboard Button"}
-              style={{ display: "flex" }}
             >
               <BsClipboard />
             </TooltipButton>

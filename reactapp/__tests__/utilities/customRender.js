@@ -88,7 +88,7 @@ const createLoadedComponent = ({ children, options = {} }) => {
   ) {
     server.use(
       rest.get(
-        "http://api.test/apps/tethysdash/dashboards/",
+        "http://api.test/apps/tethysdash/dashboards/list/",
         (req, res, ctx) => {
           return res(
             ctx.status(200),
@@ -116,7 +116,7 @@ const createLoadedComponent = ({ children, options = {} }) => {
   if (options.visualizations) {
     server.use(
       rest.get(
-        "http://api.test/apps/tethysdash/visualizations/",
+        "http://api.test/apps/tethysdash/visualizations/list/",
         (req, res, ctx) => {
           return res(
             ctx.status(200),

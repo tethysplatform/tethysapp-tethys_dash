@@ -34,7 +34,7 @@ def test_home_logged_in(client, admin_user, mock_app):
 @pytest.mark.django_db
 def test_data_failed(client, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:data")
+    url = reverse("tethysdash:visualization")
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     mock_gv.side_effect = [Exception("Failed data retrieval")]
 
@@ -55,7 +55,7 @@ def test_data_failed(client, mock_app, mocker):
 @pytest.mark.django_db
 def test_data_failed_custom_error(client, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:data")
+    url = reverse("tethysdash:visualization")
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     mock_gv.side_effect = [VisualizationError("some custom error message")]
 
@@ -76,7 +76,7 @@ def test_data_failed_custom_error(client, mock_app, mocker):
 @pytest.mark.django_db
 def test_data(client, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
-    url = reverse("tethysdash:data")
+    url = reverse("tethysdash:visualization")
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     plot_data = {"data": [], "layout": {}}
     mock_gv.return_value = ["plotly", plot_data]
@@ -118,7 +118,8 @@ def test_visualizations(
 @pytest.mark.django_db
 def test_dashboards(
     client,
-    admin_user,
+    test_owner_user,
+    test_admin_user,
     mock_app,
     mock_app_get_ps_db,
     dashboard,
@@ -140,7 +141,7 @@ def test_dashboards(
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
     url = reverse("tethysdash:dashboards")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
     response = client.get(url)
 
     assert response.status_code == 200
@@ -157,17 +158,18 @@ def test_dashboards(
     assert response_json["dashboards"][0]["publicDashboard"] == dashboard.public
     assert response_json["dashboards"][0]["userPermission"] == "admin"
     assert response_json["dashboards"][0]["permissions"] == [
-        {"permission": "admin", "username": dashboard.owner},
-        {"permission": "editor", "username": "editor"},
+        {"permission": "admin", "username": test_owner_user.username},
+        {"permission": "editor", "username": test_admin_user.username},
         {"permission": "viewer", "group": permission_group["name"]},
     ]
-    assert len(response_json["permission_groups"]) == 0
+    assert len(response_json["permission_groups"]) == 1
 
 
 @pytest.mark.django_db
 def test_get_dashboard(
     client,
-    admin_user,
+    test_owner_user,
+    test_admin_user,
     mock_app_get_ps_db,
     dashboard,
     mocker,
@@ -180,7 +182,7 @@ def test_get_dashboard(
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
 
     url = reverse("tethysdash:get_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
 
     itemData = {
         "id": dashboard.id,
@@ -200,8 +202,8 @@ def test_get_dashboard(
             "unrestrictedPlacement": dashboard.unrestricted_placement,
             "owner": dashboard.owner,
             "permissions": [
-                {"permission": "admin", "username": dashboard.owner},
-                {"permission": "editor", "username": "editor"},
+                {"permission": "admin", "username": test_owner_user.username},
+                {"permission": "editor", "username": test_admin_user.username},
                 {"permission": "viewer", "group": permission_group["name"]},
             ],
             "publicDashboard": dashboard.public,
@@ -233,7 +235,7 @@ def test_get_dashboard_failed(
     response = client.get(url, itemData)
 
     mock_get_dashboards.assert_called_with(
-        "admin", id=str(itemData["id"]), dashboard_view=True
+        admin_user, id=str(itemData["id"]), dashboard_view=True
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
@@ -262,7 +264,7 @@ def test_get_dashboard_failed_unknown_exception(
     response = client.get(url, itemData)
 
     mock_get_dashboards.assert_called_with(
-        "admin", id=str(itemData["id"]), dashboard_view=True
+        admin_user, id=str(itemData["id"]), dashboard_view=True
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
@@ -274,7 +276,7 @@ def test_get_dashboard_failed_unknown_exception(
 
 @pytest.mark.django_db
 def test_add_dashboard(
-    client, admin_user, mock_app, db_session, mock_app_get_ps_db, mocker, tmp_path
+    client, mock_app, db_session, mocker, tmp_path, test_admin_user, mock_app_get_ps_db
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
@@ -291,7 +293,7 @@ def test_add_dashboard(
     }
 
     url = reverse("tethysdash:add_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_admin_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -305,8 +307,8 @@ def test_add_dashboard(
         "image": "/media/app_root/app/123e4567-e89b-12d3-a456-426614174000.png",
         "uuid": "123e4567-e89b-12d3-a456-426614174000",
         "unrestrictedPlacement": False,
-        "owner": "admin",
-        "permissions": [{"permission": "admin", "username": "admin"}],
+        "owner": test_admin_user.username,
+        "permissions": [{"permission": "admin", "username": test_admin_user.username}],
         "publicDashboard": False,
         "userPermission": "admin",
     }
@@ -340,7 +342,7 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker, tmp_path):
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_add_new_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         "123e4567-e89b-12d3-a456-426614174000",
         itemData["name"],
         itemData["description"],
@@ -378,7 +380,7 @@ def test_add_dashboard_failed_unknown_exception(
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_add_new_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         "123e4567-e89b-12d3-a456-426614174000",
         itemData["name"],
         itemData["description"],
@@ -398,7 +400,7 @@ def test_add_dashboard_failed_unknown_exception(
 @pytest.mark.django_db
 def test_delete_dashboard(
     client,
-    admin_user,
+    test_owner_user,
     mock_app,
     db_session,
     mock_app_get_ps_db,
@@ -415,7 +417,7 @@ def test_delete_dashboard(
     }
 
     url = reverse("tethysdash:delete_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -434,7 +436,7 @@ def test_delete_dashboard(
 @pytest.mark.django_db
 def test_delete_dashboard_with_thumbnail(
     client,
-    admin_user,
+    test_owner_user,
     mock_app,
     db_session,
     mock_app_get_ps_db,
@@ -460,7 +462,7 @@ def test_delete_dashboard_with_thumbnail(
     )
 
     url = reverse("tethysdash:delete_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
@@ -494,7 +496,7 @@ def test_delete_dashboard_failed(client, admin_user, mock_app, mocker, tmp_path)
 
     response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_delete_named_dashboard.assert_called_with("admin", itemData["id"])
+    mock_delete_named_dashboard.assert_called_with(admin_user, itemData["id"])
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert response.json()["message"] == "failed to delete"
@@ -520,7 +522,7 @@ def test_delete_dashboard_failed_unknown_exception(
 
     response = client.generic("POST", url, json.dumps(itemData))
 
-    mock_delete_named_dashboard.assert_called_with("admin", itemData["id"])
+    mock_delete_named_dashboard.assert_called_with(admin_user, itemData["id"])
     assert response.status_code == 200
     assert response.json()["success"] is False
     assert (
@@ -532,7 +534,8 @@ def test_delete_dashboard_failed_unknown_exception(
 @pytest.mark.django_db
 def test_update_dashboard(
     client,
-    admin_user,
+    test_owner_user,
+    test_admin_user,
     mock_app,
     mock_app_get_ps_db,
     dashboard,
@@ -551,7 +554,7 @@ def test_update_dashboard(
     }
 
     url = reverse("tethysdash:update_dashboard")
-    client.force_login(admin_user)
+    client.force_login(test_owner_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
     expected_dashboard = {
@@ -565,8 +568,8 @@ def test_update_dashboard(
         "unrestrictedPlacement": dashboard.unrestricted_placement,
         "owner": dashboard.owner,
         "permissions": [
-            {"permission": "admin", "username": dashboard.owner},
-            {"permission": "editor", "username": "editor"},
+            {"permission": "admin", "username": test_owner_user.username},
+            {"permission": "editor", "username": test_admin_user.username},
             {"permission": "viewer", "group": permission_group["name"]},
         ],
         "publicDashboard": dashboard.public,
@@ -596,7 +599,7 @@ def test_update_dashboard_failed(client, admin_user, mock_app, mocker):
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_update_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         itemData["id"],
         {"name": "dashboard_name"},
     )
@@ -656,7 +659,7 @@ def test_update_dashboard_failed_unknown_exception(
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_update_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         itemData["id"],
         {"name": "dashboard_name"},
     )
@@ -710,8 +713,8 @@ def test_copy_dashboard(
         "image": "/static/tethysdash/images/dashboard_thumbnail.png",
         "uuid": dashboard_uuid,
         "unrestrictedPlacement": dashboard.unrestricted_placement,
-        "owner": dashboard.owner,
-        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "owner": admin_user.username,
+        "permissions": [{"permission": "admin", "username": admin_user.username}],
         "publicDashboard": dashboard.public,
         "userPermission": "admin",
     }
@@ -772,8 +775,8 @@ def test_copy_dashboard_with_thumbnail(
         "image": "/media/app_root/app/123e4567-e89b-12d3-a456-426614174001.png",
         "uuid": "123e4567-e89b-12d3-a456-426614174001",
         "unrestrictedPlacement": dashboard.unrestricted_placement,
-        "owner": dashboard.owner,
-        "permissions": [{"permission": "admin", "username": dashboard.owner}],
+        "owner": admin_user.username,
+        "permissions": [{"permission": "admin", "username": admin_user.username}],
         "publicDashboard": dashboard.public,
         "userPermission": "admin",
     }
@@ -820,7 +823,7 @@ def test_copy_dashboard_failed(
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_copy_named_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         itemData["id"],
         "some_new_dashboard_name",
         "123e4567-e89b-12d3-a456-426614174000",
@@ -865,7 +868,7 @@ def test_copy_dashboard_failed_unknown_exception(
     response = client.generic("POST", url, json.dumps(itemData))
 
     mock_copy_named_dashboard.assert_called_with(
-        "admin",
+        admin_user,
         itemData["id"],
         "some_new_dashboard_name",
         "123e4567-e89b-12d3-a456-426614174000",
@@ -1254,6 +1257,7 @@ def test_ping_with_session_security_and_name_error(mocker, client, mock_app):
 def test_update_permission_group(
     client,
     test_admin_user,
+    test_member_user,
     mock_app,
     mock_app_get_ps_db,
     permission_group,
@@ -1271,8 +1275,8 @@ def test_update_permission_group(
             "permission": "admin",
         },
         {
-            "username": "jsmith",
-            "permission": "member",
+            "username": test_member_user.username,
+            "permission": "admin",
         },
     ]
     permission_group["members"] = new_members
@@ -1308,6 +1312,51 @@ def test_create_permission_group(
     assert response_json == {
         "updated_permission_group": permission_group,
         "success": True,
+    }
+
+
+@pytest.mark.django_db
+def test_create_permission_group_nonexistent_users(
+    client,
+    test_admin_user,
+    mock_app,
+    mock_app_get_ps_db,
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+
+    url = reverse("tethysdash:update_permission_group")
+    client.force_login(test_admin_user)
+
+    response = client.generic(
+        "POST",
+        url,
+        json.dumps(
+            {
+                "name": "some name",
+                "description": "",
+                "owner": test_admin_user.username,
+                "members": [
+                    {
+                        "username": "nonexistent_user",
+                        "permission": "admin",
+                    },
+                    {
+                        "username": test_admin_user.username,
+                        "permission": "admin",
+                    },
+                ],
+                "user_permission": "admin",
+            }
+        ),
+    )
+
+    assert response.status_code == 200
+
+    response_json = response.json()
+    assert response_json == {
+        "success": False,
+        "message": "Users don't exist: nonexistent_user",
     }
 
 
@@ -1496,3 +1545,199 @@ def test_delete_permission_group_exception_without_message(
         "message": f"Failed to delete the permission group {permission_group_table.id}. Check server for logs.",  # noqa: E501
         "success": False,
     }
+
+
+@pytest.mark.django_db
+def test_permissions(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:permissions")
+
+    # Patch get_all_permissions at the class level
+    from django.contrib.auth.models import User
+
+    mock_get_perms = mocker.patch.object(User, "get_all_permissions")
+    mock_get_perms.return_value = [
+        "tethys_apps.tethysdash:manage_visualizations",
+    ]
+
+    client.force_login(admin_user)
+
+    response = client.get(url)
+    assert response.status_code == 200
+    assert set(response.json()["permissions"]) == {"manage_visualizations"}
+
+
+@pytest.mark.django_db
+def test_visualization_permissions_has_permission(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_get_visualization_permissions = mocker.patch(
+        "tethysapp.tethysdash.controllers.get_visualization_permissions"
+    )
+    perms = {"some_plugin": {"users": ["user1"], "groups": ["group1"]}}
+    mock_get_visualization_permissions.return_value = perms
+
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
+    mock_has_permission.return_value = True
+
+    mock_get_restricted_visualizations = mocker.patch(
+        "tethysapp.tethysdash.controllers.get_restricted_visualizations"
+    )
+    mock_get_restricted_visualizations.return_value = {
+        "some_plugin": {
+            "users": [],
+            "groups": [],
+            "info": {"label": "Some Plugin", "description": "A description"},
+        },
+        "another_plugin": {
+            "users": [],
+            "groups": [],
+            "info": {"label": "Another Plugin", "description": "Another description"},
+        },
+    }
+
+    url = reverse("tethysdash:visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.json()["visualization_permissions"] == {
+        "some_plugin": {
+            "users": ["user1"],
+            "groups": ["group1"],
+            "info": {"label": "Some Plugin", "description": "A description"},
+        },
+        "another_plugin": {
+            "users": [],
+            "groups": [],
+            "info": {"label": "Another Plugin", "description": "Another description"},
+        },
+    }
+
+
+@pytest.mark.django_db
+def test_visualization_permissions_no_permission(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_get_visualization_permissions = mocker.patch(
+        "tethysapp.tethysdash.controllers.get_visualization_permissions"
+    )
+
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
+    mock_has_permission.return_value = False
+
+    url = reverse("tethysdash:visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert (
+        response.json()["message"]
+        == "User doesn't have permission to view visualization permissions."
+    )
+    mock_get_visualization_permissions.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_visualization_permissions_error(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_get_visualization_permissions = mocker.patch(
+        "tethysapp.tethysdash.controllers.get_visualization_permissions"
+    )
+    mock_get_visualization_permissions.side_effect = [
+        Exception("failed to get visualization")
+    ]
+
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
+    mock_has_permission.return_value = True
+
+    url = reverse("tethysdash:visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.get(url)
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert (
+        response.json()["message"]
+        == "Failed to get visualization permissions: failed to get visualization"
+    )
+
+
+@pytest.mark.django_db
+def test_update_visualization_permissions(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch("tethysapp.tethysdash.controllers.update_viz_perms")
+
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
+    mock_has_permission.return_value = True
+
+    url = reverse("tethysdash:update_visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.generic("POST", url, json.dumps({}))
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+
+
+@pytest.mark.django_db
+def test_update_visualization_permissions_no_permission(
+    client, admin_user, mock_app, mocker
+):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch("tethysapp.tethysdash.controllers.update_viz_perms")
+
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
+    mock_has_permission.return_value = False
+
+    url = reverse("tethysdash:update_visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.generic("POST", url, json.dumps({}))
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert (
+        response.json()["message"]
+        == "User does not have permission to manage visualization permissions."
+    )
+
+
+@pytest.mark.django_db
+def test_update_visualization_permissions_error(client, admin_user, mock_app, mocker):
+    mock_app("tethysapp.tethysdash.controllers.App")
+    mock_update_viz_perms = mocker.patch(
+        "tethysapp.tethysdash.controllers.update_viz_perms"
+    )
+    mock_update_viz_perms.side_effect = Exception(
+        "failed to update visualization permissions"
+    )
+
+    mock_has_permission = mocker.patch(
+        "tethysapp.tethysdash.controllers.has_permission"
+    )
+    mock_has_permission.return_value = True
+
+    url = reverse("tethysdash:update_visualization_permissions")
+
+    client.force_login(admin_user)
+
+    response = client.generic("POST", url, json.dumps({}))
+    assert response.status_code == 200
+    assert response.json()["success"] is False
+    assert (
+        response.json()["message"]
+        == "Failed to update visualization permissions: failed to update visualization permissions"  # noqa: E501
+    )
