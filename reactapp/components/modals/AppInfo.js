@@ -11,6 +11,9 @@ import {
   AppContext,
 } from "components/contexts/Contexts";
 import { confirm } from "components/inputs/DeleteConfirmation";
+import cw3eLogo from "assets/cw3e_logo.png";
+import erdcLogo from "assets/ERDCLogo.png";
+import usaceLogo from "assets/USACE_logo.png";
 
 const StyledCheck = styled(Form.Check)`
   width: 100%;
@@ -165,7 +168,7 @@ function AppInfoModal({ showModal, setShowModal, view }) {
           <hr />
           <AttributionDiv>
             <SingleLogoImg
-              src="/static/tethysdash/images/cw3e_logo.png"
+              src={cw3eLogo}
               alt="CW3E Logo"
             />
             <InfoSpan>
@@ -182,11 +185,11 @@ function AppInfoModal({ showModal, setShowModal, view }) {
             </InfoSpan>
             <StackedLogosDiv>
               <LogoImg
-                src="/static/tethysdash/images/ERDCLogo.png"
+                src={erdcLogo}
                 alt="ERDC Logo"
               />
               <LogoImg
-                src="/static/tethysdash/images/USACE_logo.png"
+                src={usaceLogo}
                 alt="USACE Logo"
               />
             </StackedLogosDiv>
