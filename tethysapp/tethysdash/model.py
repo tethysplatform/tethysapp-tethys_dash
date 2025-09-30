@@ -1451,7 +1451,9 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
         )
         app_media = get_app_media(App)
         if not os.path.exists(os.path.join(app_media.path, f"{dashboard.uuid}.png")):
-            dashboard_image = "/static/tethysdash/images/dashboard_thumbnail.png"
+            dashboard_image = os.path.join(
+                os.path.dirname(__file__), "default_dashboard.png"
+            )
 
         # Find the user's permission level for this dashboard
         user_permission = get_dashboard_user_permission(session, dashboard, user)
