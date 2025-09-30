@@ -41,6 +41,12 @@ import { FaPlus } from "react-icons/fa6";
 import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
 import "components/buttons/HeaderButton.css";
 
+const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
+  /(^\/+|\/+?$)/g,
+  ""
+);
+const staticBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/`;
+
 const TETHYS_PORTAL_HOST = getTethysPortalHost();
 const StyledSpinner = styled(Spinner)`
   vertical-align: middle;
@@ -127,7 +133,7 @@ export const LandingPageHeader = () => {
                     aria-label="manageVisualizationPermissionsButton"
                   >
                     <img
-                      src="/static/tethysdash/images/visualization_settings.png"
+                      src={`${staticBasePath}tethysdash/images/visualization_settings.png`}
                       alt="Visualization Settings"
                       style={{ height: "1.5rem" }}
                     />
