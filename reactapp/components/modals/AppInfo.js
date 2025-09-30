@@ -51,6 +51,9 @@ const AttributionDiv = styled.div`
   margin-top: 1rem;
 `;
 
+const contactUsEmail = process.env.TETHYSDASH_SUPPORT_EMAIL;
+const contactUsGitHub = process.env.TETHYSDASH_SUPPORT_GITHUB;
+
 function AppInfoModal({ showModal, setShowModal, view }) {
   const layoutContext = useContext(LayoutContext);
   const editingContext = useContext(EditingContext);
@@ -166,11 +169,18 @@ function AppInfoModal({ showModal, setShowModal, view }) {
             </>
           )}
           <hr />
+          <InfoSpan>
+            Have questions or need support? Contact us at{" "}
+            <a href={`mailto:${contactUsEmail}`}>{contactUsEmail}</a> or{" "}
+            <a target="_blank" rel="noopener noreferrer" href={contactUsGitHub}>
+              GitHub
+            </a>{" "}
+            for inquiries about custom visualizations, dashboards, or any issues
+            you encounter.
+          </InfoSpan>
+          <hr />
           <AttributionDiv>
-            <SingleLogoImg
-              src={cw3eLogo}
-              alt="CW3E Logo"
-            />
+            <SingleLogoImg src={cw3eLogo} alt="CW3E Logo" />
             <InfoSpan>
               Initial funding for Tethys Dash provided by CW3E for the Forecast
               Informed Reservoir Operations (FIRO) project. Visit{" "}
@@ -184,14 +194,8 @@ function AppInfoModal({ showModal, setShowModal, view }) {
               to learn more.
             </InfoSpan>
             <StackedLogosDiv>
-              <LogoImg
-                src={erdcLogo}
-                alt="ERDC Logo"
-              />
-              <LogoImg
-                src={usaceLogo}
-                alt="USACE Logo"
-              />
+              <LogoImg src={erdcLogo} alt="ERDC Logo" />
+              <LogoImg src={usaceLogo} alt="USACE Logo" />
             </StackedLogosDiv>
           </AttributionDiv>
         </StyledBody>
