@@ -1,11 +1,12 @@
 import { parse, format } from "date-fns";
-import { useState, useRef, memo } from "react";
+import { useState, useRef, memo, useContext, useEffect } from "react";
 import PropTypes from "prop-types";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { FaRegCalendarAlt } from "react-icons/fa";
 import "components/inputs/DatePicker.css";
 import styled from "styled-components";
+import { DataViewerModeContext } from "components/contexts/Contexts";
 
 const Wrapper = styled.div`
   position: relative;
@@ -89,6 +90,8 @@ export const parseDateMath = ({ value, type }) => {
 };
 
 const DatePicker = ({ label, value, onChange, type, divProps }) => {
+  const { inDataViewerMode } = useContext(DataViewerModeContext);
+
   const [selectedDate, setSelectedDate] = useState(() => {
     if (checkForVariable(value)) return null;
     const parsed = parseDateMath({ value, type });
@@ -102,6 +105,13 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
   });
   const datePickerRef = useRef(null);
   const [inputValue, setInputValue] = useState(value);
+
+  useEffect(() => {
+    if (value !== inputValue && value !== parseDateMath({ value, type })) {
+      onRawChange(value);
+    }
+    // eslint-disable-next-line
+  }, [value]);
 
   function checkForVariable(val) {
     return typeof val === "string" && /\$\{[^}]+\}/.test(val);
@@ -118,7 +128,11 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
     // Try relative date parsing
     const parsedDate = parseDateMath({ value: val, type });
     if (parsedDate) {
-      onChange(parsedDate);
+      if (inDataViewerMode) {
+        onChange(val);
+      } else {
+        onChange(parsedDate);
+      }
       setSelectedDate(parsedDate);
       return;
     }

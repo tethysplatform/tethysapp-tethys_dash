@@ -1,6 +1,7 @@
 import requests
 import xmltodict
 import copy
+from datetime import datetime
 
 available_source_properties = {
     "ESRI Image and Map Service": {
@@ -916,3 +917,56 @@ def validate_geojson(data):
         raise ValueError("'crs.properties.name' must be a string.")
 
     return True  # Passed all checks
+
+
+def parse_date_hour_input(date_input):
+    """
+    Parse a date and time input string into a datetime object.
+
+    Expects a string in the format "MM/DD/YYYY HH:MM AM/PM" (e.g., "12/25/2023 02:30 PM").
+    Uses 12-hour time format with AM/PM indicator.
+
+    Args:
+        date_input (str): The date and time string to parse. Must be in format
+                         "MM/DD/YYYY HH:MM AM/PM".
+
+    Returns:
+        datetime: The parsed datetime object.
+
+    Raises:
+        ValueError: If the input string doesn't match the expected format.
+        TypeError: If the input is not a string.
+
+    Example:
+        >>> parse_date_hour_input("12/25/2023 02:30 PM")
+        datetime.datetime(2023, 12, 25, 14, 30)
+    """
+    date_hour_format = "%m/%d/%Y %I:%M %p"
+
+    return datetime.strptime(date_input, date_hour_format)
+
+
+def parse_date_input(date_input):
+    """
+    Parse a date input string into a datetime object.
+
+    Expects a string in the format "MM/DD/YYYY" (e.g., "12/25/2023").
+    The resulting datetime object will have time set to midnight (00:00:00).
+
+    Args:
+        date_input (str): The date string to parse. Must be in format "MM/DD/YYYY".
+
+    Returns:
+        datetime: The parsed datetime object with time set to 00:00:00.
+
+    Raises:
+        ValueError: If the input string doesn't match the expected format.
+        TypeError: If the input is not a string.
+
+    Example:
+        >>> parse_date_input("12/25/2023")
+        datetime.datetime(2023, 12, 25, 0, 0)
+    """
+    date_hour_format = "%m/%d/%Y"
+
+    return datetime.strptime(date_input, date_hour_format)
