@@ -19,7 +19,7 @@ const TimeDeltaDiv = styled.div`
   position: relative;
 `;
 
-const SliderMetadata = ({ onChange, values, visualizationRef }) => {
+const SliderMetadata = ({ onChange, values }) => {
   const [min, setMin] = useState(values?.min ?? null);
   const [max, setMax] = useState(values?.max ?? null);
   const [step, setStep] = useState(values?.step ?? null);
@@ -308,10 +308,6 @@ SliderMetadata.propTypes = {
     outputFormat: PropTypes.string,
     dateTimeDelta: PropTypes.string, // For slider metadata
   }),
-  visualizationRef: PropTypes.oneOfType([
-    PropTypes.func,
-    PropTypes.shape({ current: PropTypes.any }),
-  ]),
 };
 
 export default memo(SliderMetadata);

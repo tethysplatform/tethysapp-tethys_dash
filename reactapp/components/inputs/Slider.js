@@ -16,6 +16,7 @@ import {
   differenceInYears,
   format as formatDate,
 } from "date-fns";
+import { parseDateMath } from "components/inputs/DatePicker";
 
 export const timeDeltas = {
   Minutes: addMinutes,
@@ -53,7 +54,10 @@ function formatNumber(n, template) {
 function formatDateValue(date, template) {
   try {
     if (!date) return "";
-    return formatDate(date, template);
+    return formatDate(
+      parseDateMath({ value: date, type: "date-hour" }),
+      template
+    );
   } catch (err) {
     console.error("Date formatting error:", err.message);
     return date.toString();
@@ -132,16 +136,31 @@ const Slider = ({
     if (playing) {
       intervalRef.current = setInterval(() => {
         setValue((v) => {
+          const minValue = isDateType
+            ? parseDateMath({ value: min, type: "date-hour" })
+            : min;
+          const maxValue = isDateType
+            ? parseDateMath({ value: max, type: "date-hour" })
+            : max;
+
           if (rangeMode) {
             // Range mode play logic:
             // Advance both values by step, loop when max reached
 
             if (isDateType && unit) {
-              const minDateObj = new Date(min);
-              const maxDateObj = new Date(max);
+              const minDateObj = new Date(minValue);
+              const maxDateObj = new Date(maxValue);
 
-              const startIndex = dateToIndex(new Date(v[0]), minDateObj, unit);
-              const endIndex = dateToIndex(new Date(v[1]), minDateObj, unit);
+              const startIndex = dateToIndex(
+                new Date(parseDateMath({ value: v[0], type: "date-hour" })),
+                minDateObj,
+                unit
+              );
+              const endIndex = dateToIndex(
+                new Date(parseDateMath({ value: v[1], type: "date-hour" })),
+                minDateObj,
+                unit
+              );
               const rangeSize = endIndex - startIndex;
 
               let nextStart = startIndex + Number(step);
@@ -172,13 +191,18 @@ const Slider = ({
           } else {
             // Single value play logic
             if (isDateType && unit) {
-              const currentDate = new Date(v);
+              const currentDate = new Date(
+                parseDateMath({ value: v, type: "date-hour" })
+              );
               const nextDate = indexToDate(
-                dateToIndex(currentDate, new Date(min), unit) + Number(step),
-                new Date(min),
+                dateToIndex(currentDate, new Date(minValue), unit) +
+                  Number(step),
+                new Date(minValue),
                 unit
               );
-              return nextDate > new Date(max) ? min : nextDate.toISOString();
+              return nextDate > new Date(maxValue)
+                ? min
+                : nextDate.toISOString();
             } else {
               const next = v + Number(step);
               return next > max ? min : next;
@@ -197,7 +221,11 @@ const Slider = ({
       const snapped = val.map((n) => Math.round(n / step) * step);
       if (isDateType && unit) {
         const newDates = snapped.map((idx) =>
-          indexToDate(idx, new Date(min), unit).toISOString()
+          indexToDate(
+            idx,
+            parseDateMath({ value: min, type: "date-hour" }),
+            unit
+          ).toISOString()
         );
         setValue(newDates);
       } else {
@@ -206,7 +234,11 @@ const Slider = ({
     } else {
       const snapped = Math.round(val / step) * step;
       if (isDateType && unit) {
-        const newDate = indexToDate(snapped, new Date(min), unit);
+        const newDate = indexToDate(
+          snapped,
+          parseDateMath({ value: min, type: "date-hour" }),
+          unit
+        );
         setValue(newDate.toISOString());
       } else {
         setValue(snapped);
@@ -220,17 +252,33 @@ const Slider = ({
   const sliderValue = (() => {
     if (rangeMode) {
       return isDateType && unit
-        ? value.map((v) => dateToIndex(new Date(v), new Date(min), unit))
+        ? value.map((v) =>
+            dateToIndex(
+              parseDateMath({ value: v, type: "date-hour" }),
+              parseDateMath({ value: min, type: "date-hour" }),
+              unit
+            )
+          )
         : value;
     }
     return isDateType && unit
-      ? dateToIndex(new Date(value), new Date(min), unit)
+      ? dateToIndex(
+          parseDateMath({ value, type: "date-hour" }),
+          parseDateMath({ value: min, type: "date-hour" }),
+          unit
+        )
       : value;
   })();
 
   const sliderMin = isDateType && unit ? 0 : min;
   const sliderMax =
-    isDateType && unit ? dateToIndex(new Date(max), new Date(min), unit) : max;
+    isDateType && unit
+      ? dateToIndex(
+          parseDateMath({ value: max, type: "date-hour" }),
+          parseDateMath({ value: min, type: "date-hour" }),
+          unit
+        )
+      : max;
 
   const displayValue = rangeMode
     ? value.map((v) => formatValue(v, outputFormat, isDateType)).join(" - ")

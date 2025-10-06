@@ -3,17 +3,21 @@ import userEvent from "@testing-library/user-event";
 import DatePicker, { parseDateMath } from "components/inputs/DatePicker";
 import { getOrdinal } from "__tests__/utilities/constants";
 import { format } from "date-fns";
+import { DataViewerModeContext } from "components/contexts/Contexts";
+import { dateFormat } from "components/inputs/DatePicker";
 
 test("DatePicker date", async () => {
   const mockOnChange = jest.fn();
 
   render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date"
-      value=""
-      onChange={mockOnChange}
-    />
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date"
+        value=""
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
   );
 
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
@@ -33,12 +37,14 @@ test("DatePicker date-hour", async () => {
   const mockOnChange = jest.fn();
 
   render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date-hour"
-      value=""
-      onChange={mockOnChange}
-    />
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date-hour"
+        value=""
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
   );
 
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
@@ -58,12 +64,14 @@ test("DatePicker initial date and change to variable input", async () => {
   const mockOnChange = jest.fn();
 
   render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date"
-      value="01/01/1990"
-      onChange={mockOnChange}
-    />
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date"
+        value="01/01/1990"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
   );
 
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
@@ -88,12 +96,14 @@ test("DatePicker initial date-hour", async () => {
   const mockOnChange = jest.fn();
 
   render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date-hour"
-      value="01/01/1990 12:00 AM"
-      onChange={mockOnChange}
-    />
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date-hour"
+        value="01/01/1990 12:00 AM"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
   );
 
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
@@ -107,13 +117,14 @@ test("DatePicker initial variable", async () => {
   const mockOnChange = jest.fn();
 
   render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date-hour"
-      // eslint-disable-next-line
-      value="${Date}"
-      onChange={mockOnChange}
-    />
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date-hour"
+        // eslint-disable-next-line
+        value="${Date}"
+      />
+    </DataViewerModeContext.Provider>
   );
 
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
@@ -128,12 +139,14 @@ test("DatePicker initial now+1D", async () => {
   const mockOnChange = jest.fn();
 
   render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date-hour"
-      value="now+1D"
-      onChange={mockOnChange}
-    />
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date-hour"
+        value="now+1D"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
   );
 
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
@@ -173,12 +186,14 @@ test("DatePicker initial today", async () => {
   const mockOnChange = jest.fn();
 
   render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date-hour"
-      value="today"
-      onChange={mockOnChange}
-    />
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date-hour"
+        value="today"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
   );
 
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
@@ -207,16 +222,87 @@ test("DatePicker initial today", async () => {
   expect(mockOnChange).toHaveBeenCalledTimes(0);
 });
 
+test("DatePicker initial today then update", async () => {
+  const mockOnChange = jest.fn();
+
+  const { rerender } = render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date"
+        value="today"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
+  );
+
+  const today = new Date();
+
+  rerender(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date"
+        value={format(today, dateFormat)}
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
+  );
+
+  expect(mockOnChange).toHaveBeenCalledTimes(0);
+
+  rerender(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date"
+        value="01/01/2020 12:00 AM"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
+  );
+
+  expect(mockOnChange).toHaveBeenCalledWith("01/01/2020");
+  expect(mockOnChange).toHaveBeenCalledTimes(1);
+});
+
+test("DatePicker relative date in dataviewer mode", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date-hour"
+        value=""
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
+  );
+
+  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, {
+    target: { value: "today" },
+  });
+
+  expect(mockOnChange).toHaveBeenCalledWith("today");
+  expect(mockOnChange).toHaveBeenCalledTimes(1);
+});
+
 test("DatePicker select tomorrow date-hour", async () => {
   const mockOnChange = jest.fn();
 
   render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date-hour"
-      value=""
-      onChange={mockOnChange}
-    />
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date-hour"
+        value=""
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
   );
 
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
@@ -252,12 +338,14 @@ test("DatePicker select tomorrow date", async () => {
   const mockOnChange = jest.fn();
 
   render(
-    <DatePicker
-      label="Test DatePicker"
-      type="date"
-      value=""
-      onChange={mockOnChange}
-    />
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date"
+        value=""
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
   );
 
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();

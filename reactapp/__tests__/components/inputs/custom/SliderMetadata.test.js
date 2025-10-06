@@ -2,17 +2,20 @@ import SliderMetadata from "components/inputs/custom/SliderMetadata";
 import { render, screen, fireEvent } from "@testing-library/react";
 import selectEvent from "react-select-event";
 import userEvent from "@testing-library/user-event";
+import { DataViewerModeContext } from "components/contexts/Contexts";
 
 test("SliderMetadata with empty values, select Number, then date", async () => {
   const mockOnChange = jest.fn();
   const values = {};
 
   render(
-    <SliderMetadata
-      onChange={mockOnChange}
-      values={values}
-      visualizationRef={null}
-    />
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <SliderMetadata
+        onChange={mockOnChange}
+        values={values}
+        visualizationRef={null}
+      />
+    </DataViewerModeContext.Provider>
   );
 
   expect(screen.getByText("Slider Mode")).toBeInTheDocument();
@@ -189,11 +192,13 @@ test("SliderMetadata with existing date, turn on range mode", async () => {
   };
 
   render(
-    <SliderMetadata
-      onChange={mockOnChange}
-      values={values}
-      visualizationRef={null}
-    />
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <SliderMetadata
+        onChange={mockOnChange}
+        values={values}
+        visualizationRef={null}
+      />
+    </DataViewerModeContext.Provider>
   );
 
   expect(screen.getByText("Slider Mode")).toBeInTheDocument();

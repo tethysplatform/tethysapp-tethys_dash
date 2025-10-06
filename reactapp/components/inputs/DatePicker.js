@@ -29,6 +29,9 @@ const StyledButton = styled.button`
   padding: 0;
 `;
 
+export const dateHourFormat = "MM/dd/yyyy h:mm aa";
+export const dateFormat = "MM/dd/yyyy";
+
 // Relative date parser
 export const parseDateMath = ({ value, type }) => {
   if (!value || typeof value !== "string") return null;
@@ -85,8 +88,8 @@ export const parseDateMath = ({ value, type }) => {
 
   // Return formatted string without any Z / timezone offset
   return type === "date"
-    ? format(date, "MM/dd/yyyy")
-    : format(date, "MM/dd/yyyy h:mm aa");
+    ? format(date, dateFormat)
+    : format(date, dateHourFormat);
 };
 
 const DatePicker = ({ label, value, onChange, type, divProps }) => {
@@ -98,7 +101,7 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
     return parsed
       ? parse(
           parsed,
-          type === "date-hour" ? "MM/dd/yyyy h:mm aa" : "MM/dd/yyyy",
+          type === "date-hour" ? dateHourFormat : dateFormat,
           new Date()
         )
       : null;
@@ -145,9 +148,7 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
   const handleSelect = (date) => {
     setSelectedDate(date);
     const formattedDate =
-      type === "date"
-        ? format(date, "MM/dd/yyyy")
-        : format(date, "MM/dd/yyyy h:mm aa");
+      type === "date" ? format(date, dateFormat) : format(date, dateHourFormat);
     onChange(formattedDate);
     setInputValue(formattedDate);
   };
@@ -184,9 +185,7 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
             selected={selectedDate}
             onChange={handleSelect}
             showTimeInput={type === "date-hour"}
-            dateFormat={
-              type === "date-hour" ? "MM/dd/yyyy h:mm aa" : "MM/dd/yyyy"
-            }
+            dateFormat={type === "date-hour" ? dateHourFormat : dateFormat}
             timeInputLabel="Time:"
             showYearDropdown
             showMonthDropdown
