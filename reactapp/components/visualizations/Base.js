@@ -21,6 +21,9 @@ import {
 import { valuesEqual } from "components/modals/utilities";
 import styled from "styled-components";
 import Spinner from "react-bootstrap/Spinner";
+import { getDependentVariableInputs } from "components/visualizations/utilities";
+import { checkForVariable } from "components/inputs/DatePicker";
+import { addVerticalLine } from "components/visualizations/BasePlot";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -151,6 +154,7 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
   const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
+  const gridItemMetadataWithVariableInputs = useRef(0);
   const customMessages = useRef({});
   const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
@@ -218,6 +222,10 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
       args,
       variableInputValues
     );
+    const updatedGridItemMetadata = updateObjectWithVariableInputs(
+      gridMetadata,
+      variableInputValues
+    );
     const customMessaging = gridMetadata.customMessaging;
 
     if (
@@ -249,6 +257,41 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
           "source"
         )?.loading_icon,
       });
+    }
+
+    if (
+      !valuesEqual(
+        gridItemMetadataWithVariableInputs.current,
+        updatedGridItemMetadata
+      )
+    ) {
+      gridItemMetadataWithVariableInputs.current = updatedGridItemMetadata;
+
+      const sourceType = findSelectOptionByValue(
+        visualizations,
+        source,
+        "source"
+      )?.type;
+
+      if (
+        sourceType === "plotly" &&
+        updatedGridItemMetadata?.plotlyVerticalLine
+      ) {
+        let verticalLineValue =
+          updatedGridItemMetadata?.plotlyVerticalLine?.value;
+        const verticalLineColor =
+          updatedGridItemMetadata?.plotlyVerticalLine?.color;
+        const verticalLineWidth =
+          updatedGridItemMetadata?.plotlyVerticalLine?.width;
+        const verticalLineDash =
+          updatedGridItemMetadata?.plotlyVerticalLine?.dash;
+
+        addVerticalLine(dashboardVizRef, verticalLineValue, {
+          color: verticalLineColor,
+          width: verticalLineWidth,
+          dash: verticalLineDash,
+        });
+      }
     }
   }
 

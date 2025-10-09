@@ -6,6 +6,7 @@ import BorderSettings from "components/modals/DataViewer/BorderSettings";
 import BackgroundSettings from "components/modals/DataViewer/BackgroundSettings";
 import Alert from "react-bootstrap/Alert";
 import CustomMessaging from "components/modals/DataViewer/CustomMessaging";
+import PlotlySettings from "components/modals/DataViewer/PlotlySettings";
 import "components/modals/wideModal.css";
 
 function checkTransparency(color) {
@@ -246,6 +247,12 @@ function SettingsPane({
               />
             )}
         </>
+      ) : (visualizationRef.current?.el?.className || "").includes("plotly") ? (
+        <PlotlySettings
+          settings={settings}
+          setSettings={setSettings}
+          visualizationRef={visualizationRef}
+        />
       ) : (
         <Alert key={"warning"} variant={"warning"}>
           Visualization must be loaded to change additional settings.

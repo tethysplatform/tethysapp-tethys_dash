@@ -87,10 +87,16 @@ export const parseDateMath = ({ value, type }) => {
   }
 
   // Return formatted string without any Z / timezone offset
-  return type === "date"
-    ? format(date, dateFormat)
-    : format(date, dateHourFormat);
+  return type
+    ? type === "date"
+      ? format(date, dateFormat)
+      : format(date, dateHourFormat)
+    : date;
 };
+
+export function checkForVariable(val) {
+  return typeof val === "string" && /\$\{[^}]+\}/.test(val);
+}
 
 const DatePicker = ({ label, value, onChange, type, divProps }) => {
   const { inDataViewerMode } = useContext(DataViewerModeContext);
@@ -115,10 +121,6 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
     }
     // eslint-disable-next-line
   }, [value]);
-
-  function checkForVariable(val) {
-    return typeof val === "string" && /\$\{[^}]+\}/.test(val);
-  }
 
   const onRawChange = (val) => {
     setInputValue(val);
