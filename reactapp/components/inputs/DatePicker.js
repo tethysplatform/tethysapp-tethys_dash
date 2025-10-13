@@ -42,10 +42,22 @@ export const parseDateMath = ({ value, type }) => {
     value = value.slice(3);
   } else if (value.startsWith("today")) {
     date = new Date();
-    date.setHours(0, 0, 0, 0);
+    date.setUTCHours(0, 0, 0, 0);
     value = value.slice(5);
   } else {
-    const isoDate = new Date(value);
+    // Force UTC interpretation to avoid timezone conversion
+    let dateString = value;
+
+    // Check if this looks like a date-time string without timezone info
+    const hasTime = /\d{4}-\d{2}-\d{2}[\s|T]\d{2}:\d{2}/.test(value);
+    const hasTimezone = value.includes("Z") || /[+-]\d{2}:\d{2}$/.test(value);
+
+    if (hasTime && !hasTimezone) {
+      // Convert space to T and add Z for UTC interpretation
+      dateString = value.replace(/\s/, "T") + "Z";
+    }
+
+    const isoDate = new Date(dateString);
     if (!isNaN(isoDate)) {
       date = isoDate;
     } else {
@@ -63,35 +75,47 @@ export const parseDateMath = ({ value, type }) => {
     // eslint-disable-next-line
     switch (unit) {
       case "Y":
-        date.setFullYear(date.getFullYear() + amount);
+        date.setUTCFullYear(date.getUTCFullYear() + amount);
         break;
       case "M":
-        date.setMonth(date.getMonth() + amount);
+        date.setUTCMonth(date.getUTCMonth() + amount);
         break;
       case "W":
-        date.setDate(date.getDate() + amount * 7);
+        date.setUTCDate(date.getUTCDate() + amount * 7);
         break;
       case "D":
-        date.setDate(date.getDate() + amount);
+        date.setUTCDate(date.getUTCDate() + amount);
         break;
       case "H":
-        date.setHours(date.getHours() + amount);
+        date.setUTCHours(date.getUTCHours() + amount);
         break;
       case "m":
-        date.setMinutes(date.getMinutes() + amount);
+        date.setUTCMinutes(date.getUTCMinutes() + amount);
         break;
       case "S":
-        date.setSeconds(date.getSeconds() + amount);
+        date.setUTCSeconds(date.getUTCSeconds() + amount);
         break;
     }
   }
 
-  // Return formatted string without any Z / timezone offset
-  return type
-    ? type === "date"
-      ? format(date, dateFormat)
-      : format(date, dateHourFormat)
-    : date;
+  // Return formatted string without timezone conversion
+  if (type) {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
+
+    if (type === "date") {
+      return `${month}/${day}/${year}`;
+    } else {
+      const hours = date.getUTCHours();
+      const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+      const ampm = hours >= 12 ? "PM" : "AM";
+      const displayHours = hours % 12 || 12;
+      return `${month}/${day}/${year} ${displayHours}:${minutes} ${ampm}`;
+    }
+  }
+
+  return date;
 };
 
 export function checkForVariable(val) {

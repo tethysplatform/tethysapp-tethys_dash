@@ -10,6 +10,7 @@ import {
 import {
   nonDropDownVariableInputTypes,
   findSelectOptionByValue,
+  updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
@@ -44,11 +45,23 @@ const VariableInput = ({
   const [value, setValue] = useState("");
   const [type, setType] = useState(null);
   const [label, setLabel] = useState(null);
+  const [updatedMetadata, setUpdatedMetadata] = useState(metadata);
   const { visualizationArgs } = useContext(AppContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );
+
+  // Initialize updatedMetadata when metadata or variableInputValues change
+  useEffect(() => {
+    if (metadata) {
+      const newUpdatedMetadata = updateObjectWithVariableInputs(
+        { ...metadata },
+        variableInputValues
+      );
+      setUpdatedMetadata(newUpdatedMetadata);
+    }
+  }, [metadata, variableInputValues]);
 
   const updateVariableInputs = useCallback(
     (new_value) => {
@@ -176,7 +189,10 @@ const VariableInput = ({
   } else if (type === "slider") {
     const requiredKeys = ["step", "min", "max", "initialValue", "dataType"];
 
-    if (!metadata || requiredKeys.some((key) => metadata?.[key] == null)) {
+    if (
+      !updatedMetadata ||
+      requiredKeys.some((key) => updatedMetadata?.[key] == null)
+    ) {
       return <div data-testid="slider-missing-metadata" />;
     }
 
@@ -184,15 +200,15 @@ const VariableInput = ({
       <StyledDiv>
         <Slider
           label={label}
-          step={metadata.step}
-          min={metadata.min}
-          max={metadata.max}
-          initialValue={metadata.initialValue}
-          initialRange={metadata.initialRange}
-          rangeMode={metadata.rangeMode}
-          outputFormat={metadata.outputFormat}
-          dataType={metadata.dataType}
-          dateTimeDelta={metadata?.dateTimeDelta}
+          step={updatedMetadata.step}
+          min={updatedMetadata.min}
+          max={updatedMetadata.max}
+          initialValue={updatedMetadata.initialValue}
+          initialRange={updatedMetadata.initialRange}
+          rangeMode={updatedMetadata.rangeMode}
+          outputFormat={updatedMetadata.outputFormat}
+          dataType={updatedMetadata.dataType}
+          dateTimeDelta={updatedMetadata?.dateTimeDelta}
           onChange={handleInputChange}
         />
       </StyledDiv>

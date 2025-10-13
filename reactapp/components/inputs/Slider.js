@@ -42,6 +42,22 @@ function indexToDate(index, minDate, unit) {
   return timeDeltas[unit](minDate, index);
 }
 
+// Helper function to convert a date to UTC ISO string without timezone conversion
+function toUTCISOString(date) {
+  const utcDate = new Date(
+    Date.UTC(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      date.getHours(),
+      date.getMinutes(),
+      date.getSeconds(),
+      date.getMilliseconds()
+    )
+  );
+  return utcDate.toISOString();
+}
+
 function formatNumber(n, template) {
   return template.replace(/\{\{n(:0*(\d+))?\}\}/, (_, __, pad) => {
     if (pad) {
@@ -172,8 +188,8 @@ const Slider = ({
               }
 
               const nextRange = [
-                indexToDate(nextStart, minDateObj, unit).toISOString(),
-                indexToDate(nextEnd, minDateObj, unit).toISOString(),
+                toUTCISOString(indexToDate(nextStart, minDateObj, unit)),
+                toUTCISOString(indexToDate(nextEnd, minDateObj, unit)),
               ];
               return nextRange;
             } else {
@@ -202,7 +218,7 @@ const Slider = ({
               );
               return nextDate > new Date(maxValue)
                 ? min
-                : nextDate.toISOString();
+                : toUTCISOString(nextDate);
             } else {
               const next = v + Number(step);
               return next > max ? min : next;
@@ -221,11 +237,13 @@ const Slider = ({
       const snapped = val.map((n) => Math.round(n / step) * step);
       if (isDateType && unit) {
         const newDates = snapped.map((idx) =>
-          indexToDate(
-            idx,
-            parseDateMath({ value: min, type: "date-hour" }),
-            unit
-          ).toISOString()
+          toUTCISOString(
+            indexToDate(
+              idx,
+              new Date(parseDateMath({ value: min, type: "date-hour" })),
+              unit
+            )
+          )
         );
         setValue(newDates);
       } else {
@@ -236,12 +254,159 @@ const Slider = ({
       if (isDateType && unit) {
         const newDate = indexToDate(
           snapped,
-          parseDateMath({ value: min, type: "date-hour" }),
+          new Date(parseDateMath({ value: min, type: "date-hour" })),
           unit
         );
-        setValue(newDate.toISOString());
+        setValue(toUTCISOString(newDate));
       } else {
         setValue(snapped);
+      }
+    }
+  };
+
+  const goToFirst = () => {
+    if (rangeMode) {
+      if (isDateType && unit) {
+        const minDateObj = new Date(
+          parseDateMath({ value: min, type: "date-hour" })
+        );
+        const currentRange = value.map(
+          (v) => new Date(parseDateMath({ value: v, type: "date-hour" }))
+        );
+        const rangeSize = dateToIndex(currentRange[1], currentRange[0], unit);
+        const newRange = [
+          toUTCISOString(minDateObj),
+          toUTCISOString(indexToDate(rangeSize, minDateObj, unit)),
+        ];
+        setValue(newRange);
+      } else {
+        const rangeSize = value[1] - value[0];
+        setValue([min, min + rangeSize]);
+      }
+    } else {
+      setValue(min);
+    }
+  };
+
+  const goToLast = () => {
+    if (rangeMode) {
+      if (isDateType && unit) {
+        const maxDateObj = new Date(
+          parseDateMath({ value: max, type: "date-hour" })
+        );
+        const currentRange = value.map(
+          (v) => new Date(parseDateMath({ value: v, type: "date-hour" }))
+        );
+        const rangeSize = dateToIndex(currentRange[1], currentRange[0], unit);
+        const newRange = [
+          toUTCISOString(indexToDate(-rangeSize, maxDateObj, unit)),
+          toUTCISOString(maxDateObj),
+        ];
+        setValue(newRange);
+      } else {
+        const rangeSize = value[1] - value[0];
+        setValue([max - rangeSize, max]);
+      }
+    } else {
+      setValue(max);
+    }
+  };
+
+  const goBackStep = () => {
+    if (rangeMode) {
+      if (isDateType && unit) {
+        const minDateObj = new Date(
+          parseDateMath({ value: min, type: "date-hour" })
+        );
+        const currentRange = value.map(
+          (v) => new Date(parseDateMath({ value: v, type: "date-hour" }))
+        );
+        const startIndex = dateToIndex(currentRange[0], minDateObj, unit);
+        const endIndex = dateToIndex(currentRange[1], minDateObj, unit);
+
+        const newStartIndex = Math.max(0, startIndex - Number(step));
+        const newEndIndex = newStartIndex + (endIndex - startIndex);
+
+        const newRange = [
+          toUTCISOString(indexToDate(newStartIndex, minDateObj, unit)),
+          toUTCISOString(indexToDate(newEndIndex, minDateObj, unit)),
+        ];
+        setValue(newRange);
+      } else {
+        const rangeSize = value[1] - value[0];
+        const newStart = Math.max(min, value[0] - Number(step));
+        setValue([newStart, newStart + rangeSize]);
+      }
+    } else {
+      if (isDateType && unit) {
+        const currentDate = new Date(
+          parseDateMath({ value, type: "date-hour" })
+        );
+        const minDateObj = new Date(
+          parseDateMath({ value: min, type: "date-hour" })
+        );
+        const currentIndex = dateToIndex(currentDate, minDateObj, unit);
+        const newIndex = Math.max(0, currentIndex - Number(step));
+
+        const resultDate = indexToDate(newIndex, minDateObj, unit);
+        setValue(toUTCISOString(resultDate));
+      } else {
+        setValue(Math.max(min, value - Number(step)));
+      }
+    }
+  };
+
+  const goForwardStep = () => {
+    if (rangeMode) {
+      if (isDateType && unit) {
+        const minDateObj = new Date(
+          parseDateMath({ value: min, type: "date-hour" })
+        );
+        const maxDateObj = new Date(
+          parseDateMath({ value: max, type: "date-hour" })
+        );
+        const currentRange = value.map(
+          (v) => new Date(parseDateMath({ value: v, type: "date-hour" }))
+        );
+        const startIndex = dateToIndex(currentRange[0], minDateObj, unit);
+        const endIndex = dateToIndex(currentRange[1], minDateObj, unit);
+        const maxIndex = dateToIndex(maxDateObj, minDateObj, unit);
+
+        const newStartIndex = Math.min(
+          maxIndex - (endIndex - startIndex),
+          startIndex + Number(step)
+        );
+        const newEndIndex = Math.min(maxIndex, endIndex + Number(step));
+
+        const newRange = [
+          toUTCISOString(indexToDate(newStartIndex, minDateObj, unit)),
+          toUTCISOString(indexToDate(newEndIndex, minDateObj, unit)),
+        ];
+        setValue(newRange);
+      } else {
+        const rangeSize = value[1] - value[0];
+        const newStart = Math.min(max - rangeSize, value[0] + Number(step));
+        setValue([newStart, newStart + rangeSize]);
+      }
+    } else {
+      if (isDateType && unit) {
+        const currentDate = new Date(
+          parseDateMath({ value, type: "date-hour" })
+        );
+        const minDateObj = new Date(
+          parseDateMath({ value: min, type: "date-hour" })
+        );
+        const maxDateObj = new Date(
+          parseDateMath({ value: max, type: "date-hour" })
+        );
+        const currentIndex = dateToIndex(currentDate, minDateObj, unit);
+        const maxIndex = dateToIndex(maxDateObj, minDateObj, unit);
+        const newIndex = Math.min(maxIndex, currentIndex + Number(step));
+
+        const resultDate = indexToDate(newIndex, minDateObj, unit);
+        setValue(toUTCISOString(resultDate));
+      } else {
+        setValue(Math.min(max, value + Number(step)));
       }
     }
   };
@@ -254,8 +419,8 @@ const Slider = ({
       return isDateType && unit
         ? value.map((v) =>
             dateToIndex(
-              parseDateMath({ value: v, type: "date-hour" }),
-              parseDateMath({ value: min, type: "date-hour" }),
+              new Date(parseDateMath({ value: v, type: "date-hour" })),
+              new Date(parseDateMath({ value: min, type: "date-hour" })),
               unit
             )
           )
@@ -263,8 +428,8 @@ const Slider = ({
     }
     return isDateType && unit
       ? dateToIndex(
-          parseDateMath({ value, type: "date-hour" }),
-          parseDateMath({ value: min, type: "date-hour" }),
+          new Date(parseDateMath({ value, type: "date-hour" })),
+          new Date(parseDateMath({ value: min, type: "date-hour" })),
           unit
         )
       : value;
@@ -274,8 +439,8 @@ const Slider = ({
   const sliderMax =
     isDateType && unit
       ? dateToIndex(
-          parseDateMath({ value: max, type: "date-hour" }),
-          parseDateMath({ value: min, type: "date-hour" }),
+          new Date(parseDateMath({ value: max, type: "date-hour" })),
+          new Date(parseDateMath({ value: min, type: "date-hour" })),
           unit
         )
       : max;
@@ -292,7 +457,70 @@ const Slider = ({
         </Form.Label>
       )}
       <Form>
+        {/* Top controls - Play button and Speed selector */}
+        <Row className="align-items-center mb-2">
+          <Col className="d-flex justify-content-center gap-2">
+            {/* Play/Stop button */}
+            {!playing ? (
+              <Button
+                variant="primary"
+                onClick={() => setPlaying(true)}
+                title="Play"
+                aria-label="play"
+              >
+                ▶️
+              </Button>
+            ) : (
+              <Button
+                variant="danger"
+                onClick={() => setPlaying(false)}
+                title="Stop"
+                aria-label="stop"
+              >
+                ⏹️
+              </Button>
+            )}
+
+            {/* Speed selector */}
+            <Form.Select
+              value={speed}
+              onChange={(e) => setSpeed(Number(e.target.value))}
+              disabled={playing}
+              aria-label="Speed select"
+              style={{ width: "auto", minWidth: "80px" }}
+            >
+              {speeds.map(({ label, value }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </Form.Select>
+          </Col>
+        </Row>
+
         <Row className="align-items-center">
+          {/* Left controls - First and Previous */}
+          <Col xs="auto" className="d-flex gap-1">
+            <Button
+              variant="primary"
+              onClick={goToFirst}
+              title="Go to first"
+              aria-label="go to first"
+              disabled={playing}
+            >
+              ⏮️
+            </Button>
+            <Button
+              variant="primary"
+              onClick={goBackStep}
+              title="Previous step"
+              aria-label="previous step"
+              disabled={playing}
+            >
+              ⏪
+            </Button>
+          </Col>
+
           {/* Start value */}
           <Col xs="auto" className="text-center" aria-label="Min Value">
             <strong>{formatValue(min, outputFormat, isDateType)}</strong>
@@ -334,39 +562,26 @@ const Slider = ({
             <strong>{formatValue(max, outputFormat, isDateType)}</strong>
           </Col>
 
-          {/* Controls */}
-          <Col xs="auto" className="d-flex flex-column gap-2">
-            {!playing ? (
-              <Button
-                variant="primary"
-                onClick={() => setPlaying(true)}
-                title="Play"
-                aria-label="play"
-              >
-                ▶️
-              </Button>
-            ) : (
-              <Button
-                variant="danger"
-                onClick={() => setPlaying(false)}
-                title="Stop"
-                aria-label="stop"
-              >
-                ⏹️
-              </Button>
-            )}
-            <Form.Select
-              value={speed}
-              onChange={(e) => setSpeed(Number(e.target.value))}
+          {/* Right controls - Next and Last */}
+          <Col xs="auto" className="d-flex gap-1">
+            <Button
+              variant="primary"
+              onClick={goForwardStep}
+              title="Next step"
+              aria-label="next step"
               disabled={playing}
-              aria-label="Speed select"
             >
-              {speeds.map(({ label, value }) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Form.Select>
+              ⏩
+            </Button>
+            <Button
+              variant="primary"
+              onClick={goToLast}
+              title="Go to last"
+              aria-label="go to last"
+              disabled={playing}
+            >
+              ⏭️
+            </Button>
           </Col>
         </Row>
       </Form>
