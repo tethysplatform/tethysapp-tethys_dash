@@ -246,6 +246,11 @@ export const nonDropDownVariableInputTypes = [
     label: "slider",
     sub_args: { metadata: "custom-SliderMetadata" },
   },
+  {
+    value: "csv-uploader",
+    label: "csv uploader",
+    sub_args: { metadata: "custom-CSVUploaderMetadata", header: "multiinput" },
+  },
 ];
 
 export const baseMapLayers = [

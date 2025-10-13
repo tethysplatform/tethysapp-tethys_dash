@@ -228,6 +228,12 @@ const VariableInput = ({
         />
       </StyledDiv>
     );
+  } else if (type === "csv-uploader") {
+    return (
+      <StyledDiv>
+        <CSVUploader />
+      </StyledDiv>
+    );
   } else {
     return (
       <StyledDiv>
