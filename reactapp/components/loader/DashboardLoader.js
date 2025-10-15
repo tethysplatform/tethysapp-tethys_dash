@@ -9,6 +9,7 @@ import {
   DisabledEditingMovementContext,
   DataViewerModeContext,
   AvailableDashboardsContext,
+  TabContext,
 } from "components/contexts/Contexts";
 import Error from "components/error/Error";
 import errorImage from "assets/error404.png";
@@ -28,13 +29,14 @@ const DashboardLoader = ({
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [variableInputValues, setVariableInputValues] = useState({});
-  const [gridItems, setGridItems] = useState([]);
+  const [tabs, setTabs] = useState([]);
+  const [activeTabId, setActiveTabId] = useState(null);
   const [notes, setNotes] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [disabledEditingMovement, setDisabledEditingMovement] = useState(false);
   const [inDataViewerMode, setInDataViewerMode] = useState(false);
   const { updateDashboard } = useContext(AvailableDashboardsContext);
-  const originalGridItems = useRef({});
+  const originalTabs = useRef({});
   const editable = ["admin", "editor"].includes(userPermission);
 
   useEffect(() => {
@@ -42,9 +44,11 @@ const DashboardLoader = ({
       try {
         const response = await appAPI.getDashboard({ id });
         if (response.success) {
-          updateGridItems(response.dashboard.gridItems);
-          originalGridItems.current = response.dashboard.gridItems;
+          updateVariableInputValuesWithGridItems(response.dashboard.tabs);
+          originalTabs.current = response.dashboard.tabs;
           setNotes(response.dashboard.notes);
+          setTabs(response.dashboard.tabs);
+          setActiveTabId(response.dashboard.tabs[0].id);
           setIsLoaded(true);
         } else {
           setLoadError(true);
@@ -64,50 +68,92 @@ const DashboardLoader = ({
     }
   }, [isEditing]);
 
-  function updateVariableInputValuesWithGridItems(updatedGridItems) {
+  function updateVariableInputValuesWithGridItems(updatedTabs) {
     const updatedVariableInputValues = JSON.parse(
       JSON.stringify(variableInputValues)
     );
-    for (let gridItem of updatedGridItems) {
-      const args = JSON.parse(gridItem.args_string);
+    for (let tab of updatedTabs) {
+      for (let gridItem of tab.gridItems) {
+        const args = JSON.parse(gridItem.args_string);
 
-      if (gridItem.source === "Variable Input") {
-        if (!(args.variable_name in variableInputValues)) {
-          let initialValue = args.initial_value;
-          if (
-            args.variable_options_source === "checkbox" &&
-            args.initial_value === null
-          ) {
-            initialValue = false;
+        if (gridItem.source === "Variable Input") {
+          if (!(args.variable_name in variableInputValues)) {
+            let initialValue = args.initial_value;
+            if (
+              args.variable_options_source === "checkbox" &&
+              args.initial_value === null
+            ) {
+              initialValue = false;
+            }
+            updatedVariableInputValues[args.variable_name] = initialValue;
           }
-          updatedVariableInputValues[args.variable_name] = initialValue;
         }
       }
     }
     setVariableInputValues(updatedVariableInputValues);
   }
 
-  function updateGridItems(updatedGridItems) {
-    setGridItems(updatedGridItems);
-    updateVariableInputValuesWithGridItems(updatedGridItems);
+  function updateTab(tabId, updatedGridItems) {
+    setTabs((prevTabs) =>
+      prevTabs.map((tab) =>
+        tab.id === tabId ? { ...tab, gridItems: updatedGridItems } : tab
+      )
+    );
+    updateVariableInputValuesWithGridItems(originalTabs.current);
   }
 
-  function resetGridItems() {
-    setGridItems(originalGridItems.current);
-    updateVariableInputValuesWithGridItems(originalGridItems.current);
+  function resetTabs() {
+    setTabs(originalTabs.current);
+    setActiveTabId(originalTabs.current[0].id);
+    updateVariableInputValuesWithGridItems(originalTabs.current);
   }
 
   async function saveLayoutContext(newProperties) {
     const apiResponse = await updateDashboard({ id, newProperties });
     if (apiResponse["success"]) {
       const updatedDashboard = apiResponse.updated_dashboard;
-      if ("gridItems" in newProperties) {
-        setGridItems(updatedDashboard.gridItems);
-        originalGridItems.current = updatedDashboard.gridItems;
+      if ("tabs" in newProperties) {
+        const originalActiveTabIndex = tabs.findIndex(
+          (tab) => tab.id === activeTabId
+        );
+        setTabs(updatedDashboard.tabs);
+        originalTabs.current = updatedDashboard.tabs;
+        if (originalActiveTabIndex === -1) {
+          // If the current active tab was deleted, set to the first tab
+          setActiveTabId(updatedDashboard.tabs[0].id);
+        } else {
+          setActiveTabId(updatedDashboard.tabs[originalActiveTabIndex].id);
+        }
       }
     }
     return apiResponse;
   }
+
+  const addTab = () => {
+    const tabName = `Tab ${tabs.length + 1}`;
+    const newTab = {
+      id: tabName,
+      order: tabs.length,
+      gridItems: [],
+      name: tabName,
+    };
+    setTabs([...tabs, newTab]);
+    setActiveTabId(newTab.id);
+  };
+
+  const deleteTab = (tabId) => {
+    const newTabs = tabs.filter((tab) => tab.id !== tabId);
+    setTabs(newTabs);
+    if (activeTabId === tabId && newTabs.length > 0) {
+      setActiveTabId(newTabs[0].id);
+    }
+  };
+
+  const reorderTabs = (newOrder) => {
+    setTabs(newOrder);
+  };
+
+  const getActiveTab = () => tabs.find((tab) => tab.id === activeTabId);
 
   if (loadError) {
     return (
@@ -125,43 +171,54 @@ const DashboardLoader = ({
           setVariableInputValues,
         }}
       >
-        <LayoutContext.Provider
+        <TabContext.Provider
           value={{
-            updateGridItems,
-            resetGridItems,
-            saveLayoutContext,
-            id,
-            uuid,
-            name,
-            notes,
-            gridItems,
-            editable,
-            publicDashboard,
-            userPermission,
-            permissions,
-            unrestrictedPlacement,
-            description,
-            owner,
+            tabs,
+            activeTabId,
+            setActiveTabId,
+            addTab,
+            updateTab,
+            deleteTab,
+            reorderTabs,
+            resetTabs,
+            getActiveTab,
           }}
         >
-          <EditingContext.Provider value={{ isEditing, setIsEditing }}>
-            <DisabledEditingMovementContext.Provider
-              value={{
-                disabledEditingMovement,
-                setDisabledEditingMovement,
-              }}
-            >
-              <DataViewerModeContext.Provider
+          <LayoutContext.Provider
+            value={{
+              saveLayoutContext,
+              id,
+              uuid,
+              name,
+              notes,
+              editable,
+              publicDashboard,
+              userPermission,
+              permissions,
+              unrestrictedPlacement,
+              description,
+              owner,
+            }}
+          >
+            <EditingContext.Provider value={{ isEditing, setIsEditing }}>
+              <DisabledEditingMovementContext.Provider
                 value={{
-                  inDataViewerMode,
-                  setInDataViewerMode,
+                  disabledEditingMovement,
+                  setDisabledEditingMovement,
                 }}
               >
-                {children}
-              </DataViewerModeContext.Provider>
-            </DisabledEditingMovementContext.Provider>
-          </EditingContext.Provider>
-        </LayoutContext.Provider>
+                <DataViewerModeContext.Provider
+                  value={{
+                    inDataViewerMode,
+                    setInDataViewerMode,
+                  }}
+                >
+                  {children}
+                </DataViewerModeContext.Provider>
+              </DisabledEditingMovementContext.Provider>
+            </EditingContext.Provider>
+          </LayoutContext.Provider>
+        </TabContext.Provider>
       </VariableInputsContext.Provider>
     );
   }

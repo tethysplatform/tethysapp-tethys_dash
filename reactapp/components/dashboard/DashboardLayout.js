@@ -4,6 +4,7 @@ import {
   LayoutContext,
   EditingContext,
   DisabledEditingMovementContext,
+  TabContext,
 } from "components/contexts/Contexts";
 import DashboardItem from "components/dashboard/DashboardItem";
 import "react-grid-layout/css/styles.css";
@@ -14,9 +15,9 @@ const ReactGridLayout = WidthProvider(RGL);
 const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
-const DashboardLayout = () => {
-  const { updateGridItems, gridItems, unrestrictedPlacement } =
-    useContext(LayoutContext);
+const DashboardLayout = ({ tabId, gridItems }) => {
+  const { unrestrictedPlacement } = useContext(LayoutContext);
+  const { updateTab } = useContext(TabContext);
   const { isEditing } = useContext(EditingContext);
   const { disabledEditingMovement } = useContext(
     DisabledEditingMovementContext
@@ -88,7 +89,7 @@ const DashboardLayout = () => {
       });
     }
 
-    updateGridItems(updatedGridItems);
+    updateTab(tabId, updatedGridItems);
     updateGridEditing(updatedGridItems);
   }
 

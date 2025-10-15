@@ -1,4 +1,5 @@
 import DashboardLayout from "components/dashboard/DashboardLayout";
+import DashboardTabs from "components/dashboard/DashboardTabs";
 import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import { DashboardHeader } from "components/layout/Header";
@@ -11,7 +12,7 @@ function DashboardView(dashboardProps) {
       <LayoutAlertContextProvider>
         <DashboardHeader />
         <DashboardLayoutAlerts />
-        <DashboardLayout />
+        <DashboardTabs />
       </LayoutAlertContextProvider>
     </DashboardLoader>
   );

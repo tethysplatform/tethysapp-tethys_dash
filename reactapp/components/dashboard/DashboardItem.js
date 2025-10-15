@@ -9,6 +9,7 @@ import {
   VariableInputsContext,
   DataViewerModeContext,
   AppContext,
+  TabContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
@@ -220,7 +221,7 @@ const DashboardItem = ({
   const [gridItemStyling, setGridItemStyling] = useState(
     JSON.parse(gridItemMetadataString)
   );
-  const { updateGridItems, gridItems } = useContext(LayoutContext);
+  const { getActiveTab, updateTab } = useContext(TabContext);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );
@@ -246,10 +247,11 @@ const DashboardItem = ({
 
   async function deleteGridItem(e) {
     if (await confirm("Are you sure you want to delete the item?")) {
+      const { gridItems, id: activeTabId } = getActiveTab();
       const updated_grid_items = JSON.parse(JSON.stringify(gridItems));
       updated_grid_items.splice(gridItemIndex, 1);
 
-      updateGridItems(updated_grid_items);
+      updateTab(activeTabId, updated_grid_items);
       setIsEditing(true);
     }
   }
@@ -264,13 +266,15 @@ const DashboardItem = ({
   }
 
   function updateGridItemOrder(newIndex) {
+    const { gridItems, id: activeTabId } = getActiveTab();
     const updatedGridItems = [...gridItems];
     const [movingGridItem] = updatedGridItems.splice(gridItemIndex, 1);
     updatedGridItems.splice(newIndex, 0, movingGridItem);
-    updateGridItems(updatedGridItems);
+    updateTab(activeTabId, updatedGridItems);
   }
 
   function bringGridItemtoFront() {
+    const { gridItems } = getActiveTab();
     const newIndex = gridItems.length - 1;
     updateGridItemOrder(newIndex);
   }
@@ -291,6 +295,7 @@ const DashboardItem = ({
   }
 
   async function exportGridItem() {
+    const { gridItems } = getActiveTab();
     const gridItem = JSON.parse(JSON.stringify(gridItems[gridItemIndex]));
 
     const exportedGridItem = await handleGridItemExport(gridItem);
@@ -304,6 +309,7 @@ const DashboardItem = ({
   }
 
   function copyGridItem() {
+    const { gridItems, id: activeTabId } = getActiveTab();
     let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
@@ -331,7 +337,7 @@ const DashboardItem = ({
       setVariableInputValues(variableInputValues);
     }
     const updatedGridItems = JSON.parse(JSON.stringify(gridItems));
-    updateGridItems([...updatedGridItems, newGridItem]);
+    updateTab(activeTabId, [...updatedGridItems, newGridItem]);
     setIsEditing(true);
   }
 

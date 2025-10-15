@@ -89,7 +89,7 @@ function AppInfoModal({ showModal, setShowModal, view }) {
         editingContext.setIsEditing(false);
       }
       setAppTourStep(17);
-      layoutContext.resetGridItems();
+      layoutContext.resetTabs();
     } else {
       setAppTourStep(0);
     }

@@ -11,6 +11,7 @@ import {
   EditingContext,
   DisabledEditingMovementContext,
   AppContext,
+  TabContext,
 } from "components/contexts/Contexts";
 import TooltipButton from "components/buttons/TooltipButton";
 import DashboardEditorCanvas from "components/modals/DashboardEditor";
@@ -236,15 +237,9 @@ export const DashboardHeader = () => {
     dontShowDashboardInfoOnStart !== "true"
   );
   const { user } = useContext(AppContext);
-  const {
-    name,
-    editable,
-    gridItems,
-    updateGridItems,
-    resetGridItems,
-    saveLayoutContext,
-    unrestrictedPlacement,
-  } = useContext(LayoutContext);
+  const { name, editable, saveLayoutContext, unrestrictedPlacement } =
+    useContext(LayoutContext);
+  const { tabs, updateTab, resetTabs, getActiveTab } = useContext(TabContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [isSaving, setIsSaving] = useState(false);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
@@ -269,12 +264,13 @@ export const DashboardHeader = () => {
 
   function onCancel() {
     setTimeout(() => {
-      resetGridItems();
+      resetTabs();
       setIsEditing(false);
     }, 100); // This ensures that the old overlay doesn't show after the new buttons appear
   }
 
   function onAddGridItem({ importedGridItem }) {
+    const { gridItems, id: activeTabId } = getActiveTab();
     let maxGridItemI = gridItems.reduce((acc, value) => {
       return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
     }, 0);
@@ -302,7 +298,7 @@ export const DashboardHeader = () => {
     } else {
       updatedGridItems = [newGridItem, ...gridItems];
     }
-    updateGridItems(updatedGridItems);
+    updateTab(activeTabId, updatedGridItems);
   }
 
   function onImportGridItem(importedGridItem) {
@@ -326,7 +322,7 @@ export const DashboardHeader = () => {
     setShowErrorMessage(false);
     setIsSaving(true);
 
-    const response = await saveLayoutContext({ gridItems });
+    const response = await saveLayoutContext({ tabs });
     if (response.success) {
       setSuccessMessage("Change have been saved.");
       setShowSuccessMessage(true);
