@@ -93,10 +93,10 @@ const DashboardLoader = ({
     setVariableInputValues(updatedVariableInputValues);
   }
 
-  function updateTab(tabId, updatedGridItems) {
+  function updateTab(tabId, updatedProperties) {
     setTabs((prevTabs) =>
       prevTabs.map((tab) =>
-        tab.id === tabId ? { ...tab, gridItems: updatedGridItems } : tab
+        tab.id === tabId ? { ...tab, ...updatedProperties } : tab
       )
     );
     updateVariableInputValuesWithGridItems(originalTabs.current);
@@ -155,6 +155,8 @@ const DashboardLoader = ({
 
   const getActiveTab = () => tabs.find((tab) => tab.id === activeTabId);
 
+  const getTab = (id) => tabs.find((tab) => tab.id === id);
+
   if (loadError) {
     return (
       <Error title="Dashboard Failed to Load" image={errorImage}>
@@ -182,6 +184,7 @@ const DashboardLoader = ({
             reorderTabs,
             resetTabs,
             getActiveTab,
+            getTab,
           }}
         >
           <LayoutContext.Provider

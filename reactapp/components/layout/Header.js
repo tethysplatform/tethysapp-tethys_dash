@@ -298,7 +298,7 @@ export const DashboardHeader = () => {
     } else {
       updatedGridItems = [newGridItem, ...gridItems];
     }
-    updateTab(activeTabId, updatedGridItems);
+    updateTab(activeTabId, { gridItems: updatedGridItems });
   }
 
   function onImportGridItem(importedGridItem) {

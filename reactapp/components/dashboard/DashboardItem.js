@@ -251,7 +251,7 @@ const DashboardItem = ({
       const updated_grid_items = JSON.parse(JSON.stringify(gridItems));
       updated_grid_items.splice(gridItemIndex, 1);
 
-      updateTab(activeTabId, updated_grid_items);
+      updateTab(activeTabId, { gridItems: updated_grid_items });
       setIsEditing(true);
     }
   }
@@ -270,7 +270,7 @@ const DashboardItem = ({
     const updatedGridItems = [...gridItems];
     const [movingGridItem] = updatedGridItems.splice(gridItemIndex, 1);
     updatedGridItems.splice(newIndex, 0, movingGridItem);
-    updateTab(activeTabId, updatedGridItems);
+    updateTab(activeTabId, { gridItems: updatedGridItems });
   }
 
   function bringGridItemtoFront() {
@@ -337,7 +337,7 @@ const DashboardItem = ({
       setVariableInputValues(variableInputValues);
     }
     const updatedGridItems = JSON.parse(JSON.stringify(gridItems));
-    updateTab(activeTabId, [...updatedGridItems, newGridItem]);
+    updateTab(activeTabId, { gridItems: [...updatedGridItems, newGridItem] });
     setIsEditing(true);
   }
 

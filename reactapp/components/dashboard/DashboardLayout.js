@@ -1,4 +1,11 @@
-import { useState, useEffect, useCallback, useRef, useContext } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  useContext,
+  memo,
+} from "react";
 import RGL, { WidthProvider } from "react-grid-layout";
 import {
   LayoutContext,
@@ -89,7 +96,7 @@ const DashboardLayout = ({ tabId, gridItems }) => {
       });
     }
 
-    updateTab(tabId, updatedGridItems);
+    updateTab(tabId, { gridItems: updatedGridItems });
     updateGridEditing(updatedGridItems);
   }
 
@@ -138,4 +145,4 @@ const DashboardLayout = ({ tabId, gridItems }) => {
   );
 };
 
-export default DashboardLayout;
+export default memo(DashboardLayout);
