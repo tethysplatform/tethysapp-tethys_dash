@@ -10,6 +10,7 @@ import {
   LayoutContext,
   VariableInputsContext,
   AppContext,
+  TabContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import CustomAlert from "components/dashboard/CustomAlert";
@@ -66,6 +67,7 @@ function DataViewerModal({
   setShowGridItemMessage,
 }) {
   const { visualizations } = useContext(AppContext);
+  const { getActiveTab, updateTab } = useContext(TabContext);
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(
     findVisualizationBySource(visualizations, source)
   );
@@ -74,7 +76,6 @@ function DataViewerModal({
   const [vizInputsValues, setVizInputsValues] = useState({});
   const [variableInputValue, setVariableInputValue] = useState(null);
   const [vizMetdata, setVizMetadata] = useState(null);
-  const { updateGridItems, gridItems } = useContext(LayoutContext);
   const [alertMessage, setAlertMessage] = useState("");
   const [showAlert, setShowAlert] = useState(false);
   const { variableInputValues, setVariableInputValues } = useContext(
@@ -123,6 +124,7 @@ function DataViewerModal({
           (value) => ![null, ""].includes(value)
         )
       ) {
+        const { gridItems, id: activeTabId } = getActiveTab();
         let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
         updatedGridItems[gridItemIndex].source = vizMetdata.source;
 
@@ -145,7 +147,7 @@ function DataViewerModal({
           );
         }
 
-        updateGridItems(updatedGridItems);
+        updateTab(activeTabId, { gridItems: updatedGridItems });
         setShowGridItemMessage(true);
         handleModalClose();
       } else {
