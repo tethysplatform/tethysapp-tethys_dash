@@ -94,6 +94,20 @@ const StyledTabs = styled(Tabs)`
   .nav-link {
     text-align: center;
     width: 100%;
+    background-color: #e3f2fd;
+    border: 1px solid #d0d0d0;
+    color: #333;
+
+    &:hover {
+      background-color: #bbdefb;
+    }
+
+    &.active {
+      background-color: white;
+      border-right: 1px solid #999;
+      border-left: 1px solid #999;
+      color: #333;
+    }
   }
 `;
 
