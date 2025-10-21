@@ -1444,10 +1444,14 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
               permissions, and optionally grid items
     """
     dashboard_list = []
+    MEDIA_URL = settings.MEDIA_URL
+    PREFIX_URL = settings.PREFIX_URL
+    if PREFIX_URL is not None and PREFIX_URL != "/":
+        MEDIA_URL = f"/{PREFIX_URL}/{MEDIA_URL.strip('/')}/"
 
     for dashboard in dashboards:
         dashboard_image = os.path.join(
-            settings.MEDIA_URL, App.root_url, f"app/{dashboard.uuid}.png"
+            MEDIA_URL, App.root_url, f"app/{dashboard.uuid}.png"
         )
         app_media = get_app_media(App)
         if not os.path.exists(os.path.join(app_media.path, f"{dashboard.uuid}.png")):

@@ -5,8 +5,16 @@ const ModuleFederationPlugin = require("webpack/lib/container/ModuleFederationPl
 
 module.exports = (env, argv) => {
   const dotEnvPath = `./reactapp/config/${argv.mode}.env`;
+  require("dotenv").config({ path: dotEnvPath });
+  if (process.env.TETHYS_PREFIX_URL) {
+    tethys_prefix_url = `/${process.env.TETHYS_PREFIX_URL}`;
+  } else {
+    tethys_prefix_url = "";
+  }
+
   console.log(`Building in ${argv.mode} mode...`);
   console.log(`=> Using .env config at "${dotEnvPath}"`);
+  console.log(`=> Using prefix "${tethys_prefix_url}"`);
   return {
     entry: ["./reactapp"],
     output: {
@@ -15,7 +23,7 @@ module.exports = (env, argv) => {
         "../../tethysapp/tethysdash/public/frontend"
       ),
       filename: "[name].js",
-      publicPath: "/static/tethysdash/frontend/",
+      publicPath: `${tethys_prefix_url}/static/tethysdash/frontend/`,
     },
     resolve: {
       modules: [

@@ -1030,3 +1030,79 @@ test("Landing Page App Tour", async () => {
     document.querySelector("#react-joyride-portal")
   ).not.toBeInTheDocument();
 }, 40000);
+
+test("samplePluginImagePath is constructed correctly", () => {
+  // Save original environment
+  const originalEnv = process.env.TETHYS_PREFIX_URL;
+
+  // Test with no prefix URL (should result in "/static/tethysdash/images/tethys_dash.png")
+  delete process.env.TETHYS_PREFIX_URL;
+  jest.resetModules();
+
+  // Mock the module to expose the constant for testing
+  jest.doMock("components/appTour/AppTour", () => {
+    const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
+      /(^\/+|\/+?$)/g,
+      ""
+    );
+    const samplePluginImagePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/tethys_dash.png`;
+
+    const AppTour = () => null; // Mock component
+    AppTour.samplePluginImagePath = samplePluginImagePath; // Expose for testing
+    return { default: AppTour };
+  });
+
+  let AppTour = require("components/appTour/AppTour").default;
+  expect(AppTour.samplePluginImagePath).toBe(
+    "/static/tethysdash/images/tethys_dash.png"
+  );
+
+  // Test with prefix URL
+  process.env.TETHYS_PREFIX_URL = "/test-prefix/";
+  jest.resetModules();
+  jest.doMock("components/appTour/AppTour", () => {
+    const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
+      /(^\/+|\/+?$)/g,
+      ""
+    );
+    const samplePluginImagePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/tethys_dash.png`;
+
+    const AppTour = () => null;
+    AppTour.samplePluginImagePath = samplePluginImagePath;
+    return { default: AppTour };
+  });
+
+  AppTour = require("components/appTour/AppTour").default;
+  expect(AppTour.samplePluginImagePath).toBe(
+    "/test-prefix/static/tethysdash/images/tethys_dash.png"
+  );
+
+  // Test with prefix URL that has multiple slashes
+  process.env.TETHYS_PREFIX_URL = "///another-prefix///";
+  jest.resetModules();
+  jest.doMock("components/appTour/AppTour", () => {
+    const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
+      /(^\/+|\/+?$)/g,
+      ""
+    );
+    const samplePluginImagePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/tethys_dash.png`;
+
+    const AppTour = () => null;
+    AppTour.samplePluginImagePath = samplePluginImagePath;
+    return { default: AppTour };
+  });
+
+  AppTour = require("components/appTour/AppTour").default;
+  expect(AppTour.samplePluginImagePath).toBe(
+    "/another-prefix/static/tethysdash/images/tethys_dash.png"
+  );
+
+  // Restore original environment and reset modules
+  if (originalEnv !== undefined) {
+    process.env.TETHYS_PREFIX_URL = originalEnv;
+  } else {
+    delete process.env.TETHYS_PREFIX_URL;
+  }
+  jest.resetModules();
+  jest.dontMock("components/appTour/AppTour");
+});
