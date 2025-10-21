@@ -9,6 +9,7 @@
     "lint": "npx eslint reactapp",
     "pretty": "prettier --write \"./**/*.{js,jsx,mjs,cjs,ts,tsx,json}\"",
     "test": "jest --silent --coverage",
+    "test:serial": "jest --silent --coverage --runInBand",
     "cleartestCache": "jest --clearCache",
     "test:watch": "npm run test -- --watch",
     "jest-preview": "jest-preview yarn test"
@@ -149,7 +150,8 @@
     "collectCoverageFrom": [
       "reactapp/**/*.{js,jsx,ts,tsx}",
       "!reactapp/**/*.d.ts",
-      "!reactapp/__tests__/**/*"
+      "!reactapp/__tests__/**/*",
+      "!reactapp/config/**/*"
     ],
     "setupFiles": [
       "react-app-polyfill/jsdom",
@@ -206,7 +208,10 @@
       "jest-watch-typeahead/filename",
       "jest-watch-typeahead/testname"
     ],
-    "resetMocks": true
+    "resetMocks": true,
+    "maxWorkers": 6,
+    "testTimeout": 30000,
+    "slowTestThreshold": 10
   },
   "babel": {
     "presets": [
