@@ -23,7 +23,7 @@ import {
   useLayoutSuccessAlertContext,
   useLayoutErrorAlertContext,
 } from "components/contexts/LayoutAlertContext";
-import { getTethysPortalHost } from "services/utilities";
+import { getTethysPortalBase } from "services/utilities";
 
 import {
   BsX,
@@ -47,7 +47,7 @@ const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
 );
 const staticBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/`;
 
-const TETHYS_PORTAL_HOST = getTethysPortalHost();
+const TETHYS_PORTAL_BASE = getTethysPortalBase();
 
 const StyledSpinner = styled(Spinner)`
   vertical-align: middle;
@@ -169,7 +169,7 @@ export const LandingPageHeader = () => {
               <TooltipButton
                 onClick={() => {
                   window.location.assign(
-                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
+                    `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
                   );
                 }}
                 tooltipPlacement="bottom"
@@ -451,7 +451,7 @@ export const DashboardHeader = () => {
               <TooltipButton
                 onClick={() => {
                   window.location.assign(
-                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
+                    `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
                   );
                 }}
                 tooltipPlacement="bottom"

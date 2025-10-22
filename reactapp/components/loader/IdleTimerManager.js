@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, memo } from "react";
 import { Confirmation } from "components/inputs/Confirmation";
 import Form from "react-bootstrap/Form";
-import { getTethysPortalHost } from "services/utilities";
+import { getTethysPortalBase } from "services/utilities";
 import PropTypes from "prop-types";
 import { useIdleTimer } from "react-idle-timer";
 import appAPI from "services/api/app";
@@ -26,7 +26,7 @@ function IdleTimerManager() {
   const dontShowPublicLoginOnStart = localStorage.getItem(
     "dontShowPublicLoginOnStart"
   );
-  const TETHYS_PORTAL_HOST = getTethysPortalHost();
+  const TETHYS_PORTAL_BASE = getTethysPortalBase();
 
   useEffect(() => {
     const loadAppData = async () => {
@@ -57,7 +57,7 @@ function IdleTimerManager() {
 
   const onIdle = () => {
     window.location.assign(
-      `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
+      `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
     );
     setShowActivePrompt(false);
   };
@@ -108,7 +108,7 @@ function IdleTimerManager() {
         if (response.status === -2) {
           // The user has been signed out
           window.location.assign(
-            `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
+            `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
           );
         } else if (response.status === 2 || response.status === -1) {
           // (2) Pause the IdleTimer as it's not going to do anything for a public user
@@ -143,7 +143,7 @@ function IdleTimerManager() {
   const handlePublicUser = (confirmation) => {
     if (!confirmation) {
       window.location.assign(
-        `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
+        `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
       );
       return;
     }
