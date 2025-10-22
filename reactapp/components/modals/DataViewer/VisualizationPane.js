@@ -70,7 +70,7 @@ const VisualizationArguments = ({
       }
     }
 
-    return (
+    return ( // TODO
       <DataInput
         key={key}
         label={spaceAndCapitalize(obj.label)}
@@ -327,6 +327,7 @@ function VisualizationPane({
             itemData.args.initial_value = "0";
           }
         }
+        // TODO we update variable input here
         setVizType("variableInput");
         setVizData({
           variable_name: itemData.args.variable_name,

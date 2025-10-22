@@ -22,27 +22,14 @@ const StyledTable = styled(Table)`
 `;
 
 const CSVUploader = ({
-  buttonText = "Toggle Table",
+  buttonText = "Toggle Table",  // TODO maybe add these args to metadata
   variant = "primary",
-  data = [],
+  headers = [],
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   // Default dummy data if none provided
-  const defaultData = [
-    { id: 1, name: "John Doe", email: "john@example.com", role: "Admin" },
-    { id: 2, name: "Jane Smith", email: "jane@example.com", role: "User" },
-    { id: 3, name: "Bob Johnson", email: "bob@example.com", role: "Editor" },
-    { id: 4, name: "Alice Brown", email: "alice@example.com", role: "Viewer" },
-    {
-      id: 5,
-      name: "Charlie Wilson",
-      email: "charlie@example.com",
-      role: "User",
-    },
-  ];
-
-  const tableData = data.length > 0 ? data : defaultData;
+  console.log("CSVUploader headers:", headers);
 
   const handleToggle = () => {
     setIsOpen(!isOpen);
@@ -64,21 +51,20 @@ const CSVUploader = ({
           <StyledTable striped bordered hover responsive>
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Role</th>
+                {headers.map((header, index) => (
+                  <th key={index}>{header}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {tableData.map((row, index) => (
+              {/* {tableData.map((row, index) => (
                 <tr key={row.id || index}>
                   <td>{row.id || index + 1}</td>
                   <td>{row.name || "N/A"}</td>
                   <td>{row.email || "N/A"}</td>
                   <td>{row.role || "N/A"}</td>
                 </tr>
-              ))}
+              ))} */}
             </tbody>
           </StyledTable>
         </div>

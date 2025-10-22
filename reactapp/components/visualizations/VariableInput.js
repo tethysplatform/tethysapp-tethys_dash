@@ -229,9 +229,15 @@ const VariableInput = ({
       </StyledDiv>
     );
   } else if (type === "csv-uploader") {
+    const requiredKeys = ["headers"];
+    const missingKeys = requiredKeys.filter((key => metadata?.[key] == null));
+
+    if (!metadata || missingKeys.length > 0) {
+      return <div data-testid="csvuploader-missing-metadata">Missing required metadata: {missingKeys}</div>;
+    }
     return (
       <StyledDiv>
-        <CSVUploader />
+        <CSVUploader headers={metadata.headers}/>
       </StyledDiv>
     );
   } else {

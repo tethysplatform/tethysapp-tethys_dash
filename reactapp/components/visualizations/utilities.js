@@ -249,7 +249,7 @@ export const nonDropDownVariableInputTypes = [
   {
     value: "csv-uploader",
     label: "csv uploader",
-    sub_args: { metadata: "custom-CSVUploaderMetadata", header: "multiinput" },
+    sub_args: { metadata: "custom-CSVUploaderMetadata"},
   },
 ];
 
