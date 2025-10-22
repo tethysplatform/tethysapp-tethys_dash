@@ -34,7 +34,7 @@ describe("utilities", () => {
       process.env.TETHYS_PREFIX_URL = "/tethys/";
 
       const result = getTethysPortalHost();
-      expect(result).toBe("https://example.com/tethys");
+      expect(result).toBe("https://example.com");
     });
 
     test("should return portal host without prefix when prefix is empty", () => {
@@ -50,7 +50,7 @@ describe("utilities", () => {
       process.env.TETHYS_PREFIX_URL = "/tethys/";
 
       const result = getTethysPortalHost();
-      expect(result).toBe("https://example.com/tethys");
+      expect(result).toBe("https://example.com");
     });
 
     test("should derive portal host from window.location when env var is not set", () => {
@@ -62,7 +62,7 @@ describe("utilities", () => {
       );
 
       const result = getTethysPortalHost();
-      expect(result).toBe("https://localhost:8000/tethys");
+      expect(result).toBe("https://localhost:8000");
     });
 
     test("should derive portal host from window.location when env var is undefined", () => {
@@ -87,7 +87,7 @@ describe("utilities", () => {
       process.env.TETHYS_PREFIX_URL = "/tethys";
 
       const result = getTethysPortalHost();
-      expect(result).toBe("https://example.com/tethys");
+      expect(result).toBe("https://example.com");
     });
 
     test("should handle prefix URL with only trailing slash", () => {
@@ -95,7 +95,7 @@ describe("utilities", () => {
       process.env.TETHYS_PREFIX_URL = "tethys/";
 
       const result = getTethysPortalHost();
-      expect(result).toBe("https://example.com/tethys");
+      expect(result).toBe("https://example.com");
     });
   });
 
@@ -234,7 +234,7 @@ describe("utilities", () => {
 
       // Test portal host derivation
       const portalHost = getTethysPortalHost();
-      expect(portalHost).toBe("https://myapp.com/tethys");
+      expect(portalHost).toBe("https://myapp.com");
 
       // Test app root construction
       const appRoot = getTethysAppRoot();

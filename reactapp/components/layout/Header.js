@@ -23,7 +23,7 @@ import {
   useLayoutSuccessAlertContext,
   useLayoutErrorAlertContext,
 } from "components/contexts/LayoutAlertContext";
-import { getTethysPortalHost } from "services/utilities";
+import { getTethysPortalBase } from "services/utilities";
 
 import {
   BsX,
@@ -47,7 +47,8 @@ const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
 );
 const staticBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/`;
 
-const TETHYS_PORTAL_HOST = getTethysPortalHost();
+const TETHYS_PORTAL_BASE = getTethysPortalBase();
+
 const StyledSpinner = styled(Spinner)`
   vertical-align: middle;
   margin-right: 0.5rem;
@@ -168,7 +169,7 @@ export const LandingPageHeader = () => {
               <TooltipButton
                 onClick={() => {
                   window.location.assign(
-                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
+                    `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
                   );
                 }}
                 tooltipPlacement="bottom"
@@ -256,7 +257,6 @@ export const DashboardHeader = () => {
   const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
   const [showImportModal, setShowImportModal] = useState(false);
   const navigate = useNavigate();
-  const TETHYS_PORTAL_HOST = getTethysPortalHost();
 
   const showNav = () => {
     setShowEditCanvas(true);
@@ -451,7 +451,7 @@ export const DashboardHeader = () => {
               <TooltipButton
                 onClick={() => {
                   window.location.assign(
-                    `${TETHYS_PORTAL_HOST}/accounts/login?next=${window.location.pathname}`
+                    `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
                   );
                 }}
                 tooltipPlacement="bottom"
