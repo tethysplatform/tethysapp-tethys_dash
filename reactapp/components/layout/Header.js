@@ -48,6 +48,7 @@ const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
 const staticBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/`;
 
 const TETHYS_PORTAL_HOST = getTethysPortalHost();
+
 const StyledSpinner = styled(Spinner)`
   vertical-align: middle;
   margin-right: 0.5rem;
@@ -256,7 +257,6 @@ export const DashboardHeader = () => {
   const { setErrorMessage, setShowErrorMessage } = useLayoutErrorAlertContext();
   const [showImportModal, setShowImportModal] = useState(false);
   const navigate = useNavigate();
-  const TETHYS_PORTAL_HOST = getTethysPortalHost();
 
   const showNav = () => {
     setShowEditCanvas(true);

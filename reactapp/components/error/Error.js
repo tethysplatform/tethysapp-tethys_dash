@@ -61,7 +61,7 @@ const Error = ({ title, image, children }) => {
             <ErrorMessage className="mb-0">{children}</ErrorMessage>
             <ErrorMessage className="text-faded">
               <a href={TETHYS_PORTAL_HOST + APP_ROOT_URL}>Reload App</a> or{" "}
-              <a href={TETHYS_PORTAL_HOST + "/apps/"}>Exit the App</a>
+              <a href={TETHYS_PORTAL_HOST}>Exit the App</a>
             </ErrorMessage>
           </ErrorMessageBox>
         </ErrorMessageContainer>
