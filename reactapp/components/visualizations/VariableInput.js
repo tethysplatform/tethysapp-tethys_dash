@@ -15,7 +15,12 @@ import {
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
 import Slider from "components/inputs/Slider";
-import { parseDateMath } from "components/inputs/DatePicker";
+import {
+  parseDateMath,
+  dateFormat,
+  dateHourFormat,
+} from "components/inputs/DatePicker";
+import { format } from "date-fns";
 
 const StyledDiv = styled.div`
   padding: 1rem;
@@ -67,12 +72,12 @@ const VariableInput = ({
     (new_value) => {
       if (new_value || new_value === false || new_value === 0) {
         if (["date", "date-hour"].includes(variable_options_source)) {
-          const parsedDate = parseDateMath({
-            value: new_value,
-            type: variable_options_source,
-          });
+          const parsedDate = parseDateMath({ value: new_value });
           if (parsedDate) {
-            new_value = parsedDate;
+            new_value =
+              variable_options_source === "date"
+                ? format(parsedDate, dateFormat)
+                : format(parsedDate, dateHourFormat);
           }
         }
         setVariableInputValues((prevVariableInputValues) => ({
@@ -187,12 +192,22 @@ const VariableInput = ({
       </StyledDiv>
     );
   } else if (type === "slider") {
-    const requiredKeys = ["step", "min", "max", "initialValue", "dataType"];
-
-    if (
-      !updatedMetadata ||
-      requiredKeys.some((key) => updatedMetadata?.[key] == null)
-    ) {
+    // initialValue or initialRange must be present, rest are required
+    const alwaysRequiredKeys = ["step", "min", "max", "dataType"];
+    const hasInitialValue = updatedMetadata?.initialValue != null;
+    const hasInitialRange = updatedMetadata?.initialRange != null;
+    const missingKeys = [];
+    if (!updatedMetadata) {
+      missingKeys.push(...alwaysRequiredKeys, "initialValue or initialRange");
+    } else {
+      alwaysRequiredKeys.forEach((key) => {
+        if (updatedMetadata[key] == null) missingKeys.push(key);
+      });
+      if (!hasInitialValue && !hasInitialRange) {
+        missingKeys.push("initialValue or initialRange");
+      }
+    }
+    if (missingKeys.length > 0) {
       return <div data-testid="slider-missing-metadata" />;
     }
 

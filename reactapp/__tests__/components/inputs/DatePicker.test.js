@@ -4,7 +4,7 @@ import DatePicker, { parseDateMath } from "components/inputs/DatePicker";
 import { getOrdinal } from "__tests__/utilities/constants";
 import { format } from "date-fns";
 import { DataViewerModeContext } from "components/contexts/Contexts";
-import { dateFormat } from "components/inputs/DatePicker";
+import { dateHourFormat } from "components/inputs/DatePicker";
 
 test("DatePicker date", async () => {
   const mockOnChange = jest.fn();
@@ -222,50 +222,6 @@ test("DatePicker initial today", async () => {
   expect(mockOnChange).toHaveBeenCalledTimes(0);
 });
 
-test("DatePicker initial today then update", async () => {
-  const mockOnChange = jest.fn();
-
-  const { rerender } = render(
-    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-      <DatePicker
-        label="Test DatePicker"
-        type="date"
-        value="today"
-        onChange={mockOnChange}
-      />
-    </DataViewerModeContext.Provider>
-  );
-
-  const today = new Date();
-
-  rerender(
-    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-      <DatePicker
-        label="Test DatePicker"
-        type="date"
-        value={format(today, dateFormat)}
-        onChange={mockOnChange}
-      />
-    </DataViewerModeContext.Provider>
-  );
-
-  expect(mockOnChange).toHaveBeenCalledTimes(0);
-
-  rerender(
-    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-      <DatePicker
-        label="Test DatePicker"
-        type="date"
-        value="01/01/2020 12:00 AM"
-        onChange={mockOnChange}
-      />
-    </DataViewerModeContext.Provider>
-  );
-
-  expect(mockOnChange).toHaveBeenCalledWith("01/01/2020");
-  expect(mockOnChange).toHaveBeenCalledTimes(1);
-});
-
 test("DatePicker relative date in dataviewer mode", async () => {
   const mockOnChange = jest.fn();
 
@@ -288,6 +244,33 @@ test("DatePicker relative date in dataviewer mode", async () => {
   });
 
   expect(mockOnChange).toHaveBeenCalledWith("today");
+  expect(mockOnChange).toHaveBeenCalledTimes(1);
+});
+
+test("DatePicker relative date not in dataviewer mode", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date-hour"
+        value=""
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
+  );
+
+  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, {
+    target: { value: "today" },
+  });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  expect(mockOnChange).toHaveBeenCalledWith(format(today, dateHourFormat));
   expect(mockOnChange).toHaveBeenCalledTimes(1);
 });
 
@@ -376,50 +359,57 @@ test("DatePicker select tomorrow date", async () => {
 });
 
 describe("parseDateMath", () => {
+  const { format } = require("date-fns");
+  const {
+    dateFormat,
+    dateHourFormat,
+  } = require("components/inputs/DatePicker");
+
   it("parses 'now' for date", () => {
-    const result = parseDateMath({ value: "now", type: "date" });
-    expect(result).toMatch(/\d{2}\/\d{2}\/\d{4}/);
+    const today = new Date();
+    const result = parseDateMath({ value: "now" });
+    expect(format(result, dateFormat)).toBe(format(today, dateFormat));
   });
 
   it("parses 'now' for date-hour", () => {
-    const result = parseDateMath({ value: "now", type: "date-hour" });
-    expect(result).toMatch(/\d{2}\/\d{2}\/\d{4} \d{1,2}:\d{2} (AM|PM)/);
+    const today = new Date();
+    const result = parseDateMath({ value: "now" });
+    expect(format(result, dateHourFormat)).toBe(format(today, dateHourFormat));
   });
 
   it("parses 'today' for date", () => {
-    const result = parseDateMath({ value: "today", type: "date" });
-    expect(result).toMatch(/\d{2}\/\d{2}\/\d{4}/);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const result = parseDateMath({ value: "today" });
+    expect(format(result, dateFormat)).toBe(format(today, dateFormat));
   });
 
   it("parses 'today' for date-hour", () => {
-    const result = parseDateMath({ value: "today", type: "date-hour" });
-    expect(result).toMatch(/\d{2}\/\d{2}\/\d{4} \d{1,2}:\d{2} (AM|PM)/);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const result = parseDateMath({ value: "today" });
+    expect(format(result, dateHourFormat)).toBe(format(today, dateHourFormat));
   });
 
   it("parses ISO date string", () => {
-    const result = parseDateMath({
-      value: "2025-08-15T09:37:00",
-      type: "date-hour",
-    });
-    expect(result).toBe("08/15/2025 9:37 AM");
+    const result = parseDateMath({ value: "2025-08-15T09:37:00" });
+    expect(format(result, dateHourFormat)).toBe("08/15/2025 9:37 AM");
   });
 
   it("parses offset +1D", () => {
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
-    const expected = `${(tomorrow.getMonth() + 1).toString().padStart(2, "0")}/${tomorrow.getDate().toString().padStart(2, "0")}/${tomorrow.getFullYear()}`;
-    const result = parseDateMath({ value: "now+1D", type: "date" });
-    expect(result).toBe(expected);
+    const result = parseDateMath({ value: "now+1D" });
+    expect(format(result, dateFormat)).toBe(format(tomorrow, dateFormat));
   });
 
   it("parses offset -1D", () => {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
-    const expected = `${(yesterday.getMonth() + 1).toString().padStart(2, "0")}/${yesterday.getDate().toString().padStart(2, "0")}/${yesterday.getFullYear()}`;
-    const result = parseDateMath({ value: "now-1D", type: "date" });
-    expect(result).toBe(expected);
+    const result = parseDateMath({ value: "now-1D" });
+    expect(format(result, dateFormat)).toBe(format(yesterday, dateFormat));
   });
 
   it("parses multiple offsets", () => {
@@ -428,9 +418,8 @@ describe("parseDateMath", () => {
     date.setFullYear(date.getFullYear() + 1);
     date.setMonth(date.getMonth() + 2);
     date.setDate(date.getDate() + 7);
-    const expected = `${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getDate().toString().padStart(2, "0")}/${date.getFullYear()}`;
-    const result = parseDateMath({ value: "now+1Y+2M+1W", type: "date" });
-    expect(result).toBe(expected);
+    const result = parseDateMath({ value: "now+1Y+2M+1W" });
+    expect(format(result, dateFormat)).toBe(format(date, dateFormat));
   });
 
   it("parses multiple time offsets", () => {
@@ -439,21 +428,20 @@ describe("parseDateMath", () => {
     date.setHours(date.getHours() + 1);
     date.setMinutes(date.getMinutes() + 2);
     date.setSeconds(date.getSeconds() + 1);
-    const expected = `${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getDate().toString().padStart(2, "0")}/${date.getFullYear()}`;
-    const result = parseDateMath({ value: "now+1H+2m+1S", type: "date" });
-    expect(result).toBe(expected);
+    const result = parseDateMath({ value: "now+1H+2m+1S" });
+    expect(format(result, dateHourFormat)).toBe(format(date, dateHourFormat));
   });
 
   it("returns null for invalid input", () => {
-    expect(parseDateMath({ value: "invalid", type: "date" })).toBeNull();
-    expect(parseDateMath({ value: 123, type: "date" })).toBeNull();
-    expect(parseDateMath({ value: "", type: "date" })).toBeNull();
+    expect(parseDateMath({ value: "invalid" })).toBeNull();
+    expect(parseDateMath({ value: 123 })).toBeNull();
+    expect(parseDateMath({ value: "" })).toBeNull();
   });
 
-  it("ignores unknown units", () => {
+  it("ignores unknown units (default case)", () => {
     const today = new Date();
-    const expected = `${(today.getMonth() + 1).toString().padStart(2, "0")}/${today.getDate().toString().padStart(2, "0")}/${today.getFullYear()}`;
-    const result = parseDateMath({ value: "now+1X", type: "date" });
-    expect(result).toBe(expected);
+    // 'Q' matches the offset regex but is not handled in the switch
+    const result = parseDateMath({ value: "now+1Q" });
+    expect(format(result, dateFormat)).toBe(format(today, dateFormat));
   });
 });

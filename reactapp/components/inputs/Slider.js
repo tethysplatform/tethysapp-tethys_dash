@@ -17,6 +17,7 @@ import {
   format as formatDate,
 } from "date-fns";
 import { parseDateMath } from "components/inputs/DatePicker";
+import { valuesEqual } from "components/modals/utilities";
 
 export const timeDeltas = {
   Minutes: addMinutes,
@@ -42,20 +43,22 @@ function indexToDate(index, minDate, unit) {
   return timeDeltas[unit](minDate, index);
 }
 
-// Helper function to convert a date to UTC ISO string without timezone conversion
-function toUTCISOString(date) {
-  const utcDate = new Date(
-    Date.UTC(
-      date.getFullYear(),
-      date.getMonth(),
-      date.getDate(),
-      date.getHours(),
-      date.getMinutes(),
-      date.getSeconds(),
-      date.getMilliseconds()
-    )
+// Helper function to convert a date to local ISO string (YYYY-MM-DDTHH:mm:ss)
+function toLocalISOString(date) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return (
+    date.getFullYear() +
+    "-" +
+    pad(date.getMonth() + 1) +
+    "-" +
+    pad(date.getDate()) +
+    "T" +
+    pad(date.getHours()) +
+    ":" +
+    pad(date.getMinutes()) +
+    ":" +
+    pad(date.getSeconds())
   );
-  return utcDate.toISOString();
 }
 
 function formatNumber(n, template) {
@@ -113,40 +116,67 @@ const Slider = ({
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(speeds[0].value);
   const intervalRef = useRef(null);
+  const prev = useRef({
+    rangeMode,
+    initialRange,
+    initialValue,
+    min,
+    max,
+  });
 
   useEffect(() => {
-    let newValue = value;
-
-    if (rangeMode) {
-      if (Array.isArray(initialRange)) {
-        newValue = initialRange;
+    // Only update value if the relevant props actually changed
+    const shouldUpdate =
+      prev.current.rangeMode !== rangeMode ||
+      !valuesEqual(prev.current.initialRange, initialRange) ||
+      prev.current.initialValue !== initialValue ||
+      prev.current.min !== min ||
+      prev.current.max !== max;
+    if (shouldUpdate) {
+      let newValue = value;
+      if (rangeMode) {
+        if (Array.isArray(initialRange)) {
+          newValue = initialRange;
+        } else {
+          newValue = [min, max];
+        }
       } else {
-        newValue = [min, max];
+        if (
+          typeof initialValue === "number" ||
+          typeof initialValue === "string"
+        ) {
+          newValue = initialValue;
+        } else {
+          newValue = min;
+        }
       }
-    } else {
-      if (
-        typeof initialValue === "number" ||
-        typeof initialValue === "string"
-      ) {
-        newValue = initialValue;
-      } else {
-        newValue = min;
-      }
+      setValue(newValue);
+      prev.current = {
+        rangeMode,
+        initialRange,
+        initialValue,
+        min,
+        max,
+      };
     }
-    setValue(newValue);
     // eslint-disable-next-line
-  }, [rangeMode, isDateType, onChange, initialRange, initialValue, min, max]);
+  }, [rangeMode, initialRange, initialValue, min, max]);
 
   useEffect(() => {
+    // Only call onChange if value actually changed
     if (rangeMode) {
-      onChange(
-        value.map((v) => formatValue(v, outputFormat, isDateType)).join(",")
-      );
+      // Defensive: ensure value is array before map
+      const arr = Array.isArray(value) ? value : [min, max];
+      const formatted = arr
+        .map((v) => formatValue(v, outputFormat, isDateType))
+        .join(",");
+      onChange(formatted);
     } else {
-      onChange(formatValue(value, outputFormat, isDateType));
+      const formatted = formatValue(value, outputFormat, isDateType);
+      onChange(formatted);
     }
     // eslint-disable-next-line
-  }, [value, outputFormat]);
+  }, [value, outputFormat, rangeMode, isDateType]);
 
   useEffect(() => {
     if (playing) {
@@ -188,8 +218,8 @@ const Slider = ({
               }
 
               const nextRange = [
-                toUTCISOString(indexToDate(nextStart, minDateObj, unit)),
-                toUTCISOString(indexToDate(nextEnd, minDateObj, unit)),
+                toLocalISOString(indexToDate(nextStart, minDateObj, unit)),
+                toLocalISOString(indexToDate(nextEnd, minDateObj, unit)),
               ];
               return nextRange;
             } else {
@@ -218,7 +248,7 @@ const Slider = ({
               );
               return nextDate > new Date(maxValue)
                 ? min
-                : toUTCISOString(nextDate);
+                : toLocalISOString(nextDate);
             } else {
               const next = v + Number(step);
               return next > max ? min : next;
@@ -237,7 +267,7 @@ const Slider = ({
       const snapped = val.map((n) => Math.round(n / step) * step);
       if (isDateType && unit) {
         const newDates = snapped.map((idx) =>
-          toUTCISOString(
+          toLocalISOString(
             indexToDate(
               idx,
               new Date(parseDateMath({ value: min, type: "date-hour" })),
@@ -257,7 +287,7 @@ const Slider = ({
           new Date(parseDateMath({ value: min, type: "date-hour" })),
           unit
         );
-        setValue(toUTCISOString(newDate));
+        setValue(toLocalISOString(newDate));
       } else {
         setValue(snapped);
       }
@@ -273,15 +303,19 @@ const Slider = ({
         const currentRange = value.map(
           (v) => new Date(parseDateMath({ value: v, type: "date-hour" }))
         );
-        const rangeSize = dateToIndex(currentRange[1], currentRange[0], unit);
+        // Calculate range size in index units
+        const startIndex = dateToIndex(currentRange[0], minDateObj, unit);
+        const endIndex = dateToIndex(currentRange[1], minDateObj, unit);
+        const rangeSize = endIndex - startIndex;
         const newRange = [
-          toUTCISOString(minDateObj),
-          toUTCISOString(indexToDate(rangeSize, minDateObj, unit)),
+          toLocalISOString(minDateObj),
+          toLocalISOString(indexToDate(rangeSize, minDateObj, unit)),
         ];
-        setValue(newRange);
+        setValue([...newRange]);
       } else {
         const rangeSize = value[1] - value[0];
-        setValue([min, min + rangeSize]);
+        const newRange = [min, min + rangeSize];
+        setValue([...newRange]);
       }
     } else {
       setValue(min);
@@ -299,13 +333,14 @@ const Slider = ({
         );
         const rangeSize = dateToIndex(currentRange[1], currentRange[0], unit);
         const newRange = [
-          toUTCISOString(indexToDate(-rangeSize, maxDateObj, unit)),
-          toUTCISOString(maxDateObj),
+          toLocalISOString(indexToDate(-rangeSize, maxDateObj, unit)),
+          toLocalISOString(maxDateObj),
         ];
-        setValue(newRange);
+        setValue([...newRange]);
       } else {
         const rangeSize = value[1] - value[0];
-        setValue([max - rangeSize, max]);
+        const newRange = [max - rangeSize, max];
+        setValue([...newRange]);
       }
     } else {
       setValue(max);
@@ -328,14 +363,15 @@ const Slider = ({
         const newEndIndex = newStartIndex + (endIndex - startIndex);
 
         const newRange = [
-          toUTCISOString(indexToDate(newStartIndex, minDateObj, unit)),
-          toUTCISOString(indexToDate(newEndIndex, minDateObj, unit)),
+          toLocalISOString(indexToDate(newStartIndex, minDateObj, unit)),
+          toLocalISOString(indexToDate(newEndIndex, minDateObj, unit)),
         ];
-        setValue(newRange);
+        setValue([...newRange]);
       } else {
         const rangeSize = value[1] - value[0];
         const newStart = Math.max(min, value[0] - Number(step));
-        setValue([newStart, newStart + rangeSize]);
+        const newRange = [newStart, newStart + rangeSize];
+        setValue([...newRange]);
       }
     } else {
       if (isDateType && unit) {
@@ -349,9 +385,10 @@ const Slider = ({
         const newIndex = Math.max(0, currentIndex - Number(step));
 
         const resultDate = indexToDate(newIndex, minDateObj, unit);
-        setValue(toUTCISOString(resultDate));
+        setValue(toLocalISOString(resultDate));
       } else {
-        setValue(Math.max(min, value - Number(step)));
+        const newVal = Math.max(min, value - Number(step));
+        setValue(newVal);
       }
     }
   };
@@ -379,14 +416,15 @@ const Slider = ({
         const newEndIndex = Math.min(maxIndex, endIndex + Number(step));
 
         const newRange = [
-          toUTCISOString(indexToDate(newStartIndex, minDateObj, unit)),
-          toUTCISOString(indexToDate(newEndIndex, minDateObj, unit)),
+          toLocalISOString(indexToDate(newStartIndex, minDateObj, unit)),
+          toLocalISOString(indexToDate(newEndIndex, minDateObj, unit)),
         ];
-        setValue(newRange);
+        setValue([...newRange]);
       } else {
         const rangeSize = value[1] - value[0];
         const newStart = Math.min(max - rangeSize, value[0] + Number(step));
-        setValue([newStart, newStart + rangeSize]);
+        const newRange = [newStart, newStart + rangeSize];
+        setValue([...newRange]);
       }
     } else {
       if (isDateType && unit) {
@@ -404,9 +442,10 @@ const Slider = ({
         const newIndex = Math.min(maxIndex, currentIndex + Number(step));
 
         const resultDate = indexToDate(newIndex, minDateObj, unit);
-        setValue(toUTCISOString(resultDate));
+        setValue(toLocalISOString(resultDate));
       } else {
-        setValue(Math.min(max, value + Number(step)));
+        const newVal = Math.min(max, value + Number(step));
+        setValue(newVal);
       }
     }
   };

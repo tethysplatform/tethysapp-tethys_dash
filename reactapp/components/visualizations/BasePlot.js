@@ -30,7 +30,18 @@ export const addVerticalLine = (plotRef, xValue, options = {}) => {
     // Access the actual Plotly plot object
     const plotElement = plotRef.current.el;
     const currentShapes = plotElement.layout?.shapes || [];
-    const x = parseDateMath({ value: xValue }).toISOString();
+    let x;
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(xValue)) {
+      // Format: 'YYYY-MM-DD HH:mm'
+      x = xValue.replace(" ", "T") + ":00.000Z";
+    } else if (/^\d{4}-\d{2}-\d{2}$/.test(xValue)) {
+      // Format: 'YYYY-MM-DD'
+      x = xValue + "T00:00:00.000Z";
+    } else {
+      // Fallback: try Date constructor
+      const d = new Date(xValue);
+      x = !isNaN(d) ? d.toISOString() : xValue;
+    }
 
     const newShape = {
       type: "line",

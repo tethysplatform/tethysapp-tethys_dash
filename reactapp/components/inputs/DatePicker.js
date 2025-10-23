@@ -1,21 +1,22 @@
-import { parse, format } from "date-fns";
-import { useState, useRef, memo, useContext, useEffect } from "react";
+import { format } from "date-fns";
+import { useRef, memo, useState, useEffect, useContext } from "react";
 import PropTypes from "prop-types";
 import ReactDatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { FaRegCalendarAlt } from "react-icons/fa";
 import "components/inputs/DatePicker.css";
-import styled from "styled-components";
 import { DataViewerModeContext } from "components/contexts/Contexts";
+import styled from "styled-components";
 
 const Wrapper = styled.div`
   position: relative;
   display: inline-block;
+  width: 100%;
 `;
 
 const StyledInput = styled.input`
   paddingright: 2rem;
-  width: 200px;
+  width: 100%;
 `;
 
 const StyledButton = styled.button`
@@ -33,7 +34,8 @@ export const dateHourFormat = "MM/dd/yyyy h:mm aa";
 export const dateFormat = "MM/dd/yyyy";
 
 // Relative date parser
-export const parseDateMath = ({ value, type }) => {
+
+export const parseDateMath = ({ value }) => {
   if (!value || typeof value !== "string") return null;
   let date;
 
@@ -42,10 +44,10 @@ export const parseDateMath = ({ value, type }) => {
     value = value.slice(3);
   } else if (value.startsWith("today")) {
     date = new Date();
-    date.setUTCHours(0, 0, 0, 0);
+    date.setHours(0, 0, 0, 0);
     value = value.slice(5);
   } else {
-    // Force UTC interpretation to avoid timezone conversion
+    // Interpret as local time
     let dateString = value;
 
     // Check if this looks like a date-time string without timezone info
@@ -53,8 +55,8 @@ export const parseDateMath = ({ value, type }) => {
     const hasTimezone = value.includes("Z") || /[+-]\d{2}:\d{2}$/.test(value);
 
     if (hasTime && !hasTimezone) {
-      // Convert space to T and add Z for UTC interpretation
-      dateString = value.replace(/\s/, "T") + "Z";
+      // Convert space to T for local interpretation
+      dateString = value.replace(/\s/, "T");
     }
 
     const isoDate = new Date(dateString);
@@ -72,46 +74,30 @@ export const parseDateMath = ({ value, type }) => {
     const amount = parseInt(match[2], 10) * sign;
     const unit = match[3];
 
-    // eslint-disable-next-line
     switch (unit) {
       case "Y":
-        date.setUTCFullYear(date.getUTCFullYear() + amount);
+        date.setFullYear(date.getFullYear() + amount);
         break;
       case "M":
-        date.setUTCMonth(date.getUTCMonth() + amount);
+        date.setMonth(date.getMonth() + amount);
         break;
       case "W":
-        date.setUTCDate(date.getUTCDate() + amount * 7);
+        date.setDate(date.getDate() + amount * 7);
         break;
       case "D":
-        date.setUTCDate(date.getUTCDate() + amount);
+        date.setDate(date.getDate() + amount);
         break;
       case "H":
-        date.setUTCHours(date.getUTCHours() + amount);
+        date.setHours(date.getHours() + amount);
         break;
       case "m":
-        date.setUTCMinutes(date.getUTCMinutes() + amount);
+        date.setMinutes(date.getMinutes() + amount);
         break;
       case "S":
-        date.setUTCSeconds(date.getUTCSeconds() + amount);
+        date.setSeconds(date.getSeconds() + amount);
         break;
-    }
-  }
-
-  // Return formatted string without timezone conversion
-  if (type) {
-    const year = date.getUTCFullYear();
-    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(date.getUTCDate()).padStart(2, "0");
-
-    if (type === "date") {
-      return `${month}/${day}/${year}`;
-    } else {
-      const hours = date.getUTCHours();
-      const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-      const ampm = hours >= 12 ? "PM" : "AM";
-      const displayHours = hours % 12 || 12;
-      return `${month}/${day}/${year} ${displayHours}:${minutes} ${ampm}`;
+      default:
+        break;
     }
   }
 
@@ -125,46 +111,79 @@ export function checkForVariable(val) {
 const DatePicker = ({ label, value, onChange, type, divProps }) => {
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
-  const [selectedDate, setSelectedDate] = useState(() => {
-    if (checkForVariable(value)) return null;
-    const parsed = parseDateMath({ value, type });
-    return parsed
-      ? parse(
-          parsed,
-          type === "date-hour" ? dateHourFormat : dateFormat,
-          new Date()
-        )
-      : null;
-  });
+  // Track raw input value separately
   const datePickerRef = useRef(null);
-  const [inputValue, setInputValue] = useState(value);
+  const [rawInputValue, setRawInputValue] = useState(value);
 
+  // Update rawInputValue if value prop changes (from parent)
   useEffect(() => {
-    if (value !== inputValue && value !== parseDateMath({ value, type })) {
-      onRawChange(value);
+    // Only update rawInputValue if value prop is different from current rawInputValue
+    // or if value is not the formatted version of rawInputValue
+    let formattedRaw = rawInputValue;
+    if (!checkForVariable(rawInputValue) && rawInputValue) {
+      const parsed = parseDateMath({ value: rawInputValue });
+      if (parsed) {
+        formattedRaw =
+          type === "date"
+            ? format(parsed, dateFormat)
+            : format(parsed, dateHourFormat);
+      }
     }
-    // eslint-disable-next-line
+    if (value !== formattedRaw) {
+      setRawInputValue(value);
+    }
   }, [value]);
 
-  const onRawChange = (val) => {
-    setInputValue(val);
+  // Derive selectedDate for calendar from value prop (only if not relative)
+  let selectedDate = null;
+  if (!checkForVariable(rawInputValue) && rawInputValue) {
+    const parsed = parseDateMath({ value: rawInputValue });
+    if (parsed) {
+      selectedDate = parsed;
+    }
+  }
 
+  const isRelativeInput = (val) => {
+    if (!val) return false;
+    // Accepts 'now', 'now-1D', 'today', etc.
+    return (
+      /^now([+-]\d+[YMWDHmS])*$/.test(val) ||
+      /^today([+-]\d+[YMWDHmS])*$/.test(val)
+    );
+  };
+
+  const onRawChange = (val) => {
+    setRawInputValue(val);
+    // Only call onChange if valid absolute or relative time
+    if (isRelativeInput(val)) {
+      const parsedDate = parseDateMath({ value: val });
+      if (parsedDate) {
+        if (inDataViewerMode) {
+          onChange(val);
+        } else {
+          const formattedDate =
+            type === "date"
+              ? format(parsedDate, dateFormat)
+              : format(parsedDate, dateHourFormat);
+          onChange(formattedDate);
+        }
+      }
+      return;
+    }
     if (checkForVariable(val)) {
       onChange(val);
       return;
     }
-
-    // Try relative date parsing
-    const parsedDate = parseDateMath({ value: val, type });
+    // Absolute date string
+    const parsedDate = parseDateMath({ value: val });
     if (parsedDate) {
-      if (inDataViewerMode) {
-        onChange(val);
-      } else {
-        onChange(parsedDate);
-      }
-      setSelectedDate(parsedDate);
-      return;
+      const formattedDate =
+        type === "date"
+          ? format(parsedDate, dateFormat)
+          : format(parsedDate, dateHourFormat);
+      onChange(formattedDate);
     }
+    // Otherwise, do not call onChange
   };
 
   const openCalendar = () => {
@@ -172,11 +191,10 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
   };
 
   const handleSelect = (date) => {
-    setSelectedDate(date);
     const formattedDate =
       type === "date" ? format(date, dateFormat) : format(date, dateHourFormat);
+    setRawInputValue(formattedDate);
     onChange(formattedDate);
-    setInputValue(formattedDate);
   };
 
   return (
@@ -192,7 +210,7 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
             type="text"
             name={label}
             aria-label={label}
-            value={inputValue}
+            value={rawInputValue}
             onChange={(e) => onRawChange(e.target.value)}
           />
 
