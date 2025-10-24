@@ -44,17 +44,24 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
   ]);
 
   const handleVerticalLineModeChange = (mode) => {
-    setSettings((prev) => ({
-      ...prev,
-      plotlyVerticalLine: {
-        ...prev?.plotlyVerticalLine,
-        mode: mode,
-        value: mode === "off" ? "" : prev?.plotlyVerticalLine?.value || "",
-        color: prev?.plotlyVerticalLine?.color || "red",
-        width: prev?.plotlyVerticalLine?.width || 2,
-        dash: prev?.plotlyVerticalLine?.dash || "solid",
-      },
-    }));
+    if (mode === "off") {
+      setSettings((prev) => {
+        const { plotlyVerticalLine, ...rest } = prev;
+        return { ...rest };
+      });
+    } else {
+      setSettings((prev) => ({
+        ...prev,
+        plotlyVerticalLine: {
+          ...prev?.plotlyVerticalLine,
+          mode: mode,
+          value: prev?.plotlyVerticalLine?.value || "",
+          color: prev?.plotlyVerticalLine?.color || "red",
+          width: prev?.plotlyVerticalLine?.width || 2,
+          dash: prev?.plotlyVerticalLine?.dash || "solid",
+        },
+      }));
+    }
   };
 
   const handleVerticalLineValueChange = (value) => {
@@ -66,20 +73,18 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
       },
     }));
 
-    if (verticalLineMode === "on" && value) {
-      let resolvedValue = value;
-      if (checkForVariable(value)) {
-        const dependentVars = getDependentVariableInputs(value);
-        resolvedValue = variableInputValues[dependentVars[0]];
+    let resolvedValue = value;
+    if (checkForVariable(value)) {
+      const dependentVars = getDependentVariableInputs(value);
+      resolvedValue = variableInputValues[dependentVars[0]];
 
-        if (!resolvedValue) return;
-      }
-      addVerticalLine(visualizationRef, resolvedValue, {
-        color: verticalLineColor,
-        width: verticalLineWidth,
-        dash: verticalLineDash,
-      });
+      if (!resolvedValue) return;
     }
+    addVerticalLine(visualizationRef, resolvedValue, {
+      color: verticalLineColor,
+      width: verticalLineWidth,
+      dash: verticalLineDash,
+    });
   };
 
   const handleVerticalLineColorChange = (color) => {
@@ -163,8 +168,11 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
             {/* Styling Options */}
             <div className="row">
               <div className="col-md-4 mb-2">
-                <label className="form-label">Color</label>
+                <label className="form-label" htmlFor="verticalLineColor">
+                  Color
+                </label>
                 <input
+                  id="verticalLineColor"
                   type="color"
                   className="form-control form-control-color"
                   value={verticalLineColor}
@@ -175,8 +183,11 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
               </div>
 
               <div className="col-md-4 mb-2">
-                <label className="form-label">Width</label>
+                <label className="form-label" htmlFor="verticalLineWidth">
+                  Width
+                </label>
                 <input
+                  id="verticalLineWidth"
                   type="number"
                   className="form-control"
                   min="1"
@@ -189,8 +200,11 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
               </div>
 
               <div className="col-md-4 mb-2">
-                <label className="form-label">Line Style</label>
+                <label className="form-label" htmlFor="verticalLineDash">
+                  Line Style
+                </label>
                 <select
+                  id="verticalLineDash"
                   className="form-select"
                   value={verticalLineDash}
                   onChange={(e) => handleVerticalLineDashChange(e.target.value)}
