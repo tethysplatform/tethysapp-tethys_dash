@@ -11,7 +11,10 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
 
   const verticalLineMode = settings?.plotlyVerticalLine?.mode || "off";
   const verticalLineValue = settings?.plotlyVerticalLine?.value || "";
-  const verticalLineColor = settings?.plotlyVerticalLine?.color || "red";
+  const verticalLineColor =
+    settings?.plotlyVerticalLine?.color !== undefined
+      ? settings.plotlyVerticalLine.color
+      : "#ff0000";
   const verticalLineWidth = settings?.plotlyVerticalLine?.width || 2;
   const verticalLineDash = settings?.plotlyVerticalLine?.dash || "solid";
 
@@ -56,7 +59,7 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
           ...prev?.plotlyVerticalLine,
           mode: mode,
           value: prev?.plotlyVerticalLine?.value || "",
-          color: prev?.plotlyVerticalLine?.color || "red",
+          color: prev?.plotlyVerticalLine?.color || "#ff0000", //red
           width: prev?.plotlyVerticalLine?.width || 2,
           dash: prev?.plotlyVerticalLine?.dash || "solid",
         },

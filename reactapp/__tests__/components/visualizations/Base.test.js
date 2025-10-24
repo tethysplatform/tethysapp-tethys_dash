@@ -682,3 +682,76 @@ it("Base - update variable input", async () => {
     "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
   );
 });
+
+it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine metadata", async () => {
+  const spyAddVerticalLine = jest.spyOn(
+    require("components/visualizations/BasePlot"),
+    "addVerticalLine"
+  );
+  const plotlyMeta = {
+    plotlyVerticalLine: {
+      value: 42,
+      color: "#ff0000",
+      width: 3,
+      dash: "dashdot",
+    },
+  };
+  mockedPlotBase.metadata_string = JSON.stringify(plotlyMeta);
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(5),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: mockedPlotData,
+            viz_type: "plotly",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedPlotBase.source}
+          argsString={mockedPlotBase.args_string}
+          metadataString={mockedPlotBase.metadata_string}
+        />
+      ),
+      options: {
+        visualizations: [
+          {
+            label: "Visualization Group",
+            options: [
+              {
+                source: "plugin_source",
+                value: "plugin_value",
+                label: "plugin_label",
+                args: { plugin_arg: "text" },
+                type: "plotly",
+                tags: ["test", "plugin"],
+                description: "some description",
+              },
+            ],
+          },
+        ],
+      },
+    })
+  );
+
+  const plot = await screen.findByText("bar chart example");
+  expect(plot).toBeInTheDocument();
+  expect(spyAddVerticalLine).toHaveBeenCalledWith(expect.anything(), 42, {
+    color: "#ff0000",
+    width: 3,
+    dash: "dashdot",
+  });
+  spyAddVerticalLine.mockRestore();
+});

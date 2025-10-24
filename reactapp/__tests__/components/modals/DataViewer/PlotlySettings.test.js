@@ -67,11 +67,15 @@ describe("PlotlySettings", () => {
     const prevState = { plotlyVerticalLine: { value: "" } };
     const newState = updateFn(prevState);
 
-    expect(newState).toEqual(
-      expect.objectContaining({
-        plotlyVerticalLine: expect.objectContaining({ mode: "on" }),
-      })
-    );
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        color: "#ff0000",
+        dash: "solid",
+        mode: "on",
+        value: "",
+        width: 2,
+      },
+    });
   });
 
   it("shows default values and off selected", () => {
@@ -129,11 +133,11 @@ describe("PlotlySettings", () => {
     expect(mockAddVerticalLine).toHaveBeenCalledWith(
       visualizationRef,
       "2025-10-24T12:00",
-      expect.objectContaining({
+      {
         color: defaultSettings.plotlyVerticalLine.color,
         width: defaultSettings.plotlyVerticalLine.width,
         dash: defaultSettings.plotlyVerticalLine.dash,
-      })
+      }
     );
   });
 
@@ -151,11 +155,12 @@ describe("PlotlySettings", () => {
     const prevState = { plotlyVerticalLine: { value: "" } };
     const newState = updateFn(prevState);
 
-    expect(newState).toEqual(
-      expect.objectContaining({
-        plotlyVerticalLine: expect.objectContaining({ color: "#00ff00" }),
-      })
-    );
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "",
+        color: "#00ff00",
+      },
+    });
   });
 
   it("calls setSettings on width change", () => {
@@ -172,11 +177,12 @@ describe("PlotlySettings", () => {
     const prevState = { plotlyVerticalLine: { value: "" } };
     const newState = updateFn(prevState);
 
-    expect(newState).toEqual(
-      expect.objectContaining({
-        plotlyVerticalLine: expect.objectContaining({ width: 5 }),
-      })
-    );
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "",
+        width: 5,
+      },
+    });
   });
 
   it("calls setSettings on width change, bad value and default to 1", () => {
@@ -193,11 +199,12 @@ describe("PlotlySettings", () => {
     const prevState = { plotlyVerticalLine: { value: "" } };
     const newState = updateFn(prevState);
 
-    expect(newState).toEqual(
-      expect.objectContaining({
-        plotlyVerticalLine: expect.objectContaining({ width: 1 }),
-      })
-    );
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "",
+        width: 1,
+      },
+    });
   });
 
   it("calls setSettings on dash change", () => {
@@ -214,11 +221,12 @@ describe("PlotlySettings", () => {
     const prevState = { plotlyVerticalLine: { value: "" } };
     const newState = updateFn(prevState);
 
-    expect(newState).toEqual(
-      expect.objectContaining({
-        plotlyVerticalLine: expect.objectContaining({ dash: "dash" }),
-      })
-    );
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        dash: "dash",
+        value: "",
+      },
+    });
   });
 
   it("calls setSettings and addVerticalLine on value change", () => {
@@ -234,22 +242,20 @@ describe("PlotlySettings", () => {
     const updateFn = mockSetSettings.mock.calls[0][0];
     const prevState = { plotlyVerticalLine: { value: "" } };
     const newState = updateFn(prevState);
-    expect(newState).toEqual(
-      expect.objectContaining({
-        plotlyVerticalLine: expect.objectContaining({
-          value: "10/24/2025 12:00 PM",
-        }),
-      })
-    );
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "10/24/2025 12:00 PM",
+      },
+    });
 
     expect(mockAddVerticalLine).toHaveBeenCalledWith(
       visualizationRef,
       "10/24/2025 12:00 PM",
-      expect.objectContaining({
+      {
         color: defaultSettings.plotlyVerticalLine.color,
         width: defaultSettings.plotlyVerticalLine.width,
         dash: defaultSettings.plotlyVerticalLine.dash,
-      })
+      }
     );
   });
 
@@ -266,22 +272,20 @@ describe("PlotlySettings", () => {
     const updateFn = mockSetSettings.mock.calls[0][0];
     const prevState = { plotlyVerticalLine: { value: "" } };
     const newState = updateFn(prevState);
-    expect(newState).toEqual(
-      expect.objectContaining({
-        plotlyVerticalLine: expect.objectContaining({
-          value: "${depVar}",
-        }),
-      })
-    );
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "${depVar}",
+      },
+    });
 
     expect(mockAddVerticalLine).toHaveBeenCalledWith(
       visualizationRef,
       variableInputValues["depVar"],
-      expect.objectContaining({
+      {
         color: defaultSettings.plotlyVerticalLine.color,
         width: defaultSettings.plotlyVerticalLine.width,
         dash: defaultSettings.plotlyVerticalLine.dash,
-      })
+      }
     );
   });
 
@@ -298,13 +302,11 @@ describe("PlotlySettings", () => {
     const updateFn = mockSetSettings.mock.calls[0][0];
     const prevState = { plotlyVerticalLine: { value: "" } };
     const newState = updateFn(prevState);
-    expect(newState).toEqual(
-      expect.objectContaining({
-        plotlyVerticalLine: expect.objectContaining({
-          value: "${dep}",
-        }),
-      })
-    );
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "${dep}",
+      },
+    });
 
     expect(mockAddVerticalLine).toHaveBeenCalledTimes(0);
   });
@@ -322,11 +324,11 @@ describe("PlotlySettings", () => {
     expect(mockAddVerticalLine).toHaveBeenCalledWith(
       visualizationRef,
       variableInputValues["depVar"],
-      expect.objectContaining({
+      {
         color: defaultSettings.plotlyVerticalLine.color,
         width: defaultSettings.plotlyVerticalLine.width,
         dash: defaultSettings.plotlyVerticalLine.dash,
-      })
+      }
     );
   });
 });

@@ -23,7 +23,6 @@ export const addVerticalLine = (plotRef, xValue, options = {}) => {
     dash = "solid",
     id = `vline_${Date.now()}`,
     variable = null,
-    removeExisting = true,
   } = options;
 
   try {
@@ -56,11 +55,9 @@ export const addVerticalLine = (plotRef, xValue, options = {}) => {
     };
 
     // Filter shapes based on removeExisting option
-    const filteredShapes = removeExisting
-      ? currentShapes.filter(
-          (shape) => shape.meta?.createdBy !== "addVerticalLine"
-        )
-      : currentShapes.filter((shape) => shape.meta?.id !== id);
+    const filteredShapes = currentShapes.filter(
+      (shape) => shape.meta?.createdBy !== "addVerticalLine"
+    );
 
     Plotly.relayout(plotElement, {
       shapes: [...filteredShapes, newShape],
