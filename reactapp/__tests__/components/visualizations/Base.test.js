@@ -207,7 +207,7 @@ it("Creates an Base Item with a Map", async () => {
 
 it("Creates an Base Item with a variable input text box", async () => {
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
-  dashboard.gridItems = [mockedTextVariable];
+  dashboard.tabs[0].gridItems = [mockedTextVariable];
   const user = userEvent.setup();
 
   render(
@@ -614,7 +614,7 @@ it("Base - update variable input", async () => {
     notes: "test_notes",
     editable: true,
     publicDashboard: false,
-    gridItems: [textVariable, apiImageBase],
+    tabs: [{ gridItems: [textVariable, apiImageBase] }],
   };
   const dashboards = { dashboards: [mockedDashboard] };
 
@@ -642,14 +642,18 @@ it("Base - update variable input", async () => {
       children: (
         <>
           <BaseVisualization
-            source={mockedDashboard.gridItems[0].source}
-            argsString={mockedDashboard.gridItems[0].args_string}
-            metadataString={mockedDashboard.gridItems[0].metadata_string}
+            source={mockedDashboard.tabs[0].gridItems[0].source}
+            argsString={mockedDashboard.tabs[0].gridItems[0].args_string}
+            metadataString={
+              mockedDashboard.tabs[0].gridItems[0].metadata_string
+            }
           />
           <BaseVisualization
-            source={mockedDashboard.gridItems[1].source}
-            argsString={mockedDashboard.gridItems[1].args_string}
-            metadataString={mockedDashboard.gridItems[1].metadata_string}
+            source={mockedDashboard.tabs[0].gridItems[1].source}
+            argsString={mockedDashboard.tabs[0].gridItems[1].args_string}
+            metadataString={
+              mockedDashboard.tabs[0].gridItems[1].metadata_string
+            }
           />
         </>
       ),

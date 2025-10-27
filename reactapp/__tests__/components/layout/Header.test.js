@@ -434,7 +434,7 @@ test("DashboardHeader, show info", async () => {
 test("DashboardHeader, import gridItem", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
-  mockedDashboard.gridItems = [
+  mockedDashboard.tabs[0].gridItems = [
     {
       i: "1",
       x: 0,
@@ -862,7 +862,7 @@ test("DashboardHeader, editable, edit and cancel", async () => {
 test("DashboardHeader, editable, edit and save", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
-  mockedDashboard.gridItems = [
+  mockedDashboard.tabs[0].gridItems = [
     {
       i: "1",
       x: 0,

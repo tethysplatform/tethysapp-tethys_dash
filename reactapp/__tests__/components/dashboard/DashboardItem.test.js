@@ -83,7 +83,7 @@ const exampleGeoJSON = {
 
 test("Dashboard Item not editing", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   mockedConfirm.mockResolvedValue(true);
 
   render(
@@ -124,7 +124,7 @@ test("Dashboard Item not editing", async () => {
 
 test("Dashboard Item editing, no custom borders/css", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   mockedConfirm.mockResolvedValue(true);
 
   render(
@@ -170,7 +170,7 @@ test("Dashboard Item editing, no custom borders/css", async () => {
 
 test("Dashboard Item editing, custom borders/css", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   gridItem.metadata_string = JSON.stringify({
     border: {
       "border-left": "1px dashed #f03939",
@@ -232,7 +232,7 @@ test("Dashboard Item editing, custom borders/css", async () => {
 
 test("Dashboard Item delete grid item", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   mockedConfirm.mockResolvedValue(true);
 
   render(
@@ -276,7 +276,7 @@ test("Dashboard Item delete grid item", async () => {
 
 test("Dashboard Item delete grid item cancel", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   mockedConfirm.mockResolvedValue(false);
 
   render(
@@ -333,7 +333,7 @@ test("Dashboard Item delete grid item cancel", async () => {
 
 test("Dashboard Item edit item", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
 
   render(
     createLoadedComponent({
@@ -384,7 +384,7 @@ test("Dashboard Item edit item", async () => {
 test("Dashboard Item copy item", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
-  mockedDashboard.gridItems = [
+  mockedDashboard.tabs[0].gridItems = [
     {
       i: "1",
       x: 0,
@@ -423,7 +423,7 @@ test("Dashboard Item copy item", async () => {
     },
   ];
 
-  const gridItem = mockedDashboard.gridItems[2];
+  const gridItem = mockedDashboard.tabs[0].gridItems[2];
 
   render(
     createLoadedComponent({
@@ -516,7 +516,7 @@ test("Dashboard Item copy item", async () => {
 test("Dashboard Item copy item variable input", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
-  mockedDashboard.gridItems = [
+  mockedDashboard.tabs[0].gridItems = [
     {
       i: "1",
       x: 0,
@@ -534,7 +534,7 @@ test("Dashboard Item copy item variable input", async () => {
       }),
     },
   ];
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
 
   render(
     createLoadedComponent({
@@ -619,7 +619,7 @@ test("Dashboard Item copy item variable input", async () => {
 test("Dashboard Item copy item variable input already exists", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
-  mockedDashboard.gridItems = [
+  mockedDashboard.tabs[0].gridItems = [
     {
       i: "1",
       x: 0,
@@ -653,7 +653,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
       }),
     },
   ];
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
 
   render(
     createLoadedComponent({
@@ -756,7 +756,7 @@ test("Dashboard Item order options disabled for single grid item", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
   mockedDashboard.unrestrictedPlacement = true;
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   gridItem.source = "Custom Image";
   gridItem.args_string = JSON.stringify({
     image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
@@ -880,7 +880,7 @@ test("Dashboard Item order forward", async () => {
     }),
   };
   const gridItems = [greenGridItem, blueGridItem, redGridItem, yellowGridItem];
-  mockedDashboard.gridItems = gridItems;
+  mockedDashboard.tabs[0].gridItems = gridItems;
   const gridItem = gridItems[1];
 
   render(
@@ -1025,7 +1025,7 @@ test("Dashboard Item order backward", async () => {
     }),
   };
   const gridItems = [greenGridItem, blueGridItem, redGridItem, yellowGridItem];
-  mockedDashboard.gridItems = gridItems;
+  mockedDashboard.tabs[0].gridItems = gridItems;
   const gridItem = gridItems[1];
 
   render(
@@ -1099,7 +1099,7 @@ test("Dashboard Item order backward", async () => {
 test("Dashboard Item export", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   gridItem.source = "Custom Image";
   gridItem.args_string = JSON.stringify({
     image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
@@ -1157,7 +1157,7 @@ test("Dashboard Item export", async () => {
 test("Dashboard Item export fail", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   gridItem.source = "Custom Image";
   gridItem.args_string = JSON.stringify({
     image_source: "https://www.aquaveo.com/images/aquaveo_logo.svg",
@@ -1219,7 +1219,7 @@ test("Dashboard Item export fail", async () => {
 
 test("Dashboard attribution and show", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   gridItem.source = "plugin_source_checkbox";
   mockedConfirm.mockResolvedValue(true);
 
@@ -1295,7 +1295,7 @@ test("Dashboard attribution and show", async () => {
 
 test("Dashboard attribution www link and show", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   gridItem.source = "plugin_source_checkbox";
   mockedConfirm.mockResolvedValue(true);
 
@@ -1367,7 +1367,7 @@ test("Dashboard attribution www link and show", async () => {
 
 test("Dashboard attribution https link and show", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   gridItem.source = "plugin_source_checkbox";
   mockedConfirm.mockResolvedValue(true);
 
@@ -1439,7 +1439,7 @@ test("Dashboard attribution https link and show", async () => {
 
 test("Dashboard attribution and not show", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  const gridItem = mockedDashboard.gridItems[0];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
   gridItem.metadata_string = JSON.stringify({ attribution: false });
   gridItem.source = "plugin_source_checkbox";
   mockedConfirm.mockResolvedValue(true);
