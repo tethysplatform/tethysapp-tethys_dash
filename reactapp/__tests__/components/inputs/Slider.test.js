@@ -37,7 +37,7 @@ describe("Slider Component", () => {
   it("renders with label and initial value (number mode)", () => {
     const handleChange = jest.fn();
 
-    render(
+    const { rerender } = render(
       <Slider
         label="Test Slider"
         step={1}
@@ -56,6 +56,39 @@ describe("Slider Component", () => {
     expect(screen.getByText("005F")).toBeInTheDocument();
     // First onChange should fire on mount
     expect(handleChange).toHaveBeenCalledWith("005F");
+
+    rerender(
+      <Slider
+        label="Test Slider"
+        step={1}
+        min={0}
+        max={10}
+        initialValue={7}
+        outputFormat="{{n:3}}F"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    expect(screen.getByText("007F")).toBeInTheDocument();
+    expect(handleChange).toHaveBeenCalledWith("007F");
+
+    rerender(
+      <Slider
+        label="Test Slider"
+        step={1}
+        min={0}
+        max={10}
+        initialRange={7}
+        rangeMode={true}
+        outputFormat="{{n:3}}F"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    expect(screen.getByText("000F - 010F")).toBeInTheDocument();
+    expect(handleChange).toHaveBeenCalledWith("000F,010F");
   });
 
   it("render slider and then change to rangemode", () => {
@@ -158,6 +191,406 @@ describe("Slider Component", () => {
 
     expect(handleChange).toHaveBeenLastCalledWith("10");
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("10");
+  });
+
+  it("go to first number step", async () => {
+    const handleChange = jest.fn();
+
+    render(
+      <Slider
+        step={1}
+        min={0}
+        max={10}
+        initialValue={5}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    const firstStep = screen.getByLabelText("go to first");
+    fireEvent.click(firstStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("0");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("0");
+  });
+
+  it("go to first number step in rangemode", async () => {
+    const handleChange = jest.fn();
+
+    render(
+      <Slider
+        step={1}
+        min={0}
+        max={10}
+        initialRange={[5, 8]}
+        rangeMode={true}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    const firstStep = screen.getByLabelText("go to first");
+    fireEvent.click(firstStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("0,3");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("0 - 3");
+  });
+
+  it("go to previous number step", async () => {
+    const handleChange = jest.fn();
+
+    render(
+      <Slider
+        step={1}
+        min={0}
+        max={10}
+        initialValue={5}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    const previousStep = screen.getByLabelText("previous step");
+    fireEvent.click(previousStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("4");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("4");
+  });
+
+  it("go to previous number step in rangemode", async () => {
+    const handleChange = jest.fn();
+
+    render(
+      <Slider
+        step={1}
+        min={0}
+        max={10}
+        initialRange={[5, 8]}
+        rangeMode={true}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    const previousStep = screen.getByLabelText("previous step");
+    fireEvent.click(previousStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("4,7");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("4 - 7");
+  });
+
+  it("go to next number step", async () => {
+    const handleChange = jest.fn();
+
+    render(
+      <Slider
+        step={1}
+        min={0}
+        max={10}
+        initialValue={5}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    const nextStep = screen.getByLabelText("next step");
+    fireEvent.click(nextStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("6");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("6");
+  });
+
+  it("go to next number step in rangemode", async () => {
+    const handleChange = jest.fn();
+
+    render(
+      <Slider
+        step={1}
+        min={0}
+        max={10}
+        initialRange={[5, 8]}
+        rangeMode={true}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    const nextStep = screen.getByLabelText("next step");
+    fireEvent.click(nextStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("6,9");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("6 - 9");
+  });
+
+  it("go to last number step", async () => {
+    const handleChange = jest.fn();
+
+    render(
+      <Slider
+        step={1}
+        min={0}
+        max={10}
+        initialValue={5}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    const lastStep = screen.getByLabelText("go to last");
+    fireEvent.click(lastStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("10");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("10");
+  });
+
+  it("go to last number step in rangemode", async () => {
+    const handleChange = jest.fn();
+
+    render(
+      <Slider
+        step={1}
+        min={0}
+        max={10}
+        initialRange={[5, 8]}
+        rangeMode={true}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    const lastStep = screen.getByLabelText("go to last");
+    fireEvent.click(lastStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("7,10");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("7 - 10");
+  });
+
+  it("go to first date step", async () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T00:00:00.000";
+    const max = "2025-01-05T00:00:00.000";
+
+    render(
+      <Slider
+        step={1}
+        min={min}
+        max={max}
+        initialValue={"2025-01-03T00:00:00.000"}
+        outputFormat="yyyy-MM-dd"
+        dataType="Date"
+        dateTimeDelta="Days"
+        onChange={handleChange}
+      />
+    );
+
+    const firstStep = screen.getByLabelText("go to first");
+    fireEvent.click(firstStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("2025-01-01");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "2025-01-01"
+    );
+  });
+
+  it("go to first date step in rangemode", async () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T00:00:00.000";
+    const max = "2025-01-05T00:00:00.000";
+
+    render(
+      <Slider
+        step={1}
+        min={min}
+        max={max}
+        initialRange={["2025-01-03T00:00:00.000", "2025-01-04T00:00:00.000"]}
+        rangeMode={true}
+        outputFormat="yyyy-MM-dd"
+        dataType="Date"
+        dateTimeDelta="Days"
+        onChange={handleChange}
+      />
+    );
+
+    const firstStep = screen.getByLabelText("go to first");
+    fireEvent.click(firstStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("2025-01-01,2025-01-02");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "2025-01-01 - 2025-01-02"
+    );
+  });
+
+  it("go to previous date step", async () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T00:00:00.000";
+    const max = "2025-01-05T00:00:00.000";
+
+    render(
+      <Slider
+        step={1}
+        min={min}
+        max={max}
+        initialValue={"2025-01-03T00:00:00.000"}
+        outputFormat="yyyy-MM-dd"
+        dataType="Date"
+        dateTimeDelta="Days"
+        onChange={handleChange}
+      />
+    );
+
+    const previousStep = screen.getByLabelText("previous step");
+    fireEvent.click(previousStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("2025-01-02");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "2025-01-02"
+    );
+  });
+
+  it("go to previous date step in rangemode", async () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T00:00:00.000";
+    const max = "2025-01-05T00:00:00.000";
+
+    render(
+      <Slider
+        step={1}
+        min={min}
+        max={max}
+        initialRange={["2025-01-03T00:00:00.000", "2025-01-04T00:00:00.000"]}
+        rangeMode={true}
+        outputFormat="yyyy-MM-dd"
+        dataType="Date"
+        dateTimeDelta="Days"
+        onChange={handleChange}
+      />
+    );
+
+    const previousStep = screen.getByLabelText("previous step");
+    fireEvent.click(previousStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("2025-01-02,2025-01-03");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "2025-01-02 - 2025-01-03"
+    );
+  });
+
+  it("go to next date step", async () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T00:00:00.000";
+    const max = "2025-01-05T00:00:00.000";
+
+    render(
+      <Slider
+        step={1}
+        min={min}
+        max={max}
+        initialValue={"2025-01-03T00:00:00.000"}
+        outputFormat="yyyy-MM-dd"
+        dataType="Date"
+        dateTimeDelta="Days"
+        onChange={handleChange}
+      />
+    );
+
+    const nextStep = screen.getByLabelText("next step");
+    fireEvent.click(nextStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("2025-01-04");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "2025-01-04"
+    );
+  });
+
+  it("go to next date step in rangemode", async () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T00:00:00.000";
+    const max = "2025-01-05T00:00:00.000";
+
+    render(
+      <Slider
+        step={1}
+        min={min}
+        max={max}
+        initialRange={["2025-01-03T00:00:00.000", "2025-01-04T00:00:00.000"]}
+        rangeMode={true}
+        outputFormat="yyyy-MM-dd"
+        dataType="Date"
+        dateTimeDelta="Days"
+        onChange={handleChange}
+      />
+    );
+
+    const nextStep = screen.getByLabelText("next step");
+    fireEvent.click(nextStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("2025-01-04,2025-01-05");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "2025-01-04 - 2025-01-05"
+    );
+  });
+
+  it("go to last date step", async () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T00:00:00.000";
+    const max = "2025-01-05T00:00:00.000";
+
+    render(
+      <Slider
+        step={1}
+        min={min}
+        max={max}
+        initialValue={"2025-01-03T00:00:00.000"}
+        outputFormat="yyyy-MM-dd"
+        dataType="Date"
+        dateTimeDelta="Days"
+        onChange={handleChange}
+      />
+    );
+
+    const lastStep = screen.getByLabelText("go to last");
+    fireEvent.click(lastStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("2025-01-05");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "2025-01-05"
+    );
+  });
+
+  it("go to last date step in rangemode", async () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T00:00:00.000";
+    const max = "2025-01-05T00:00:00.000";
+
+    render(
+      <Slider
+        step={1}
+        min={min}
+        max={max}
+        initialRange={["2025-01-03T00:00:00.000", "2025-01-04T00:00:00.000"]}
+        rangeMode={true}
+        outputFormat="yyyy-MM-dd"
+        dataType="Date"
+        dateTimeDelta="Days"
+        onChange={handleChange}
+      />
+    );
+
+    const lastStep = screen.getByLabelText("go to last");
+    fireEvent.click(lastStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith("2025-01-04,2025-01-05");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "2025-01-04 - 2025-01-05"
+    );
   });
 
   it("changes value when slider moved (date mode)", async () => {

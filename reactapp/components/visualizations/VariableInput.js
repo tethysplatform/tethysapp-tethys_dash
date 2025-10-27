@@ -10,11 +10,17 @@ import {
 import {
   nonDropDownVariableInputTypes,
   findSelectOptionByValue,
+  updateObjectWithVariableInputs,
 } from "components/visualizations/utilities";
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
 import Slider from "components/inputs/Slider";
-import { parseDateMath } from "components/inputs/DatePicker";
+import {
+  parseDateMath,
+  dateFormat,
+  dateHourFormat,
+} from "components/inputs/DatePicker";
+import { format } from "date-fns";
 
 const StyledDiv = styled.div`
   padding: 1rem;
@@ -44,22 +50,34 @@ const VariableInput = ({
   const [value, setValue] = useState("");
   const [type, setType] = useState(null);
   const [label, setLabel] = useState(null);
+  const [updatedMetadata, setUpdatedMetadata] = useState(metadata);
   const { visualizationArgs } = useContext(AppContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
   );
 
+  // Initialize updatedMetadata when metadata or variableInputValues change
+  useEffect(() => {
+    if (metadata) {
+      const newUpdatedMetadata = updateObjectWithVariableInputs(
+        { ...metadata },
+        variableInputValues
+      );
+      setUpdatedMetadata(newUpdatedMetadata);
+    }
+  }, [metadata, variableInputValues]);
+
   const updateVariableInputs = useCallback(
     (new_value) => {
       if (new_value || new_value === false || new_value === 0) {
         if (["date", "date-hour"].includes(variable_options_source)) {
-          const parsedDate = parseDateMath({
-            value: new_value,
-            type: variable_options_source,
-          });
+          const parsedDate = parseDateMath({ value: new_value });
           if (parsedDate) {
-            new_value = parsedDate;
+            new_value =
+              variable_options_source === "date"
+                ? format(parsedDate, dateFormat)
+                : format(parsedDate, dateHourFormat);
           }
         }
         setVariableInputValues((prevVariableInputValues) => ({
@@ -174,9 +192,22 @@ const VariableInput = ({
       </StyledDiv>
     );
   } else if (type === "slider") {
-    const requiredKeys = ["step", "min", "max", "initialValue", "dataType"];
-
-    if (!metadata || requiredKeys.some((key) => metadata?.[key] == null)) {
+    // initialValue or initialRange must be present, rest are required
+    const alwaysRequiredKeys = ["step", "min", "max", "dataType"];
+    const hasInitialValue = updatedMetadata?.initialValue != null;
+    const hasInitialRange = updatedMetadata?.initialRange != null;
+    const missingKeys = [];
+    if (!updatedMetadata) {
+      missingKeys.push(...alwaysRequiredKeys, "initialValue or initialRange");
+    } else {
+      alwaysRequiredKeys.forEach((key) => {
+        if (updatedMetadata[key] == null) missingKeys.push(key);
+      });
+      if (!hasInitialValue && !hasInitialRange) {
+        missingKeys.push("initialValue or initialRange");
+      }
+    }
+    if (missingKeys.length > 0) {
       return <div data-testid="slider-missing-metadata" />;
     }
 
@@ -184,15 +215,15 @@ const VariableInput = ({
       <StyledDiv>
         <Slider
           label={label}
-          step={metadata.step}
-          min={metadata.min}
-          max={metadata.max}
-          initialValue={metadata.initialValue}
-          initialRange={metadata.initialRange}
-          rangeMode={metadata.rangeMode}
-          outputFormat={metadata.outputFormat}
-          dataType={metadata.dataType}
-          dateTimeDelta={metadata?.dateTimeDelta}
+          step={updatedMetadata.step}
+          min={updatedMetadata.min}
+          max={updatedMetadata.max}
+          initialValue={updatedMetadata.initialValue}
+          initialRange={updatedMetadata.initialRange}
+          rangeMode={updatedMetadata.rangeMode}
+          outputFormat={updatedMetadata.outputFormat}
+          dataType={updatedMetadata.dataType}
+          dateTimeDelta={updatedMetadata?.dateTimeDelta}
           onChange={handleInputChange}
         />
       </StyledDiv>

@@ -734,6 +734,31 @@ test("Settings with custom messaging", async () => {
   );
 });
 
+test("SettingsPane renders PlotlySettings when visualizationRef.current.el.className includes 'plotly'", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          visualizationRefElement={{ el: { className: "plotly-graph-div" } }}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    })
+  );
+  // Check for a PlotlySettings-specific element or behavior
+  // For example, if PlotlySettings renders a known label or input
+  // Here, we check for the absence of the warning alert
+  expect(
+    screen.queryByText(
+      "Visualization must be loaded to change additional settings."
+    )
+  ).not.toBeInTheDocument();
+
+  expect(await screen.findByText("Vertical Line")).toBeInTheDocument();
+});
+
 TestingComponent.propTypes = {
   visualizationRefElement: PropTypes.object,
   currentSettings: PropTypes.object,

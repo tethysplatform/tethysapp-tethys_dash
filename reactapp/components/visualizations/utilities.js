@@ -39,12 +39,11 @@ export function findVisualizationBySource(data, targetSource) {
   return null;
 }
 
-function getDependentVariableInputs(args) {
+export function getDependentVariableInputs(args) {
   const regex = /\${(.*?)}/g; // Matches ${...}
   const uniqueValues = new Set();
 
-  let match;
-  while ((match = regex.exec(args)) !== null) {
+  for (const match of args.matchAll(regex)) {
     uniqueValues.add(match[1]); // Extract the variable name
   }
 

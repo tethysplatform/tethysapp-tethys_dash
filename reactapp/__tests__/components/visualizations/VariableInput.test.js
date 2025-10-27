@@ -284,6 +284,26 @@ it("Creates a Slider Input for a Variable Input, missing metadata", async () => 
   ).toBeInTheDocument();
 });
 
+it("renders slider-missing-metadata when no initial value or range", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name="Test Slider"
+            variable_options_source="slider"
+            metadata={{}}
+            onChange={jest.fn()}
+          />
+        </>
+      ),
+    })
+  );
+  expect(
+    await screen.findByTestId("slider-missing-metadata")
+  ).toBeInTheDocument();
+});
+
 it("Creates a Slider Input for a Variable Input, missing metadata key", async () => {
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.gridItems = [mockedSliderVariable];
