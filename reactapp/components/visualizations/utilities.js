@@ -60,6 +60,7 @@ export async function getVisualization({
   variableInputValues,
   dashboardView,
   vizLoadingIcon = true,
+  csrf
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -106,7 +107,7 @@ export async function getVisualization({
     setVizType("loader");
   }
 
-  const apiResponse = await appAPI.getVisualizationData(itemData);
+  const apiResponse = await appAPI.getVisualizationData(itemData, csrf);
   if (apiResponse.success === true) {
     let responseData = JSON.parse(JSON.stringify(apiResponse.data));
     if (typeof apiResponse.data === "string") {

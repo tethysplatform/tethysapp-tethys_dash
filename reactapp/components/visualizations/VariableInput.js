@@ -15,6 +15,7 @@ import {
 import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
 import Slider from "components/inputs/Slider";
+import CSVUploader from "components/inputs/CSVUploader";
 import {
   parseDateMath,
   dateFormat,
