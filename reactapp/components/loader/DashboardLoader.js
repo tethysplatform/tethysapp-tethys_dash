@@ -99,7 +99,9 @@ const DashboardLoader = ({
         tab.id === tabId ? { ...tab, ...updatedProperties } : tab
       )
     );
-    updateVariableInputValuesWithGridItems(originalTabs.current);
+    if ("gridItems" in updatedProperties) {
+      updateVariableInputValuesWithGridItems([updatedProperties]);
+    }
   }
 
   function resetTabs() {

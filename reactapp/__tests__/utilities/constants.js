@@ -67,18 +67,24 @@ export const userDashboard = {
   userPermission: "admin",
   unrestrictedPlacement: false,
   notes: "user_notes",
-  gridItems: [
+  tabs: [
     {
-      i: "1",
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "",
-      args_string: "{}",
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
+      id: 1,
+      name: "Tab 1",
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
     },
   ],
 };
@@ -94,18 +100,24 @@ export const publicDashboard = {
   userPermission: null,
   unrestrictedPlacement: false,
   notes: "public_notes",
-  gridItems: [
+  tabs: [
     {
-      i: "1",
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "",
-      args_string: "{}",
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
+      id: 1,
+      name: "Tab 1",
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
     },
   ],
 };
@@ -124,18 +136,24 @@ export const viewerDashboard = {
   userPermission: "viewer",
   unrestrictedPlacement: false,
   notes: "viewer_notes",
-  gridItems: [
+  tabs: [
     {
-      i: "1",
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "",
-      args_string: "{}",
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
+      id: 1,
+      name: "Tab 1",
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
     },
   ],
 };
@@ -154,18 +172,24 @@ export const editorDashboard = {
   userPermission: "editor",
   unrestrictedPlacement: false,
   notes: "editor_notes",
-  gridItems: [
+  tabs: [
     {
-      i: "1",
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "",
-      args_string: "{}",
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
+      id: 1,
+      name: "Tab 1",
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
     },
   ],
 };
@@ -184,18 +208,24 @@ export const adminDashboard = {
   userPermission: "admin",
   unrestrictedPlacement: false,
   notes: "admin_notes",
-  gridItems: [
+  tabs: [
     {
-      i: "1",
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "",
-      args_string: "{}",
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
+      id: 1,
+      name: "Tab 1",
+      gridItems: [
+        {
+          id: 1,
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
     },
   ],
 };

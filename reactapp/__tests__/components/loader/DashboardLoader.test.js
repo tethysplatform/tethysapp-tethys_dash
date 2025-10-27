@@ -16,21 +16,27 @@ import {
   DisabledMovementPComponent,
   InputVariablePComponent,
   EditingPComponent,
+  TabsPComponent,
 } from "__tests__/utilities/customRender";
 import {
   LayoutContext,
   EditingContext,
   DisabledEditingMovementContext,
+  TabContext,
 } from "components/contexts/Contexts";
 import PropTypes from "prop-types";
 
-const TestingComponent = ({ updatedGridItems, newProperties }) => {
+const TestingComponent = ({
+  TabID,
+  updatedTabProperties,
+  updatedDashboardProperties,
+}) => {
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
     DisabledEditingMovementContext
   );
-  const { updateGridItems, resetGridItems, saveLayoutContext } =
-    useContext(LayoutContext);
+  const { resetGridItems, saveLayoutContext } = useContext(LayoutContext);
+  const { updateTab } = useContext(TabContext);
 
   return (
     <>
@@ -41,8 +47,8 @@ const TestingComponent = ({ updatedGridItems, newProperties }) => {
       <EditingPComponent />
       <InputVariablePComponent />
       <button
-        data-testid="updatedGridItemsButton"
-        onClick={() => updateGridItems(updatedGridItems)}
+        data-testid="updatedTabButton"
+        onClick={() => updateTab(TabID, updatedTabProperties)}
       ></button>
       <button
         data-testid="resetGridItemsButton"
@@ -50,9 +56,10 @@ const TestingComponent = ({ updatedGridItems, newProperties }) => {
       ></button>
       <button
         data-testid="saveLayoutContextButton"
-        onClick={() => saveLayoutContext(newProperties)}
+        onClick={() => saveLayoutContext(updatedDashboardProperties)}
       ></button>
       <ContextLayoutPComponent />
+      <TabsPComponent />
       <button
         data-testid="movementButton"
         onClick={() => setDisabledEditingMovement(!disabledEditingMovement)}
@@ -200,29 +207,35 @@ test("DashboardLoader edit and disable movement when not editing", async () => {
 test("DashboardLoader updateGridItems and then reset", async () => {
   const mockUpdateDashboard = jest.fn();
   const updatedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  updatedDashboard.gridItems = [];
+  updatedDashboard.tabs[0].gridItems = [];
 
   render(
     <AvailableDashboardsContext.Provider
       value={{ updateDashboard: mockUpdateDashboard }}
     >
       <DashboardLoader {...userDashboard}>
-        <TestingComponent updatedGridItems={[]} />
+        <TestingComponent TabID={1} updatedTabProperties={{ gridItems: [] }} />
       </DashboardLoader>
     </AvailableDashboardsContext.Provider>
   );
 
+  let { tabs, ...dashboardContextProperties } = userDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...userDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
-  const updatedGridItemsButton = await screen.findByTestId(
-    "updatedGridItemsButton"
-  );
-  await userEvent.click(updatedGridItemsButton);
+  const updatedTabButton = await screen.findByTestId("updatedTabButton");
+  await userEvent.click(updatedTabButton);
 
+  ({ tabs, ...dashboardContextProperties } = updatedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...updatedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
   const resetGridItemsButton = await screen.findByTestId(
@@ -230,8 +243,12 @@ test("DashboardLoader updateGridItems and then reset", async () => {
   );
   await userEvent.click(resetGridItemsButton);
 
+  ({ tabs, ...dashboardContextProperties } = updatedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...userDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 });
 
@@ -239,7 +256,7 @@ test("DashboardLoader updateGridItems existing variable input", async () => {
   const mockUpdateDashboard = jest.fn();
   const updatedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  mockedDashboard.gridItems = [mockedTextVariable];
+  mockedDashboard.tabs[0].gridItems = [mockedTextVariable];
 
   const updatedTextVariable = JSON.parse(
     JSON.stringify(mockedCheckboxVariable)
@@ -249,7 +266,7 @@ test("DashboardLoader updateGridItems existing variable input", async () => {
     variable_name: "Test Variable",
     variable_options_source: "text",
   });
-  updatedDashboard.gridItems = [updatedTextVariable];
+  updatedDashboard.tabs[0].gridItems = [updatedTextVariable];
 
   server.use(
     rest.get(
@@ -269,7 +286,10 @@ test("DashboardLoader updateGridItems existing variable input", async () => {
       value={{ updateDashboard: mockUpdateDashboard }}
     >
       <DashboardLoader {...mockedDashboard}>
-        <TestingComponent updatedGridItems={[updatedTextVariable]} />
+        <TestingComponent
+          TabID={1}
+          updatedTabProperties={{ gridItems: [updatedTextVariable] }}
+        />
       </DashboardLoader>
     </AvailableDashboardsContext.Provider>
   );
@@ -280,17 +300,23 @@ test("DashboardLoader updateGridItems existing variable input", async () => {
     })
   );
 
+  let { tabs, ...dashboardContextProperties } = mockedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...mockedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
-  const updatedGridItemsButton = await screen.findByTestId(
-    "updatedGridItemsButton"
-  );
-  await userEvent.click(updatedGridItemsButton);
+  const updatedTabButton = await screen.findByTestId("updatedTabButton");
+  await userEvent.click(updatedTabButton);
 
+  ({ tabs, ...dashboardContextProperties } = updatedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...updatedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
   // Doesn't change input variables so that the existing variable input keeps the same value from before and not rerender everything in the page
@@ -304,14 +330,17 @@ test("DashboardLoader updateGridItems existing variable input", async () => {
 test("DashboardLoader updateGridItems add variable input", async () => {
   const mockUpdateDashboard = jest.fn();
   const updatedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  updatedDashboard.gridItems = [mockedTextVariable];
+  updatedDashboard.tabs[0].gridItems = [mockedTextVariable];
 
   render(
     <AvailableDashboardsContext.Provider
       value={{ updateDashboard: mockUpdateDashboard }}
     >
       <DashboardLoader {...userDashboard}>
-        <TestingComponent updatedGridItems={[mockedTextVariable]} />
+        <TestingComponent
+          TabID={1}
+          updatedTabProperties={{ gridItems: [mockedTextVariable] }}
+        />
       </DashboardLoader>
     </AvailableDashboardsContext.Provider>
   );
@@ -320,17 +349,23 @@ test("DashboardLoader updateGridItems add variable input", async () => {
     JSON.stringify({})
   );
 
+  let { tabs, ...dashboardContextProperties } = userDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...userDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
-  const updatedGridItemsButton = await screen.findByTestId(
-    "updatedGridItemsButton"
-  );
-  await userEvent.click(updatedGridItemsButton);
+  const updatedTabButton = await screen.findByTestId("updatedTabButton");
+  await userEvent.click(updatedTabButton);
 
+  ({ tabs, ...dashboardContextProperties } = updatedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...updatedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
@@ -352,14 +387,17 @@ test("DashboardLoader updateGridItems add checkbox variable input", async () => 
     variable_name: "Test Variable",
     variable_options_source: "checkbox",
   });
-  updatedDashboard.gridItems = [updatedTextVariable];
+  updatedDashboard.tabs[0].gridItems = [updatedTextVariable];
 
   render(
     <AvailableDashboardsContext.Provider
       value={{ updateDashboard: mockUpdateDashboard }}
     >
       <DashboardLoader {...userDashboard}>
-        <TestingComponent updatedGridItems={[updatedTextVariable]} />
+        <TestingComponent
+          TabID={1}
+          updatedTabProperties={{ gridItems: [updatedTextVariable] }}
+        />
       </DashboardLoader>
     </AvailableDashboardsContext.Provider>
   );
@@ -368,17 +406,23 @@ test("DashboardLoader updateGridItems add checkbox variable input", async () => 
     JSON.stringify({})
   );
 
+  let { tabs, ...dashboardContextProperties } = userDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...userDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
-  const updatedGridItemsButton = await screen.findByTestId(
-    "updatedGridItemsButton"
-  );
-  await userEvent.click(updatedGridItemsButton);
+  const updatedTabButton = await screen.findByTestId("updatedTabButton");
+  await userEvent.click(updatedTabButton);
 
+  ({ tabs, ...dashboardContextProperties } = updatedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...updatedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
@@ -408,7 +452,9 @@ test("DashboardLoader save layout", async () => {
     >
       <DashboardLoader>
         <DashboardLoader {...userDashboard}>
-          <TestingComponent newProperties={{ name: "some new name" }} />
+          <TestingComponent
+            updatedDashboardProperties={{ name: "some new name" }}
+          />
         </DashboardLoader>
       </DashboardLoader>
     </AvailableDashboardsContext.Provider>
@@ -428,7 +474,7 @@ test("DashboardLoader save layout", async () => {
 test("DashboardLoader save layout with griditems", async () => {
   const mockUpdateDashboard = jest.fn();
   const updatedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  updatedDashboard.gridItems = [];
+  updatedDashboard.tabs[0].gridItems = [];
 
   mockUpdateDashboard.mockResolvedValue({
     success: true,
@@ -441,7 +487,10 @@ test("DashboardLoader save layout with griditems", async () => {
     >
       <DashboardLoader>
         <DashboardLoader {...userDashboard}>
-          <TestingComponent newProperties={{ gridItems: [] }} />
+          <TestingComponent
+            TabID={1}
+            updatedDashboardProperties={{ tabs: [] }}
+          />
         </DashboardLoader>
       </DashboardLoader>
     </AvailableDashboardsContext.Provider>
@@ -454,15 +503,20 @@ test("DashboardLoader save layout with griditems", async () => {
 
   expect(mockUpdateDashboard).toHaveBeenCalledWith({
     id: 1,
-    newProperties: { gridItems: [] },
+    newProperties: { tabs: [] },
   });
 
+  const { tabs, ...dashboardContextProperties } = updatedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...updatedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 });
 
 TestingComponent.propTypes = {
   updatedGridItems: PropTypes.object,
-  newProperties: PropTypes.object,
+  updatedDashboardProperties: PropTypes.object,
 };

@@ -9,6 +9,7 @@ import {
   DataViewerModeContext,
   VariableInputsContext,
   DisabledEditingMovementContext,
+  TabContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import { server } from "__tests__/utilities/server";
@@ -139,13 +140,25 @@ const createLoadedComponent = ({ children, options = {} }) => {
   );
 };
 
+export const TabsPComponent = () => {
+  const { tabs, activeTabId } = useContext(TabContext);
+
+  return (
+    <p data-testid="tabs-context">
+      {JSON.stringify({
+        tabs,
+        activeTabId,
+      })}
+    </p>
+  );
+};
+
 export const ContextLayoutPComponent = () => {
   const {
     id,
     uuid,
     name,
     notes,
-    gridItems,
     editable,
     publicDashboard,
     userPermission,
@@ -168,7 +181,6 @@ export const ContextLayoutPComponent = () => {
         userPermission,
         unrestrictedPlacement,
         notes,
-        gridItems,
         editable,
       })}
     </p>
