@@ -159,7 +159,7 @@ const VariableInput = ({
       setValue(inputValue);
       onChange(inputValue);
 
-      if (Array.isArray(type) || type === "checkbox" || type === "slider") {
+      if (Array.isArray(type) || type === "checkbox" || type === "slider" || type === "csv-uploader") {
         if (!inDataViewerMode) {
           updateVariableInputs(e.value ?? e);
         }
@@ -237,7 +237,7 @@ const VariableInput = ({
     }
     return (
       <StyledDiv>
-        <CSVUploader headers={metadata.headers}/>
+        <CSVUploader headers={metadata.headers} onChange={handleInputChange} />
       </StyledDiv>
     );
   } else {

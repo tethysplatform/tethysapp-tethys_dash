@@ -108,7 +108,7 @@ function DataViewerModal({
           return;
         } else if (
           variableInputValue == null &&
-          variableInputSource !== "checkbox"
+          !["checkbox", "csv-uploader"].includes(variableInputSource)
         ) {
           setAlertMessage("Initial value must be selected in the dropdown");
           setShowAlert(true);
@@ -121,7 +121,7 @@ function DataViewerModal({
       if (
         Object.values(vizInputsValues).every(
           (value) => ![null, ""].includes(value)
-        )
+        )  // TODO for csv-uploader, it's ok if data is empty
       ) {
         const { gridItems, id: activeTabId } = getActiveTab();
         let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
