@@ -3,7 +3,7 @@ import PropTypes from "prop-types";
 import Dropdown from "react-bootstrap/Dropdown";
 import { BsThreeDotsVertical, BsFillCaretRightFill } from "react-icons/bs";
 import { useContext, useState, useRef, useEffect } from "react";
-import { LayoutContext } from "components/contexts/Contexts";
+import { LayoutContext, TabContext } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import "components/dashboard/itemDropdown.css";
 
@@ -41,12 +41,14 @@ const DashboardItemDropdown = ({
   sendGridItemtoBack,
   sendGridItembackward,
 }) => {
-  const { unrestrictedPlacement, gridItems } = useContext(LayoutContext);
+  const { unrestrictedPlacement } = useContext(LayoutContext);
+  const { getActiveTab } = useContext(TabContext);
   const [showMenu, setShowMenu] = useState(false);
   const submenuRef = useRef(null);
   const [submenuPosition, setSubmenuPosition] = useState("right");
   const [submenuVisible, setSubmenuVisible] = useState(false);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
+  const { gridItems } = getActiveTab();
 
   useEffect(() => {
     if (submenuRef.current) {

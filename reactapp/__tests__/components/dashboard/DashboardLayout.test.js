@@ -3,6 +3,7 @@ import DashboardLayout from "components/dashboard/DashboardLayout";
 import { userDashboard } from "__tests__/utilities/constants";
 import createLoadedComponent, {
   ContextLayoutPComponent,
+  TabsPComponent,
 } from "__tests__/utilities/customRender";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 
@@ -21,8 +22,12 @@ test("Dashboard Layout resize and update layout", async () => {
       children: (
         <>
           <LayoutAlertContextProvider>
-            <DashboardLayout />
+            <DashboardLayout
+              tabId={userDashboard.tabs[0].id}
+              gridItems={userDashboard.tabs[0].gridItems}
+            />
           </LayoutAlertContextProvider>
+          <TabsPComponent />
           <ContextLayoutPComponent />
         </>
       ),
@@ -44,7 +49,7 @@ test("Dashboard Layout resize and update layout", async () => {
   fireEvent.mouseUp(resizeSpan);
 
   const expectedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  expectedDashboard.gridItems = [
+  expectedDashboard.tabs[0].gridItems = [
     {
       args_string: "{}",
       h: 20,
@@ -56,8 +61,12 @@ test("Dashboard Layout resize and update layout", async () => {
       y: 0,
     },
   ];
+  let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...expectedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 });
 
@@ -71,16 +80,22 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
     permissions: [{ username: "admin", permission: "admin" }],
     userPermission: "admin",
     unrestrictedPlacement: false,
-    gridItems: [
+    tabs: [
       {
-        i: "1",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({ enforceAspectRatio: true }),
+        id: 1,
+        name: "Tab 1",
+        gridItems: [
+          {
+            i: "1",
+            x: 0,
+            y: 0,
+            w: 20,
+            h: 20,
+            source: "",
+            args_string: "{}",
+            metadata_string: JSON.stringify({ enforceAspectRatio: true }),
+          },
+        ],
       },
     ],
   };
@@ -91,8 +106,12 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
       children: (
         <>
           <LayoutAlertContextProvider>
-            <DashboardLayout />
+            <DashboardLayout
+              tabId={mockedDashboard.tabs[0].id}
+              gridItems={mockedDashboard.tabs[0].gridItems}
+            />
           </LayoutAlertContextProvider>
+          <TabsPComponent />
           <ContextLayoutPComponent />
         </>
       ),
@@ -113,29 +132,41 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
   fireEvent.mouseMove(resizeSpan, { clientX: 100, clientY: 0 });
   fireEvent.mouseUp(resizeSpan);
 
+  const expectedDashboard = {
+    id: 1,
+    name: "editable",
+    publicDashboard: false,
+    permissions: [{ username: "admin", permission: "admin" }],
+    userPermission: "admin",
+    unrestrictedPlacement: false,
+    notes: "test_notes",
+    tabs: [
+      {
+        id: 1,
+        name: "Tab 1",
+        gridItems: [
+          {
+            args_string: "{}",
+            h: 20,
+            i: "1",
+            source: "",
+            metadata_string: JSON.stringify({ enforceAspectRatio: true }),
+            w: 28,
+            x: 0,
+            y: 0,
+          },
+        ],
+      },
+    ],
+    editable: true,
+  };
+
+  let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({
-      id: 1,
-      name: "editable",
-      publicDashboard: false,
-      permissions: [{ username: "admin", permission: "admin" }],
-      userPermission: "admin",
-      unrestrictedPlacement: false,
-      notes: "test_notes",
-      gridItems: [
-        {
-          args_string: "{}",
-          h: 20,
-          i: "1",
-          source: "",
-          metadata_string: JSON.stringify({ enforceAspectRatio: true }),
-          w: 28,
-          x: 0,
-          y: 0,
-        },
-      ],
-      editable: true,
-    })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 });
 
@@ -149,19 +180,25 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
     permissions: [{ username: "admin", permission: "admin" }],
     userPermission: "admin",
     unrestrictedPlacement: false,
-    gridItems: [
+    tabs: [
       {
-        i: "1",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          enforceAspectRatio: true,
-          aspectRatio: 2,
-        }),
+        id: 1,
+        name: "Tab 1",
+        gridItems: [
+          {
+            i: "1",
+            x: 0,
+            y: 0,
+            w: 20,
+            h: 20,
+            source: "",
+            args_string: "{}",
+            metadata_string: JSON.stringify({
+              enforceAspectRatio: true,
+              aspectRatio: 2,
+            }),
+          },
+        ],
       },
     ],
   };
@@ -172,8 +209,12 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
       children: (
         <>
           <LayoutAlertContextProvider>
-            <DashboardLayout />
+            <DashboardLayout
+              tabId={mockedDashboard.tabs[0].id}
+              gridItems={mockedDashboard.tabs[0].gridItems}
+            />
           </LayoutAlertContextProvider>
+          <TabsPComponent />
           <ContextLayoutPComponent />
         </>
       ),
@@ -195,63 +236,87 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
   fireEvent.mouseMove(resizeSpan, { clientX: 100, clientY: 0 });
   fireEvent.mouseUp(resizeSpan);
 
+  let expectedDashboard = {
+    id: 1,
+    name: "editable",
+    publicDashboard: false,
+    permissions: [{ username: "admin", permission: "admin" }],
+    userPermission: "admin",
+    unrestrictedPlacement: false,
+    notes: "test_notes",
+    tabs: [
+      {
+        id: 1,
+        name: "Tab 1",
+        gridItems: [
+          {
+            args_string: "{}",
+            h: 14,
+            i: "1",
+            source: "",
+            metadata_string: JSON.stringify({
+              enforceAspectRatio: true,
+              aspectRatio: 2,
+            }),
+            w: 28,
+            x: 0,
+            y: 0,
+          },
+        ],
+      },
+    ],
+    editable: true,
+  };
+
+  let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({
-      id: 1,
-      name: "editable",
-      publicDashboard: false,
-      permissions: [{ username: "admin", permission: "admin" }],
-      userPermission: "admin",
-      unrestrictedPlacement: false,
-      notes: "test_notes",
-      gridItems: [
-        {
-          args_string: "{}",
-          h: 14,
-          i: "1",
-          source: "",
-          metadata_string: JSON.stringify({
-            enforceAspectRatio: true,
-            aspectRatio: 2,
-          }),
-          w: 28,
-          x: 0,
-          y: 0,
-        },
-      ],
-      editable: true,
-    })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
   fireEvent.mouseDown(resizeSpan, { clientX: 0, clientY: 0 });
   fireEvent.mouseMove(resizeSpan, { clientX: 0, clientY: 100 });
   fireEvent.mouseUp(resizeSpan);
 
+  expectedDashboard = {
+    id: 1,
+    name: "editable",
+    publicDashboard: false,
+    permissions: [{ username: "admin", permission: "admin" }],
+    userPermission: "admin",
+    unrestrictedPlacement: false,
+    notes: "test_notes",
+    tabs: [
+      {
+        id: 1,
+        name: "Tab 1",
+        gridItems: [
+          {
+            args_string: "{}",
+            h: 24,
+            i: "1",
+            source: "",
+            metadata_string: JSON.stringify({
+              enforceAspectRatio: true,
+              aspectRatio: 2,
+            }),
+            w: 48,
+            x: 0,
+            y: 0,
+          },
+        ],
+      },
+    ],
+    editable: true,
+  };
+
+  ({ tabs, ...dashboardContextProperties } = expectedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({
-      id: 1,
-      name: "editable",
-      publicDashboard: false,
-      permissions: [{ username: "admin", permission: "admin" }],
-      userPermission: "admin",
-      unrestrictedPlacement: false,
-      notes: "test_notes",
-      gridItems: [
-        {
-          args_string: "{}",
-          h: 24,
-          i: "1",
-          source: "",
-          metadata_string: JSON.stringify({
-            enforceAspectRatio: true,
-            aspectRatio: 2,
-          }),
-          w: 48,
-          x: 0,
-          y: 0,
-        },
-      ],
-      editable: true,
-    })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 });

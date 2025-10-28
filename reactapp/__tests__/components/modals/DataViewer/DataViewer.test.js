@@ -11,7 +11,7 @@ import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import { mockedDashboards, userDashboard } from "__tests__/utilities/constants";
 import createLoadedComponent, {
   InputVariablePComponent,
-  ContextLayoutPComponent,
+  TabsPComponent,
 } from "__tests__/utilities/customRender";
 import selectEvent from "react-select-event";
 
@@ -538,7 +538,7 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
             setGridItemMessage={mocksetGridItemMessage}
             setShowGridItemMessage={mocksetShowGridItemMessage}
           />
-          <ContextLayoutPComponent />
+          <TabsPComponent />
         </>
       ),
       options: { initialDashboard: userDashboard },
@@ -580,8 +580,8 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
   fireEvent.click(dataviewerSaveButton);
 
   const updatedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  updatedDashboard.gridItems[0].source = "Map";
-  updatedDashboard.gridItems[0].args_string = JSON.stringify({
+  updatedDashboard.tabs[0].gridItems[0].source = "Map";
+  updatedDashboard.tabs[0].gridItems[0].args_string = JSON.stringify({
     baseMap:
       "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
     layerControl: false,
@@ -589,9 +589,13 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
     map_extent: { extent: "-10686671.12,4721671.57,4.5" },
     mapDrawing: {},
   });
-  updatedDashboard.gridItems[0].metadata_string = "{}";
-  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...updatedDashboard, editable: true })
+  updatedDashboard.tabs[0].gridItems[0].metadata_string = "{}";
+
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({
+      tabs: updatedDashboard.tabs,
+      activeTabId: updatedDashboard.tabs[0].id,
+    })
   );
 });
 

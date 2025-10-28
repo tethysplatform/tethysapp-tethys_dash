@@ -86,7 +86,7 @@ describe("DataInput Component", () => {
       { label: "Option 2", value: "option2" },
     ];
     const dashboards = JSON.parse(JSON.stringify(mockedDashboards));
-    dashboards.dashboards[0].gridItems = [mockedTextVariable];
+    dashboards.dashboards[0].tabs[0].gridItems = [mockedTextVariable];
 
     render(
       createLoadedComponent({

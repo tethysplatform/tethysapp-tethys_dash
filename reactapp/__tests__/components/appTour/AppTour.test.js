@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { DashboardHeader } from "components/layout/Header";
-import DashboardLayout from "components/dashboard/DashboardLayout";
+import DashboardTabs from "components/dashboard/DashboardTabs";
 import AppTour from "components/appTour/AppTour";
 import { MemoryRouter } from "react-router-dom";
 import createLoadedComponent from "__tests__/utilities/customRender";
@@ -54,18 +54,24 @@ test("Dashboard App Tour", async () => {
       notes: "test_notes",
       editable: true,
       publicDashboard: false,
-      gridItems: [
+      tabs: [
         {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
+          id: "1",
+          name: "Tab 1",
+          gridItems: [
+            {
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "",
+              args_string: "{}",
+              metadata_string: JSON.stringify({
+                refreshRate: 0,
+              }),
+            },
+          ],
         },
       ],
     },
@@ -79,7 +85,7 @@ test("Dashboard App Tour", async () => {
           <LayoutAlertContextProvider>
             <AppTour />
             <DashboardHeader />
-            <DashboardLayout />
+            <DashboardTabs />
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
@@ -620,18 +626,24 @@ test("Dashboard App Tour while editing and then exit", async () => {
       notes: "test_notes",
       editable: true,
       publicDashboard: false,
-      gridItems: [
+      tabs: [
         {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
+          id: "1",
+          name: "Tab 1",
+          gridItems: [
+            {
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "",
+              args_string: "{}",
+              metadata_string: JSON.stringify({
+                refreshRate: 0,
+              }),
+            },
+          ],
         },
       ],
     },
@@ -647,7 +659,7 @@ test("Dashboard App Tour while editing and then exit", async () => {
           <LayoutAlertContextProvider>
             <AppTour />
             <DashboardHeader />
-            <DashboardLayout />
+            <DashboardTabs />
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
@@ -726,18 +738,24 @@ test("Landing Page App Tour", async () => {
       notes: "test_notes",
       editable: true,
       publicDashboard: false,
-      gridItems: [
+      tabs: [
         {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
+          id: "1",
+          name: "Tab 1",
+          gridItems: [
+            {
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "",
+              args_string: "{}",
+              metadata_string: JSON.stringify({
+                refreshRate: 0,
+              }),
+            },
+          ],
         },
       ],
     },

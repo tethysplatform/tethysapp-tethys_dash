@@ -770,7 +770,7 @@ test("Map click attribute variables update text variable input", async () => {
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
   const handleChange = jest.fn();
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
-  dashboard.gridItems = [mockedTextVariable];
+  dashboard.tabs[0].gridItems = [mockedTextVariable];
   const varInputArgs = JSON.parse(mockedTextVariable.args_string);
 
   const layers = [
@@ -858,7 +858,7 @@ test("Map click attribute variables update dropdown variable input", async () =>
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
   const handleChange = jest.fn();
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
-  dashboard.gridItems = [mockedDropdownVariable];
+  dashboard.tabs[0].gridItems = [mockedDropdownVariable];
   const varInputArgs = JSON.parse(mockedDropdownVariable.args_string);
 
   const layers = [

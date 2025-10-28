@@ -10,9 +10,9 @@ import {
 } from "__tests__/utilities/constants";
 
 // Mock the child components
-jest.mock("components/dashboard/DashboardLayout", () => {
-  return function MockDashboardLayout() {
-    return <div data-testid="dashboard-layout">DashboardLayout</div>;
+jest.mock("components/dashboard/DashboardTabs", () => {
+  return function MockDashboardTabs() {
+    return <div data-testid="dashboard-tabs">DashboardTabs</div>;
   };
 });
 
@@ -104,7 +104,7 @@ describe("DashboardView", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-header")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-layout-alerts")).toBeInTheDocument();
-    expect(screen.getByTestId("dashboard-layout")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-tabs")).toBeInTheDocument();
   });
 
   test("renders with minimal props", () => {
@@ -120,7 +120,7 @@ describe("DashboardView", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-header")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-layout-alerts")).toBeInTheDocument();
-    expect(screen.getByTestId("dashboard-layout")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-tabs")).toBeInTheDocument();
   });
 
   test("renders with number id prop", () => {
@@ -445,7 +445,7 @@ describe("DashboardView", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-header")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-layout-alerts")).toBeInTheDocument();
-    expect(screen.getByTestId("dashboard-layout")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-tabs")).toBeInTheDocument();
   });
 
   test("renders with null and undefined props", () => {
@@ -482,7 +482,7 @@ describe("DashboardView", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-header")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-layout-alerts")).toBeInTheDocument();
-    expect(screen.getByTestId("dashboard-layout")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-tabs")).toBeInTheDocument();
   });
 
   test("preserves original component structure without router", () => {
@@ -500,7 +500,7 @@ describe("DashboardView", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-header")).toBeInTheDocument();
     expect(screen.getByTestId("dashboard-layout-alerts")).toBeInTheDocument();
-    expect(screen.getByTestId("dashboard-layout")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-tabs")).toBeInTheDocument();
   });
 
   // Test PropTypes validation by checking component renders without console errors

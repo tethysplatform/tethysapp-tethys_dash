@@ -6,7 +6,7 @@ import createLoadedComponent, {
 } from "__tests__/utilities/customRender";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import userEvent from "@testing-library/user-event";
-import DashboardLayout from "components/dashboard/DashboardLayout";
+import DashboardTabs from "components/dashboard/DashboardTabs";
 import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import appAPI from "services/api/app";
 import { useNavigate } from "react-router-dom";
@@ -19,6 +19,7 @@ import {
 } from "__tests__/utilities/constants";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
+import { name } from "file-loader";
 
 jest.mock("html2canvas");
 
@@ -30,6 +31,7 @@ jest.mock("react-router-dom", () => ({
 afterEach(() => {
   server.resetHandlers();
   jest.restoreAllMocks();
+  jest.resetAllMocks();
 });
 
 window.matchMedia =
@@ -458,20 +460,26 @@ test("DashboardHeader, import gridItem", async () => {
       description: "some description",
       publicDashboard: true,
       image: "some_image.png",
-      gridItems: [
+      tabs: [
         {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
+          id: 1,
+          name: "Tab 1",
+          gridItems: [
+            {
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "",
+              args_string: "{}",
+              metadata_string: JSON.stringify({
+                refreshRate: 0,
+              }),
+            },
+            mockedTextVariable,
+          ],
         },
-        mockedTextVariable,
       ],
     },
   });
@@ -483,7 +491,7 @@ test("DashboardHeader, import gridItem", async () => {
         <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
           <LayoutAlertContextProvider>
             <DashboardHeader />
-            <DashboardLayout />
+            <DashboardTabs />
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
@@ -542,37 +550,43 @@ test("DashboardHeader, import gridItem", async () => {
   await waitFor(() => {
     expect(mockUpdateDashboard).toHaveBeenCalledWith(
       {
-        gridItems: [
+        id: 1,
+        tabs: [
           {
-            i: "2",
-            x: 0,
-            y: 0,
-            w: 20,
-            h: 20,
-            source: "Variable Input",
-            args_string: JSON.stringify({
-              initial_value: "",
-              variable_name: "Test Variable",
-              variable_options_source: "text",
-            }),
-            metadata_string: JSON.stringify({
-              refreshRate: 0,
-            }),
-          },
-          {
-            i: "1",
-            x: 0,
-            y: 20,
-            w: 20,
-            h: 20,
-            source: "",
-            args_string: "{}",
-            metadata_string: JSON.stringify({
-              refreshRate: 0,
-            }),
+            gridItems: [
+              {
+                i: "2",
+                x: 0,
+                y: 0,
+                w: 20,
+                h: 20,
+                source: "Variable Input",
+                args_string: JSON.stringify({
+                  initial_value: "",
+                  variable_name: "Test Variable",
+                  variable_options_source: "text",
+                }),
+                metadata_string: JSON.stringify({
+                  refreshRate: 0,
+                }),
+              },
+              {
+                i: "1",
+                x: 0,
+                y: 20,
+                w: 20,
+                h: 20,
+                source: "",
+                args_string: "{}",
+                metadata_string: JSON.stringify({
+                  refreshRate: 0,
+                }),
+              },
+            ],
+            id: 1,
+            name: "Tab 1",
           },
         ],
-        id: 1,
       },
       "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
     );
@@ -651,7 +665,7 @@ test("DashboardHeader, show settings", async () => {
         <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
           <LayoutAlertContextProvider>
             <DashboardHeader />
-            <DashboardLayout />
+            <DashboardTabs />
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
@@ -682,7 +696,7 @@ test("DashboardHeader, show settings in App Tour", async () => {
           >
             <LayoutAlertContextProvider>
               <DashboardHeader />
-              <DashboardLayout />
+              <DashboardTabs />
             </LayoutAlertContextProvider>
           </AppTourContext.Provider>
         </MemoryRouter>
@@ -710,7 +724,7 @@ test("DashboardHeader, editable, lock movement", async () => {
         <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
           <LayoutAlertContextProvider>
             <DashboardHeader />
-            <DashboardLayout />
+            <DashboardTabs />
           </LayoutAlertContextProvider>
           <DisabledMovementPComponent />
         </MemoryRouter>
@@ -790,7 +804,7 @@ test("DashboardHeader, editable, edit in app tour", async () => {
           >
             <LayoutAlertContextProvider>
               <DashboardHeader />
-              <DashboardLayout />
+              <DashboardTabs />
             </LayoutAlertContextProvider>
           </AppTourContext.Provider>
         </MemoryRouter>
@@ -813,7 +827,7 @@ test("DashboardHeader, editable, edit and cancel", async () => {
         <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
           <LayoutAlertContextProvider>
             <DashboardHeader />
-            <DashboardLayout />
+            <DashboardTabs />
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
@@ -859,6 +873,273 @@ test("DashboardHeader, editable, edit and cancel", async () => {
   });
 });
 
+test("DashboardHeader, editable, edit, save and error with unrestricted movement", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  updatedMockedDashboards.dashboards[0].unrestrictedPlacement = true;
+
+  const expectedRequestCall = {
+    tabs: [
+      {
+        gridItems: [
+          {
+            args_string: "{}",
+            h: 20,
+            i: "1",
+            metadata_string: '{"refreshRate":0}',
+            source: "",
+            w: 20,
+            x: 0,
+            y: 0,
+          },
+          {
+            args_string: "{}",
+            h: 20,
+            i: "2",
+            metadata_string: '{"refreshRate":0}',
+            source: "",
+            w: 20,
+            x: 0,
+            y: 0,
+          },
+        ],
+        id: 1,
+        name: "Tab 1",
+      },
+    ],
+    id: 1,
+  };
+
+  server.use(
+    rest.post(
+      "http://api.test/apps/tethysdash/dashboards/update/",
+      async (req, res, ctx) => {
+        expect(await req.json()).toEqual(expectedRequestCall);
+        return res(
+          ctx.delay(200),
+          ctx.status(200),
+          ctx.json({
+            success: false,
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/123456789"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+            <DashboardLayoutAlerts />
+            <DashboardTabs />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: { dashboards: updatedMockedDashboards },
+    })
+  );
+
+  expect(
+    await screen.findByLabelText("dashboardExitButton")
+  ).toBeInTheDocument();
+
+  const editButton = await screen.findByLabelText("editButton");
+  expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
+  expect(editButton).toBeInTheDocument();
+  expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
+  expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
+
+  await userEvent.click(editButton);
+
+  expect(await screen.findByLabelText("cancelButton")).toBeInTheDocument();
+  const saveButton = await screen.findByLabelText("saveButton");
+  expect(screen.getByLabelText("saveButton")).toBeInTheDocument();
+  const addGridItemButton = await screen.findByLabelText("addGridItemButton");
+  expect(addGridItemButton).toBeInTheDocument();
+  expect(screen.getByLabelText("Disable Movement Button")).toBeInTheDocument();
+  expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
+
+  await userEvent.click(addGridItemButton);
+  await userEvent.click(saveButton);
+
+  expect(
+    await screen.findByText(
+      "Failed to save changes. Check server logs for more information."
+    )
+  ).toBeInTheDocument();
+});
+
+test("staticBasePath construction without prefix", async () => {
+  // Save original environment variable
+  const originalPrefixUrl = process.env.TETHYS_PREFIX_URL;
+
+  // Set environment variable to empty to test default case
+  process.env.TETHYS_PREFIX_URL = "";
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LandingPageHeader />
+        </MemoryRouter>
+      ),
+    })
+  );
+
+  await screen.findByLabelText("manageVisualizationPermissionsButton");
+  const img = screen.getByAltText("Visualization Settings");
+
+  // Should be /static/tethysdash/images/visualization_settings.png (no prefix)
+  expect(img.src).toContain(
+    "/static/tethysdash/images/visualization_settings.png"
+  );
+
+  // Restore original environment variable
+  process.env.TETHYS_PREFIX_URL = originalPrefixUrl;
+});
+
+test("staticBasePath construction with prefix", async () => {
+  // Save original environment variable
+  const originalPrefixUrl = process.env.TETHYS_PREFIX_URL;
+
+  // Set environment variable to test prefix case
+  process.env.TETHYS_PREFIX_URL = "myapp";
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LandingPageHeader />
+        </MemoryRouter>
+      ),
+    })
+  );
+
+  await screen.findByLabelText("manageVisualizationPermissionsButton");
+  const img = screen.getByAltText("Visualization Settings");
+
+  // Since the module was already loaded, the staticBasePath is already computed
+  // This test verifies the image is rendered with the existing path
+  expect(img.src).toContain("visualization_settings.png");
+
+  // Restore original environment variable
+  process.env.TETHYS_PREFIX_URL = originalPrefixUrl;
+});
+
+test("staticBasePath construction logic", () => {
+  // Test the actual logic that line 48 implements
+  const testCases = [
+    { input: "", expected: "/static/tethysdash/images/" },
+    { input: "myapp", expected: "/myapp/static/tethysdash/images/" },
+    { input: "/myapp/", expected: "/myapp/static/tethysdash/images/" },
+    { input: "///myapp///", expected: "/myapp/static/tethysdash/images/" },
+  ];
+
+  testCases.forEach(({ input, expected }) => {
+    // Simulate the logic from line 43-48 in Header.js
+    const prefixUrlSegment = input.replace(/(^\/+|\/+?$)/g, "");
+    const staticBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/`;
+
+    expect(staticBasePath).toBe(expected);
+  });
+});
+
+test("DashboardHeader, editable, edit, save and error", async () => {
+  const expectedRequestCall = {
+    id: 1,
+    tabs: [
+      {
+        gridItems: [
+          {
+            args_string: "{}",
+            h: 20,
+            i: "2",
+            metadata_string: '{"refreshRate":0}',
+            source: "",
+            w: 20,
+            x: 0,
+            y: 0,
+          },
+          {
+            args_string: "{}",
+            h: 20,
+            i: "1",
+            metadata_string: '{"refreshRate":0}',
+            source: "",
+            w: 20,
+            x: 0,
+            y: 20,
+          },
+        ],
+        id: 1,
+        name: "Tab 1",
+      },
+    ],
+  };
+
+  server.use(
+    rest.post(
+      "http://api.test/apps/tethysdash/dashboards/update/",
+      async (req, res, ctx) => {
+        expect(await req.json()).toEqual(expectedRequestCall);
+        return res(
+          ctx.delay(200),
+          ctx.status(200),
+          ctx.json({
+            success: false,
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+            <DashboardLayoutAlerts />
+            <DashboardTabs />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+    })
+  );
+
+  expect(
+    await screen.findByLabelText("dashboardExitButton")
+  ).toBeInTheDocument();
+
+  const editButton = await screen.findByLabelText("editButton");
+  expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
+  expect(editButton).toBeInTheDocument();
+  expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
+  expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
+
+  await userEvent.click(editButton);
+
+  expect(await screen.findByLabelText("cancelButton")).toBeInTheDocument();
+  const saveButton = await screen.findByLabelText("saveButton");
+  expect(screen.getByLabelText("saveButton")).toBeInTheDocument();
+  const addGridItemButton = await screen.findByLabelText("addGridItemButton");
+  expect(addGridItemButton).toBeInTheDocument();
+  expect(screen.getByLabelText("Disable Movement Button")).toBeInTheDocument();
+  expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
+
+  await userEvent.click(addGridItemButton);
+  await userEvent.click(saveButton);
+
+  expect(
+    await screen.findByText(
+      "Failed to save changes. Check server logs for more information."
+    )
+  ).toBeInTheDocument();
+});
+
 test("DashboardHeader, editable, edit and save", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
@@ -902,54 +1183,60 @@ test("DashboardHeader, editable, edit and save", async () => {
   ];
 
   const expectedRequestCall = {
-    gridItems: [
+    tabs: [
       {
-        i: "4",
-        x: 0,
-        y: 0,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-      {
-        i: "1",
-        x: 0,
-        y: 20,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-      {
-        i: "3",
-        x: 0,
-        y: 40,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
-      },
-      {
-        i: "2",
-        x: 0,
-        y: 60,
-        w: 20,
-        h: 20,
-        source: "",
-        args_string: "{}",
-        metadata_string: JSON.stringify({
-          refreshRate: 0,
-        }),
+        id: 1,
+        name: "Tab 1",
+        gridItems: [
+          {
+            i: "4",
+            x: 0,
+            y: 0,
+            w: 20,
+            h: 20,
+            source: "",
+            args_string: "{}",
+            metadata_string: JSON.stringify({
+              refreshRate: 0,
+            }),
+          },
+          {
+            i: "1",
+            x: 0,
+            y: 20,
+            w: 20,
+            h: 20,
+            source: "",
+            args_string: "{}",
+            metadata_string: JSON.stringify({
+              refreshRate: 0,
+            }),
+          },
+          {
+            i: "3",
+            x: 0,
+            y: 40,
+            w: 20,
+            h: 20,
+            source: "",
+            args_string: "{}",
+            metadata_string: JSON.stringify({
+              refreshRate: 0,
+            }),
+          },
+          {
+            i: "2",
+            x: 0,
+            y: 60,
+            w: 20,
+            h: 20,
+            source: "",
+            args_string: "{}",
+            metadata_string: JSON.stringify({
+              refreshRate: 0,
+            }),
+          },
+        ],
       },
     ],
     id: 1,
@@ -1035,7 +1322,7 @@ test("DashboardHeader, editable, edit and save", async () => {
         <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
           <LayoutAlertContextProvider>
             <DashboardHeader />
-            <DashboardLayout />
+            <DashboardTabs />
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
@@ -1071,244 +1358,4 @@ test("DashboardHeader, editable, edit and save", async () => {
   expect(await screen.findByTestId("header-loading")).toBeInTheDocument();
 
   expect(screen.queryByTestId("Loading...")).not.toBeInTheDocument();
-});
-
-test("DashboardHeader, editable, edit, save and error", async () => {
-  const mockUpdateDashboard = jest.fn();
-  mockUpdateDashboard.mockResolvedValue({
-    success: false,
-  });
-
-  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
-
-  render(
-    createLoadedComponent({
-      children: (
-        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
-          <LayoutAlertContextProvider>
-            <DashboardHeader />
-            <DashboardLayoutAlerts />
-            <DashboardLayout />
-          </LayoutAlertContextProvider>
-        </MemoryRouter>
-      ),
-    })
-  );
-
-  expect(
-    await screen.findByLabelText("dashboardExitButton")
-  ).toBeInTheDocument();
-
-  const editButton = await screen.findByLabelText("editButton");
-  expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
-  expect(editButton).toBeInTheDocument();
-  expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
-  expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
-
-  await userEvent.click(editButton);
-
-  expect(await screen.findByLabelText("cancelButton")).toBeInTheDocument();
-  const saveButton = await screen.findByLabelText("saveButton");
-  expect(screen.getByLabelText("saveButton")).toBeInTheDocument();
-  const addGridItemButton = await screen.findByLabelText("addGridItemButton");
-  expect(addGridItemButton).toBeInTheDocument();
-  expect(screen.getByLabelText("Disable Movement Button")).toBeInTheDocument();
-  expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
-
-  await userEvent.click(addGridItemButton);
-  await userEvent.click(saveButton);
-
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      gridItems: [
-        {
-          args_string: "{}",
-          h: 20,
-          i: "2",
-          metadata_string: '{"refreshRate":0}',
-          source: "",
-          w: 20,
-          x: 0,
-          y: 0,
-        },
-        {
-          args_string: "{}",
-          h: 20,
-          i: "1",
-          metadata_string: '{"refreshRate":0}',
-          source: "",
-          w: 20,
-          x: 0,
-          y: 20,
-        },
-      ],
-      id: 1,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
-  );
-
-  expect(
-    await screen.findByText(
-      "Failed to save changes. Check server logs for more information."
-    )
-  ).toBeInTheDocument();
-});
-
-test("DashboardHeader, editable, edit, save and error with unrestricted movement", async () => {
-  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
-  const mockUpdateDashboard = jest.fn();
-  mockUpdateDashboard.mockResolvedValue({
-    success: false,
-  });
-
-  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
-  updatedMockedDashboards.dashboards[0].unrestrictedPlacement = true;
-
-  render(
-    createLoadedComponent({
-      children: (
-        <MemoryRouter initialEntries={["/dashboard/123456789"]}>
-          <LayoutAlertContextProvider>
-            <DashboardHeader />
-            <DashboardLayoutAlerts />
-            <DashboardLayout />
-          </LayoutAlertContextProvider>
-        </MemoryRouter>
-      ),
-      options: { dashboards: updatedMockedDashboards },
-    })
-  );
-
-  expect(
-    await screen.findByLabelText("dashboardExitButton")
-  ).toBeInTheDocument();
-
-  const editButton = await screen.findByLabelText("editButton");
-  expect(await screen.findByText(userDashboard.name)).toBeInTheDocument();
-  expect(editButton).toBeInTheDocument();
-  expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
-  expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
-
-  await userEvent.click(editButton);
-
-  expect(await screen.findByLabelText("cancelButton")).toBeInTheDocument();
-  const saveButton = await screen.findByLabelText("saveButton");
-  expect(screen.getByLabelText("saveButton")).toBeInTheDocument();
-  const addGridItemButton = await screen.findByLabelText("addGridItemButton");
-  expect(addGridItemButton).toBeInTheDocument();
-  expect(screen.getByLabelText("Disable Movement Button")).toBeInTheDocument();
-  expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
-
-  await userEvent.click(addGridItemButton);
-  await userEvent.click(saveButton);
-
-  expect(mockUpdateDashboard).toHaveBeenCalledWith(
-    {
-      gridItems: [
-        {
-          args_string: "{}",
-          h: 20,
-          i: "1",
-          metadata_string: '{"refreshRate":0}',
-          source: "",
-          w: 20,
-          x: 0,
-          y: 0,
-        },
-        {
-          args_string: "{}",
-          h: 20,
-          i: "2",
-          metadata_string: '{"refreshRate":0}',
-          source: "",
-          w: 20,
-          x: 0,
-          y: 0,
-        },
-      ],
-      id: 1,
-    },
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
-  );
-
-  expect(
-    await screen.findByText(
-      "Failed to save changes. Check server logs for more information."
-    )
-  ).toBeInTheDocument();
-});
-
-test("staticBasePath construction without prefix", async () => {
-  // Save original environment variable
-  const originalPrefixUrl = process.env.TETHYS_PREFIX_URL;
-
-  // Set environment variable to empty to test default case
-  process.env.TETHYS_PREFIX_URL = "";
-
-  render(
-    createLoadedComponent({
-      children: (
-        <MemoryRouter initialEntries={["/"]}>
-          <LandingPageHeader />
-        </MemoryRouter>
-      ),
-    })
-  );
-
-  await screen.findByLabelText("manageVisualizationPermissionsButton");
-  const img = screen.getByAltText("Visualization Settings");
-
-  // Should be /static/tethysdash/images/visualization_settings.png (no prefix)
-  expect(img.src).toContain(
-    "/static/tethysdash/images/visualization_settings.png"
-  );
-
-  // Restore original environment variable
-  process.env.TETHYS_PREFIX_URL = originalPrefixUrl;
-});
-
-test("staticBasePath construction with prefix", async () => {
-  // Save original environment variable
-  const originalPrefixUrl = process.env.TETHYS_PREFIX_URL;
-
-  // Set environment variable to test prefix case
-  process.env.TETHYS_PREFIX_URL = "myapp";
-
-  render(
-    createLoadedComponent({
-      children: (
-        <MemoryRouter initialEntries={["/"]}>
-          <LandingPageHeader />
-        </MemoryRouter>
-      ),
-    })
-  );
-
-  await screen.findByLabelText("manageVisualizationPermissionsButton");
-  const img = screen.getByAltText("Visualization Settings");
-
-  // Since the module was already loaded, the staticBasePath is already computed
-  // This test verifies the image is rendered with the existing path
-  expect(img.src).toContain("visualization_settings.png");
-
-  // Restore original environment variable
-  process.env.TETHYS_PREFIX_URL = originalPrefixUrl;
-});
-
-test("staticBasePath construction logic", () => {
-  // Test the actual logic that line 48 implements
-  const testCases = [
-    { input: "", expected: "/static/tethysdash/images/" },
-    { input: "myapp", expected: "/myapp/static/tethysdash/images/" },
-    { input: "/myapp/", expected: "/myapp/static/tethysdash/images/" },
-    { input: "///myapp///", expected: "/myapp/static/tethysdash/images/" },
-  ];
-
-  testCases.forEach(({ input, expected }) => {
-    // Simulate the logic from line 43-48 in Header.js
-    const prefixUrlSegment = input.replace(/(^\/+|\/+?$)/g, "");
-    const staticBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/`;
-
-    expect(staticBasePath).toBe(expected);
-  });
 });

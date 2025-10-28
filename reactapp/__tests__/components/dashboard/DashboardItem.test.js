@@ -19,6 +19,7 @@ import createLoadedComponent, {
   EditingPComponent,
   DataViewerPComponent,
   InputVariablePComponent,
+  TabsPComponent,
 } from "__tests__/utilities/customRender";
 import appAPI from "services/api/app";
 import {
@@ -246,6 +247,7 @@ test("Dashboard Item delete grid item", async () => {
             gridItemMetadataString={gridItem.metadata_string}
             gridItemIndex={0}
           />
+          <TabsPComponent />
           <ContextLayoutPComponent />
           <EditingPComponent />
         </>
@@ -266,10 +268,14 @@ test("Dashboard Item delete grid item", async () => {
   await userEvent.click(deleteGridItemButton);
 
   let expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
-  expectedDashboard.gridItems = [];
+  expectedDashboard.tabs[0].gridItems = [];
 
+  let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...expectedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
@@ -290,6 +296,7 @@ test("Dashboard Item delete grid item cancel", async () => {
             gridItemMetadataString={gridItem.metadata_string}
             gridItemIndex={0}
           />
+          <TabsPComponent />
           <ContextLayoutPComponent />
           <EditingPComponent />
         </>
@@ -310,7 +317,7 @@ test("Dashboard Item delete grid item cancel", async () => {
   await userEvent.click(deleteGridItemButton);
 
   let expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
-  expectedDashboard.gridItems = [
+  expectedDashboard.tabs[0].gridItems = [
     {
       i: "1",
       x: 0,
@@ -324,8 +331,12 @@ test("Dashboard Item delete grid item cancel", async () => {
       }),
     },
   ];
+  let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...expectedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
@@ -436,6 +447,7 @@ test("Dashboard Item copy item", async () => {
             gridItemMetadataString={gridItem.metadata_string}
             gridItemIndex={2}
           />
+          <TabsPComponent />
           <ContextLayoutPComponent />
           <EditingPComponent />
         </>
@@ -457,7 +469,7 @@ test("Dashboard Item copy item", async () => {
   await userEvent.click(createCopyButton);
 
   let expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
-  expectedDashboard.gridItems = [
+  expectedDashboard.tabs[0].gridItems = [
     {
       i: "1",
       x: 0,
@@ -507,8 +519,13 @@ test("Dashboard Item copy item", async () => {
       }),
     },
   ];
+
+  let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...expectedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
@@ -548,6 +565,7 @@ test("Dashboard Item copy item variable input", async () => {
             gridItemIndex={2}
           />
           <ContextLayoutPComponent />
+          <TabsPComponent />
           <EditingPComponent />
           <InputVariablePComponent />
         </>
@@ -569,7 +587,7 @@ test("Dashboard Item copy item variable input", async () => {
   await userEvent.click(createCopyButton);
 
   let expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
-  expectedDashboard.gridItems = [
+  expectedDashboard.tabs[0].gridItems = [
     {
       i: "1",
       x: 0,
@@ -603,8 +621,12 @@ test("Dashboard Item copy item variable input", async () => {
       }),
     },
   ];
+  let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...expectedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
@@ -667,6 +689,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
             gridItemIndex={0}
           />
           <ContextLayoutPComponent />
+          <TabsPComponent />
           <EditingPComponent />
           <InputVariablePComponent />
         </>
@@ -688,7 +711,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
   await userEvent.click(createCopyButton);
 
   let expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
-  expectedDashboard.gridItems = [
+  expectedDashboard.tabs[0].gridItems = [
     {
       i: "1",
       x: 0,
@@ -738,8 +761,12 @@ test("Dashboard Item copy item variable input already exists", async () => {
       }),
     },
   ];
+  let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...expectedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
@@ -894,7 +921,7 @@ test("Dashboard Item order forward", async () => {
             gridItemMetadataString={gridItem.metadata_string}
             gridItemIndex={1}
           />
-
+          <TabsPComponent />
           <ContextLayoutPComponent />
         </>
       ),
@@ -920,14 +947,18 @@ test("Dashboard Item order forward", async () => {
   await userEvent.click(bringToFrontOption);
 
   let expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
-  expectedDashboard.gridItems = [
+  expectedDashboard.tabs[0].gridItems = [
     greenGridItem,
     redGridItem,
     yellowGridItem,
     blueGridItem,
   ];
+  let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...expectedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
   await userEvent.click(dashboardItemDropdownToggle);
@@ -941,14 +972,18 @@ test("Dashboard Item order forward", async () => {
   await userEvent.click(bringForwardOption);
 
   expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
-  expectedDashboard.gridItems = [
+  expectedDashboard.tabs[0].gridItems = [
     greenGridItem,
     yellowGridItem,
     redGridItem,
     blueGridItem,
   ];
+  ({ tabs, ...dashboardContextProperties } = expectedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...expectedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 });
 
@@ -1039,7 +1074,7 @@ test("Dashboard Item order backward", async () => {
             gridItemMetadataString={gridItem.metadata_string}
             gridItemIndex={2}
           />
-
+          <TabsPComponent />
           <ContextLayoutPComponent />
         </>
       ),
@@ -1065,14 +1100,18 @@ test("Dashboard Item order backward", async () => {
   await userEvent.click(sendToBackOption);
 
   let expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
-  expectedDashboard.gridItems = [
+  expectedDashboard.tabs[0].gridItems = [
     redGridItem,
     greenGridItem,
     blueGridItem,
     yellowGridItem,
   ];
+  let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...expectedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 
   await userEvent.click(dashboardItemDropdownToggle);
@@ -1085,14 +1124,18 @@ test("Dashboard Item order backward", async () => {
   expect(sendBackwardOption).toBeInTheDocument();
   await userEvent.click(sendBackwardOption);
 
-  expectedDashboard.gridItems = [
+  expectedDashboard.tabs[0].gridItems = [
     redGridItem,
     blueGridItem,
     greenGridItem,
     yellowGridItem,
   ];
+  ({ tabs, ...dashboardContextProperties } = expectedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...expectedDashboard, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true })
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
   );
 });
 

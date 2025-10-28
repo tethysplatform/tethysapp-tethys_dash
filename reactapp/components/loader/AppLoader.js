@@ -331,18 +331,22 @@ function Loader({ children }) {
   async function exportDashboard(id) {
     const apiResponse = await appAPI.getDashboard({ id });
     if (apiResponse.success) {
-      const { id, gridItems, uuid, ...dashboardProperties } =
-        apiResponse.dashboard;
+      const { id, tabs, uuid, ...dashboardProperties } = apiResponse.dashboard;
 
-      const updatedGridItems = [];
-      for (const gridItem of gridItems) {
-        const exportedGridItem = await handleGridItemExport(gridItem);
-        updatedGridItems.push(exportedGridItem);
+      // gridItems is actually tabs: [{ gridItems: [...] }]
+      const exportedTabs = [];
+      for (const tab of tabs) {
+        const updatedGridItems = [];
+        for (const gridItem of tab.gridItems) {
+          const exportedGridItem = await handleGridItemExport(gridItem);
+          updatedGridItems.push(exportedGridItem);
+        }
+        exportedTabs.push({ ...tab, gridItems: updatedGridItems });
       }
 
       const exportedDashboard = {
         ...dashboardProperties,
-        gridItems: updatedGridItems,
+        tabs: exportedTabs,
       };
 
       try {
