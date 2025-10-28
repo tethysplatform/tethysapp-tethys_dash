@@ -1,9 +1,9 @@
-import { useState, useContext, useRef } from "react";
+import { useState, useContext } from "react";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import { TabContext, EditingContext } from "components/contexts/Contexts";
 import DashboardLayout from "./DashboardLayout";
-import { BsX, BsGripVertical } from "react-icons/bs";
+import { BsX } from "react-icons/bs";
 import styled from "styled-components";
 import { confirm } from "components/inputs/DeleteConfirmation";
 
@@ -67,17 +67,6 @@ const DeleteButton = styled.button`
 
   &:hover {
     background-color: rgba(220, 53, 69, 0.1);
-  }
-`;
-
-const DragHandle = styled.div`
-  cursor: grab;
-  color: #6c757d;
-  display: flex;
-  align-items: center;
-
-  &:active {
-    cursor: grabbing;
   }
 `;
 

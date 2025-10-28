@@ -21,8 +21,6 @@ import {
 import { valuesEqual } from "components/modals/utilities";
 import styled from "styled-components";
 import Spinner from "react-bootstrap/Spinner";
-import { getDependentVariableInputs } from "components/visualizations/utilities";
-import { checkForVariable } from "components/inputs/DatePicker";
 import { addVerticalLine } from "components/visualizations/BasePlot";
 
 const StyledSpinner = styled(Spinner)`

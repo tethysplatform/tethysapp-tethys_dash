@@ -4,7 +4,6 @@ import Container from "react-bootstrap/Container";
 import { memo, useState, useContext, useEffect } from "react";
 import { BsInfoCircle } from "react-icons/bs";
 import {
-  LayoutContext,
   EditingContext,
   VariableInputsContext,
   DataViewerModeContext,

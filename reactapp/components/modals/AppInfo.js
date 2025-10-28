@@ -7,7 +7,6 @@ import styled from "styled-components";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import {
   EditingContext,
-  LayoutContext,
   AppContext,
   TabContext,
 } from "components/contexts/Contexts";
@@ -56,7 +55,6 @@ const contactUsEmail = process.env.TETHYSDASH_SUPPORT_EMAIL;
 const contactUsGitHub = process.env.TETHYSDASH_SUPPORT_GITHUB;
 
 function AppInfoModal({ showModal, setShowModal, view }) {
-  const layoutContext = useContext(LayoutContext);
   const tabContext = useContext(TabContext);
   const editingContext = useContext(EditingContext);
   const { user } = useContext(AppContext);

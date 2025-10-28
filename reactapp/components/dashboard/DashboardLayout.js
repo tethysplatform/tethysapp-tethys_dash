@@ -14,6 +14,7 @@ import {
   TabContext,
 } from "components/contexts/Contexts";
 import DashboardItem from "components/dashboard/DashboardItem";
+import PropTypes from "prop-types";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
@@ -143,6 +144,21 @@ const DashboardLayout = ({ tabId, gridItems }) => {
       {items}
     </ReactGridLayout>
   );
+};
+DashboardLayout.propTypes = {
+  tabId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+  gridItems: PropTypes.arrayOf(
+    PropTypes.shape({
+      i: PropTypes.string.isRequired,
+      x: PropTypes.number.isRequired,
+      y: PropTypes.number.isRequired,
+      w: PropTypes.number.isRequired,
+      h: PropTypes.number.isRequired,
+      source: PropTypes.string.isRequired,
+      args_string: PropTypes.string.isRequired,
+      metadata_string: PropTypes.string.isRequired,
+    })
+  ).isRequired,
 };
 
 export default memo(DashboardLayout);

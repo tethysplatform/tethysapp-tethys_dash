@@ -1,4 +1,3 @@
-import DashboardLayout from "components/dashboard/DashboardLayout";
 import DashboardTabs from "components/dashboard/DashboardTabs";
 import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";

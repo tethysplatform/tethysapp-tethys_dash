@@ -132,6 +132,7 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
     if (value !== formattedRaw) {
       setRawInputValue(value);
     }
+    // eslint-disable-next-line
   }, [value]);
 
   // Derive selectedDate for calendar from value prop (only if not relative)

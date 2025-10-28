@@ -52,6 +52,7 @@ describe("PlotlySettings", () => {
 
   it("load with variable value, doesnt resolve", () => {
     const settings = {
+      // eslint-disable-next-line
       plotlyVerticalLine: { value: "${dep}", mode: "on" },
     };
     renderWithContext(settings);
@@ -266,6 +267,7 @@ describe("PlotlySettings", () => {
     renderWithContext(settings);
 
     fireEvent.change(screen.getByRole("textbox"), {
+      // eslint-disable-next-line
       target: { value: "${depVar}" },
     });
 
@@ -274,6 +276,7 @@ describe("PlotlySettings", () => {
     const newState = updateFn(prevState);
     expect(newState).toEqual({
       plotlyVerticalLine: {
+        // eslint-disable-next-line
         value: "${depVar}",
       },
     });
@@ -296,6 +299,7 @@ describe("PlotlySettings", () => {
     renderWithContext(settings);
 
     fireEvent.change(screen.getByRole("textbox"), {
+      // eslint-disable-next-line
       target: { value: "${dep}" },
     });
 
@@ -304,6 +308,7 @@ describe("PlotlySettings", () => {
     const newState = updateFn(prevState);
     expect(newState).toEqual({
       plotlyVerticalLine: {
+        // eslint-disable-next-line
         value: "${dep}",
       },
     });
@@ -316,6 +321,7 @@ describe("PlotlySettings", () => {
       plotlyVerticalLine: {
         ...defaultSettings.plotlyVerticalLine,
         mode: "on",
+        // eslint-disable-next-line
         value: "${depVar}",
       },
     };

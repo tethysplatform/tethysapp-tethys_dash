@@ -517,6 +517,7 @@ test("DashboardLoader save layout with griditems", async () => {
 });
 
 TestingComponent.propTypes = {
-  updatedGridItems: PropTypes.object,
+  TabID: PropTypes.number.isRequired,
+  updatedTabProperties: PropTypes.object,
   updatedDashboardProperties: PropTypes.object,
 };

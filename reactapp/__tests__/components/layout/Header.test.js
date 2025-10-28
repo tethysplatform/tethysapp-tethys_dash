@@ -19,7 +19,6 @@ import {
 } from "__tests__/utilities/constants";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
-import { name } from "file-loader";
 
 jest.mock("html2canvas");
 

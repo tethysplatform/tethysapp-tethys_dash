@@ -55,6 +55,7 @@ describe("BasePlot", () => {
       />
     );
     // Should render a plot container div with flex style
+    // eslint-disable-next-line
     const plotDiv = container.querySelector('div[style*="display: flex"]');
     expect(plotDiv).toBeInTheDocument();
   });
