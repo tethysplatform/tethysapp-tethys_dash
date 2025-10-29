@@ -27,6 +27,8 @@ const FileUpload = ({ label, onFileUpload, extensionsAllowed }) => {
         const fileContent = e.target.result;
         // Do something with the file content
         onFileUpload({ uploadedFileName, fileContent });
+        // Reset input value to allow same file re-upload
+        e.target.value = null;
       };
 
       reader.readAsText(uploadedFile);

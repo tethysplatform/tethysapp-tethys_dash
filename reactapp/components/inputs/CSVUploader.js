@@ -29,14 +29,13 @@ const StyledTableWrapper = styled.div`
 `;
 
 const CSVUploader = ({
-  buttonText = "Toggle Table",  // TODO maybe add these args to metadata
+  buttonText = "Toggle Table",  // TODO add these args to metadata
   variant = "primary",
   headers = [],
   onChange = () => {}
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [rows, setRows] = useState([]);
-  const [errorMessage, setErrorMessage] = useState("");
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
   const handleToggle = () => {
@@ -46,14 +45,6 @@ const CSVUploader = ({
   const parseCSV = (fileName, fileContent) => {
     const lines = fileContent.trim().split("\n");
     const parsedHeaders = lines[0].split(",").map((h) => h.trim());
-    const invalidHeaders = parsedHeaders.filter(h => !headers.includes(h));
-    if (invalidHeaders.length > 0) {
-       setErrorMessage(
-        `Invalid headers found: ${invalidHeaders.join(", ")}. Expected headers: ${headers.join(", ")}.`
-      );
-    } else {
-      setErrorMessage("");
-    }
     const parsedRows = lines.slice(1).map((line) => {
       const values = line.split(",").map((v) => v.trim());
       return parsedHeaders.reduce((obj, key, i) => {
@@ -67,7 +58,6 @@ const CSVUploader = ({
       onChange(fileName);
     } else {
       onChange(parsedRows);
-      console.log(parsedRows);
     }
   };
 
@@ -97,12 +87,7 @@ const CSVUploader = ({
 
       <Collapse in={isOpen}>
         <div id="collapsible-table">
-          {errorMessage && (
-            <Alert variant="danger" className="mt-3">
-              {errorMessage}
-            </Alert>
-          )}
-          {!errorMessage && headers.length > 0 && (
+          { headers.length > 0 && (
             <StyledTableWrapper className="table-responsive">
               <StyledTable striped bordered hover>
                 <thead>
