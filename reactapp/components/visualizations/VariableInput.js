@@ -238,6 +238,9 @@ const VariableInput = ({
     }
     return (
       <StyledDiv>
+        <label>
+          <b>{label}</b>:
+        </label>
         <CSVUploader headers={metadata.headers} onChange={handleInputChange} />
       </StyledDiv>
     );

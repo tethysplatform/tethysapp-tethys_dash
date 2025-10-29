@@ -73,7 +73,6 @@ const CSVUploader = ({
 
   const handleFileUpload = (fileData) => {
     // Process the uploaded file data here
-    console.log(fileData);
     parseCSV(fileData.uploadedFileName, fileData.fileContent);
     setIsOpen(true);
   };
@@ -81,7 +80,7 @@ const CSVUploader = ({
   return (
     <StyledContainer>
       <FileUpload
-        label="Upload CSV"
+        label=""
         onFileUpload={handleFileUpload}
         extensionsAllowed={['csv']}
       >
