@@ -120,12 +120,7 @@ const DashboardLoader = ({
         );
         setTabs(updatedDashboard.tabs);
         originalTabs.current = updatedDashboard.tabs;
-        if (originalActiveTabIndex === -1) {
-          // If the current active tab was deleted, set to the first tab
-          setActiveTabId(updatedDashboard.tabs[0].id);
-        } else {
-          setActiveTabId(updatedDashboard.tabs[originalActiveTabIndex].id);
-        }
+        setActiveTabId(updatedDashboard.tabs[originalActiveTabIndex].id);
       }
     }
     return apiResponse;
@@ -157,7 +152,7 @@ const DashboardLoader = ({
 
   const getActiveTab = () => tabs.find((tab) => tab.id === activeTabId);
 
-  const getTab = (id) => tabs.find((tab) => tab.id === id);
+  const getTab = (tabId) => tabs.find((tab) => tab.id === tabId);
 
   if (loadError) {
     return (

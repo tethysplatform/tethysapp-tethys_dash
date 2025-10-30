@@ -10,6 +10,8 @@ from tethysapp.tethysdash.model import (
     GroupPermissionLevel,
     init_primary_db,
     Dashboard,
+    DashboardTab,
+    GridItem,
     DashboardPermission,
     DashboardPermissionLevel,
     PermissionGroup,
@@ -76,7 +78,7 @@ def mock_app_get_ps_db(session_maker, mocker):
         mock_app = mocker.patch(mock_path)
         mock_app.render.return_value = HttpResponse("Success")
         mock_app.get_persistent_store_database.return_value = session_maker
-        mock_app.root_url = "app_root"
+        mock_app.root_url = "tethysdash"
         return mock_app
 
     return mock_app_factory

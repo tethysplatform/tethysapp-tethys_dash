@@ -577,27 +577,15 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
         # Copy Tabs and their GridItems
         tab_id_mapping = {}  # Map original tab IDs to new tab IDs
 
-        if original_dashboard.tabs:
-            # Copy tabs
-            for tab in original_dashboard.tabs:
-                new_tab = DashboardTab(
-                    dashboard_id=new_dashboard.id,
-                    name=tab.name,
-                    tab_order=tab.tab_order,
-                )
-                session.add(new_tab)
-                session.flush()  # Get new tab ID
-                tab_id_mapping[tab.id] = new_tab.id
-        else:
-            # Create default tab if original had no tabs (for backward compatibility)
-            default_tab = DashboardTab(
+        for tab in original_dashboard.tabs:
+            new_tab = DashboardTab(
                 dashboard_id=new_dashboard.id,
-                name="Main",
-                tab_order=0,
+                name=tab.name,
+                tab_order=tab.tab_order,
             )
-            session.add(default_tab)
-            session.flush()
-            tab_id_mapping[None] = default_tab.id
+            session.add(new_tab)
+            session.flush()  # Get new tab ID
+            tab_id_mapping[tab.id] = new_tab.id
 
         # Copy GridItems and link them to appropriate tabs
         new_grid_items = []
@@ -762,119 +750,88 @@ def update_named_dashboard(user, id, dashboard_updates):
 
         if "tabs" in dashboard_updates:
             updated_tabs = dashboard_updates["tabs"]
+            tabs_ids_to_update = [tab["id"] for tab in updated_tabs if tab.get("id")]
             existing_tab_ids = [tab.id for tab in db_dashboard.tabs]
 
-            # Separate existing tabs (integer IDs) from new tabs (string IDs/temporary names)
-            existing_tab_ids_in_update = [
-                tab["id"]
-                for tab in updated_tabs
-                if "id" in tab and tab["id"] and isinstance(tab["id"], int)
+            tabs_to_update = [
+                tab for tab in db_dashboard.tabs if tab.id in tabs_ids_to_update
             ]
 
-            tabs_to_delete = [
+            tabs_ids_to_delete = [
                 tab_id
                 for tab_id in existing_tab_ids
-                if tab_id not in existing_tab_ids_in_update
+                if tab_id not in tabs_ids_to_update
             ]
+
             tabs_to_add = [
-                tab
-                for tab in updated_tabs
-                if "id" not in tab or not tab["id"] or isinstance(tab["id"], str)
+                tab for tab in updated_tabs if tab.get("id") not in existing_tab_ids
             ]
 
             # Delete tabs that are no longer present
-            for tab_id in tabs_to_delete:
-                db_tab = (
-                    session.query(DashboardTab)
-                    .filter(
-                        DashboardTab.id == tab_id,
-                        DashboardTab.dashboard_id == db_dashboard.id,
-                    )
-                    .first()
-                )
+            for tab_id in tabs_ids_to_delete:
+                db_tab = session.get(DashboardTab, tab_id)
                 if db_tab:
                     session.delete(db_tab)
 
-            # Process all tabs (add new ones and update existing ones)
-            for tab_order, tab in enumerate(updated_tabs):
-                tab_id = tab.get("id")
-                tab_name = tab.get("name", f"Tab {tab_order + 1}")
-                tab_grid_items = tab.get("gridItems", [])
+            for db_tab in tabs_to_update:
+                # Find the corresponding updated tab data
+                updated_tab_data = next(
+                    (tab for tab in updated_tabs if tab.get("id") == db_tab.id), None
+                )
+                tab_id = updated_tab_data.get("id")
+                tab_name = updated_tab_data.get("name")
+                tab_grid_items = updated_tab_data.get("gridItems", [])
 
-                # Check if this is a new tab (string ID/temporary name) or existing tab (integer ID)
-                is_new_tab = tab in tabs_to_add or (tab_id and isinstance(tab_id, str))
+                if tab_name:
+                    db_tab.name = tab_name
 
-                if is_new_tab:
-                    # Create new tab
-                    db_tab = DashboardTab(
-                        dashboard_id=db_dashboard.id, name=tab_name, tab_order=tab_order
-                    )
-                    session.add(db_tab)
-                    session.flush()  # Get the new tab ID
-                    tab_id = db_tab.id
-                else:
-                    # Update existing tab (tab_id should be an integer for existing tabs)
-                    if isinstance(tab_id, int):
-                        db_tab = (
-                            session.query(DashboardTab)
-                            .filter(
-                                DashboardTab.id == tab_id,
-                                DashboardTab.dashboard_id == db_dashboard.id,
-                            )
-                            .first()
-                        )
-                        if db_tab:
-                            db_tab.name = tab_name
-                            db_tab.tab_order = tab_order
-                    else:
-                        # Skip this tab if we couldn't find it or if tab_id is invalid
-                        continue
-
-                # Handle grid items for this tab
-                if tab_grid_items and db_tab:
+                if tab_grid_items:
                     # Get existing grid items for this tab
-                    existing_tab_grid_items = (
-                        session.query(GridItem).filter(GridItem.tab_id == tab_id).all()
-                    )
+                    existing_tab_grid_items = db_tab.grid_items
                     existing_tab_grid_item_ids = [
-                        item.i for item in existing_tab_grid_items
+                        item.id for item in existing_tab_grid_items
                     ]
 
                     # Determine which grid items to delete, add, or update
-                    tab_grid_item_ids = [item["i"] for item in tab_grid_items]
-                    tab_grid_items_to_delete = [
-                        i
-                        for i in existing_tab_grid_item_ids
-                        if i not in tab_grid_item_ids
+                    tab_grid_item_ids_to_update = [
+                        item["id"] for item in tab_grid_items if item.get("id")
                     ]
+                    tab_grid_items_to_update = [
+                        grid_item
+                        for grid_item in existing_tab_grid_items
+                        if grid_item.id in tab_grid_item_ids_to_update
+                    ]
+
+                    tab_grid_items_ids_to_delete = [
+                        tab_grid_item_id
+                        for tab_grid_item_id in existing_tab_grid_item_ids
+                        if tab_grid_item_id not in tab_grid_item_ids_to_update
+                    ]
+
                     tab_grid_items_to_add = [
                         item
                         for item in tab_grid_items
-                        if item["i"] not in existing_tab_grid_item_ids
+                        if item.get("id") not in existing_tab_grid_item_ids
                     ]
 
                     # Delete grid items no longer in this tab
-                    for grid_item_i in tab_grid_items_to_delete:
-                        db_grid_item = (
-                            session.query(GridItem)
-                            .filter(
-                                GridItem.tab_id == tab_id, GridItem.i == grid_item_i
-                            )
-                            .first()
-                        )
+                    for grid_item_id in tab_grid_items_ids_to_delete:
+                        db_grid_item = session.get(GridItem, grid_item_id)
                         if db_grid_item:
                             session.delete(db_grid_item)
 
                     # Add or update grid items for this tab
-                    for item_index, grid_item in enumerate(tab_grid_items):
-                        grid_item_i = grid_item["i"]
-                        grid_item_x = int(grid_item["x"])
-                        grid_item_y = int(grid_item["y"])
-                        grid_item_w = int(grid_item["w"])
-                        grid_item_h = int(grid_item["h"])
-                        grid_item_source = grid_item["source"]
-                        grid_item_args_string = grid_item["args_string"]
-                        grid_item_metadata_string = grid_item["metadata_string"]
+                    for item_index, db_grid_item in enumerate(tab_grid_items_to_update):
+                        updated_grid_item_data = next(
+                            (
+                                grid_item
+                                for grid_item in tab_grid_items
+                                if grid_item.get("id") == db_grid_item.id
+                            ),
+                            None,
+                        )
+                        grid_item_source = updated_grid_item_data["source"]
+                        grid_item_args_string = updated_grid_item_data["args_string"]
 
                         # Sanitize text content
                         if grid_item_source == "Text":
@@ -883,40 +840,69 @@ def update_named_dashboard(user, id, dashboard_updates):
                             )
                             grid_item_args_string = json.dumps({"text": clean_text})
 
-                        if grid_item in tab_grid_items_to_add:
-                            # Add new grid item
-                            new_grid_item = GridItem(
-                                dashboard_id=db_dashboard.id,
-                                tab_id=tab_id,
-                                i=grid_item_i,
-                                x=grid_item_x,
-                                y=grid_item_y,
-                                w=grid_item_w,
-                                h=grid_item_h,
-                                source=grid_item_source,
-                                args_string=grid_item_args_string,
-                                metadata_string=grid_item_metadata_string,
-                                order=item_index,
-                            )
-                            session.add(new_grid_item)
-                        else:
-                            # Update existing grid item
-                            db_grid_item = (
-                                session.query(GridItem)
-                                .filter(
-                                    GridItem.tab_id == tab_id, GridItem.i == grid_item_i
-                                )
-                                .first()
-                            )
-                            if db_grid_item:
-                                db_grid_item.x = grid_item_x
-                                db_grid_item.y = grid_item_y
-                                db_grid_item.w = grid_item_w
-                                db_grid_item.h = grid_item_h
-                                db_grid_item.source = grid_item_source
-                                db_grid_item.args_string = grid_item_args_string
-                                db_grid_item.metadata_string = grid_item_metadata_string
-                                db_grid_item.order = item_index
+                        db_grid_item.x = updated_grid_item_data["x"]
+                        db_grid_item.y = updated_grid_item_data["y"]
+                        db_grid_item.w = updated_grid_item_data["w"]
+                        db_grid_item.h = updated_grid_item_data["h"]
+                        db_grid_item.source = grid_item_source
+                        db_grid_item.args_string = grid_item_args_string
+                        db_grid_item.metadata_string = updated_grid_item_data[
+                            "metadata_string"
+                        ]
+                        db_grid_item.order = item_index
+
+                    for grid_item_order, grid_item in enumerate(tab_grid_items_to_add):
+                        new_grid_item = GridItem(
+                            dashboard_id=db_dashboard.id,
+                            tab_id=tab_id,
+                            i=grid_item["i"],
+                            x=int(grid_item["x"]),
+                            y=int(grid_item["y"]),
+                            w=int(grid_item["w"]),
+                            h=int(grid_item["h"]),
+                            source=grid_item_source,
+                            args_string=grid_item_args_string,
+                            metadata_string=grid_item["metadata_string"],
+                            order=grid_item_order,
+                        )
+                        session.add(new_grid_item)
+
+            for tab_order, tab in enumerate(tabs_to_add):
+                tab_name = tab.get("name", f"Tab {tab_order + 1}")
+                tab_grid_items = tab.get("gridItems", [])
+
+                db_tab = DashboardTab(
+                    dashboard_id=db_dashboard.id, name=tab_name, tab_order=tab_order
+                )
+                session.add(db_tab)
+                session.flush()  # Get the new tab ID
+                tab_id = db_tab.id
+
+                for grid_item_order, grid_item in enumerate(tab_grid_items):
+                    grid_item_source = grid_item["source"]
+                    grid_item_args_string = grid_item["args_string"]
+
+                    # Sanitize text content
+                    if grid_item_source == "Text":
+                        clean_text = sanitize_html(
+                            json.loads(grid_item_args_string)["text"]
+                        )
+                        grid_item_args_string = json.dumps({"text": clean_text})
+
+                    new_grid_item = GridItem(
+                        dashboard_id=db_dashboard.id,
+                        tab_id=tab_id,
+                        i=grid_item["i"],
+                        x=int(grid_item["x"]),
+                        y=int(grid_item["y"]),
+                        w=int(grid_item["w"]),
+                        h=int(grid_item["h"]),
+                        source=grid_item_source,
+                        args_string=grid_item_args_string,
+                        metadata_string=grid_item["metadata_string"],
+                        order=grid_item_order,
+                    )
+                    session.add(new_grid_item)
 
         db_dashboard.last_updated = datetime.now(timezone.utc)
 

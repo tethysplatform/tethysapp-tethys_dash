@@ -222,6 +222,7 @@ const DashboardTabs = () => {
       >
         {editingTabId === tab.id ? (
           <TabTitleInput
+            aria-label={`name-input-${tab.id}`}
             defaultValue={tab.name}
             autoFocus
             onBlur={(e) => handleTabNameChange(tab.id, e.target.value)}
@@ -232,6 +233,7 @@ const DashboardTabs = () => {
         ) : (
           <TabTitleText
             isActive={tab.id === activeTabId}
+            aria-label={`tab-title-${tab.id}`}
             onClick={() => handleTabNameClick(tab.id)}
           >
             {tab.name}
@@ -247,6 +249,12 @@ const DashboardTabs = () => {
     );
   };
 
+  // If only one tab and not editing, show only the tab content (no tab bar)
+  if (tabs.length === 1 && !isEditing) {
+    const tab = tabs[0];
+    return <DashboardLayout tabId={tab.id} gridItems={tab.gridItems} />;
+  }
+
   return (
     <StyledTabs
       className="dashboard-tabs"
@@ -258,11 +266,7 @@ const DashboardTabs = () => {
           <DashboardLayout tabId={tab.id} gridItems={tab.gridItems} />
         </Tab>
       ))}
-      {isEditing && (
-        <Tab eventKey="add-tab" title="+">
-          {/* Add tab functionality */}
-        </Tab>
-      )}
+      {isEditing && <Tab eventKey="add-tab" title="+" aria-label="add-tab" />}
     </StyledTabs>
   );
 };
