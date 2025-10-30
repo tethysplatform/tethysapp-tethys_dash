@@ -101,3 +101,41 @@ def test_get_visualization_not_restricted(mock_plugin2, mocker, test_owner_user)
     mock_intake.open_package_name2.assert_called_with(some_arg="test")
     assert viz_type == mock_plugin2.visualization_type
     assert viz_data == "some_data"
+
+
+def test_get_restricted_visualizations_none(mocker):
+    from tethysapp.tethysdash.visualizations import get_restricted_visualizations
+
+    mock_intake = mocker.patch("tethysapp.tethysdash.visualizations.intake")
+    # No restricted plugins
+    mock_intake.source.registry = ["plugin1", "plugin2"]
+    mock_plugin1 = mocker.Mock()
+    mock_plugin1.visualization_restricted = False
+    mock_plugin2 = mocker.Mock()
+    mock_plugin2.visualization_restricted = False
+    setattr(mock_intake, "open_plugin1", mock_plugin1)
+    setattr(mock_intake, "open_plugin2", mock_plugin2)
+    result = get_restricted_visualizations()
+    assert result == {}
+
+
+def test_get_restricted_visualizations_some(mocker):
+    from tethysapp.tethysdash.visualizations import get_restricted_visualizations
+
+    mock_intake = mocker.patch("tethysapp.tethysdash.visualizations.intake")
+    # One restricted, one not
+    mock_intake.source.registry = ["plugin1", "plugin2"]
+    mock_plugin1 = mocker.Mock()
+    mock_plugin1.visualization_restricted = True
+    mock_plugin1.visualization_label = "Restricted Viz"
+    mock_plugin1.visualization_description = "Desc"
+    mock_plugin2 = mocker.Mock()
+    mock_plugin2.visualization_restricted = False
+    setattr(mock_intake, "open_plugin1", mock_plugin1)
+    setattr(mock_intake, "open_plugin2", mock_plugin2)
+    result = get_restricted_visualizations()
+    assert "plugin1" in result
+    assert result["plugin1"]["info"]["label"] == "Restricted Viz"
+    assert result["plugin1"]["info"]["description"] == "Desc"
+    assert result["plugin1"]["users"] == []
+    assert result["plugin1"]["groups"] == []

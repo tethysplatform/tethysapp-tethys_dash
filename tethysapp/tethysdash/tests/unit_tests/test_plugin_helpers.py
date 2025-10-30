@@ -761,3 +761,47 @@ def test_layer_configuration_builder_style():
             },
         },
     }
+
+
+def test_parse_date_input_valid():
+    from tethysapp.tethysdash.plugin_helpers import parse_date_input
+    import datetime
+
+    # Valid date
+    result = parse_date_input("12/25/2023")
+    assert isinstance(result, datetime.datetime)
+    assert result == datetime.datetime(2023, 12, 25, 0, 0)
+
+
+def test_parse_date_input_invalid():
+    from tethysapp.tethysdash.plugin_helpers import parse_date_input
+    import pytest
+
+    # Invalid format
+    with pytest.raises(ValueError):
+        parse_date_input("2023-12-25")
+    # Not a string
+    with pytest.raises(TypeError):
+        parse_date_input(20231225)
+
+
+def test_parse_date_hour_input_valid():
+    from tethysapp.tethysdash.plugin_helpers import parse_date_hour_input
+    import datetime
+
+    # Valid date and hour
+    result = parse_date_hour_input("12/25/2023 02:30 PM")
+    assert isinstance(result, datetime.datetime)
+    assert result == datetime.datetime(2023, 12, 25, 14, 30)
+
+
+def test_parse_date_hour_input_invalid():
+    from tethysapp.tethysdash.plugin_helpers import parse_date_hour_input
+    import pytest
+
+    # Invalid format
+    with pytest.raises(ValueError):
+        parse_date_hour_input("2023-12-25 14:30")
+    # Not a string
+    with pytest.raises(TypeError):
+        parse_date_hour_input(202312251430)
