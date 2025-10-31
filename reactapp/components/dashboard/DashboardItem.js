@@ -8,6 +8,7 @@ import {
   VariableInputsContext,
   DataViewerModeContext,
   AppContext,
+  LayoutContext,
   TabContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
@@ -108,7 +109,7 @@ export const requiredGridItemKeys = [
   "metadata_string",
 ];
 
-export const handleGridItemExport = async (gridItem) => {
+export const handleGridItemExport = async (gridItem, dashboard_uuid) => {
   const { id, ...exportedGridItem } = gridItem;
   exportedGridItem.metadata_string = JSON.parse(
     exportedGridItem.metadata_string
@@ -119,7 +120,11 @@ export const handleGridItemExport = async (gridItem) => {
   if (exportedGridItem.source === "Map") {
     if ("layers" in gridItemArgs && gridItemArgs["layers"].length > 0) {
       for (const mapLayer of gridItemArgs["layers"]) {
-        const apiResponse = await loadLayerJSONs(mapLayer, true);
+        const apiResponse = await loadLayerJSONs(
+          mapLayer,
+          dashboard_uuid,
+          true
+        );
         if (!apiResponse.success) {
           return apiResponse;
         }
@@ -226,6 +231,7 @@ const DashboardItem = ({
   );
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
   const { visualizations } = useContext(AppContext);
+  const { uuid } = useContext(LayoutContext);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const [attribution, setAttribution] = useState(
     findVisualizationBySource(visualizations, gridItemSource)?.attribution
@@ -297,7 +303,7 @@ const DashboardItem = ({
     const { gridItems } = getActiveTab();
     const gridItem = JSON.parse(JSON.stringify(gridItems[gridItemIndex]));
 
-    const exportedGridItem = await handleGridItemExport(gridItem);
+    const exportedGridItem = await handleGridItemExport(gridItem, uuid);
 
     try {
       downloadJSONFile(exportedGridItem, "TethysDashGridItem.json");

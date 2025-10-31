@@ -704,7 +704,11 @@ async function getGeoJSONLayerAttributes(sourceGeoJSON, layerName) {
   return sourceAttributes;
 }
 
-export async function loadLayerJSONs(mapLayer, keep_urls = false) {
+export async function loadLayerJSONs(
+  mapLayer,
+  dashboard_uuid,
+  keep_urls = false
+) {
   if (
     mapLayer?.configuration?.style &&
     typeof mapLayer.configuration.style !== "object"
@@ -726,6 +730,7 @@ export async function loadLayerJSONs(mapLayer, keep_urls = false) {
     } else {
       const styleJSONResponse = await appAPI.downloadJSON({
         filename: mapLayer.configuration.style,
+        dashboard_uuid,
       });
       if (styleJSONResponse.success) {
         mapLayer.configuration.style = styleJSONResponse.data;
@@ -777,6 +782,7 @@ export async function loadLayerJSONs(mapLayer, keep_urls = false) {
     } else {
       const geoJSONResponse = await appAPI.downloadJSON({
         filename: mapLayer.configuration.props.source.geojson,
+        dashboard_uuid,
       });
       if (geoJSONResponse.success) {
         mapLayer.configuration.props.source.geojson = geoJSONResponse.data;
@@ -838,7 +844,12 @@ function getFirstCoordinate(geometry) {
   return findCoord(coords);
 }
 
-export async function saveLayerJSON({ stringJSON, csrf, check_crs }) {
+export async function saveLayerJSON({
+  stringJSON,
+  csrf,
+  check_crs,
+  dashboard_uuid,
+}) {
   let parsedJSON;
   // If it looks like a JSON string (starts with `{` or `[`), parse it directly
   const trimmed = stringJSON.trim();
@@ -881,6 +892,7 @@ export async function saveLayerJSON({ stringJSON, csrf, check_crs }) {
     const JSONInfo = {
       data: JSON.stringify(parsedJSON),
       filename: JSONFilename,
+      dashboard_uuid,
     };
     const apiResponse = await appAPI.uploadJSON(JSONInfo, csrf);
 

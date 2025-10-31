@@ -15,6 +15,7 @@ import { getBaseMapLayer } from "components/visualizations/utilities";
 import {
   DataViewerModeContext,
   VariableInputsContext,
+  LayoutContext,
 } from "components/contexts/Contexts";
 import Table from "react-bootstrap/Table";
 import styled from "styled-components";
@@ -166,6 +167,7 @@ const MapVisualization = ({
   const currentBaseMap = useRef();
   const { setVariableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
+  const { uuid } = useContext(LayoutContext);
 
   const spinnerOverlayRef = useRef(null);
   // Create a spinner element for the overlay
@@ -256,7 +258,7 @@ const MapVisualization = ({
         const newMapLayers = [];
 
         for (const layer of layers) {
-          await loadLayerJSONs(layer);
+          await loadLayerJSONs(layer, uuid);
           if (layer.legend) {
             if (layer.legend === "default") {
               newMapLegend.push({

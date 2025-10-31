@@ -1,10 +1,11 @@
 import PropTypes from "prop-types";
-import { useEffect, useState, memo } from "react";
+import { useEffect, useState, memo, useContext } from "react";
 import styled from "styled-components";
 import FileUpload from "components/inputs/FileUpload";
 import appAPI from "services/api/app";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
+import { LayoutContext } from "components/contexts/Contexts";
 
 const StyledTextInput = styled.textarea`
   width: 100%;
@@ -13,6 +14,7 @@ const StyledTextInput = styled.textarea`
 
 const StylePane = ({ style, setStyle, setErrorMessage }) => {
   const [styleSource, setStyleSource] = useState("custom"); // track the geojson value
+  const { uuid } = useContext(LayoutContext);
 
   useEffect(() => {
     const fetchJSON = async () => {
@@ -26,6 +28,7 @@ const StylePane = ({ style, setStyle, setErrorMessage }) => {
       } else {
         const apiResponse = await appAPI.downloadJSON({
           filename: style,
+          dashboard_uuid: uuid,
         });
         setStyle(JSON.stringify(apiResponse.data, null, 4));
         setStyleSource("custom");

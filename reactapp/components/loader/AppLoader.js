@@ -338,7 +338,7 @@ function Loader({ children }) {
       for (const tab of tabs) {
         const updatedGridItems = [];
         for (const gridItem of tab.gridItems) {
-          const exportedGridItem = await handleGridItemExport(gridItem);
+          const exportedGridItem = await handleGridItemExport(gridItem, uuid);
           updatedGridItems.push(exportedGridItem);
         }
         exportedTabs.push({ ...tab, gridItems: updatedGridItems });

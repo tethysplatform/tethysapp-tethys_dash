@@ -852,6 +852,16 @@ def update_named_dashboard(user, id, dashboard_updates):
                         db_grid_item.order = item_index
 
                     for grid_item_order, grid_item in enumerate(tab_grid_items_to_add):
+                        grid_item_source = grid_item["source"]
+                        grid_item_args_string = grid_item["args_string"]
+
+                        # Sanitize text content
+                        if grid_item_source == "Text":
+                            clean_text = sanitize_html(
+                                json.loads(grid_item_args_string)["text"]
+                            )
+                            grid_item_args_string = json.dumps({"text": clean_text})
+
                         new_grid_item = GridItem(
                             dashboard_id=db_dashboard.id,
                             tab_id=tab_id,
@@ -1778,6 +1788,43 @@ def get_dashboards(user, dashboard_view=False, id=None):
         session.close()
 
 
+def upload_json_to_workspace(
+    user, dashboard_folder, filename, clean_data, dashboard_uuid
+):
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+    saved = False
+
+    try:
+        db_dashboard = (
+            session.query(Dashboard).filter(Dashboard.uuid == dashboard_uuid).first()
+        )
+        if not db_dashboard:
+            raise Exception(
+                f"A dashboard with the id does not exist for this user"  # noqa: E501
+            )
+        user_permission = get_dashboard_user_permission(session, db_dashboard, user)
+
+        # Check if user has editor or admin permission
+        if (
+            user_permission != DashboardPermissionLevel.editor
+            and user_permission != DashboardPermissionLevel.admin
+        ):
+            raise Exception(
+                "User does not have admin or editor permissions to update the dashboard."  # noqa: E501
+            )
+
+        dashboard_file = os.path.join(dashboard_folder, filename)
+        with open(dashboard_file, "w") as outfile:
+            outfile.write(clean_data)
+
+        saved = True
+    finally:
+        session.close()
+
+    return saved
+
+
 def clean_up_jsons(user):
     """
     Remove unused JSON files from the workspace.
@@ -1789,54 +1836,96 @@ def clean_up_jsons(user):
     Args:
         user: User object to clean up files for
     """
+
     print("Checking to see if there are any unused json files to remove")
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
-    user_dashboards = (
-        session.query(Dashboard).filter(Dashboard.owner == user.username).all()
-    )
-    in_use_jsons = []
-    for user_dashboard in user_dashboards:
-        maps_grid_items_layers = flatten(
-            [
-                json.loads(grid_item.args_string)["layers"]
-                for grid_item in user_dashboard.grid_items
-                if grid_item.source == "Map"
-            ]
+    try:
+        # Get all dashboards the user can edit (editor or admin permission)
+        user_dashboards = (
+            session.query(Dashboard)
+            .join(DashboardPermission)
+            .filter(
+                (DashboardPermission.username == user.username)
+                & (
+                    DashboardPermission.permission.in_(
+                        [
+                            DashboardPermissionLevel.admin,
+                            DashboardPermissionLevel.editor,
+                        ]
+                    )
+                )
+            )
+            .all()
         )
-        if maps_grid_items_layers:
-            json_files = [
-                maps_grid_items_layer["configuration"]["props"]["source"]["geojson"]
-                for maps_grid_items_layer in maps_grid_items_layers
-                if maps_grid_items_layer["configuration"]["props"]["source"]["type"]
-                == "GeoJSON"
-            ]
-            in_use_jsons.append(json_files)
+        # Also include dashboards where user is in a group with editor/admin permission
+        user_groups = (
+            session.query(PermissionGroup.id)
+            .join(
+                PermissionGroupUser, PermissionGroup.id == PermissionGroupUser.group_id
+            )
+            .filter(PermissionGroupUser.username == user.username)
+            .all()
+        )
+        user_group_ids = [g[0] for g in user_groups]
+        group_dashboards = (
+            session.query(Dashboard)
+            .join(DashboardPermission)
+            .filter(
+                (DashboardPermission.group_id.in_(user_group_ids))
+                & (
+                    DashboardPermission.permission.in_(
+                        [
+                            DashboardPermissionLevel.admin,
+                            DashboardPermissionLevel.editor,
+                        ]
+                    )
+                )
+            )
+            .all()
+        )
+        # Combine and deduplicate dashboards
+        all_dashboards = {d.id: d for d in user_dashboards + group_dashboards}.values()
 
-            stylejson_files = [
-                maps_grid_items_layer["configuration"]["style"]
-                for maps_grid_items_layer in maps_grid_items_layers
-                if "style" in maps_grid_items_layer["configuration"]
-            ]
-            in_use_jsons.append(stylejson_files)
+        app_workspace = get_app_workspace(App)
+        for dashboard in all_dashboards:
+            dashboard_uuid = dashboard.uuid
+            dashboard_folder = os.path.join(app_workspace.path, dashboard_uuid)
+            if not os.path.exists(dashboard_folder):
+                continue
+            # Collect all in-use jsons for this dashboard
+            in_use_jsons = []
+            maps_grid_items_layers = flatten(
+                [
+                    json.loads(grid_item.args_string)["layers"]
+                    for grid_item in dashboard.grid_items
+                    if grid_item.source == "Map"
+                ]
+            )
+            if maps_grid_items_layers:
+                json_files = [
+                    maps_grid_items_layer["configuration"]["props"]["source"]["geojson"]
+                    for maps_grid_items_layer in maps_grid_items_layers
+                    if maps_grid_items_layer["configuration"]["props"]["source"]["type"]
+                    == "GeoJSON"
+                ]
+                in_use_jsons.extend(json_files)
 
-    in_use_jsons = flatten(in_use_jsons)
+                stylejson_files = [
+                    maps_grid_items_layer["configuration"]["style"]
+                    for maps_grid_items_layer in maps_grid_items_layers
+                    if "style" in maps_grid_items_layer["configuration"]
+                ]
+                in_use_jsons.extend(stylejson_files)
 
-    app_workspace = get_app_workspace(App)
-    json_folder = os.path.join(app_workspace.path, "json")
-    json_user_folder = os.path.join(json_folder, str(user))
-    if not os.path.exists(json_user_folder):
-        os.makedirs(json_user_folder)
-    existing_json_user_files = os.listdir(json_user_folder)
-
-    unused_files = [
-        file for file in existing_json_user_files if file not in in_use_jsons
-    ]
-
-    for unused_file in unused_files:
-        print(f"Removing the {unused_file} file")
-        os.remove(os.path.join(json_folder, str(user), unused_file))
-        os.remove(os.path.join(json_folder, unused_file))
+            # Remove unused files in dashboard folder
+            existing_files = os.listdir(dashboard_folder)
+            unused_files = [f for f in existing_files if f not in in_use_jsons]
+            for unused_file in unused_files:
+                print(f"Removing the {unused_file} file from {dashboard_folder}")
+                os.remove(os.path.join(dashboard_folder, unused_file))
+    finally:
+        session.close()
 
     return
 

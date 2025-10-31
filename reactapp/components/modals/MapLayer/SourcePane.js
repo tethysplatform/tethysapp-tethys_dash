@@ -1,6 +1,6 @@
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, memo, useContext } from "react";
 import FileUpload from "components/inputs/FileUpload";
 import styled from "styled-components";
 import {
@@ -12,6 +12,7 @@ import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
 import appAPI from "services/api/app";
 import { removeEmptyValues } from "components/modals/utilities";
+import { LayoutContext } from "components/contexts/Contexts";
 import "components/modals/wideModal.css";
 
 const StyledTextInput = styled.textarea`
@@ -102,6 +103,7 @@ const SourcePane = ({
   const [sourceType, setSourceType] = useState({}); // source type dropdown selection {value: ..., label: ...}
   const [geoJSON, setGeoJSON] = useState("{}"); // track the geojson value
   const [geoJSONSource, setGeoJSONSource] = useState("custom"); // track the geojson value
+  const { uuid } = useContext(LayoutContext);
 
   useEffect(() => {
     // if loading existing layer, then set states appropriately
@@ -135,6 +137,7 @@ const SourcePane = ({
       } else {
         const apiResponse = await appAPI.downloadJSON({
           filename: sourceProps.geojson,
+          dashboard_uuid: uuid,
         });
         if (apiResponse.success) {
           setGeoJSON(JSON.stringify(apiResponse.data, null, 4));

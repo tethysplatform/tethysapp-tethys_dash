@@ -25,6 +25,7 @@ from tethysapp.tethysdash.model import (
     get_visualization_permissions,
     get_user_app_permissions,
     update_visualization_permissions as update_viz_perms,
+    upload_json_to_workspace,
 )
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
@@ -699,28 +700,22 @@ def upload_json(request, app_workspace):
 
     data = json_data["data"]
     filename = json_data["filename"]
+    dashboard_uuid = json_data["dashboard_uuid"]
     clean_data = nh3.clean(data)
-    json_folder = os.path.join(app_workspace.path, "json")
     print(f"Uploading {filename}")
 
     try:
-        if not os.path.exists(json_folder):
-            os.mkdir(json_folder)
+        dashboard_folder = os.path.join(app_workspace.path, dashboard_uuid)
+        if not os.path.exists(dashboard_folder):
+            os.mkdir(dashboard_folder)
 
-        json_file = os.path.join(json_folder, filename)
-        # Writing to sample.json
-        with open(json_file, "w") as outfile:
-            outfile.write(clean_data)
+        upload_json_to_workspace(
+            user, dashboard_folder, filename, clean_data, dashboard_uuid
+        )
 
-        json_user_folder = os.path.join(json_folder, user.username)
-        if not os.path.exists(json_user_folder):
-            os.mkdir(json_user_folder)
-
-        json_user_file = os.path.join(json_user_folder, filename)
-        Path(json_user_file).touch()
         return JsonResponse({"success": True, "filename": filename})
+
     except Exception as e:
-        print(e)
         try:
             message = e.args[0]
         except Exception:
@@ -749,13 +744,14 @@ def download_json(request, app_workspace):
             - message: Error message if unsuccessful
     """
     filename = request.GET["filename"]
-    json_folder = os.path.join(app_workspace.path, "json")
+    dashboard_uuid = request.GET["dashboard_uuid"]
+    dashboard_folder = os.path.join(app_workspace.path, dashboard_uuid)
     print(f"Getting data from {filename}")
 
     try:
-        json_user_file = os.path.join(json_folder, filename)
+        dashboard_file = os.path.join(dashboard_folder, filename)
         # Writing to sample.json
-        with open(json_user_file, "r") as file:
+        with open(dashboard_file, "r") as file:
             data = json.load(file)
             data = json.loads(nh3.clean(json.dumps(data)))
 

@@ -11,7 +11,7 @@ import SourcePane from "components/modals/MapLayer/SourcePane";
 import LegendPane from "components/modals/MapLayer/LegendPane";
 import AttributesPane from "components/modals/MapLayer/AttributesPane";
 import StylePane from "components/modals/MapLayer/StylePane";
-import { AppContext } from "components/contexts/Contexts";
+import { AppContext, LayoutContext } from "components/contexts/Contexts";
 import {
   sourcePropertiesOptions,
   layerPropType,
@@ -85,6 +85,7 @@ const MapLayerModal = ({
   const [selectedOption, setSelectedOption] = useState(null);
   const containerRef = useRef(null);
   const { csrf, mapLayerTemplates } = useContext(AppContext);
+  const { uuid } = useContext(LayoutContext);
 
   async function saveLayer() {
     setErrorMessage(null);
@@ -191,6 +192,7 @@ const MapLayerModal = ({
         stringJSON: sourceProps.geojson,
         csrf,
         check_crs: true,
+        dashboard_uuid: uuid,
       });
       if (!apiResponse.success) {
         setErrorMessage(
