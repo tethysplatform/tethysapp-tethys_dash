@@ -1801,7 +1801,7 @@ def upload_json_to_workspace(
         )
         if not db_dashboard:
             raise Exception(
-                f"A dashboard with the id does not exist for this user"  # noqa: E501
+                f"This dashboard does not exist for this user"  # noqa: E501
             )
         user_permission = get_dashboard_user_permission(session, db_dashboard, user)
 
