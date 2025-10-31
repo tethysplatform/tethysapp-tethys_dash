@@ -1546,7 +1546,7 @@ test("loadLayerJSONs Object", async () => {
     },
   };
 
-  const response = await loadLayerJSONs(mapLayer, true);
+  const response = await loadLayerJSONs(mapLayer, "123", true);
 
   expect(mapLayer.configuration.style).toStrictEqual(style);
   expect(mapLayer.configuration.props.source.geojson).toStrictEqual(geojson);
@@ -1604,7 +1604,7 @@ test("loadLayerJSONs files", async () => {
     },
   };
 
-  const response = await loadLayerJSONs(mapLayer, false);
+  const response = await loadLayerJSONs(mapLayer, "123", false);
 
   expect(mapLayer.configuration.style).toStrictEqual(style);
   expect(mapLayer.configuration.props.source.geojson).toStrictEqual(geojson);
@@ -1662,7 +1662,7 @@ test("loadLayerJSONs files keep_urls shouldn't affect it", async () => {
     },
   };
 
-  const response = await loadLayerJSONs(mapLayer, true);
+  const response = await loadLayerJSONs(mapLayer, "123", true);
 
   expect(mapLayer.configuration.style).toStrictEqual(style);
   expect(mapLayer.configuration.props.source.geojson).toStrictEqual(geojson);
@@ -1720,7 +1720,7 @@ test("loadLayerJSONs urls", async () => {
     },
   };
 
-  const response = await loadLayerJSONs(mapLayer, false);
+  const response = await loadLayerJSONs(mapLayer, "123", false);
 
   expect(mapLayer.configuration.style).toStrictEqual(style);
   const geoJSONWithCRS = JSON.parse(JSON.stringify(geojson));
@@ -1778,7 +1778,7 @@ test("loadLayerJSONs urls cant get crs", async () => {
     },
   };
 
-  const response = await loadLayerJSONs(mapLayer, false);
+  const response = await loadLayerJSONs(mapLayer, "123", false);
 
   expect(mapLayer.configuration.style).toStrictEqual(style);
   expect(mapLayer.configuration.props.source.geojson).toStrictEqual(undefined);
@@ -1807,7 +1807,7 @@ test("loadLayerJSONs urls keep urls", async () => {
     },
   };
 
-  const response = await loadLayerJSONs(mapLayer, true);
+  const response = await loadLayerJSONs(mapLayer, "123", true);
 
   expect(mapLayer.configuration.style).toStrictEqual(styleFile);
   expect(mapLayer.configuration.props.source.geojson).toStrictEqual(
@@ -1844,7 +1844,7 @@ test("loadLayerJSONs urls failed", async () => {
     },
   };
 
-  const response = await loadLayerJSONs(mapLayer, false);
+  const response = await loadLayerJSONs(mapLayer, "123", false);
 
   expect(mapLayer.configuration.style).toStrictEqual(undefined);
   expect(mapLayer.configuration.props.source.geojson).toStrictEqual(undefined);

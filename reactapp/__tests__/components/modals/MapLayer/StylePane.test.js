@@ -4,6 +4,7 @@ import StylePane from "components/modals/MapLayer/StylePane";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
+import { LayoutContext } from "components/contexts/Contexts";
 
 const exampleStyle = {
   version: 8,
@@ -40,14 +41,14 @@ const TestingComponent = ({ initialStyle, setErrorMessage }) => {
   const [style, setStyle] = useState(initialStyle);
 
   return (
-    <>
+    <LayoutContext.Provider value={{ uuid: "123" }}>
       <StylePane
         style={style}
         setStyle={setStyle}
         setErrorMessage={setErrorMessage}
       />
       <p data-testid="style">{style}</p>
-    </>
+    </LayoutContext.Provider>
   );
 };
 

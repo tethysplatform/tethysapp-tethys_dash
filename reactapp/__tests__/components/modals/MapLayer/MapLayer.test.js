@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import selectEvent from "react-select-event";
 import MapLayerModal from "components/modals/MapLayer/MapLayer";
-import { AppContext } from "components/contexts/Contexts";
+import { AppContext, LayoutContext } from "components/contexts/Contexts";
 import appAPI from "services/api/app";
 import { getLayerAttributes } from "components/map/utilities";
 import { server } from "__tests__/utilities/server";
@@ -60,12 +60,14 @@ const TestingComponent = ({
   return (
     <>
       <AppContext.Provider value={appContext}>
-        <MapLayerModal
-          showModal={showModal}
-          handleModalClose={handleModalClose}
-          addMapLayer={addMapLayer}
-          layerInfo={layerInfo}
-        />
+        <LayoutContext.Provider value={{ uuid: "123" }}>
+          <MapLayerModal
+            showModal={showModal}
+            handleModalClose={handleModalClose}
+            addMapLayer={addMapLayer}
+            layerInfo={layerInfo}
+          />
+        </LayoutContext.Provider>
       </AppContext.Provider>
     </>
   );

@@ -5,6 +5,7 @@ import selectEvent from "react-select-event";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
+import { LayoutContext } from "components/contexts/Contexts";
 
 const exampleGeoJSON = {
   type: "FeatureCollection",
@@ -37,7 +38,7 @@ const TestingComponent = ({ initialSourceProps, setErrorMessage }) => {
   });
 
   return (
-    <>
+    <LayoutContext.Provider value={{ uuid: "123" }}>
       <SourcePane
         sourceProps={sourceProps}
         setSourceProps={setSourceProps}
@@ -51,7 +52,7 @@ const TestingComponent = ({ initialSourceProps, setErrorMessage }) => {
       <p data-testid="omittedPopupAttributes">
         {JSON.stringify(attributeProps.omitted)}
       </p>
-    </>
+    </LayoutContext.Provider>
   );
 };
 
