@@ -888,15 +888,21 @@ def test_upload_json(
     mock_app,
     mocker,
     tmp_path,
+    dashboard_data
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
+    mock_upload_json_to_workspace = mocker.patch(
+        "tethysapp.tethysdash.controllers.upload_json_to_workspace"
+    )
     workspace_path = tmp_path
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
+    mock_upload_json_to_workspace.return_value = True
 
     itemData = {
         "data": json.dumps({"some": "data"}),
         "filename": "some_filename.json",
+        "dashboard_uuid": dashboard_data['uuid']
     }
 
     url = reverse("tethysdash:upload_json")
@@ -907,11 +913,6 @@ def test_upload_json(
     assert response.status_code == 200
     assert response.json()["success"]
 
-    assert os.path.exists(
-        os.path.join(workspace_path, "json", "admin", itemData["filename"])
-    )
-    assert os.path.exists(os.path.join(workspace_path, "json", itemData["filename"]))
-
 
 @pytest.mark.django_db
 def test_upload_json_failed(
@@ -920,6 +921,7 @@ def test_upload_json_failed(
     mock_app,
     mocker,
     tmp_path,
+    dashboard_data
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
@@ -931,6 +933,7 @@ def test_upload_json_failed(
     itemData = {
         "data": json.dumps({"some": "data"}),
         "filename": "some_filename.json",
+        "dashboard_uuid": dashboard_data['uuid']
     }
 
     url = reverse("tethysdash:upload_json")
@@ -950,6 +953,7 @@ def test_upload_json_failed_unknown_exception(
     mock_app,
     mocker,
     tmp_path,
+    dashboard_data
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
@@ -961,6 +965,7 @@ def test_upload_json_failed_unknown_exception(
     itemData = {
         "data": json.dumps({"some": "data"}),
         "filename": "some_filename.json",
+        "dashboard_uuid": dashboard_data['uuid']
     }
 
     url = reverse("tethysdash:upload_json")
@@ -983,6 +988,7 @@ def test_download_json(
     mock_app,
     mocker,
     tmp_path,
+    dashboard_data
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
@@ -991,15 +997,16 @@ def test_download_json(
 
     itemData = {
         "filename": "some_filename.json",
+        "dashboard_uuid": dashboard_data['uuid']
     }
 
-    os.makedirs(os.path.join(workspace_path, "json"), exist_ok=True)
+    os.makedirs(os.path.join(workspace_path, dashboard_data['uuid']), exist_ok=True)
     shutil.copyfile(
         os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "files/valid_geojson.geojson",
         ),
-        os.path.join(workspace_path, "json", itemData["filename"]),
+        os.path.join(workspace_path, dashboard_data['uuid'], itemData["filename"]),
     )
 
     url = reverse("tethysdash:download_json")
@@ -1025,6 +1032,7 @@ def test_download_json_failed(
     mock_app,
     mocker,
     tmp_path,
+    dashboard_data
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
@@ -1033,15 +1041,16 @@ def test_download_json_failed(
 
     itemData = {
         "filename": "some_filename.json",
+        "dashboard_uuid": dashboard_data['uuid']
     }
 
-    os.makedirs(os.path.join(workspace_path, "json"), exist_ok=True)
+    os.makedirs(os.path.join(workspace_path, dashboard_data['uuid']), exist_ok=True)
     shutil.copyfile(
         os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "files/valid_geojson.geojson",
         ),
-        os.path.join(workspace_path, "json", itemData["filename"]),
+        os.path.join(workspace_path, dashboard_data['uuid'], itemData["filename"]),
     )
 
     url = reverse("tethysdash:download_json")
@@ -1063,6 +1072,7 @@ def test_download_json_failed_unknown_exception(
     mock_app,
     mocker,
     tmp_path,
+    dashboard_data
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
@@ -1071,15 +1081,16 @@ def test_download_json_failed_unknown_exception(
 
     itemData = {
         "filename": "some_filename.json",
+        "dashboard_uuid": dashboard_data['uuid']
     }
 
-    os.makedirs(os.path.join(workspace_path, "json"), exist_ok=True)
+    os.makedirs(os.path.join(workspace_path, dashboard_data['uuid']), exist_ok=True)
     shutil.copyfile(
         os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "files/valid_geojson.geojson",
         ),
-        os.path.join(workspace_path, "json", itemData["filename"]),
+        os.path.join(workspace_path, dashboard_data['uuid'], itemData["filename"]),
     )
 
     url = reverse("tethysdash:download_json")

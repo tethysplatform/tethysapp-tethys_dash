@@ -846,99 +846,86 @@ def test_parse_db_dashboard_dashboard_view(
     }
 
 
-# @pytest.mark.django_db
-# def test_clean_up_jsons(
-#     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
-# ):
-#     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-#     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-#     mock_get_app_media.return_value = MagicMock(path=tmp_path)
+@pytest.mark.django_db
+def test_clean_up_jsons(
+    dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
-#     workspace_path = tmp_path
-#     mock_get_app_workspace = mocker.patch(
-#         "tethysapp.tethysdash.model.get_app_workspace"
-#     )
-#     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
+    workspace_path = tmp_path
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
-#     grid_items = [
-#         {
-#             "i": "1",
-#             "x": 1,
-#             "y": 1,
-#             "w": 1,
-#             "h": 1,
-#             "source": "Map",
-#             "args_string": json.dumps(
-#                 {
-#                     "layers": [
-#                         {
-#                             "configuration": {
-#                                 "props": {
-#                                     "source": {
-#                                         "type": "GeoJSON",
-#                                         "geojson": "used_geojson.geojson",
-#                                     }
-#                                 },
-#                                 "style": "used_style.json",
-#                             },
-#                         }
-#                     ]
-#                 }
-#             ),
-#             "metadata_string": json.dumps({"refreshRate": 0}),
-#         },
-#     ]
+    grid_items = [
+        {
+            "i": "1",
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "source": "Map",
+            "args_string": json.dumps(
+                {
+                    "layers": [
+                        {
+                            "configuration": {
+                                "props": {
+                                    "source": {
+                                        "type": "GeoJSON",
+                                        "geojson": "used_geojson.geojson",
+                                    }
+                                },
+                                "style": "used_style.json",
+                            },
+                        }
+                    ]
+                }
+            ),
+            "metadata_string": json.dumps({"refreshRate": 0}),
+        },
+    ]
 
-#     json_folder = os.path.join(workspace_path, "json")
-#     user_json_folder = os.path.join(json_folder, test_owner_user.username)
-#     os.makedirs(user_json_folder, exist_ok=True)
+    dashboard_folder = os.path.join(workspace_path, dashboard.uuid)
+    os.makedirs(dashboard_folder, exist_ok=True)
 
-#     user_used_geojson_file = os.path.join(user_json_folder, "used_geojson.geojson")
-#     used_geojson_file = os.path.join(json_folder, "used_geojson.geojson")
-#     Path(user_used_geojson_file).touch()
-#     Path(used_geojson_file).touch()
+    used_geojson_file = os.path.join(dashboard_folder, "used_geojson.geojson")
+    Path(used_geojson_file).touch()
 
-#     user_unused_geojson_file = os.path.join(user_json_folder, "unused_geojson.geojson")
-#     unused_geojson_file = os.path.join(json_folder, "unused_geojson.geojson")
-#     Path(user_unused_geojson_file).touch()
-#     Path(unused_geojson_file).touch()
+    unused_geojson_file = os.path.join(dashboard_folder, "unused_geojson.geojson")
+    Path(unused_geojson_file).touch()
 
-#     nonuser_geojson_file = os.path.join(json_folder, "nonuser_geojson.geojson")
-#     Path(nonuser_geojson_file).touch()
+    nonuser_geojson_file = os.path.join(dashboard_folder, "nonuser_geojson.geojson")
+    Path(nonuser_geojson_file).touch()
 
-#     user_used_style_file = os.path.join(user_json_folder, "used_style.json")
-#     used_style_file = os.path.join(json_folder, "used_style.json")
-#     Path(user_used_style_file).touch()
-#     Path(used_style_file).touch()
+    used_style_file = os.path.join(dashboard_folder, "used_style.json")
+    Path(used_style_file).touch()
 
-#     user_unused_style_file = os.path.join(user_json_folder, "unused_style.json")
-#     unused_style_file = os.path.join(json_folder, "unused_style.json")
-#     Path(user_unused_style_file).touch()
-#     Path(unused_style_file).touch()
+    unused_style_file = os.path.join(dashboard_folder, "unused_style.json")
+    Path(unused_style_file).touch()
 
-#     nonuser_style_file = os.path.join(json_folder, "nonuser_style.json")
-#     Path(nonuser_style_file).touch()
+    nonuser_style_file = os.path.join(dashboard_folder, "nonuser_style.json")
+    Path(nonuser_style_file).touch()
 
-#     # Add rows/cells and update dashboards
-#     update_named_dashboard(
-#         test_owner_user,
-#         dashboard.id,
-#         {"gridItems": grid_items},
-#     )
+    # Add rows/cells and update dashboards
+    update_named_dashboard(
+        test_owner_user,
+        dashboard.id,
+        {"tabs": [{"name": "Tab 1", "gridItems": grid_items}]},
+    )
 
-#     clean_up_jsons(test_owner_user)
+    clean_up_jsons(test_owner_user)
 
-#     assert os.path.exists(user_used_geojson_file)
-#     assert os.path.exists(used_geojson_file)
-#     assert not os.path.exists(user_unused_geojson_file)
-#     assert not os.path.exists(unused_geojson_file)
-#     assert os.path.exists(nonuser_geojson_file)
+    assert os.path.exists(used_geojson_file)
+    assert not os.path.exists(unused_geojson_file)
+    assert not os.path.exists(nonuser_geojson_file)
 
-#     assert os.path.exists(user_used_style_file)
-#     assert os.path.exists(used_style_file)
-#     assert not os.path.exists(user_unused_style_file)
-#     assert not os.path.exists(unused_style_file)
-#     assert os.path.exists(nonuser_style_file)
+    assert os.path.exists(used_style_file)
+    assert not os.path.exists(unused_style_file)
+    assert not os.path.exists(nonuser_style_file)
 
 
 def test_init_primary_db_with_current_revision(mocker, mock_alembic):
