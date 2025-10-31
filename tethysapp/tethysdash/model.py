@@ -1800,9 +1800,7 @@ def upload_json_to_workspace(
             session.query(Dashboard).filter(Dashboard.uuid == dashboard_uuid).first()
         )
         if not db_dashboard:
-            raise Exception(
-                f"This dashboard does not exist for this user"  # noqa: E501
-            )
+            raise Exception("This dashboard does not exist for this user")
         user_permission = get_dashboard_user_permission(session, db_dashboard, user)
 
         # Check if user has editor or admin permission

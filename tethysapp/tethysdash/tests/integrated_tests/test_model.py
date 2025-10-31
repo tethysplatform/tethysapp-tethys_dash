@@ -381,7 +381,7 @@ def test_update_named_dashboard_grid_items(
         },
     ]
 
-    # delete a tab, delete a grid item, update a grid item, add a grid item to existing tab
+    # delete a tab, delete a grid item, update grid item, add grid item to existing tab
     update_named_dashboard(
         test_owner_user,
         dashboard.id,

@@ -292,6 +292,7 @@ const MapVisualization = ({
     };
 
     updateLayers();
+    // eslint-disable-next-line
   }, [layers, baseMap]);
 
   const onMapClick = async (map, evt) => {

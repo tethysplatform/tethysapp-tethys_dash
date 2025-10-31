@@ -1,13 +1,11 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import createLoadedComponent, {
-  ContextLayoutPComponent,
   TabsPComponent,
 } from "__tests__/utilities/customRender";
 import DashboardTabs from "components/dashboard/DashboardTabs";
 import { userDashboard } from "__tests__/utilities/constants";
 import userEvent from "@testing-library/user-event";
 import { confirm } from "components/inputs/DeleteConfirmation";
-import { select } from "react-select-event";
 
 jest.mock("components/inputs/DeleteConfirmation", () => {
   return {
@@ -478,13 +476,14 @@ test("deletes tab when confirmed", async () => {
   const tabTitles = await screen.findAllByLabelText(/tab-title-/);
   const tab2Title = tabTitles.find((t) => t.textContent === "Tab 2");
   expect(tab2Title).toBeInTheDocument();
+  // eslint-disable-next-line
   const tab2DeleteBtn = tab2Title.parentElement.querySelector("button");
   expect(tab2DeleteBtn).toBeInTheDocument();
   await userEvent.click(tab2DeleteBtn);
   await waitFor(() => {
     expect(screen.queryByText("Tab 2")).not.toBeInTheDocument();
-    expect(screen.getByText("Tab 1")).toBeInTheDocument();
   });
+  expect(screen.getByText("Tab 1")).toBeInTheDocument();
 });
 
 test("does not delete tab when cancelled", async () => {
@@ -512,13 +511,14 @@ test("does not delete tab when cancelled", async () => {
   const tabTitles = await screen.findAllByLabelText(/tab-title-/);
   const tab2Title = tabTitles.find((t) => t.textContent === "Tab 2");
   expect(tab2Title).toBeInTheDocument();
+  // eslint-disable-next-line
   const tab2DeleteBtn = tab2Title.parentElement.querySelector("button");
   expect(tab2DeleteBtn).toBeInTheDocument();
   await userEvent.click(tab2DeleteBtn);
   await waitFor(() => {
     expect(screen.getByText("Tab 2")).toBeInTheDocument();
-    expect(screen.getByText("Tab 1")).toBeInTheDocument();
   });
+  expect(screen.getByText("Tab 1")).toBeInTheDocument();
 });
 
 test("deletes correct tab when multiple exist", async () => {
@@ -547,14 +547,15 @@ test("deletes correct tab when multiple exist", async () => {
   const tabTitles = await screen.findAllByLabelText(/tab-title-/);
   const tab3Title = tabTitles.find((t) => t.textContent === "Tab 3");
   expect(tab3Title).toBeInTheDocument();
+  // eslint-disable-next-line
   const tab3DeleteBtn = tab3Title.parentElement.querySelector("button");
   expect(tab3DeleteBtn).toBeInTheDocument();
   await userEvent.click(tab3DeleteBtn);
   await waitFor(() => {
     expect(screen.queryByText("Tab 3")).not.toBeInTheDocument();
-    expect(screen.getByText("Tab 1")).toBeInTheDocument();
-    expect(screen.getByText("Tab 2")).toBeInTheDocument();
   });
+  expect(screen.getByText("Tab 1")).toBeInTheDocument();
+  expect(screen.getByText("Tab 2")).toBeInTheDocument();
 });
 
 test("Dashboard Tabs, drag and change tab order", async () => {
@@ -641,6 +642,7 @@ test("Dashboard Tabs, handleDragLeave clears drop target", async () => {
   // Tab 2 should now be a drop target (has backgroundColor)
   const editableTabTitles = screen
     .getAllByText("Tab 2")
+    // eslint-disable-next-line
     .map((node) => node.closest("div"));
   const dropTargetDiv = editableTabTitles.find((div) => div);
   expect(dropTargetDiv).toBeTruthy();
@@ -692,6 +694,7 @@ test("Dashboard Tabs, handleDragLeave does NOT clear drop target when contains r
   // Tab 2 should now be a drop target (has backgroundColor)
   const editableTabTitles = screen
     .getAllByText("Tab 2")
+    // eslint-disable-next-line
     .map((node) => node.closest("div"));
   const dropTargetDiv = editableTabTitles.find((div) => div);
   expect(dropTargetDiv).toBeTruthy();
@@ -751,6 +754,7 @@ test("handleDragOver does not set drop target when draggedTabId equals tabId", a
   // Tab 1 should NOT be a drop target (backgroundColor remains unchanged)
   const editableTabTitles = screen
     .getAllByText("Tab 1")
+    // eslint-disable-next-line
     .map((node) => node.closest("div"));
   const tab1Div = editableTabTitles.find((div) => div);
   expect(tab1Div).toBeTruthy();
@@ -888,6 +892,7 @@ test("Dashboard Tabs, handleDrop does nothing when draggedTabId equals targetTab
   // This is indirectly tested by the absence of drop target style
   const editableTabTitles = screen
     .getAllByText("Tab 1")
+    // eslint-disable-next-line
     .map((node) => node.closest("div"));
   const tab1Div = editableTabTitles.find((div) => div);
   expect(tab1Div).toBeTruthy();

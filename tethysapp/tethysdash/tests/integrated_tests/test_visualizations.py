@@ -113,8 +113,8 @@ def test_get_restricted_visualizations_none(mocker):
     mock_plugin1.visualization_restricted = False
     mock_plugin2 = mocker.Mock()
     mock_plugin2.visualization_restricted = False
-    setattr(mock_intake, "open_plugin1", mock_plugin1)
-    setattr(mock_intake, "open_plugin2", mock_plugin2)
+    setattr(mock_intake, "open_plugin1", mock_plugin1)  # noqa: B010
+    setattr(mock_intake, "open_plugin2", mock_plugin2)  # noqa: B010
     result = get_restricted_visualizations()
     assert result == {}
 
@@ -131,8 +131,8 @@ def test_get_restricted_visualizations_some(mocker):
     mock_plugin1.visualization_description = "Desc"
     mock_plugin2 = mocker.Mock()
     mock_plugin2.visualization_restricted = False
-    setattr(mock_intake, "open_plugin1", mock_plugin1)
-    setattr(mock_intake, "open_plugin2", mock_plugin2)
+    setattr(mock_intake, "open_plugin1", mock_plugin1)  # noqa: B010
+    setattr(mock_intake, "open_plugin2", mock_plugin2)  # noqa: B010
     result = get_restricted_visualizations()
     assert "plugin1" in result
     assert result["plugin1"]["info"]["label"] == "Restricted Viz"

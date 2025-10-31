@@ -882,14 +882,7 @@ def test_copy_dashboard_failed_unknown_exception(
 
 
 @pytest.mark.django_db
-def test_upload_json(
-    client,
-    admin_user,
-    mock_app,
-    mocker,
-    tmp_path,
-    dashboard_data
-):
+def test_upload_json(client, admin_user, mock_app, mocker, tmp_path, dashboard_data):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
     mock_upload_json_to_workspace = mocker.patch(
@@ -902,7 +895,7 @@ def test_upload_json(
     itemData = {
         "data": json.dumps({"some": "data"}),
         "filename": "some_filename.json",
-        "dashboard_uuid": dashboard_data['uuid']
+        "dashboard_uuid": dashboard_data["uuid"],
     }
 
     url = reverse("tethysdash:upload_json")
@@ -916,12 +909,7 @@ def test_upload_json(
 
 @pytest.mark.django_db
 def test_upload_json_failed(
-    client,
-    admin_user,
-    mock_app,
-    mocker,
-    tmp_path,
-    dashboard_data
+    client, admin_user, mock_app, mocker, tmp_path, dashboard_data
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
@@ -933,7 +921,7 @@ def test_upload_json_failed(
     itemData = {
         "data": json.dumps({"some": "data"}),
         "filename": "some_filename.json",
-        "dashboard_uuid": dashboard_data['uuid']
+        "dashboard_uuid": dashboard_data["uuid"],
     }
 
     url = reverse("tethysdash:upload_json")
@@ -948,12 +936,7 @@ def test_upload_json_failed(
 
 @pytest.mark.django_db
 def test_upload_json_failed_unknown_exception(
-    client,
-    admin_user,
-    mock_app,
-    mocker,
-    tmp_path,
-    dashboard_data
+    client, admin_user, mock_app, mocker, tmp_path, dashboard_data
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
@@ -965,7 +948,7 @@ def test_upload_json_failed_unknown_exception(
     itemData = {
         "data": json.dumps({"some": "data"}),
         "filename": "some_filename.json",
-        "dashboard_uuid": dashboard_data['uuid']
+        "dashboard_uuid": dashboard_data["uuid"],
     }
 
     url = reverse("tethysdash:upload_json")
@@ -982,14 +965,7 @@ def test_upload_json_failed_unknown_exception(
 
 
 @pytest.mark.django_db
-def test_download_json(
-    client,
-    admin_user,
-    mock_app,
-    mocker,
-    tmp_path,
-    dashboard_data
-):
+def test_download_json(client, admin_user, mock_app, mocker, tmp_path, dashboard_data):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
     workspace_path = tmp_path
@@ -997,16 +973,16 @@ def test_download_json(
 
     itemData = {
         "filename": "some_filename.json",
-        "dashboard_uuid": dashboard_data['uuid']
+        "dashboard_uuid": dashboard_data["uuid"],
     }
 
-    os.makedirs(os.path.join(workspace_path, dashboard_data['uuid']), exist_ok=True)
+    os.makedirs(os.path.join(workspace_path, dashboard_data["uuid"]), exist_ok=True)
     shutil.copyfile(
         os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "files/valid_geojson.geojson",
         ),
-        os.path.join(workspace_path, dashboard_data['uuid'], itemData["filename"]),
+        os.path.join(workspace_path, dashboard_data["uuid"], itemData["filename"]),
     )
 
     url = reverse("tethysdash:download_json")
@@ -1027,12 +1003,7 @@ def test_download_json(
 
 @pytest.mark.django_db
 def test_download_json_failed(
-    client,
-    admin_user,
-    mock_app,
-    mocker,
-    tmp_path,
-    dashboard_data
+    client, admin_user, mock_app, mocker, tmp_path, dashboard_data
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
@@ -1041,16 +1012,16 @@ def test_download_json_failed(
 
     itemData = {
         "filename": "some_filename.json",
-        "dashboard_uuid": dashboard_data['uuid']
+        "dashboard_uuid": dashboard_data["uuid"],
     }
 
-    os.makedirs(os.path.join(workspace_path, dashboard_data['uuid']), exist_ok=True)
+    os.makedirs(os.path.join(workspace_path, dashboard_data["uuid"]), exist_ok=True)
     shutil.copyfile(
         os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "files/valid_geojson.geojson",
         ),
-        os.path.join(workspace_path, dashboard_data['uuid'], itemData["filename"]),
+        os.path.join(workspace_path, dashboard_data["uuid"], itemData["filename"]),
     )
 
     url = reverse("tethysdash:download_json")
@@ -1067,12 +1038,7 @@ def test_download_json_failed(
 
 @pytest.mark.django_db
 def test_download_json_failed_unknown_exception(
-    client,
-    admin_user,
-    mock_app,
-    mocker,
-    tmp_path,
-    dashboard_data
+    client, admin_user, mock_app, mocker, tmp_path, dashboard_data
 ):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
@@ -1081,16 +1047,16 @@ def test_download_json_failed_unknown_exception(
 
     itemData = {
         "filename": "some_filename.json",
-        "dashboard_uuid": dashboard_data['uuid']
+        "dashboard_uuid": dashboard_data["uuid"],
     }
 
-    os.makedirs(os.path.join(workspace_path, dashboard_data['uuid']), exist_ok=True)
+    os.makedirs(os.path.join(workspace_path, dashboard_data["uuid"]), exist_ok=True)
     shutil.copyfile(
         os.path.join(
             os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
             "files/valid_geojson.geojson",
         ),
-        os.path.join(workspace_path, dashboard_data['uuid'], itemData["filename"]),
+        os.path.join(workspace_path, dashboard_data["uuid"], itemData["filename"]),
     )
 
     url = reverse("tethysdash:download_json")

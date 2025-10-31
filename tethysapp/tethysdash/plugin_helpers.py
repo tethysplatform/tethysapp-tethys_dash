@@ -923,8 +923,8 @@ def parse_date_hour_input(date_input):
     """
     Parse a date and time input string into a datetime object.
 
-    Expects a string in the format "MM/DD/YYYY HH:MM AM/PM" (e.g., "12/25/2023 02:30 PM").
-    Uses 12-hour time format with AM/PM indicator.
+    Expects a string in the format "MM/DD/YYYY HH:MM AM/PM"
+    (e.g., "12/25/2023 02:30 PM"). Uses 12-hour time format with AM/PM indicator.
 
     Args:
         date_input (str): The date and time string to parse. Must be in format

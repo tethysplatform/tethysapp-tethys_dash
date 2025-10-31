@@ -42,7 +42,7 @@ def upgrade() -> None:
         "fk_griditems_tab_id", "griditems", "dashboard_tabs", ["tab_id"], ["id"]
     )
 
-    # Create a default "Main" tab for all existing dashboards and associate existing grid items
+    # default "Main" tab for all existing dashboards and associate existing grid items
     connection = op.get_bind()
 
     # Get all existing dashboards
@@ -54,7 +54,7 @@ def upgrade() -> None:
         # Insert the default tab
         tab_result = connection.execute(
             sa.text(
-                "INSERT INTO dashboard_tabs (dashboard_id, name, tab_order) VALUES (:dashboard_id, 'Main', 0) RETURNING id"
+                "INSERT INTO dashboard_tabs (dashboard_id, name, tab_order) VALUES (:dashboard_id, 'Main', 0) RETURNING id"  # noqa: E501
             ),
             {"dashboard_id": dashboard_id},
         )
@@ -63,7 +63,7 @@ def upgrade() -> None:
         # Update all existing grid items for this dashboard to belong to the new tab
         connection.execute(
             sa.text(
-                "UPDATE griditems SET tab_id = :tab_id WHERE dashboard_id = :dashboard_id"
+                "UPDATE griditems SET tab_id = :tab_id WHERE dashboard_id = :dashboard_id"  # noqa: E501
             ),
             {"tab_id": tab_id, "dashboard_id": dashboard_id},
         )

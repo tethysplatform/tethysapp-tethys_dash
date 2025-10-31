@@ -10,8 +10,6 @@ from tethysapp.tethysdash.model import (
     GroupPermissionLevel,
     init_primary_db,
     Dashboard,
-    DashboardTab,
-    GridItem,
     DashboardPermission,
     DashboardPermissionLevel,
     PermissionGroup,

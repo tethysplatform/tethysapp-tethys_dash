@@ -33,7 +33,6 @@ from tethysapp.tethysdash.visualizations import (
     get_restricted_visualizations,
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
-from pathlib import Path
 
 
 @controller(login_required=False)
