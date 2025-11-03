@@ -316,6 +316,7 @@ def add_new_dashboard(
     public,
     unrestricted_placement,
     grid_items,
+    tabs,
 ):
     """
     Create a new dashboard in the database.
@@ -344,6 +345,7 @@ def add_new_dashboard(
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
     try:
+        print(f"--> Adding dashboard {name} to database.")
         new_dashboard = Dashboard(
             uuid=uuid,
             description=description,
@@ -360,6 +362,7 @@ def add_new_dashboard(
         new_dashboard_id = new_dashboard.id
 
         # Add default admin permission for owner
+        print(f"--> Adding initial dashboard permissions")
         owner_permission = DashboardPermission(
             dashboard_id=new_dashboard_id,
             username=owner.username,
@@ -369,53 +372,96 @@ def add_new_dashboard(
         session.commit()
 
         # Create default "Main" tab
-        default_tab = add_new_dashboard_tab(session, new_dashboard_id, "Main", 0)
+        if tabs:
+            print(f"--> Adding initial dashboard tabs and grid items")
+            for tab_order, tab in enumerate(tabs):
+                tab_name = tab.get("name", f"Tab {tab_order + 1}")
+                new_tab = add_new_dashboard_tab(
+                    session, new_dashboard_id, tab_name, tab_order
+                )
+                tab_grid_items = tab.get("gridItems", [])
+                if tab_grid_items:
+                    for index, grid_item in enumerate(tab_grid_items):
+                        grid_item_i = grid_item["i"]
+                        grid_item_x = int(grid_item["x"])
+                        grid_item_y = int(grid_item["y"])
+                        grid_item_w = int(grid_item["w"])
+                        grid_item_h = int(grid_item["h"])
+                        grid_item_source = grid_item["source"]
+                        grid_item_args_string = grid_item["args_string"]
+                        grid_item_metadata_string = grid_item["metadata_string"]
+                        if grid_item_source == "Text":
+                            if type(grid_item_args_string) is not dict:
+                                grid_item_args_string = json.loads(
+                                    grid_item_args_string
+                                )
 
-        if grid_items:
-            for index, grid_item in enumerate(grid_items):
-                grid_item_i = grid_item["i"]
-                grid_item_x = int(grid_item["x"])
-                grid_item_y = int(grid_item["y"])
-                grid_item_w = int(grid_item["w"])
-                grid_item_h = int(grid_item["h"])
-                grid_item_source = grid_item["source"]
-                grid_item_args_string = grid_item["args_string"]
-                grid_item_metadata_string = grid_item["metadata_string"]
-                if grid_item_source == "Text":
-                    clean_text = sanitize_html(
-                        json.loads(grid_item_args_string)["text"]
+                            clean_text = sanitize_html(grid_item_args_string["text"])
+                            grid_item_args_string = json.dumps({"text": clean_text})
+
+                        add_new_grid_item(
+                            session,
+                            new_dashboard_id,
+                            grid_item_i,
+                            grid_item_x,
+                            grid_item_y,
+                            grid_item_w,
+                            grid_item_h,
+                            grid_item_source,
+                            grid_item_args_string,
+                            grid_item_metadata_string,
+                            index,
+                            tab_id=new_tab.id,
+                        )
+        else:
+            print(f"--> Adding grid items to a default dashboard tab")
+            default_tab = add_new_dashboard_tab(session, new_dashboard_id, "Main", 0)
+            if grid_items:
+                for index, grid_item in enumerate(grid_items):
+                    grid_item_i = grid_item["i"]
+                    grid_item_x = int(grid_item["x"])
+                    grid_item_y = int(grid_item["y"])
+                    grid_item_w = int(grid_item["w"])
+                    grid_item_h = int(grid_item["h"])
+                    grid_item_source = grid_item["source"]
+                    grid_item_args_string = grid_item["args_string"]
+                    grid_item_metadata_string = grid_item["metadata_string"]
+                    if grid_item_source == "Text":
+                        if type(grid_item_args_string) is not dict:
+                            grid_item_args_string = json.loads(grid_item_args_string)
+
+                        clean_text = sanitize_html(grid_item_args_string["text"])
+                        grid_item_args_string = json.dumps({"text": clean_text})
+
+                    add_new_grid_item(
+                        session,
+                        new_dashboard_id,
+                        grid_item_i,
+                        grid_item_x,
+                        grid_item_y,
+                        grid_item_w,
+                        grid_item_h,
+                        grid_item_source,
+                        grid_item_args_string,
+                        grid_item_metadata_string,
+                        index,
+                        tab_id=default_tab.id,
                     )
-                    grid_item_args_string = json.dumps({"text": clean_text})
-
+            else:
                 add_new_grid_item(
                     session,
                     new_dashboard_id,
-                    grid_item_i,
-                    grid_item_x,
-                    grid_item_y,
-                    grid_item_w,
-                    grid_item_h,
-                    grid_item_source,
-                    grid_item_args_string,
-                    grid_item_metadata_string,
-                    index,
+                    "1",
+                    0,
+                    0,
+                    20,
+                    20,
+                    "",
+                    "{}",
+                    "{}",
+                    0,
                     tab_id=default_tab.id,
                 )
-        else:
-            add_new_grid_item(
-                session,
-                new_dashboard_id,
-                "1",
-                0,
-                0,
-                20,
-                20,
-                "",
-                "{}",
-                "{}",
-                0,
-                tab_id=default_tab.id,
-            )
 
         # Commit the session and close the connection
         session.commit()
@@ -462,6 +508,12 @@ def add_new_grid_item(
     Returns:
         GridItem: The newly created grid item object
     """
+    if type(grid_item_args_string) is dict:
+        grid_item_args_string = json.dumps(grid_item_args_string)
+
+    if type(grid_item_metadata_string) is dict:
+        grid_item_metadata_string = json.dumps(grid_item_metadata_string)
+
     new_grid_item = GridItem(
         dashboard_id=dashboard_id,
         tab_id=tab_id,
@@ -480,29 +532,6 @@ def add_new_grid_item(
     session.refresh(new_grid_item)
 
     return new_grid_item
-
-
-def delete_grid_item(session, dashboard_id, i):
-    """
-    Delete a grid item from a dashboard.
-
-    Removes the specified grid item from the database.
-
-    Args:
-        session: SQLAlchemy database session
-        dashboard_id (int): ID of the parent dashboard
-        i (str): Unique identifier of the grid item to delete
-    """
-    db_grid_item = (
-        session.query(GridItem)
-        .filter(GridItem.dashboard_id == dashboard_id)
-        .filter(GridItem.i == i)
-        .first()
-    )
-    session.delete(db_grid_item)
-    session.commit()
-
-    return
 
 
 def add_new_dashboard_tab(session, dashboard_id, name, tab_order=0):
@@ -594,7 +623,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
             new_tab_id = tab_id_mapping.get(grid_item.tab_id, tab_id_mapping.get(None))
 
             new_item = GridItem(
-                i=grid_item.i,
+                i=str(index + 1),
                 x=grid_item.x,
                 y=grid_item.y,
                 w=grid_item.w,
@@ -811,6 +840,7 @@ def update_named_dashboard(user, id, dashboard_updates):
 
                     if grid_item_id and grid_item_id in existing_grid_items_by_id:
                         db_grid_item = existing_grid_items_by_id[grid_item_id]
+                        db_grid_item.i = str(grid_item_order + 1)
                         db_grid_item.x = grid_item["x"]
                         db_grid_item.y = grid_item["y"]
                         db_grid_item.w = grid_item["w"]
@@ -824,7 +854,7 @@ def update_named_dashboard(user, id, dashboard_updates):
                         new_grid_item = GridItem(
                             dashboard_id=db_dashboard.id,
                             tab_id=tab_id,
-                            i=grid_item["i"],
+                            i=str(grid_item_order + 1),
                             x=int(grid_item["x"]),
                             y=int(grid_item["y"]),
                             w=int(grid_item["w"]),

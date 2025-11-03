@@ -379,6 +379,7 @@ def add_dashboard(request, app_media):
     notes = dashboard_metadata.get("notes", "")
     public = dashboard_metadata.get("public", False)
     unrestricted_placement = dashboard_metadata.get("unrestrictedPlacement", False)
+    tabs = dashboard_metadata.get("tabs", [])
     grid_items = dashboard_metadata.get("gridItems", [])
     owner = request.user
     dashboard_uuid = str(uuid.uuid4())
@@ -394,6 +395,7 @@ def add_dashboard(request, app_media):
             public,
             unrestricted_placement,
             grid_items,
+            tabs,
         )
 
         dashboard_image = os.path.join(
