@@ -7,13 +7,15 @@ import DashboardLoader from "components/loader/DashboardLoader";
 
 function DashboardView(dashboardProps) {
   return (
-    <DashboardLoader {...dashboardProps}>
-      <LayoutAlertContextProvider>
-        <DashboardHeader />
-        <DashboardLayoutAlerts />
-        <DashboardTabs />
-      </LayoutAlertContextProvider>
-    </DashboardLoader>
+    <div className="h-100" style={{ display: "flex", flexDirection: "column" }}>
+      <DashboardLoader {...dashboardProps}>
+        <LayoutAlertContextProvider>
+          <DashboardHeader />
+          <DashboardLayoutAlerts />
+          <DashboardTabs />
+        </LayoutAlertContextProvider>
+      </DashboardLoader>
+    </div>
   );
 }
 
