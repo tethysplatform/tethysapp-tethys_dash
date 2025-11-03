@@ -195,6 +195,8 @@ def test_add_and_delete_dashboard_with_grid_items(
     dashboard_id = dashboard.id
 
     assert len(dashboard.grid_items) == 1
+    # Check grid item order
+    assert dashboard.grid_items[0].order == 0
     assert dashboard.grid_items[0].x == 1
     assert dashboard.grid_items[0].w == 1
     assert dashboard.grid_items[0].source == "Text"
@@ -339,7 +341,14 @@ def test_update_named_dashboard_grid_items(
     assert dashboard.name == new_dashboard_name
     assert dashboard.notes == updated_notes
     assert len(dashboard.tabs) == 2
+    # Check tab order
+    assert dashboard.tabs[0].tab_order == 0
+    assert dashboard.tabs[1].tab_order == 1
+    assert dashboard.tabs[0].name == "Grid1"
+    assert dashboard.tabs[1].name == "Grid2"
     assert len(dashboard.tabs[0].grid_items) == 2
+    assert dashboard.tabs[0].grid_items[0].order == 0
+    assert dashboard.tabs[0].grid_items[1].order == 1
     assert dashboard.tabs[0].grid_items[0].args_string == json.dumps(
         {"uri": "some_path"}
     )
@@ -399,7 +408,13 @@ def test_update_named_dashboard_grid_items(
     db_session.refresh(dashboard)
     assert dashboard.name == new_dashboard_name
     assert len(dashboard.tabs) == 1
+    # Check tab order after update
+    assert dashboard.tabs[0].tab_order == 0
+    assert dashboard.tabs[0].name == "Grid"
     assert len(dashboard.tabs[0].grid_items) == 2
+    # Check grid item order after update
+    assert dashboard.tabs[0].grid_items[0].order == 0
+    assert dashboard.tabs[0].grid_items[1].order == 1
 
     db_session.refresh(dashboard.tabs[0].grid_items[0])
     assert dashboard.tabs[0].grid_items[0].w == 2
@@ -723,10 +738,19 @@ def test_copy_named_dashboard(
     assert copied_dashboard.unrestricted_placement == dashboard.unrestricted_placement
 
     assert len(copied_dashboard.tabs) == len(dashboard.tabs) == 1
+    # Check tab order in copied dashboard
+    assert copied_dashboard.tabs[0].tab_order == dashboard.tabs[0].tab_order == 0
+    assert copied_dashboard.tabs[0].name == dashboard.tabs[0].name
     assert (
         len(copied_dashboard.tabs[0].grid_items)
         == len(dashboard.tabs[0].grid_items)
         == 1
+    )
+    # Check grid item order in copied dashboard
+    assert (
+        copied_dashboard.tabs[0].grid_items[0].order
+        == dashboard.tabs[0].grid_items[0].order
+        == 0
     )
     assert dashboard.tabs[0].grid_items[0].dashboard_id == dashboard.id
     assert copied_dashboard.tabs[0].grid_items[0].dashboard_id == copied_dashboard.id
