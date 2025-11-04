@@ -7,7 +7,6 @@ from tethysapp.tethysdash.model import (
     copy_named_dashboard,
     get_dashboards,
     add_new_grid_item,
-    delete_grid_item,
     Dashboard,
     GridItem,
     DashboardPermission,
@@ -70,6 +69,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_use
     uuid = "3ddc3d80-2593-468f-825a-425f816c892f"
     name = "added_dashboard"
     grid_items = []
+    tabs = []
     notes = ""
     public = False
     unrestricted_placement = False
@@ -84,6 +84,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_use
         public,
         unrestricted_placement,
         grid_items,
+        tabs,
     )
 
     dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
@@ -96,6 +97,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_use
     assert not dashboard.unrestricted_placement
     dashboard_id = dashboard.id
 
+    assert len(dashboard.tabs) == 1
     assert len(dashboard.grid_items) == 1
 
     # Add a grid item and verify
@@ -120,6 +122,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_use
         grid_item_args_string,
         grid_item_refreshRate,
         grid_item_order,
+        dashboard.tabs[0].id,
     )
 
     new_grid_item = (
@@ -128,14 +131,6 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_use
     assert new_grid_item.x == grid_item_x
     assert new_grid_item.w == grid_item_w
     new_grid_item_id = new_grid_item.id
-
-    # Delete the new row
-    delete_grid_item(db_session, dashboard_id, grid_item_i)
-
-    new_grid_item = (
-        db_session.query(GridItem).filter(GridItem.id == new_grid_item.id).all()
-    )
-    assert len(new_grid_item) == 0
 
     # Delete the dashboard and Verify dashboard, rows, and columns were deleted
     delete_named_dashboard(test_owner_user, dashboard_id)
@@ -171,6 +166,7 @@ def test_add_and_delete_dashboard_with_grid_items(
     notes = ""
     public = False
     unrestricted_placement = True
+    tabs = []
 
     # Create a new dashboard and Verify dashboard, rows, and columns were created
     add_new_dashboard(
@@ -182,6 +178,7 @@ def test_add_and_delete_dashboard_with_grid_items(
         public,
         unrestricted_placement,
         grid_items,
+        tabs,
     )
 
     dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
@@ -194,6 +191,8 @@ def test_add_and_delete_dashboard_with_grid_items(
     assert dashboard.unrestricted_placement
     dashboard_id = dashboard.id
 
+    assert len(dashboard.tabs) == 1
+    assert dashboard.tabs[0].name == "Main"
     assert len(dashboard.grid_items) == 1
     # Check grid item order
     assert dashboard.grid_items[0].order == 0
@@ -201,14 +200,7 @@ def test_add_and_delete_dashboard_with_grid_items(
     assert dashboard.grid_items[0].w == 1
     assert dashboard.grid_items[0].source == "Text"
     assert dashboard.grid_items[0].args_string == json.dumps({"text": "Some text"})
-    grid_item_i = dashboard.grid_items[0].i
     grid_item_id = dashboard.grid_items[0].id
-
-    # Delete the new row
-    delete_grid_item(db_session, dashboard_id, grid_item_i)
-
-    new_grid_item = db_session.query(GridItem).filter(GridItem.id == grid_item_id).all()
-    assert len(new_grid_item) == 0
 
     # Delete the dashboard and Verify dashboard, rows, and columns were deleted
     delete_named_dashboard(test_owner_user, dashboard_id)
@@ -217,6 +209,82 @@ def test_add_and_delete_dashboard_with_grid_items(
     assert len(dashboard) == 0
     grid_items = db_session.query(GridItem).filter(GridItem.id == grid_item_id).all()
     assert len(grid_items) == 0
+
+
+@pytest.mark.django_db
+def test_add_dashboard_with_tabs(db_session, mock_app_get_ps_db, test_owner_user):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    description = "added_dashboard"
+    uuid = "3ddc3d80-2593-468f-825a-425f816c892f"
+    name = "added_dashboard"
+    tabs = [
+        {
+            "name": "A tab",
+            "gridItems": [
+                {
+                    "i": "2",
+                    "x": 1,
+                    "y": 1,
+                    "w": 1,
+                    "h": 1,
+                    "source": "Text",
+                    "args_string": json.dumps({"text": "Some text"}),
+                    "metadata_string": json.dumps({}),
+                }
+            ],
+        }
+    ]
+    notes = ""
+    public = False
+    unrestricted_placement = True
+    grid_items = []
+
+    # Create a new dashboard and Verify dashboard, rows, and columns were created
+    add_new_dashboard(
+        test_owner_user,
+        uuid,
+        name,
+        description,
+        notes,
+        public,
+        unrestricted_placement,
+        grid_items,
+        tabs,
+    )
+
+    dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
+    assert dashboard.description == description
+    assert dashboard.name == name
+    assert dashboard.notes == ""
+    assert dashboard.uuid == uuid
+    assert dashboard.owner == test_owner_user.username
+    assert not dashboard.public
+    assert dashboard.unrestricted_placement
+
+    assert len(dashboard.tabs) == 1
+    assert dashboard.tabs[0].name == "A tab"
+    assert len(dashboard.grid_items) == 1
+    # Check grid item order
+    assert dashboard.grid_items[0].order == 0
+    assert dashboard.grid_items[0].x == 1
+    assert dashboard.grid_items[0].w == 1
+    assert dashboard.grid_items[0].source == "Text"
+    assert dashboard.grid_items[0].args_string == json.dumps({"text": "Some text"})
+
+    add_new_grid_item(
+        db_session,
+        dashboard.id,
+        "2",
+        1,
+        1,
+        1,
+        1,
+        "Text",
+        {"text": "Some more text"},
+        {"refreshRate": 0},
+        1,
+        dashboard.tabs[0].id,
+    )
 
 
 @pytest.mark.django_db

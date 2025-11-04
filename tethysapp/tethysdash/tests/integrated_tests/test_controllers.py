@@ -350,6 +350,7 @@ def test_add_dashboard_failed(client, admin_user, mock_app, mocker, tmp_path):
         False,
         False,
         [],
+        [],
     )
     assert response.status_code == 200
     assert response.json()["success"] is False
@@ -387,6 +388,7 @@ def test_add_dashboard_failed_unknown_exception(
         "",
         False,
         False,
+        [],
         [],
     )
     assert response.status_code == 200

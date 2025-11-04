@@ -483,7 +483,7 @@ def add_new_grid_item(
     grid_item_args_string,
     grid_item_metadata_string,
     grid_item_order,
-    tab_id=None,
+    tab_id,
 ):
     """
     Add a new grid item to a dashboard.
