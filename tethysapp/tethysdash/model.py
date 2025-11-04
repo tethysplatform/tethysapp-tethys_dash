@@ -622,7 +622,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
         new_grid_items = []
         for index, grid_item in enumerate(original_dashboard.grid_items):
             # Determine which tab this grid item should belong to
-            new_tab_id = tab_id_mapping.get(grid_item.tab_id, tab_id_mapping.get(None))
+            new_tab_id = tab_id_mapping.get(grid_item.tab_id)
 
             new_item = GridItem(
                 i=str(index + 1),
@@ -785,6 +785,7 @@ def update_named_dashboard(user, id, dashboard_updates):
             existing_tabs_by_id = {tab.id: tab for tab in db_dashboard.tabs}
             updated_tab_ids = [tab.get("id") for tab in updated_tabs if tab.get("id")]
             existing_tab_ids = set(existing_tabs_by_id.keys())
+            grid_item_i = 1
 
             # Delete tabs not present in update
             for tab_id in existing_tab_ids - set(updated_tab_ids):
@@ -842,7 +843,7 @@ def update_named_dashboard(user, id, dashboard_updates):
 
                     if grid_item_id and grid_item_id in existing_grid_items_by_id:
                         db_grid_item = existing_grid_items_by_id[grid_item_id]
-                        db_grid_item.i = str(grid_item_order + 1)
+                        db_grid_item.i = str(grid_item_i)
                         db_grid_item.x = grid_item["x"]
                         db_grid_item.y = grid_item["y"]
                         db_grid_item.w = grid_item["w"]
@@ -856,7 +857,7 @@ def update_named_dashboard(user, id, dashboard_updates):
                         new_grid_item = GridItem(
                             dashboard_id=db_dashboard.id,
                             tab_id=tab_id,
-                            i=str(grid_item_order + 1),
+                            i=str(grid_item_i),
                             x=int(grid_item["x"]),
                             y=int(grid_item["y"]),
                             w=int(grid_item["w"]),
@@ -867,6 +868,8 @@ def update_named_dashboard(user, id, dashboard_updates):
                             order=grid_item_order,
                         )
                         session.add(new_grid_item)
+
+                    grid_item_i += 1
 
         db_dashboard.last_updated = datetime.now(timezone.utc)
 
