@@ -362,7 +362,7 @@ def add_new_dashboard(
         new_dashboard_id = new_dashboard.id
 
         # Add default admin permission for owner
-        print(f"--> Adding initial dashboard permissions")
+        print("--> Adding initial dashboard permissions")
         owner_permission = DashboardPermission(
             dashboard_id=new_dashboard_id,
             username=owner.username,
@@ -373,7 +373,7 @@ def add_new_dashboard(
 
         # Create default "Main" tab
         if tabs:
-            print(f"--> Adding initial dashboard tabs and grid items")
+            print("--> Adding initial dashboard tabs and grid items")
             for tab_order, tab in enumerate(tabs):
                 tab_name = tab.get("name", f"Tab {tab_order + 1}")
                 new_tab = add_new_dashboard_tab(
@@ -414,7 +414,7 @@ def add_new_dashboard(
                             tab_id=new_tab.id,
                         )
         else:
-            print(f"--> Adding grid items to a default dashboard tab")
+            print("--> Adding grid items to a default dashboard tab")
             default_tab = add_new_dashboard_tab(session, new_dashboard_id, "Main", 0)
             if grid_items:
                 for index, grid_item in enumerate(grid_items):
