@@ -370,6 +370,7 @@ def add_new_dashboard(
         )
         session.add(owner_permission)
         session.commit()
+        grid_item_i = 1
 
         # Create default "Main" tab
         if tabs:
@@ -380,9 +381,9 @@ def add_new_dashboard(
                     session, new_dashboard_id, tab_name, tab_order
                 )
                 tab_grid_items = tab.get("gridItems", [])
+
                 if tab_grid_items:
                     for index, grid_item in enumerate(tab_grid_items):
-                        grid_item_i = grid_item["i"]
                         grid_item_x = int(grid_item["x"])
                         grid_item_y = int(grid_item["y"])
                         grid_item_w = int(grid_item["w"])
@@ -402,7 +403,7 @@ def add_new_dashboard(
                         add_new_grid_item(
                             session,
                             new_dashboard_id,
-                            grid_item_i,
+                            str(grid_item_i),
                             grid_item_x,
                             grid_item_y,
                             grid_item_w,
@@ -413,12 +414,12 @@ def add_new_dashboard(
                             index,
                             tab_id=new_tab.id,
                         )
+                        grid_item_i += 1
         else:
             print("--> Adding grid items to a default dashboard tab")
             default_tab = add_new_dashboard_tab(session, new_dashboard_id, "Main", 0)
             if grid_items:
                 for index, grid_item in enumerate(grid_items):
-                    grid_item_i = grid_item["i"]
                     grid_item_x = int(grid_item["x"])
                     grid_item_y = int(grid_item["y"])
                     grid_item_w = int(grid_item["w"])
@@ -436,7 +437,7 @@ def add_new_dashboard(
                     add_new_grid_item(
                         session,
                         new_dashboard_id,
-                        grid_item_i,
+                        str(grid_item_i),
                         grid_item_x,
                         grid_item_y,
                         grid_item_w,
@@ -447,11 +448,12 @@ def add_new_dashboard(
                         index,
                         tab_id=default_tab.id,
                     )
+                    grid_item_i += 1
             else:
                 add_new_grid_item(
                     session,
                     new_dashboard_id,
-                    "1",
+                    str(grid_item_i),
                     0,
                     0,
                     20,
