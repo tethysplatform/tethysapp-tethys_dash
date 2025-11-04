@@ -906,6 +906,23 @@ export const mockedSliderVariable = {
   }),
 };
 
+export const mockedCSVUploaderVariable = {
+  i: "1",
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Variable Input",
+  args_string: JSON.stringify({
+    initial_value: "",
+    variable_name: "Test Variable",
+    variable_options_source: "csv-uploader",
+    "variable_options_source.metadata": {
+      headers: ["A", "B"],
+    },
+  })
+}
+
 export const mockedDateVariable = {
   i: "1",
   x: 0,

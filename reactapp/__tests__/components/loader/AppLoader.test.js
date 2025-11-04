@@ -11,6 +11,7 @@ import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import { baseMapLayers } from "components/visualizations/utilities";
 import ErrorBoundary from "components/error/ErrorBoundary";
+import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
 
 const TestingComponent = () => {
   const {
@@ -198,16 +199,7 @@ test("AppLoader", async () => {
             args: {
               variable_name: "text",
               variable_options_source: [
-                "text",
-                "number",
-                "checkbox",
-                "date",
-                "date-hour",
-                {
-                  value: "slider",
-                  label: "slider",
-                  sub_args: { metadata: "custom-SliderMetadata" },
-                },
+                ...nonDropDownVariableInputTypes,
                 {
                   label: "Existing Visualization Inputs",
                   options: [

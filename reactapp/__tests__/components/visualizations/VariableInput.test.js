@@ -11,6 +11,7 @@ import {
   mockedDropdownVisualization,
   userDashboard,
   mockedSliderVariable,
+  mockedCSVUploaderVariable,
   mockedDateHourVariable,
   mockedDateVariable,
 } from "__tests__/utilities/constants";
@@ -334,6 +335,70 @@ it("Creates a Slider Input for a Variable Input, missing metadata key", async ()
     await screen.findByTestId("slider-missing-metadata")
   ).toBeInTheDocument();
 });
+
+it("Creates a CSV Uploader for a Variable Input", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedCSVUploaderVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedCSVUploaderVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            metadata={varInputArgs["variable_options_source.metadata"]}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    })
+  );
+
+  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+  const toggleButton = screen.getByRole("button");
+  expect(toggleButton).toHaveClass("btn-primary");
+  expect(screen.getByText(/Toggle Table/i)).toBeInTheDocument();
+  expect(screen.getByTestId("file-input")).toBeInTheDocument();
+  expect(screen.queryByRole("table")).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: "A" })).toBeInTheDocument();
+  expect(screen.getByRole("columnheader", { name: "B" })).toBeInTheDocument();
+})
+
+it("Creates a CSV Uploader for a Variable Input, missing metadata key", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedCSVUploaderVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedCSVUploaderVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            metadata={{}}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    })
+  );
+
+  expect(await screen.findByTestId("input-variables")).toBeInTheDocument();
+  expect(
+    await screen.findByTestId("csvuploader-missing-metadata")
+  ).toBeInTheDocument();
+})
 
 it("Creates a Number Input for a Variable Input", async () => {
   const user = userEvent.setup();

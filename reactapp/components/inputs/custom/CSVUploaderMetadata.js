@@ -1,4 +1,4 @@
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect } from "react";
 import MultiInput from "components/inputs/MultiInput";
 
 const CSVUploaderMetadata = ({ onChange, values }) => {
@@ -9,7 +9,6 @@ const CSVUploaderMetadata = ({ onChange, values }) => {
   }, [headers]);
 
   function handleHeadersChange(newValues) {
-    console.log("Metadata changed:", newValues);
     setHeaders(newValues);
   }
 

@@ -66,7 +66,7 @@ it("Initializes a Base Item with an empty div", async () => {
 
 it("Initializes a Base Item with an empty div and updates it with an image", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -250,7 +250,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
   jest.useFakeTimers();
   jest.spyOn(utilities, "getVisualization");
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -313,7 +313,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
 it("Creates an Base Item with an image obtained from the api, no refresh when editing", async () => {
   jest.useFakeTimers();
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -369,7 +369,7 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
 
 it("Creates an Base Item with a plot obtained from the api", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -407,7 +407,7 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
 
 it("Creates an Base Item with a custom module obtained from the api", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -445,7 +445,7 @@ it("Creates an Base Item with a custom module obtained from the api", async () =
 
 it("Creates an Base Item with a table obtained from the api", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -483,7 +483,7 @@ it("Creates an Base Item with a table obtained from the api", async () => {
 
 it("Creates an Base Item with a card obtained from the api", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -521,7 +521,7 @@ it("Creates an Base Item with a card obtained from the api", async () => {
 
 it("Gives the user an error message if an unknown viz type is obtained from the api", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -561,7 +561,7 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
 
 it("Gives the user an error message if the api couldn't retrieve data", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -619,7 +619,7 @@ it("Base - update variable input", async () => {
   const dashboards = { dashboards: [mockedDashboard] };
 
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -703,7 +703,7 @@ it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine meta
   mockedPlotBase.metadata_string = JSON.stringify(plotlyMeta);
 
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(

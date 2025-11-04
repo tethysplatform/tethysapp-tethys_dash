@@ -114,7 +114,7 @@ const handlers = [
       );
     }
   ),
-  rest.get(
+  rest.post(
     "http://api.test/apps/tethysdash/visualizations/get/",
     (req, res, ctx) => {
       return res(

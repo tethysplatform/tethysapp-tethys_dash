@@ -1,4 +1,3 @@
-import Alert from "react-bootstrap/Alert";
 import { useState, useContext } from "react";
 import Button from "react-bootstrap/Button";
 import Collapse from "react-bootstrap/Collapse";
@@ -32,7 +31,7 @@ const CSVUploader = ({
   buttonText = "Toggle Table",  // TODO add these args to metadata
   variant = "primary",
   headers = [],
-  onChange = () => {}
+  onChange,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [rows, setRows] = useState([]);
@@ -86,7 +85,7 @@ const CSVUploader = ({
       </StyledButton>
 
       <Collapse in={isOpen}>
-        <div id="collapsible-table">
+        <div id="collapsible-table" data-testid="collapsible-table">
           { headers.length > 0 && (
             <StyledTableWrapper className="table-responsive">
               <StyledTable striped bordered hover>

@@ -75,7 +75,7 @@ const TestingComponent = ({
 
 test("MapLayerModal layer template full map layer", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -166,7 +166,7 @@ test("MapLayerModal layer template full map layer", async () => {
 
 test("MapLayerModal layer template partial map layer", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -247,7 +247,7 @@ test("MapLayerModal layer template partial map layer", async () => {
 
 test("MapLayerModal layer template error response", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -288,7 +288,7 @@ test("MapLayerModal layer template error response", async () => {
 
 test("MapLayerModal layer template error response, custom error", async () => {
   server.use(
-    rest.get(
+    rest.post(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
