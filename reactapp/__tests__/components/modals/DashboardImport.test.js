@@ -366,7 +366,8 @@ test("DashboardImportModal Dashboard View", async () => {
 
   expect(spyHandleGridItemImport).toHaveBeenCalledWith(
     importedGridItem,
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
+    "user-uuid"
   );
   expect(mockOnImportGridItem).toHaveBeenCalledWith(importedGridItem);
   expect(mockSetShowSuccessMessage).toHaveBeenCalledWith(true);

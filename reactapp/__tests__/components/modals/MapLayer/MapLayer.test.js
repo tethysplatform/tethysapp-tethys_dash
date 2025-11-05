@@ -882,6 +882,49 @@ test("MapLayerModal legend", async () => {
   });
 });
 
+test("MapLayerModal string legend", async () => {
+  const handleModalClose = jest.fn();
+  const addMapLayer = jest.fn();
+  const layerInfo = {
+    legend: "bad",
+    sourceProps: {
+      props: {
+        url: "Some Url",
+      },
+      type: "ESRI Image and Map Service",
+    },
+
+    layerProps: { name: "New Layer Name" },
+  };
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={handleModalClose}
+      addMapLayer={addMapLayer}
+      layerInfo={layerInfo}
+    />
+  );
+
+  const createLayerButton = await screen.findByLabelText("Create Layer Button");
+  fireEvent.click(createLayerButton);
+
+  expect(addMapLayer).toHaveBeenCalledWith({
+    configuration: {
+      props: {
+        name: "New Layer Name",
+        source: {
+          props: {
+            url: "Some Url",
+          },
+          type: "ESRI Image and Map Service",
+        },
+      },
+      type: "ImageLayer",
+    },
+    legend: "bad",
+  });
+});
+
 test("MapLayerModal new GeoJSON layer api fail", async () => {
   const mockUploadJSON = jest.fn();
   jest.spyOn(appAPI, "uploadJSON").mockImplementation(mockUploadJSON);
