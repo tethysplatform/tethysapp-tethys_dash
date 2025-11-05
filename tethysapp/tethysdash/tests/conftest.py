@@ -34,8 +34,8 @@ def db_connection(db_url):
     connection = engine.connect()
     transaction = connection.begin()
 
-    # Run alembic migrations if needed
-    init_primary_db(engine, first_time=True)
+    # # Run alembic migrations if needed
+    # init_primary_db(engine, first_time=True)
 
     yield connection
 

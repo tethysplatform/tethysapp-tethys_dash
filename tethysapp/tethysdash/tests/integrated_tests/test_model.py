@@ -1076,11 +1076,21 @@ def test_clean_up_jsons_no_existing_dashboard_folder(
     mock_remove.assert_not_called()
 
 
-def test_init_primary_db_with_current_revision(mocker, mock_alembic):
+@pytest.mark.django_db
+def test_init_primary_db_with_current_revision(
+    mock_app_get_ps_db, mocker, mock_alembic, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout="abcd1234 some message"),
     )
+
+    workspace_path = tmp_path
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
     mock_alembic.script.walk_revisions.return_value = []
 
@@ -1090,11 +1100,21 @@ def test_init_primary_db_with_current_revision(mocker, mock_alembic):
     mock_alembic.stamp.assert_not_called()
 
 
-def test_init_primary_db_no_current_revision_upgrade_all(mocker, mock_alembic):
+@pytest.mark.django_db
+def test_init_primary_db_no_current_revision_upgrade_all(
+    mock_app_get_ps_db, mocker, mock_alembic, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
     )
+
+    workspace_path = tmp_path
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
     rev1 = mocker.Mock(revision="rev1")
     rev2 = mocker.Mock(revision="rev2")
@@ -1108,11 +1128,21 @@ def test_init_primary_db_no_current_revision_upgrade_all(mocker, mock_alembic):
     mock_alembic.stamp.assert_not_called()
 
 
-def test_init_primary_db_skips_existing_table(mocker, mock_alembic):
+@pytest.mark.django_db
+def test_init_primary_db_skips_existing_table(
+    mock_app_get_ps_db, mocker, mock_alembic, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
     )
+
+    workspace_path = tmp_path
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
     rev = mock_alembic.revision
     mock_alembic.script.walk_revisions.return_value = [rev]
