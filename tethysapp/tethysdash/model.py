@@ -32,6 +32,8 @@ from pathlib import Path
 import subprocess
 from tethysapp.tethysdash.utilities import sanitize_html
 from django.contrib.auth import get_user_model
+import shutil
+import filecmp
 
 Base = declarative_base()
 
@@ -1969,3 +1971,107 @@ def init_primary_db(engine, first_time):
                     )
                 else:
                     raise  # Unknown error — don't skip
+
+    # for moving json and geojson files from old structure to new structure (https://github.com/tethysplatform/tethysapp-tethys_dash/pull/35)
+    app_workspace = get_app_workspace(App)
+    json_root = os.path.join(app_workspace.path, "json")
+    geojson_root = os.path.join(app_workspace.path, "geojson")
+    if not os.path.exists(json_root) and not os.path.exists(geojson_root):
+        return
+
+    print("Moving json and geojson files to new structure...")
+    # Collect all .json files in <app_workspace>/json and subfolders (user folders)
+    dashboard_files = []
+    for root, dirs, files in os.walk(json_root):
+        for file in files:
+            dashboard_files.append(os.path.join(root, file))
+
+    for root, dirs, files in os.walk(geojson_root):
+        for file in files:
+            dashboard_files.append(os.path.join(root, file))
+
+    # Build a set of all json filenames in use by any griditem in the DB
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+    try:
+        # Map: dashboard_uuid -> set of local json filenames in use (no slashes)
+        dashboard_inuse_files = dict()
+        dashboards = session.query(Dashboard).all()
+        for dashboard in dashboards:
+            dashboard_uuid = dashboard.uuid
+            inuse = set()
+            for grid_item in dashboard.grid_items:
+                try:
+                    args = (
+                        json.loads(grid_item.args_string)
+                        if grid_item.args_string
+                        else {}
+                    )
+                except Exception:
+                    continue
+
+                # Only consider Map grid items with 'layers'
+                if grid_item.source == "Map" and "layers" in args:
+                    for layer in args["layers"]:
+                        # GeoJSON file
+                        geojson_file = None
+                        try:
+                            geojson_file = layer["configuration"]["props"]["source"][
+                                "geojson"
+                            ]
+                        except Exception:
+                            pass
+                        # Only consider if it's a filename (no path separator)
+                        if (
+                            geojson_file
+                            and geojson_file.endswith(".json")
+                            and "/" not in geojson_file
+                            and "\\" not in geojson_file
+                        ):
+                            inuse.add(geojson_file)
+
+                        # Style file
+                        style_file = None
+                        try:
+                            style_file = layer["configuration"].get("style")
+                        except Exception:
+                            pass
+                        if (
+                            style_file
+                            and style_file.endswith(".json")
+                            and "/" not in style_file
+                            and "\\" not in style_file
+                        ):
+                            inuse.add(style_file)
+
+            if inuse:
+                dashboard_inuse_files[dashboard_uuid] = inuse
+
+        for dashboard_file_path in dashboard_files:
+            dashboard_file_name = os.path.basename(dashboard_file_path)
+            # For each dashboard, if this file is in its in-use set, copy it there
+            for dashboard_uuid, inuse_set in dashboard_inuse_files.items():
+                if dashboard_file_name in inuse_set:
+                    dashboard_folder = os.path.join(app_workspace.path, dashboard_uuid)
+                    if not os.path.exists(dashboard_folder):
+                        os.makedirs(dashboard_folder, exist_ok=True)
+                    dest_path = os.path.join(dashboard_folder, dashboard_file_name)
+                    if not os.path.exists(dest_path) or not filecmp.cmp(
+                        dashboard_file_path, dest_path, shallow=False
+                    ):
+                        shutil.copy2(dashboard_file_path, dest_path)
+            os.remove(dashboard_file_path)
+
+        # Remove any empty folders or subfolders in app_workspace
+        def remove_empty_dirs(path):
+            # Walk bottom-up so we can remove empty subfolders first
+            for root, dirs, files in os.walk(path, topdown=False):
+                for d in dirs:
+                    dirpath = os.path.join(root, d)
+                    # Only remove if empty
+                    if not os.listdir(dirpath):
+                        os.rmdir(dirpath)
+
+        remove_empty_dirs(app_workspace.path)
+    finally:
+        session.close()
