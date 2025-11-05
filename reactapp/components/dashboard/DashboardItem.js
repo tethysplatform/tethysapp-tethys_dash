@@ -135,8 +135,12 @@ export const handleGridItemExport = async (gridItem, dashboard_uuid) => {
   return exportedGridItem;
 };
 
-export const handleGridItemImport = async (gridItem, csrf) => {
+export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
   const importedGridItem = JSON.parse(JSON.stringify(gridItem));
+  if (typeof importedGridItem.args_string === "string") {
+    importedGridItem.args_string = JSON.parse(importedGridItem.args_string);
+  }
+
   if (
     !requiredGridItemKeys.every((key) =>
       Object.prototype.hasOwnProperty.call(importedGridItem, key)
@@ -174,6 +178,7 @@ export const handleGridItemImport = async (gridItem, csrf) => {
             ),
             csrf,
             check_crs: true,
+            dashboard_uuid,
           });
 
           if (apiResponse.success) {
@@ -187,6 +192,8 @@ export const handleGridItemImport = async (gridItem, csrf) => {
           const apiResponse = await saveLayerJSON({
             stringJSON: JSON.stringify(mapLayer.configuration.style),
             csrf,
+            check_crs: false,
+            dashboard_uuid,
           });
 
           if (apiResponse.success) {

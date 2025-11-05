@@ -314,7 +314,11 @@ function Loader({ children }) {
       const updatedGridItems = [];
       for (let gridItem of dashboardContext.gridItems) {
         const { success, message, importedGridItem } =
-          await handleGridItemImport(gridItem, appContext.csrf);
+          await handleGridItemImport(
+            gridItem,
+            appContext.csrf,
+            dashboardContext.dashboard_uuid
+          );
         if (success) {
           updatedGridItems.push(importedGridItem);
         } else {
@@ -322,6 +326,28 @@ function Loader({ children }) {
         }
       }
       dashboardContext.gridItems = updatedGridItems;
+    }
+
+    if (dashboardContext.tabs && dashboardContext.tabs.length > 0) {
+      const updatedTabs = [];
+      for (let tab of dashboardContext.tabs) {
+        const updatedGridItems = [];
+        for (let gridItem of tab.gridItems) {
+          const { success, message, importedGridItem } =
+            await handleGridItemImport(
+              gridItem,
+              appContext.csrf,
+              dashboardContext.dashboard_uuid
+            );
+          if (success) {
+            updatedGridItems.push(importedGridItem);
+          } else {
+            return { success, message };
+          }
+        }
+        updatedTabs.push({ ...tab, gridItems: updatedGridItems });
+      }
+      dashboardContext.tabs = updatedTabs;
     }
 
     const apiResponse = await addDashboard(dashboardContext);

@@ -5,6 +5,7 @@ import PropTypes from "prop-types";
 import {
   AvailableDashboardsContext,
   AppContext,
+  LayoutContext,
 } from "components/contexts/Contexts";
 import Alert from "react-bootstrap/Alert";
 import styled from "styled-components";
@@ -22,13 +23,18 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
   const { setSuccessMessage, setShowSuccessMessage } =
     useLayoutSuccessAlertContext();
   const { csrf } = useContext(AppContext);
+  const layoutContext = useContext(LayoutContext);
 
   const onImport = async (jsonContent) => {
     setErrorMessage("");
 
     let apiResponse;
     if (onImportGridItem) {
-      apiResponse = await handleGridItemImport(jsonContent, csrf);
+      apiResponse = await handleGridItemImport(
+        jsonContent,
+        csrf,
+        layoutContext.uuid
+      );
     } else {
       apiResponse = await importDashboard(jsonContent);
     }
