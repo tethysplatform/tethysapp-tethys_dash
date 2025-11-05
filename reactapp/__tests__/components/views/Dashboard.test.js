@@ -64,17 +64,24 @@ describe("DashboardView", () => {
       notes: "Test Notes",
       editable: true,
       publicDashboard: false,
-      gridItems: [
+
+      tabs: [
         {
-          id: 1,
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "Test Source",
-          args_string: '{"test": "value"}',
-          metadata_string: '{"refreshRate": 0}',
+          id: "1",
+          name: "Tab 1",
+          gridItems: [
+            {
+              id: 1,
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "Test Source",
+              args_string: '{"test": "value"}',
+              metadata_string: '{"refreshRate": 0}',
+            },
+          ],
         },
       ],
     };
@@ -255,7 +262,13 @@ describe("DashboardView", () => {
 
   test("renders with empty gridItems array", () => {
     const dashboardProps = {
-      gridItems: [],
+      tabs: [
+        {
+          id: "1",
+          name: "Tab 1",
+          gridItems: [],
+        },
+      ],
     };
 
     render(
@@ -266,7 +279,7 @@ describe("DashboardView", () => {
 
     const dashboardLoader = screen.getByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
-    expect(loaderProps.gridItems).toEqual([]);
+    expect(loaderProps.tabs[0].gridItems).toEqual([]);
   });
 
   test("renders with single gridItem", () => {
@@ -283,7 +296,13 @@ describe("DashboardView", () => {
     };
 
     const dashboardProps = {
-      gridItems: [gridItem],
+      tabs: [
+        {
+          id: "1",
+          name: "Tab 1",
+          gridItems: [gridItem],
+        },
+      ],
     };
 
     render(
@@ -294,7 +313,7 @@ describe("DashboardView", () => {
 
     const dashboardLoader = screen.getByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
-    expect(loaderProps.gridItems).toEqual([gridItem]);
+    expect(loaderProps.tabs[0].gridItems).toEqual([gridItem]);
   });
 
   test("renders with multiple gridItems", () => {
@@ -352,7 +371,13 @@ describe("DashboardView", () => {
     };
 
     const dashboardProps = {
-      gridItems: [gridItem],
+      tabs: [
+        {
+          id: "1",
+          name: "Tab 1",
+          gridItems: [gridItem],
+        },
+      ],
     };
 
     render(
@@ -363,18 +388,18 @@ describe("DashboardView", () => {
 
     const dashboardLoader = screen.getByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
-    expect(loaderProps.gridItems[0]).toEqual(gridItem);
-    expect(loaderProps.gridItems[0].id).toBe(999);
-    expect(loaderProps.gridItems[0].i).toBe("test-id");
-    expect(loaderProps.gridItems[0].x).toBe(10);
-    expect(loaderProps.gridItems[0].y).toBe(15);
-    expect(loaderProps.gridItems[0].w).toBe(30);
-    expect(loaderProps.gridItems[0].h).toBe(25);
-    expect(loaderProps.gridItems[0].source).toBe("Complex Source");
-    expect(loaderProps.gridItems[0].args_string).toBe(
+    expect(loaderProps.tabs[0].gridItems[0]).toEqual(gridItem);
+    expect(loaderProps.tabs[0].gridItems[0].id).toBe(999);
+    expect(loaderProps.tabs[0].gridItems[0].i).toBe("test-id");
+    expect(loaderProps.tabs[0].gridItems[0].x).toBe(10);
+    expect(loaderProps.tabs[0].gridItems[0].y).toBe(15);
+    expect(loaderProps.tabs[0].gridItems[0].w).toBe(30);
+    expect(loaderProps.tabs[0].gridItems[0].h).toBe(25);
+    expect(loaderProps.tabs[0].gridItems[0].source).toBe("Complex Source");
+    expect(loaderProps.tabs[0].gridItems[0].args_string).toBe(
       '{"complex": "args", "nested": {"property": "value"}}'
     );
-    expect(loaderProps.gridItems[0].metadata_string).toBe(
+    expect(loaderProps.tabs[0].gridItems[0].metadata_string).toBe(
       '{"refreshRate": 10, "enforceAspectRatio": true}'
     );
   });
@@ -516,17 +541,23 @@ describe("DashboardView", () => {
       notes: "Valid notes",
       editable: true,
       publicDashboard: false,
-      gridItems: [
+      tabs: [
         {
-          id: 1,
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "Valid Source",
-          args_string: '{"valid": "args"}',
-          metadata_string: '{"valid": "metadata"}',
+          id: "1",
+          name: "Tab 1",
+          gridItems: [
+            {
+              id: 1,
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "Valid Source",
+              args_string: '{"valid": "args"}',
+              metadata_string: '{"valid": "metadata"}',
+            },
+          ],
         },
       ],
     };

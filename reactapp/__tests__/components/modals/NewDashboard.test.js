@@ -33,18 +33,25 @@ test("New Dashboard Modal add dashboard success", async () => {
               notes: "test_notes",
               editable: true,
               publicDashboard: false,
-              gridItems: [
+
+              tabs: [
                 {
-                  i: "1",
-                  x: 0,
-                  y: 0,
-                  w: 20,
-                  h: 20,
-                  source: "",
-                  args_string: "{}",
-                  metadata_string: JSON.stringify({
-                    refreshRate: 0,
-                  }),
+                  id: "1",
+                  name: "Tab 1",
+                  gridItems: [
+                    {
+                      i: "1",
+                      x: 0,
+                      y: 0,
+                      w: 20,
+                      h: 20,
+                      source: "",
+                      args_string: "{}",
+                      metadata_string: JSON.stringify({
+                        refreshRate: 0,
+                      }),
+                    },
+                  ],
                 },
               ],
             },
@@ -108,18 +115,25 @@ test("New Dashboard Modal add dashboard success with app tour", async () => {
       notes: "test_notes",
       editable: true,
       publicDashboard: false,
-      gridItems: [
+
+      tabs: [
         {
-          i: "1",
-          x: 0,
-          y: 0,
-          w: 20,
-          h: 20,
-          source: "",
-          args_string: "{}",
-          metadata_string: JSON.stringify({
-            refreshRate: 0,
-          }),
+          id: "1",
+          name: "Tab 1",
+          gridItems: [
+            {
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "",
+              args_string: "{}",
+              metadata_string: JSON.stringify({
+                refreshRate: 0,
+              }),
+            },
+          ],
         },
       ],
     },
