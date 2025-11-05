@@ -1721,7 +1721,7 @@ test("handleGridItemImport", async () => {
     w: 20,
     h: 20,
     source: "",
-    args_string: {},
+    args_string: { test: 1 },
     metadata_string: {
       refreshRate: 0,
     },
@@ -1738,7 +1738,40 @@ test("handleGridItemImport", async () => {
       w: 20,
       h: 20,
       source: "",
-      args_string: "{}",
+      args_string: '{"test":1}',
+      metadata_string: JSON.stringify({
+        refreshRate: 0,
+      }),
+    },
+  });
+});
+
+test("handleGridItemImport string", async () => {
+  const gridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "",
+    args_string: JSON.stringify({ test: 1 }),
+    metadata_string: {
+      refreshRate: 0,
+    },
+  };
+
+  const response = await handleGridItemImport(gridItem, "123456789");
+
+  expect(response).toStrictEqual({
+    success: true,
+    importedGridItem: {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: '{"test":1}',
       metadata_string: JSON.stringify({
         refreshRate: 0,
       }),

@@ -359,7 +359,6 @@ function Loader({ children }) {
     if (apiResponse.success) {
       const { id, tabs, uuid, ...dashboardProperties } = apiResponse.dashboard;
 
-      // gridItems is actually tabs: [{ gridItems: [...] }]
       const exportedTabs = [];
       for (const tab of tabs) {
         const updatedGridItems = [];
