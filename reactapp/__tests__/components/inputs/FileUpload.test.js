@@ -24,6 +24,19 @@ it("FileUpload", async () => {
   });
 });
 
+it("FileUpload no file", async () => {
+  const label = "Test Upload";
+  const onFileUpload = jest.fn();
+  render(<FileUpload label={label} onFileUpload={onFileUpload} />);
+
+  const input = screen.getByTestId("file-input");
+
+  fireEvent.change(input, { target: { files: [] } });
+
+  expect(input.files).toHaveLength(0);
+  expect(onFileUpload).toHaveBeenCalledTimes(0);
+});
+
 it("FileUpload with invalid extension", async () => {
   const label = "Test Upload";
   const onFileUpload = jest.fn();

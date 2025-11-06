@@ -14,6 +14,10 @@ const FileUpload = ({ label, onFileUpload, extensionsAllowed }) => {
   // On file select (from the pop up)
   const onFileChange = (event) => {
     const uploadedFile = event.target.files[0];
+    if (!uploadedFile) {
+      return;
+    }
+
     const uploadedFileName = uploadedFile.name;
     const extension = uploadedFileName.split(".").pop();
 
@@ -47,9 +51,9 @@ const FileUpload = ({ label, onFileUpload, extensionsAllowed }) => {
         </Alert>
       )}
       <Form.Group controlId="formFile">
-        {label && <Form.Label className="no-caret">
-          {<b>{label}</b>}
-        </Form.Label>}
+        {label && (
+          <Form.Label className="no-caret">{<b>{label}</b>}</Form.Label>
+        )}
         <Form.Control
           data-testid="file-input"
           type="file"
