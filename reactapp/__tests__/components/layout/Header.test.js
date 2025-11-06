@@ -20,6 +20,10 @@ import {
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
+
 jest.mock("html2canvas");
 
 jest.mock("react-router-dom", () => ({
@@ -150,6 +154,7 @@ test("LandingPageHeader, import dashboard with grid_items", async () => {
   const importedDashboard = {
     name: "Test",
     description: "this is a new description",
+    uuid: 12345678,
   };
   const mockAddDashboard = jest.fn();
   jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
@@ -216,6 +221,7 @@ test("LandingPageHeader, import dashboard with tabs", async () => {
   const importedDashboard = {
     name: "Test",
     description: "this is a new description",
+    uuid: 12345678,
   };
   const mockAddDashboard = jest.fn();
   jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);

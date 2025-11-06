@@ -9,6 +9,10 @@ import { LayoutSuccessAlertContext } from "components/contexts/LayoutAlertContex
 import * as dashboardUtils from "components/dashboard/DashboardItem";
 import appAPI from "services/api/app";
 
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
+
 const TestingComponent = ({ onImportGridItem }) => {
   const [showModal, setShowModal] = useState(true);
 
@@ -202,6 +206,7 @@ test("DashboardImportModal Landing Page with griditems", async () => {
         },
       ],
       name: "Test",
+      uuid: 12345678,
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
@@ -352,6 +357,7 @@ test("DashboardImportModal Landing Page with tabs", async () => {
           ],
         },
       ],
+      uuid: 12345678,
       name: "Test",
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"

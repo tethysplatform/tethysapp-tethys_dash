@@ -25,7 +25,6 @@ from tethysapp.tethysdash.model import (
     get_visualization_user_permission,
     get_visualization_permissions,
     update_visualization_permissions,
-    upload_json_to_workspace,
 )
 from unittest.mock import MagicMock
 import base64
@@ -2022,100 +2021,6 @@ def test_get_user_app_permissions_mixed_permissions():
     user = MockUser()
     perms = get_user_app_permissions(user)
     assert set(perms) == {"view_dashboard", "edit_dashboard", "custom"}
-
-
-@pytest.mark.django_db
-def test_upload_json_to_workspace(
-    dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
-
-    workspace_path = tmp_path
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-    dashboard_folder = os.path.join(workspace_path, dashboard.uuid)
-    os.makedirs(dashboard_folder, exist_ok=True)
-
-    upload_json_to_workspace(
-        test_owner_user,
-        dashboard_folder,
-        "test.json",
-        "{'key': 'value'}",
-        dashboard.uuid,
-    )
-
-    dashboard_file = os.path.join(dashboard_folder, "test.json")
-    assert os.path.exists(dashboard_file)
-
-
-@pytest.mark.django_db
-def test_upload_json_to_workspace_no_dashboard(
-    mock_app_get_ps_db, mocker, tmp_path, test_owner_user
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
-
-    workspace_path = tmp_path
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-
-    uuid = "1"
-    dashboard_folder = os.path.join(workspace_path, uuid)
-    os.makedirs(dashboard_folder, exist_ok=True)
-
-    with pytest.raises(Exception) as excinfo:
-        upload_json_to_workspace(
-            test_owner_user,
-            dashboard_folder,
-            "test.json",
-            "{'key': 'value'}",
-            uuid,
-        )
-
-    assert "This dashboard does not exist for this user" in str(excinfo.value)
-    dashboard_file = os.path.join(dashboard_folder, "test.json")
-    assert not os.path.exists(dashboard_file)
-
-
-@pytest.mark.django_db
-def test_upload_json_to_workspace_no_editor_permission(
-    dashboard, mock_app_get_ps_db, mocker, tmp_path, test_member_user
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
-
-    workspace_path = tmp_path
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-
-    dashboard_folder = os.path.join(workspace_path, dashboard.uuid)
-    os.makedirs(dashboard_folder, exist_ok=True)
-
-    with pytest.raises(Exception) as excinfo:
-        upload_json_to_workspace(
-            test_member_user,
-            dashboard_folder,
-            "test.json",
-            "{'key': 'value'}",
-            dashboard.uuid,
-        )
-
-    assert (
-        "User does not have admin or editor permissions to update the dashboard."
-        in str(excinfo.value)
-    )
-    dashboard_file = os.path.join(dashboard_folder, "test.json")
-    assert not os.path.exists(dashboard_file)
 
 
 def create_dummy_json_files(root, files):

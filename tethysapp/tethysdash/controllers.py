@@ -25,7 +25,6 @@ from tethysapp.tethysdash.model import (
     get_visualization_permissions,
     get_user_app_permissions,
     update_visualization_permissions as update_viz_perms,
-    upload_json_to_workspace,
 )
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
@@ -382,7 +381,7 @@ def add_dashboard(request, app_media):
     tabs = dashboard_metadata.get("tabs", [])
     grid_items = dashboard_metadata.get("gridItems", [])
     owner = request.user
-    dashboard_uuid = str(uuid.uuid4())
+    dashboard_uuid = dashboard_metadata.get("uuid", str(uuid.uuid4()))
     print(f"Creating a dashboard named {name}")
 
     try:
@@ -697,7 +696,6 @@ def upload_json(request, app_workspace):
     """
 
     json_data = json.loads(request.body)
-    user = request.user
 
     data = json_data["data"]
     filename = json_data["filename"]
@@ -710,9 +708,9 @@ def upload_json(request, app_workspace):
         if not os.path.exists(dashboard_folder):
             os.mkdir(dashboard_folder)
 
-        upload_json_to_workspace(
-            user, dashboard_folder, filename, clean_data, dashboard_uuid
-        )
+        dashboard_file = os.path.join(dashboard_folder, filename)
+        with open(dashboard_file, "w") as outfile:
+            outfile.write(clean_data)
 
         return JsonResponse({"success": True, "filename": filename})
 

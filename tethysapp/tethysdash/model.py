@@ -1745,41 +1745,6 @@ def get_dashboards(user, dashboard_view=False, id=None):
         session.close()
 
 
-def upload_json_to_workspace(
-    user, dashboard_folder, filename, clean_data, dashboard_uuid
-):
-    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
-    session = Session()
-    saved = False
-
-    try:
-        db_dashboard = (
-            session.query(Dashboard).filter(Dashboard.uuid == dashboard_uuid).first()
-        )
-        if not db_dashboard:
-            raise Exception("This dashboard does not exist for this user")
-        user_permission = get_dashboard_user_permission(session, db_dashboard, user)
-
-        # Check if user has editor or admin permission
-        if (
-            user_permission != DashboardPermissionLevel.editor
-            and user_permission != DashboardPermissionLevel.admin
-        ):
-            raise Exception(
-                "User does not have admin or editor permissions to update the dashboard."  # noqa: E501
-            )
-
-        dashboard_file = os.path.join(dashboard_folder, filename)
-        with open(dashboard_file, "w") as outfile:
-            outfile.write(clean_data)
-
-        saved = True
-    finally:
-        session.close()
-
-    return saved
-
-
 def clean_up_jsons(user):
     """
     Remove unused JSON files from the workspace.

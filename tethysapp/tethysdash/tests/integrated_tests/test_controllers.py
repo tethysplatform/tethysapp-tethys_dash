@@ -887,12 +887,8 @@ def test_copy_dashboard_failed_unknown_exception(
 def test_upload_json(client, admin_user, mock_app, mocker, tmp_path, dashboard_data):
     mock_app("tethysapp.tethysdash.app.App")
     mock_get_app_workspace = mocker.patch("tethys_apps.base.paths.get_app_workspace")
-    mock_upload_json_to_workspace = mocker.patch(
-        "tethysapp.tethysdash.controllers.upload_json_to_workspace"
-    )
     workspace_path = tmp_path
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-    mock_upload_json_to_workspace.return_value = True
 
     itemData = {
         "data": json.dumps({"some": "data"}),
@@ -904,6 +900,10 @@ def test_upload_json(client, admin_user, mock_app, mocker, tmp_path, dashboard_d
     client.force_login(admin_user)
 
     response = client.generic("POST", url, json.dumps(itemData))
+
+    assert os.path.exists(
+        os.path.join(workspace_path, dashboard_data["uuid"], itemData["filename"])
+    )
 
     assert response.status_code == 200
     assert response.json()["success"]

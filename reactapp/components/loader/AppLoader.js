@@ -24,6 +24,7 @@ import {
   handleGridItemImport,
 } from "components/dashboard/DashboardItem";
 import IdleTimerManager from "components/loader/IdleTimerManager";
+import { v4 as uuidv4 } from "uuid";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -309,6 +310,7 @@ function Loader({ children }) {
     if (!("name" in dashboardContext)) {
       return { success: false, message: "Dashboards must include a name" };
     }
+    dashboardContext.uuid = uuidv4();
 
     if (dashboardContext.gridItems && dashboardContext.gridItems.length > 0) {
       const updatedGridItems = [];
@@ -317,7 +319,7 @@ function Loader({ children }) {
           await handleGridItemImport(
             gridItem,
             appContext.csrf,
-            dashboardContext.dashboard_uuid
+            dashboardContext.uuid
           );
         if (success) {
           updatedGridItems.push(importedGridItem);
@@ -337,7 +339,7 @@ function Loader({ children }) {
             await handleGridItemImport(
               gridItem,
               appContext.csrf,
-              dashboardContext.dashboard_uuid
+              dashboardContext.uuid
             );
           if (success) {
             updatedGridItems.push(importedGridItem);
