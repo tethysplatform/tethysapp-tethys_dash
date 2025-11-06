@@ -8,7 +8,6 @@ from django.http import HttpResponse
 from unittest.mock import MagicMock
 from tethysapp.tethysdash.model import (
     GroupPermissionLevel,
-    init_primary_db,
     Dashboard,
     DashboardPermission,
     DashboardPermissionLevel,

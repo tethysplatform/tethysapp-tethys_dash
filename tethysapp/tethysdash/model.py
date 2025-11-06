@@ -1972,7 +1972,7 @@ def init_primary_db(engine, first_time):
                 else:
                     raise  # Unknown error — don't skip
 
-    # for moving json and geojson files from old structure to new structure (https://github.com/tethysplatform/tethysapp-tethys_dash/pull/35)
+    # for moving json and geojson files from old structure to new structure (https://github.com/tethysplatform/tethysapp-tethys_dash/pull/35)  # noqa: E501
     app_workspace = get_app_workspace(App)
     json_root = os.path.join(app_workspace.path, "json")
     geojson_root = os.path.join(app_workspace.path, "geojson")
@@ -1982,11 +1982,11 @@ def init_primary_db(engine, first_time):
     print("Moving json and geojson files to new structure...")
     # Collect all .json files in <app_workspace>/json and subfolders (user folders)
     dashboard_files = []
-    for root, dirs, files in os.walk(json_root):
+    for root, _, files in os.walk(json_root):
         for file in files:
             dashboard_files.append(os.path.join(root, file))
 
-    for root, dirs, files in os.walk(geojson_root):
+    for root, _, files in os.walk(geojson_root):
         for file in files:
             dashboard_files.append(os.path.join(root, file))
 
@@ -2021,6 +2021,7 @@ def init_primary_db(engine, first_time):
                             ]
                         except Exception:
                             pass
+
                         # Only consider if it's a filename (no path separator)
                         if (
                             geojson_file
@@ -2036,6 +2037,7 @@ def init_primary_db(engine, first_time):
                             style_file = layer["configuration"].get("style")
                         except Exception:
                             pass
+
                         if (
                             style_file
                             and style_file.endswith(".json")
@@ -2065,7 +2067,7 @@ def init_primary_db(engine, first_time):
         # Remove any empty folders or subfolders in app_workspace
         def remove_empty_dirs(path):
             # Walk bottom-up so we can remove empty subfolders first
-            for root, dirs, files in os.walk(path, topdown=False):
+            for root, dirs, _ in os.walk(path, topdown=False):
                 for d in dirs:
                     dirpath = os.path.join(root, d)
                     # Only remove if empty
