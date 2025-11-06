@@ -365,10 +365,10 @@ it("Creates a CSV Uploader for a Variable Input", async () => {
   expect(toggleButton).toHaveClass("btn-primary");
   expect(screen.getByText(/Toggle Table/i)).toBeInTheDocument();
   expect(screen.getByTestId("file-input")).toBeInTheDocument();
-  expect(screen.queryByRole("table")).toBeInTheDocument();
+  expect(screen.getByRole("table")).toBeInTheDocument();
   expect(screen.getByRole("columnheader", { name: "A" })).toBeInTheDocument();
   expect(screen.getByRole("columnheader", { name: "B" })).toBeInTheDocument();
-})
+});
 
 it("Creates a CSV Uploader for a Variable Input, missing metadata key", async () => {
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
@@ -398,7 +398,7 @@ it("Creates a CSV Uploader for a Variable Input, missing metadata key", async ()
   expect(
     await screen.findByTestId("csvuploader-missing-metadata")
   ).toBeInTheDocument();
-})
+});
 
 it("Creates a Number Input for a Variable Input", async () => {
   const user = userEvent.setup();

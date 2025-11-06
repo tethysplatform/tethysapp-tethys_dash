@@ -28,7 +28,7 @@ const StyledTableWrapper = styled.div`
 `;
 
 const CSVUploader = ({
-  buttonText = "Toggle Table",  // TODO add these args to metadata
+  buttonText = "Toggle Table", // TODO add these args to metadata
   variant = "primary",
   headers = [],
   onChange,
@@ -71,10 +71,8 @@ const CSVUploader = ({
       <FileUpload
         label=""
         onFileUpload={handleFileUpload}
-        extensionsAllowed={['csv']}
-      >
-
-      </FileUpload>
+        extensionsAllowed={["csv"]}
+      ></FileUpload>
       <StyledButton
         variant={variant}
         onClick={handleToggle}
@@ -86,7 +84,7 @@ const CSVUploader = ({
 
       <Collapse in={isOpen}>
         <div id="collapsible-table" data-testid="collapsible-table">
-          { headers.length > 0 && (
+          {headers.length > 0 && (
             <StyledTableWrapper className="table-responsive">
               <StyledTable striped bordered hover>
                 <thead>
@@ -117,14 +115,8 @@ const CSVUploader = ({
 CSVUploader.propTypes = {
   buttonText: PropTypes.string,
   variant: PropTypes.string,
-  data: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
-      name: PropTypes.string,
-      email: PropTypes.string,
-      role: PropTypes.string,
-    })
-  ),
+  headers: PropTypes.arrayOf(PropTypes.string),
+  onChange: PropTypes.func.isRequired,
 };
 
 export default CSVUploader;
