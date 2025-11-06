@@ -207,7 +207,11 @@ const MapLayerModal = ({
     }
 
     if (style && style !== "{}") {
-      const apiResponse = await saveLayerJSON({ stringJSON: style, csrf });
+      const apiResponse = await saveLayerJSON({
+        stringJSON: style,
+        csrf,
+        dashboard_uuid: uuid,
+      });
       if (!apiResponse.success) {
         setErrorMessage(
           apiResponse.message ??

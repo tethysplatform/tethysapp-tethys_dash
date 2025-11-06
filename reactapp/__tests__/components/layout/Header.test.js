@@ -20,6 +20,10 @@ import {
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
+
 jest.mock("html2canvas");
 
 jest.mock("react-router-dom", () => ({
@@ -146,10 +150,11 @@ test("LandingPageHeader, signin", async () => {
   );
 });
 
-test("LandingPageHeader, import dashboard", async () => {
+test("LandingPageHeader, import dashboard with grid_items", async () => {
   const importedDashboard = {
     name: "Test",
     description: "this is a new description",
+    uuid: 12345678,
   };
   const mockAddDashboard = jest.fn();
   jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
@@ -163,7 +168,74 @@ test("LandingPageHeader, import dashboard", async () => {
       notes: "",
       editable: true,
       publicDashboard: false,
-      gridItems: [],
+      tabs: [
+        {
+          id: 1,
+          name: "Tab 1",
+          gridItems: [],
+        },
+      ],
+    },
+  });
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <LandingPageHeader />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: {
+        user: { username: "jsmith", isAuthenticated: true, isStaff: true },
+      },
+    })
+  );
+
+  const importDashboardButton = await screen.findByLabelText(
+    "importDashboardButton"
+  );
+  await userEvent.click(importDashboardButton);
+  expect(
+    await screen.findByLabelText("Dashboard Import Modal")
+  ).toBeInTheDocument();
+
+  const file = new File([JSON.stringify(importedDashboard)], "test-file.json", {
+    type: "text/plain",
+  });
+  const fileInput = screen.getByTestId("file-input");
+  fireEvent.change(fileInput, { target: { files: [file] } });
+
+  const importButton = screen.getByLabelText("Import Button");
+  await waitFor(() => expect(importButton).not.toBeDisabled());
+  await userEvent.click(importButton);
+
+  expect(mockAddDashboard).toHaveBeenCalledWith(
+    importedDashboard,
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+  );
+});
+
+test("LandingPageHeader, import dashboard with tabs", async () => {
+  const importedDashboard = {
+    name: "Test",
+    description: "this is a new description",
+    uuid: 12345678,
+  };
+  const mockAddDashboard = jest.fn();
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
+
+  mockAddDashboard.mockResolvedValue({
+    success: true,
+    new_dashboard: {
+      id: 1,
+      name: "Test",
+      description: "this is a new description",
+      notes: "",
+      editable: true,
+      publicDashboard: false,
+      tabs: [],
     },
   });
 
@@ -1257,54 +1329,60 @@ test("DashboardHeader, editable, edit and save", async () => {
               description: "some description",
               publicDashboard: true,
               image: "some_image.png",
-              gridItems: [
+              tabs: [
                 {
-                  i: "4",
-                  x: 0,
-                  y: 0,
-                  w: 20,
-                  h: 20,
-                  source: "",
-                  args_string: "{}",
-                  metadata_string: JSON.stringify({
-                    refreshRate: 0,
-                  }),
-                },
-                {
-                  i: "1",
-                  x: 0,
-                  y: 0,
-                  w: 20,
-                  h: 20,
-                  source: "",
-                  args_string: "{}",
-                  metadata_string: JSON.stringify({
-                    refreshRate: 0,
-                  }),
-                },
-                {
-                  i: "3",
-                  x: 0,
-                  y: 0,
-                  w: 20,
-                  h: 20,
-                  source: "",
-                  args_string: "{}",
-                  metadata_string: JSON.stringify({
-                    refreshRate: 0,
-                  }),
-                },
-                {
-                  i: "2",
-                  x: 0,
-                  y: 0,
-                  w: 20,
-                  h: 20,
-                  source: "",
-                  args_string: "{}",
-                  metadata_string: JSON.stringify({
-                    refreshRate: 0,
-                  }),
+                  id: 1,
+                  name: "Tab 1",
+                  gridItems: [
+                    {
+                      i: "4",
+                      x: 0,
+                      y: 0,
+                      w: 20,
+                      h: 20,
+                      source: "",
+                      args_string: "{}",
+                      metadata_string: JSON.stringify({
+                        refreshRate: 0,
+                      }),
+                    },
+                    {
+                      i: "1",
+                      x: 0,
+                      y: 0,
+                      w: 20,
+                      h: 20,
+                      source: "",
+                      args_string: "{}",
+                      metadata_string: JSON.stringify({
+                        refreshRate: 0,
+                      }),
+                    },
+                    {
+                      i: "3",
+                      x: 0,
+                      y: 0,
+                      w: 20,
+                      h: 20,
+                      source: "",
+                      args_string: "{}",
+                      metadata_string: JSON.stringify({
+                        refreshRate: 0,
+                      }),
+                    },
+                    {
+                      i: "2",
+                      x: 0,
+                      y: 0,
+                      w: 20,
+                      h: 20,
+                      source: "",
+                      args_string: "{}",
+                      metadata_string: JSON.stringify({
+                        refreshRate: 0,
+                      }),
+                    },
+                  ],
                 },
               ],
             },

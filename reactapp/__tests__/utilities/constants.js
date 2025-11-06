@@ -460,19 +460,25 @@ export const updatedDashboard = {
   notes: "test_notes",
   editable: true,
   publicDashboard: false,
-  gridItems: [
+  tabs: [
     {
       id: 1,
-      i: "1",
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "",
-      args_string: "{}",
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
+      name: "Tab 1",
+      gridItems: [
+        {
+          id: 1,
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
     },
   ],
 };
@@ -484,19 +490,25 @@ export const newDashboard = {
   notes: "test_notes3",
   editable: true,
   publicDashboard: false,
-  gridItems: [
+  tabs: [
     {
       id: 1,
-      i: "1",
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "",
-      args_string: "{}",
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
+      name: "Tab 1",
+      gridItems: [
+        {
+          id: 1,
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
     },
   ],
 };
@@ -508,19 +520,25 @@ export const copiedDashboard = {
   notes: "test_notes",
   editable: true,
   publicDashboard: false,
-  gridItems: [
+  tabs: [
     {
       id: 1,
-      i: "1",
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "",
-      args_string: "{}",
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
+      name: "Tab 1",
+      gridItems: [
+        {
+          id: 1,
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: "{}",
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
     },
   ],
 };

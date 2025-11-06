@@ -25,7 +25,6 @@ from tethysapp.tethysdash.model import (
     get_visualization_user_permission,
     get_visualization_permissions,
     update_visualization_permissions,
-    upload_json_to_workspace,
 )
 from unittest.mock import MagicMock
 import base64
@@ -35,6 +34,7 @@ from types import SimpleNamespace
 from sqlalchemy.exc import ProgrammingError
 from django.contrib.auth.models import AnonymousUser
 from django.test import override_settings
+from uuid import uuid4
 
 
 @pytest.fixture
@@ -1076,11 +1076,21 @@ def test_clean_up_jsons_no_existing_dashboard_folder(
     mock_remove.assert_not_called()
 
 
-def test_init_primary_db_with_current_revision(mocker, mock_alembic):
+@pytest.mark.django_db
+def test_init_primary_db_with_current_revision(
+    mock_app_get_ps_db, mocker, mock_alembic, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout="abcd1234 some message"),
     )
+
+    workspace_path = tmp_path
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
     mock_alembic.script.walk_revisions.return_value = []
 
@@ -1090,11 +1100,21 @@ def test_init_primary_db_with_current_revision(mocker, mock_alembic):
     mock_alembic.stamp.assert_not_called()
 
 
-def test_init_primary_db_no_current_revision_upgrade_all(mocker, mock_alembic):
+@pytest.mark.django_db
+def test_init_primary_db_no_current_revision_upgrade_all(
+    mock_app_get_ps_db, mocker, mock_alembic, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
     )
+
+    workspace_path = tmp_path
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
     rev1 = mocker.Mock(revision="rev1")
     rev2 = mocker.Mock(revision="rev2")
@@ -1108,11 +1128,21 @@ def test_init_primary_db_no_current_revision_upgrade_all(mocker, mock_alembic):
     mock_alembic.stamp.assert_not_called()
 
 
-def test_init_primary_db_skips_existing_table(mocker, mock_alembic):
+@pytest.mark.django_db
+def test_init_primary_db_skips_existing_table(
+    mock_app_get_ps_db, mocker, mock_alembic, tmp_path
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
     )
+
+    workspace_path = tmp_path
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
     rev = mock_alembic.revision
     mock_alembic.script.walk_revisions.return_value = [rev]
@@ -1993,95 +2023,119 @@ def test_get_user_app_permissions_mixed_permissions():
     assert set(perms) == {"view_dashboard", "edit_dashboard", "custom"}
 
 
-@pytest.mark.django_db
-def test_upload_json_to_workspace(
-    dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
+def create_dummy_json_files(root, files):
+    os.makedirs(root, exist_ok=True)
+    for fname in files:
+        with open(os.path.join(root, fname), "w") as f:
+            json.dump({"dummy": True}, f)
+
+
+class MockDashboard:
+    def __init__(self, id, grid_items):
+        self.id = id
+        self.uuid = str(uuid4())
+        self.grid_items = grid_items
+
+
+class MockGridItem:
+    def __init__(self, id, source, args_string):
+        self.id = id
+        self.source = source
+        if args_string:
+            self.args_string = args_string
+
+
+def test_init_primary_db_moves_json_and_geojson_files(
+    mock_app_get_ps_db, tmp_path, mocker
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout=""),
+    )
+    temp_workspace = tmp_path
+    json_dir = os.path.join(temp_workspace, "json")
+    admin_user_dir = os.path.join(json_dir, "admin")
+    geojson_dir = os.path.join(temp_workspace, "geojson")
+    os.makedirs(json_dir)
+    os.makedirs(geojson_dir)
+    os.makedirs(admin_user_dir)
+    # Create dummy files
+    create_dummy_json_files(json_dir, ["a.json"])
+    create_dummy_json_files(geojson_dir, ["c.json"])
+    create_dummy_json_files(admin_user_dir, ["b.json"])
 
-    workspace_path = tmp_path
     mock_get_app_workspace = mocker.patch(
         "tethysapp.tethysdash.model.get_app_workspace"
     )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-    dashboard_folder = os.path.join(workspace_path, dashboard.uuid)
-    os.makedirs(dashboard_folder, exist_ok=True)
+    mock_get_app_workspace.return_value = MagicMock(path=temp_workspace)
 
-    upload_json_to_workspace(
-        test_owner_user,
-        dashboard_folder,
-        "test.json",
-        "{'key': 'value'}",
-        dashboard.uuid,
+    mock_query = mocker.patch("sqlalchemy.orm.Session.query")
+
+    dashboard_1 = MockDashboard(
+        id=1,
+        grid_items=[
+            MockGridItem(
+                id=1,
+                source="Map",
+                args_string=json.dumps(
+                    {
+                        "layers": [
+                            {
+                                "configuration": {
+                                    "props": {"source": {"geojson": "c.json"}},
+                                    "style": "b.json",
+                                }
+                            },
+                            {
+                                "configuration": {
+                                    "props": {"source": {"geojson": "some/url/d.json"}},
+                                    "style": "some/url/a.json",
+                                }
+                            },
+                        ]
+                    }
+                ),
+            ),
+            MockGridItem(id=2, source="Map", args_string=None),
+            MockGridItem(
+                id=3,
+                source="Map",
+                args_string=json.dumps(
+                    {
+                        "layers": [
+                            {},
+                        ]
+                    }
+                ),
+            ),
+        ],
     )
+    mock_query.return_value.all.return_value = [dashboard_1]
 
-    dashboard_file = os.path.join(dashboard_folder, "test.json")
-    assert os.path.exists(dashboard_file)
+    init_primary_db(engine=mocker.Mock(), first_time=True)
+
+    # Check that files have been deleted from original locations
+    assert not os.path.exists(os.path.join(json_dir, "a.json"))
+    assert not os.path.exists(os.path.join(admin_user_dir, "b.json"))
+    assert not os.path.exists(os.path.join(geojson_dir, "c.json"))
+
+    assert os.path.exists(os.path.join(temp_workspace, dashboard_1.uuid, "c.json"))
+    assert os.path.exists(os.path.join(temp_workspace, dashboard_1.uuid, "b.json"))
 
 
-@pytest.mark.django_db
-def test_upload_json_to_workspace_no_dashboard(
-    mock_app_get_ps_db, mocker, tmp_path, test_owner_user
+def test_init_primary_db_moves_no_json_and_geojson_folders(
+    mock_app_get_ps_db, tmp_path, mocker
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout=""),
+    )
 
-    workspace_path = tmp_path
     mock_get_app_workspace = mocker.patch(
         "tethysapp.tethysdash.model.get_app_workspace"
     )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
+    mock_get_app_workspace.return_value = MagicMock(path=tmp_path)
 
-    uuid = "1"
-    dashboard_folder = os.path.join(workspace_path, uuid)
-    os.makedirs(dashboard_folder, exist_ok=True)
-
-    with pytest.raises(Exception) as excinfo:
-        upload_json_to_workspace(
-            test_owner_user,
-            dashboard_folder,
-            "test.json",
-            "{'key': 'value'}",
-            uuid,
-        )
-
-    assert "This dashboard does not exist for this user" in str(excinfo.value)
-    dashboard_file = os.path.join(dashboard_folder, "test.json")
-    assert not os.path.exists(dashboard_file)
-
-
-@pytest.mark.django_db
-def test_upload_json_to_workspace_no_editor_permission(
-    dashboard, mock_app_get_ps_db, mocker, tmp_path, test_member_user
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
-    mock_get_app_media.return_value = MagicMock(path=tmp_path)
-
-    workspace_path = tmp_path
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-
-    dashboard_folder = os.path.join(workspace_path, dashboard.uuid)
-    os.makedirs(dashboard_folder, exist_ok=True)
-
-    with pytest.raises(Exception) as excinfo:
-        upload_json_to_workspace(
-            test_member_user,
-            dashboard_folder,
-            "test.json",
-            "{'key': 'value'}",
-            dashboard.uuid,
-        )
-
-    assert (
-        "User does not have admin or editor permissions to update the dashboard."
-        in str(excinfo.value)
-    )
-    dashboard_file = os.path.join(dashboard_folder, "test.json")
-    assert not os.path.exists(dashboard_file)
+    init_primary_db(engine=mocker.Mock(), first_time=True)

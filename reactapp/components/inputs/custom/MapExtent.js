@@ -137,7 +137,16 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const containsTemplate = (str) => /\$\{\w+\}/.test(str);
 
   const isValidExtentInput = (value) => {
-    const trimmed = value.trim();
+    let trimmed;
+    try {
+      trimmed = value.extent.extent.trim();
+    } catch {
+      try {
+        trimmed = value.extent.trim();
+      } catch {
+        trimmed = value.trim();
+      }
+    }
     if (containsTemplate(trimmed)) return true;
 
     const parts = trimmed.split(",").map((p) => p.trim());

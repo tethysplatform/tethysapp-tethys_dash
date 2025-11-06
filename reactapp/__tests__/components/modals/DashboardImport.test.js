@@ -9,6 +9,10 @@ import { LayoutSuccessAlertContext } from "components/contexts/LayoutAlertContex
 import * as dashboardUtils from "components/dashboard/DashboardItem";
 import appAPI from "services/api/app";
 
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
+
 const TestingComponent = ({ onImportGridItem }) => {
   const [showModal, setShowModal] = useState(true);
 
@@ -202,6 +206,159 @@ test("DashboardImportModal Landing Page with griditems", async () => {
         },
       ],
       name: "Test",
+      uuid: 12345678,
+    },
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+  );
+});
+
+test("DashboardImportModal Landing Page with bad tabs", async () => {
+  const importedDashboard = {
+    name: "Test",
+    description: "this is a new description",
+    tabs: [
+      {
+        id: "1",
+        name: "Tab 1",
+        gridItems: [{}],
+      },
+    ],
+  };
+  const mockImportDashboard = jest.fn();
+  mockImportDashboard.mockResolvedValue({
+    success: true,
+    new_dashboard: importedDashboard,
+  });
+  const mockSetSuccessMessage = jest.fn();
+  const mockSetShowSuccessMessage = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <LayoutSuccessAlertContext.Provider
+          value={{
+            setSuccessMessage: mockSetSuccessMessage,
+            setShowSuccessMessage: mockSetShowSuccessMessage,
+          }}
+        >
+          <TestingComponent />
+        </LayoutSuccessAlertContext.Provider>
+      ),
+    })
+  );
+
+  expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
+
+  const file = new File([JSON.stringify(importedDashboard)], "test-file.json", {
+    type: "text/plain",
+  });
+  const fileInput = screen.getByTestId("file-input");
+  fireEvent.change(fileInput, { target: { files: [file] } });
+
+  const importButton = screen.getByLabelText("Import Button");
+  await waitFor(() => expect(importButton).not.toBeDisabled());
+  await userEvent.click(importButton);
+
+  expect(
+    await screen.findByText(
+      "Grid Items must include i, x, y, w, h, source, args_string, metadata_string keys"
+    )
+  ).toBeInTheDocument();
+});
+
+test("DashboardImportModal Landing Page with tabs", async () => {
+  const importedDashboard = {
+    name: "Test",
+    description: "this is a new description",
+    tabs: [
+      {
+        id: "1",
+        name: "Tab 1",
+        gridItems: [
+          {
+            i: "1",
+            x: 0,
+            y: 0,
+            w: 20,
+            h: 20,
+            source: "Variable Input",
+            args_string: {
+              initial_value: "",
+              variable_name: "Test Variable",
+              variable_options_source: "text",
+            },
+            metadata_string: {
+              refreshRate: 0,
+            },
+          },
+        ],
+      },
+    ],
+  };
+  const mockAddDashboard = jest.fn();
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
+  mockAddDashboard.mockResolvedValue({
+    success: true,
+    new_dashboard: importedDashboard,
+  });
+  const mockSetSuccessMessage = jest.fn();
+  const mockSetShowSuccessMessage = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <LayoutSuccessAlertContext.Provider
+          value={{
+            setSuccessMessage: mockSetSuccessMessage,
+            setShowSuccessMessage: mockSetShowSuccessMessage,
+          }}
+        >
+          <TestingComponent />
+        </LayoutSuccessAlertContext.Provider>
+      ),
+    })
+  );
+
+  expect(await screen.findByText("Import Dashboard")).toBeInTheDocument();
+
+  const file = new File([JSON.stringify(importedDashboard)], "test-file.json", {
+    type: "text/plain",
+  });
+  const fileInput = screen.getByTestId("file-input");
+  fireEvent.change(fileInput, { target: { files: [file] } });
+
+  const importButton = screen.getByLabelText("Import Button");
+  await waitFor(() => expect(importButton).not.toBeDisabled());
+  await userEvent.click(importButton);
+
+  expect(mockAddDashboard).toHaveBeenCalledWith(
+    {
+      description: "this is a new description",
+
+      tabs: [
+        {
+          id: "1",
+          name: "Tab 1",
+          gridItems: [
+            {
+              args_string: JSON.stringify(
+                importedDashboard.tabs[0].gridItems[0].args_string
+              ),
+              h: 20,
+              i: "1",
+              metadata_string: JSON.stringify(
+                importedDashboard.tabs[0].gridItems[0].metadata_string
+              ),
+              source: "Variable Input",
+              w: 20,
+              x: 0,
+              y: 0,
+            },
+          ],
+        },
+      ],
+      uuid: 12345678,
+      name: "Test",
     },
     "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
   );
@@ -366,7 +523,8 @@ test("DashboardImportModal Dashboard View", async () => {
 
   expect(spyHandleGridItemImport).toHaveBeenCalledWith(
     importedGridItem,
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
+    "user-uuid"
   );
   expect(mockOnImportGridItem).toHaveBeenCalledWith(importedGridItem);
   expect(mockSetShowSuccessMessage).toHaveBeenCalledWith(true);

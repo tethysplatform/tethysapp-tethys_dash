@@ -24,6 +24,7 @@ import {
   handleGridItemImport,
 } from "components/dashboard/DashboardItem";
 import IdleTimerManager from "components/loader/IdleTimerManager";
+import { v4 as uuidv4 } from "uuid";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -309,12 +310,17 @@ function Loader({ children }) {
     if (!("name" in dashboardContext)) {
       return { success: false, message: "Dashboards must include a name" };
     }
+    dashboardContext.uuid = uuidv4();
 
     if (dashboardContext.gridItems && dashboardContext.gridItems.length > 0) {
       const updatedGridItems = [];
       for (let gridItem of dashboardContext.gridItems) {
         const { success, message, importedGridItem } =
-          await handleGridItemImport(gridItem, appContext.csrf);
+          await handleGridItemImport(
+            gridItem,
+            appContext.csrf,
+            dashboardContext.uuid
+          );
         if (success) {
           updatedGridItems.push(importedGridItem);
         } else {
@@ -322,6 +328,28 @@ function Loader({ children }) {
         }
       }
       dashboardContext.gridItems = updatedGridItems;
+    }
+
+    if (dashboardContext.tabs && dashboardContext.tabs.length > 0) {
+      const updatedTabs = [];
+      for (let tab of dashboardContext.tabs) {
+        const updatedGridItems = [];
+        for (let gridItem of tab.gridItems) {
+          const { success, message, importedGridItem } =
+            await handleGridItemImport(
+              gridItem,
+              appContext.csrf,
+              dashboardContext.uuid
+            );
+          if (success) {
+            updatedGridItems.push(importedGridItem);
+          } else {
+            return { success, message };
+          }
+        }
+        updatedTabs.push({ ...tab, gridItems: updatedGridItems });
+      }
+      dashboardContext.tabs = updatedTabs;
     }
 
     const apiResponse = await addDashboard(dashboardContext);
@@ -333,7 +361,6 @@ function Loader({ children }) {
     if (apiResponse.success) {
       const { id, tabs, uuid, ...dashboardProperties } = apiResponse.dashboard;
 
-      // gridItems is actually tabs: [{ gridItems: [...] }]
       const exportedTabs = [];
       for (const tab of tabs) {
         const updatedGridItems = [];

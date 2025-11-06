@@ -8,7 +8,6 @@ from django.http import HttpResponse
 from unittest.mock import MagicMock
 from tethysapp.tethysdash.model import (
     GroupPermissionLevel,
-    init_primary_db,
     Dashboard,
     DashboardPermission,
     DashboardPermissionLevel,
@@ -34,8 +33,8 @@ def db_connection(db_url):
     connection = engine.connect()
     transaction = connection.begin()
 
-    # Run alembic migrations if needed
-    init_primary_db(engine, first_time=True)
+    # # Run alembic migrations if needed
+    # init_primary_db(engine, first_time=True)
 
     yield connection
 

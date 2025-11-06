@@ -121,9 +121,13 @@ const MapComponent = ({
     setProjection(mapViewConfig.getProjection().getCode());
     let extent;
     try {
-      extent = mapExtent.extent.replaceAll(" ", "");
+      extent = mapExtent.extent.extent.replaceAll(" ", "");
     } catch {
-      extent = mapExtent.replaceAll(" ", "");
+      try {
+        extent = mapExtent.extent.replaceAll(" ", "");
+      } catch {
+        extent = mapExtent.replaceAll(" ", "");
+      }
     }
 
     const parts = extent.split(",").map((p) => parseFloat(p.trim()));
