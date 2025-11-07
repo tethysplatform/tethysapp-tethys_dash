@@ -547,6 +547,24 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
           metadataString={mockedUnknownBase.metadata_string}
         />
       ),
+      options: {
+        visualizations: [
+          {
+            label: "Visualization Group",
+            options: [
+              {
+                source: "unknown_api",
+                value: "plugin_value",
+                label: "plugin_label",
+                args: { plugin_arg: "text" },
+                type: "some type",
+                tags: ["test", "plugin"],
+                description: "some description",
+              },
+            ],
+          },
+        ],
+      },
     })
   );
 
@@ -586,6 +604,24 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
           metadataString={mockedUnknownBase.metadata_string}
         />
       ),
+      options: {
+        visualizations: [
+          {
+            label: "Visualization Group",
+            options: [
+              {
+                source: "unknown_api",
+                value: "plugin_value",
+                label: "plugin_label",
+                args: { plugin_arg: "text" },
+                type: "some type",
+                tags: ["test", "plugin"],
+                description: "some description",
+              },
+            ],
+          },
+        ],
+      },
     })
   );
 

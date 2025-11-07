@@ -39,7 +39,7 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
 
   let minInput = screen.getByLabelText("Minimum Input");
   let maxInput = screen.getByLabelText("Maximum Input");
-  let initialValueInput = screen.getByLabelText("Initial Value Input");
+  let initialValueDropdown = screen.getByLabelText("Initial Value");
   let stepInput = screen.getByLabelText("Step Input");
   let outputFormatInput = screen.getByLabelText("Output Format Input");
 
@@ -55,7 +55,9 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
   expect(mockOnChange).toHaveBeenCalledTimes(2);
   expect(mockOnChange).toHaveBeenLastCalledWith(null);
 
-  fireEvent.change(initialValueInput, { target: { value: "50" } });
+  selectEvent.openMenu(initialValueDropdown);
+  let rangeStartOption = await screen.findByText("50");
+  fireEvent.click(rangeStartOption);
 
   expect(mockOnChange).toHaveBeenCalledTimes(3);
   expect(mockOnChange).toHaveBeenLastCalledWith({
@@ -82,16 +84,18 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
 
   minInput = screen.getByRole("textbox", { name: /Minimum/i });
   maxInput = screen.getByRole("textbox", { name: /Maximum/i });
-  initialValueInput = screen.getByRole("textbox", { name: /Initial Value/i });
   stepInput = screen.getByLabelText("Step Input");
   outputFormatInput = screen.getByLabelText("Output Format Input");
 
   fireEvent.change(minInput, { target: { value: "01/01/2020 12:00 AM" } });
   fireEvent.change(maxInput, { target: { value: "01/10/2020 12:00 AM" } });
-  fireEvent.change(initialValueInput, {
-    target: { value: "01/05/2020 12:00 AM" },
-  });
   fireEvent.change(stepInput, { target: { value: "1" } });
+
+  initialValueDropdown = screen.getByLabelText("Initial Value");
+  selectEvent.openMenu(initialValueDropdown);
+  rangeStartOption = await screen.findByText("2020-01-05T00:00:00");
+  fireEvent.click(rangeStartOption);
+
   fireEvent.change(outputFormatInput, { target: { value: "MM/dd/yyyy" } });
 
   expect(mockOnChange).toHaveBeenCalledTimes(5);
@@ -99,7 +103,7 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
     dataType: "Date",
     min: "01/01/2020 12:00 AM",
     max: "01/10/2020 12:00 AM",
-    initialValue: "01/05/2020 12:00 AM",
+    initialValue: "2020-01-05T00:00:00",
     step: 1,
     outputFormat: "MM/dd/yyyy",
     dateTimeDelta: "Days",
@@ -146,25 +150,29 @@ test("SliderMetadata with existing number, turn on range mode", async () => {
 
   const minInput = screen.getByLabelText("Minimum Input");
   const maxInput = screen.getByLabelText("Maximum Input");
-  const rangeStartInput = screen.getByLabelText("Range Start Input");
-  const rangeEndInput = screen.getByLabelText("Range End Input");
+  const rangeStartDropdown = screen.getByLabelText("Range Start");
+  const rangeEndDropdown = screen.getByLabelText("Range End");
   const stepInput = screen.getByLabelText("Step Input");
   const outputFormatInput = screen.getByLabelText("Output Format Input");
 
   expect(minInput.value).toBe("0");
   expect(maxInput.value).toBe("100");
-  expect(rangeStartInput.value).toBe("");
-  expect(rangeEndInput.value).toBe("");
+  expect(rangeStartDropdown.value).toBe("");
+  expect(rangeEndDropdown.value).toBe("");
   expect(stepInput.value).toBe("1");
   expect(outputFormatInput.value).toBe("{{n}}");
 
-  fireEvent.change(rangeStartInput, { target: { value: "20" } });
+  selectEvent.openMenu(rangeStartDropdown);
+  const rangeStartOption = await screen.findByText("20");
+  fireEvent.click(rangeStartOption);
 
   // onChange null because range end is empty
   expect(mockOnChange).toHaveBeenCalledTimes(3);
   expect(mockOnChange).toHaveBeenLastCalledWith(null);
 
-  fireEvent.change(rangeEndInput, { target: { value: "80" } });
+  selectEvent.openMenu(rangeEndDropdown);
+  const rangeEndOption = await screen.findByText("80");
+  fireEvent.click(rangeEndOption);
 
   expect(mockOnChange).toHaveBeenCalledTimes(4);
   expect(mockOnChange).toHaveBeenLastCalledWith({
@@ -220,34 +228,36 @@ test("SliderMetadata with existing date, turn on range mode", async () => {
 
   const minInput = screen.getByRole("textbox", { name: /Minimum/i });
   const maxInput = screen.getByRole("textbox", { name: /Maximum/i });
-  const rangeStartInput = screen.getByRole("textbox", { name: /Range Start/i });
-  const rangeEndInput = screen.getByRole("textbox", { name: /Range End/i });
   const stepInput = screen.getByLabelText("Step Input");
+  const rangeStartDropdown = screen.getByLabelText("Range Start");
+  const rangeEndDropdown = screen.getByLabelText("Range End");
   const outputFormatInput = screen.getByLabelText("Output Format Input");
 
   expect(minInput.value).toBe("01/01/2020 12:00 AM");
   expect(maxInput.value).toBe("01/10/2020 12:00 AM");
-  expect(rangeStartInput.value).toBe("");
-  expect(rangeEndInput.value).toBe("");
+  expect(rangeStartDropdown.value).toBe("");
+  expect(rangeEndDropdown.value).toBe("");
   expect(stepInput.value).toBe("1");
   expect(outputFormatInput.value).toBe("MM/dd/yyyy");
 
-  fireEvent.change(rangeStartInput, {
-    target: { value: "01/01/2020 12:00 AM" },
-  });
+  selectEvent.openMenu(rangeStartDropdown);
+  const rangeStartOption = await screen.findByText("2020-01-01T00:00:00");
+  fireEvent.click(rangeStartOption);
 
   // onChange null because range end is empty
   expect(mockOnChange).toHaveBeenCalledTimes(3);
   expect(mockOnChange).toHaveBeenLastCalledWith(null);
 
-  fireEvent.change(rangeEndInput, { target: { value: "01/03/2020 12:00 AM" } });
+  selectEvent.openMenu(rangeEndDropdown);
+  const rangeEndOption = await screen.findByText("2020-01-03T00:00:00");
+  fireEvent.click(rangeEndOption);
 
   expect(mockOnChange).toHaveBeenCalledTimes(4);
   expect(mockOnChange).toHaveBeenLastCalledWith({
     dataType: "Date",
     min: "01/01/2020 12:00 AM",
     max: "01/10/2020 12:00 AM",
-    initialRange: ["01/01/2020 12:00 AM", "01/03/2020 12:00 AM"],
+    initialRange: ["2020-01-01T00:00:00", "2020-01-03T00:00:00"],
     step: 1,
     outputFormat: "MM/dd/yyyy",
     dateTimeDelta: "Days",
