@@ -231,7 +231,7 @@ const MapLayerModal = ({
     const apiResponse = await appAPI.getVisualizationData({
       source: e.source,
       args: {},
-    }, csrf);
+    });
 
     if (!apiResponse.success) {
       setErrorMessage(

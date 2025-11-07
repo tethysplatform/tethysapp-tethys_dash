@@ -138,7 +138,7 @@ def ping(request):
         return JsonResponse({"status": -1, "EXPIRE_AFTER": 0, "WARN_AFTER": 0})
 
 
-@api_view(["POST"])
+@api_view(["GET"])
 @controller(url="tethysdash/visualizations/get", login_required=False)
 def visualization(request):
     """
@@ -158,9 +158,8 @@ def visualization(request):
             - data: Visualization data or error information
             - viz_type: Type of visualization returned
     """
-    data = json.loads(request.body)
-    viz_source = data["source"]
-    viz_args = data["args"]
+    viz_source = request.GET["source"]
+    viz_args = json.loads(request.GET["args"])
     data = None
     viz_type = None
     success = True

@@ -39,13 +39,10 @@ const appAPI = {
   getActivityData: (activity) => {
     return apiClient.get(`${APP_ROOT_URL}ping/`, { params: activity });
   },
-  getVisualizationData: (itemData, csrf) => {
-    return apiClient.post(`${APP_ROOT_URL}visualizations/get/`,
-      itemData,
-      {
-        headers: { "x-csrftoken": csrf },
-      }
-    );
+  getVisualizationData: (itemData) => {
+    return apiClient.get(`${APP_ROOT_URL}visualizations/get/`, {
+      params: itemData,
+    });
   },
   listVisualizations: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/list/`);

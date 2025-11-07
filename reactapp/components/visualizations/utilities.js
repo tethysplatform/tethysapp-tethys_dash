@@ -60,7 +60,6 @@ export async function getVisualization({
   variableInputValues,
   dashboardView,
   vizLoadingIcon = true,
-  csrf
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -107,7 +106,7 @@ export async function getVisualization({
     setVizType("loader");
   }
 
-  const apiResponse = await appAPI.getVisualizationData(itemData, csrf);
+  const apiResponse = await appAPI.getVisualizationData(itemData);
   if (apiResponse.success === true) {
     let responseData = JSON.parse(JSON.stringify(apiResponse.data));
     if (typeof apiResponse.data === "string") {
@@ -250,7 +249,7 @@ export const nonDropDownVariableInputTypes = [
   {
     value: "csv-uploader",
     label: "csv uploader",
-    sub_args: { metadata: "custom-CSVUploaderMetadata"},
+    sub_args: { metadata: "custom-CSVUploaderMetadata" },
   },
 ];
 

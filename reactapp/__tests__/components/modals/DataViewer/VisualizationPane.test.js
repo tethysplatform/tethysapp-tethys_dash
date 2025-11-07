@@ -327,7 +327,7 @@ test("Visualization Pane Other Type", async () => {
   const mockSetVizMetadata = jest.fn();
   const mockSetShowingSubModal = jest.fn();
   server.use(
-    rest.post(
+    rest.get(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(
@@ -470,7 +470,7 @@ test("Visualization Pane Other Type Checkbox", async () => {
   const mockSetVizMetadata = jest.fn();
   const mockSetShowingSubModal = jest.fn();
   server.use(
-    rest.post(
+    rest.get(
       "http://api.test/apps/tethysdash/visualizations/get/",
       (req, res, ctx) => {
         return res(

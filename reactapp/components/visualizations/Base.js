@@ -149,7 +149,7 @@ export const Visualization = memo(
 const BaseVisualization = ({ source, argsString, metadataString }) => {
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
-  const { csrf, visualizations } = useContext(AppContext);
+  const { visualizations } = useContext(AppContext);
   const { variableInputValues } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemMetadataWithVariableInputs = useRef(0);
@@ -254,7 +254,6 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
           source,
           "source"
         )?.loading_icon,
-        csrf
       });
     }
 
