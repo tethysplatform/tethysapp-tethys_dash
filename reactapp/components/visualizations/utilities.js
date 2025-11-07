@@ -1,5 +1,6 @@
 import appAPI from "services/api/app";
 import { spaceAndCapitalize } from "components/modals/utilities";
+import { parseDateMath } from "components/inputs/DatePicker";
 
 export function checkForEmptyVariableInputs({
   metadataString,
@@ -60,7 +61,7 @@ export async function getVisualization({
   variableInputValues,
   dashboardView,
   vizLoadingIcon = true,
-  csrf
+  csrf,
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -210,7 +211,7 @@ export function getGridItem(gridItems, gridItemI) {
   return result;
 }
 
-export function updateObjectWithVariableInputs(args, variableInputs) {
+export function updateObjectWithVariableInputs(args, variableInputs, argTypes) {
   for (let gridItemsArg in args) {
     let value = args[gridItemsArg];
 
@@ -231,6 +232,13 @@ export function updateObjectWithVariableInputs(args, variableInputs) {
       );
     }
     args[gridItemsArg] = updatedValuesWithVariableInputs;
+
+    if (argTypes) {
+      const argType = argTypes[gridItemsArg];
+      if (argType === "date" || argType === "date-hour") {
+        args[gridItemsArg] = parseDateMath({ value: args[gridItemsArg] });
+      }
+    }
   }
 
   return args;
@@ -250,7 +258,7 @@ export const nonDropDownVariableInputTypes = [
   {
     value: "csv-uploader",
     label: "csv uploader",
-    sub_args: { metadata: "custom-CSVUploaderMetadata"},
+    sub_args: { metadata: "custom-CSVUploaderMetadata" },
   },
 ];
 

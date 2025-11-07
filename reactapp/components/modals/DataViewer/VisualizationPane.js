@@ -70,7 +70,8 @@ const VisualizationArguments = ({
       }
     }
 
-    return ( // TODO
+    return (
+      // TODO
       <DataInput
         key={key}
         label={spaceAndCapitalize(obj.label)}
@@ -337,9 +338,11 @@ function VisualizationPane({
           onChange: (e) => setVariableInputValue(e),
         });
       } else {
+        const argTypes = selectedVizTypeOption.args;
         const updatedGridItemArgs = updateObjectWithVariableInputs(
           itemData.args,
-          variableInputValues
+          variableInputValues,
+          argTypes
         );
         itemData.args = updatedGridItemArgs;
         await getVisualization({
@@ -351,7 +354,7 @@ function VisualizationPane({
           metadataString: JSON.stringify(settings),
           variableInputValues,
           vizLoadingIcon: true,
-          csrf
+          csrf,
         });
       }
     }

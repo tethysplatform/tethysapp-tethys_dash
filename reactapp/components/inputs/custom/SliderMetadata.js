@@ -5,7 +5,7 @@ import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
 import DataSelect from "components/inputs/DataSelect";
 import DatePicker from "components/inputs/DatePicker";
-import { timeDeltas } from "components/inputs/Slider";
+import { timeDeltas, calculateSliderValues } from "components/inputs/Slider";
 
 const FlexDiv = styled.div`
   display: flex;
@@ -39,6 +39,18 @@ const SliderMetadata = ({ onChange, values }) => {
       ? { value: values.dateTimeDelta, label: values.dateTimeDelta }
       : { value: "Days", label: "Days" }
   );
+
+  // Get possible slider values using calculateSliderValues
+  const possibleValues =
+    min != null && max != null && step != null && dataType
+      ? calculateSliderValues(
+          min,
+          max,
+          step,
+          dateTimeDelta.value,
+          dataType.value
+        )
+      : [];
 
   useEffect(() => {
     if (
@@ -162,33 +174,6 @@ const SliderMetadata = ({ onChange, values }) => {
             onChange={onMaxChange}
             divProps={{ style: { "margin-top": "1rem" } }}
           />
-          {rangeMode ? (
-            <>
-              <NormalInput
-                label="Range Start"
-                value={initialRange[0]}
-                type="number"
-                onChange={(e) =>
-                  setInitialRange([Number(e.target.value), initialRange[1]])
-                }
-              />
-              <NormalInput
-                label="Range End"
-                value={initialRange[1]}
-                type="number"
-                onChange={(e) =>
-                  setInitialRange([initialRange[0], Number(e.target.value)])
-                }
-              />
-            </>
-          ) : (
-            <NormalInput
-              label="Initial Value"
-              value={initialValue}
-              type="number"
-              onChange={(e) => setInitialValue(Number(e.target.value))}
-            />
-          )}
           <NormalInput
             label="Step"
             value={step}
@@ -196,6 +181,51 @@ const SliderMetadata = ({ onChange, values }) => {
             onChange={(e) => setStep(Number(e.target.value))}
             divProps={{ style: { "margin-top": "1rem" } }}
           />
+          {rangeMode ? (
+            <>
+              <DataSelect
+                label="Range Start"
+                aria-label="Range Start"
+                selectedOption={
+                  initialRange[0] != null
+                    ? { value: initialRange[0], label: initialRange[0] }
+                    : null
+                }
+                onChange={(selected) =>
+                  setInitialRange([selected.value, initialRange[1]])
+                }
+                options={possibleValues.map((v) => ({ value: v, label: v }))}
+                divProps={{ style: { "margin-top": "1rem" } }}
+              />
+              <DataSelect
+                label="Range End"
+                aria-label="Range End"
+                selectedOption={
+                  initialRange[1] != null
+                    ? { value: initialRange[1], label: initialRange[1] }
+                    : null
+                }
+                onChange={(selected) =>
+                  setInitialRange([initialRange[0], selected.value])
+                }
+                options={possibleValues.map((v) => ({ value: v, label: v }))}
+                divProps={{ style: { "margin-top": "1rem" } }}
+              />
+            </>
+          ) : (
+            <DataSelect
+              label="Initial Value"
+              aria-label="Initial Value"
+              selectedOption={
+                initialValue != null
+                  ? { value: initialValue, label: initialValue }
+                  : null
+              }
+              onChange={(selected) => setInitialValue(selected.value)}
+              options={possibleValues.map((v) => ({ value: v, label: v }))}
+              divProps={{ style: { "margin-top": "1rem" } }}
+            />
+          )}
           <NormalInput
             label="Output Format"
             value={outputFormat}
@@ -222,32 +252,6 @@ const SliderMetadata = ({ onChange, values }) => {
             onChange={onMaxChange}
             divProps={{ style: { "margin-top": "1rem" } }}
           />
-          {rangeMode ? (
-            <>
-              <DatePicker
-                label="Range Start"
-                value={initialRange[0]}
-                type="date-hour"
-                onChange={(e) => setInitialRange([e, initialRange[1]])}
-                divProps={{ style: { "margin-top": "1rem" } }}
-              />
-              <DatePicker
-                label="Range End"
-                value={initialRange[1]}
-                type="date-hour"
-                onChange={(e) => setInitialRange([initialRange[0], e])}
-                divProps={{ style: { "margin-top": "1rem" } }}
-              />
-            </>
-          ) : (
-            <DatePicker
-              label="Initial Value"
-              value={initialValue}
-              type="date-hour"
-              onChange={(e) => setInitialValue(e)}
-              divProps={{ style: { "margin-top": "1rem" } }}
-            />
-          )}
           <FlexDiv>
             <NormalInput
               label="Step"
@@ -271,6 +275,51 @@ const SliderMetadata = ({ onChange, values }) => {
               />
             </TimeDeltaDiv>
           </FlexDiv>
+          {rangeMode ? (
+            <>
+              <DataSelect
+                label="Range Start"
+                aria-label="Range Start"
+                selectedOption={
+                  initialRange[0] != null
+                    ? { value: initialRange[0], label: initialRange[0] }
+                    : null
+                }
+                onChange={(selected) =>
+                  setInitialRange([selected.value, initialRange[1]])
+                }
+                options={possibleValues.map((v) => ({ value: v, label: v }))}
+                divProps={{ style: { "margin-top": "1rem" } }}
+              />
+              <DataSelect
+                label="Range End"
+                aria-label="Range End"
+                selectedOption={
+                  initialRange[1] != null
+                    ? { value: initialRange[1], label: initialRange[1] }
+                    : null
+                }
+                onChange={(selected) =>
+                  setInitialRange([initialRange[0], selected.value])
+                }
+                options={possibleValues.map((v) => ({ value: v, label: v }))}
+                divProps={{ style: { "margin-top": "1rem" } }}
+              />
+            </>
+          ) : (
+            <DataSelect
+              label="Initial Value"
+              aria-label="Initial Value"
+              selectedOption={
+                initialValue != null
+                  ? { value: initialValue, label: initialValue }
+                  : null
+              }
+              onChange={(selected) => setInitialValue(selected.value)}
+              options={possibleValues.map((v) => ({ value: v, label: v }))}
+              divProps={{ style: { "margin-top": "1rem" } }}
+            />
+          )}
           <NormalInput
             label="Output Format"
             value={outputFormat}

@@ -2,7 +2,8 @@
 import { act } from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { spyElementPrototypes } from "rc-util/lib/test/domHook";
-import Slider from "components/inputs/Slider";
+import Slider, { calculateSliderValues } from "components/inputs/Slider";
+import { format, addDays } from "date-fns";
 
 // Helper to advance timers in a controlled way
 const advanceTimers = async (ms) => {
@@ -438,7 +439,7 @@ describe("Slider Component", () => {
         step={1}
         min={min}
         max={max}
-        initialValue={"2025-01-03T00:00:00.000"}
+        initialValue={"2025-01-03T00:00:00"}
         outputFormat="yyyy-MM-dd"
         dataType="Date"
         dateTimeDelta="Days"
@@ -465,7 +466,7 @@ describe("Slider Component", () => {
         step={1}
         min={min}
         max={max}
-        initialRange={["2025-01-03T00:00:00.000", "2025-01-04T00:00:00.000"]}
+        initialRange={["2025-01-03T00:00:00", "2025-01-04T00:00:00"]}
         rangeMode={true}
         outputFormat="yyyy-MM-dd"
         dataType="Date"
@@ -493,7 +494,7 @@ describe("Slider Component", () => {
         step={1}
         min={min}
         max={max}
-        initialValue={"2025-01-03T00:00:00.000"}
+        initialValue={"2025-01-03T00:00:00"}
         outputFormat="yyyy-MM-dd"
         dataType="Date"
         dateTimeDelta="Days"
@@ -510,6 +511,44 @@ describe("Slider Component", () => {
     );
   });
 
+  it("go to next date step with relative date", async () => {
+    const handleChange = jest.fn();
+    const min = "now-5D";
+    const max = "now";
+
+    render(
+      <Slider
+        step={1}
+        min={min}
+        max={max}
+        initialValue={"now-5D"}
+        outputFormat="yyyy-MM-dd"
+        dataType="Date"
+        dateTimeDelta="Days"
+        onChange={handleChange}
+      />
+    );
+
+    const nextStep = screen.getByLabelText("next step");
+    fireEvent.click(nextStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith(
+      format(addDays(new Date(), -4), "yyyy-MM-dd")
+    );
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      format(addDays(new Date(), -4), "yyyy-MM-dd")
+    );
+
+    fireEvent.click(nextStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith(
+      format(addDays(new Date(), -3), "yyyy-MM-dd")
+    );
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      format(addDays(new Date(), -3), "yyyy-MM-dd")
+    );
+  });
+
   it("go to next date step in rangemode", async () => {
     const handleChange = jest.fn();
     const min = "2025-01-01T00:00:00.000";
@@ -520,7 +559,7 @@ describe("Slider Component", () => {
         step={1}
         min={min}
         max={max}
-        initialRange={["2025-01-03T00:00:00.000", "2025-01-04T00:00:00.000"]}
+        initialRange={["2025-01-03T00:00:00", "2025-01-04T00:00:00"]}
         rangeMode={true}
         outputFormat="yyyy-MM-dd"
         dataType="Date"
@@ -626,7 +665,7 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
     const min = "2025-01-01T00:00:00.000";
     const max = "2025-01-10T00:00:00.000";
-    const initialRange = ["2025-01-08T00:00:00.000", "2025-01-09T00:00:00.000"];
+    const initialRange = ["2025-01-08T00:00:00", "2025-01-09T00:00:00"];
 
     const { container } = render(
       <Slider
@@ -719,7 +758,7 @@ describe("Slider Component", () => {
         step={1}
         min={min}
         max={max}
-        initialValue={"2025-01-04T00:00:00.000"}
+        initialValue={"2025-01-04T00:00:00"}
         outputFormat="yyyy-MM-dd"
         dataType="Date"
         dateTimeDelta="Days"
@@ -783,22 +822,22 @@ describe("Slider Component", () => {
 
     const minLabel = screen.getByLabelText("Min Value");
     expect(
-      within(minLabel).getByText("2025-01-01T00:00:00.000")
+      within(minLabel).getByText("2025-01-01T00:00:00")
     ).toBeInTheDocument();
 
     const maxLabel = screen.getByLabelText("Max Value");
     expect(
-      within(maxLabel).getByText("2025-01-05T00:00:00.000")
+      within(maxLabel).getByText("2025-01-05T00:00:00")
     ).toBeInTheDocument();
 
-    expect(handleChange).toHaveBeenCalledWith("2025-01-01T00:00:00.000");
+    expect(handleChange).toHaveBeenCalledWith("2025-01-01T00:00:00");
   });
 
   it("increments dates correctly in play mode in range mode", async () => {
     const handleChange = jest.fn();
     const min = "2025-01-01T00:00:00.000";
     const max = "2025-01-10T00:00:00.000";
-    const initialRange = ["2025-01-08T00:00:00.000", "2025-01-09T00:00:00.000"];
+    const initialRange = ["2025-01-08T00:00:00", "2025-01-09T00:00:00"];
 
     render(
       <Slider
@@ -933,8 +972,10 @@ describe("Slider Component", () => {
     const maxLabel = screen.getByLabelText("Max Value");
     expect(within(maxLabel).getByText("2025-01-05")).toBeInTheDocument();
 
-    expect(screen.getByLabelText("Display Value")).toHaveTextContent("");
-    expect(handleChange).toHaveBeenCalledWith("");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      "2025-01-01"
+    );
+    expect(handleChange).toHaveBeenCalledWith("2025-01-01");
   });
 
   it("renders with label but missing initial values", () => {
@@ -989,4 +1030,127 @@ describe("Slider Component", () => {
 
     expect(handleChange).toHaveBeenCalledWith("0,10");
   });
+});
+
+test("calculateSliderValues returns correct values", () => {
+  expect(calculateSliderValues(0, 10, 1, null, "Number")).toEqual([
+    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+  ]);
+  expect(calculateSliderValues(0, 10, 3, null, "Number")).toEqual([
+    0, 3, 6, 9, 10,
+  ]);
+
+  expect(
+    calculateSliderValues(
+      "2025-01-01T00:00:00.000",
+      "2025-01-05T00:00:00.000",
+      1,
+      "Days",
+      "Date"
+    )
+  ).toEqual([
+    "2025-01-01T00:00:00",
+    "2025-01-02T00:00:00",
+    "2025-01-03T00:00:00",
+    "2025-01-04T00:00:00",
+    "2025-01-05T00:00:00",
+  ]);
+  expect(
+    calculateSliderValues(
+      "2025-01-01T00:00:00.000",
+      "2025-01-05T00:00:00.000",
+      3,
+      "Days",
+      "Date"
+    )
+  ).toEqual([
+    "2025-01-01T00:00:00",
+    "2025-01-04T00:00:00",
+    "2025-01-05T00:00:00",
+  ]);
+  expect(
+    calculateSliderValues(
+      "2025-01-01T00:00:00.000",
+      "2025-01-03T00:00:00.000",
+      8,
+      "Hours",
+      "Date"
+    )
+  ).toEqual([
+    "2025-01-01T00:00:00",
+    "2025-01-01T08:00:00",
+    "2025-01-01T16:00:00",
+    "2025-01-02T00:00:00",
+    "2025-01-02T08:00:00",
+    "2025-01-02T16:00:00",
+    "2025-01-03T00:00:00",
+  ]);
+
+  expect(calculateSliderValues("now-5D", "now", 1, "Days", "Date")).toEqual([
+    "now-5D",
+    "now-4D",
+    "now-3D",
+    "now-2D",
+    "now-1D",
+    "now",
+  ]);
+
+  expect(calculateSliderValues("now-1D", "now", 1, "Hours", "Date")).toEqual([
+    "now-24H",
+    "now-23H",
+    "now-22H",
+    "now-21H",
+    "now-20H",
+    "now-19H",
+    "now-18H",
+    "now-17H",
+    "now-16H",
+    "now-15H",
+    "now-14H",
+    "now-13H",
+    "now-12H",
+    "now-11H",
+    "now-10H",
+    "now-9H",
+    "now-8H",
+    "now-7H",
+    "now-6H",
+    "now-5H",
+    "now-4H",
+    "now-3H",
+    "now-2H",
+    "now-1H",
+    "now",
+  ]);
+
+  expect(calculateSliderValues("now-1D-1H", "now", 1, "Hours", "Date")).toEqual(
+    [
+      "now-25H",
+      "now-24H",
+      "now-23H",
+      "now-22H",
+      "now-21H",
+      "now-20H",
+      "now-19H",
+      "now-18H",
+      "now-17H",
+      "now-16H",
+      "now-15H",
+      "now-14H",
+      "now-13H",
+      "now-12H",
+      "now-11H",
+      "now-10H",
+      "now-9H",
+      "now-8H",
+      "now-7H",
+      "now-6H",
+      "now-5H",
+      "now-4H",
+      "now-3H",
+      "now-2H",
+      "now-1H",
+      "now",
+    ]
+  );
 });

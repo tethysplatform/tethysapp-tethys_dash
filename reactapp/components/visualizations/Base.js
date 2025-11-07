@@ -209,20 +209,24 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
   async function setVariableDependentVisualizations({ refresh }) {
     const args = JSON.parse(argsString);
     const gridMetadata = JSON.parse(metadataString);
-    const sourceType = findSelectOptionByValue(
+    const visualization = findSelectOptionByValue(
       visualizations,
       source,
       "source"
-    )?.type;
+    );
+    const sourceType = visualization.type;
+    const argTypes = visualization.args;
 
     const itemData = { source: source, args: args };
     const updatedGridItemArgs = updateObjectWithVariableInputs(
       args,
-      variableInputValues
+      variableInputValues,
+      argTypes
     );
     const updatedGridItemMetadata = updateObjectWithVariableInputs(
       gridMetadata,
-      variableInputValues
+      variableInputValues,
+      argTypes
     );
     const customMessaging = gridMetadata.customMessaging;
 
@@ -254,7 +258,7 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
           source,
           "source"
         )?.loading_icon,
-        csrf
+        csrf,
       });
     }
 
