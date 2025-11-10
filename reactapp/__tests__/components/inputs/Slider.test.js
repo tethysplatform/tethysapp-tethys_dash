@@ -3,7 +3,7 @@ import { act } from "react";
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { spyElementPrototypes } from "rc-util/lib/test/domHook";
 import Slider, { calculateSliderValues } from "components/inputs/Slider";
-import { format, addDays } from "date-fns";
+import { format, addDays, addHours } from "date-fns";
 
 // Helper to advance timers in a controlled way
 const advanceTimers = async (ms) => {
@@ -549,6 +549,44 @@ describe("Slider Component", () => {
     );
   });
 
+  it("go to next date step with relative date but differing unit", async () => {
+    const handleChange = jest.fn();
+    const min = "now-1D-1H";
+    const max = "now";
+
+    render(
+      <Slider
+        step={1}
+        min={min}
+        max={max}
+        initialValue={"now-12H"}
+        outputFormat="yyyy-MM-dd HH"
+        dataType="Date"
+        dateTimeDelta="Hours"
+        onChange={handleChange}
+      />
+    );
+
+    const nextStep = screen.getByLabelText("next step");
+    fireEvent.click(nextStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith(
+      format(addHours(new Date(), -11), "yyyy-MM-dd HH")
+    );
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      format(addHours(new Date(), -11), "yyyy-MM-dd HH")
+    );
+
+    fireEvent.click(nextStep);
+
+    expect(handleChange).toHaveBeenLastCalledWith(
+      format(addHours(new Date(), -10), "yyyy-MM-dd HH")
+    );
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+      format(addHours(new Date(), -10), "yyyy-MM-dd HH")
+    );
+  });
+
   it("go to next date step in rangemode", async () => {
     const handleChange = jest.fn();
     const min = "2025-01-01T00:00:00.000";
@@ -906,6 +944,40 @@ describe("Slider Component", () => {
     expect(handleChange).toHaveBeenLastCalledWith("0,2");
   });
 
+  it("increments numbers correctly in play mode in range mode with 0 rangeSize", async () => {
+    const handleChange = jest.fn();
+    const min = 0;
+    const max = 10;
+    const initialRange = [8, 8];
+
+    render(
+      <Slider
+        step={1}
+        min={min}
+        max={max}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={handleChange}
+        speeds={[{ label: "Fast", value: 100 }]}
+        rangeMode={true}
+        initialRange={initialRange}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /play/i }));
+    await advanceTimers(100);
+
+    // Date should increment by 1 day
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("9 - 10");
+    expect(handleChange).toHaveBeenLastCalledWith("9,10");
+
+    await advanceTimers(100);
+
+    // Date should increment by 1 day
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("0 - 1");
+    expect(handleChange).toHaveBeenLastCalledWith("0,1");
+  });
+
   it("stops playing when Stop button clicked", async () => {
     const handleChange = jest.fn();
 
@@ -1030,6 +1102,65 @@ describe("Slider Component", () => {
 
     expect(handleChange).toHaveBeenCalledWith("0,10");
   });
+
+  it("does not update index on rerender when relevant props haven't changed (avoids line 279)", () => {
+    const handleChange = jest.fn();
+
+    const { rerender } = render(
+      <Slider
+        label="Test Slider"
+        step={1}
+        min={0}
+        max={10}
+        rangeMode={true}
+        initialRange={[5, 6]}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    expect(handleChange).toHaveBeenCalledWith("5,6");
+    // Clear the initial onChange call
+    handleChange.mockClear();
+
+    // Rerender with the same relevant props but change a non-relevant prop (label)
+    rerender(
+      <Slider
+        label="Updated Test Slider" // Only label changed, which doesn't affect index
+        step={1}
+        min={0}
+        max={10}
+        rangeMode={true}
+        initialRange={[5, 6]}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    // The index should not have been updated, so no onChange should be called
+    expect(handleChange).not.toHaveBeenCalled();
+    expect(screen.getByText("Updated Test Slider")).toBeInTheDocument();
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("5");
+
+    rerender(
+      <Slider
+        label="Updated Test Slider"
+        step={1}
+        min={0}
+        max={10}
+        rangeMode={true}
+        initialRange={[5, 6]}
+        outputFormat="{{n:2}}" // Different format but same value display for this case
+        dataType="Number"
+        onChange={handleChange}
+      />
+    );
+
+    // Still no onChange calls should have happened due to index updates
+    expect(handleChange).toHaveBeenCalledWith("05,06");
+  });
 });
 
 test("calculateSliderValues returns correct values", () => {
@@ -1153,4 +1284,27 @@ test("calculateSliderValues returns correct values", () => {
       "now",
     ]
   );
+
+  // Test for line 180: covers maxVal suffix generation for positive offset
+  expect(calculateSliderValues("now-5D", "now+2D", 3, "Days", "Date")).toEqual([
+    "now-5D",
+    "now-2D",
+    "now+1D",
+    "now+2D",
+  ]);
+
+  // Test for line 180: covers maxVal suffix generation for negative offset (when counting backwards)
+  expect(calculateSliderValues("now+2D", "now-3D", 2, "Days", "Date")).toEqual([
+    "now+2D",
+    "now",
+    "now-2D",
+    "now-3D",
+  ]);
+
+  // Test for line 204: covers fallback case for unsupported dataType
+  expect(calculateSliderValues(0, 10, 1, null, "String")).toEqual([]);
+  expect(calculateSliderValues(0, 10, 1, null, "Boolean")).toEqual([]);
+  expect(calculateSliderValues(0, 10, 1, null, "Object")).toEqual([]);
+  expect(calculateSliderValues(0, 10, 1, null, undefined)).toEqual([]);
+  expect(calculateSliderValues(0, 10, 1, null, null)).toEqual([]);
 });

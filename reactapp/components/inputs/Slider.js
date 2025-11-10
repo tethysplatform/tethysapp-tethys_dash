@@ -43,14 +43,6 @@ const diffDeltas = {
   Years: differenceInYears,
 };
 
-function dateToIndex(date, minDate, unit) {
-  return diffDeltas[unit](date, minDate);
-}
-
-function indexToDate(index, minDate, unit) {
-  return timeDeltas[unit](minDate, index);
-}
-
 // Helper function to convert a date to local ISO string (YYYY-MM-DDTHH:mm:ss)
 function toLocalISOString(date) {
   const pad = (n) => String(n).padStart(2, "0");
@@ -80,7 +72,6 @@ function formatNumber(n, template) {
 
 function formatDateValue(date, template) {
   try {
-    if (!date) return "";
     return formatDate(
       parseDateMath({ value: date, type: "date-hour" }),
       template
@@ -150,15 +141,11 @@ export const calculateSliderValues = (min, max, step, unit, dataType) => {
         const sign = m[1] === "+" ? 1 : -1;
         const amount = sign * parseInt(m[2], 10);
         let srcUnit = unitMap[m[3]];
-        // Convert all to hours, then to target unit
-        if (unitToHours[srcUnit] && unitToHours[targetUnit]) {
-          // Convert amount in srcUnit to hours, then to targetUnit
-          const asHours = amount * unitToHours[srcUnit];
-          const asTarget = asHours / unitToHours[targetUnit];
-          total += asTarget;
-        } else if (srcUnit === targetUnit) {
-          total += amount;
-        }
+
+        // Convert amount in srcUnit to hours, then to targetUnit
+        const asHours = amount * unitToHours[srcUnit];
+        const asTarget = asHours / unitToHours[targetUnit];
+        total += asTarget;
       }
       // Always return integer offset for stepping
       return Math.round(total);
@@ -333,10 +320,8 @@ const Slider = ({
             // If nextEnd exceeds bounds, wrap to first valid range
             if (nextEnd > values.length - 1) {
               nextStart = 0;
-              nextEnd = rangeSize > 0 ? rangeSize : 1;
+              nextEnd = rangeSize;
             }
-            // Ensure nextEnd is always > nextStart and within bounds
-            if (nextEnd > values.length - 1) nextEnd = values.length - 1;
             if (nextEnd <= nextStart) nextEnd = nextStart + 1;
             return [nextStart, nextEnd];
           } else {
@@ -362,12 +347,7 @@ const Slider = ({
   const goToFirst = () => {
     if (rangeMode) {
       let rangeSize = 1;
-      if (Array.isArray(currentIdx) && currentIdx.length === 2) {
-        rangeSize = currentIdx[1] - currentIdx[0];
-      } else if (Array.isArray(initialRange) && initialRange.length === 2) {
-        rangeSize = initialRange[1] - initialRange[0];
-      }
-      // Clamp rangeSize to valid bounds
+      rangeSize = currentIdx[1] - currentIdx[0];
       rangeSize = Math.max(1, Math.min(rangeSize, values.length - 1));
       setCurrentIdx([0, rangeSize]);
     } else {
@@ -378,12 +358,7 @@ const Slider = ({
   const goToLast = () => {
     if (rangeMode) {
       let rangeSize = 1;
-      if (Array.isArray(currentIdx) && currentIdx.length === 2) {
-        rangeSize = currentIdx[1] - currentIdx[0];
-      } else if (Array.isArray(initialRange) && initialRange.length === 2) {
-        rangeSize = initialRange[1] - initialRange[0];
-      }
-      // Clamp rangeSize to valid bounds
+      rangeSize = currentIdx[1] - currentIdx[0];
       rangeSize = Math.max(1, Math.min(rangeSize, values.length - 1));
       setCurrentIdx([values.length - 1 - rangeSize, values.length - 1]);
     } else {
@@ -394,11 +369,7 @@ const Slider = ({
   const goBackStep = () => {
     if (rangeMode) {
       let rangeSize = 1;
-      if (Array.isArray(currentIdx) && currentIdx.length === 2) {
-        rangeSize = currentIdx[1] - currentIdx[0];
-      } else if (Array.isArray(initialRange) && initialRange.length === 2) {
-        rangeSize = initialRange[1] - initialRange[0];
-      }
+      rangeSize = currentIdx[1] - currentIdx[0];
       rangeSize = Math.max(1, Math.min(rangeSize, values.length - 1));
       let [start] = currentIdx;
       let newStart = Math.max(0, start - 1);
@@ -412,11 +383,7 @@ const Slider = ({
   const goForwardStep = () => {
     if (rangeMode) {
       let rangeSize = 1;
-      if (Array.isArray(currentIdx) && currentIdx.length === 2) {
-        rangeSize = currentIdx[1] - currentIdx[0];
-      } else if (Array.isArray(initialRange) && initialRange.length === 2) {
-        rangeSize = initialRange[1] - initialRange[0];
-      }
+      rangeSize = currentIdx[1] - currentIdx[0];
       rangeSize = Math.max(1, Math.min(rangeSize, values.length - 1));
       let [start] = currentIdx;
       let newStart = Math.min(values.length - 1 - rangeSize, start + 1);

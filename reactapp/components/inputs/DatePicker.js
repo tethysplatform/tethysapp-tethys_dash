@@ -42,10 +42,6 @@ export const parseDateMath = ({ value }) => {
   if (value.startsWith("now")) {
     date = new Date();
     value = value.slice(3);
-  } else if (value.startsWith("today")) {
-    date = new Date();
-    date.setHours(0, 0, 0, 0);
-    value = value.slice(5);
   } else {
     // Interpret as local time
     let dateString = value;
@@ -146,11 +142,8 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
 
   const isRelativeInput = (val) => {
     if (!val) return false;
-    // Accepts 'now', 'now-1D', 'today', etc.
-    return (
-      /^now([+-]\d+[YMWDHmS])*$/.test(val) ||
-      /^today([+-]\d+[YMWDHmS])*$/.test(val)
-    );
+    // Accepts 'now', 'now-1D', etc.
+    return /^now([+-]\d+[YMWDHmS])*$/.test(val);
   };
 
   const onRawChange = (val) => {
