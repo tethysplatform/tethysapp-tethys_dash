@@ -10,6 +10,7 @@ import {
 } from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
+import { addDays } from "date-fns";
 
 jest.mock("components/visualizations/Map", () => {
   const MockMapVisualization = () => <div>Map Mock</div>;
@@ -618,6 +619,35 @@ test("updateObjectWithVariableInputs", async () => {
     location: '{"some":"value"}',
     text: 'Here is some text with the a variable {"some":"value"}',
   });
+
+  const date_args = {
+    // eslint-disable-next-line
+    a_date: "${Some Variable}",
+    // eslint-disable-next-line
+    another_date: "now",
+  };
+  const dateVariableInputs = { "Some Variable": "now-1D" };
+
+  // Mock Date to ensure consistent timing
+  const fixedDate = new Date("2023-01-01T12:00:00Z");
+  const originalDate = global.Date;
+  global.Date = jest.fn(() => fixedDate);
+  global.Date.now = jest.fn(() => fixedDate.getTime());
+
+  try {
+    const dateResult = updateObjectWithVariableInputs(
+      JSON.parse(JSON.stringify(date_args)),
+      dateVariableInputs,
+      { a_date: "date", another_date: "date-hour" }
+    );
+    expect(dateResult).toStrictEqual({
+      a_date: addDays(fixedDate, -1),
+      another_date: fixedDate,
+    });
+  } finally {
+    // Restore original Date
+    global.Date = originalDate;
+  }
 });
 
 test("getBaseMapLayer", async () => {
