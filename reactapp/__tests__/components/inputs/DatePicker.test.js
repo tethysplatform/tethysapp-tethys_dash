@@ -4,7 +4,6 @@ import DatePicker, { parseDateMath } from "components/inputs/DatePicker";
 import { getOrdinal } from "__tests__/utilities/constants";
 import { format } from "date-fns";
 import { DataViewerModeContext } from "components/contexts/Contexts";
-import { dateHourFormat } from "components/inputs/DatePicker";
 
 test("DatePicker date", async () => {
   const mockOnChange = jest.fn();
@@ -264,6 +263,31 @@ test("DatePicker select tomorrow date", async () => {
   await userEvent.click(tomorrowCalendarItem);
   expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy"));
   expect(mockOnChange).toHaveBeenCalledWith(format(tomorrow, "MM/dd/yyyy"));
+});
+
+test("DatePicker relative date in dataviewer mode", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date-hour"
+        value=""
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
+  );
+
+  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, {
+    target: { value: "now" },
+  });
+
+  expect(mockOnChange).toHaveBeenCalledWith("now");
+  expect(mockOnChange).toHaveBeenCalledTimes(1);
 });
 
 describe("parseDateMath", () => {
