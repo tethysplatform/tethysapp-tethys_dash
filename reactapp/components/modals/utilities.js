@@ -36,26 +36,48 @@ export function spaceAndCapitalize(string) {
   return capitalized_words.join(" ");
 }
 
-const objectsEqual = (o1, o2) => {
+const objectsEqual = (o1, o2, visited) => {
+  // Check for circular references
+  if (visited.has(o1) || visited.has(o2)) {
+    return o1 === o2;
+  }
+
+  // Add objects to visited set
+  visited.add(o1);
+  visited.add(o2);
+
   if (Object.keys(o1).length === 0 && Object.keys(o2).length === 0) {
     return true;
   } else if (Object.keys(o1).length === Object.keys(o2).length) {
-    return Object.keys(o1).every((p) => valuesEqual(o1[p], o2[p]));
+    return Object.keys(o1).every((p) => valuesEqual(o1[p], o2[p], visited));
   } else {
     return o1 === o2;
   }
 };
 
-const arraysEqual = (a1, a2) =>
-  a1.length === a2.length && a1.every((o, idx) => valuesEqual(o, a2[idx]));
+const arraysEqual = (a1, a2, visited) => {
+  // Check for circular references
+  if (visited.has(a1) || visited.has(a2)) {
+    return a1 === a2;
+  }
 
-export const valuesEqual = (a1, a2) => {
+  // Add arrays to visited set
+  visited.add(a1);
+  visited.add(a2);
+
+  return (
+    a1.length === a2.length &&
+    a1.every((o, idx) => valuesEqual(o, a2[idx], visited))
+  );
+};
+
+export const valuesEqual = (a1, a2, visited = new WeakSet()) => {
   if (a1 === null || a2 === null) {
     return a1 === a2;
   } else if (Array.isArray(a1) && Array.isArray(a2)) {
-    return arraysEqual(a1, a2);
+    return arraysEqual(a1, a2, visited);
   } else if (typeof a1 === "object" && typeof a2 === "object") {
-    return objectsEqual(a1, a2);
+    return objectsEqual(a1, a2, visited);
   } else {
     return a1 === a2;
   }

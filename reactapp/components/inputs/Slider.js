@@ -88,7 +88,7 @@ const formatValue = (val, outputFormat, isDateType) => {
     : formatNumber(val, outputFormat);
 };
 
-export const calculateSliderValues = (min, max, step, unit, dataType) => {
+export const calculateSliderValues = ({ min, max, step, unit, dataType }) => {
   // Helper to ensure max is always included
   const ensureMaxIncluded = (arr, max, eqFn = (a, b) => a === b) => {
     if (arr.length === 0 || !eqFn(arr[arr.length - 1], max)) arr.push(max);
@@ -181,9 +181,27 @@ export const calculateSliderValues = (min, max, step, unit, dataType) => {
       return Array.from(new Set(arr));
     }
 
-    // Absolute dates
-    const minDate = new Date(min);
-    const maxDate = new Date(max);
+    // Convert any relative dates to absolute dates for uniform processing
+    let processedMin = min;
+    let processedMax = max;
+
+    if (isRelative(min)) {
+      const now = new Date();
+      const offset = parseRel(min, unit);
+      const minDate = timeDeltas[unit](now, offset);
+      processedMin = toLocalISOString(minDate).replace(/\.\d+$/, "");
+    }
+
+    if (isRelative(max)) {
+      const now = new Date();
+      const offset = parseRel(max, unit);
+      const maxDate = timeDeltas[unit](now, offset);
+      processedMax = toLocalISOString(maxDate).replace(/\.\d+$/, "");
+    }
+
+    // Absolute dates (including converted relative dates)
+    const minDate = new Date(processedMin);
+    const maxDate = new Date(processedMax);
     const arr = [];
     const diff = diffDeltas[unit](maxDate, minDate);
     let steps = Math.floor(diff / step);
@@ -244,7 +262,7 @@ const Slider = ({
   const isDateType = dataType === "Date";
   const unit = dateTimeDelta;
   const values = useMemo(
-    () => calculateSliderValues(min, max, step, unit, dataType),
+    () => calculateSliderValues({ min, max, step, unit, dataType }),
     [min, max, step, unit, dataType]
   );
 

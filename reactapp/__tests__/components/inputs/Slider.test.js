@@ -1164,21 +1164,33 @@ describe("Slider Component", () => {
 });
 
 test("calculateSliderValues returns correct values", () => {
-  expect(calculateSliderValues(0, 10, 1, null, "Number")).toEqual([
-    0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-  ]);
-  expect(calculateSliderValues(0, 10, 3, null, "Number")).toEqual([
-    0, 3, 6, 9, 10,
-  ]);
+  expect(
+    calculateSliderValues({
+      min: 0,
+      max: 10,
+      step: 1,
+      unit: null,
+      dataType: "Number",
+    })
+  ).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  expect(
+    calculateSliderValues({
+      min: 0,
+      max: 10,
+      step: 3,
+      unit: null,
+      dataType: "Number",
+    })
+  ).toEqual([0, 3, 6, 9, 10]);
 
   expect(
-    calculateSliderValues(
-      "2025-01-01T00:00:00.000",
-      "2025-01-05T00:00:00.000",
-      1,
-      "Days",
-      "Date"
-    )
+    calculateSliderValues({
+      min: "2025-01-01T00:00:00.000",
+      max: "2025-01-05T00:00:00.000",
+      step: 1,
+      unit: "Days",
+      dataType: "Date",
+    })
   ).toEqual([
     "2025-01-01T00:00:00",
     "2025-01-02T00:00:00",
@@ -1187,26 +1199,26 @@ test("calculateSliderValues returns correct values", () => {
     "2025-01-05T00:00:00",
   ]);
   expect(
-    calculateSliderValues(
-      "2025-01-01T00:00:00.000",
-      "2025-01-05T00:00:00.000",
-      3,
-      "Days",
-      "Date"
-    )
+    calculateSliderValues({
+      min: "2025-01-01T00:00:00.000",
+      max: "2025-01-05T00:00:00.000",
+      step: 3,
+      unit: "Days",
+      dataType: "Date",
+    })
   ).toEqual([
     "2025-01-01T00:00:00",
     "2025-01-04T00:00:00",
     "2025-01-05T00:00:00",
   ]);
   expect(
-    calculateSliderValues(
-      "2025-01-01T00:00:00.000",
-      "2025-01-03T00:00:00.000",
-      8,
-      "Hours",
-      "Date"
-    )
+    calculateSliderValues({
+      min: "2025-01-01T00:00:00.000",
+      max: "2025-01-03T00:00:00.000",
+      step: 8,
+      unit: "Hours",
+      dataType: "Date",
+    })
   ).toEqual([
     "2025-01-01T00:00:00",
     "2025-01-01T08:00:00",
@@ -1217,16 +1229,25 @@ test("calculateSliderValues returns correct values", () => {
     "2025-01-03T00:00:00",
   ]);
 
-  expect(calculateSliderValues("now-5D", "now", 1, "Days", "Date")).toEqual([
-    "now-5D",
-    "now-4D",
-    "now-3D",
-    "now-2D",
-    "now-1D",
-    "now",
-  ]);
+  expect(
+    calculateSliderValues({
+      min: "now-5D",
+      max: "now",
+      step: 1,
+      unit: "Days",
+      dataType: "Date",
+    })
+  ).toEqual(["now-5D", "now-4D", "now-3D", "now-2D", "now-1D", "now"]);
 
-  expect(calculateSliderValues("now-1D", "now", 1, "Hours", "Date")).toEqual([
+  expect(
+    calculateSliderValues({
+      min: "now-1D",
+      max: "now",
+      step: 1,
+      unit: "Hours",
+      dataType: "Date",
+    })
+  ).toEqual([
     "now-24H",
     "now-23H",
     "now-22H",
@@ -1254,57 +1275,152 @@ test("calculateSliderValues returns correct values", () => {
     "now",
   ]);
 
-  expect(calculateSliderValues("now-1D-1H", "now", 1, "Hours", "Date")).toEqual(
-    [
-      "now-25H",
-      "now-24H",
-      "now-23H",
-      "now-22H",
-      "now-21H",
-      "now-20H",
-      "now-19H",
-      "now-18H",
-      "now-17H",
-      "now-16H",
-      "now-15H",
-      "now-14H",
-      "now-13H",
-      "now-12H",
-      "now-11H",
-      "now-10H",
-      "now-9H",
-      "now-8H",
-      "now-7H",
-      "now-6H",
-      "now-5H",
-      "now-4H",
-      "now-3H",
-      "now-2H",
-      "now-1H",
-      "now",
-    ]
-  );
+  expect(
+    calculateSliderValues({
+      min: "now-1D-1H",
+      max: "now",
+      step: 1,
+      unit: "Hours",
+      dataType: "Date",
+    })
+  ).toEqual([
+    "now-25H",
+    "now-24H",
+    "now-23H",
+    "now-22H",
+    "now-21H",
+    "now-20H",
+    "now-19H",
+    "now-18H",
+    "now-17H",
+    "now-16H",
+    "now-15H",
+    "now-14H",
+    "now-13H",
+    "now-12H",
+    "now-11H",
+    "now-10H",
+    "now-9H",
+    "now-8H",
+    "now-7H",
+    "now-6H",
+    "now-5H",
+    "now-4H",
+    "now-3H",
+    "now-2H",
+    "now-1H",
+    "now",
+  ]);
 
   // Test for line 180: covers maxVal suffix generation for positive offset
-  expect(calculateSliderValues("now-5D", "now+2D", 3, "Days", "Date")).toEqual([
-    "now-5D",
-    "now-2D",
-    "now+1D",
-    "now+2D",
-  ]);
+  expect(
+    calculateSliderValues({
+      min: "now-5D",
+      max: "now+2D",
+      step: 3,
+      unit: "Days",
+      dataType: "Date",
+    })
+  ).toEqual(["now-5D", "now-2D", "now+1D", "now+2D"]);
 
   // Test for line 180: covers maxVal suffix generation for negative offset (when counting backwards)
-  expect(calculateSliderValues("now+2D", "now-3D", 2, "Days", "Date")).toEqual([
-    "now+2D",
-    "now",
-    "now-2D",
-    "now-3D",
-  ]);
+  expect(
+    calculateSliderValues({
+      min: "now+2D",
+      max: "now-3D",
+      step: 2,
+      unit: "Days",
+      dataType: "Date",
+    })
+  ).toEqual(["now+2D", "now", "now-2D", "now-3D"]);
 
   // Test for line 204: covers fallback case for unsupported dataType
-  expect(calculateSliderValues(0, 10, 1, null, "String")).toEqual([]);
-  expect(calculateSliderValues(0, 10, 1, null, "Boolean")).toEqual([]);
-  expect(calculateSliderValues(0, 10, 1, null, "Object")).toEqual([]);
-  expect(calculateSliderValues(0, 10, 1, null, undefined)).toEqual([]);
-  expect(calculateSliderValues(0, 10, 1, null, null)).toEqual([]);
+  expect(
+    calculateSliderValues({
+      min: 0,
+      max: 10,
+      step: 1,
+      unit: null,
+      dataType: "String",
+    })
+  ).toEqual([]);
+  expect(
+    calculateSliderValues({
+      min: 0,
+      max: 10,
+      step: 1,
+      unit: null,
+      dataType: "Boolean",
+    })
+  ).toEqual([]);
+  expect(
+    calculateSliderValues({
+      min: 0,
+      max: 10,
+      step: 1,
+      unit: null,
+      dataType: "Object",
+    })
+  ).toEqual([]);
+  expect(
+    calculateSliderValues({
+      min: 0,
+      max: 10,
+      step: 1,
+      unit: null,
+      dataType: undefined,
+    })
+  ).toEqual([]);
+  expect(
+    calculateSliderValues({
+      min: 0,
+      max: 10,
+      step: 1,
+      unit: null,
+      dataType: null,
+    })
+  ).toEqual([]);
+});
+
+test("calculateSliderValues handles mixed absolute/relative dates correctly", () => {
+  const now = new Date("2025-11-10T18:00:00.000Z");
+  const originalNow = Date.now;
+  Date.now = jest.fn(() => now.getTime());
+
+  try {
+    // Test case: absolute min, relative max
+    const result1 = calculateSliderValues({
+      min: "10/30/2025 3:26 PM",
+      max: "now",
+      step: 1,
+      unit: "Hours",
+      dataType: "Date",
+    });
+    expect(result1).not.toEqual(["NaN-NaN-NaNTNaN:NaN:NaN"]);
+    expect(result1.length).toBeGreaterThan(0);
+    expect(result1.every((val) => !val.includes("NaN"))).toBe(true);
+
+    // Test case: relative min, absolute max
+    const result2 = calculateSliderValues({
+      min: "now-2H",
+      max: "11/10/2025 6:00 PM",
+      step: 1,
+      unit: "Hours",
+      dataType: "Date",
+    });
+    expect(result2).not.toEqual(["NaN-NaN-NaNTNaN:NaN:NaN"]);
+    expect(result2.length).toBeGreaterThan(0);
+    expect(result2.every((val) => !val.includes("NaN"))).toBe(true);
+
+    // Verify results are valid datetime strings
+    result1.forEach((val) => {
+      expect(new Date(val)).not.toEqual(new Date("Invalid Date"));
+    });
+
+    result2.forEach((val) => {
+      expect(new Date(val)).not.toEqual(new Date("Invalid Date"));
+    });
+  } finally {
+    Date.now = originalNow;
+  }
 });

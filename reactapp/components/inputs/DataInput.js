@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useContext, memo } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import DataSelect from "components/inputs/DataSelect";
@@ -103,9 +103,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
       <MultiInput
         label={label}
         aria-label={label + " Input"}
-        onChange={(values) => {
-          onChange(values);
-        }}
+        onChange={onChange}
         values={value}
         {...inputProps}
       />
@@ -115,9 +113,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
       <InputTable
         label={label}
         aria-label={label + " Input"}
-        onChange={(values) => {
-          onChange(values);
-        }}
+        onChange={onChange}
         values={value}
         {...inputProps}
       />
@@ -129,9 +125,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
       <CustomComponent
         label={label}
         aria-label={label + " Input"}
-        onChange={(values) => {
-          onChange(values);
-        }}
+        onChange={onChange}
         values={value}
         {...inputProps}
       />
@@ -148,6 +142,8 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
   }
 };
 
+const MemoizedInput = memo(Input);
+
 const DataInput = ({
   label,
   type,
@@ -160,7 +156,7 @@ const DataInput = ({
     <>
       {type && (
         <StyledDiv>
-          <Input
+          <MemoizedInput
             label={label}
             type={type}
             onChange={onChange}
@@ -204,4 +200,4 @@ Input.propTypes = {
   inputProps: PropTypes.object, // additional props to pass to the input
 };
 
-export default DataInput;
+export default memo(DataInput);

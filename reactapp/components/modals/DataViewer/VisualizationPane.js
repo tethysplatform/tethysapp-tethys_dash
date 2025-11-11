@@ -1,4 +1,11 @@
-import { useState, useEffect, useContext, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useContext,
+  useRef,
+  useCallback,
+  memo,
+} from "react";
 import PropTypes from "prop-types";
 import DataSelect from "components/inputs/DataSelect";
 import styled from "styled-components";
@@ -46,78 +53,94 @@ const VisualizationArguments = ({
   gridItemIndex,
   visualizationRef,
 }) => {
+  const renderInput = useCallback(
+    (obj, key) => {
+      let vizArgType = obj.type;
+      let value = vizInputsValues?.[key] ?? getInitialInputValue(vizArgType);
+      if (vizArgType === "checkbox") {
+        vizArgType = [
+          { label: "True", value: true },
+          { label: "False", value: false },
+        ];
+        value = value
+          ? { label: "True", value: true }
+          : { label: "False", value: false };
+      }
+
+      if (Array.isArray(vizArgType) && typeof value !== "object") {
+        const selectionValue = findSelectOptionByValue(vizArgType, value);
+        if (selectionValue) {
+          value = selectionValue;
+        }
+      }
+
+      return (
+        // TODO
+        <DataInput
+          key={key}
+          label={spaceAndCapitalize(obj.label)}
+          type={vizArgType}
+          value={value}
+          onChange={handleInputChange(key)}
+          inputProps={{ gridItemIndex, setShowingSubModal, visualizationRef }}
+        />
+      );
+    },
+    [
+      vizInputsValues,
+      handleInputChange,
+      gridItemIndex,
+      setShowingSubModal,
+      visualizationRef,
+    ]
+  );
+
+  const renderArgs = useCallback(
+    (obj, parentKey = "") => {
+      const inputs = [];
+      const baseKey = parentKey ? `${parentKey}.${obj.name}` : obj.name;
+
+      // Main input
+      inputs.push(renderInput(obj, baseKey));
+
+      // If this input has options (i.e., dropdown), check for sub_args
+      if (Array.isArray(obj.type)) {
+        let selectedValue = vizInputsValues?.[baseKey];
+        if (typeof selectedValue !== "object") {
+          selectedValue = findSelectOptionByValue(obj.type, selectedValue);
+        }
+
+        if (selectedValue?.sub_args) {
+          for (const [subName, subOptions] of Object.entries(
+            selectedValue.sub_args
+          )) {
+            const subArgObj = {
+              name: subName,
+              label: subName,
+              type: subOptions,
+            };
+            inputs.push(...renderArgs(subArgObj, baseKey)); // recursive call
+          }
+        }
+      }
+
+      return inputs;
+    },
+    [vizInputsValues, renderInput]
+  );
+
   if (!selectedVizTypeOption || selectedVizTypeOption.value === "Text") {
     return null;
   }
 
-  const renderInput = (obj, key) => {
-    let vizArgType = obj.type;
-    let value = vizInputsValues?.[key] ?? getInitialInputValue(vizArgType);
-    if (vizArgType === "checkbox") {
-      vizArgType = [
-        { label: "True", value: true },
-        { label: "False", value: false },
-      ];
-      value = value
-        ? { label: "True", value: true }
-        : { label: "False", value: false };
-    }
-
-    if (Array.isArray(vizArgType) && typeof value !== "object") {
-      const selectionValue = findSelectOptionByValue(vizArgType, value);
-      if (selectionValue) {
-        value = selectionValue;
-      }
-    }
-
-    return (
-      // TODO
-      <DataInput
-        key={key}
-        label={spaceAndCapitalize(obj.label)}
-        type={vizArgType}
-        value={value}
-        onChange={(newValue) => handleInputChange(newValue, key)}
-        inputProps={{ gridItemIndex, setShowingSubModal, visualizationRef }}
-      />
-    );
-  };
-
-  const renderArgs = (obj, parentKey = "") => {
-    const inputs = [];
-    const baseKey = parentKey ? `${parentKey}.${obj.name}` : obj.name;
-
-    // Main input
-    inputs.push(renderInput(obj, baseKey));
-
-    // If this input has options (i.e., dropdown), check for sub_args
-    if (Array.isArray(obj.type)) {
-      let selectedValue = vizInputsValues?.[baseKey];
-      if (typeof selectedValue !== "object") {
-        selectedValue = findSelectOptionByValue(obj.type, selectedValue);
-      }
-
-      if (selectedValue?.sub_args) {
-        for (const [subName, subOptions] of Object.entries(
-          selectedValue.sub_args
-        )) {
-          const subArgObj = {
-            name: subName,
-            label: subName,
-            type: subOptions,
-          };
-          inputs.push(...renderArgs(subArgObj, baseKey)); // recursive call
-        }
-      }
-    }
-
-    return inputs;
-  };
-
   const VizArgs = vizArguments.flatMap((arg) => renderArgs(arg));
-
   return VizArgs;
 };
+
+const MemoizedVisualizationArguments = memo(
+  VisualizationArguments,
+  valuesEqual
+);
 
 function VisualizationPane({
   gridItemIndex,
@@ -278,11 +301,19 @@ function VisualizationPane({
     setVizMetadata(null);
   }
 
-  const handleInputChange = (newValue, key) => {
-    setVizInputsValues((prev) => {
-      return { ...prev, [key]: newValue?.value ?? newValue };
-    });
-  };
+  const handleInputChange = useCallback(
+    (newValue, key) => {
+      setVizInputsValues((prev) => {
+        return { ...prev, [key]: newValue?.value ?? newValue };
+      });
+    },
+    [setVizInputsValues]
+  );
+
+  const createInputChangeHandler = useCallback(
+    (key) => (newValue) => handleInputChange(newValue, key),
+    [handleInputChange]
+  );
 
   function checkAllInputs() {
     if (selectedVizTypeOption !== null) {
@@ -328,7 +359,6 @@ function VisualizationPane({
             itemData.args.initial_value = "0";
           }
         }
-        // TODO we update variable input here
         setVizType("variableInput");
         setVizData({
           variable_name: itemData.args.variable_name,
@@ -395,11 +425,11 @@ function VisualizationPane({
           />
         </DropdownDiv>
       </FlexDiv>
-      <VisualizationArguments
+      <MemoizedVisualizationArguments
         selectedVizTypeOption={selectedVizTypeOption}
         vizArguments={vizArguments}
         vizInputsValues={vizInputsValues}
-        handleInputChange={handleInputChange}
+        handleInputChange={createInputChangeHandler}
         setShowingSubModal={setShowingSubModal}
         gridItemIndex={gridItemIndex}
         visualizationRef={visualizationRef}
@@ -456,4 +486,4 @@ VisualizationPane.propTypes = {
   setShowingSubModal: PropTypes.func,
 };
 
-export default VisualizationPane;
+export default memo(VisualizationPane);
