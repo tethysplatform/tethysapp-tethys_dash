@@ -5,6 +5,7 @@ import {
   removeEmptyValues,
   checkRequiredKeys,
 } from "components/modals/utilities";
+import { addHours } from "date-fns";
 
 test("getInitialInputValue", async () => {
   let inputValue;
@@ -68,6 +69,12 @@ test("valuesEqual", async () => {
 
   equal = valuesEqual({}, {});
   expect(equal).toBe(true);
+
+  equal = valuesEqual(
+    { location: "BEE", start_time: new Date() },
+    { location: "BEE", start_time: addHours(new Date(), 1) }
+  );
+  expect(equal).toBe(false);
 });
 
 test("removeEmptyStringsFromObject", async () => {
