@@ -4,7 +4,6 @@ import DatePicker, { parseDateMath } from "components/inputs/DatePicker";
 import { getOrdinal } from "__tests__/utilities/constants";
 import { format } from "date-fns";
 import { DataViewerModeContext } from "components/contexts/Contexts";
-import { dateHourFormat } from "components/inputs/DatePicker";
 
 test("DatePicker date", async () => {
   const mockOnChange = jest.fn();
@@ -182,98 +181,6 @@ test("DatePicker initial now+1D", async () => {
   expect(mockOnChange).toHaveBeenCalledTimes(0);
 });
 
-test("DatePicker initial today", async () => {
-  const mockOnChange = jest.fn();
-
-  render(
-    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-      <DatePicker
-        label="Test DatePicker"
-        type="date-hour"
-        value="today"
-        onChange={mockOnChange}
-      />
-    </DataViewerModeContext.Provider>
-  );
-
-  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
-
-  const input = screen.getByRole("textbox");
-  expect(input.value).toBe("today");
-
-  const calendarButton = screen.getByLabelText("Calendar Icon");
-  await userEvent.click(calendarButton);
-
-  const datePicker = await screen.findByRole("dialog");
-  expect(datePicker).toBeInTheDocument();
-  const today = new Date();
-  const weekday = today.toLocaleDateString("en-US", { weekday: "long" });
-  const month = today.toLocaleDateString("en-US", { month: "long" });
-  const day = today.getDate();
-  const ordinal = getOrdinal(day);
-  const year = today.getFullYear();
-
-  const formatted = `Choose ${weekday}, ${month} ${day}${ordinal}, ${year}`;
-  const todayCalendarItem = screen.getByLabelText(formatted);
-  expect(todayCalendarItem).toHaveAttribute("aria-selected", "true");
-
-  const timeInput = screen.getByPlaceholderText("Time");
-  expect(timeInput).toHaveValue("00:00");
-  expect(mockOnChange).toHaveBeenCalledTimes(0);
-});
-
-test("DatePicker relative date in dataviewer mode", async () => {
-  const mockOnChange = jest.fn();
-
-  render(
-    <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
-      <DatePicker
-        label="Test DatePicker"
-        type="date-hour"
-        value=""
-        onChange={mockOnChange}
-      />
-    </DataViewerModeContext.Provider>
-  );
-
-  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
-
-  const input = screen.getByRole("textbox");
-  fireEvent.change(input, {
-    target: { value: "today" },
-  });
-
-  expect(mockOnChange).toHaveBeenCalledWith("today");
-  expect(mockOnChange).toHaveBeenCalledTimes(1);
-});
-
-test("DatePicker relative date not in dataviewer mode", async () => {
-  const mockOnChange = jest.fn();
-
-  render(
-    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-      <DatePicker
-        label="Test DatePicker"
-        type="date-hour"
-        value=""
-        onChange={mockOnChange}
-      />
-    </DataViewerModeContext.Provider>
-  );
-
-  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
-
-  const input = screen.getByRole("textbox");
-  fireEvent.change(input, {
-    target: { value: "today" },
-  });
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  expect(mockOnChange).toHaveBeenCalledWith(format(today, dateHourFormat));
-  expect(mockOnChange).toHaveBeenCalledTimes(1);
-});
-
 test("DatePicker select tomorrow date-hour", async () => {
   const mockOnChange = jest.fn();
 
@@ -358,6 +265,31 @@ test("DatePicker select tomorrow date", async () => {
   expect(mockOnChange).toHaveBeenCalledWith(format(tomorrow, "MM/dd/yyyy"));
 });
 
+test("DatePicker relative date in dataviewer mode", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: true }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date-hour"
+        value=""
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
+  );
+
+  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+
+  const input = screen.getByRole("textbox");
+  fireEvent.change(input, {
+    target: { value: "now" },
+  });
+
+  expect(mockOnChange).toHaveBeenCalledWith("now");
+  expect(mockOnChange).toHaveBeenCalledTimes(1);
+});
+
 describe("parseDateMath", () => {
   const { format } = require("date-fns");
   const {
@@ -374,20 +306,6 @@ describe("parseDateMath", () => {
   it("parses 'now' for date-hour", () => {
     const today = new Date();
     const result = parseDateMath({ value: "now" });
-    expect(format(result, dateHourFormat)).toBe(format(today, dateHourFormat));
-  });
-
-  it("parses 'today' for date", () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const result = parseDateMath({ value: "today" });
-    expect(format(result, dateFormat)).toBe(format(today, dateFormat));
-  });
-
-  it("parses 'today' for date-hour", () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const result = parseDateMath({ value: "today" });
     expect(format(result, dateHourFormat)).toBe(format(today, dateHourFormat));
   });
 

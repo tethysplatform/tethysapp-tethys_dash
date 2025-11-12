@@ -1,15 +1,19 @@
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, useEffect, useRef, useMemo, memo } from "react";
 import { Button, Form, Row, Col } from "react-bootstrap";
 import PropTypes from "prop-types";
 import SliderLib from "rc-slider";
 import "rc-slider/assets/index.css";
 import {
+  addSeconds,
   addMinutes,
+  addHours,
   addDays,
   addWeeks,
   addMonths,
   addYears,
+  differenceInSeconds,
   differenceInMinutes,
+  differenceInHours,
   differenceInDays,
   differenceInWeeks,
   differenceInMonths,
@@ -20,7 +24,9 @@ import { parseDateMath } from "components/inputs/DatePicker";
 import { valuesEqual } from "components/modals/utilities";
 
 export const timeDeltas = {
+  Seconds: addSeconds,
   Minutes: addMinutes,
+  Hours: addHours,
   Days: addDays,
   Weeks: addWeeks,
   Months: addMonths,
@@ -28,20 +34,14 @@ export const timeDeltas = {
 };
 
 const diffDeltas = {
+  Seconds: differenceInSeconds,
   Minutes: differenceInMinutes,
+  Hours: differenceInHours,
   Days: differenceInDays,
   Weeks: differenceInWeeks,
   Months: differenceInMonths,
   Years: differenceInYears,
 };
-
-function dateToIndex(date, minDate, unit) {
-  return diffDeltas[unit](date, minDate);
-}
-
-function indexToDate(index, minDate, unit) {
-  return timeDeltas[unit](minDate, index);
-}
 
 // Helper function to convert a date to local ISO string (YYYY-MM-DDTHH:mm:ss)
 function toLocalISOString(date) {
@@ -72,7 +72,6 @@ function formatNumber(n, template) {
 
 function formatDateValue(date, template) {
   try {
-    if (!date) return "";
     return formatDate(
       parseDateMath({ value: date, type: "date-hour" }),
       template
@@ -87,6 +86,159 @@ const formatValue = (val, outputFormat, isDateType) => {
   return isDateType
     ? formatDateValue(val, outputFormat)
     : formatNumber(val, outputFormat);
+};
+
+export const calculateSliderValues = ({ min, max, step, unit, dataType }) => {
+  // Helper to ensure max is always included
+  const ensureMaxIncluded = (arr, max, eqFn = (a, b) => a === b) => {
+    if (arr.length === 0 || !eqFn(arr[arr.length - 1], max)) arr.push(max);
+    return arr;
+  };
+
+  if (dataType === "Number") {
+    // Convert min and max to step units
+    const arr = [];
+    let steps = Math.floor((max - min) / step);
+    for (let i = 0; i <= steps; i++) {
+      arr.push(min + i * step);
+    }
+    // If last value doesn't match max, add max
+    return ensureMaxIncluded(arr, max);
+  }
+
+  if (dataType === "Date") {
+    const unitMap = {
+      S: "Seconds",
+      m: "Minutes",
+      H: "Hours",
+      D: "Days",
+      W: "Weeks",
+      M: "Months",
+      Y: "Years",
+    };
+
+    const isRelative = (val) =>
+      typeof val === "string" &&
+      /^now([+-]\d+[SmHDWMY])?(-\d+[SmHDWMY])*?$/.test(val);
+
+    // Helper to parse relative date string and return offset in requested unit
+    const unitToHours = {
+      Seconds: 1 / 3600,
+      Minutes: 1 / 60,
+      Hours: 1,
+      Days: 24,
+      Weeks: 168,
+      Months: 730, // Approximate
+      Years: 8760, // Approximate
+    };
+
+    const parseRel = (val, targetUnit) => {
+      if (val === "now") return 0;
+      let total = 0;
+      const regex = /([+-])(\d+)([SmHDWMY])/g;
+      let m;
+      while ((m = regex.exec(val))) {
+        const sign = m[1] === "+" ? 1 : -1;
+        const amount = sign * parseInt(m[2], 10);
+        let srcUnit = unitMap[m[3]];
+
+        // Convert amount in srcUnit to hours, then to targetUnit
+        const asHours = amount * unitToHours[srcUnit];
+        const asTarget = asHours / unitToHours[targetUnit];
+        total += asTarget;
+      }
+      // Always return integer offset for stepping
+      return Math.round(total);
+    };
+
+    if (isRelative(min) && isRelative(max)) {
+      // For relative, output as 'now-xU' where U is unit
+      const unitAbbr = Object.keys(unitMap).find((k) => unitMap[k] === unit);
+      const minVal = parseRel(min, unit);
+      const maxVal = parseRel(max, unit);
+      const arr = [];
+      const stepVal = step;
+      const forward = minVal <= maxVal;
+      let current = minVal;
+      while (
+        (forward && current <= maxVal) ||
+        (!forward && current >= maxVal)
+      ) {
+        let suffix = "now";
+        if (current !== 0) {
+          suffix = `now${current < 0 ? "-" : "+"}${Math.abs(current)}${unitAbbr}`;
+        }
+        arr.push(suffix);
+        current += stepVal * (forward ? 1 : -1);
+      }
+      // Ensure max is included
+      let suffix = "now";
+      if (maxVal !== 0) {
+        suffix = `now${maxVal < 0 ? "-" : "+"}${Math.abs(maxVal)}${unitAbbr}`;
+      }
+      arr.push(suffix);
+      // Remove duplicates
+      return Array.from(new Set(arr));
+    }
+
+    // Convert any relative dates to absolute dates for uniform processing
+    let processedMin = min;
+    let processedMax = max;
+
+    if (isRelative(min)) {
+      const now = new Date();
+      const offset = parseRel(min, unit);
+      const minDate = timeDeltas[unit](now, offset);
+      processedMin = toLocalISOString(minDate).replace(/\.\d+$/, "");
+    }
+
+    if (isRelative(max)) {
+      const now = new Date();
+      const offset = parseRel(max, unit);
+      const maxDate = timeDeltas[unit](now, offset);
+      processedMax = toLocalISOString(maxDate).replace(/\.\d+$/, "");
+    }
+
+    // Absolute dates (including converted relative dates)
+    const minDate = new Date(processedMin);
+    const maxDate = new Date(processedMax);
+    const arr = [];
+    const diff = diffDeltas[unit](maxDate, minDate);
+    let steps = Math.floor(diff / step);
+    for (let i = 0; i <= steps; i++) {
+      const d = timeDeltas[unit](minDate, i * step);
+      arr.push(toLocalISOString(d).replace(/\.\d+$/, ""));
+    }
+    // If last value doesn't match max, add max
+    return ensureMaxIncluded(
+      arr,
+      toLocalISOString(maxDate).replace(/\.\d+$/, ""),
+      (a, b) => a.replace(/\.\d+$/, "") === b.replace(/\.\d+$/, "")
+    ).map((d) => d.replace(/\.\d+$/, ""));
+  }
+  return [];
+};
+
+const getInitialIndices = (values, initialValue, initialRange, rangeMode) => {
+  if (rangeMode) {
+    if (Array.isArray(initialRange) && initialRange.length === 2) {
+      return [
+        Math.max(
+          0,
+          values.findIndex((v) => v === initialRange[0])
+        ),
+        Math.max(
+          0,
+          values.findIndex((v) => v === initialRange[1])
+        ),
+      ];
+    } else {
+      return [0, values.length - 1];
+    }
+  } else {
+    const idx = values.findIndex((v) => v === initialValue);
+    return idx !== -1 ? idx : 0;
+  }
 };
 
 const Slider = ({
@@ -109,9 +261,14 @@ const Slider = ({
 }) => {
   const isDateType = dataType === "Date";
   const unit = dateTimeDelta;
+  const values = useMemo(
+    () => calculateSliderValues({ min, max, step, unit, dataType }),
+    [min, max, step, unit, dataType]
+  );
 
-  const [value, setValue] = useState(() =>
-    rangeMode ? (initialRange ?? [min, max]) : (initialValue ?? min)
+  // Track index/indices
+  const [currentIdx, setCurrentIdx] = useState(() =>
+    getInitialIndices(values, initialValue, initialRange, rangeMode)
   );
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(speeds[0].value);
@@ -125,134 +282,69 @@ const Slider = ({
   });
 
   useEffect(() => {
-    // Only update value if the relevant props actually changed
+    // Only update index if relevant props changed
     const shouldUpdate =
       prev.current.rangeMode !== rangeMode ||
       !valuesEqual(prev.current.initialRange, initialRange) ||
       prev.current.initialValue !== initialValue ||
       prev.current.min !== min ||
-      prev.current.max !== max;
+      prev.current.max !== max ||
+      prev.current.valuesLength !== values.length;
     if (shouldUpdate) {
-      let newValue = value;
-      if (rangeMode) {
-        if (Array.isArray(initialRange)) {
-          newValue = initialRange;
-        } else {
-          newValue = [min, max];
-        }
-      } else {
-        if (
-          typeof initialValue === "number" ||
-          typeof initialValue === "string"
-        ) {
-          newValue = initialValue;
-        } else {
-          newValue = min;
-        }
-      }
-      setValue(newValue);
+      setCurrentIdx(
+        getInitialIndices(values, initialValue, initialRange, rangeMode)
+      );
       prev.current = {
         rangeMode,
         initialRange,
         initialValue,
         min,
         max,
+        valuesLength: values.length,
       };
     }
-    // eslint-disable-next-line
-  }, [rangeMode, initialRange, initialValue, min, max]);
+  }, [rangeMode, initialRange, initialValue, min, max, values]);
 
   useEffect(() => {
-    // Only call onChange if value actually changed
+    // Only call onChange if index actually changed
     if (rangeMode) {
-      // Defensive: ensure value is array before map
-      const arr = Array.isArray(value) ? value : [min, max];
+      const arr = Array.isArray(currentIdx)
+        ? currentIdx
+        : [0, values.length - 1];
       const formatted = arr
-        .map((v) => formatValue(v, outputFormat, isDateType))
+        .map((i) => formatValue(values[i], outputFormat, isDateType))
         .join(",");
       onChange(formatted);
     } else {
-      const formatted = formatValue(value, outputFormat, isDateType);
+      const formatted = formatValue(
+        values[currentIdx],
+        outputFormat,
+        isDateType
+      );
       onChange(formatted);
     }
     // eslint-disable-next-line
-  }, [value, outputFormat, rangeMode, isDateType]);
+  }, [currentIdx, outputFormat, rangeMode, isDateType, values]);
 
   useEffect(() => {
     if (playing) {
       intervalRef.current = setInterval(() => {
-        setValue((v) => {
-          const minValue = isDateType
-            ? parseDateMath({ value: min, type: "date-hour" })
-            : min;
-          const maxValue = isDateType
-            ? parseDateMath({ value: max, type: "date-hour" })
-            : max;
-
+        setCurrentIdx((idx) => {
           if (rangeMode) {
-            // Range mode play logic:
-            // Advance both values by step, loop when max reached
-
-            if (isDateType && unit) {
-              const minDateObj = new Date(minValue);
-              const maxDateObj = new Date(maxValue);
-
-              const startIndex = dateToIndex(
-                new Date(parseDateMath({ value: v[0], type: "date-hour" })),
-                minDateObj,
-                unit
-              );
-              const endIndex = dateToIndex(
-                new Date(parseDateMath({ value: v[1], type: "date-hour" })),
-                minDateObj,
-                unit
-              );
-              const rangeSize = endIndex - startIndex;
-
-              let nextStart = startIndex + Number(step);
-              let nextEnd = endIndex + Number(step);
-
-              if (nextEnd > dateToIndex(maxDateObj, minDateObj, unit)) {
-                nextStart = 0;
-                nextEnd = rangeSize;
-              }
-
-              const nextRange = [
-                toLocalISOString(indexToDate(nextStart, minDateObj, unit)),
-                toLocalISOString(indexToDate(nextEnd, minDateObj, unit)),
-              ];
-              return nextRange;
-            } else {
-              // Numeric range mode
-              const rangeSize = v[1] - v[0];
-              let nextStart = v[0] + Number(step);
-              let nextEnd = v[1] + Number(step);
-
-              if (nextEnd > max) {
-                nextStart = min;
-                nextEnd = min + rangeSize;
-              }
-              return [nextStart, nextEnd];
+            let [start, end] = idx;
+            const rangeSize = end - start;
+            let nextStart = start + 1;
+            let nextEnd = end + 1;
+            // If nextEnd exceeds bounds, wrap to first valid range
+            if (nextEnd > values.length - 1) {
+              nextStart = 0;
+              nextEnd = rangeSize;
             }
+            if (nextEnd <= nextStart) nextEnd = nextStart + 1;
+            return [nextStart, nextEnd];
           } else {
-            // Single value play logic
-            if (isDateType && unit) {
-              const currentDate = new Date(
-                parseDateMath({ value: v, type: "date-hour" })
-              );
-              const nextDate = indexToDate(
-                dateToIndex(currentDate, new Date(minValue), unit) +
-                  Number(step),
-                new Date(minValue),
-                unit
-              );
-              return nextDate > new Date(maxValue)
-                ? min
-                : toLocalISOString(nextDate);
-            } else {
-              const next = v + Number(step);
-              return next > max ? min : next;
-            }
+            let next = idx + 1;
+            return next >= values.length ? 0 : next;
           }
         });
       }, speed);
@@ -260,233 +352,76 @@ const Slider = ({
       clearInterval(intervalRef.current);
     }
     return () => clearInterval(intervalRef.current);
-  }, [playing, speed, step, min, max, isDateType, unit, rangeMode]);
+  }, [playing, speed, values, rangeMode]);
 
   const onRangeChange = (val) => {
     if (rangeMode) {
-      const snapped = val.map((n) => Math.round(n / step) * step);
-      if (isDateType && unit) {
-        const newDates = snapped.map((idx) =>
-          toLocalISOString(
-            indexToDate(
-              idx,
-              new Date(parseDateMath({ value: min, type: "date-hour" })),
-              unit
-            )
-          )
-        );
-        setValue(newDates);
-      } else {
-        setValue(snapped);
-      }
+      setCurrentIdx([val[0], val[1]]);
     } else {
-      const snapped = Math.round(val / step) * step;
-      if (isDateType && unit) {
-        const newDate = indexToDate(
-          snapped,
-          new Date(parseDateMath({ value: min, type: "date-hour" })),
-          unit
-        );
-        setValue(toLocalISOString(newDate));
-      } else {
-        setValue(snapped);
-      }
+      setCurrentIdx(val);
     }
   };
 
   const goToFirst = () => {
     if (rangeMode) {
-      if (isDateType && unit) {
-        const minDateObj = new Date(
-          parseDateMath({ value: min, type: "date-hour" })
-        );
-        const currentRange = value.map(
-          (v) => new Date(parseDateMath({ value: v, type: "date-hour" }))
-        );
-        // Calculate range size in index units
-        const startIndex = dateToIndex(currentRange[0], minDateObj, unit);
-        const endIndex = dateToIndex(currentRange[1], minDateObj, unit);
-        const rangeSize = endIndex - startIndex;
-        const newRange = [
-          toLocalISOString(minDateObj),
-          toLocalISOString(indexToDate(rangeSize, minDateObj, unit)),
-        ];
-        setValue([...newRange]);
-      } else {
-        const rangeSize = value[1] - value[0];
-        const newRange = [min, min + rangeSize];
-        setValue([...newRange]);
-      }
+      let rangeSize = 1;
+      rangeSize = currentIdx[1] - currentIdx[0];
+      rangeSize = Math.max(1, Math.min(rangeSize, values.length - 1));
+      setCurrentIdx([0, rangeSize]);
     } else {
-      setValue(min);
+      setCurrentIdx(0);
     }
   };
 
   const goToLast = () => {
     if (rangeMode) {
-      if (isDateType && unit) {
-        const maxDateObj = new Date(
-          parseDateMath({ value: max, type: "date-hour" })
-        );
-        const currentRange = value.map(
-          (v) => new Date(parseDateMath({ value: v, type: "date-hour" }))
-        );
-        const rangeSize = dateToIndex(currentRange[1], currentRange[0], unit);
-        const newRange = [
-          toLocalISOString(indexToDate(-rangeSize, maxDateObj, unit)),
-          toLocalISOString(maxDateObj),
-        ];
-        setValue([...newRange]);
-      } else {
-        const rangeSize = value[1] - value[0];
-        const newRange = [max - rangeSize, max];
-        setValue([...newRange]);
-      }
+      let rangeSize = 1;
+      rangeSize = currentIdx[1] - currentIdx[0];
+      rangeSize = Math.max(1, Math.min(rangeSize, values.length - 1));
+      setCurrentIdx([values.length - 1 - rangeSize, values.length - 1]);
     } else {
-      setValue(max);
+      setCurrentIdx(values.length - 1);
     }
   };
 
   const goBackStep = () => {
     if (rangeMode) {
-      if (isDateType && unit) {
-        const minDateObj = new Date(
-          parseDateMath({ value: min, type: "date-hour" })
-        );
-        const currentRange = value.map(
-          (v) => new Date(parseDateMath({ value: v, type: "date-hour" }))
-        );
-        const startIndex = dateToIndex(currentRange[0], minDateObj, unit);
-        const endIndex = dateToIndex(currentRange[1], minDateObj, unit);
-
-        const newStartIndex = Math.max(0, startIndex - Number(step));
-        const newEndIndex = newStartIndex + (endIndex - startIndex);
-
-        const newRange = [
-          toLocalISOString(indexToDate(newStartIndex, minDateObj, unit)),
-          toLocalISOString(indexToDate(newEndIndex, minDateObj, unit)),
-        ];
-        setValue([...newRange]);
-      } else {
-        const rangeSize = value[1] - value[0];
-        const newStart = Math.max(min, value[0] - Number(step));
-        const newRange = [newStart, newStart + rangeSize];
-        setValue([...newRange]);
-      }
+      let rangeSize = 1;
+      rangeSize = currentIdx[1] - currentIdx[0];
+      rangeSize = Math.max(1, Math.min(rangeSize, values.length - 1));
+      let [start] = currentIdx;
+      let newStart = Math.max(0, start - 1);
+      let newEnd = Math.min(values.length - 1, newStart + rangeSize);
+      setCurrentIdx([newStart, newEnd]);
     } else {
-      if (isDateType && unit) {
-        const currentDate = new Date(
-          parseDateMath({ value, type: "date-hour" })
-        );
-        const minDateObj = new Date(
-          parseDateMath({ value: min, type: "date-hour" })
-        );
-        const currentIndex = dateToIndex(currentDate, minDateObj, unit);
-        const newIndex = Math.max(0, currentIndex - Number(step));
-
-        const resultDate = indexToDate(newIndex, minDateObj, unit);
-        setValue(toLocalISOString(resultDate));
-      } else {
-        const newVal = Math.max(min, value - Number(step));
-        setValue(newVal);
-      }
+      setCurrentIdx(Math.max(0, currentIdx - 1));
     }
   };
 
   const goForwardStep = () => {
     if (rangeMode) {
-      if (isDateType && unit) {
-        const minDateObj = new Date(
-          parseDateMath({ value: min, type: "date-hour" })
-        );
-        const maxDateObj = new Date(
-          parseDateMath({ value: max, type: "date-hour" })
-        );
-        const currentRange = value.map(
-          (v) => new Date(parseDateMath({ value: v, type: "date-hour" }))
-        );
-        const startIndex = dateToIndex(currentRange[0], minDateObj, unit);
-        const endIndex = dateToIndex(currentRange[1], minDateObj, unit);
-        const maxIndex = dateToIndex(maxDateObj, minDateObj, unit);
-
-        const newStartIndex = Math.min(
-          maxIndex - (endIndex - startIndex),
-          startIndex + Number(step)
-        );
-        const newEndIndex = Math.min(maxIndex, endIndex + Number(step));
-
-        const newRange = [
-          toLocalISOString(indexToDate(newStartIndex, minDateObj, unit)),
-          toLocalISOString(indexToDate(newEndIndex, minDateObj, unit)),
-        ];
-        setValue([...newRange]);
-      } else {
-        const rangeSize = value[1] - value[0];
-        const newStart = Math.min(max - rangeSize, value[0] + Number(step));
-        const newRange = [newStart, newStart + rangeSize];
-        setValue([...newRange]);
-      }
+      let rangeSize = 1;
+      rangeSize = currentIdx[1] - currentIdx[0];
+      rangeSize = Math.max(1, Math.min(rangeSize, values.length - 1));
+      let [start] = currentIdx;
+      let newStart = Math.min(values.length - 1 - rangeSize, start + 1);
+      let newEnd = Math.min(values.length - 1, newStart + rangeSize);
+      setCurrentIdx([newStart, newEnd]);
     } else {
-      if (isDateType && unit) {
-        const currentDate = new Date(
-          parseDateMath({ value, type: "date-hour" })
-        );
-        const minDateObj = new Date(
-          parseDateMath({ value: min, type: "date-hour" })
-        );
-        const maxDateObj = new Date(
-          parseDateMath({ value: max, type: "date-hour" })
-        );
-        const currentIndex = dateToIndex(currentDate, minDateObj, unit);
-        const maxIndex = dateToIndex(maxDateObj, minDateObj, unit);
-        const newIndex = Math.min(maxIndex, currentIndex + Number(step));
-
-        const resultDate = indexToDate(newIndex, minDateObj, unit);
-        setValue(toLocalISOString(resultDate));
-      } else {
-        const newVal = Math.min(max, value + Number(step));
-        setValue(newVal);
-      }
+      setCurrentIdx(Math.min(values.length - 1, currentIdx + 1));
     }
   };
 
-  if (rangeMode && !Array.isArray(value)) return null; // or a loading state
-  if (!rangeMode && Array.isArray(value)) return null;
+  if (rangeMode && (!Array.isArray(currentIdx) || currentIdx.length !== 2))
+    return null;
+  if (!rangeMode && Array.isArray(currentIdx)) return null;
 
-  const sliderValue = (() => {
-    if (rangeMode) {
-      return isDateType && unit
-        ? value.map((v) =>
-            dateToIndex(
-              new Date(parseDateMath({ value: v, type: "date-hour" })),
-              new Date(parseDateMath({ value: min, type: "date-hour" })),
-              unit
-            )
-          )
-        : value;
-    }
-    return isDateType && unit
-      ? dateToIndex(
-          new Date(parseDateMath({ value, type: "date-hour" })),
-          new Date(parseDateMath({ value: min, type: "date-hour" })),
-          unit
-        )
-      : value;
-  })();
-
-  const sliderMin = isDateType && unit ? 0 : min;
-  const sliderMax =
-    isDateType && unit
-      ? dateToIndex(
-          new Date(parseDateMath({ value: max, type: "date-hour" })),
-          new Date(parseDateMath({ value: min, type: "date-hour" })),
-          unit
-        )
-      : max;
-
+  const sliderValue = rangeMode ? currentIdx : currentIdx;
+  const sliderMin = 0;
+  const sliderMax = values.length - 1;
   const displayValue = rangeMode
-    ? value.map((v) => formatValue(v, outputFormat, isDateType)).join(" - ")
-    : formatValue(value, outputFormat, isDateType);
+    ? `${formatValue(values[currentIdx[0]], outputFormat, isDateType)} - ${formatValue(values[currentIdx[1]], outputFormat, isDateType)}`
+    : formatValue(values[currentIdx], outputFormat, isDateType);
 
   return (
     <>
@@ -562,7 +497,7 @@ const Slider = ({
 
           {/* Start value */}
           <Col xs="auto" className="text-center" aria-label="Min Value">
-            <strong>{formatValue(min, outputFormat, isDateType)}</strong>
+            <strong>{formatValue(values[0], outputFormat, isDateType)}</strong>
           </Col>
 
           {/* Slider */}
@@ -598,7 +533,9 @@ const Slider = ({
 
           {/* End value */}
           <Col xs="auto" className="text-center" aria-label="Max Value">
-            <strong>{formatValue(max, outputFormat, isDateType)}</strong>
+            <strong>
+              {formatValue(values[values.length - 1], outputFormat, isDateType)}
+            </strong>
           </Col>
 
           {/* Right controls - Next and Last */}
