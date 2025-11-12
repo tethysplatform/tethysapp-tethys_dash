@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState, useContext, memo } from "react";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
 import { TabContext, EditingContext } from "components/contexts/Contexts";
@@ -71,10 +71,7 @@ const DeleteButton = styled.button`
 `;
 
 const StyledTabs = styled(Tabs)`
-  .nav-tabs {
-    display: flex;
-    width: 100%;
-  }
+  display: ${(props) => (props.shouldHideTabBar ? "none" : "flex")};
 
   .nav-item {
     flex: 1;
@@ -249,17 +246,15 @@ const DashboardTabs = () => {
     );
   };
 
-  // If only one tab and not editing, show only the tab content (no tab bar)
-  if (tabs.length === 1 && !isEditing) {
-    const tab = tabs[0];
-    return <DashboardLayout tabId={tab.id} gridItems={tab.gridItems} />;
-  }
+  // Hide tab bar when there's only one tab and not editing
+  const shouldHideTabBar = tabs.length === 1 && !isEditing;
 
   return (
     <StyledTabs
       className="dashboard-tabs"
       activeKey={activeTabId}
       onSelect={handleTabSelect}
+      shouldHideTabBar={shouldHideTabBar}
     >
       {tabs.map((tab) => (
         <Tab eventKey={tab.id} title={renderTabTitle(tab)} key={tab.id}>
@@ -270,4 +265,4 @@ const DashboardTabs = () => {
     </StyledTabs>
   );
 };
-export default DashboardTabs;
+export default memo(DashboardTabs);

@@ -27,8 +27,13 @@ test("Dashboard Tabs, single tab and not editing", async () => {
   );
 
   expect(await screen.findByLabelText("gridItemDiv")).toBeInTheDocument();
-  expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
-  expect(screen.queryAllByRole("tabpanel")).toHaveLength(0);
+
+  // Find the tab lists
+  const tablist = screen.getByRole("tablist");
+
+  // Assert that it's in the document and not visible
+  expect(tablist).toBeInTheDocument();
+  expect(tablist).not.toBeVisible();
 });
 
 test("Dashboard Tabs, multiple tab and not editing", async () => {
@@ -105,7 +110,14 @@ test("Dashboard Tabs, single tab and editing", async () => {
   );
 
   expect(await screen.findByLabelText("gridItemDiv")).toBeInTheDocument();
-  expect(await screen.findByRole("tablist")).toBeInTheDocument();
+
+  // Find the tab lists
+  const tablist = screen.getByRole("tablist");
+
+  // Assert that it's in the document and visible
+  expect(tablist).toBeInTheDocument();
+  expect(tablist).toBeVisible();
+
   expect(screen.queryAllByRole("tabpanel")).toHaveLength(2); // includes add tab
 });
 
