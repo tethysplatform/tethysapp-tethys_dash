@@ -71,8 +71,12 @@ test("valuesEqual", async () => {
   expect(equal).toBe(true);
 
   equal = valuesEqual(
-    { location: "BEE", start_time: new Date() },
-    { location: "BEE", start_time: addHours(new Date(), 1) }
+    { location: "BEE", start_time: new Date(), end_time: new Date() },
+    {
+      location: "BEE",
+      start_time: addHours(new Date(), 1),
+      end_time: addHours(new Date(), 1),
+    }
   );
   expect(equal).toBe(false);
 });

@@ -16,12 +16,7 @@ import TooltipButton from "components/buttons/TooltipButton";
 import { BsArrowClockwise } from "react-icons/bs";
 import Slider from "components/inputs/Slider";
 import CSVUploader from "components/inputs/CSVUploader";
-import {
-  parseDateMath,
-  dateFormat,
-  dateHourFormat,
-} from "components/inputs/DatePicker";
-import { format } from "date-fns";
+import { valuesEqual } from "components/modals/utilities";
 
 const StyledDiv = styled.div`
   padding: 1rem;
@@ -72,15 +67,6 @@ const VariableInput = ({
   const updateVariableInputs = useCallback(
     (new_value) => {
       if (new_value || new_value === false || new_value === 0) {
-        if (["date", "date-hour"].includes(variable_options_source)) {
-          const parsedDate = parseDateMath({ value: new_value });
-          if (parsedDate) {
-            new_value =
-              variable_options_source === "date"
-                ? format(parsedDate, dateFormat)
-                : format(parsedDate, dateHourFormat);
-          }
-        }
         setVariableInputValues((prevVariableInputValues) => ({
           ...prevVariableInputValues,
           [variable_name]: new_value,
@@ -314,4 +300,18 @@ VariableInput.propTypes = {
   }),
 };
 
-export default memo(VariableInput);
+// Custom comparison that ignores context changes that don't affect VariableInput
+const arePropsEqual = (prevProps, nextProps) => {
+  // Only check the props that actually affect VariableInput rendering
+  const relevantKeys = [
+    "variable_name",
+    "initial_value",
+    "variable_options_source",
+    "metadata",
+  ];
+  return relevantKeys.every((key) =>
+    valuesEqual(prevProps[key], nextProps[key])
+  );
+};
+
+export default memo(VariableInput, arePropsEqual);

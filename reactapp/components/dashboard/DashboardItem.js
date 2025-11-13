@@ -23,6 +23,7 @@ import {
 } from "components/visualizations/utilities";
 import CustomAlert from "components/dashboard/CustomAlert";
 import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
+import { valuesEqual } from "components/modals/utilities";
 
 const StyledContainer = styled(Container)`
   position: relative;
@@ -478,4 +479,4 @@ DashboardItem.propTypes = {
   gridItemIndex: PropTypes.number,
 };
 
-export default memo(DashboardItem);
+export default memo(DashboardItem, valuesEqual);

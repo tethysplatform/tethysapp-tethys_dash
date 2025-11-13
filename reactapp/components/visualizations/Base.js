@@ -323,5 +323,15 @@ Visualization.propTypes = {
   dataviewerViz: PropTypes.bool, // determines if the visualization is in the dataviewer
 };
 
-export default memo(BaseVisualization);
+// Custom comparison function for BaseVisualization
+const areBasePropsEqual = (prevProps, nextProps) => {
+  // Only rerender if the actual props that affect visualization change
+  return (
+    valuesEqual(prevProps.source, nextProps.source) &&
+    valuesEqual(prevProps.argsString, nextProps.argsString) &&
+    valuesEqual(prevProps.metadataString, nextProps.metadataString)
+  );
+};
+
+export default memo(BaseVisualization, areBasePropsEqual);
 Visualization.displayName = "Visualization";
