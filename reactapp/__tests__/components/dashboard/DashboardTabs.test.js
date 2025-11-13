@@ -28,8 +28,7 @@ test("Dashboard Tabs, single tab and not editing", async () => {
 
   expect(await screen.findByLabelText("gridItemDiv")).toBeInTheDocument();
 
-  // Find the tab lists
-  const tablist = screen.getByRole("tablist");
+  const tablist = screen.queryByRole("tablist", { hidden: true });
 
   // Assert that it's in the document and not visible
   expect(tablist).toBeInTheDocument();
@@ -87,7 +86,11 @@ test("Dashboard Tabs, multiple tab and not editing", async () => {
     })
   );
 
-  expect(await screen.findByRole("tablist")).toBeInTheDocument();
+  const tablist = await screen.findByRole("tablist");
+
+  expect(tablist).toBeInTheDocument();
+  expect(tablist).toBeVisible();
+
   expect(screen.getAllByRole("tabpanel")).toHaveLength(2);
   await waitFor(() => {
     expect(screen.getAllByLabelText("gridItemDiv")).toHaveLength(2);
@@ -175,7 +178,11 @@ test("Dashboard Tabs, multiple tab and editing", async () => {
     })
   );
 
-  expect(await screen.findByRole("tablist")).toBeInTheDocument();
+  const tablist = await screen.findByRole("tablist");
+
+  expect(tablist).toBeInTheDocument();
+  expect(tablist).toBeVisible();
+
   expect(screen.getAllByRole("tabpanel")).toHaveLength(3); // includes add tab
   await waitFor(() => {
     expect(screen.getAllByLabelText("gridItemDiv")).toHaveLength(2);
