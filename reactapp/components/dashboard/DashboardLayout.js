@@ -40,6 +40,11 @@ const DashboardLayout = ({ tabId, gridItems }) => {
     // eslint-disable-next-line
   }, [gridItems]);
 
+  useEffect(() => {
+    updateGridEditing(gridItems);
+    // eslint-disable-next-line
+  }, [isEditing, disabledEditingMovement]);
+
   function updateGridLayout() {
     setItems(
       gridItems.map((item, index) => (
@@ -58,14 +63,18 @@ const DashboardLayout = ({ tabId, gridItems }) => {
   }
 
   function updateGridEditing(griditems) {
-    // Create stable layout objects - only update when grid structure changes
-    const updatedGridItems = griditems.map((griditem) => ({
-      h: griditem.h,
-      i: griditem.i,
-      w: griditem.w,
-      x: griditem.x,
-      y: griditem.y,
-    }));
+    const updatedGridItems = [];
+    for (let griditem of griditems) {
+      updatedGridItems.push({
+        h: griditem.h,
+        i: griditem.i,
+        w: griditem.w,
+        x: griditem.x,
+        y: griditem.y,
+        isDraggable: isEditing && !disabledEditingMovement,
+        isResizable: isEditing && !disabledEditingMovement,
+      });
+    }
     setLayout(updatedGridItems);
   }
 
@@ -125,8 +134,8 @@ const DashboardLayout = ({ tabId, gridItems }) => {
       rowHeight={rowHeight}
       cols={colCount}
       onLayoutChange={(newLayout) => updateLayout(newLayout)}
-      isDraggable={isEditing && !disabledEditingMovement}
-      isResizable={isEditing && !disabledEditingMovement}
+      isDraggable={false}
+      isResizable={false}
       draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover"
       onResize={handleResize}
       allowOverlap={unrestrictedPlacement}
