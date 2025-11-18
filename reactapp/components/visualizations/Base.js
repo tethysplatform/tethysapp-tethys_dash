@@ -12,6 +12,7 @@ import {
   getVisualization,
   updateObjectWithVariableInputs,
   findSelectOptionByValue,
+  getDependentVariableInputs,
 } from "components/visualizations/utilities";
 import {
   AppContext,
@@ -146,6 +147,37 @@ export const Visualization = memo(
   }
 );
 
+// Helper function to check if a value is a relative date
+const isRelativeDate = (val) => {
+  return typeof val === "string" && /^now([+-]\d+[YMWDHmS])*$/.test(val);
+};
+
+// Filter function to exclude date/date-hour types and relative dates
+const filterNonRelativeDateArgs = (args, variableInputs, types) => {
+  const filtered = {};
+  for (const [key, value] of Object.entries(args)) {
+    const argType = types?.[key];
+    const dependentVariableInputs = getDependentVariableInputs(value);
+
+    let validFilter = true;
+    for (const input of dependentVariableInputs) {
+      // Skip if the argument type is date or date-hour and the value is a relative date
+      const variableInput = variableInputs?.[input];
+      if (
+        (argType === "date" || argType === "date-hour") &&
+        isRelativeDate(variableInput)
+      ) {
+        validFilter = false;
+      }
+    }
+
+    if (validFilter) {
+      filtered[key] = value;
+    }
+  }
+  return filtered;
+};
+
 const BaseVisualization = ({ source, argsString, metadataString }) => {
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
@@ -207,6 +239,7 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
   }, [metadataString, isEditing]);
 
   async function setVariableDependentVisualizations({ refresh }) {
+    const originalArgs = JSON.parse(argsString);
     const args = JSON.parse(argsString);
     const gridMetadata = JSON.parse(metadataString);
     const visualization = findSelectOptionByValue(
@@ -223,6 +256,7 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
       variableInputValues,
       argTypes
     );
+
     const updatedGridItemMetadata = updateObjectWithVariableInputs(
       gridMetadata,
       variableInputValues,
@@ -230,12 +264,36 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
     );
     const customMessaging = gridMetadata.customMessaging;
 
+    const filteredOriginalArgs = filterNonRelativeDateArgs(
+      originalArgs,
+      variableInputValues,
+      argTypes
+    );
+
+    // Helper function to compare only the keys that exist in filteredOriginalArgs
+    const compareFilteredArgs = (currentArgs, updatedArgs, keysToCompare) => {
+      const filteredCurrent = {};
+      const filteredUpdated = {};
+
+      for (const key of Object.keys(keysToCompare)) {
+        if (currentArgs && currentArgs[key] !== undefined) {
+          filteredCurrent[key] = currentArgs[key];
+        }
+        if (updatedArgs && updatedArgs[key] !== undefined) {
+          filteredUpdated[key] = updatedArgs[key];
+        }
+      }
+
+      return valuesEqual(filteredCurrent, filteredUpdated);
+    };
+
     if (
       refresh ||
       (source && argsString === "{}") ||
-      !valuesEqual(
+      !compareFilteredArgs(
         gridItemArgsWithVariableInputs.current,
-        updatedGridItemArgs
+        updatedGridItemArgs,
+        filteredOriginalArgs
       ) ||
       !valuesEqual(customMessages.current, customMessaging)
     ) {

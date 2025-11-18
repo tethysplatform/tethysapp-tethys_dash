@@ -44,6 +44,10 @@ export function getDependentVariableInputs(args) {
   const regex = /\${(.*?)}/g; // Matches ${...}
   const uniqueValues = new Set();
 
+  if (typeof args !== "string") {
+    args = JSON.stringify(args);
+  }
+
   for (const match of args.matchAll(regex)) {
     uniqueValues.add(match[1]); // Extract the variable name
   }

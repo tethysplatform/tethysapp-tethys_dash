@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import styled from "styled-components";
 import PropTypes from "prop-types";
 import NormalInput from "components/inputs/NormalInput";
+import { getDependentVariableInputs } from "components/visualizations/utilities";
 
 const WideLabel = styled.label`
   width: 100%;
@@ -22,22 +23,6 @@ const Flex1Div = styled.div`
 const StyledDiv = styled.div`
   padding-left: 2rem;
 `;
-
-function getDependentVariableInputs(inputs) {
-  const regex = /\${(.*?)}/g; // Matches ${...}
-  const uniqueValues = new Set();
-
-  Object.values(inputs).forEach((item) => {
-    const value = item?.value ?? item;
-    if (typeof value === "string") {
-      for (const match of value.matchAll(regex)) {
-        uniqueValues.add(match[1]); // Extract the variable name
-      }
-    }
-  });
-
-  return [...uniqueValues];
-}
 
 const CustomMessaging = ({
   vizInputsValues,
