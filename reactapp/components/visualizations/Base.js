@@ -152,6 +152,48 @@ const isRelativeDate = (val) => {
   return typeof val === "string" && /^now([+-]\d+[YMWDHmS])*$/.test(val);
 };
 
+function toLocalISO(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return (
+    d.getFullYear() +
+    "-" +
+    pad(d.getMonth() + 1) +
+    "-" +
+    pad(d.getDate()) +
+    "T" +
+    pad(d.getHours()) +
+    ":" +
+    pad(d.getMinutes()) +
+    ":" +
+    pad(d.getSeconds()) +
+    (d.getTimezoneOffset() > 0 ? "-" : "+") +
+    pad(Math.abs(d.getTimezoneOffset() / 60)) +
+    ":" +
+    pad(Math.abs(d.getTimezoneOffset() % 60))
+  );
+}
+
+// Helper function to convert Date objects to UTC strings recursively
+const convertDates = (obj) => {
+  if (obj instanceof Date) {
+    return toLocalISO(obj);
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(convertDates);
+  }
+
+  if (obj !== null && typeof obj === "object") {
+    const converted = {};
+    for (const [key, value] of Object.entries(obj)) {
+      converted[key] = convertDates(value);
+    }
+    return converted;
+  }
+
+  return obj;
+};
+
 // Filter function to exclude date/date-hour types and relative dates
 const filterNonRelativeDateArgs = (args, variableInputs, types) => {
   const filtered = {};
@@ -251,10 +293,8 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
     const argTypes = visualization.args;
 
     const itemData = { source: source, args: args };
-    const updatedGridItemArgs = updateObjectWithVariableInputs(
-      args,
-      variableInputValues,
-      argTypes
+    const updatedGridItemArgs = convertDates(
+      updateObjectWithVariableInputs(args, variableInputValues, argTypes)
     );
 
     const updatedGridItemMetadata = updateObjectWithVariableInputs(
