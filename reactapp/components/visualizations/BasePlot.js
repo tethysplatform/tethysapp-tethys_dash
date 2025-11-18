@@ -29,16 +29,30 @@ export const addVerticalLine = (plotRef, xValue, options = {}) => {
     const plotElement = plotRef.current.el;
     const currentShapes = plotElement.layout?.shapes || [];
     let x;
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(xValue)) {
-      // Format: 'YYYY-MM-DD HH:mm'
-      x = xValue.replace(" ", "T") + ":00.000Z";
-    } else if (/^\d{4}-\d{2}-\d{2}$/.test(xValue)) {
-      // Format: 'YYYY-MM-DD'
-      x = xValue + "T00:00:00.000Z";
-    } else {
-      // Fallback: try Date constructor
+
+    // Try to parse any date string while preserving local time
+    try {
       const d = new Date(xValue);
-      x = !isNaN(d) ? d.toISOString() : xValue;
+      if (!isNaN(d)) {
+        // Extract local time components to avoid timezone conversion
+        // Use the local date/time values directly without timezone adjustment
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const hours = String(d.getHours()).padStart(2, "0");
+        const minutes = String(d.getMinutes()).padStart(2, "0");
+        const seconds = String(d.getSeconds()).padStart(2, "0");
+        const milliseconds = String(d.getMilliseconds()).padStart(3, "0");
+
+        // Construct ISO string using local time components
+        x = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}Z`;
+      } else {
+        // If not a valid date, use the original value
+        x = xValue;
+      }
+    } catch (error) {
+      // If parsing fails, use the original value
+      x = xValue;
     }
 
     const newShape = {
