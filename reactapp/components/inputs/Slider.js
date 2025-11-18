@@ -219,6 +219,23 @@ export const calculateSliderValues = ({ min, max, step, unit, dataType }) => {
   return [];
 };
 
+// Debounce hook
+const useDebounce = (value, delay) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
 const getInitialIndices = (values, initialValue, initialRange, rangeMode) => {
   if (rangeMode) {
     if (Array.isArray(initialRange) && initialRange.length === 2) {
@@ -253,6 +270,7 @@ const Slider = ({
   dataType,
   dateTimeDelta,
   onChange,
+  debounceDelay = 300, // Default 300ms debounce delay
   speeds = [
     { label: "Slow", value: 1000 },
     { label: "Medium", value: 500 },
@@ -270,6 +288,9 @@ const Slider = ({
   const [currentIdx, setCurrentIdx] = useState(() =>
     getInitialIndices(values, initialValue, initialRange, rangeMode)
   );
+
+  // Debounced version of currentIdx for onChange calls
+  const debouncedCurrentIdx = useDebounce(currentIdx, debounceDelay);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(speeds[0].value);
   const intervalRef = useRef(null);
@@ -308,8 +329,8 @@ const Slider = ({
   useEffect(() => {
     // Only call onChange if index actually changed
     if (rangeMode) {
-      const arr = Array.isArray(currentIdx)
-        ? currentIdx
+      const arr = Array.isArray(debouncedCurrentIdx)
+        ? debouncedCurrentIdx
         : [0, values.length - 1];
       const formatted = arr
         .map((i) => formatValue(values[i], outputFormat, isDateType))
@@ -317,14 +338,14 @@ const Slider = ({
       onChange(formatted);
     } else {
       const formatted = formatValue(
-        values[currentIdx],
+        values[debouncedCurrentIdx],
         outputFormat,
         isDateType
       );
       onChange(formatted);
     }
     // eslint-disable-next-line
-  }, [currentIdx, outputFormat, rangeMode, isDateType, values]);
+  }, [debouncedCurrentIdx, outputFormat, rangeMode, isDateType, values]);
 
   useEffect(() => {
     if (playing) {
@@ -579,6 +600,7 @@ Slider.propTypes = {
   dataType: PropTypes.string.isRequired,
   dateTimeDelta: PropTypes.string,
   onChange: PropTypes.func.isRequired,
+  debounceDelay: PropTypes.number,
   speeds: PropTypes.arrayOf(
     PropTypes.shape({
       label: PropTypes.string.isRequired,

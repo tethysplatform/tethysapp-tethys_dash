@@ -43,6 +43,11 @@ const StyledH2 = styled.h2`
   align-items: center;
   height: 100%;
   text-align: center;
+  word-wrap: break-word;
+  word-break: break-word;
+  white-space: pre-wrap;
+  overflow: auto;
+  padding: 1rem;
 `;
 
 export const Visualization = memo(
