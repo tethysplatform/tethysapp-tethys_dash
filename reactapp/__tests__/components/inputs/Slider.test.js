@@ -1,6 +1,12 @@
 // Slider.test.jsx
 import { act } from "react";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  within,
+  waitFor,
+} from "@testing-library/react";
 import { spyElementPrototypes } from "rc-util/lib/test/domHook";
 import Slider, { calculateSliderValues } from "components/inputs/Slider";
 import { format, addDays, addHours } from "date-fns";
@@ -35,7 +41,7 @@ describe("Slider Component", () => {
     jest.useRealTimers();
   });
 
-  it("renders with label and initial value (number mode)", () => {
+  it("renders with label and initial value (number mode)", async () => {
     const handleChange = jest.fn();
 
     const { rerender } = render(
@@ -48,6 +54,7 @@ describe("Slider Component", () => {
         outputFormat="{{n:3}}F"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
@@ -56,7 +63,9 @@ describe("Slider Component", () => {
     expect(screen.getByText("010F")).toBeInTheDocument();
     expect(screen.getByText("005F")).toBeInTheDocument();
     // First onChange should fire on mount
-    expect(handleChange).toHaveBeenCalledWith("005F");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("005F");
+    });
 
     rerender(
       <Slider
@@ -68,11 +77,14 @@ describe("Slider Component", () => {
         outputFormat="{{n:3}}F"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     expect(screen.getByText("007F")).toBeInTheDocument();
-    expect(handleChange).toHaveBeenCalledWith("007F");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("007F");
+    });
 
     rerender(
       <Slider
@@ -85,14 +97,17 @@ describe("Slider Component", () => {
         outputFormat="{{n:3}}F"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     expect(screen.getByText("000F - 010F")).toBeInTheDocument();
-    expect(handleChange).toHaveBeenCalledWith("000F,010F");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("000F,010F");
+    });
   });
 
-  it("render slider and then change to rangemode", () => {
+  it("render slider and then change to rangemode", async () => {
     const handleChange = jest.fn();
 
     const { rerender } = render(
@@ -105,6 +120,7 @@ describe("Slider Component", () => {
         outputFormat="{{n:3}}F"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
@@ -113,7 +129,9 @@ describe("Slider Component", () => {
     expect(screen.getByText("010F")).toBeInTheDocument();
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("005F");
     // First onChange should fire on mount
-    expect(handleChange).toHaveBeenCalledWith("005F");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("005F");
+    });
 
     rerender(
       <Slider
@@ -126,13 +144,16 @@ describe("Slider Component", () => {
         outputFormat="{{n:3}}F"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "002F - 008F"
     );
-    expect(handleChange).toHaveBeenCalledWith("002F,008F");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("002F,008F");
+    });
 
     rerender(
       <Slider
@@ -145,13 +166,16 @@ describe("Slider Component", () => {
         outputFormat="{{n:3}}F"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "000F - 010F"
     );
-    expect(handleChange).toHaveBeenCalledWith("000F,010F");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("000F,010F");
+    });
 
     rerender(
       <Slider
@@ -163,11 +187,14 @@ describe("Slider Component", () => {
         outputFormat="{{n:3}}F"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("000F");
-    expect(handleChange).toHaveBeenCalledWith("000F");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("000F");
+    });
   });
 
   it("changes value when slider moved (number mode)", async () => {
@@ -182,6 +209,7 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
@@ -190,7 +218,9 @@ describe("Slider Component", () => {
       clientX: 100,
     });
 
-    expect(handleChange).toHaveBeenLastCalledWith("10");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("10");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("10");
   });
 
@@ -206,13 +236,16 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const firstStep = screen.getByLabelText("go to first");
     fireEvent.click(firstStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("0");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("0");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("0");
   });
 
@@ -229,13 +262,16 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const firstStep = screen.getByLabelText("go to first");
     fireEvent.click(firstStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("0,3");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("0,3");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("0 - 3");
   });
 
@@ -251,13 +287,16 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const previousStep = screen.getByLabelText("previous step");
     fireEvent.click(previousStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("4");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("4");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("4");
   });
 
@@ -274,13 +313,16 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const previousStep = screen.getByLabelText("previous step");
     fireEvent.click(previousStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("4,7");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("4,7");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("4 - 7");
   });
 
@@ -296,13 +338,16 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const nextStep = screen.getByLabelText("next step");
     fireEvent.click(nextStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("6");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("6");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("6");
   });
 
@@ -319,13 +364,16 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const nextStep = screen.getByLabelText("next step");
     fireEvent.click(nextStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("6,9");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("6,9");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("6 - 9");
   });
 
@@ -341,13 +389,16 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const lastStep = screen.getByLabelText("go to last");
     fireEvent.click(lastStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("10");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("10");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("10");
   });
 
@@ -364,13 +415,16 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const lastStep = screen.getByLabelText("go to last");
     fireEvent.click(lastStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("7,10");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("7,10");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("7 - 10");
   });
 
@@ -389,13 +443,16 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const firstStep = screen.getByLabelText("go to first");
     fireEvent.click(firstStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-01");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-01");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-01"
     );
@@ -417,13 +474,16 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const firstStep = screen.getByLabelText("go to first");
     fireEvent.click(firstStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-01,2025-01-02");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-01,2025-01-02");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-01 - 2025-01-02"
     );
@@ -444,13 +504,16 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const previousStep = screen.getByLabelText("previous step");
     fireEvent.click(previousStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-02");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-02");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-02"
     );
@@ -472,13 +535,16 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const previousStep = screen.getByLabelText("previous step");
     fireEvent.click(previousStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-02,2025-01-03");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-02,2025-01-03");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-02 - 2025-01-03"
     );
@@ -499,13 +565,16 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const nextStep = screen.getByLabelText("next step");
     fireEvent.click(nextStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-04");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-04");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-04"
     );
@@ -526,24 +595,29 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const nextStep = screen.getByLabelText("next step");
     fireEvent.click(nextStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith(
-      format(addDays(new Date(), -4), "yyyy-MM-dd")
-    );
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith(
+        format(addDays(new Date(), -4), "yyyy-MM-dd")
+      );
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       format(addDays(new Date(), -4), "yyyy-MM-dd")
     );
 
     fireEvent.click(nextStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith(
-      format(addDays(new Date(), -3), "yyyy-MM-dd")
-    );
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith(
+        format(addDays(new Date(), -3), "yyyy-MM-dd")
+      );
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       format(addDays(new Date(), -3), "yyyy-MM-dd")
     );
@@ -564,24 +638,29 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Hours"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const nextStep = screen.getByLabelText("next step");
     fireEvent.click(nextStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith(
-      format(addHours(new Date(), -11), "yyyy-MM-dd HH")
-    );
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith(
+        format(addHours(new Date(), -11), "yyyy-MM-dd HH")
+      );
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       format(addHours(new Date(), -11), "yyyy-MM-dd HH")
     );
 
     fireEvent.click(nextStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith(
-      format(addHours(new Date(), -10), "yyyy-MM-dd HH")
-    );
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith(
+        format(addHours(new Date(), -10), "yyyy-MM-dd HH")
+      );
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       format(addHours(new Date(), -10), "yyyy-MM-dd HH")
     );
@@ -603,13 +682,16 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const nextStep = screen.getByLabelText("next step");
     fireEvent.click(nextStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-04,2025-01-05");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-04,2025-01-05");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-04 - 2025-01-05"
     );
@@ -630,13 +712,16 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const lastStep = screen.getByLabelText("go to last");
     fireEvent.click(lastStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-05");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-05");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-05"
     );
@@ -658,13 +743,16 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
     const lastStep = screen.getByLabelText("go to last");
     fireEvent.click(lastStep);
 
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-04,2025-01-05");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-04,2025-01-05");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-04 - 2025-01-05"
     );
@@ -685,6 +773,7 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
+        debounceDelay={0}
       />
     );
 
@@ -692,8 +781,9 @@ describe("Slider Component", () => {
     fireEvent.mouseDown(container.querySelector(".rc-slider"), {
       clientX: 100,
     });
-
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-05");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-05");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-05"
     );
@@ -717,6 +807,7 @@ describe("Slider Component", () => {
         speeds={[{ label: "Fast", value: 100 }]}
         rangeMode={true}
         initialRange={initialRange}
+        debounceDelay={0}
       />
     );
 
@@ -725,7 +816,9 @@ describe("Slider Component", () => {
       clientX: 100,
     });
 
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-08,2025-01-10");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-08,2025-01-10");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-08 - 2025-01-10"
     );
@@ -748,6 +841,7 @@ describe("Slider Component", () => {
         speeds={[{ label: "Fast", value: 100 }]}
         rangeMode={true}
         initialRange={initialRange}
+        debounceDelay={0}
       />
     );
 
@@ -756,7 +850,9 @@ describe("Slider Component", () => {
       clientX: 100,
     });
 
-    expect(handleChange).toHaveBeenLastCalledWith("7,10");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("7,10");
+    });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("7 - 10");
   });
 
@@ -773,6 +869,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         speeds={[{ label: "Fast", value: 100 }]}
+        debounceDelay={0}
       />
     );
 
@@ -780,10 +877,14 @@ describe("Slider Component", () => {
     fireEvent.click(playBtn);
 
     await advanceTimers(100);
-    expect(handleChange).toHaveBeenLastCalledWith("4");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("4");
+    });
 
     await advanceTimers(100); // increment -> wrap to min
-    expect(handleChange).toHaveBeenLastCalledWith("0");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("0");
+    });
   });
 
   it("wraps to min when exceeding max in play mode (date mode)", async () => {
@@ -802,6 +903,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Days"
         onChange={handleChange}
         speeds={[{ label: "Fast", value: 100 }]}
+        debounceDelay={0}
       />
     );
 
@@ -809,10 +911,14 @@ describe("Slider Component", () => {
     fireEvent.click(playBtn);
 
     await advanceTimers(100);
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-05");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-05");
+    });
 
     await advanceTimers(100); // increment -> wrap to min
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-01");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-01");
+    });
   });
 
   it("renders and updates in date mode", () => {
@@ -889,6 +995,7 @@ describe("Slider Component", () => {
         speeds={[{ label: "Fast", value: 100 }]}
         rangeMode={true}
         initialRange={initialRange}
+        debounceDelay={0}
       />
     );
 
@@ -899,7 +1006,9 @@ describe("Slider Component", () => {
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-09 - 2025-01-10"
     );
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-09,2025-01-10");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-09,2025-01-10");
+    });
 
     await advanceTimers(100);
 
@@ -907,7 +1016,9 @@ describe("Slider Component", () => {
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
       "2025-01-01 - 2025-01-02"
     );
-    expect(handleChange).toHaveBeenLastCalledWith("2025-01-01,2025-01-02");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("2025-01-01,2025-01-02");
+    });
   });
 
   it("increments numbers correctly in play mode in range mode", async () => {
@@ -927,6 +1038,7 @@ describe("Slider Component", () => {
         speeds={[{ label: "Fast", value: 100 }]}
         rangeMode={true}
         initialRange={initialRange}
+        debounceDelay={0}
       />
     );
 
@@ -935,13 +1047,17 @@ describe("Slider Component", () => {
 
     // Date should increment by 1 day
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("8 - 10");
-    expect(handleChange).toHaveBeenLastCalledWith("8,10");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("8,10");
+    });
 
     await advanceTimers(100);
 
     // Date should increment by 1 day
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("0 - 2");
-    expect(handleChange).toHaveBeenLastCalledWith("0,2");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("0,2");
+    });
   });
 
   it("increments numbers correctly in play mode in range mode with 0 rangeSize", async () => {
@@ -961,6 +1077,7 @@ describe("Slider Component", () => {
         speeds={[{ label: "Fast", value: 100 }]}
         rangeMode={true}
         initialRange={initialRange}
+        debounceDelay={0}
       />
     );
 
@@ -969,13 +1086,17 @@ describe("Slider Component", () => {
 
     // Date should increment by 1 day
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("9 - 10");
-    expect(handleChange).toHaveBeenLastCalledWith("9,10");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("9,10");
+    });
 
     await advanceTimers(100);
 
     // Date should increment by 1 day
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("0 - 1");
-    expect(handleChange).toHaveBeenLastCalledWith("0,1");
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenLastCalledWith("0,1");
+    });
   });
 
   it("stops playing when Stop button clicked", async () => {
