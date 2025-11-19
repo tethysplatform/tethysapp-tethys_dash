@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
+import { addDays, format as formatDate } from "date-fns";
 import {
   mockedApiImageBase,
   mockedCardBase,
@@ -13,11 +14,15 @@ import {
   mockedTextBase,
   mockedCustomData,
   mockedTextVariable,
+  mockedDateHourVariable,
   mockedUnknownBase,
   userDashboard,
   mockedMapBase,
 } from "__tests__/utilities/constants";
-import BaseVisualization from "components/visualizations/Base";
+import BaseVisualization, {
+  toLocalISO,
+  compareFilteredArgs,
+} from "components/visualizations/Base";
 import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
@@ -30,6 +35,47 @@ jest.mock("components/visualizations/ModuleLoader", () => {
   const MockModuleLoader = () => <div>ModuleLoader Mock</div>;
   MockModuleLoader.displayName = "ModuleLoader"; // Set the display name to resolve the linting warning
   return MockModuleLoader;
+});
+
+// Mock date-fns functions to work with our mocked Date
+jest.mock("date-fns", () => {
+  const originalDateFns = jest.requireActual("date-fns");
+  const mockBaseDate = new Date("2025-01-15T12:00:00-06:00");
+
+  return {
+    ...originalDateFns,
+    addDays: (date, days) => {
+      // If date is mockBaseDate, use it directly, otherwise use original logic
+      const baseDate = date instanceof Date ? date : mockBaseDate;
+      const result = new Date(baseDate);
+      result.setDate(result.getDate() + days);
+      return result;
+    },
+    format: (date, formatStr) => {
+      const dateToFormat = date instanceof Date ? date : mockBaseDate;
+
+      if (formatStr === "MM/dd/yyyy h:mm a") {
+        const month = String(dateToFormat.getMonth() + 1).padStart(2, "0");
+        const day = String(dateToFormat.getDate()).padStart(2, "0");
+        const year = dateToFormat.getFullYear();
+        let hours = dateToFormat.getHours();
+        const minutes = String(dateToFormat.getMinutes()).padStart(2, "0");
+        const ampm = hours >= 12 ? "PM" : "AM";
+        hours = hours % 12;
+        hours = hours ? hours : 12; // the hour '0' should be '12'
+        return `${month}/${day}/${year} ${hours}:${minutes} ${ampm}`;
+      } else if (formatStr === "yyyy-MM-dd'T'HH:mm:ss'-06:00'") {
+        const year = dateToFormat.getFullYear();
+        const month = String(dateToFormat.getMonth() + 1).padStart(2, "0");
+        const day = String(dateToFormat.getDate()).padStart(2, "0");
+        const hours = String(dateToFormat.getHours()).padStart(2, "0");
+        const minutes = String(dateToFormat.getMinutes()).padStart(2, "0");
+        const seconds = String(dateToFormat.getSeconds()).padStart(2, "0");
+        return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}-06:00`;
+      }
+      return originalDateFns.format(dateToFormat, formatStr);
+    },
+  };
 });
 
 const { ResizeObserver } = window;
@@ -629,7 +675,7 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
   expect(message).toBeInTheDocument();
 });
 
-it("Base - update variable input", async () => {
+it("Base - update text variable input", async () => {
   const user = userEvent.setup();
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
   apiImageBase.args_string = JSON.stringify({
@@ -729,6 +775,496 @@ it("Base - update variable input", async () => {
   );
 });
 
+it("Base - update date variable input", async () => {
+  // Mock Date constructor to return a fixed date when called without arguments
+  const mockDate = new Date("2025-01-15T12:00:00-06:00");
+  const originalDate = global.Date;
+
+  // Mock Date constructor
+  global.Date = class extends originalDate {
+    constructor(...args) {
+      if (args.length === 0) {
+        super(mockDate.getTime());
+        return;
+      }
+      super(...args);
+    }
+
+    static now = jest.fn(() => mockDate.getTime());
+    static UTC = originalDate.UTC;
+    static parse = originalDate.parse;
+  };
+
+  const spyGetVisualization = jest.spyOn(utilities, "getVisualization");
+
+  const dateDependentGridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "plugin_source",
+    args_string: JSON.stringify({
+      plugin_arg: "${Test Variable}",
+    }),
+    metadata_string: JSON.stringify({
+      refreshRate: 0,
+    }),
+  };
+  const dateHourVariable = JSON.parse(JSON.stringify(mockedDateHourVariable));
+  dateHourVariable.args_string = JSON.stringify({
+    initial_value: "01/01/2025 12:00 AM",
+    variable_name: "Test Variable",
+    variable_options_source: "date-hour",
+  });
+
+  const mockedDashboard = {
+    id: 1,
+    name: "editable",
+    label: "test_label",
+    notes: "test_notes",
+    editable: true,
+    publicDashboard: false,
+    tabs: [
+      {
+        id: "1",
+        name: "Tab 1",
+        gridItems: [dateHourVariable, dateDependentGridItem],
+      },
+    ],
+  };
+  const dashboards = { dashboards: [mockedDashboard] };
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(5),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            // eslint-disable-next-line
+            data: "${Test Variable}",
+            viz_type: "text",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <BaseVisualization
+            source={mockedDashboard.tabs[0].gridItems[0].source}
+            argsString={mockedDashboard.tabs[0].gridItems[0].args_string}
+            metadataString={
+              mockedDashboard.tabs[0].gridItems[0].metadata_string
+            }
+          />
+          <BaseVisualization
+            source={mockedDashboard.tabs[0].gridItems[1].source}
+            argsString={mockedDashboard.tabs[0].gridItems[1].args_string}
+            metadataString={
+              mockedDashboard.tabs[0].gridItems[1].metadata_string
+            }
+          />
+        </>
+      ),
+      options: {
+        dashboards,
+        initialDashboard: mockedDashboard,
+        visualizations: [
+          {
+            label: "Visualization Group",
+            options: [
+              {
+                source: "plugin_source",
+                value: "plugin_value",
+                label: "plugin_label",
+                args: { plugin_arg: "date-hour" },
+                type: "plotly",
+                tags: ["test", "plugin"],
+                description: "some description",
+              },
+            ],
+          },
+        ],
+      },
+    })
+  );
+
+  // check getVisualization call with date
+  await waitFor(() => {
+    expect(spyGetVisualization).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        argsString: '{"plugin_arg":"${Test Variable}"}',
+        dashboardView: true,
+        itemData: {
+          args: {
+            plugin_arg: "2025-01-01T00:00:00-06:00",
+          },
+          source: "plugin_source",
+        },
+        metadataString: '{"refreshRate":0}',
+        sourceType: "plotly",
+        variableInputValues: {
+          "Test Variable": "01/01/2025 12:00 AM",
+        },
+        vizLoadingIcon: undefined,
+      })
+    );
+  });
+
+  // update the datepicker textbox to a static date
+  const input = await screen.findByRole("textbox");
+  await userEvent.click(input);
+
+  let expectedDateString = "01/01/2020";
+  fireEvent.change(input, {
+    target: { value: expectedDateString },
+  });
+  const refreshButton = screen.getByLabelText("Refresh variable input");
+  expect(refreshButton).toBeInTheDocument();
+
+  // Clear previous calls and get initial call count
+  spyGetVisualization.mockClear();
+
+  await userEvent.click(refreshButton);
+
+  await waitFor(() => {
+    expect(spyGetVisualization).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        argsString: '{"plugin_arg":"${Test Variable}"}',
+        dashboardView: true,
+        itemData: {
+          args: {
+            plugin_arg: "2020-01-01T00:00:00-06:00",
+          },
+          source: "plugin_source",
+        },
+        metadataString: '{"refreshRate":0}',
+        sourceType: "plotly",
+        variableInputValues: {
+          "Test Variable": "01/01/2020 12:00 AM",
+        },
+        vizLoadingIcon: undefined,
+      })
+    );
+  });
+
+  // Verify getVisualization was called after first refresh
+  let callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
+  expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
+
+  // update the datepicker textbox to a relative date
+  fireEvent.change(input, {
+    target: { value: "now-1D" },
+  });
+
+  // Clear previous calls and get initial call count
+  spyGetVisualization.mockClear();
+  await userEvent.click(refreshButton);
+
+  // Verify getVisualization was called after second refresh
+  callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
+  expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
+
+  expectedDateString = formatDate(
+    addDays(mockDate, -1),
+    "yyyy-MM-dd'T'HH:mm:ss'-06:00'"
+  );
+  let expectedVariableDateString = formatDate(
+    addDays(mockDate, -1),
+    "MM/dd/yyyy h:mm a"
+  );
+  await waitFor(() => {
+    expect(spyGetVisualization).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        argsString: '{"plugin_arg":"${Test Variable}"}',
+        dashboardView: true,
+        itemData: {
+          args: {
+            plugin_arg: expectedDateString,
+          },
+          source: "plugin_source",
+        },
+        metadataString: '{"refreshRate":0}',
+        sourceType: "plotly",
+        variableInputValues: {
+          "Test Variable": expectedVariableDateString,
+        },
+        vizLoadingIcon: undefined,
+      })
+    );
+  });
+
+  // Clear calls again to test no additional calls when clicking refresh without value change
+  spyGetVisualization.mockClear();
+
+  // Click refresh button again without changing the input value
+  await userEvent.click(refreshButton);
+
+  // Wait a bit to ensure any potential async operations complete
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  // Verify that getVisualization was NOT called again since value didn't change
+  expect(spyGetVisualization).not.toHaveBeenCalled();
+
+  // update the datepicker textbox to a new relative date
+  fireEvent.change(input, {
+    target: { value: "now-2D" },
+  });
+  await userEvent.click(refreshButton);
+
+  // Verify getVisualization was called after fourth refresh
+  callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
+  expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
+
+  expectedDateString = formatDate(
+    addDays(mockDate, -2),
+    "yyyy-MM-dd'T'HH:mm:ss'-06:00'"
+  );
+  expectedVariableDateString = formatDate(
+    addDays(mockDate, -2),
+    "MM/dd/yyyy h:mm a"
+  );
+  await waitFor(() => {
+    expect(spyGetVisualization).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        argsString: '{"plugin_arg":"${Test Variable}"}',
+        dashboardView: true,
+        itemData: {
+          args: {
+            plugin_arg: expectedDateString,
+          },
+          source: "plugin_source",
+        },
+        metadataString: '{"refreshRate":0}',
+        sourceType: "plotly",
+        variableInputValues: {
+          "Test Variable": expectedVariableDateString,
+        },
+        vizLoadingIcon: undefined,
+      })
+    );
+  });
+
+  spyGetVisualization.mockRestore();
+  // Restore original Date
+  global.Date = originalDate;
+});
+
+it("Base - initial relative date variable input", async () => {
+  // Mock Date constructor to return a fixed date when called without arguments
+  const mockDate = new Date("2025-01-15T12:00:00-06:00");
+  const originalDate = global.Date;
+
+  // Mock Date constructor
+  global.Date = class extends originalDate {
+    constructor(...args) {
+      if (args.length === 0) {
+        super(mockDate.getTime());
+        return;
+      }
+      super(...args);
+    }
+
+    static now = jest.fn(() => mockDate.getTime());
+    static UTC = originalDate.UTC;
+    static parse = originalDate.parse;
+  };
+
+  const spyGetVisualization = jest.spyOn(utilities, "getVisualization");
+
+  const dateDependentGridItem = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "plugin_source",
+    args_string: JSON.stringify({
+      plugin_arg: "${Test Variable}",
+    }),
+    metadata_string: JSON.stringify({
+      refreshRate: 0,
+    }),
+  };
+  const dateHourVariable = JSON.parse(JSON.stringify(mockedDateHourVariable));
+  dateHourVariable.args_string = JSON.stringify({
+    initial_value: "now",
+    variable_name: "Test Variable",
+    variable_options_source: "date-hour",
+  });
+
+  const mockedDashboard = {
+    id: 1,
+    name: "editable",
+    label: "test_label",
+    notes: "test_notes",
+    editable: true,
+    publicDashboard: false,
+    tabs: [
+      {
+        id: "1",
+        name: "Tab 1",
+        gridItems: [dateHourVariable, dateDependentGridItem],
+      },
+    ],
+  };
+  const dashboards = { dashboards: [mockedDashboard] };
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(5),
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            // eslint-disable-next-line
+            data: "${Test Variable}",
+            viz_type: "text",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <BaseVisualization
+            source={mockedDashboard.tabs[0].gridItems[0].source}
+            argsString={mockedDashboard.tabs[0].gridItems[0].args_string}
+            metadataString={
+              mockedDashboard.tabs[0].gridItems[0].metadata_string
+            }
+          />
+          <BaseVisualization
+            source={mockedDashboard.tabs[0].gridItems[1].source}
+            argsString={mockedDashboard.tabs[0].gridItems[1].args_string}
+            metadataString={
+              mockedDashboard.tabs[0].gridItems[1].metadata_string
+            }
+          />
+        </>
+      ),
+      options: {
+        dashboards,
+        initialDashboard: mockedDashboard,
+        visualizations: [
+          {
+            label: "Visualization Group",
+            options: [
+              {
+                source: "plugin_source",
+                value: "plugin_value",
+                label: "plugin_label",
+                args: { plugin_arg: "date-hour" },
+                type: "plotly",
+                tags: ["test", "plugin"],
+                description: "some description",
+              },
+            ],
+          },
+        ],
+      },
+    })
+  );
+
+  const refreshButton = await screen.findByLabelText("Refresh variable input");
+  const input = await screen.findByRole("textbox");
+
+  // check getVisualization call with date
+  let expectedDateString = formatDate(
+    mockDate,
+    "yyyy-MM-dd'T'HH:mm:ss'-06:00'"
+  );
+  await waitFor(() => {
+    expect(spyGetVisualization).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        argsString: '{"plugin_arg":"${Test Variable}"}',
+        dashboardView: true,
+        itemData: {
+          args: {
+            plugin_arg: expectedDateString,
+          },
+          source: "plugin_source",
+        },
+        metadataString: '{"refreshRate":0}',
+        sourceType: "plotly",
+        variableInputValues: {
+          "Test Variable": "now",
+        },
+        vizLoadingIcon: undefined,
+      })
+    );
+  });
+
+  // Clear calls again to test no additional calls when clicking refresh without value change
+  spyGetVisualization.mockClear();
+
+  // Click refresh button again without changing the input value
+  await userEvent.click(refreshButton);
+
+  // Wait a bit to ensure any potential async operations complete
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  // Verify that getVisualization was NOT called again since value didn't change
+  expect(spyGetVisualization).not.toHaveBeenCalled();
+
+  // update the datepicker textbox to a new relative date
+  fireEvent.change(input, {
+    target: { value: "now-1D" },
+  });
+  await userEvent.click(refreshButton);
+
+  // Verify getVisualization was called after fourth refresh
+  const callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
+  expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
+
+  expectedDateString = formatDate(
+    addDays(mockDate, -1),
+    "yyyy-MM-dd'T'HH:mm:ss'-06:00'"
+  );
+  const expectedVariableDateString = formatDate(
+    addDays(mockDate, -1),
+    "MM/dd/yyyy h:mm a"
+  );
+  await waitFor(() => {
+    expect(spyGetVisualization).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        argsString: '{"plugin_arg":"${Test Variable}"}',
+        dashboardView: true,
+        itemData: {
+          args: {
+            plugin_arg: expectedDateString,
+          },
+          source: "plugin_source",
+        },
+        metadataString: '{"refreshRate":0}',
+        sourceType: "plotly",
+        variableInputValues: {
+          "Test Variable": expectedVariableDateString,
+        },
+        vizLoadingIcon: undefined,
+      })
+    );
+  });
+
+  spyGetVisualization.mockRestore();
+  // Restore original Date
+  global.Date = originalDate;
+});
+
 it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine metadata", async () => {
   const spyAddVerticalLine = jest.spyOn(
     require("components/visualizations/BasePlot"),
@@ -800,4 +1336,152 @@ it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine meta
     dash: "dashdot",
   });
   spyAddVerticalLine.mockRestore();
+});
+
+describe("toLocalISO function", () => {
+  it("should format date with correct timezone offset signs - covers line 174", () => {
+    // Test the specific logic on line 174: (d.getTimezoneOffset() > 0 ? "-" : "+")
+
+    // Create a base date for testing
+    const baseDate = new Date("2025-01-15T12:00:00");
+
+    // Store original getTimezoneOffset method
+    const originalGetTimezoneOffset = baseDate.getTimezoneOffset;
+
+    try {
+      // Test Case 1: Positive offset (timezone behind UTC) - should use "-"
+      // This tests the first part of the ternary: d.getTimezoneOffset() > 0 ? "-"
+      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(360); // UTC-6 (360 minutes behind)
+      const resultBehindUTC = toLocalISO(baseDate);
+      expect(resultBehindUTC).toMatch(/.*-06:00$/); // Should end with -06:00
+
+      // Test Case 2: Negative offset (timezone ahead of UTC) - should use "+"
+      // This tests the second part of the ternary: : "+"
+      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(-120); // UTC+2 (120 minutes ahead, so negative)
+      const resultAheadUTC = toLocalISO(baseDate);
+      expect(resultAheadUTC).toMatch(/.*\+02:00$/); // Should end with +02:00
+
+      // Test Case 3: Zero offset (exactly UTC) - should use "+"
+      // This tests the edge case where getTimezoneOffset() === 0, so the condition is false
+      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(0); // UTC±0
+      const resultUTC = toLocalISO(baseDate);
+      expect(resultUTC).toMatch(/.*\+00:00$/); // Should end with +00:00
+
+      // Test Case 4: Large positive offset - should use "-"
+      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(720); // UTC-12
+      const resultLargeBehind = toLocalISO(baseDate);
+      expect(resultLargeBehind).toMatch(/.*-12:00$/); // Should end with -12:00
+
+      // Test Case 5: Large negative offset - should use "+"
+      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(-720); // UTC+12
+      const resultLargeAhead = toLocalISO(baseDate);
+      expect(resultLargeAhead).toMatch(/.*\+12:00$/); // Should end with +12:00
+
+      // Verify the complete format structure
+      const completeResult = toLocalISO(baseDate);
+      expect(completeResult).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/
+      );
+    } finally {
+      // Always restore the original method
+      baseDate.getTimezoneOffset = originalGetTimezoneOffset;
+    }
+  });
+});
+
+describe("compareFilteredArgs function", () => {
+  it("should handle updatedArgs being null or undefined - covers line 215", () => {
+    const currentArgs = { a: 1, b: 2, c: 3 };
+    const keysToCompare = { a: true, b: true };
+
+    // Test Case 1: updatedArgs is null - line 215 should evaluate to false
+    const resultWithNull = compareFilteredArgs(
+      currentArgs,
+      null,
+      keysToCompare
+    );
+    expect(resultWithNull).toBe(false); // Different because currentArgs has values but updatedArgs is null
+
+    // Test Case 2: updatedArgs is undefined - line 215 should evaluate to false
+    const resultWithUndefined = compareFilteredArgs(
+      currentArgs,
+      undefined,
+      keysToCompare
+    );
+    expect(resultWithUndefined).toBe(false); // Different because currentArgs has values but updatedArgs is undefined
+
+    // Test Case 3: updatedArgs is an empty object - line 215 condition passes but keys are undefined
+    const resultWithEmptyObject = compareFilteredArgs(
+      currentArgs,
+      {},
+      keysToCompare
+    );
+    expect(resultWithEmptyObject).toBe(false); // Different because currentArgs has values but updatedArgs is empty
+
+    // Test Case 4: updatedArgs has some keys but not the ones in keysToCompare
+    const updatedArgsWithDifferentKeys = { x: 1, y: 2 };
+    const resultWithDifferentKeys = compareFilteredArgs(
+      currentArgs,
+      updatedArgsWithDifferentKeys,
+      keysToCompare
+    );
+    expect(resultWithDifferentKeys).toBe(false); // Different because the keys don't match
+
+    // Test Case 5: updatedArgs has the same keys and values - should pass line 215 and succeed
+    const updatedArgsMatching = { a: 1, b: 2, z: 99 }; // z is extra but not in keysToCompare
+    const resultMatching = compareFilteredArgs(
+      currentArgs,
+      updatedArgsMatching,
+      keysToCompare
+    );
+    expect(resultMatching).toBe(true); // Should match because filtered keys a and b have same values
+
+    // Test Case 6: updatedArgs has some matching keys but different values
+    const updatedArgsPartialMatch = { a: 1, b: 999 }; // b has different value
+    const resultPartialMatch = compareFilteredArgs(
+      currentArgs,
+      updatedArgsPartialMatch,
+      keysToCompare
+    );
+    expect(resultPartialMatch).toBe(false); // Should not match because b values are different
+
+    // Test Case 7: updatedArgs has some keys undefined - tests the !== undefined check on line 215
+    const updatedArgsWithUndefinedValues = { a: 1, b: undefined, c: 3 };
+    const resultWithUndefinedValues = compareFilteredArgs(
+      currentArgs,
+      updatedArgsWithUndefinedValues,
+      keysToCompare
+    );
+    expect(resultWithUndefinedValues).toBe(false); // Should not match because b is undefined in updatedArgs but defined in currentArgs
+  });
+
+  it("should handle currentArgs being null or undefined", () => {
+    const updatedArgs = { a: 1, b: 2 };
+    const keysToCompare = { a: true, b: true };
+
+    // Test currentArgs being null
+    const resultWithNullCurrent = compareFilteredArgs(
+      null,
+      updatedArgs,
+      keysToCompare
+    );
+    expect(resultWithNullCurrent).toBe(false);
+
+    // Test currentArgs being undefined
+    const resultWithUndefinedCurrent = compareFilteredArgs(
+      undefined,
+      updatedArgs,
+      keysToCompare
+    );
+    expect(resultWithUndefinedCurrent).toBe(false);
+  });
+
+  it("should only compare keys that exist in keysToCompare", () => {
+    const currentArgs = { a: 1, b: 2, c: 3, d: 4 };
+    const updatedArgs = { a: 1, b: 2, c: 999, d: 999 }; // c and d are different but not in keysToCompare
+    const keysToCompare = { a: true, b: true }; // Only compare a and b
+
+    const result = compareFilteredArgs(currentArgs, updatedArgs, keysToCompare);
+    expect(result).toBe(true); // Should match because only a and b are compared, and they match
+  });
 });

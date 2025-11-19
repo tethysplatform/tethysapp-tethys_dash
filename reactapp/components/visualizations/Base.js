@@ -157,7 +157,7 @@ const isRelativeDate = (val) => {
   return typeof val === "string" && /^now([+-]\d+[YMWDHmS])*$/.test(val);
 };
 
-function toLocalISO(d) {
+export function toLocalISO(d) {
   const pad = (n) => String(n).padStart(2, "0");
   return (
     d.getFullYear() +
@@ -197,6 +197,27 @@ const convertDates = (obj) => {
   }
 
   return obj;
+};
+
+// Helper function to compare only the keys that exist in filteredOriginalArgs
+export const compareFilteredArgs = (
+  currentArgs,
+  updatedArgs,
+  keysToCompare
+) => {
+  const filteredCurrent = {};
+  const filteredUpdated = {};
+
+  for (const key of Object.keys(keysToCompare)) {
+    if (currentArgs && currentArgs[key] !== undefined) {
+      filteredCurrent[key] = currentArgs[key];
+    }
+    if (updatedArgs && updatedArgs[key] !== undefined) {
+      filteredUpdated[key] = updatedArgs[key];
+    }
+  }
+
+  return valuesEqual(filteredCurrent, filteredUpdated);
 };
 
 // Filter function to exclude date/date-hour types and relative dates
@@ -314,23 +335,6 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
       variableInputValues,
       argTypes
     );
-
-    // Helper function to compare only the keys that exist in filteredOriginalArgs
-    const compareFilteredArgs = (currentArgs, updatedArgs, keysToCompare) => {
-      const filteredCurrent = {};
-      const filteredUpdated = {};
-
-      for (const key of Object.keys(keysToCompare)) {
-        if (currentArgs && currentArgs[key] !== undefined) {
-          filteredCurrent[key] = currentArgs[key];
-        }
-        if (updatedArgs && updatedArgs[key] !== undefined) {
-          filteredUpdated[key] = updatedArgs[key];
-        }
-      }
-
-      return valuesEqual(filteredCurrent, filteredUpdated);
-    };
 
     if (
       refresh ||
