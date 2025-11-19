@@ -805,6 +805,7 @@ it("Base - update date variable input", async () => {
     h: 20,
     source: "plugin_source",
     args_string: JSON.stringify({
+      // eslint-disable-next-line
       plugin_arg: "${Test Variable}",
     }),
     metadata_string: JSON.stringify({
@@ -901,6 +902,7 @@ it("Base - update date variable input", async () => {
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line
         argsString: '{"plugin_arg":"${Test Variable}"}',
         dashboardView: true,
         itemData: {
@@ -938,6 +940,7 @@ it("Base - update date variable input", async () => {
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line
         argsString: '{"plugin_arg":"${Test Variable}"}',
         dashboardView: true,
         itemData: {
@@ -984,6 +987,7 @@ it("Base - update date variable input", async () => {
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line
         argsString: '{"plugin_arg":"${Test Variable}"}',
         dashboardView: true,
         itemData: {
@@ -1035,6 +1039,7 @@ it("Base - update date variable input", async () => {
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line
         argsString: '{"plugin_arg":"${Test Variable}"}',
         dashboardView: true,
         itemData: {
@@ -1088,6 +1093,7 @@ it("Base - initial relative date variable input", async () => {
     h: 20,
     source: "plugin_source",
     args_string: JSON.stringify({
+      // eslint-disable-next-line
       plugin_arg: "${Test Variable}",
     }),
     metadata_string: JSON.stringify({
@@ -1191,6 +1197,7 @@ it("Base - initial relative date variable input", async () => {
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line
         argsString: '{"plugin_arg":"${Test Variable}"}',
         dashboardView: true,
         itemData: {
@@ -1242,6 +1249,7 @@ it("Base - initial relative date variable input", async () => {
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
+        // eslint-disable-next-line
         argsString: '{"plugin_arg":"${Test Variable}"}',
         dashboardView: true,
         itemData: {
