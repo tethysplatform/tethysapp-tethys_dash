@@ -192,4 +192,32 @@ describe("addVerticalLine", () => {
       expect.any(Error)
     );
   });
+
+  it("handles date parsing errors and uses original value", () => {
+    const plotRef = createMockPlotRef({ shapes: [] });
+
+    // Mock Date constructor to throw an error for a specific value
+    const originalDate = global.Date;
+    global.Date = class extends originalDate {
+      constructor(...args) {
+        if (args.length === 1 && args[0] === "invalid-date-string") {
+          throw new Error("Invalid date");
+        }
+        return new originalDate(...args);
+      }
+    };
+
+    // Copy static methods
+    Object.setPrototypeOf(global.Date, originalDate);
+    Object.defineProperty(global.Date, "now", { value: originalDate.now });
+
+    addVerticalLine(plotRef, "invalid-date-string");
+
+    const shapes = mockRelayout.mock.calls[0][1].shapes;
+    expect(shapes[0].x0).toBe("invalid-date-string");
+    expect(shapes[0].x1).toBe("invalid-date-string");
+
+    // Restore original Date constructor
+    global.Date = originalDate;
+  });
 });
