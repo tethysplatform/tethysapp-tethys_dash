@@ -1024,18 +1024,18 @@ test("Visualization Pane Use Existing Args Viz with False checkbox", async () =>
   expect(await screen.findByText("False")).toBeInTheDocument();
 
   await waitFor(async () => {
-    expect(mockSetVizMetadata).toHaveBeenCalledWith({
+    expect(mockSetVizMetadata).toHaveBeenLastCalledWith({
       source: "plugin_source",
       args: {
         plugin_arg: false,
       },
     });
   });
-  expect(mockSetGridItemMessage).toHaveBeenCalledWith(
+  expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
     "Cell updated to show plugin_label"
   );
-  expect(mockSetVizType).toHaveBeenCalledWith("plotly");
-  expect(mockSetVizData).toHaveBeenCalledWith({});
+  expect(mockSetVizType).toHaveBeenLastCalledWith("plotly");
+  expect(mockSetVizData).toHaveBeenLastCalledWith({});
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({ plugin_arg: false })
   );

@@ -247,7 +247,10 @@ it("Creates a Slider Input for a Variable Input", async () => {
   );
 
   await advanceTimers(1500);
-  expect(handleChange).toHaveBeenLastCalledWith("51");
+
+  await waitFor(() => {
+    expect(handleChange).toHaveBeenLastCalledWith("51");
+  });
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({ "Test Variable": "51" })

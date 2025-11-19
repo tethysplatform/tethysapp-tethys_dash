@@ -274,7 +274,15 @@ VariableInput.propTypes = {
     PropTypes.number,
   ]),
   variable_name: PropTypes.string,
-  variable_options_source: PropTypes.string, // This is where the name of the source comes in like in the dropdown
+  variable_options_source: PropTypes.oneOfType([
+    PropTypes.string,
+    PropTypes.arrayOf(
+      PropTypes.oneOfType([
+        PropTypes.string,
+        PropTypes.shape({ label: PropTypes.string, value: PropTypes.any }),
+      ])
+    ),
+  ]), // This is where the name of the source comes in like in the dropdown
   onChange: PropTypes.func,
   metadata: PropTypes.shape({
     min: PropTypes.oneOfType([
@@ -293,7 +301,7 @@ VariableInput.propTypes = {
     initialRange: PropTypes.arrayOf(
       PropTypes.oneOfType([PropTypes.number, PropTypes.string])
     ), // For slider metadata
-    rangeMode: PropTypes.string, // For slider metadata
+    rangeMode: PropTypes.bool, // For slider metadata
     outputFormat: PropTypes.string, // For slider metadata
     dateTimeDelta: PropTypes.string, // For slider metadata
     headers: PropTypes.arrayOf(PropTypes.string), // For CSVUploader metadata
