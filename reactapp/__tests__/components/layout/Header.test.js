@@ -10,9 +10,7 @@ import DashboardTabs from "components/dashboard/DashboardTabs";
 import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import appAPI from "services/api/app";
 import { useNavigate } from "react-router-dom";
-import IdleTimerManager from "components/loader/IdleTimerManager";
-import { AppContext, AppTourContext } from "components/contexts/Contexts";
-import { ModalPriorityContext } from "components/contexts/ModalPriorityContext";
+import { AppTourContext } from "components/contexts/Contexts";
 import {
   mockedDashboards,
   mockedTextVariable,

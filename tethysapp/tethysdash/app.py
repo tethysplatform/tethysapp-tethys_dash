@@ -61,7 +61,7 @@ class App(TethysAppBase):
                 type=CustomSetting.TYPE_STRING,
                 description="Support GitHub URL",
                 required=False,
-                default="https://github.com/tethysplatform/tethysapp-tethys_dash/issues",
+                default="https://github.com/tethysplatform/tethysapp-tethys_dash/issues",  # noqa E501
             ),
         )
 
