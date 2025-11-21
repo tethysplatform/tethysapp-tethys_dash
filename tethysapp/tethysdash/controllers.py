@@ -194,14 +194,23 @@ def dashboards(request):
         JsonResponse: Dictionary containing:
             - dashboards: List of dashboard objects accessible to the user
             - permission_groups: List of permission groups for the user
+            - support_info: Dictionary containing support email and GitHub URL
     """
     user = request.user
     dashboards = get_dashboards(user)
     permission_groups = get_user_permission_groups(user)
+    support_info = {
+        "support_email": App.get_custom_setting("support_email"),
+        "support_github": App.get_custom_setting("support_github"),
+    }
     clean_up_jsons(user)
 
     return JsonResponse(
-        {"dashboards": dashboards, "permission_groups": permission_groups}
+        {
+            "dashboards": dashboards,
+            "permission_groups": permission_groups,
+            "support_info": support_info,
+        }
     )
 
 

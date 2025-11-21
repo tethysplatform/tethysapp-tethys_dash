@@ -248,6 +248,10 @@ function Loader({ children }) {
           },
         ],
       });
+      tethysApp.customSettings = {
+        ...tethysApp.custom_settings,
+        ...dashboards.support_info,
+      };
 
       setAppContext({
         tethysApp,

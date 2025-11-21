@@ -51,13 +51,10 @@ const AttributionDiv = styled.div`
   margin-top: 1rem;
 `;
 
-const contactUsEmail = process.env.TETHYSDASH_SUPPORT_EMAIL;
-const contactUsGitHub = process.env.TETHYSDASH_SUPPORT_GITHUB;
-
 function AppInfoModal({ showModal, setShowModal, view }) {
   const tabContext = useContext(TabContext);
   const editingContext = useContext(EditingContext);
-  const { user } = useContext(AppContext);
+  const { user, tethysApp } = useContext(AppContext);
   const { setActiveAppTour, setAppTourStep } = useAppTourContext();
   const dontShowLandingPageInfoOnStart = localStorage.getItem(
     "dontShowLandingPageInfoOnStart"
@@ -171,10 +168,22 @@ function AppInfoModal({ showModal, setShowModal, view }) {
           <hr />
           <InfoSpan>
             Have questions or need support? Contact us at{" "}
-            <a href={`mailto:${contactUsEmail}`}>{contactUsEmail}</a> or{" "}
-            <a target="_blank" rel="noopener noreferrer" href={contactUsGitHub}>
-              GitHub
-            </a>{" "}
+            <a href={`mailto:${tethysApp.customSettings.support_email}`}>
+              {tethysApp.customSettings.support_email}
+            </a>
+            {tethysApp.customSettings.support_github && (
+              <>
+                {" "}
+                or{" "}
+                <a
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  href={tethysApp.customSettings.support_github}
+                >
+                  GitHub
+                </a>
+              </>
+            )}{" "}
             for inquiries about custom visualizations, dashboards, or any issues
             you encounter.
           </InfoSpan>

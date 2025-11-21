@@ -6,11 +6,14 @@ import PropTypes from "prop-types";
 import { useIdleTimer } from "react-idle-timer";
 import appAPI from "services/api/app";
 import tethysAPI from "services/api/tethys";
+import { useModalPriority } from "components/contexts/ModalPriorityContext";
 
 // This controls how often the API is called for activity
 const SESSION_PING_FREQUENCY = process.env.REACT_SESSION_PING_FREQUENCY;
 
 function IdleTimerManager() {
+  const { setShowingPublicUserModal, setPublicUserModalChecked } =
+    useModalPriority();
   const [showRedirectPublicUserModal, setShowRedirectPublicUserModal] =
     useState(false);
   const [checked, setChecked] = useState(false);
@@ -32,6 +35,8 @@ function IdleTimerManager() {
     const loadAppData = async () => {
       try {
         await tethysAPI.getSession();
+        // User is authenticated, no need to show public user modal
+        setPublicUserModalChecked(true);
       } catch (error) {
         if (error.response.status === 401) {
           if (
@@ -39,7 +44,10 @@ function IdleTimerManager() {
             !dontShowPublicLoginOnStart
           ) {
             setShowRedirectPublicUserModal(true);
+            setShowingPublicUserModal(true);
           }
+          // Mark as checked even if not showing (user has opted out)
+          setPublicUserModalChecked(true);
         }
       }
     };
@@ -148,6 +156,7 @@ function IdleTimerManager() {
       return;
     }
     setShowRedirectPublicUserModal(false);
+    setShowingPublicUserModal(false);
   };
 
   const handleStillHere = (active) => {

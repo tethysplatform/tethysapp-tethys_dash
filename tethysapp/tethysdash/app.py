@@ -1,5 +1,5 @@
 from tethys_sdk.base import TethysAppBase
-from tethys_sdk.app_settings import PersistentStoreDatabaseSetting
+from tethys_sdk.app_settings import PersistentStoreDatabaseSetting, CustomSetting
 from tethys_sdk.permissions import Permission
 
 
@@ -43,3 +43,26 @@ class App(TethysAppBase):
         permissions = (manage_visualizations,)
 
         return permissions
+
+    def custom_settings(self):
+        """
+        Example custom_settings method.
+        """
+        custom_settings = (
+            CustomSetting(
+                name="support_email",
+                type=CustomSetting.TYPE_STRING,
+                description="Support email address",
+                required=True,
+                default="ckrewson@aquaveo.com",
+            ),
+            CustomSetting(
+                name="support_github",
+                type=CustomSetting.TYPE_STRING,
+                description="Support GitHub URL",
+                required=False,
+                default="https://github.com/tethysplatform/tethysapp-tethys_dash/issues",
+            ),
+        )
+
+        return custom_settings
