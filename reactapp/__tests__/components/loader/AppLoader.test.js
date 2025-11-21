@@ -12,6 +12,7 @@ import { rest } from "msw";
 import { baseMapLayers } from "components/visualizations/utilities";
 import ErrorBoundary from "components/error/ErrorBoundary";
 import { nonDropDownVariableInputTypes } from "components/visualizations/utilities";
+import { ModalPriorityProvider } from "components/contexts/ModalPriorityContext";
 
 const TestingComponent = () => {
   const {
@@ -93,9 +94,11 @@ test("AppLoader", async () => {
   );
 
   render(
-    <Loader>
-      <TestingComponent />
-    </Loader>
+    <ModalPriorityProvider>
+      <Loader>
+        <TestingComponent />
+      </Loader>
+    </ModalPriorityProvider>
   );
 
   expect(await screen.findByTestId("tethysApp")).toHaveTextContent(
@@ -110,6 +113,7 @@ test("AppLoader", async () => {
       exitUrl: "/apps/",
       rootUrl: "/apps/tethysdash/",
       settingsUrl: "/admin/tethys_apps/tethysapp/999/change/",
+      customSettings: {},
     })
   );
 
@@ -277,9 +281,11 @@ test("AppLoader, load session error", async () => {
 
   render(
     <ErrorBoundary>
-      <Loader>
-        <TestingComponent />
-      </Loader>
+      <ModalPriorityProvider>
+        <Loader>
+          <TestingComponent />
+        </Loader>
+      </ModalPriorityProvider>
     </ErrorBoundary>
   );
 
@@ -304,9 +310,11 @@ test("AppLoader, load visualization error", async () => {
 
   render(
     <ErrorBoundary>
-      <Loader>
-        <TestingComponent />
-      </Loader>
+      <ModalPriorityProvider>
+        <Loader>
+          <TestingComponent />
+        </Loader>
+      </ModalPriorityProvider>
     </ErrorBoundary>
   );
 

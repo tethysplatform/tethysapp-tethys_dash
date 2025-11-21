@@ -10,30 +10,33 @@ import {
   PermissionGroupContext,
 } from "components/contexts/Contexts";
 import AppTourContextProvider from "components/contexts/AppTourContext";
+import { ModalPriorityProvider } from "components/contexts/ModalPriorityContext";
 import { MemoryRouter } from "react-router-dom";
 
 describe("LandingPage", () => {
   it("Shows just the New Dashboard Card when there aren't availableDashboards", () => {
     render(
-      <AppContext.Provider
-        value={{
-          user: { username: "johnSmith" },
-          tethysApp: { exitUrl: "/home" },
-        }}
-      >
-        <AvailableDashboardsContext.Provider
+      <ModalPriorityProvider>
+        <AppContext.Provider
           value={{
-            availableDashboards: [],
-            deleteDashboard: jest.fn(),
-            copyDashboard: jest.fn(),
-            updateDashboard: jest.fn(),
+            user: { username: "johnSmith" },
+            tethysApp: { exitUrl: "/home" },
           }}
         >
-          <AppTourContextProvider>
-            <LandingPage />
-          </AppTourContextProvider>
-        </AvailableDashboardsContext.Provider>
-      </AppContext.Provider>
+          <AvailableDashboardsContext.Provider
+            value={{
+              availableDashboards: [],
+              deleteDashboard: jest.fn(),
+              copyDashboard: jest.fn(),
+              updateDashboard: jest.fn(),
+            }}
+          >
+            <AppTourContextProvider>
+              <LandingPage />
+            </AppTourContextProvider>
+          </AvailableDashboardsContext.Provider>
+        </AppContext.Provider>
+      </ModalPriorityProvider>
     );
 
     expect(screen.getByText("Create a New Dashboard")).toBeInTheDocument();
@@ -49,31 +52,33 @@ describe("LandingPage", () => {
 
     render(
       <MemoryRouter initialEntries={["/"]}>
-        <AppContext.Provider
-          value={{
-            user: { username: "admin" },
-            tethysApp: { exitUrl: "/home" },
-          }}
-        >
-          <PermissionGroupContext.Provider
+        <ModalPriorityProvider>
+          <AppContext.Provider
             value={{
-              permissionGroups: [],
+              user: { username: "admin" },
+              tethysApp: { exitUrl: "/home" },
             }}
           >
-            <AvailableDashboardsContext.Provider
+            <PermissionGroupContext.Provider
               value={{
-                availableDashboards: customDashboards,
-                deleteDashboard: jest.fn(),
-                copyDashboard: jest.fn(),
-                updateDashboard: jest.fn(),
+                permissionGroups: [],
               }}
             >
-              <AppTourContextProvider>
-                <LandingPage />
-              </AppTourContextProvider>
-            </AvailableDashboardsContext.Provider>
-          </PermissionGroupContext.Provider>
-        </AppContext.Provider>
+              <AvailableDashboardsContext.Provider
+                value={{
+                  availableDashboards: customDashboards,
+                  deleteDashboard: jest.fn(),
+                  copyDashboard: jest.fn(),
+                  updateDashboard: jest.fn(),
+                }}
+              >
+                <AppTourContextProvider>
+                  <LandingPage />
+                </AppTourContextProvider>
+              </AvailableDashboardsContext.Provider>
+            </PermissionGroupContext.Provider>
+          </AppContext.Provider>
+        </ModalPriorityProvider>
       </MemoryRouter>
     );
 
@@ -85,22 +90,27 @@ describe("LandingPage", () => {
   it("Shows only public dashboards when not logged in", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
-        <AppContext.Provider
-          value={{ user: { username: null }, tethysApp: { exitUrl: "/home" } }}
-        >
-          <AvailableDashboardsContext.Provider
+        <ModalPriorityProvider>
+          <AppContext.Provider
             value={{
-              availableDashboards: [publicDashboard],
-              deleteDashboard: jest.fn(),
-              copyDashboard: jest.fn(),
-              updateDashboard: jest.fn(),
+              user: { username: null },
+              tethysApp: { exitUrl: "/home" },
             }}
           >
-            <AppTourContextProvider>
-              <LandingPage />
-            </AppTourContextProvider>
-          </AvailableDashboardsContext.Provider>
-        </AppContext.Provider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                availableDashboards: [publicDashboard],
+                deleteDashboard: jest.fn(),
+                copyDashboard: jest.fn(),
+                updateDashboard: jest.fn(),
+              }}
+            >
+              <AppTourContextProvider>
+                <LandingPage />
+              </AppTourContextProvider>
+            </AvailableDashboardsContext.Provider>
+          </AppContext.Provider>
+        </ModalPriorityProvider>
       </MemoryRouter>
     );
 
@@ -114,22 +124,27 @@ describe("LandingPage", () => {
   it("Doesn't show Create new Dashboard when signed in as public with no dashboards", () => {
     render(
       <MemoryRouter initialEntries={["/"]}>
-        <AppContext.Provider
-          value={{ user: { username: null }, tethysApp: { exitUrl: "/home" } }}
-        >
-          <AvailableDashboardsContext.Provider
+        <ModalPriorityProvider>
+          <AppContext.Provider
             value={{
-              availableDashboards: [],
-              deleteDashboard: jest.fn(),
-              copyDashboard: jest.fn(),
-              updateDashboard: jest.fn(),
+              user: { username: null },
+              tethysApp: { exitUrl: "/home" },
             }}
           >
-            <AppTourContextProvider>
-              <LandingPage />
-            </AppTourContextProvider>
-          </AvailableDashboardsContext.Provider>
-        </AppContext.Provider>
+            <AvailableDashboardsContext.Provider
+              value={{
+                availableDashboards: [],
+                deleteDashboard: jest.fn(),
+                copyDashboard: jest.fn(),
+                updateDashboard: jest.fn(),
+              }}
+            >
+              <AppTourContextProvider>
+                <LandingPage />
+              </AppTourContextProvider>
+            </AvailableDashboardsContext.Provider>
+          </AppContext.Provider>
+        </ModalPriorityProvider>
       </MemoryRouter>
     );
 

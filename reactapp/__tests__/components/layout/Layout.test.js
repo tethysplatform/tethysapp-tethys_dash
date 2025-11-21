@@ -3,6 +3,7 @@ import Layout from "components/layout/Layout";
 import Loader from "components/loader/AppLoader";
 import { MemoryRouter } from "react-router-dom";
 import { userDashboard } from "__tests__/utilities/constants";
+import { ModalPriorityProvider } from "components/contexts/ModalPriorityContext";
 
 // eslint-disable-next-line
 jest.mock("views/Dashboard", () => (props) => (
@@ -14,9 +15,11 @@ jest.mock("views/Dashboard", () => (props) => (
 test("Layout loading", async () => {
   render(
     <MemoryRouter initialEntries={["/dashboard/some_dashboard"]}>
-      <Loader>
-        <Layout />
-      </Loader>
+      <ModalPriorityProvider>
+        <Loader>
+          <Layout />
+        </Loader>
+      </ModalPriorityProvider>
     </MemoryRouter>
   );
 
@@ -27,9 +30,11 @@ test("Layout loading", async () => {
 test("Layout not found", async () => {
   render(
     <MemoryRouter initialEntries={["/some_bad_url"]}>
-      <Loader>
-        <Layout />
-      </Loader>
+      <ModalPriorityProvider>
+        <Loader>
+          <Layout />
+        </Loader>
+      </ModalPriorityProvider>
     </MemoryRouter>
   );
 
@@ -39,9 +44,11 @@ test("Layout not found", async () => {
 test("Layout loading valid dashboard", async () => {
   render(
     <MemoryRouter initialEntries={[`/dashboard/${userDashboard.uuid}`]}>
-      <Loader>
-        <Layout />
-      </Loader>
+      <ModalPriorityProvider>
+        <Loader>
+          <Layout />
+        </Loader>
+      </ModalPriorityProvider>
     </MemoryRouter>
   );
 
@@ -52,9 +59,11 @@ test("Layout loading valid dashboard", async () => {
 test("Layout loading invalid dashboard", async () => {
   render(
     <MemoryRouter initialEntries={["/dashboard/nonexist"]}>
-      <Loader>
-        <Layout />
-      </Loader>
+      <ModalPriorityProvider>
+        <Loader>
+          <Layout />
+        </Loader>
+      </ModalPriorityProvider>
     </MemoryRouter>
   );
 

@@ -4,6 +4,7 @@ import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 import userEvent from "@testing-library/user-event";
 import IdleTimerManager from "components/loader/IdleTimerManager";
+import { ModalPriorityProvider } from "components/contexts/ModalPriorityContext";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -24,7 +25,11 @@ test("IdleTimerManager, user signed out", async () => {
     })
   );
 
-  render(<IdleTimerManager />);
+  render(
+    <ModalPriorityProvider>
+      <IdleTimerManager />
+    </ModalPriorityProvider>
+  );
 
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 
@@ -77,7 +82,11 @@ test("IdleTimerManager, check if user signed in", async () => {
     })
   );
 
-  const { rerender } = render(<IdleTimerManager />);
+  const { rerender } = render(
+    <ModalPriorityProvider>
+      <IdleTimerManager />
+    </ModalPriorityProvider>
+  );
 
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 
@@ -85,7 +94,11 @@ test("IdleTimerManager, check if user signed in", async () => {
   // make sure to update the "delays signing out if activity is detected" test and vice versa
   await sleep(6000);
 
-  rerender(<IdleTimerManager />);
+  rerender(
+    <ModalPriorityProvider>
+      <IdleTimerManager />
+    </ModalPriorityProvider>
+  );
   expect(screen.getByText("Are you still here?")).toBeInTheDocument();
 
   const staySignedInButton = screen.getByRole("button", {
@@ -94,7 +107,13 @@ test("IdleTimerManager, check if user signed in", async () => {
   expect(staySignedInButton).toBeInTheDocument();
 
   await user.click(staySignedInButton);
-  rerender(<IdleTimerManager />);
+
+  rerender(
+    <ModalPriorityProvider>
+      <IdleTimerManager />
+    </ModalPriorityProvider>
+  );
+
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
   await sleep(6000);
 
@@ -136,7 +155,11 @@ test("IdleTimerManager, public session and continue", async () => {
   delete window.location; // Remove existing location object
   window.location = { assign: jest.fn() }; // Mock location.assign
 
-  render(<IdleTimerManager />);
+  render(
+    <ModalPriorityProvider>
+      <IdleTimerManager />
+    </ModalPriorityProvider>
+  );
 
   expect(
     await screen.findByText(
@@ -170,7 +193,11 @@ test("IdleTimerManager, failed ping", async () => {
     })
   );
 
-  render(<IdleTimerManager />);
+  render(
+    <ModalPriorityProvider>
+      <IdleTimerManager />
+    </ModalPriorityProvider>
+  );
 
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 });
@@ -205,10 +232,10 @@ test("IdleTimerManager, delays signing out if activity is detected", async () =>
   );
 
   const { rerender } = render(
-    <>
+    <ModalPriorityProvider>
       <IdleTimerManager />
       <button>Click me</button>
-    </>
+    </ModalPriorityProvider>
   );
 
   delete window.location; // Remove existing location object
@@ -223,10 +250,10 @@ test("IdleTimerManager, delays signing out if activity is detected", async () =>
 
   await sleep(3000);
   rerender(
-    <>
+    <ModalPriorityProvider>
       <IdleTimerManager />
       <button>Click me</button>
-    </>
+    </ModalPriorityProvider>
   );
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 }, 30000);
@@ -265,7 +292,11 @@ test("IdleTimerManager, public session and no sign in prompt", async () => {
 
   Object.defineProperty(window, "localStorage", { value: localStorageMock });
 
-  render(<IdleTimerManager />);
+  render(
+    <ModalPriorityProvider>
+      <IdleTimerManager />
+    </ModalPriorityProvider>
+  );
 
   expect(
     screen.queryByText(
@@ -306,7 +337,11 @@ test("IdleTimerManager, public session and sign in", async () => {
   delete window.location;
   window.location = { assign: jest.fn() };
 
-  render(<IdleTimerManager />);
+  render(
+    <ModalPriorityProvider>
+      <IdleTimerManager />
+    </ModalPriorityProvider>
+  );
 
   // Use reduced timeout for faster test
   expect(
@@ -349,7 +384,11 @@ test("IdleTimerManager, load session error", async () => {
     })
   );
 
-  render(<IdleTimerManager />);
+  render(
+    <ModalPriorityProvider>
+      <IdleTimerManager />
+    </ModalPriorityProvider>
+  );
 
   // no error handling because that is done in AppLoader
   expect(
