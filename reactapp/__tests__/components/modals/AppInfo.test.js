@@ -2,8 +2,31 @@ import userEvent from "@testing-library/user-event";
 import { render, screen } from "@testing-library/react";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import AppInfoModal from "components/modals/AppInfo";
+import { mockedDashboards } from "__tests__/utilities/constants";
+import { server } from "__tests__/utilities/server";
+import { rest } from "msw";
 
 test("landing page app info modal and close", async () => {
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/list/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            dashboards: [mockedDashboards],
+            support_info: {
+              support_email: "support@example.com",
+              support_github: "some/github/url",
+            },
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
   const user = userEvent.setup();
   const mockSetShowModal = jest.fn();
   const localStorageMock = (function () {
@@ -51,6 +74,18 @@ test("landing page app info modal and close", async () => {
       /Welcome to TethysDash, a customizable data viewer and dashboard application. The landing page provides a summary of all available dashboards, including publicly available dashboards. For more information about the application and developing visualizations, check the official/i
     )
   ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Have questions or need support\? Contact us at/i)
+  ).toBeInTheDocument();
+  expect(screen.getByText("support@example.com")).toBeInTheDocument();
+  expect(screen.getByText("GitHub")).toBeInTheDocument();
+  const githubLink = screen.getByText("GitHub");
+  expect(githubLink).toHaveAttribute("href", "some/github/url");
+  expect(
+    screen.getByText(
+      /for inquiries about custom visualizations, dashboards, or any issues you encounter\./i
+    )
+  ).toBeInTheDocument();
 
   expect(localStorage.getItem("dontShowLandingPageInfoOnStart")).toEqual(null);
   const dontShowOnStartupInput = screen.getByLabelText("dontShowOnStartup");
@@ -66,6 +101,26 @@ test("landing page app info modal and close", async () => {
 });
 
 test("dashboard app info modal and close", async () => {
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/list/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            dashboards: [mockedDashboards],
+            support_info: {
+              support_email: "support@example.com",
+              support_github: null,
+            },
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
   const user = userEvent.setup();
   const mockSetShowModal = jest.fn();
   const localStorageMock = (function () {
@@ -113,6 +168,16 @@ test("dashboard app info modal and close", async () => {
   expect(
     await screen.findByText(
       /TethysDash dashboards provide a customizable dataviewer for a variety of user defined data sources. For more information about the application and developing visualizations, check the official/i
+    )
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Have questions or need support\? Contact us at/i)
+  ).toBeInTheDocument();
+  expect(screen.getByText("support@example.com")).toBeInTheDocument();
+  expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
+  expect(
+    screen.getByText(
+      /for inquiries about custom visualizations, dashboards, or any issues you encounter\./i
     )
   ).toBeInTheDocument();
 

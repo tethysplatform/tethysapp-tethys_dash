@@ -1,7 +1,7 @@
 import { createContext, useContext, useState } from "react";
 import PropTypes from "prop-types";
 
-const ModalPriorityContext = createContext();
+export const ModalPriorityContext = createContext();
 
 export const useModalPriority = () => {
   const context = useContext(ModalPriorityContext);
