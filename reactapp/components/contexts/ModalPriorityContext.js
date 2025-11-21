@@ -16,6 +16,8 @@ export const useModalPriority = () => {
 export const ModalPriorityProvider = ({ children }) => {
   const [showingPublicUserModal, setShowingPublicUserModal] = useState(false);
   const [publicUserModalChecked, setPublicUserModalChecked] = useState(false);
+  const [showingIdleTimeoutModal, setShowingIdleTimeoutModal] = useState(false);
+  const [appInfoModalWasOpen, setAppInfoModalWasOpen] = useState(false);
 
   return (
     <ModalPriorityContext.Provider
@@ -24,6 +26,10 @@ export const ModalPriorityProvider = ({ children }) => {
         setShowingPublicUserModal,
         publicUserModalChecked,
         setPublicUserModalChecked,
+        showingIdleTimeoutModal,
+        setShowingIdleTimeoutModal,
+        appInfoModalWasOpen,
+        setAppInfoModalWasOpen,
       }}
     >
       {children}

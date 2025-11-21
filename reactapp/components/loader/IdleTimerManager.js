@@ -12,8 +12,13 @@ import { useModalPriority } from "components/contexts/ModalPriorityContext";
 const SESSION_PING_FREQUENCY = process.env.REACT_SESSION_PING_FREQUENCY;
 
 function IdleTimerManager() {
-  const { setShowingPublicUserModal, setPublicUserModalChecked } =
-    useModalPriority();
+  const {
+    setShowingPublicUserModal,
+    setPublicUserModalChecked,
+    setShowingIdleTimeoutModal,
+    appInfoModalWasOpen,
+    setAppInfoModalWasOpen,
+  } = useModalPriority();
   const [showRedirectPublicUserModal, setShowRedirectPublicUserModal] =
     useState(false);
   const [checked, setChecked] = useState(false);
@@ -63,9 +68,16 @@ function IdleTimerManager() {
     });
   };
 
-  const onIdle = () => {
+  const onIdle = async () => {
+    // First, ensure the session is ended on the backend
+    try {
+      await appAPI.getActivityData({ idleFor: sessionSecurityExpire + 1 });
+    } catch (error) {
+      // Ignore errors, we're logging out anyway
+    }
+    // Then redirect to logout, which will then redirect to login
     window.location.assign(
-      `${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
+      `${TETHYS_PORTAL_BASE}/accounts/logout/?next=${TETHYS_PORTAL_BASE}/accounts/login?next=${window.location.pathname}`
     );
     setShowActivePrompt(false);
   };
@@ -78,6 +90,7 @@ function IdleTimerManager() {
   const onPrompt = () => {
     setCount(0);
     setShowActivePrompt(true);
+    setShowingIdleTimeoutModal(true);
   };
 
   const { getRemainingTime, activate, pause } = useIdleTimer({
@@ -139,9 +152,14 @@ function IdleTimerManager() {
       }
     };
 
-    callAPI();
+    if (count > 0) {
+      callAPI();
+    } else if (count === 0 && renderedOnce.current === false) {
+      // Initial load
+      callAPI();
+    }
     // eslint-disable-next-line
-  }, []);
+  }, [count]);
 
   const handleDontShow = (e) => {
     setChecked(e.target.checked);
@@ -161,8 +179,18 @@ function IdleTimerManager() {
 
   const handleStillHere = (active) => {
     if (active) {
+      // Increment count to trigger API call to keep session alive
+      setCount((prevCount) => prevCount + 1);
       onActive();
       activate();
+      setShowingIdleTimeoutModal(false);
+      // Reopen AppInfo modal if it was open before
+      if (appInfoModalWasOpen) {
+        // Small delay to ensure smooth transition
+        setTimeout(() => {
+          setAppInfoModalWasOpen(true); // Keep it true to trigger reopening in Header
+        }, 100);
+      }
     }
   };
 
