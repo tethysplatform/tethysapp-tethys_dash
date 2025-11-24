@@ -191,3 +191,114 @@ test("dashboard app info modal and close", async () => {
   await userEvent.click(closeButton);
   expect(mockSetShowModal).toHaveBeenCalledWith(false);
 });
+
+test("shows only email if only support_email is provided", async () => {
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/list/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            dashboards: [mockedDashboards],
+            support_info: {
+              support_email: "support@example.com",
+              support_github: null,
+            },
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
+  const mockSetShowModal = jest.fn();
+  render(
+    createLoadedComponent({
+      children: (
+        <AppInfoModal showModal={true} setShowModal={mockSetShowModal} />
+      ),
+    })
+  );
+
+  expect(await screen.findByText(/Contact us at/i)).toBeInTheDocument();
+  expect(screen.getByText("support@example.com")).toBeInTheDocument();
+  expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
+});
+
+test("shows only github if only support_github is provided", async () => {
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/list/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            dashboards: [mockedDashboards],
+            support_info: {
+              support_email: null,
+              support_github: "https://github.com/example/support",
+            },
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
+  const mockSetShowModal = jest.fn();
+  render(
+    createLoadedComponent({
+      children: (
+        <AppInfoModal showModal={true} setShowModal={mockSetShowModal} />
+      ),
+    })
+  );
+
+  expect(await screen.findByText(/Contact us at/i)).toBeInTheDocument();
+  expect(screen.getByText("GitHub")).toBeInTheDocument();
+  expect(screen.getByText("GitHub")).toHaveAttribute(
+    "href",
+    "https://github.com/example/support"
+  );
+  expect(screen.queryByText("support@example.com")).not.toBeInTheDocument();
+});
+
+test("does not show support section if neither email nor github is provided", async () => {
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/list/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            dashboards: [mockedDashboards],
+            support_info: {
+              support_email: null,
+              support_github: null,
+            },
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
+  const mockSetShowModal = jest.fn();
+  render(
+    createLoadedComponent({
+      children: (
+        <AppInfoModal showModal={true} setShowModal={mockSetShowModal} />
+      ),
+    })
+  );
+
+  expect(
+    screen.queryByText(/Have questions or need support/i)
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText("support@example.com")).not.toBeInTheDocument();
+  expect(screen.queryByText("GitHub")).not.toBeInTheDocument();
+});

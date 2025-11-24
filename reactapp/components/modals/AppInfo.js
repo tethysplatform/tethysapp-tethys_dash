@@ -165,28 +165,41 @@ function AppInfoModal({ showModal, setShowModal, view }) {
               </Button>
             </>
           )}
-          <hr />
-          <InfoSpan>
-            Have questions or need support? Contact us at{" "}
-            <a href={`mailto:${tethysApp.customSettings.support_email}`}>
-              {tethysApp.customSettings.support_email}
-            </a>
-            {tethysApp.customSettings.support_github && (
-              <>
-                {" "}
-                or{" "}
-                <a
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  href={tethysApp.customSettings.support_github}
-                >
-                  GitHub
-                </a>
-              </>
-            )}{" "}
-            for inquiries about custom visualizations, dashboards, or any issues
-            you encounter.
-          </InfoSpan>
+          {(tethysApp.customSettings.support_email ||
+            tethysApp.customSettings.support_github) && (
+            <>
+              <hr />
+              <InfoSpan>
+                Have questions or need support?{" "}
+                {tethysApp.customSettings.support_email && (
+                  <>
+                    Contact us at{" "}
+                    <a
+                      href={`mailto:${tethysApp.customSettings.support_email}`}
+                    >
+                      {tethysApp.customSettings.support_email}
+                    </a>
+                  </>
+                )}
+                {tethysApp.customSettings.support_github && (
+                  <>
+                    {tethysApp.customSettings.support_email
+                      ? " or "
+                      : "Contact us at "}
+                    <a
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      href={tethysApp.customSettings.support_github}
+                    >
+                      GitHub
+                    </a>
+                  </>
+                )}{" "}
+                for inquiries about custom visualizations, dashboards, or any
+                issues you encounter.
+              </InfoSpan>
+            </>
+          )}
           <hr />
           <AttributionDiv>
             <SingleLogoImg src={cw3eLogo} alt="CW3E Logo" />
