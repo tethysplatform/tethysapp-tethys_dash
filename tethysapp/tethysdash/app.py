@@ -53,15 +53,13 @@ class App(TethysAppBase):
                 name="support_email",
                 type=CustomSetting.TYPE_STRING,
                 description="Support email address",
-                required=True,
-                default="ckrewson@aquaveo.com",
+                required=False,
             ),
             CustomSetting(
                 name="support_github",
                 type=CustomSetting.TYPE_STRING,
                 description="Support GitHub URL",
                 required=False,
-                default="https://github.com/tethysplatform/tethysapp-tethys_dash/issues",  # noqa E501
             ),
         )
 

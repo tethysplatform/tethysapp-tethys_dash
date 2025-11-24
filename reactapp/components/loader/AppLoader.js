@@ -28,6 +28,8 @@ import { v4 as uuidv4 } from "uuid";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
+const contactUsEmail = process.env.TETHYSDASH_SUPPORT_EMAIL;
+const contactUsGitHub = process.env.TETHYSDASH_SUPPORT_GITHUB;
 
 function setupRoutes(dashboards) {
   const PATH_HOME = "/";
@@ -248,9 +250,11 @@ function Loader({ children }) {
           },
         ],
       });
+
       tethysApp.customSettings = {
-        ...tethysApp.custom_settings,
-        ...dashboards.support_info,
+        support_email: contactUsEmail,
+        support_github: contactUsGitHub,
+        ...(dashboards.support_info || {}),
       };
 
       setAppContext({

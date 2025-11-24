@@ -15,11 +15,11 @@ describe("test.env", () => {
     expect(process.env.TETHYS_APP_ROOT_URL).toBeDefined();
   });
 
-  it("TETHYS_LOADER_DELAY is defined", () => {
-    expect(process.env.TETHYS_LOADER_DELAY).toBeDefined();
+  it("TETHYSDASH_SUPPORT_EMAIL is defined", () => {
+    expect(process.env.TETHYSDASH_SUPPORT_EMAIL).toBeDefined();
   });
 
-  it("TETHYS_PORTAL_HOST is defined", () => {
-    expect(process.env.TETHYS_PORTAL_HOST).toBeDefined();
+  it("TETHYSDASH_SUPPORT_GITHUB is defined", () => {
+    expect(process.env.TETHYSDASH_SUPPORT_GITHUB).toBeDefined();
   });
 });
