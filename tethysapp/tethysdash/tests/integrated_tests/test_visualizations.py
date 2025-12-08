@@ -3,6 +3,7 @@ from tethysapp.tethysdash.visualizations import (
     get_visualization,
 )
 import pytest
+from tethysapp.tethysdash.exceptions import VisualizationError
 
 
 def test_get_available_visualizations(
@@ -43,6 +44,24 @@ def test_get_available_visualizations2(
 
     available_visualizations = get_available_visualizations(test_owner_user)
     assert available_visualizations == {"visualizations": [mock_plugin_visualization2]}
+
+
+def test_get_visualization_uninstalled_plugin(
+    mock_app_get_ps_db, mocker, test_owner_user
+):
+    class MockIntake:
+        source = type("Source", (), {"registry": {}})
+
+    mock_app_get_ps_db("tethysapp.tethysdash.visualizations.App")
+    mocker.patch("tethysapp.tethysdash.visualizations.intake", new=MockIntake())
+
+    test_args = {"some_arg": "test"}
+    viz_source = "some_viz_source"
+
+    with pytest.raises(VisualizationError) as excinfo:
+        get_visualization(viz_source, test_args, test_owner_user)
+
+    assert f"Visualization ({viz_source}) is not installed." in str(excinfo.value)
 
 
 def test_get_visualization_restricted_and_access(
