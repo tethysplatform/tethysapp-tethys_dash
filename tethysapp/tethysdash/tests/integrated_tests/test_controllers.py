@@ -139,7 +139,7 @@ def test_dashboards(
         "tethysapp.tethysdash.model.get_app_workspace"
     )
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-    mocked_app.get_custom_setting.side_effect = ["",""]
+    mocked_app.get_custom_setting.side_effect = ["", ""]
 
     url = reverse("tethysdash:dashboards")
     client.force_login(test_owner_user)
@@ -188,7 +188,7 @@ def test_dashboards_with_support_email(
         "tethysapp.tethysdash.model.get_app_workspace"
     )
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-    mocked_app.get_custom_setting.side_effect = ["support@example.com",""]
+    mocked_app.get_custom_setting.side_effect = ["support@example.com", ""]
 
     url = reverse("tethysdash:dashboards")
     client.force_login(test_owner_user)
@@ -220,7 +220,7 @@ def test_dashboards_with_support_github(
         "tethysapp.tethysdash.model.get_app_workspace"
     )
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-    mocked_app.get_custom_setting.side_effect = ["","https://github.com/support"]
+    mocked_app.get_custom_setting.side_effect = ["", "https://github.com/support"]
 
     url = reverse("tethysdash:dashboards")
     client.force_login(test_owner_user)
@@ -228,7 +228,9 @@ def test_dashboards_with_support_github(
 
     assert response.status_code == 200
     response_json = response.json()
-    assert response_json["support_info"] == {"support_github": "https://github.com/support"}
+    assert response_json["support_info"] == {
+        "support_github": "https://github.com/support"
+    }
 
 
 @pytest.mark.django_db
@@ -252,7 +254,10 @@ def test_dashboards_with_support_email_and_github(
         "tethysapp.tethysdash.model.get_app_workspace"
     )
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
-    mocked_app.get_custom_setting.side_effect = ["support@example.com","https://github.com/support"]
+    mocked_app.get_custom_setting.side_effect = [
+        "support@example.com",
+        "https://github.com/support",
+    ]
 
     url = reverse("tethysdash:dashboards")
     client.force_login(test_owner_user)
@@ -260,7 +265,10 @@ def test_dashboards_with_support_email_and_github(
 
     assert response.status_code == 200
     response_json = response.json()
-    assert response_json["support_info"] == {"support_email": "support@example.com", "support_github": "https://github.com/support"}
+    assert response_json["support_info"] == {
+        "support_email": "support@example.com",
+        "support_github": "https://github.com/support",
+    }
 
 
 @pytest.mark.django_db
