@@ -576,6 +576,41 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
   );
 });
 
+it("Creates a Dropdown Input for a Variable Input from invalid source", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedDropdownVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedDropdownVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        dashboards: { dashboards: [dashboard] },
+      },
+    })
+  );
+
+  const variableInput = await screen.findByLabelText("Test Variable Input");
+  expect(variableInput).toBeInTheDocument();
+
+  expect(screen.getByText("CREC1")).toBeInTheDocument();
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "CREC1" })
+  );
+});
+
 it("Creates a Dropdown Input for a Variable Input from array", async () => {
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = {
