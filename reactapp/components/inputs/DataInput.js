@@ -32,12 +32,14 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
       } else {
         options.push({ value: option, label: option });
       }
-      if (typeof value !== "object") {
-        inputValue = { value: value, label: value };
-      } else {
-        inputValue = value;
-      }
     }
+
+    if (typeof value !== "object") {
+      inputValue = { value: value, label: value };
+    } else {
+      inputValue = value;
+    }
+
     if (
       inDataViewerMode &&
       inputProps?.includeVariableInputs !== false &&

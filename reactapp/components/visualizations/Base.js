@@ -315,8 +315,8 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
       source,
       "source"
     );
-    const sourceType = visualization.type;
-    const argTypes = visualization.args;
+    const sourceType = visualization?.type;
+    const argTypes = visualization?.args;
 
     const itemData = { source: source, args: args };
     const updatedGridItemArgs = convertDates(

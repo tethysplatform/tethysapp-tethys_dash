@@ -96,11 +96,15 @@ const VariableInput = ({
         var selectedArg = visualizationArgs.find((obj) => {
           return obj.label === variable_options_source;
         });
-        setType(selectedArg.argOptions);
-        initialVariableValue = findSelectOptionByValue(
-          selectedArg.argOptions,
-          initialVariableValue
-        );
+        if (selectedArg) {
+          setType(selectedArg.argOptions);
+          initialVariableValue = findSelectOptionByValue(
+            selectedArg.argOptions,
+            initialVariableValue
+          );
+        } else {
+          setType([]);
+        }
       }
 
       if (variable_options_source === "number") {
@@ -128,7 +132,7 @@ const VariableInput = ({
 
   useEffect(() => {
     let newValue = variableInputValues[variable_name];
-    if (Array.isArray(type)) {
+    if (Array.isArray(type) && type.length > 0) {
       newValue = findSelectOptionByValue(type, newValue);
     }
     if (newValue && value !== newValue) {

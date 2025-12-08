@@ -167,6 +167,11 @@ def get_visualization(viz_source, viz_args, user):
         AttributeError: If visualization plugin doesn't exist
         Exception: If data loading fails
     """
+    try:
+        intake.source.registry[viz_source]
+    except KeyError:
+        raise VisualizationError(f"Visualization ({viz_source}) is not installed.")
+
     plugin = getattr(intake, f"open_{viz_source}")
     restricted = getattr(plugin, "visualization_restricted", False)
     if restricted:
