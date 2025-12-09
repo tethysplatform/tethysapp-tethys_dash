@@ -239,9 +239,6 @@ export function updateObjectWithVariableInputs(args, variableInputs, argTypes) {
     if (argTypes) {
       const argType = argTypes[gridItemsArg];
       if (argType === "date" || argType === "date-hour") {
-        console.log(
-          `U - parsing date math for ${gridItemsArg}: ${args[gridItemsArg]}`
-        );
         args[gridItemsArg] = parseDateMath({ value: args[gridItemsArg] });
       }
     }

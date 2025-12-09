@@ -102,6 +102,7 @@ it("Initializes a Base Item with an empty div", async () => {
           source={""}
           argsString={"{}"}
           metadataString={"{}"}
+          shouldLoad={true}
         />
       ),
     })
@@ -136,6 +137,7 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
           source={mockedApiImageBase.source}
           argsString={mockedApiImageBase.args_string}
           metadataString={mockedApiImageBase.metadata_string}
+          shouldLoad={true}
         />
       ),
     })
@@ -150,6 +152,26 @@ it("Initializes a Base Item with an empty div and updates it with an image", asy
   );
 });
 
+it("Creates an Base Item with a Custom Image but does not load", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <BaseVisualization
+          source={mockedCustomImageBase.source}
+          argsString={mockedCustomImageBase.args_string}
+          metadataString={mockedCustomImageBase.metadata_string}
+          shouldLoad={false}
+        />
+      ),
+    })
+  );
+
+  const spinner = await screen.findByTestId("Loading...");
+  expect(spinner).toBeInTheDocument();
+
+  expect(screen.queryByAltText("custom_image")).not.toBeInTheDocument();
+});
+
 it("Creates an Base Item with a Custom Image", async () => {
   const { rerender } = render(
     createLoadedComponent({
@@ -158,6 +180,7 @@ it("Creates an Base Item with a Custom Image", async () => {
           source={mockedCustomImageBase.source}
           argsString={mockedCustomImageBase.args_string}
           metadataString={mockedCustomImageBase.metadata_string}
+          shouldLoad={true}
         />
       ),
     })
@@ -178,6 +201,7 @@ it("Creates an Base Item with a Custom Image", async () => {
           source={mockedCustomImageBase.source}
           argsString={mockedCustomImageBase.args_string}
           metadataString={mockedCustomImageBase.metadata_string}
+          shouldLoad={true}
         />
       ),
     })
@@ -199,6 +223,7 @@ it("Creates an Base Item with a Custom Image", async () => {
           source={mockedCustomImageBase.source}
           argsString={mockedCustomImageBase.args_string}
           metadataString={mockedCustomImageBase.metadata_string}
+          shouldLoad={true}
         />
       ),
     })
@@ -215,6 +240,7 @@ it("Creates an Base Item with a Text Box", async () => {
           source={mockedTextBase.source}
           argsString={mockedTextBase.args_string}
           metadataString={mockedTextBase.metadata_string}
+          shouldLoad={true}
         />
       ),
     })
@@ -235,6 +261,7 @@ it("Creates an Base Item with a Map", async () => {
             source={mockedMapBase.source}
             argsString={mockedMapBase.args_string}
             metadataString={mockedMapBase.metadata_string}
+            shouldLoad={true}
           />
         </div>
       ),
@@ -264,6 +291,7 @@ it("Creates an Base Item with a variable input text box", async () => {
             source={mockedTextVariable.source}
             argsString={mockedTextVariable.args_string}
             metadataString={mockedTextVariable.metadata_string}
+            shouldLoad={true}
           />
           <InputVariablePComponent />
         </>
@@ -325,6 +353,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
           source={apiImageBase.source}
           argsString={apiImageBase.args_string}
           metadataString={apiImageBase.metadata_string}
+          shouldLoad={true}
         />
       ),
     })
@@ -387,6 +416,7 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
           source={apiImageBase.source}
           argsString={apiImageBase.args_string}
           metadataString={apiImageBase.metadata_string}
+          shouldLoad={true}
         />
       ),
       options: { inEditing: true },
@@ -439,6 +469,7 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
           source={mockedPlotBase.source}
           argsString={mockedPlotBase.args_string}
           metadataString={mockedPlotBase.metadata_string}
+          shouldLoad={true}
         />
       ),
     })
@@ -477,6 +508,7 @@ it("Creates an Base Item with a custom module obtained from the api", async () =
           source={mockedTableBase.source}
           argsString={mockedTableBase.args_string}
           metadataString={mockedTableBase.metadata_string}
+          shouldLoad={true}
         />
       ),
     })
@@ -515,6 +547,7 @@ it("Creates an Base Item with a table obtained from the api", async () => {
           source={mockedTableBase.source}
           argsString={mockedTableBase.args_string}
           metadataString={mockedTableBase.metadata_string}
+          shouldLoad={true}
         />
       ),
     })
@@ -553,6 +586,7 @@ it("Creates an Base Item with a card obtained from the api", async () => {
           source={mockedCardBase.source}
           argsString={mockedCardBase.args_string}
           metadataString={mockedCardBase.metadata_string}
+          shouldLoad={true}
         />
       ),
     })
@@ -591,6 +625,7 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
           source={mockedUnknownBase.source}
           argsString={mockedUnknownBase.args_string}
           metadataString={mockedUnknownBase.metadata_string}
+          shouldLoad={true}
         />
       ),
       options: {
@@ -648,6 +683,7 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
           source={mockedUnknownBase.source}
           argsString={mockedUnknownBase.args_string}
           metadataString={mockedUnknownBase.metadata_string}
+          shouldLoad={true}
         />
       ),
       options: {
@@ -735,6 +771,7 @@ it("Base - update text variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[0].metadata_string
             }
+            shouldLoad={true}
           />
           <BaseVisualization
             source={mockedDashboard.tabs[0].gridItems[1].source}
@@ -742,6 +779,7 @@ it("Base - update text variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[1].metadata_string
             }
+            shouldLoad={true}
           />
         </>
       ),
@@ -865,6 +903,7 @@ it("Base - update date variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[0].metadata_string
             }
+            shouldLoad={true}
           />
           <BaseVisualization
             source={mockedDashboard.tabs[0].gridItems[1].source}
@@ -872,6 +911,7 @@ it("Base - update date variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[1].metadata_string
             }
+            shouldLoad={true}
           />
         </>
       ),
@@ -1153,6 +1193,7 @@ it("Base - initial relative date variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[0].metadata_string
             }
+            shouldLoad={true}
           />
           <BaseVisualization
             source={mockedDashboard.tabs[0].gridItems[1].source}
@@ -1160,6 +1201,7 @@ it("Base - initial relative date variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[1].metadata_string
             }
+            shouldLoad={true}
           />
         </>
       ),
@@ -1313,6 +1355,7 @@ it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine meta
           source={mockedPlotBase.source}
           argsString={mockedPlotBase.args_string}
           metadataString={mockedPlotBase.metadata_string}
+          shouldLoad={true}
         />
       ),
       options: {
