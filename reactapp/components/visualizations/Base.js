@@ -246,7 +246,12 @@ const filterNonRelativeDateArgs = (args, variableInputs, types) => {
   return filtered;
 };
 
-const BaseVisualization = ({ source, argsString, metadataString }) => {
+const BaseVisualization = ({
+  source,
+  argsString,
+  metadataString,
+  shouldLoad,
+}) => {
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
   const { visualizations } = useContext(AppContext);
@@ -282,7 +287,7 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
       setVariableDependentVisualizations({});
     }
     // eslint-disable-next-line
-  }, [variableInputValues]);
+  }, [variableInputValues, shouldLoad]);
 
   useEffect(() => {
     const gridMetadata = JSON.parse(metadataString);
@@ -337,14 +342,15 @@ const BaseVisualization = ({ source, argsString, metadataString }) => {
     );
 
     if (
-      refresh ||
-      (source && argsString === "{}") ||
-      !compareFilteredArgs(
-        gridItemArgsWithVariableInputs.current,
-        updatedGridItemArgs,
-        filteredOriginalArgs
-      ) ||
-      !valuesEqual(customMessages.current, customMessaging)
+      (refresh ||
+        (source && argsString === "{}") ||
+        !compareFilteredArgs(
+          gridItemArgsWithVariableInputs.current,
+          updatedGridItemArgs,
+          filteredOriginalArgs
+        ) ||
+        !valuesEqual(customMessages.current, customMessaging)) &&
+      shouldLoad
     ) {
       itemData.args = updatedGridItemArgs;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
@@ -417,6 +423,7 @@ BaseVisualization.propTypes = {
   source: PropTypes.string,
   argsString: PropTypes.string,
   metadataString: PropTypes.string,
+  shouldLoad: PropTypes.bool,
 };
 
 Visualization.propTypes = {
@@ -435,7 +442,8 @@ const areBasePropsEqual = (prevProps, nextProps) => {
   return (
     valuesEqual(prevProps.source, nextProps.source) &&
     valuesEqual(prevProps.argsString, nextProps.argsString) &&
-    valuesEqual(prevProps.metadataString, nextProps.metadataString)
+    valuesEqual(prevProps.metadataString, nextProps.metadataString) &&
+    valuesEqual(prevProps.shouldLoad, nextProps.shouldLoad)
   );
 };
 

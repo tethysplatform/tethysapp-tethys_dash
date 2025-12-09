@@ -23,7 +23,7 @@ const ReactGridLayout = WidthProvider(RGL);
 const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
-const DashboardLayout = ({ tabId, gridItems }) => {
+const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
   const { unrestrictedPlacement } = useContext(LayoutContext);
   const { updateTab } = useContext(TabContext);
   const { isEditing } = useContext(EditingContext);
@@ -38,7 +38,7 @@ const DashboardLayout = ({ tabId, gridItems }) => {
     updateGridLayout();
     gridItemsUpdated.current = gridItems;
     // eslint-disable-next-line
-  }, [gridItems]);
+  }, [gridItems, shouldLoad]);
 
   useEffect(() => {
     updateGridEditing(gridItems);
@@ -55,6 +55,7 @@ const DashboardLayout = ({ tabId, gridItems }) => {
             gridItemArgsString={item.args_string}
             gridItemMetadataString={item.metadata_string}
             gridItemIndex={index}
+            shouldLoad={shouldLoad}
           />
         </div>
       ))
@@ -159,6 +160,7 @@ DashboardLayout.propTypes = {
       metadata_string: PropTypes.string.isRequired,
     })
   ).isRequired,
+  shouldLoad: PropTypes.bool.isRequired,
 };
 
 export default memo(DashboardLayout);

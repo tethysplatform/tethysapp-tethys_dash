@@ -258,7 +258,11 @@ const DashboardTabs = () => {
     >
       {tabs.map((tab) => (
         <Tab eventKey={tab.id} title={renderTabTitle(tab)} key={tab.id}>
-          <DashboardLayout tabId={tab.id} gridItems={tab.gridItems} />
+          <DashboardLayout
+            tabId={tab.id}
+            gridItems={tab.gridItems}
+            shouldLoad={tab.id === activeTabId}
+          />
         </Tab>
       ))}
       {isEditing && <Tab eventKey="add-tab" title="+" aria-label="add-tab" />}

@@ -224,6 +224,7 @@ const DashboardItem = ({
   gridItemArgsString,
   gridItemMetadataString,
   gridItemIndex,
+  shouldLoad,
 }) => {
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
@@ -438,6 +439,7 @@ const DashboardItem = ({
             source={gridItemSource}
             argsString={gridItemArgsString}
             metadataString={gridItemMetadataString}
+            shouldLoad={shouldLoad}
           />
         </StyledContainer>
         {showDataViewerModal && (
@@ -478,6 +480,7 @@ DashboardItem.propTypes = {
   gridItemArgsString: PropTypes.string,
   gridItemMetadataString: PropTypes.string,
   gridItemIndex: PropTypes.number,
+  shouldLoad: PropTypes.bool,
 };
 
 export default memo(DashboardItem, valuesEqual);
