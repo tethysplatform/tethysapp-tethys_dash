@@ -160,6 +160,7 @@ function VisualizationPane({
   setSettings,
   visualizationRef,
   setShowingSubModal,
+  requestId,
 }) {
   const [vizArguments, setVizArguments] = useState([]);
   const [showVisualizationSelectorModal, setShowVisualizationSelectorModal] =
@@ -375,6 +376,7 @@ function VisualizationPane({
           argTypes
         );
         itemData.args = updatedGridItemArgs;
+        itemData.requestId = requestId;
         await getVisualization({
           setVizType,
           setVizData,

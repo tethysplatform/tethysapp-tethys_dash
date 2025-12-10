@@ -145,7 +145,7 @@ def get_available_visualizations(user):
     return {"visualizations": available_visualizations}
 
 
-def get_visualization(viz_source, viz_args, user):
+def get_visualization(viz_source, viz_args, user, viz_request_id):
     """
     Retrieve data from a specific visualization plugin.
 
@@ -156,7 +156,7 @@ def get_visualization(viz_source, viz_args, user):
         viz_source (str): Source identifier for the visualization plugin
         viz_args (dict): Arguments to pass to the visualization plugin
         user: User object to check permissions for
-
+        viz_request_id: Unique identifier for the visualization request
     Returns:
         tuple: (visualization_type, data)
             - visualization_type (str): Type of visualization
@@ -185,6 +185,10 @@ def get_visualization(viz_source, viz_args, user):
         finally:
             session.close()
 
-    data = plugin(**viz_args).read()
+    plugin_instance = plugin(**viz_args)
+    try:
+        data = plugin_instance.read(request_id=viz_request_id)
+    except TypeError:
+        data = plugin_instance.read()
 
     return plugin.visualization_type, data

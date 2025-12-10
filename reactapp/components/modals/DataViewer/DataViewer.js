@@ -1,4 +1,4 @@
-import { useState, useRef, useContext } from "react";
+import { useState, useRef, useContext, useEffect } from "react";
 import PropTypes from "prop-types";
 import Button from "react-bootstrap/Button";
 import Modal from "react-bootstrap/Modal";
@@ -21,6 +21,8 @@ import TextEditor from "components/inputs/TextEditor";
 import { Visualization } from "components/visualizations/Base";
 import MapContextProvider from "components/contexts/MapContext";
 import { findVisualizationBySource } from "components/visualizations/utilities";
+import { v4 as uuidv4 } from "uuid";
+import { WebsocketContext } from "components/contexts/WebSocketContext";
 import "components/modals/wideModal.css";
 import "components/modals/DataViewer/DataViewer.css";
 
@@ -82,11 +84,27 @@ function DataViewerModal({
   );
   const [showingSubModal, setShowingSubModal] = useState(false);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
+  const { receivedMessage } = useContext(WebsocketContext);
 
   const gridMetadata = JSON.parse(metadataString);
   const visualizationRef = useRef();
   const [settings, setSettings] = useState(gridMetadata);
   const [tabKey, setTabKey] = useState("visualization");
+  const [progressMessage, setProgressMessage] = useState(null);
+  const requestId = useRef(uuidv4());
+
+  useEffect(() => {
+    if (receivedMessage) {
+      try {
+        const msg = JSON.parse(receivedMessage);
+        if (msg.requestId === requestId.current && msg.message) {
+          setProgressMessage(receivedMessage);
+        }
+      } catch (e) {
+        console.log("Error parsing WebSocket message:", e);
+      }
+    }
+  }, [receivedMessage]);
 
   function saveChanges(e) {
     e.preventDefault();
@@ -121,7 +139,7 @@ function DataViewerModal({
       if (
         Object.values(vizInputsValues).every(
           (value) => ![null, ""].includes(value)
-        )  // TODO for csv-uploader, it's ok if data is empty
+        ) // TODO for csv-uploader, it's ok if data is empty
       ) {
         const { gridItems, id: activeTabId } = getActiveTab();
         let updatedGridItems = JSON.parse(JSON.stringify(gridItems));
@@ -251,6 +269,7 @@ function DataViewerModal({
                         setSettings={setSettings}
                         visualizationRef={visualizationRef}
                         setShowingSubModal={setShowingSubModal}
+                        requestId={requestId.current}
                       />
                     </Tab>
                     <Tab
@@ -286,6 +305,7 @@ function DataViewerModal({
                     vizType={vizType}
                     vizData={vizData}
                     dataviewerViz={true}
+                    progressMessage={progressMessage}
                   />
                 )}
               </StyledVizCol>

@@ -3,6 +3,42 @@ import xmltodict
 import copy
 from datetime import datetime
 
+
+# General helper for sending messages via Django Channels
+def send_websocket_message(request_id, message, step=None, total_steps=None):
+    """
+    Send a message to a Django Channels group for WebSocket delivery.
+
+    Args:
+        group_name (str): The name of the Channels group to send to (e.g., 'user_123').
+        message_type (str): The type of message (handled by consumer, e.g., 'progress_message').
+        message_data (dict): The message payload to send.
+
+    Example:
+        send_websocket_message('user_123', 'progress_message', {'progress': 'Started'})
+    """
+    try:
+        from channels.layers import get_channel_layer
+        from asgiref.sync import async_to_sync
+
+        websocket_message = {"message": message, "requestId": request_id}
+        if step is not None and total_steps is not None:
+            websocket_message["step"] = step
+            websocket_message["totalSteps"] = total_steps
+
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "dashboard_updates",
+            {
+                "type": "send_message",
+                "message": websocket_message,
+            },
+        )
+    except Exception as e:
+        # Optionally log or handle errors here
+        print(f"WebSocket message send failed: {e}")
+
+
 available_source_properties = {
     "ESRI Image and Map Service": {
         "required": {"url": "ArcGIS Rest service URL"},

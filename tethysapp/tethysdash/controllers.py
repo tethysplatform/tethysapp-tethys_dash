@@ -32,6 +32,8 @@ from tethysapp.tethysdash.visualizations import (
     get_restricted_visualizations,
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
+from channels.generic.websocket import AsyncWebsocketConsumer
+from tethys_sdk.routing import consumer
 
 
 @controller(login_required=False)
@@ -160,12 +162,15 @@ def visualization(request):
     """
     viz_source = request.GET["source"]
     viz_args = json.loads(request.GET["args"])
+    viz_request_id = request.GET["requestId"]
     data = None
     viz_type = None
     success = True
 
     try:
-        viz_type, data = get_visualization(viz_source, viz_args, request.user)
+        viz_type, data = get_visualization(
+            viz_source, viz_args, request.user, viz_request_id
+        )
     except VisualizationError as e:
         print(f"VisualizationError: {e}")
         data = {"error": str(e)}
@@ -236,6 +241,35 @@ def visualizations(request):
     visualizations = get_available_visualizations(request.user)
 
     return JsonResponse(visualizations)
+
+
+@consumer(
+    name="visualization_notifications", url="tethysdash/visualizations/notifications/"
+)
+class VisualizationConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        user = self.scope["user"]
+
+        if not user.is_authenticated:
+            await self.close()
+            return
+
+        # Add to groups
+        await self.channel_layer.group_add("dashboard_updates", self.channel_name)
+
+        await self.accept()
+
+    async def disconnect(self, code):
+        await self.channel_layer.group_discard("dashboard_updates", self.channel_name)
+
+    async def receive(self, text_data=None, bytes_data=None):
+        # handle incoming messages if needed
+        pass
+
+    # Handlers for sent messages
+    async def send_message(self, event):
+        message = event["message"]
+        await self.send(json.dumps(message))
 
 
 @api_view(["GET"])

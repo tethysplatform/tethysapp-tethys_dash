@@ -23,6 +23,9 @@ import { valuesEqual } from "components/modals/utilities";
 import styled from "styled-components";
 import Spinner from "react-bootstrap/Spinner";
 import { addVerticalLine } from "components/visualizations/BasePlot";
+import { WebsocketContext } from "components/contexts/WebSocketContext";
+import { v4 as uuidv4 } from "uuid";
+import ProgressBar from "react-bootstrap/ProgressBar";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -51,7 +54,34 @@ const StyledH2 = styled.h2`
 `;
 
 export const Visualization = memo(
-  ({ vizRef, vizType, vizData, dataviewerViz }) => {
+  ({ vizRef, vizType, vizData, progressMessage, dataviewerViz }) => {
+    if (progressMessage && vizType === "loader") {
+      let msgObj = progressMessage;
+      if (typeof progressMessage === "string") {
+        try {
+          msgObj = JSON.parse(progressMessage);
+        } catch {
+          msgObj = { message: progressMessage };
+        }
+      }
+      const { message, step, totalSteps } = msgObj;
+      const percent =
+        step && totalSteps ? Math.round((step / totalSteps) * 100) : null;
+
+      return (
+        <div>
+          <StyledH2>{message}</StyledH2>
+          {percent !== null && (
+            <ProgressBar
+              now={percent}
+              label={`${step} / ${totalSteps} (${percent}%)`}
+              style={{ margin: "0 auto", width: "60%" }}
+            />
+          )}
+        </div>
+      );
+    }
+
     switch (vizType) {
       case "unknown":
         return <div data-testid="Source_Unknown" />;
@@ -263,6 +293,22 @@ const BaseVisualization = ({
   const [refreshCount, setRefreshCount] = useState(0);
   const { isEditing } = useContext(EditingContext);
   const dashboardVizRef = useRef();
+  const { receivedMessage } = useContext(WebsocketContext);
+  const [progressMessage, setProgressMessage] = useState(null);
+  const requestId = useRef(uuidv4());
+
+  useEffect(() => {
+    if (receivedMessage) {
+      try {
+        const msg = JSON.parse(receivedMessage);
+        if (msg.requestId === requestId.current && msg.message) {
+          setProgressMessage(receivedMessage);
+        }
+      } catch (e) {
+        console.log("Error parsing WebSocket message:", e);
+      }
+    }
+  }, [receivedMessage]);
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -353,6 +399,7 @@ const BaseVisualization = ({
       shouldLoad
     ) {
       itemData.args = updatedGridItemArgs;
+      itemData.requestId = requestId.current;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
       gridItemSource.current = source;
       customMessages.current = customMessaging;
@@ -415,6 +462,7 @@ const BaseVisualization = ({
       vizRef={dashboardVizRef}
       vizType={vizType}
       vizData={vizData}
+      progressMessage={progressMessage}
     />
   );
 };
