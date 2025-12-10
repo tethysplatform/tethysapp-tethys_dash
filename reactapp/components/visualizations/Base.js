@@ -455,6 +455,8 @@ const BaseVisualization = ({
         });
       }
     }
+
+    setProgressMessage(null);
   }
 
   return (

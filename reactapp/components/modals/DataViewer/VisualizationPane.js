@@ -144,11 +144,11 @@ const MemoizedVisualizationArguments = memo(
 
 function VisualizationPane({
   gridItemIndex,
-  source,
-  argsString,
   setGridItemMessage,
   selectedVizTypeOption,
   setSelectVizTypeOption,
+  vizArguments,
+  setVizArguments,
   setVizType,
   setVizData,
   setVizMetadata,
@@ -161,8 +161,8 @@ function VisualizationPane({
   visualizationRef,
   setShowingSubModal,
   requestId,
+  setProgressMessage,
 }) {
-  const [vizArguments, setVizArguments] = useState([]);
   const [showVisualizationSelectorModal, setShowVisualizationSelectorModal] =
     useState(false);
   const { visualizations } = useContext(AppContext);
@@ -176,46 +176,6 @@ function VisualizationPane({
   const customImageOption = defaultVisualizationOptions.options.find((obj) => {
     return obj.value === "Custom Image";
   });
-
-  useEffect(() => {
-    if (source) {
-      let selectedVizOptionGroupOption = null;
-      for (let vizOptionGroup of visualizations) {
-        for (let vizOptionGroupOption of vizOptionGroup.options) {
-          if (vizOptionGroupOption.source === source) {
-            selectedVizOptionGroupOption = vizOptionGroupOption;
-            break;
-          }
-        }
-      }
-
-      if (selectedVizOptionGroupOption) {
-        setSelectVizTypeOption(selectedVizOptionGroupOption);
-
-        let updatedVizArguments = [];
-
-        const existingArgs = JSON.parse(argsString);
-        if (source === "Variable Input") {
-          setVariableInputValue(existingArgs.initial_value);
-        }
-
-        for (let arg in selectedVizOptionGroupOption.args) {
-          let vizArgType = selectedVizOptionGroupOption.args[arg];
-          let existingArg = existingArgs[arg];
-          updatedVizArguments.push({
-            label: arg,
-            name: arg,
-            type: vizArgType,
-            value: existingArg,
-          });
-        }
-        setVizArguments(updatedVizArguments);
-        setVizInputsValues(existingArgs);
-        currentSelectedVizTypeOption.current = selectedVizOptionGroupOption;
-      }
-    }
-    // eslint-disable-next-line
-  }, []);
 
   useEffect(() => {
     if (
@@ -387,6 +347,8 @@ function VisualizationPane({
           variableInputValues,
           vizLoadingIcon: true,
         });
+
+        setProgressMessage(null);
       }
     }
   }
