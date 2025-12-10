@@ -78,6 +78,13 @@ export const Visualization = memo(
               style={{ margin: "0 auto", width: "60%" }}
             />
           )}
+          <SpinnerContainer>
+            <StyledSpinner
+              data-testid="Loading..."
+              animation="border"
+              variant="info"
+            />
+          </SpinnerContainer>
         </div>
       );
     }
