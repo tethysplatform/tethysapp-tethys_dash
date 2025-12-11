@@ -15,6 +15,10 @@ import createLoadedComponent, {
 } from "__tests__/utilities/customRender";
 import selectEvent from "react-select-event";
 
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
+
 const { ResizeObserver } = window;
 
 beforeEach(() => {
@@ -615,7 +619,6 @@ test("Dashboard Viewer Modal Text Options", async () => {
             source={gridItem.source}
             argsString={gridItem.args_string}
             metadataString={gridItem.metadata_string}
-            gridItemI={gridItem.i}
             showModal={true}
             handleModalClose={mockhandleModalClose}
             setGridItemMessage={mocksetGridItemMessage}

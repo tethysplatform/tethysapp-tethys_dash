@@ -75,3 +75,24 @@ HTMLCanvasElement.prototype.getContext = function () {
     clip: () => {},
   };
 };
+
+class WebSocketMock {
+  constructor(url) {
+    this.url = url;
+    this.readyState = 1; // OPEN
+    this.send = jest.fn();
+    setTimeout(() => {
+      if (this.onopen) this.onopen();
+    }, 0);
+  }
+  close() {
+    if (this.onclose) this.onclose();
+  }
+  // Add a helper for tests to trigger messages
+  mockMessage(data) {
+    if (this.onmessage) {
+      this.onmessage({ data: JSON.stringify(data) });
+    }
+  }
+}
+global.WebSocket = WebSocketMock;

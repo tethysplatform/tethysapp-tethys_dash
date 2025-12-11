@@ -7,6 +7,10 @@ import { userDashboard } from "__tests__/utilities/constants";
 import userEvent from "@testing-library/user-event";
 import { confirm } from "components/inputs/DeleteConfirmation";
 
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
+
 jest.mock("components/inputs/DeleteConfirmation", () => {
   return {
     confirm: jest.fn(),

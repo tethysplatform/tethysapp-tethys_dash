@@ -78,6 +78,10 @@ jest.mock("date-fns", () => {
   };
 });
 
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
+
 const { ResizeObserver } = window;
 
 beforeEach(() => {
@@ -949,6 +953,7 @@ it("Base - update date variable input", async () => {
           args: {
             plugin_arg: "2025-01-01T00:00:00-06:00",
           },
+          requestId: 12345678,
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',
@@ -987,6 +992,7 @@ it("Base - update date variable input", async () => {
           args: {
             plugin_arg: "2020-01-01T00:00:00-06:00",
           },
+          requestId: 12345678,
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',
@@ -1034,6 +1040,7 @@ it("Base - update date variable input", async () => {
           args: {
             plugin_arg: expectedDateString,
           },
+          requestId: 12345678,
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',
@@ -1086,6 +1093,7 @@ it("Base - update date variable input", async () => {
           args: {
             plugin_arg: expectedDateString,
           },
+          requestId: 12345678,
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',
@@ -1246,6 +1254,7 @@ it("Base - initial relative date variable input", async () => {
           args: {
             plugin_arg: expectedDateString,
           },
+          requestId: 12345678,
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',
@@ -1298,6 +1307,7 @@ it("Base - initial relative date variable input", async () => {
           args: {
             plugin_arg: expectedDateString,
           },
+          requestId: 12345678,
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',

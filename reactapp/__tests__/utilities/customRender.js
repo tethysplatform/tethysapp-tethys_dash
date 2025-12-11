@@ -13,6 +13,7 @@ import {
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import { ModalPriorityProvider } from "components/contexts/ModalPriorityContext";
+import WebsocketProvider from "components/contexts/WebSocketContext";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
 
@@ -135,9 +136,11 @@ const createLoadedComponent = ({ children, options = {} }) => {
   return (
     <ModalPriorityProvider>
       <Loader>
-        <DashboardLoader {...initialDashboard}>
-          <TestingComponent options={options}>{children}</TestingComponent>
-        </DashboardLoader>
+        <WebsocketProvider>
+          <DashboardLoader {...initialDashboard}>
+            <TestingComponent options={options}>{children}</TestingComponent>
+          </DashboardLoader>
+        </WebsocketProvider>
       </Loader>
     </ModalPriorityProvider>
   );

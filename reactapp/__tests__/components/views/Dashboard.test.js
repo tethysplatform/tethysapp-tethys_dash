@@ -93,7 +93,7 @@ describe("DashboardView", () => {
     );
 
     // Verify DashboardLoader is rendered with correct props
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     expect(dashboardLoader).toBeInTheDocument();
 
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
@@ -114,14 +114,15 @@ describe("DashboardView", () => {
     expect(screen.getByTestId("dashboard-tabs")).toBeInTheDocument();
   });
 
-  test("renders with minimal props", () => {
+  test("renders with minimal props", async () => {
     render(
       <MemoryRouter>
         <DashboardView />
       </MemoryRouter>
     );
 
-    expect(screen.getByTestId("dashboard-loader")).toBeInTheDocument();
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
+    expect(dashboardLoader).toBeInTheDocument();
     expect(
       screen.getByTestId("layout-alert-context-provider")
     ).toBeInTheDocument();
@@ -130,7 +131,7 @@ describe("DashboardView", () => {
     expect(screen.getByTestId("dashboard-tabs")).toBeInTheDocument();
   });
 
-  test("renders with number id prop", () => {
+  test("renders with number id prop", async () => {
     const dashboardProps = {
       id: 123,
     };
@@ -141,12 +142,12 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.id).toBe(123);
   });
 
-  test("renders with string name prop", () => {
+  test("renders with string name prop", async () => {
     const dashboardProps = {
       name: "My Test Dashboard",
     };
@@ -157,12 +158,12 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.name).toBe("My Test Dashboard");
   });
 
-  test("renders with string description prop", () => {
+  test("renders with string description prop", async () => {
     const dashboardProps = {
       description: "A detailed description of the dashboard",
     };
@@ -173,14 +174,14 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.description).toBe(
       "A detailed description of the dashboard"
     );
   });
 
-  test("renders with string notes prop", () => {
+  test("renders with string notes prop", async () => {
     const dashboardProps = {
       notes: "Important notes about this dashboard",
     };
@@ -191,12 +192,12 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.notes).toBe("Important notes about this dashboard");
   });
 
-  test("renders with editable boolean prop set to true", () => {
+  test("renders with editable boolean prop set to true", async () => {
     const dashboardProps = {
       editable: true,
     };
@@ -207,12 +208,12 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.editable).toBe(true);
   });
 
-  test("renders with editable boolean prop set to false", () => {
+  test("renders with editable boolean prop set to false", async () => {
     const dashboardProps = {
       editable: false,
     };
@@ -223,12 +224,12 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.editable).toBe(false);
   });
 
-  test("renders with publicDashboard boolean prop set to true", () => {
+  test("renders with publicDashboard boolean prop set to true", async () => {
     const dashboardProps = {
       publicDashboard: true,
     };
@@ -239,12 +240,12 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.publicDashboard).toBe(true);
   });
 
-  test("renders with publicDashboard boolean prop set to false", () => {
+  test("renders with publicDashboard boolean prop set to false", async () => {
     const dashboardProps = {
       publicDashboard: false,
     };
@@ -255,12 +256,12 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.publicDashboard).toBe(false);
   });
 
-  test("renders with empty gridItems array", () => {
+  test("renders with empty gridItems array", async () => {
     const dashboardProps = {
       tabs: [
         {
@@ -277,12 +278,12 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.tabs[0].gridItems).toEqual([]);
   });
 
-  test("renders with single gridItem", () => {
+  test("renders with single gridItem", async () => {
     const gridItem = {
       id: 1,
       i: "1",
@@ -311,12 +312,12 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.tabs[0].gridItems).toEqual([gridItem]);
   });
 
-  test("renders with multiple gridItems", () => {
+  test("renders with multiple gridItems", async () => {
     const gridItems = [
       {
         id: 1,
@@ -352,12 +353,12 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.gridItems).toEqual(gridItems);
   });
 
-  test("renders with gridItem containing all required properties", () => {
+  test("renders with gridItem containing all required properties", async () => {
     const gridItem = {
       id: 999,
       i: "test-id",
@@ -386,7 +387,7 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.tabs[0].gridItems[0]).toEqual(gridItem);
     expect(loaderProps.tabs[0].gridItems[0].id).toBe(999);
@@ -404,7 +405,7 @@ describe("DashboardView", () => {
     );
   });
 
-  test("renders with all props and complex data", () => {
+  test("renders with all props and complex data", async () => {
     const complexGridItems = [
       {
         id: 1,
@@ -448,7 +449,7 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
 
     expect(loaderProps.id).toBe(42);
@@ -473,7 +474,7 @@ describe("DashboardView", () => {
     expect(screen.getByTestId("dashboard-tabs")).toBeInTheDocument();
   });
 
-  test("renders with null and undefined props", () => {
+  test("renders with null and undefined props", async () => {
     const dashboardProps = {
       id: null,
       name: undefined,
@@ -490,7 +491,7 @@ describe("DashboardView", () => {
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
 
     expect(loaderProps.id).toBeNull();
@@ -510,7 +511,7 @@ describe("DashboardView", () => {
     expect(screen.getByTestId("dashboard-tabs")).toBeInTheDocument();
   });
 
-  test("preserves original component structure without router", () => {
+  test("preserves original component structure without router", async () => {
     // Test that the component doesn't require router to render basic structure
     const dashboardProps = {
       id: 1,
@@ -519,7 +520,8 @@ describe("DashboardView", () => {
 
     render(<DashboardView {...dashboardProps} />);
 
-    expect(screen.getByTestId("dashboard-loader")).toBeInTheDocument();
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
+    expect(dashboardLoader).toBeInTheDocument();
     expect(
       screen.getByTestId("layout-alert-context-provider")
     ).toBeInTheDocument();
@@ -572,54 +574,54 @@ describe("DashboardView", () => {
     consoleSpy.mockRestore();
   });
 
-  test("component renders with realistic dashboard data", () => {
+  test("component renders with realistic dashboard data", async () => {
     render(
       <MemoryRouter>
         <DashboardView {...userDashboard} />
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.id).toBe(userDashboard.id);
     expect(loaderProps.name).toBe(userDashboard.name);
     expect(loaderProps.description).toBe(userDashboard.description);
   });
 
-  test("component renders with public dashboard data", () => {
+  test("component renders with public dashboard data", async () => {
     render(
       <MemoryRouter>
         <DashboardView {...publicDashboard} />
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.publicDashboard).toBe(true);
     expect(loaderProps.id).toBe(publicDashboard.id);
   });
 
-  test("component renders with editor dashboard data", () => {
+  test("component renders with editor dashboard data", async () => {
     render(
       <MemoryRouter>
         <DashboardView {...editorDashboard} />
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.id).toBe(editorDashboard.id);
     expect(loaderProps.name).toBe(editorDashboard.name);
   });
 
-  test("component renders with admin dashboard data", () => {
+  test("component renders with admin dashboard data", async () => {
     render(
       <MemoryRouter>
         <DashboardView {...adminDashboard} />
       </MemoryRouter>
     );
 
-    const dashboardLoader = screen.getByTestId("dashboard-loader");
+    const dashboardLoader = await screen.findByTestId("dashboard-loader");
     const loaderProps = JSON.parse(dashboardLoader.getAttribute("data-props"));
     expect(loaderProps.id).toBe(adminDashboard.id);
     expect(loaderProps.name).toBe(adminDashboard.name);
