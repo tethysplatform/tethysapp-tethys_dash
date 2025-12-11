@@ -300,22 +300,8 @@ const BaseVisualization = ({
   const [refreshCount, setRefreshCount] = useState(0);
   const { isEditing } = useContext(EditingContext);
   const dashboardVizRef = useRef();
-  const { receivedMessage } = useContext(WebsocketContext);
-  const [progressMessage, setProgressMessage] = useState(null);
+  const { getMessageForRequest } = useContext(WebsocketContext);
   const requestId = useRef(uuidv4());
-
-  useEffect(() => {
-    if (receivedMessage) {
-      try {
-        const msg = JSON.parse(receivedMessage);
-        if (msg.requestId === requestId.current && msg.message) {
-          setProgressMessage(receivedMessage);
-        }
-      } catch (e) {
-        console.log("Error parsing WebSocket message:", e);
-      }
-    }
-  }, [receivedMessage]);
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -462,8 +448,6 @@ const BaseVisualization = ({
         });
       }
     }
-
-    setProgressMessage(null);
   }
 
   return (
@@ -471,7 +455,7 @@ const BaseVisualization = ({
       vizRef={dashboardVizRef}
       vizType={vizType}
       vizData={vizData}
-      progressMessage={progressMessage}
+      progressMessage={getMessageForRequest(requestId.current)}
     />
   );
 };

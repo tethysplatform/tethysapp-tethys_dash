@@ -115,27 +115,13 @@ function DataViewerModal({
   );
   const [showingSubModal, setShowingSubModal] = useState(false);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
-  const { receivedMessage } = useContext(WebsocketContext);
+  const { getMessageForRequest } = useContext(WebsocketContext);
 
   const gridMetadata = JSON.parse(metadataString);
   const visualizationRef = useRef();
   const [settings, setSettings] = useState(gridMetadata);
   const [tabKey, setTabKey] = useState("visualization");
-  const [progressMessage, setProgressMessage] = useState(null);
   const requestId = useRef(uuidv4());
-
-  useEffect(() => {
-    if (receivedMessage) {
-      try {
-        const msg = JSON.parse(receivedMessage);
-        if (msg.requestId === requestId.current && msg.message) {
-          setProgressMessage(receivedMessage);
-        }
-      } catch (e) {
-        console.log("Error parsing WebSocket message:", e);
-      }
-    }
-  }, [receivedMessage]);
 
   function saveChanges(e) {
     e.preventDefault();
@@ -301,7 +287,6 @@ function DataViewerModal({
                         visualizationRef={visualizationRef}
                         setShowingSubModal={setShowingSubModal}
                         requestId={requestId.current}
-                        setProgressMessage={setProgressMessage}
                       />
                     </Tab>
                     <Tab
@@ -337,7 +322,7 @@ function DataViewerModal({
                     vizType={vizType}
                     vizData={vizData}
                     dataviewerViz={true}
-                    progressMessage={progressMessage}
+                    progressMessage={getMessageForRequest(requestId.current)}
                   />
                 )}
               </StyledVizCol>

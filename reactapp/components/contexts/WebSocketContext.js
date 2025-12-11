@@ -4,16 +4,27 @@ export const WebsocketContext = createContext();
 
 const WebsocketProvider = ({ children }) => {
   const [websocketReady, setWebsocketReady] = useState(false);
-  const [receivedMessage, setReceivedMessage] = useState(null);
+  const [messagesByRequestId, setMessagesByRequestId] = useState({});
 
   const ws = useRef(null);
+
+  const onMessage = (event) => {
+    const messageData = JSON.parse(event.data);
+    const { requestId } = messageData;
+
+    setMessagesByRequestId((prevMessages) => {
+      const updatedMessages = { ...prevMessages };
+      updatedMessages[requestId] = event.data;
+      return updatedMessages;
+    });
+  };
 
   useEffect(() => {
     const socket = new WebSocket(process.env.REDIS_WS_URL);
 
     socket.onopen = () => setWebsocketReady(true);
     socket.onclose = () => setWebsocketReady(false);
-    socket.onmessage = (event) => setReceivedMessage(event.data);
+    socket.onmessage = onMessage;
 
     ws.current = socket;
 
@@ -34,6 +45,20 @@ const WebsocketProvider = ({ children }) => {
     return () => clearTimeout(timer);
   }, [websocketReady]);
 
+  const getMessageForRequest = (requestId) => {
+    if (messagesByRequestId[requestId]) {
+      const receivedMessage = messagesByRequestId[requestId];
+      try {
+        const msg = JSON.parse(receivedMessage);
+        if (msg.requestId === requestId && msg.message) {
+          return receivedMessage;
+        }
+      } catch (e) {
+        console.log("Error parsing WebSocket message:", e);
+      }
+    }
+  };
+
   if (!websocketReady && !timeoutReached) {
     return null;
   }
@@ -42,7 +67,8 @@ const WebsocketProvider = ({ children }) => {
     <WebsocketContext.Provider
       value={{
         websocketReady,
-        receivedMessage,
+        messagesByRequestId,
+        getMessageForRequest,
         sendMessage: ws.current?.send.bind(ws.current),
       }}
     >

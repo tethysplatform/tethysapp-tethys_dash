@@ -161,7 +161,6 @@ function VisualizationPane({
   visualizationRef,
   setShowingSubModal,
   requestId,
-  setProgressMessage,
 }) {
   const [showVisualizationSelectorModal, setShowVisualizationSelectorModal] =
     useState(false);
@@ -347,8 +346,6 @@ function VisualizationPane({
           variableInputValues,
           vizLoadingIcon: true,
         });
-
-        setProgressMessage(null);
       }
     }
   }
