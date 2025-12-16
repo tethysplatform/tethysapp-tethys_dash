@@ -2,7 +2,9 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import PropTypes from "prop-types";
-import ModuleLoader from "../../../components/visualizations/ModuleLoader";
+import ModuleLoader, {
+  loadComponent,
+} from "../../../components/visualizations/ModuleLoader";
 import { VariableInputsContext } from "../../../components/contexts/Contexts";
 import useDynamicScript from "../../../hooks/useDynamicScript";
 
@@ -311,6 +313,46 @@ describe("ModuleLoader", () => {
   });
 
   describe("Edge cases", () => {
+    test("calls updateVariableInputValues and triggers setVariableInputValues (covers line 54)", async () => {
+      useDynamicScript.mockReturnValue({ ready: true, failed: false });
+      const setVariableInputValues = jest.fn((updater) => {
+        // Simulate React state updater function
+        const prev = { a: 1 };
+        return typeof updater === "function" ? updater(prev) : updater;
+      });
+      // Dummy component to capture props
+      const DummyComponent = React.forwardRef((props, ref) => {
+        // Call updateVariableInputValues when rendered
+        React.useEffect(() => {
+          if (props.updateVariableInputValues) {
+            props.updateVariableInputValues({ b: 2 });
+          }
+        }, [props.updateVariableInputValues]);
+        return <div data-testid="dynamic-component">Dynamic Loaded</div>;
+      });
+      jest.spyOn(React, "lazy").mockImplementation(() => DummyComponent);
+      const contextValue = {
+        variableInputValues: { a: 1 },
+        setVariableInputValues,
+      };
+      const Wrapper = createContextWrapper(contextValue);
+      render(
+        <Wrapper>
+          <ModuleLoader
+            scope="testScope"
+            module="testModule"
+            url="https://example.com/test.js"
+            props={{}}
+            visualizationRef={React.createRef()}
+          />
+        </Wrapper>
+      );
+      expect(
+        await screen.findByTestId("dynamic-component")
+      ).toBeInTheDocument();
+      expect(setVariableInputValues).toHaveBeenCalled();
+      React.lazy.mockRestore();
+    });
     test("handles various falsy module values", () => {
       const Wrapper = createContextWrapper();
 
@@ -329,6 +371,94 @@ describe("ModuleLoader", () => {
         </Wrapper>
       );
       expect(screen.getByText("No system specified")).toBeInTheDocument();
+    });
+
+    describe("loadComponent and dynamic loading", () => {
+      let originalWindow;
+      beforeEach(() => {
+        originalWindow = { ...window };
+      });
+      afterEach(() => {
+        // Restore window object
+        Object.keys(window).forEach((key) => {
+          if (!(key in originalWindow)) {
+            delete window[key];
+          }
+        });
+        Object.assign(window, originalWindow);
+      });
+
+      test("calls __webpack_init_sharing__ and container.init if window[scope] is not initialized", async () => {
+        // Arrange
+        const scope = "TestScope";
+        const module = "TestModule";
+        const mockInitSharing = jest.fn(() => Promise.resolve());
+        const mockContainerInit = jest.fn(() => Promise.resolve());
+        const mockGet = jest.fn(() =>
+          Promise.resolve(() => () => <div>Loaded!</div>)
+        );
+        window[scope] = {
+          initialized: false,
+          init: mockContainerInit,
+          get: mockGet,
+        };
+        global.__webpack_init_sharing__ = mockInitSharing;
+        global.__webpack_share_scopes__ = { default: {} };
+
+        // Act
+        const loader = loadComponent(scope, module);
+        const result = await loader();
+        expect(mockInitSharing).toHaveBeenCalledWith("default");
+        expect(mockContainerInit).toHaveBeenCalledWith(
+          global.__webpack_share_scopes__.default
+        );
+        expect(mockGet).toHaveBeenCalledWith(module);
+        expect(typeof result).toBe("function");
+      });
+
+      test("does not call __webpack_init_sharing__ if window[scope] is already initialized", async () => {
+        const scope = "TestScope2";
+        const module = "TestModule2";
+        const mockGet = jest.fn(() =>
+          Promise.resolve(() => () => <div>Loaded2!</div>)
+        );
+        window[scope] = { initialized: true, get: mockGet };
+        // __webpack_init_sharing__ should not be called
+        global.__webpack_init_sharing__ = jest.fn();
+        global.__webpack_share_scopes__ = { default: {} };
+
+        const loader = loadComponent(scope, module);
+        const result = await loader();
+        expect(global.__webpack_init_sharing__).not.toHaveBeenCalled();
+        expect(mockGet).toHaveBeenCalledWith(module);
+        expect(typeof result).toBe("function");
+      });
+
+      test("renders the loaded component when ready (ModuleLoader line 54)", async () => {
+        // Simulate the dynamic import and ready state
+        useDynamicScript.mockReturnValue({ ready: true, failed: false });
+        // Patch React.lazy to return a dummy component
+        const DummyComponent = React.forwardRef((props, ref) => (
+          <div data-testid="dynamic-component">Dynamic Loaded</div>
+        ));
+        jest.spyOn(React, "lazy").mockImplementation(() => DummyComponent);
+        const Wrapper = createContextWrapper();
+        render(
+          <Wrapper>
+            <ModuleLoader
+              scope="testScope"
+              module="testModule"
+              url="https://example.com/test.js"
+              props={{}}
+              visualizationRef={React.createRef()}
+            />
+          </Wrapper>
+        );
+        expect(
+          await screen.findByTestId("dynamic-component")
+        ).toBeInTheDocument();
+        React.lazy.mockRestore();
+      });
     });
 
     test("handles empty props correctly", () => {
