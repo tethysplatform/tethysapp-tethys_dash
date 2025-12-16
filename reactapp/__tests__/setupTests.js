@@ -16,6 +16,7 @@ const originalEnv = process.env;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  global.__wsInstances = [];
 });
 
 // Setup mocked Tethys API
@@ -76,23 +77,26 @@ HTMLCanvasElement.prototype.getContext = function () {
   };
 };
 
+global.__wsInstances = []; // Track all instances
+
 class WebSocketMock {
   constructor(url) {
     this.url = url;
     this.readyState = 1; // OPEN
     this.send = jest.fn();
+    this.close = jest.fn(() => {
+      if (this.onclose) this.onclose();
+    });
     setTimeout(() => {
       if (this.onopen) this.onopen();
     }, 0);
+    global.__wsInstances.push(this);
   }
-  close() {
-    if (this.onclose) this.onclose();
-  }
-  // Add a helper for tests to trigger messages
   mockMessage(data) {
     if (this.onmessage) {
       this.onmessage({ data: JSON.stringify(data) });
     }
   }
 }
+
 global.WebSocket = WebSocketMock;

@@ -145,6 +145,16 @@
     }
   },
   "jest": {
+    "coverageReporters": [
+      [
+        "text",
+        {
+          "skipFull": true
+        }
+      ],
+      "html",
+      "lcov"
+    ],
     "roots": [
       "<rootDir>/reactapp"
     ],

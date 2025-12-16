@@ -966,3 +966,27 @@ describe("When inDataViewerMode", () => {
     });
   });
 });
+
+it("Handles null variable_options_source gracefully", async () => {
+  const handleChange = jest.fn();
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name="Null Source Variable"
+            initial_value={null}
+            variable_options_source={null}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+    })
+  );
+  // Should render a text input with label
+  expect(await screen.findByText("Null Source Variable")).toBeInTheDocument();
+
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Refresh variable input")).toBeInTheDocument();
+});

@@ -78,6 +78,7 @@ const VariableInput = ({
   );
 
   useEffect(() => {
+    setLabel(variable_name);
     if (variable_options_source) {
       let initialVariableValue = initial_value;
       let variableValue = initialVariableValue;
@@ -121,7 +122,6 @@ const VariableInput = ({
         variableValue = initialVariableValue;
       }
       setValue(initialVariableValue);
-      setLabel(variable_name);
 
       if (!inDataViewerMode) {
         updateVariableInputs(variableValue);

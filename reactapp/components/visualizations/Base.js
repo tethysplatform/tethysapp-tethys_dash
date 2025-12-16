@@ -56,14 +56,7 @@ const StyledH2 = styled.h2`
 export const Visualization = memo(
   ({ vizRef, vizType, vizData, progressMessage, dataviewerViz }) => {
     if (progressMessage && vizType === "loader") {
-      let msgObj = progressMessage;
-      if (typeof progressMessage === "string") {
-        try {
-          msgObj = JSON.parse(progressMessage);
-        } catch {
-          msgObj = { message: progressMessage };
-        }
-      }
+      const msgObj = JSON.parse(progressMessage);
       const { message, step, totalSteps } = msgObj;
       const percent =
         step && totalSteps ? Math.round((step / totalSteps) * 100) : null;
@@ -80,7 +73,7 @@ export const Visualization = memo(
           )}
           <SpinnerContainer>
             <StyledSpinner
-              data-testid="Loading..."
+              data-testid="Progress Message Loading..."
               animation="border"
               variant="info"
             />
