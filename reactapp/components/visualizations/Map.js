@@ -200,6 +200,7 @@ const MapVisualization = ({
     });
 
     if (visualizationRef?.current) {
+      // known non-coverage for tests
       visualizationRef.current.addOverlay(spinnerOverlayRef.current);
       visualizationRef.current.addOverlay(popupOverlay);
       popupOverlayRef.current = popupOverlay;
@@ -296,6 +297,7 @@ const MapVisualization = ({
   }, [layers, baseMap]);
 
   const onMapClick = async (map, evt) => {
+    // known non-coverage for tests
     if (drawing.current || isProcessing) return;
     setIsProcessing(true);
 

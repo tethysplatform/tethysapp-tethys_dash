@@ -1,7 +1,9 @@
 import { useRef, useState, useContext } from "react";
 import userEvent from "@testing-library/user-event";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import VisualizationPane from "components/modals/DataViewer/VisualizationPane";
+import VisualizationPane, {
+  VisualizationArguments,
+} from "components/modals/DataViewer/VisualizationPane";
 import { mockedDashboards, userDashboard } from "__tests__/utilities/constants";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
@@ -10,6 +12,7 @@ import { rest } from "msw";
 import { AppContext } from "components/contexts/Contexts";
 import { findVisualizationBySource } from "components/visualizations/utilities";
 import MapContextProvider from "components/contexts/MapContext";
+import selectEvent from "react-select-event";
 
 const TestingComponent = ({
   source,
@@ -1574,6 +1577,159 @@ test("Visualization Pane Use Existing Args and switch type with same arg", async
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({ plugin_arg: "some text value", plugin_arg2: "" })
   );
+});
+
+test("VisualizationArguments", async () => {
+  const vizTypeOption = {
+    value: "Some Viz",
+  };
+
+  const vizArguments = [
+    {
+      label: "Array Arg",
+      name: "array_arg",
+      type: [
+        {
+          label: "Option 1",
+          value: "option1",
+        },
+        {
+          label: "Option 2",
+          value: "option2",
+        },
+      ],
+      value: "option1",
+    },
+    {
+      label: "Checkbox Arg",
+      name: "checkbox_arg",
+      type: "checkbox",
+      value: true,
+    },
+    {
+      label: "Date Arg",
+      name: "date_arg",
+      type: "date-hour",
+      value: "01/01/2020",
+    },
+    {
+      label: "Text Arg",
+      name: "text_arg",
+      type: "text",
+      value: "some text value",
+    },
+  ];
+
+  const vizInputsValues = {
+    array_arg: "option1",
+    checkbox_arg: true,
+    date_arg: "01/01/2020",
+    text_arg: "some text value",
+  };
+
+  const mockVisualizationRef = jest.fn();
+  const mockSetShowingModal = jest.fn();
+  const mockHandleInputChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <VisualizationArguments
+          selectedVizTypeOption={vizTypeOption}
+          vizArguments={vizArguments}
+          vizInputsValues={vizInputsValues}
+          handleInputChange={mockHandleInputChange}
+          setShowingSubModal={mockSetShowingModal}
+          gridItemIndex={0}
+          visualizationRef={mockVisualizationRef}
+        />
+      ),
+      options: { inDataViewerMode: true },
+    })
+  );
+
+  expect(await screen.findByText("Array Arg")).toBeInTheDocument();
+  expect(await screen.findByText("Checkbox Arg")).toBeInTheDocument();
+  expect(await screen.findByText("Date Arg")).toBeInTheDocument();
+  expect(await screen.findByText("Text Arg")).toBeInTheDocument();
+
+  const dropdowns = await screen.findAllByRole("combobox");
+  expect(dropdowns.length).toBe(2); // array and checkbox
+
+  const arrayArgSelect = await screen.findByText("Array Arg");
+  expect(
+    await screen.findByRole("combobox", { name: "Array Arg Input" })
+  ).toBeInTheDocument();
+  expect(arrayArgSelect).toBeInTheDocument();
+  expect(screen.getByText("Option 1")).toBeInTheDocument();
+
+  const checkboxArg = await screen.findByText("Checkbox Arg");
+  expect(checkboxArg).toBeInTheDocument();
+  expect(screen.getByText("True")).toBeInTheDocument();
+
+  const dateArg = await screen.findByLabelText("Date Arg");
+  expect(dateArg.value).toBe("01/01/2020");
+
+  const textArg = await screen.findByLabelText("Text Arg Input");
+  expect(textArg.value).toBe("some text value");
+});
+
+test("VisualizationArguments missing array initial value", async () => {
+  const vizTypeOption = {
+    value: "Some Viz",
+  };
+
+  const vizArguments = [
+    {
+      label: "Array Arg",
+      name: "array_arg",
+      type: [
+        {
+          label: "Option 1",
+          value: "option1",
+        },
+        {
+          label: "Option 2",
+          value: "option2",
+        },
+      ],
+      value: "option1",
+    },
+  ];
+
+  const vizInputsValues = {
+    array_arg: "option3",
+  };
+
+  const mockVisualizationRef = jest.fn();
+  const mockSetShowingModal = jest.fn();
+  const mockHandleInputChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <VisualizationArguments
+          selectedVizTypeOption={vizTypeOption}
+          vizArguments={vizArguments}
+          vizInputsValues={vizInputsValues}
+          handleInputChange={mockHandleInputChange}
+          setShowingSubModal={mockSetShowingModal}
+          gridItemIndex={0}
+          visualizationRef={mockVisualizationRef}
+        />
+      ),
+      options: { inDataViewerMode: true },
+    })
+  );
+
+  expect(await screen.findByText("Array Arg")).toBeInTheDocument();
+
+  const arrayArgSelect = await screen.findByText("Array Arg");
+  expect(
+    await screen.findByRole("combobox", { name: "Array Arg Input" })
+  ).toBeInTheDocument();
+  expect(arrayArgSelect).toBeInTheDocument();
+  expect(screen.getByText("option3")).toBeInTheDocument();
 });
 
 TestingComponent.propTypes = {

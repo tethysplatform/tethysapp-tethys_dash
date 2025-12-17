@@ -44,7 +44,7 @@ const FlexDiv = styled.div`
   width: 100%;
 `;
 
-const VisualizationArguments = ({
+export const VisualizationArguments = ({
   selectedVizTypeOption,
   vizArguments,
   vizInputsValues,
@@ -75,7 +75,6 @@ const VisualizationArguments = ({
       }
 
       return (
-        // TODO
         <DataInput
           key={key}
           label={spaceAndCapitalize(obj.label)}
@@ -276,7 +275,7 @@ function VisualizationPane({
   );
 
   function checkAllInputs() {
-    if (selectedVizTypeOption !== null) {
+    if (selectedVizTypeOption) {
       if (
         Object.values(vizInputsValues).every(
           (value) => !["", null].includes(value)
@@ -292,61 +291,59 @@ function VisualizationPane({
   }
 
   async function previewVisualization() {
-    if (selectedVizTypeOption) {
-      const itemData = {
-        source: selectedVizTypeOption["source"],
-        args: Object.fromEntries(
-          Object.entries(vizInputsValues).map(([key, val]) => [
-            key,
-            val.value ?? val,
-          ])
-        ),
-      };
-      const sourceType = selectedVizTypeOption.type;
+    const itemData = {
+      source: selectedVizTypeOption["source"],
+      args: Object.fromEntries(
+        Object.entries(vizInputsValues).map(([key, val]) => [
+          key,
+          val.value ?? val,
+        ])
+      ),
+    };
+    const sourceType = selectedVizTypeOption.type;
 
-      setVizMetadata(itemData);
-      setGridItemMessage(
-        "Cell updated to show " + selectedVizTypeOption["label"]
-      );
-      if (selectedVizTypeOption.value === "Text") {
-        return;
-      } else if (selectedVizTypeOption.value === "Variable Input") {
-        itemData.args.initial_value = variableInputValue;
-        if (itemData.args.initial_value === null) {
-          if (itemData.args.variable_options_source === "text") {
-            itemData.args.initial_value = "";
-          } else if (itemData.args.variable_options_source === "number") {
-            itemData.args.initial_value = "0";
-          }
+    setVizMetadata(itemData);
+    setGridItemMessage(
+      "Cell updated to show " + selectedVizTypeOption["label"]
+    );
+    if (selectedVizTypeOption.value === "Text") {
+      return;
+    } else if (selectedVizTypeOption.value === "Variable Input") {
+      itemData.args.initial_value = variableInputValue;
+      if (itemData.args.initial_value === null) {
+        if (itemData.args.variable_options_source === "text") {
+          itemData.args.initial_value = "";
+        } else if (itemData.args.variable_options_source === "number") {
+          itemData.args.initial_value = "0";
         }
-        setVizType("variableInput");
-        setVizData({
-          variable_name: itemData.args.variable_name,
-          initial_value: itemData.args.initial_value,
-          variable_options_source: itemData.args.variable_options_source,
-          metadata: itemData.args["variable_options_source.metadata"],
-          onChange: (e) => setVariableInputValue(e),
-        });
-      } else {
-        const argTypes = selectedVizTypeOption.args;
-        const updatedGridItemArgs = updateObjectWithVariableInputs(
-          itemData.args,
-          variableInputValues,
-          argTypes
-        );
-        itemData.args = updatedGridItemArgs;
-        itemData.requestId = requestId;
-        await getVisualization({
-          setVizType,
-          setVizData,
-          sourceType,
-          itemData,
-          argsString: JSON.stringify(vizInputsValues),
-          metadataString: JSON.stringify(settings),
-          variableInputValues,
-          vizLoadingIcon: true,
-        });
       }
+      setVizType("variableInput");
+      setVizData({
+        variable_name: itemData.args.variable_name,
+        initial_value: itemData.args.initial_value,
+        variable_options_source: itemData.args.variable_options_source,
+        metadata: itemData.args["variable_options_source.metadata"],
+        onChange: (e) => setVariableInputValue(e),
+      });
+    } else {
+      const argTypes = selectedVizTypeOption.args;
+      const updatedGridItemArgs = updateObjectWithVariableInputs(
+        itemData.args,
+        variableInputValues,
+        argTypes
+      );
+      itemData.args = updatedGridItemArgs;
+      itemData.requestId = requestId;
+      await getVisualization({
+        setVizType,
+        setVizData,
+        sourceType,
+        itemData,
+        argsString: JSON.stringify(vizInputsValues),
+        metadataString: JSON.stringify(settings),
+        variableInputValues,
+        vizLoadingIcon: true,
+      });
     }
   }
 

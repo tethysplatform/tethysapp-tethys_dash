@@ -155,3 +155,34 @@ it("VisualizationCard with attribution", async () => {
   await userEvent.click(thumbnail);
   expect(mockOnClick).toHaveBeenCalledTimes(1);
 });
+it("VisualizationCard with prefix", async () => {
+  const originalEnv = process.env.TETHYS_PREFIX_URL;
+  process.env.TETHYS_PREFIX_URL = "/test-prefix/";
+
+  const source = "some_source";
+  const label = "some label";
+  const type = "some type";
+  const description = "some description";
+  const tags = ["test", "tag"];
+  const mockOnClick = jest.fn();
+
+  render(
+    <VisualizationCard
+      source={source}
+      label={label}
+      type={type}
+      description={description}
+      tags={tags}
+      onClick={mockOnClick}
+    />
+  );
+
+  expect(await screen.findByText(label)).toBeInTheDocument();
+  const thumbnail = screen.getByRole("img");
+  expect(thumbnail).toBeInTheDocument();
+  expect(thumbnail.src).toBe(
+    "http://localhost/test-prefix/static/tethysdash/images/plugins/some_source.png"
+  );
+
+  process.env.TETHYS_PREFIX_URL = originalEnv;
+});

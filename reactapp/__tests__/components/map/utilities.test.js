@@ -1916,6 +1916,12 @@ test("checkForCRS", async () => {
     type: "Point",
   });
   expect(CRS).toBe(null);
+
+  CRS = await checkForCRS({
+    type: "Point",
+    coordinates: [NaN, NaN],
+  });
+  expect(CRS).toBe(undefined);
 });
 
 test("saveLayerJSON stringified Object", async () => {
