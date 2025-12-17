@@ -177,20 +177,18 @@ function IdleTimerManager() {
     setShowingPublicUserModal(false);
   };
 
-  const handleStillHere = (active) => {
-    if (active) {
-      // Increment count to trigger API call to keep session alive
-      setCount((prevCount) => prevCount + 1);
-      onActive();
-      activate();
-      setShowingIdleTimeoutModal(false);
-      // Reopen AppInfo modal if it was open before
-      if (appInfoModalWasOpen) {
-        // Small delay to ensure smooth transition
-        setTimeout(() => {
-          setAppInfoModalWasOpen(true); // Keep it true to trigger reopening in Header
-        }, 100);
-      }
+  const handleStillHere = () => {
+    // Increment count to trigger API call to keep session alive
+    setCount((prevCount) => prevCount + 1);
+    onActive();
+    activate();
+    setShowingIdleTimeoutModal(false);
+    // Reopen AppInfo modal if it was open before
+    if (appInfoModalWasOpen) {
+      // Small delay to ensure smooth transition
+      setTimeout(() => {
+        setAppInfoModalWasOpen(true); // Keep it true to trigger reopening in Header
+      }, 100);
     }
   };
 

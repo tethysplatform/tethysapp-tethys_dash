@@ -43,12 +43,6 @@ import { FaPlus } from "react-icons/fa6";
 import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
 import "components/buttons/HeaderButton.css";
 
-const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
-  /(^\/+|\/+?$)/g,
-  ""
-);
-const staticBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/`;
-
 const TETHYS_PORTAL_BASE = getTethysPortalBase();
 
 const StyledSpinner = styled(Spinner)`
@@ -122,6 +116,12 @@ export const LandingPageHeader = () => {
   const allowedToManageVisualizations =
     Array.isArray(userAppPermissions) &&
     userAppPermissions.includes("manage_visualizations");
+
+  const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
+    /(^\/+|\/+?$)/g,
+    ""
+  );
+  const staticBasePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/`;
 
   // Only show AppInfoModal on startup after public user modal check is complete and modal is dismissed
   useEffect(() => {

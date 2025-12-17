@@ -180,14 +180,12 @@ const DashboardTabs = () => {
       const draggedIndex = tabs.findIndex((tab) => tab.id === draggedTabId);
       const targetIndex = tabs.findIndex((tab) => tab.id === targetTabId);
 
-      if (draggedIndex !== -1 && targetIndex !== -1) {
-        // Create a new array with reordered tabs
-        const newTabs = [...tabs];
-        const [draggedTab] = newTabs.splice(draggedIndex, 1);
-        newTabs.splice(targetIndex, 0, draggedTab);
+      // Create a new array with reordered tabs
+      const newTabs = [...tabs];
+      const [draggedTab] = newTabs.splice(draggedIndex, 1);
+      newTabs.splice(targetIndex, 0, draggedTab);
 
-        reorderTabs(newTabs);
-      }
+      reorderTabs(newTabs);
     }
     setDraggedTabId(null);
     setDragOverTabId(null);

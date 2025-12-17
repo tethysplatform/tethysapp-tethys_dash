@@ -70,6 +70,7 @@ export const parseDateMath = ({ value }) => {
     const amount = parseInt(match[2], 10) * sign;
     const unit = match[3];
 
+    // eslint-disable-next-line default-case
     switch (unit) {
       case "Y":
         date.setFullYear(date.getFullYear() + amount);
@@ -91,8 +92,6 @@ export const parseDateMath = ({ value }) => {
         break;
       case "S":
         date.setSeconds(date.getSeconds() + amount);
-        break;
-      default:
         break;
     }
   }
@@ -151,23 +150,23 @@ const DatePicker = ({ label, value, onChange, type, divProps }) => {
     // Only call onChange if valid absolute or relative time
     if (isRelativeInput(val)) {
       const parsedDate = parseDateMath({ value: val });
-      if (parsedDate) {
-        if (inDataViewerMode) {
-          onChange(val);
-        } else {
-          const formattedDate =
-            type === "date"
-              ? format(parsedDate, dateFormat)
-              : format(parsedDate, dateHourFormat);
-          onChange(formattedDate);
-        }
+      if (inDataViewerMode) {
+        onChange(val);
+      } else {
+        const formattedDate =
+          type === "date"
+            ? format(parsedDate, dateFormat)
+            : format(parsedDate, dateHourFormat);
+        onChange(formattedDate);
       }
       return;
     }
+
     if (checkForVariable(val)) {
       onChange(val);
       return;
     }
+
     // Absolute date string
     const parsedDate = parseDateMath({ value: val });
     if (parsedDate) {

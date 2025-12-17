@@ -91,6 +91,26 @@ test("DatePicker initial date and change to variable input", async () => {
   expect(mockOnChange).toHaveBeenLastCalledWith("${Date}");
 });
 
+test("DatePicker bad parse initial date", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        type="date"
+        value="bad_format_date"
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>
+  );
+
+  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+
+  const input = screen.getByRole("textbox");
+  expect(input.value).toBe("bad_format_date");
+});
+
 test("DatePicker initial date-hour", async () => {
   const mockOnChange = jest.fn();
 
@@ -286,8 +306,21 @@ test("DatePicker relative date in dataviewer mode", async () => {
     target: { value: "now" },
   });
 
-  expect(mockOnChange).toHaveBeenCalledWith("now");
+  expect(mockOnChange).toHaveBeenLastCalledWith("now");
   expect(mockOnChange).toHaveBeenCalledTimes(1);
+
+  fireEvent.change(input, {
+    target: { value: null },
+  });
+
+  expect(mockOnChange).toHaveBeenCalledTimes(1);
+
+  fireEvent.change(input, {
+    target: { value: "now+1H+1D" },
+  });
+
+  expect(mockOnChange).toHaveBeenLastCalledWith("now+1H+1D");
+  expect(mockOnChange).toHaveBeenCalledTimes(2);
 });
 
 describe("parseDateMath", () => {

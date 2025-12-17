@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import PropTypes from "prop-types";
 import styled from "styled-components";
@@ -67,6 +67,11 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
   const [isOpen, setIsOpen] = useState(false);
   const { mapReady } = useMapContext();
   const [extentVariable, setExtentVariable] = useState(values?.variable ?? "");
+  const extentVariableRef = useRef(extentVariable);
+  // Keep the ref updated with the latest extentVariable
+  useEffect(() => {
+    extentVariableRef.current = extentVariable;
+  }, [extentVariable]);
 
   const valueOptions = [
     { label: "Use the Previewed Map Extent", value: "mapExtent" },
@@ -86,7 +91,9 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
       if (isValid) {
         onChange({
           extent: customExtent,
-          ...(extentVariable && { variable: extentVariable }),
+          ...(extentVariableRef.current && {
+            variable: extentVariableRef.current,
+          }),
         });
       } else {
         onChange(null);
@@ -112,7 +119,9 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     } else {
       onChange({
         extent: customExtent,
-        ...(extentVariable && { variable: extentVariable }),
+        ...(extentVariableRef.current && {
+          variable: extentVariableRef.current,
+        }),
       });
     }
 
@@ -130,7 +139,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     setCustomExtent(newExtent);
     onChange({
       extent: newExtent,
-      ...(extentVariable && { variable: extentVariable }),
+      ...(extentVariableRef.current && { variable: extentVariableRef.current }),
     });
   };
 
@@ -172,6 +181,8 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
       extent: customExtent,
       variable: value,
     });
+    // Also update the ref immediately for consistency
+    extentVariableRef.current = value;
   };
 
   return (

@@ -87,7 +87,7 @@ it("empty MapExtent", async () => {
   });
 });
 
-it("existing Custom MapExtent", async () => {
+it("existing Custom MapExtent with existing variable", async () => {
   const onChange = jest.fn();
   const visualizationRef = { current: jest.fn() };
   const values = { extent: "10, 20,4" };
@@ -219,7 +219,7 @@ test("attaches event listeners when extentMode is mapExtent", async () => {
   expect(mockMap.on).toHaveBeenCalledWith("moveend", expect.any(Function));
 
   // Simulate the handler call
-  const resolutionCallback = mockMap
+  let resolutionCallback = mockMap
     .getView()
     .on.mock.calls.find(([event]) => event === "change:resolution")[1];
   resolutionCallback();
@@ -245,5 +245,20 @@ test("attaches event listeners when extentMode is mapExtent", async () => {
   expect(onChange.mock.calls[6][0]).toStrictEqual({
     extent: "123456.78,987654.32,4.57",
     variable: "test",
+  });
+
+  fireEvent.change(extentVariable, {
+    target: { value: "new_test" },
+  });
+
+  // Simulate the handler call
+  resolutionCallback = mockMap
+    .getView()
+    .on.mock.calls.find(([event]) => event === "change:resolution")[1];
+  resolutionCallback();
+
+  expect(onChange.mock.calls[7][0]).toStrictEqual({
+    extent: "123456.78,987654.32,4.57",
+    variable: "new_test",
   });
 });
