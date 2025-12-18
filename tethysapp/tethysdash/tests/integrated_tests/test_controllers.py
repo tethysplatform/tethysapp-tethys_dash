@@ -11,11 +11,8 @@ from datetime import datetime, timedelta
 import types
 from tethysapp.tethysdash.exceptions import VisualizationError
 import uuid
-import pytest
-import json
 from tethysapp.tethysdash.controllers import VisualizationConsumer
 from channels.layers import get_channel_layer
-import types
 
 
 @pytest.mark.django_db
@@ -1742,6 +1739,7 @@ def test_visualization_permissions_no_permission(client, admin_user, mock_app, m
 @pytest.mark.asyncio
 async def test_visualization_consumer_connect_authenticated(settings):
     """Test that an authenticated user can connect and is added to the group."""
+
     # Patch the user to be authenticated
     class DummyUser:
         is_authenticated = True
@@ -1754,10 +1752,13 @@ async def test_visualization_consumer_connect_authenticated(settings):
 
     # Patch group_add and accept to track calls
     called = {}
+
     async def fake_group_add(group, channel):
         called["group_add"] = (group, channel)
+
     async def fake_accept():
         called["accept"] = True
+
     application.channel_layer.group_add = fake_group_add
     application.accept = fake_accept
 
@@ -1769,6 +1770,7 @@ async def test_visualization_consumer_connect_authenticated(settings):
 @pytest.mark.asyncio
 async def test_visualization_consumer_connect_unauthenticated():
     """Test that an unauthenticated user is disconnected immediately."""
+
     class DummyUser:
         is_authenticated = False
 
@@ -1779,8 +1781,10 @@ async def test_visualization_consumer_connect_unauthenticated():
     application.channel_name = "test_channel"
 
     called = {}
+
     async def fake_close():
         called["close"] = True
+
     application.close = fake_close
 
     await application.connect()
@@ -1795,8 +1799,10 @@ async def test_visualization_consumer_disconnect():
     application.channel_layer = get_channel_layer()
     application.channel_name = "test_channel"
     called = {}
+
     async def fake_group_discard(group, channel):
         called["group_discard"] = (group, channel)
+
     application.channel_layer.group_discard = fake_group_discard
     await application.disconnect(1000)
     assert called["group_discard"] == ("dashboard_updates", "test_channel")
@@ -1808,8 +1814,10 @@ async def test_visualization_consumer_send_message():
     application = VisualizationConsumer()
     application.scope = {"user": type("User", (), {"is_authenticated": True})()}
     sent = {}
+
     async def fake_send(text):
         sent["text"] = text
+
     application.send = fake_send
     message = {"foo": "bar"}
     await application.send_message({"message": message})
@@ -1822,6 +1830,7 @@ async def test_visualization_consumer_receive():
     application = VisualizationConsumer()
     # Should not raise
     await application.receive(text_data="test")
+
 
 @pytest.mark.django_db
 def test_visualization_permissions_error(client, admin_user, mock_app, mocker):

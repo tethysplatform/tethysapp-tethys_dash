@@ -11,7 +11,8 @@ def send_websocket_message(request_id, message, step=None, total_steps=None):
 
     Args:
         group_name (str): The name of the Channels group to send to (e.g., 'user_123').
-        message_type (str): The type of message (handled by consumer, e.g., 'progress_message').
+        message_type (str): The type of message
+            (handled by consumer, e.g., 'progress_message').
         message_data (dict): The message payload to send.
 
     Example:
