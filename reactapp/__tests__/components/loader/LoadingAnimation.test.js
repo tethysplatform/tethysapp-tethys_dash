@@ -1,4 +1,3 @@
-import React from "react";
 import { render, screen, act } from "@testing-library/react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 
@@ -40,10 +39,17 @@ describe("LoadingAnimation", () => {
       jest.advanceTimersByTime(0);
     });
     expect(screen.getByText("Loading...")).toBeInTheDocument();
-    // Check for key animation classes
+    // Check for key animation
+    // eslint-disable-next-line testing-library/no-node-access
     expect(document.querySelector(".center")).toBeInTheDocument();
+
+    // eslint-disable-next-line testing-library/no-node-access
     expect(document.querySelector(".inner-spin")).toBeInTheDocument();
+
+    // eslint-disable-next-line testing-library/no-node-access
     expect(document.querySelector(".outer-spin")).toBeInTheDocument();
+
+    // eslint-disable-next-line testing-library/no-node-access
     expect(document.querySelector(".loading-text")).toBeInTheDocument();
   });
 

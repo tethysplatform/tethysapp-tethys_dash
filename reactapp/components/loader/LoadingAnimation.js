@@ -44,6 +44,7 @@ const LoadingAnimation = ({ delay, text = "Loading..." }) => {
 
 LoadingAnimation.propTypes = {
   delay: PropTypes.number,
+  text: PropTypes.string,
 };
 
 export default LoadingAnimation;

@@ -1,5 +1,6 @@
 import { createContext, useEffect, useRef, useState } from "react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
+import PropTypes from "prop-types";
 
 export const WebsocketContext = createContext();
 
@@ -80,6 +81,13 @@ const WebsocketProvider = ({ children }) => {
       {children}
     </WebsocketContext.Provider>
   );
+};
+
+WebsocketProvider.propTypes = {
+  children: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.element),
+    PropTypes.element,
+  ]),
 };
 
 export default WebsocketProvider;

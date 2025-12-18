@@ -322,14 +322,18 @@ describe("ModuleLoader", () => {
       });
       // Dummy component to capture props
       const DummyComponent = React.forwardRef((props, ref) => {
-        // Call updateVariableInputValues when rendered
+        const { updateVariableInputValues } = props;
         React.useEffect(() => {
-          if (props.updateVariableInputValues) {
-            props.updateVariableInputValues({ b: 2 });
+          if (updateVariableInputValues) {
+            updateVariableInputValues({ b: 2 });
           }
-        }, [props.updateVariableInputValues]);
+        }, [updateVariableInputValues]);
         return <div data-testid="dynamic-component">Dynamic Loaded</div>;
       });
+      DummyComponent.displayName = "DummyComponent";
+      DummyComponent.propTypes = {
+        updateVariableInputValues: PropTypes.func,
+      };
       jest.spyOn(React, "lazy").mockImplementation(() => DummyComponent);
       const contextValue = {
         variableInputValues: { a: 1 },
@@ -395,7 +399,11 @@ describe("ModuleLoader", () => {
         const mockInitSharing = jest.fn(() => Promise.resolve());
         const mockContainerInit = jest.fn(() => Promise.resolve());
         const mockGet = jest.fn(() =>
-          Promise.resolve(() => () => <div>Loaded!</div>)
+          Promise.resolve(() => {
+            const Loaded = () => <div>Loaded!</div>;
+            Loaded.displayName = "Loaded";
+            return Loaded;
+          })
         );
         window[scope] = {
           initialized: false,
@@ -420,7 +428,11 @@ describe("ModuleLoader", () => {
         const scope = "TestScope2";
         const module = "TestModule2";
         const mockGet = jest.fn(() =>
-          Promise.resolve(() => () => <div>Loaded2!</div>)
+          Promise.resolve(() => {
+            const Loaded2 = () => <div>Loaded2!</div>;
+            Loaded2.displayName = "Loaded2";
+            return Loaded2;
+          })
         );
         window[scope] = { initialized: true, get: mockGet };
         // __webpack_init_sharing__ should not be called
@@ -441,6 +453,7 @@ describe("ModuleLoader", () => {
         const DummyComponent = React.forwardRef((props, ref) => (
           <div data-testid="dynamic-component">Dynamic Loaded</div>
         ));
+        DummyComponent.displayName = "DummyComponent";
         jest.spyOn(React, "lazy").mockImplementation(() => DummyComponent);
         const Wrapper = createContextWrapper();
         render(

@@ -421,12 +421,11 @@ VisualizationArguments.propTypes = {
 
 VisualizationPane.propTypes = {
   gridItemIndex: PropTypes.number,
-  source: PropTypes.string,
-  argsString: PropTypes.string,
   setGridItemMessage: PropTypes.func,
   selectedVizTypeOption: PropTypes.object,
   setSelectVizTypeOption: PropTypes.func,
-  vizType: PropTypes.string,
+  vizArguments: PropTypes.arrayOf(PropTypes.object),
+  setVizArguments: PropTypes.func,
   setVizType: PropTypes.func,
   setVizData: PropTypes.func,
   setVizMetadata: PropTypes.func,
@@ -441,6 +440,7 @@ VisualizationPane.propTypes = {
     PropTypes.shape({ current: PropTypes.any }),
   ]),
   setShowingSubModal: PropTypes.func,
+  requestId: PropTypes.string,
 };
 
 export default memo(VisualizationPane);

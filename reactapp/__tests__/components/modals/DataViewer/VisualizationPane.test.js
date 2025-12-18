@@ -12,7 +12,6 @@ import { rest } from "msw";
 import { AppContext } from "components/contexts/Contexts";
 import { findVisualizationBySource } from "components/visualizations/utilities";
 import MapContextProvider from "components/contexts/MapContext";
-import selectEvent from "react-select-event";
 
 const TestingComponent = ({
   source,
