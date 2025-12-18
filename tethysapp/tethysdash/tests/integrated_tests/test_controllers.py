@@ -11,6 +11,11 @@ from datetime import datetime, timedelta
 import types
 from tethysapp.tethysdash.exceptions import VisualizationError
 import uuid
+import pytest
+import json
+from tethysapp.tethysdash.controllers import VisualizationConsumer
+from channels.layers import get_channel_layer
+import types
 
 
 @pytest.mark.django_db
@@ -37,10 +42,12 @@ def test_data_failed(client, mock_app, mocker):
     url = reverse("tethysdash:visualization")
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     mock_gv.side_effect = [Exception("Failed data retrieval")]
+    requestId = str(uuid.uuid4())
 
     itemData = {
         "source": "usace_time_series",
         "args": json.dumps({"location": "CREC1", "year": 2025}),
+        "requestId": requestId,
     }
 
     response = client.get(url, itemData)
@@ -58,10 +65,12 @@ def test_data_failed_custom_error(client, mock_app, mocker):
     url = reverse("tethysdash:visualization")
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     mock_gv.side_effect = [VisualizationError("some custom error message")]
+    requestId = str(uuid.uuid4())
 
     itemData = {
         "source": "usace_time_series",
         "args": json.dumps({"location": "CREC1", "year": 2025}),
+        "requestId": requestId,
     }
 
     response = client.get(url, itemData)
@@ -80,10 +89,12 @@ def test_data(client, mock_app, mocker):
     mock_gv = mocker.patch("tethysapp.tethysdash.controllers.get_visualization")
     plot_data = {"data": [], "layout": {}}
     mock_gv.return_value = ["plotly", plot_data]
+    requestId = str(uuid.uuid4())
 
     itemData = {
         "source": "usace_time_series",
         "args": json.dumps({"location": "CREC1", "year": 2025}),
+        "requestId": requestId,
     }
 
     response = client.get(url, itemData)
@@ -1727,6 +1738,90 @@ def test_visualization_permissions_no_permission(client, admin_user, mock_app, m
     )
     mock_get_visualization_permissions.assert_not_called()
 
+
+@pytest.mark.asyncio
+async def test_visualization_consumer_connect_authenticated(settings):
+    """Test that an authenticated user can connect and is added to the group."""
+    # Patch the user to be authenticated
+    class DummyUser:
+        is_authenticated = True
+
+    application = VisualizationConsumer()
+    scope = {"user": DummyUser(), "type": "websocket", "path": "/ws/"}
+    application.scope = scope
+    application.channel_layer = get_channel_layer()
+    application.channel_name = "test_channel"
+
+    # Patch group_add and accept to track calls
+    called = {}
+    async def fake_group_add(group, channel):
+        called["group_add"] = (group, channel)
+    async def fake_accept():
+        called["accept"] = True
+    application.channel_layer.group_add = fake_group_add
+    application.accept = fake_accept
+
+    await application.connect()
+    assert called["group_add"] == ("dashboard_updates", "test_channel")
+    assert called["accept"] is True
+
+
+@pytest.mark.asyncio
+async def test_visualization_consumer_connect_unauthenticated():
+    """Test that an unauthenticated user is disconnected immediately."""
+    class DummyUser:
+        is_authenticated = False
+
+    application = VisualizationConsumer()
+    scope = {"user": DummyUser(), "type": "websocket", "path": "/ws/"}
+    application.scope = scope
+    application.channel_layer = get_channel_layer()
+    application.channel_name = "test_channel"
+
+    called = {}
+    async def fake_close():
+        called["close"] = True
+    application.close = fake_close
+
+    await application.connect()
+    assert called["close"] is True
+
+
+@pytest.mark.asyncio
+async def test_visualization_consumer_disconnect():
+    """Test that disconnect removes the channel from the group."""
+    application = VisualizationConsumer()
+    application.scope = {"user": type("User", (), {"is_authenticated": True})()}
+    application.channel_layer = get_channel_layer()
+    application.channel_name = "test_channel"
+    called = {}
+    async def fake_group_discard(group, channel):
+        called["group_discard"] = (group, channel)
+    application.channel_layer.group_discard = fake_group_discard
+    await application.disconnect(1000)
+    assert called["group_discard"] == ("dashboard_updates", "test_channel")
+
+
+@pytest.mark.asyncio
+async def test_visualization_consumer_send_message():
+    """Test that send_message sends the correct JSON message."""
+    application = VisualizationConsumer()
+    application.scope = {"user": type("User", (), {"is_authenticated": True})()}
+    sent = {}
+    async def fake_send(text):
+        sent["text"] = text
+    application.send = fake_send
+    message = {"foo": "bar"}
+    await application.send_message({"message": message})
+    assert json.loads(sent["text"]) == message
+
+
+@pytest.mark.asyncio
+async def test_visualization_consumer_receive():
+    """Test that receive does nothing (pass)."""
+    application = VisualizationConsumer()
+    # Should not raise
+    await application.receive(text_data="test")
 
 @pytest.mark.django_db
 def test_visualization_permissions_error(client, admin_user, mock_app, mocker):

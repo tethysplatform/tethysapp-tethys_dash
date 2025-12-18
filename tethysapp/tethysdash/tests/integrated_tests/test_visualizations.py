@@ -59,7 +59,7 @@ def test_get_visualization_uninstalled_plugin(
     viz_source = "some_viz_source"
 
     with pytest.raises(VisualizationError) as excinfo:
-        get_visualization(viz_source, test_args, test_owner_user)
+        get_visualization(viz_source, test_args, test_owner_user, 12345)
 
     assert f"Visualization ({viz_source}) is not installed." in str(excinfo.value)
 
@@ -78,7 +78,9 @@ def test_get_visualization_restricted_and_access(
     mock_intake.open_package_name.visualization_restricted = True
 
     test_args = {"some_arg": "test"}
-    viz_type, viz_data = get_visualization(mock_plugin.name, test_args, test_owner_user)
+    viz_type, viz_data = get_visualization(
+        mock_plugin.name, test_args, test_owner_user, 12345
+    )
 
     mock_intake.open_package_name.assert_called_with(some_arg="test")
     assert viz_type == mock_plugin.visualization_type
@@ -100,7 +102,7 @@ def test_get_visualization_restricted_and_no_access(
 
     test_args = {"some_arg": "test"}
     with pytest.raises(Exception) as excinfo:
-        get_visualization(mock_plugin.name, test_args, test_owner_user)
+        get_visualization(mock_plugin.name, test_args, test_owner_user, 12345)
     assert "User does not have permission to access this visualization." in str(
         excinfo.value
     )
@@ -114,7 +116,28 @@ def test_get_visualization_not_restricted(mock_plugin2, mocker, test_owner_user)
 
     test_args = {"some_arg": "test"}
     viz_type, viz_data = get_visualization(
-        mock_plugin2.name, test_args, test_owner_user
+        mock_plugin2.name, test_args, test_owner_user, 12345
+    )
+
+    mock_intake.open_package_name2.assert_called_with(some_arg="test")
+    assert viz_type == mock_plugin2.visualization_type
+    assert viz_data == "some_data"
+
+
+def test_get_visualization_without_request_id_kwarg(
+    mock_plugin2, mocker, test_owner_user
+):
+    mock_intake = mocker.patch("tethysapp.tethysdash.visualizations.intake")
+    mock_intake.open_package_name2 = mock_plugin2
+    mock_intake.open_package_name2().read.side_effect = [
+        TypeError("missing 1 required positional argument: 'request_id'"),
+        "some_data",
+    ]
+    mock_intake.open_package_name2.visualization_restricted = False
+
+    test_args = {"some_arg": "test"}
+    viz_type, viz_data = get_visualization(
+        mock_plugin2.name, test_args, test_owner_user, 12345
     )
 
     mock_intake.open_package_name2.assert_called_with(some_arg="test")

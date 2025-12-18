@@ -1,6 +1,7 @@
 from tethysapp.tethysdash.plugin_helpers import (
     LayerConfigurationBuilder,
     validate_geojson,
+    send_websocket_message,
 )
 import requests
 import pytest
@@ -434,6 +435,48 @@ def test_layer_configuration_builder_not_implemented_get_layers_and_attrs():
         match="Image Tile is not currently configured to return attributes",
     ):
         builder.get_layer_attributes()
+
+
+def test_send_websocket_message_success(mocker):
+    # Patch get_channel_layer and async_to_sync
+    mock_channel_layer = mocker.Mock()
+    mock_async_to_sync = mocker.Mock()
+    mock_group_send = mocker.Mock()
+    mock_async_to_sync.return_value = mock_group_send
+    mocker.patch(
+        "channels.layers.get_channel_layer",
+        return_value=mock_channel_layer,
+    )
+    mocker.patch("asgiref.sync.async_to_sync", mock_async_to_sync)
+
+    send_websocket_message("reqid", {"foo": "bar"}, step=1, total_steps=2)
+
+    mock_async_to_sync.assert_called_once()
+    mock_group_send.assert_called_once_with(
+        "dashboard_updates",
+        {
+            "type": "send_message",
+            "message": {
+                "message": {"foo": "bar"},
+                "requestId": "reqid",
+                "step": 1,
+                "totalSteps": 2,
+            },
+        },
+    )
+
+
+def test_send_websocket_message_exception(mocker):
+    # Patch get_channel_layer and async_to_sync to raise exception
+    mock_async_to_sync = mocker.Mock(side_effect=Exception("fail"))
+    mocker.patch(
+        "channels.layers.get_channel_layer",
+        return_value=mocker.Mock(),
+    )
+    mocker.patch("asgiref.sync.async_to_sync", mock_async_to_sync)
+
+    # Should not raise
+    send_websocket_message("reqid", {"foo": "bar"})
 
 
 def test_validate_geojson_FeatureCollection():
