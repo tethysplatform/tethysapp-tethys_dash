@@ -1,3 +1,10 @@
+"""
+Helpers for plugin management and WebSocket messaging in TethysDash.
+
+This module provides utility functions for sending messages via Django Channels
+and other plugin-related helpers.
+"""
+
 import requests
 import xmltodict
 import copy
@@ -10,10 +17,10 @@ def send_websocket_message(request_id, message, step=None, total_steps=None):
     Send a message to a Django Channels group for WebSocket delivery.
 
     Args:
-        group_name (str): The name of the Channels group to send to (e.g., 'user_123').
-        message_type (str): The type of message
-            (handled by consumer, e.g., 'progress_message').
-        message_data (dict): The message payload to send.
+        request_id (str): The request identifier for the message.
+        message (str): The message content to send.
+        step (int, optional): Current step in a multi-step process.
+        total_steps (int, optional): Total steps in a multi-step process.
 
     Example:
         send_websocket_message('user_123', 'progress_message', {'progress': 'Started'})
