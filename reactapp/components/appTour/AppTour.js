@@ -3,15 +3,15 @@ import { useAppTourContext } from "components/contexts/AppTourContext";
 import { FaRegUserCircle } from "react-icons/fa";
 import { BsPeopleFill } from "react-icons/bs";
 
-const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
-  /(^\/+|\/+?$)/g,
-  ""
-);
-const samplePluginImagePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/tethys_dash.png`;
-
 const AppTour = () => {
   const { appTourStep, setAppTourStep, activeAppTour, setActiveAppTour } =
     useAppTourContext();
+
+  const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
+    /(^\/+|\/+?$)/g,
+    ""
+  );
+  const samplePluginImagePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/tethys_dash.png`;
 
   const handleCallback = (event) => {
     const { status, action, index, type, step } = event;

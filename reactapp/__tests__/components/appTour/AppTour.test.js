@@ -264,6 +264,9 @@ test("Dashboard App Tour", async () => {
       /Click on the dropdown and select "Custom Image". In this example, the argument is asking for an publicly accessible image url./i
     )
   ).toBeInTheDocument();
+  expect(
+    await screen.findByText(/static\/tethysdash\/images\/tethys_dash.png/i)
+  ).toBeInTheDocument();
   nextButton = await screen.findByLabelText("Next");
   backButton = await screen.findByLabelText("Back");
   await userEvent.click(nextButton);
@@ -617,6 +620,239 @@ test("Dashboard App Tour", async () => {
     // eslint-disable-next-line
     document.querySelector("#react-joyride-portal")
   ).not.toBeInTheDocument();
+}, 60000);
+
+test("Dashboard App Tour check static image prefix", async () => {
+  // Save original environment variable
+  const originalPrefixUrl = process.env.TETHYS_PREFIX_URL;
+  process.env.TETHYS_PREFIX_URL = "my/prefix/url";
+
+  let nextButton;
+  let backButton;
+  const mockAddDashboard = jest.fn();
+  mockAddDashboard.mockResolvedValue({
+    success: true,
+    new_dashboard: {
+      id: 1,
+      name: "new_name",
+      label: "New Name",
+      notes: "test_notes",
+      editable: true,
+      publicDashboard: false,
+      tabs: [
+        {
+          id: "1",
+          name: "Tab 1",
+          gridItems: [
+            {
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "",
+              args_string: "{}",
+              metadata_string: JSON.stringify({
+                refreshRate: 0,
+              }),
+            },
+          ],
+        },
+      ],
+    },
+  });
+  jest.spyOn(appAPI, "addDashboard").mockImplementation(mockAddDashboard);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/"]}>
+          <LayoutAlertContextProvider>
+            <AppTour />
+            <DashboardHeader />
+            <DashboardTabs />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: { editableDashboard: true },
+    })
+  );
+
+  expect(
+    // eslint-disable-next-line
+    document.querySelector("#react-joyride-portal")
+  ).not.toBeInTheDocument();
+
+  ////////////////////
+  // App Info Modal //
+  ////////////////////
+  expect(await screen.findByText("TethysDash Dashboards")).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /If you would like to take a tour of the application, click on the button below to begin./i
+    )
+  ).toBeInTheDocument();
+  const startTourButton = await screen.findByText("Start Dashboard Tour");
+  expect(startTourButton).toBeInTheDocument();
+  userEvent.click(startTourButton);
+  await waitFor(() => {
+    expect(screen.queryByText("Start Dashboard Tour")).not.toBeInTheDocument();
+  });
+
+  /////////////
+  // STEP 17 //
+  /////////////
+  expect(
+    await screen.findByText(
+      "This is the main layout of the dashboard where dashboards items will be shown."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 18 //
+  /////////////
+  expect(
+    await screen.findByText(
+      "Dashboards are composed of dashboard items. Each dashboard item can be customized to show visualizations and be changed in size to the users liking. Dashboards and items can only be changed by the dashboard owner and when the dashboard is in edit mode."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  backButton = await screen.findByLabelText("Back");
+  await userEvent.click(backButton);
+
+  /////////////
+  // STEP 17 //
+  /////////////
+  expect(
+    await screen.findByText(
+      "This is the main layout of the dashboard where dashboards items will be shown."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 18 //
+  /////////////
+  expect(
+    await screen.findByText(
+      "Dashboards are composed of dashboard items. Each dashboard item can be customized to show visualizations and be changed in size to the users liking. Dashboards and items can only be changed by the dashboard owner and when the dashboard is in edit mode."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  backButton = await screen.findByLabelText("Back");
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 19 //
+  /////////////
+  expect(
+    await screen.findByText("Click on the edit button to turn on edit mode.")
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  const dashboardEditButton = await screen.findByLabelText("editButton");
+  await userEvent.click(dashboardEditButton);
+
+  /////////////
+  // STEP 20 //
+  /////////////
+  expect(
+    await screen.findByText(
+      "Once in edit mode, update the size of a dashboard item by dragging the resize handle."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  /////////////
+  // STEP 21 //
+  /////////////
+  expect(
+    await screen.findByText(
+      "While in edit mode, update the visualization by clicking on the 3 dot menu within the dashboard item."
+    )
+  ).toBeInTheDocument();
+  expect(screen.queryByLabelText("Next")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  const dashboardItemDropdownToggle = await screen.findByLabelText(
+    "dashboard-item-dropdown-toggle"
+  );
+  await userEvent.click(dashboardItemDropdownToggle);
+
+  /////////////
+  // STEP 22 //
+  /////////////
+  expect(
+    await screen.findByText(
+      /Editing the visualization will change the dashboard visualization as well as any dashboard item settings./i
+    )
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /Click on "Edit" in the menu to learn more or continue the App Tour by clicking on "Next"./i
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  const editGridItemButton = await screen.findByText("Edit");
+  await userEvent.click(editGridItemButton);
+
+  //////////////////////////
+  // STEP 32 - DATAVIEWER //
+  //////////////////////////
+  expect(
+    await screen.findByText(
+      "This is a modal for configuring and previewing visualizations."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  expect(screen.queryByLabelText("Back")).not.toBeInTheDocument();
+  await userEvent.click(nextButton);
+
+  //////////////////////////
+  // STEP 33 - DATAVIEWER //
+  //////////////////////////
+  expect(
+    await screen.findByText(
+      "The visualization tab will show options for configuring the visualization and any visualization arguments."
+    )
+  ).toBeInTheDocument();
+  nextButton = await screen.findByLabelText("Next");
+  backButton = await screen.findByLabelText("Back");
+  await userEvent.click(nextButton);
+
+  //////////////////////////
+  // STEP 34 - DATAVIEWER //
+  //////////////////////////
+  expect(
+    await screen.findByText(
+      /Begin by selecting a "Visualization Type" to pick a visualization./i
+    )
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /Once a visualization type has been chosen, additional inputs for arguments will appear for the given visualization./i
+    )
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /Click on the dropdown and select "Custom Image". In this example, the argument is asking for an publicly accessible image url./i
+    )
+  ).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      /my\/prefix\/url\/static\/tethysdash\/images\/tethys_dash.png/i
+    )
+  ).toBeInTheDocument();
+
+  // Restore original environment variable
+  process.env.TETHYS_PREFIX_URL = originalPrefixUrl;
 }, 60000);
 
 test("Dashboard App Tour while editing and then exit", async () => {
@@ -1052,79 +1288,3 @@ test("Landing Page App Tour", async () => {
     document.querySelector("#react-joyride-portal")
   ).not.toBeInTheDocument();
 }, 40000);
-
-test("samplePluginImagePath is constructed correctly", () => {
-  // Save original environment
-  const originalEnv = process.env.TETHYS_PREFIX_URL;
-
-  // Test with no prefix URL (should result in "/static/tethysdash/images/tethys_dash.png")
-  delete process.env.TETHYS_PREFIX_URL;
-  jest.resetModules();
-
-  // Mock the module to expose the constant for testing
-  jest.doMock("components/appTour/AppTour", () => {
-    const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
-      /(^\/+|\/+?$)/g,
-      ""
-    );
-    const samplePluginImagePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/tethys_dash.png`;
-
-    const AppTour = () => null; // Mock component
-    AppTour.samplePluginImagePath = samplePluginImagePath; // Expose for testing
-    return { default: AppTour };
-  });
-
-  let AppTour = require("components/appTour/AppTour").default;
-  expect(AppTour.samplePluginImagePath).toBe(
-    "/static/tethysdash/images/tethys_dash.png"
-  );
-
-  // Test with prefix URL
-  process.env.TETHYS_PREFIX_URL = "/test-prefix/";
-  jest.resetModules();
-  jest.doMock("components/appTour/AppTour", () => {
-    const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
-      /(^\/+|\/+?$)/g,
-      ""
-    );
-    const samplePluginImagePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/tethys_dash.png`;
-
-    const AppTour = () => null;
-    AppTour.samplePluginImagePath = samplePluginImagePath;
-    return { default: AppTour };
-  });
-
-  AppTour = require("components/appTour/AppTour").default;
-  expect(AppTour.samplePluginImagePath).toBe(
-    "/test-prefix/static/tethysdash/images/tethys_dash.png"
-  );
-
-  // Test with prefix URL that has multiple slashes
-  process.env.TETHYS_PREFIX_URL = "///another-prefix///";
-  jest.resetModules();
-  jest.doMock("components/appTour/AppTour", () => {
-    const prefixUrlSegment = (process.env.TETHYS_PREFIX_URL || "").replace(
-      /(^\/+|\/+?$)/g,
-      ""
-    );
-    const samplePluginImagePath = `${prefixUrlSegment ? `/${prefixUrlSegment}` : ""}/static/tethysdash/images/tethys_dash.png`;
-
-    const AppTour = () => null;
-    AppTour.samplePluginImagePath = samplePluginImagePath;
-    return { default: AppTour };
-  });
-
-  AppTour = require("components/appTour/AppTour").default;
-  expect(AppTour.samplePluginImagePath).toBe(
-    "/another-prefix/static/tethysdash/images/tethys_dash.png"
-  );
-
-  // Restore original environment and reset modules
-  if (originalEnv !== undefined) {
-    process.env.TETHYS_PREFIX_URL = originalEnv;
-  } else {
-    delete process.env.TETHYS_PREFIX_URL;
-  }
-  jest.resetModules();
-  jest.dontMock("components/appTour/AppTour");
-});
