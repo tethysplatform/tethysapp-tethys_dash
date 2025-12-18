@@ -14,6 +14,6 @@ function renderWithRouter(ui, { route = "/" } = {}) {
 it("Renders the Loading message", async () => {
   renderWithRouter(<App />);
   // "find" queries wait until element matching description is found
-  const loadingMessage = await screen.findByText("Loading...");
+  const loadingMessage = await screen.findByText("Loading TethysDash...");
   expect(loadingMessage).toBeInTheDocument();
 });

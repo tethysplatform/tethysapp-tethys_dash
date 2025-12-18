@@ -136,11 +136,9 @@ const createLoadedComponent = ({ children, options = {} }) => {
   return (
     <ModalPriorityProvider>
       <Loader>
-        <WebsocketProvider>
-          <DashboardLoader {...initialDashboard}>
-            <TestingComponent options={options}>{children}</TestingComponent>
-          </DashboardLoader>
-        </WebsocketProvider>
+        <DashboardLoader {...initialDashboard}>
+          <TestingComponent options={options}>{children}</TestingComponent>
+        </DashboardLoader>
       </Loader>
     </ModalPriorityProvider>
   );

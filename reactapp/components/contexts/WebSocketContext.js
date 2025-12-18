@@ -1,4 +1,5 @@
 import { createContext, useEffect, useRef, useState } from "react";
+import LoadingAnimation from "components/loader/LoadingAnimation";
 
 export const WebsocketContext = createContext();
 
@@ -9,7 +10,21 @@ const WebsocketProvider = ({ children }) => {
   const ws = useRef(null);
 
   const onMessage = (event) => {
-    const messageData = JSON.parse(event.data);
+    let messageData;
+    try {
+      messageData = JSON.parse(event.data);
+    } catch (e) {
+      return;
+    }
+
+    if (
+      messageData === null ||
+      !Object.prototype.hasOwnProperty.call(messageData, "requestId") ||
+      !Object.prototype.hasOwnProperty.call(messageData, "message")
+    ) {
+      return;
+    }
+
     const { requestId } = messageData;
 
     setMessagesByRequestId((prevMessages) => {
@@ -46,21 +61,11 @@ const WebsocketProvider = ({ children }) => {
   }, [websocketReady]);
 
   const getMessageForRequest = (requestId) => {
-    if (messagesByRequestId[requestId]) {
-      const receivedMessage = messagesByRequestId[requestId];
-      try {
-        const msg = JSON.parse(receivedMessage);
-        if (msg.requestId === requestId && msg.message) {
-          return receivedMessage;
-        }
-      } catch (e) {
-        console.log("Error parsing WebSocket message:", e);
-      }
-    }
+    return messagesByRequestId[requestId] && messagesByRequestId[requestId];
   };
 
   if (!websocketReady && !timeoutReached) {
-    return null;
+    return <LoadingAnimation text="Connecting to WebSocket..." />;
   }
 
   return (

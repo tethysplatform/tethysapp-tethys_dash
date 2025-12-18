@@ -24,6 +24,7 @@ import {
   handleGridItemImport,
 } from "components/dashboard/DashboardItem";
 import IdleTimerManager from "components/loader/IdleTimerManager";
+import WebsocketProvider from "components/contexts/WebSocketContext";
 import { v4 as uuidv4 } from "uuid";
 
 const APP_ID = process.env.TETHYS_APP_ID;
@@ -447,7 +448,7 @@ function Loader({ children }) {
     // Throw error so it will be caught by the ErrorBoundary
     throw error;
   } else if (!isLoaded) {
-    return <LoadingAnimation />;
+    return <LoadingAnimation text="Loading TethysDash..." />;
   } else {
     return (
       <>
@@ -472,8 +473,10 @@ function Loader({ children }) {
               }}
             >
               <AppTourContextProvider>
-                {children}
-                <IdleTimerManager />
+                <WebsocketProvider>
+                  {children}
+                  <IdleTimerManager />
+                </WebsocketProvider>
               </AppTourContextProvider>
             </AvailableDashboardsContext.Provider>
           </PermissionGroupContext.Provider>

@@ -161,7 +161,7 @@ const DashboardLoader = ({
       </Error>
     );
   } else if (!isLoaded) {
-    return <LoadingAnimation />;
+    return <LoadingAnimation text="Loading Dashboard..." />;
   } else {
     return (
       <VariableInputsContext.Provider

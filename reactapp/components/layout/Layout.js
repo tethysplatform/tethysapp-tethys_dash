@@ -15,7 +15,7 @@ function Layout({ children }) {
         <Route
           key="route-dashboard-loading"
           path="/dashboard/*"
-          element={<LoadingAnimation />}
+          element={<LoadingAnimation text="Loading Dashboard..." />}
         />
         <Route key="route-not-found" path="*" element={<NotFound />} />
       </Routes>

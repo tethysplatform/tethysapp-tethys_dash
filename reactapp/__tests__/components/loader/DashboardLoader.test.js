@@ -94,7 +94,7 @@ test("DashboardLoader", async () => {
     </AvailableDashboardsContext.Provider>
   );
 
-  expect(await screen.findByText("Loading...")).toBeInTheDocument();
+  expect(await screen.findByText("Loading Dashboard...")).toBeInTheDocument();
   expect(await screen.findByText("Hello World!")).toBeInTheDocument();
 });
 
@@ -122,7 +122,7 @@ test("DashboardLoader 500 error", async () => {
     </AvailableDashboardsContext.Provider>
   );
 
-  expect(await screen.findByText("Loading...")).toBeInTheDocument();
+  expect(await screen.findByText("Loading Dashboard...")).toBeInTheDocument();
   expect(
     await screen.findByText(
       "The dashboard failed to load. Please try again or contact admins."
@@ -154,7 +154,7 @@ test("DashboardLoader API error", async () => {
     </AvailableDashboardsContext.Provider>
   );
 
-  expect(await screen.findByText("Loading...")).toBeInTheDocument();
+  expect(await screen.findByText("Loading Dashboard...")).toBeInTheDocument();
   expect(
     await screen.findByText(
       "The dashboard failed to load. Please try again or contact admins."

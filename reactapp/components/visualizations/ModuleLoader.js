@@ -79,7 +79,7 @@ function ModuleLoader(props) {
   return (
     <>
       {Component && (
-        <Suspense fallback={<LoadingAnimation />}>
+        <Suspense fallback={<LoadingAnimation text="Loading Module..." />}>
           <Component
             {...props.props}
             ref={props.visualizationRef}

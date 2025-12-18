@@ -4,20 +4,17 @@ import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import { DashboardHeader } from "components/layout/Header";
 import PropTypes from "prop-types";
 import DashboardLoader from "components/loader/DashboardLoader";
-import WebsocketProvider from "components/contexts/WebSocketContext";
 
 function DashboardView(dashboardProps) {
   return (
     <div className="h-100" style={{ display: "flex", flexDirection: "column" }}>
-      <WebsocketProvider>
-        <DashboardLoader {...dashboardProps}>
-          <LayoutAlertContextProvider>
-            <DashboardHeader />
-            <DashboardLayoutAlerts />
-            <DashboardTabs />
-          </LayoutAlertContextProvider>
-        </DashboardLoader>
-      </WebsocketProvider>
+      <DashboardLoader {...dashboardProps}>
+        <LayoutAlertContextProvider>
+          <DashboardHeader />
+          <DashboardLayoutAlerts />
+          <DashboardTabs />
+        </LayoutAlertContextProvider>
+      </DashboardLoader>
     </div>
   );
 }

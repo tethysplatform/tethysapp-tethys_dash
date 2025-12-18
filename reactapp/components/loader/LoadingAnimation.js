@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 
 import "components/loader/LoadingAnimation.scss";
 
-const LoadingAnimation = ({ delay }) => {
+const LoadingAnimation = ({ delay, text = "Loading..." }) => {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
@@ -35,7 +35,7 @@ const LoadingAnimation = ({ delay }) => {
             <div className="outer-moon-a"></div>
             <div className="outer-moon-b"></div>
           </div>
-          <div className="loading-text">Loading...</div>
+          <div className="loading-text">{text}</div>
         </div>
       )}
     </>
