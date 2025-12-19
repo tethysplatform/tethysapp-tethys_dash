@@ -1769,7 +1769,7 @@ async def test_visualization_consumer_connect_authenticated(settings):
 
 @pytest.mark.asyncio
 async def test_visualization_consumer_connect_unauthenticated():
-    """Test that an unauthenticated user is disconnected immediately."""
+    """Test that an unauthenticated user can connect and is added to the group.."""
 
     class DummyUser:
         is_authenticated = False
@@ -1780,15 +1780,21 @@ async def test_visualization_consumer_connect_unauthenticated():
     application.channel_layer = get_channel_layer()
     application.channel_name = "test_channel"
 
+    # Patch group_add and accept to track calls
     called = {}
 
-    async def fake_close():
-        called["close"] = True
+    async def fake_group_add(group, channel):
+        called["group_add"] = (group, channel)
 
-    application.close = fake_close
+    async def fake_accept():
+        called["accept"] = True
+
+    application.channel_layer.group_add = fake_group_add
+    application.accept = fake_accept
 
     await application.connect()
-    assert called["close"] is True
+    assert called["group_add"] == ("dashboard_updates", "test_channel")
+    assert called["accept"] is True
 
 
 @pytest.mark.asyncio

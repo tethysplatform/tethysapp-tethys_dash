@@ -53,6 +53,15 @@ const StyledH2 = styled.h2`
   padding: 1rem;
 `;
 
+const CenteredContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100%;
+  width: 100%;
+`;
+
 export const Visualization = memo(
   ({ vizRef, vizType, vizData, progressMessage, dataviewerViz }) => {
     if (progressMessage && vizType === "loader") {
@@ -62,7 +71,7 @@ export const Visualization = memo(
         step && totalSteps ? Math.round((step / totalSteps) * 100) : null;
 
       return (
-        <div>
+        <CenteredContainer>
           <StyledH2>{message}</StyledH2>
           {percent !== null && (
             <ProgressBar
@@ -78,7 +87,7 @@ export const Visualization = memo(
               variant="info"
             />
           </SpinnerContainer>
-        </div>
+        </CenteredContainer>
       );
     }
 

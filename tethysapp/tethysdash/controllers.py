@@ -248,12 +248,6 @@ def visualizations(request):
 )
 class VisualizationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        user = self.scope["user"]
-
-        if not user.is_authenticated:
-            await self.close()
-            return
-
         # Add to groups
         await self.channel_layer.group_add("dashboard_updates", self.channel_name)
 
@@ -262,11 +256,6 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, code):
         await self.channel_layer.group_discard("dashboard_updates", self.channel_name)
 
-    async def receive(self, text_data=None, bytes_data=None):
-        # handle incoming messages if needed
-        pass
-
-    # Handlers for sent messages
     async def send_message(self, event):
         message = event["message"]
         await self.send(json.dumps(message))
