@@ -24,8 +24,8 @@ import styled from "styled-components";
 import Spinner from "react-bootstrap/Spinner";
 import { addVerticalLine } from "components/visualizations/BasePlot";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
-import { v4 as uuidv4 } from "uuid";
 import ProgressBar from "react-bootstrap/ProgressBar";
+import Chatbox from "components/visualizations/Chatbox";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -155,6 +155,8 @@ export const Visualization = memo(
             visualizationRef={vizRef}
           />
         );
+      case "chatBox":
+        return <Chatbox requestId={vizData.requestId} />;
       case "custom":
         return (
           <ModuleLoader
@@ -289,6 +291,7 @@ const BaseVisualization = ({
   source,
   argsString,
   metadataString,
+  uuid,
   shouldLoad,
 }) => {
   const [vizType, setVizType] = useState("loader");
@@ -303,7 +306,7 @@ const BaseVisualization = ({
   const { isEditing } = useContext(EditingContext);
   const dashboardVizRef = useRef();
   const { getMessageForRequest } = useContext(WebsocketContext);
-  const requestId = useRef(uuidv4());
+  const requestId = useRef(uuid);
 
   useEffect(() => {
     const args = JSON.parse(argsString);

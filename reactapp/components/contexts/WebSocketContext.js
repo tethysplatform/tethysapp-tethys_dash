@@ -7,8 +7,32 @@ export const WebsocketContext = createContext();
 const WebsocketProvider = ({ children }) => {
   const [websocketReady, setWebsocketReady] = useState(false);
   const [messagesByRequestId, setMessagesByRequestId] = useState({});
-
+  const [timeoutReached, setTimeoutReached] = useState(false);
   const ws = useRef(null);
+
+  useEffect(() => {
+    const socket = new WebSocket(process.env.REDIS_WS_URL);
+
+    socket.onopen = () => setWebsocketReady(true);
+    socket.onclose = () => setWebsocketReady(false);
+    socket.onmessage = onMessage;
+
+    ws.current = socket;
+
+    return () => {
+      socket.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setTimeoutReached(true);
+    }, 5000);
+    if (websocketReady) {
+      clearTimeout(timer);
+    }
+    return () => clearTimeout(timer);
+  }, [websocketReady]);
 
   const onMessage = (event) => {
     let messageData;
@@ -35,34 +59,14 @@ const WebsocketProvider = ({ children }) => {
     });
   };
 
-  useEffect(() => {
-    const socket = new WebSocket(process.env.REDIS_WS_URL);
-
-    socket.onopen = () => setWebsocketReady(true);
-    socket.onclose = () => setWebsocketReady(false);
-    socket.onmessage = onMessage;
-
-    ws.current = socket;
-
-    return () => {
-      socket.close();
-    };
-  }, []);
-
-  const [timeoutReached, setTimeoutReached] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setTimeoutReached(true);
-    }, 5000);
-    if (websocketReady) {
-      clearTimeout(timer);
-    }
-    return () => clearTimeout(timer);
-  }, [websocketReady]);
-
   const getMessageForRequest = (requestId) => {
     return messagesByRequestId[requestId] && messagesByRequestId[requestId];
+  };
+
+  const onSend = (data) => {
+    if (ws.current && websocketReady) {
+      ws.current.send(data);
+    }
   };
 
   if (!websocketReady && !timeoutReached) {
@@ -75,7 +79,7 @@ const WebsocketProvider = ({ children }) => {
         websocketReady,
         messagesByRequestId,
         getMessageForRequest,
-        sendMessage: ws.current?.send.bind(ws.current),
+        sendMessage: onSend,
       }}
     >
       {children}

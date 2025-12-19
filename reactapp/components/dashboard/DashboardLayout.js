@@ -55,6 +55,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
             gridItemArgsString={item.args_string}
             gridItemMetadataString={item.metadata_string}
             gridItemIndex={index}
+            gridItemUUID={item.uuid}
             shouldLoad={shouldLoad}
           />
         </div>

@@ -249,6 +249,16 @@ function Loader({ children }) {
             description:
               "An input that acts as a dashboard variable. This variable can be referenced in other visualizations to allow for dynamic updating.",
           },
+          {
+            source: "Chat Box",
+            value: "Chat Box",
+            label: "Chat Box",
+            type: "chatBox",
+            args: {},
+            tags: ["chat", "default"],
+            description:
+              "A live chart box that allows users to send and receive messages with other users.",
+          },
         ],
       });
 

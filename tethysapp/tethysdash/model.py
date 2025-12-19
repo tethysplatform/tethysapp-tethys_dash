@@ -136,6 +136,7 @@ class GridItem(Base):
     id = Column(Integer, primary_key=True)
     dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
     dashboard = relationship("Dashboard", back_populates="grid_items")
+    uuid = Column(String, nullable=False)
     i = Column(String, nullable=False)
     x = Column(Integer, nullable=False)
     y = Column(Integer, nullable=False)
@@ -1651,6 +1652,7 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
                 for griditem in tab.grid_items:
                     griditem_data = {
                         "id": griditem.id,
+                        "uuid": griditem.uuid,
                         "i": griditem.i,
                         "x": griditem.x,
                         "y": griditem.y,
@@ -1883,6 +1885,29 @@ def get_user_app_permissions(user):
     ]
 
     return user_permissions
+
+
+def check_for_chatbox(grid_item_uuid):
+    """
+    Check if a grid item is a ChatBox.
+
+    Args:
+        grid_item_uuid (str): UUID of the grid item to check
+    Returns:
+        bool: True if the grid item is a ChatBox, False otherwise
+    """
+    Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+    session = Session()
+
+    try:
+        grid_item = (
+            session.query(GridItem).filter(GridItem.uuid == grid_item_uuid).first()
+        )
+        if grid_item and grid_item.source == "Chat Box":
+            return True
+        return False
+    finally:
+        session.close()
 
 
 def init_primary_db(engine, first_time):

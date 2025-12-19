@@ -224,6 +224,7 @@ const DashboardItem = ({
   gridItemArgsString,
   gridItemMetadataString,
   gridItemIndex,
+  gridItemUUID,
   shouldLoad,
 }) => {
   const { isEditing, setIsEditing } = useContext(EditingContext);
@@ -439,6 +440,7 @@ const DashboardItem = ({
             source={gridItemSource}
             argsString={gridItemArgsString}
             metadataString={gridItemMetadataString}
+            uuid={gridItemUUID}
             shouldLoad={shouldLoad}
           />
         </StyledContainer>

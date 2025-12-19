@@ -65,7 +65,6 @@ export async function getVisualization({
   variableInputValues,
   dashboardView,
   vizLoadingIcon = true,
-  requestId,
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -104,6 +103,11 @@ export async function getVisualization({
       source: itemData.args.image_source,
       alt: "custom_image",
     });
+
+    return;
+  } else if (itemData.source === "Chat Box") {
+    setVizType("chatBox");
+    setVizData({ requestId: itemData.requestId });
 
     return;
   }

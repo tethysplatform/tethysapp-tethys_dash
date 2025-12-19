@@ -25,6 +25,7 @@ from tethysapp.tethysdash.model import (
     get_visualization_permissions,
     get_user_app_permissions,
     update_visualization_permissions as update_viz_perms,
+    check_for_chatbox,
 )
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
@@ -32,8 +33,10 @@ from tethysapp.tethysdash.visualizations import (
     get_restricted_visualizations,
 )
 from tethysapp.tethysdash.exceptions import VisualizationError
+from tethysapp.tethysdash.plugin_helpers import send_websocket_message
 from channels.generic.websocket import AsyncWebsocketConsumer
 from tethys_sdk.routing import consumer
+from asgiref.sync import sync_to_async
 
 
 @controller(login_required=False)
@@ -255,6 +258,25 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
 
     async def disconnect(self, code):
         await self.channel_layer.group_discard("dashboard_updates", self.channel_name)
+
+    async def receive(self, text_data=None, bytes_data=None):
+        try:
+            data = json.loads(text_data)
+            request_id = data.get("requestId")
+            message = data.get("message")
+        except Exception as e:
+            print(f"Failed to parse text_data: {e}")
+            return
+
+        valid_chatbox = await sync_to_async(check_for_chatbox)(request_id)
+        if not valid_chatbox:
+            print(f"Invalid chatbox request ID: {request_id}")
+            return
+
+        sender = data.get("sender", "unknown")
+
+        # Broadcast the message
+        await sync_to_async(send_websocket_message)(request_id, message, sender=sender)
 
     async def send_message(self, event):
         message = event["message"]

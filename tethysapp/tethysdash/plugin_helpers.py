@@ -12,7 +12,9 @@ from datetime import datetime
 
 
 # General helper for sending messages via Django Channels
-def send_websocket_message(request_id, message, step=None, total_steps=None):
+def send_websocket_message(
+    request_id, message, step=None, total_steps=None, sender=None
+):
     """
     Send a message to a Django Channels group for WebSocket delivery.
 
@@ -33,6 +35,9 @@ def send_websocket_message(request_id, message, step=None, total_steps=None):
         if step is not None and total_steps is not None:
             websocket_message["step"] = step
             websocket_message["totalSteps"] = total_steps
+
+        if sender:
+            websocket_message["sender"] = sender
 
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
