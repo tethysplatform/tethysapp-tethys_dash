@@ -23,7 +23,7 @@ def send_websocket_message(request_id, message, step=None, total_steps=None):
         total_steps (int, optional): Total steps in a multi-step process.
 
     Example:
-        send_websocket_message('user_123', 'progress_message', {'progress': 'Started'})
+        send_websocket_message('user_123', 'progress_message', 1, 2)
     """
     try:
         from channels.layers import get_channel_layer
