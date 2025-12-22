@@ -119,6 +119,7 @@ class GridItem(Base):
         id (int): Primary key identifier
         dashboard_id (int): Foreign key to parent dashboard
         dashboard (relationship): Reference to parent dashboard
+        uuid (str): Unique identifier for the grid item
         i (str): Unique identifier within the dashboard grid
         x (int): Horizontal position in grid units
         y (int): Vertical position in grid units
@@ -487,6 +488,7 @@ def add_new_grid_item(
     grid_item_args_string,
     grid_item_metadata_string,
     grid_item_order,
+    grid_item_uuid,
     tab_id,
 ):
     """
@@ -507,6 +509,7 @@ def add_new_grid_item(
         grid_item_args_string (str): JSON string with visualization arguments
         grid_item_metadata_string (str): JSON string with component metadata
         grid_item_order (int): Display order within dashboard
+        grid_item_uuid (str): UUID of the grid item
         tab_id (int, optional): ID of the parent tab
 
     Returns:
@@ -530,6 +533,7 @@ def add_new_grid_item(
         args_string=grid_item_args_string,
         metadata_string=grid_item_metadata_string,
         order=grid_item_order,
+        uuid=grid_item_uuid,
     )
     session.add(new_grid_item)
     session.commit()
@@ -638,6 +642,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
                 dashboard_id=new_dashboard.id,
                 tab_id=new_tab_id,
                 order=index,
+                uuid=grid_item.uuid,
             )
             session.add(new_item)
             new_grid_items.append(new_item)
@@ -868,6 +873,7 @@ def update_named_dashboard(user, id, dashboard_updates):
                             args_string=grid_item_args_string,
                             metadata_string=grid_item["metadata_string"],
                             order=grid_item_order,
+                            uuid=grid_item["uuid"],
                         )
                         session.add(new_grid_item)
 

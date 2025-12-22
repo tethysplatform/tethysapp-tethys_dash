@@ -1,4 +1,5 @@
 import { useContext, useState, useRef, useEffect, Fragment } from "react";
+import PropTypes from "prop-types";
 import { AppContext } from "components/contexts/Contexts";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import styled from "styled-components";
@@ -77,7 +78,7 @@ const MessageTextarea = styled.textarea`
   max-height: 80px;
 `;
 
-// TODO: Add PropTypes, add uuid to new, imported, and copied grid item, update new uuid to grid item uuid where requestId is used, history
+// TODO: add uuid to new, imported, and copied grid item, update new uuid to grid item uuid where requestId is used, history
 const LiveChat = ({ requestId }) => {
   const { websocketReady, sendMessage, messagesByRequestId } =
     useContext(WebsocketContext);
@@ -99,14 +100,23 @@ const LiveChat = ({ requestId }) => {
     if (messageData) {
       try {
         const parsed = JSON.parse(messageData);
-        setChatLog((prev) => [
-          ...prev,
-          {
-            sender: parsed.sender,
-            text: parsed.message,
-            sessionId: parsed.sessionId,
-          },
-        ]);
+        setChatLog((prev) => {
+          const last = prev[prev.length - 1];
+          const isDuplicate =
+            last &&
+            last.sender === parsed.sender &&
+            last.text === parsed.message &&
+            last.sessionId === parsed.sessionId;
+          if (isDuplicate) return prev;
+          return [
+            ...prev,
+            {
+              sender: parsed.sender,
+              text: parsed.message,
+              sessionId: parsed.sessionId,
+            },
+          ];
+        });
       } catch (e) {
         // ignore parse errors
       }
@@ -258,6 +268,10 @@ const LiveChat = ({ requestId }) => {
       </form>
     </PaddedContainer>
   );
+};
+
+LiveChat.propTypes = {
+  requestId: PropTypes.string,
 };
 
 export default LiveChat;

@@ -24,6 +24,7 @@ import {
 import CustomAlert from "components/dashboard/CustomAlert";
 import { loadLayerJSONs, saveLayerJSON } from "components/map/utilities";
 import { valuesEqual } from "components/modals/utilities";
+import { v4 as uuidv4 } from "uuid";
 
 const StyledContainer = styled(Container)`
   position: relative;
@@ -332,6 +333,7 @@ const DashboardItem = ({
     const copiedGridItem = getGridItem(gridItems, gridItemI);
     const newGridItem = { ...copiedGridItem };
     newGridItem.i = `${parseInt(maxGridItemI) + 1}`;
+    newGridItem.uuid = uuidv4();
     if (newGridItem.source === "Variable Input") {
       const newGridItemArgs = JSON.parse(newGridItem.args_string);
       let copiedVariableName = newGridItemArgs.variable_name;
