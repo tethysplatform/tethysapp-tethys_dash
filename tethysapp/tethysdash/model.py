@@ -1887,14 +1887,14 @@ def get_user_app_permissions(user):
     return user_permissions
 
 
-def check_for_chatbox(grid_item_uuid):
+def check_for_liveChat(grid_item_uuid):
     """
-    Check if a grid item is a ChatBox.
+    Check if a grid item is a liveChat.
 
     Args:
         grid_item_uuid (str): UUID of the grid item to check
     Returns:
-        bool: True if the grid item is a ChatBox, False otherwise
+        bool: True if the grid item is a liveChat, False otherwise
     """
     Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
     session = Session()
@@ -1903,7 +1903,7 @@ def check_for_chatbox(grid_item_uuid):
         grid_item = (
             session.query(GridItem).filter(GridItem.uuid == grid_item_uuid).first()
         )
-        if grid_item and grid_item.source == "Chat Box":
+        if grid_item and grid_item.source == "Live Chat":
             return True
         return False
     finally:

@@ -25,7 +25,7 @@ from tethysapp.tethysdash.model import (
     get_visualization_permissions,
     get_user_app_permissions,
     update_visualization_permissions as update_viz_perms,
-    check_for_chatbox,
+    check_for_liveChat,
 )
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
@@ -37,6 +37,10 @@ from tethysapp.tethysdash.plugin_helpers import send_websocket_message
 from channels.generic.websocket import AsyncWebsocketConsumer
 from tethys_sdk.routing import consumer
 from asgiref.sync import sync_to_async
+from better_profanity import profanity
+
+# Load the default wordlist
+profanity.load_censor_words()
 
 
 @controller(login_required=False)
@@ -268,15 +272,19 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             print(f"Failed to parse text_data: {e}")
             return
 
-        valid_chatbox = await sync_to_async(check_for_chatbox)(request_id)
-        if not valid_chatbox:
-            print(f"Invalid chatbox request ID: {request_id}")
+        valid_liveChat = await sync_to_async(check_for_liveChat)(request_id)
+        if not valid_liveChat:
+            print(f"Invalid liveChat request ID: {request_id}")
             return
 
         sender = data.get("sender", "unknown")
+        sessionId = data.get("sessionId", None)
+        censored_message = profanity.censor(message)
 
         # Broadcast the message
-        await sync_to_async(send_websocket_message)(request_id, message, sender=sender)
+        await sync_to_async(send_websocket_message)(
+            request_id, censored_message, sender=sender, sessionId=sessionId
+        )
 
     async def send_message(self, event):
         message = event["message"]

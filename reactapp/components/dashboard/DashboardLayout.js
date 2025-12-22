@@ -96,6 +96,8 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
         w: lay.w,
         x: lay.x,
         y: lay.y,
+        id: result.id,
+        uuid: result.uuid,
       });
     }
 

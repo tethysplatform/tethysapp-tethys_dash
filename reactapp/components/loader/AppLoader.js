@@ -250,10 +250,10 @@ function Loader({ children }) {
               "An input that acts as a dashboard variable. This variable can be referenced in other visualizations to allow for dynamic updating.",
           },
           {
-            source: "Chat Box",
-            value: "Chat Box",
-            label: "Chat Box",
-            type: "chatBox",
+            source: "Live Chat",
+            value: "Live Chat",
+            label: "Live Chat",
+            type: "liveChat",
             args: {},
             tags: ["chat", "default"],
             description:

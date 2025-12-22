@@ -105,8 +105,8 @@ export async function getVisualization({
     });
 
     return;
-  } else if (itemData.source === "Chat Box") {
-    setVizType("chatBox");
+  } else if (itemData.source === "Live Chat") {
+    setVizType("liveChat");
     setVizData({ requestId: itemData.requestId });
 
     return;

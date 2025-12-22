@@ -25,7 +25,7 @@ import Spinner from "react-bootstrap/Spinner";
 import { addVerticalLine } from "components/visualizations/BasePlot";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import ProgressBar from "react-bootstrap/ProgressBar";
-import Chatbox from "components/visualizations/Chatbox";
+import LiveChat from "components/visualizations/LiveChat";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -155,8 +155,8 @@ export const Visualization = memo(
             visualizationRef={vizRef}
           />
         );
-      case "chatBox":
-        return <Chatbox requestId={vizData.requestId} />;
+      case "liveChat":
+        return <LiveChat requestId={vizData.requestId} />;
       case "custom":
         return (
           <ModuleLoader
