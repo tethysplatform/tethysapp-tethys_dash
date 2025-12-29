@@ -305,6 +305,19 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             )
             db_session = Session()
             try:
+                # Check if there are previous messages with this session_id and request_id
+                previous_messages = (
+                    db_session.query(Message)
+                    .filter_by(session_id=sessionId, request_id=request_id)
+                    .all()
+                )
+                # If any previous message has a different sender, update all to new sender
+                if previous_messages and any(
+                    m.sender != sender for m in previous_messages
+                ):
+                    for m in previous_messages:
+                        m.sender = sender
+                # Add the new message
                 db_session.add(
                     Message(
                         timestamp=datetime.utcnow(),
