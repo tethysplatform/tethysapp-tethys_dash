@@ -84,6 +84,36 @@ const SendButton = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 44px;
+  min-height: 36px;
+  position: relative;
+  transition:
+    background 0.2s,
+    color 0.2s;
+  &:disabled {
+    background: #b0b8c1;
+    color: #e0e0e0;
+    cursor: not-allowed;
+    opacity: 1;
+  }
+`;
+
+const Spinner = styled.div`
+  border: 2px solid #fff;
+  border-top: 2px solid #1976d2;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  animation: spin 0.8s linear infinite;
+  margin: 0 2px;
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
 `;
 
 const UsernameInput = styled.input`
@@ -102,7 +132,7 @@ const MessageTextarea = styled.textarea`
   max-height: 80px;
 `;
 
-// todo: history, when people change name change the chatlog name too, put a loading icon on the send button until successful, if not successful show error (maybe in chatlog?)
+// todo: put a loading icon on the send button until successful, if not successful show error (maybe in chatlog?), auto scroll to bottom on history, delete chat messages when grid items changes
 
 function getOrCreateSessionId(sessionIdKey) {
   let sid = null;
@@ -147,6 +177,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
   const [rateLimited, setRateLimited] = useState(false);
   const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
   const rateLimitRef = useRef({ count: 0, timer: null, resetAt: null });
+  const [sending, setSending] = useState(false);
 
   const sessionIdKey = `livechat_sessionid_${requestId || "default"}`;
   const sessionId = getOrCreateSessionId(sessionIdKey);
@@ -215,11 +246,9 @@ const LiveChat = ({ requestId, chatHistory }) => {
     }
   }, [chatLog]);
 
-  const handleSend = (e) => {
+  const handleSend = async (e) => {
     e.preventDefault();
-    // If rate limited, block sending
-    if (rateLimited) return;
-    // If username is not set, treat input as username entry
+    if (rateLimited || sending) return;
     if (!customUsername) {
       if (!input.trim()) return;
       setCustomUsername(input.trim());
@@ -229,8 +258,6 @@ const LiveChat = ({ requestId, chatHistory }) => {
       setInput("");
       return;
     }
-
-    // If editing username, update and exit editing mode
     if (editingUsername) {
       if (!input.trim()) return;
       setCustomUsername(input.trim());
@@ -254,7 +281,6 @@ const LiveChat = ({ requestId, chatHistory }) => {
       setRateLimited(true);
       const msLeft = rateLimitRef.current.resetAt - now;
       setRateLimitCountdown(Math.ceil(msLeft / 1000));
-      // Start countdown
       if (rateLimitRef.current.timer) clearInterval(rateLimitRef.current.timer);
       rateLimitRef.current.timer = setInterval(() => {
         setRateLimitCountdown((prev) => {
@@ -271,14 +297,23 @@ const LiveChat = ({ requestId, chatHistory }) => {
       return;
     }
 
+    setSending(true);
     const messageObj = {
       requestId: requestId,
       message: input,
       sender: customUsername,
       sessionId,
     };
-    sendMessage && sendMessage(JSON.stringify(messageObj));
+    try {
+      await Promise.resolve(
+        sendMessage && sendMessage(JSON.stringify(messageObj))
+      );
+    } catch (e) {
+      // Optionally show error
+    }
     setInput("");
+    // Wait for message to appear in chatLog (optimistic: short delay fallback)
+    setTimeout(() => setSending(false), 500);
   };
 
   // Autofocus message input when username is set or updated
@@ -374,6 +409,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
         <SendButton
           type="submit"
           disabled={
+            sending ||
             rateLimited ||
             (!customUsername && !input.trim()) ||
             (customUsername &&
@@ -381,10 +417,17 @@ const LiveChat = ({ requestId, chatHistory }) => {
               (!websocketReady || !input.trim()))
           }
           aria-label={
-            !customUsername || editingUsername ? "Set Username" : "Send"
+            !customUsername || editingUsername
+              ? "Set Username"
+              : sending
+                ? "Sending"
+                : "Send"
           }
+          tabIndex={sending ? -1 : 0}
         >
-          {!customUsername || editingUsername ? (
+          {sending ? (
+            <Spinner aria-label="Loading" />
+          ) : !customUsername || editingUsername ? (
             "Set Username"
           ) : (
             <span role="img" aria-label="send">
