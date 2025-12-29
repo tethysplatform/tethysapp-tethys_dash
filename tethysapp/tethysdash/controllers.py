@@ -283,6 +283,7 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
         sender = data.get("sender", "unknown")
         sessionId = data.get("sessionId", None)
         censored_message = profanity.censor(message)
+        timestamp = datetime.utcnow()
 
         rate_key = f"chat_rate_{request_id}_{sessionId}"
         count = cache.get(rate_key, 0)
@@ -296,7 +297,11 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
 
         # Broadcast the message
         await sync_to_async(send_websocket_message)(
-            request_id, censored_message, sender=sender, sessionId=sessionId
+            request_id,
+            censored_message,
+            sender=sender,
+            sessionId=sessionId,
+            timestamp=timestamp.isoformat() + "Z",
         )
 
         def save_message():
@@ -317,10 +322,10 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
                 ):
                     for m in previous_messages:
                         m.sender = sender
-                # Add the new message
+
                 db_session.add(
                     Message(
-                        timestamp=datetime.utcnow(),
+                        timestamp=timestamp,
                         request_id=request_id,
                         session_id=sessionId,
                         sender=sender,

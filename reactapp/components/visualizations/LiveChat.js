@@ -4,6 +4,7 @@ import { AppContext } from "components/contexts/Contexts";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import styled from "styled-components";
 import { v4 as uuidv4 } from "uuid";
+import { format } from "date-fns";
 
 const PaddedContainer = styled.div`
   padding: 16px;
@@ -20,8 +21,9 @@ const ChatLogArea = styled.div`
 
 const ChatRow = styled.div`
   display: flex;
-  justify-content: ${(props) => (props.isUser ? "flex-end" : "flex-start")};
-  margin-bottom: 4px;
+  flex-direction: column;
+  align-items: ${(props) => (props.isUser ? "flex-end" : "flex-start")};
+  margin-bottom: 12px;
 `;
 
 const ChatBubble = styled.div`
@@ -33,6 +35,28 @@ const ChatBubble = styled.div`
   font-size: 15px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   align-self: ${(props) => (props.isUser ? "flex-end" : "flex-start")};
+  margin-top: 2px;
+`;
+
+const ChatMetaRow = styled.div`
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: ${(props) => (props.isUser ? "flex-end" : "flex-start")};
+  gap: 8px;
+  margin-bottom: 2px;
+  max-width: 75%;
+`;
+
+const ChatMetaText = styled.span`
+  font-size: 12px;
+  color: #888;
+`;
+
+const ChatMetaName = styled.span`
+  font-size: 12px;
+  color: #1976d2;
+  font-weight: bold;
 `;
 
 const UsernameButton = styled.button`
@@ -98,11 +122,23 @@ function getOrCreateSessionId(sessionIdKey) {
   return sid;
 }
 
+function getOrCreateUsername(usernameKey, fallbackUsername = "") {
+  let cached = "";
+  try {
+    cached = window.localStorage.getItem(usernameKey) || "";
+  } catch (e) {}
+  return cached || fallbackUsername || "";
+}
+
 const LiveChat = ({ requestId, chatHistory }) => {
   const { websocketReady, sendMessage, messagesByRequestId } =
     useContext(WebsocketContext);
   const { user } = useContext(AppContext);
-  const [customUsername, setCustomUsername] = useState(user.username || "");
+  const usernameKey = `livechat_username_${requestId || "default"}`;
+  // Initialize customUsername from localStorage if available, else from user.username
+  const [customUsername, setCustomUsername] = useState(() =>
+    getOrCreateUsername(usernameKey, user.username)
+  );
   const [editingUsername, setEditingUsername] = useState(false);
   const [input, setInput] = useState("");
   const messageInputRef = useRef(null);
@@ -131,7 +167,6 @@ const LiveChat = ({ requestId, chatHistory }) => {
             last.sessionId === parsed.sessionId;
           if (isDuplicate) return prev;
 
-          // If the sessionId exists in previous messages but with a different sender, update all previous senders for that sessionId
           let needsUpdate = false;
           for (const msg of prev) {
             if (
@@ -156,6 +191,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
               sender: parsed.sender,
               message: parsed.message,
               sessionId: parsed.sessionId,
+              timestamp: parsed.timestamp,
             },
           ];
         });
@@ -187,13 +223,20 @@ const LiveChat = ({ requestId, chatHistory }) => {
     if (!customUsername) {
       if (!input.trim()) return;
       setCustomUsername(input.trim());
+      try {
+        window.localStorage.setItem(usernameKey, input.trim());
+      } catch (e) {}
       setInput("");
       return;
     }
+
     // If editing username, update and exit editing mode
     if (editingUsername) {
       if (!input.trim()) return;
       setCustomUsername(input.trim());
+      try {
+        window.localStorage.setItem(usernameKey, input.trim());
+      } catch (e) {}
       setEditingUsername(false);
       setInput("");
       return;
@@ -257,12 +300,17 @@ const LiveChat = ({ requestId, chatHistory }) => {
       <ChatLogArea ref={chatLogRef}>
         {chatLog.map((msg, idx) => {
           const isUser = msg.sessionId && msg.sessionId === sessionId;
+          // Always use msg.timestamp if available, else fallback to now (for legacy messages)
+          let timestamp = format(new Date(msg.timestamp), "MMM dd, hh:mm a");
+          console.log(timestamp, msg.timestamp);
+
           return (
             <ChatRow key={idx} isUser={isUser}>
+              <ChatMetaRow isUser={isUser}>
+                {!isUser && <ChatMetaName>{msg.sender}</ChatMetaName>}
+                <ChatMetaText>{timestamp}</ChatMetaText>
+              </ChatMetaRow>
               <ChatBubble isUser={isUser}>
-                <span style={{ fontWeight: "bold" }}>
-                  {isUser ? "You" : msg.sender}:
-                </span>{" "}
                 {msg.message.split("\n").map((line, i) => (
                   <Fragment key={i}>
                     {i > 0 && <br />}

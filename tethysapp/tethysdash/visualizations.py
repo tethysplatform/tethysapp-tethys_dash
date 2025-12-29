@@ -182,7 +182,7 @@ def get_visualization(viz_source, viz_args, user, viz_request_id):
                 {
                     "sender": m.sender,
                     "sessionId": m.session_id,
-                    "timestamp": m.timestamp.isoformat(),
+                    "timestamp": m.timestamp.isoformat() + "Z",
                     "message": m.message,
                 }
                 for m in messages

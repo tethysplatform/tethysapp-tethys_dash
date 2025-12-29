@@ -320,7 +320,7 @@ class Message(Base):
 
     Attributes:
         id (int): Primary key identifier
-        timestamp (datetime): Time the message was sent
+        timestamp (datetime): Time the message was sent in UTC
         request_id (str): Associated request/session identifier
         session_id (str): Session ID of the sender
         sender (str): Name or identifier of the sender
