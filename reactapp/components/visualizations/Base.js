@@ -156,7 +156,12 @@ export const Visualization = memo(
           />
         );
       case "liveChat":
-        return <LiveChat requestId={vizData.requestId} />;
+        return (
+          <LiveChat
+            requestId={vizData.requestId}
+            chatHistory={vizData.chatHistory}
+          />
+        );
       case "custom":
         return (
           <ModuleLoader

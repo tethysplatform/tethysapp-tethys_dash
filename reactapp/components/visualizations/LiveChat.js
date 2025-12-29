@@ -78,20 +78,42 @@ const MessageTextarea = styled.textarea`
   max-height: 80px;
 `;
 
-// TODO: add uuid to new, imported, and copied grid item, update new uuid to grid item uuid where requestId is used, history
-const LiveChat = ({ requestId }) => {
+// todo: history, when people change name change the chatlog name too, put a loading icon on the send button until successful, if not successful show error (maybe in chatlog?)
+
+function getOrCreateSessionId(sessionIdKey) {
+  let sid = null;
+  try {
+    sid = window.localStorage.getItem(sessionIdKey);
+  } catch (e) {
+    // Ignore localStorage errors (e.g., private mode)
+  }
+  if (!sid) {
+    sid = uuidv4();
+    try {
+      window.localStorage.setItem(sessionIdKey, sid);
+    } catch (e) {
+      // Ignore localStorage errors (e.g., private mode)
+    }
+  }
+  return sid;
+}
+
+const LiveChat = ({ requestId, chatHistory }) => {
   const { websocketReady, sendMessage, messagesByRequestId } =
     useContext(WebsocketContext);
   const { user } = useContext(AppContext);
-  // Allow user to define username if not set
   const [customUsername, setCustomUsername] = useState(user.username || "");
   const [editingUsername, setEditingUsername] = useState(false);
-  // Generate a unique session ID for this chat instance
-  const sessionIdRef = useRef(uuidv4());
   const [input, setInput] = useState("");
   const messageInputRef = useRef(null);
-  const [chatLog, setChatLog] = useState([]);
+  const [chatLog, setChatLog] = useState(chatHistory || []);
   const chatLogRef = useRef(null);
+  const [rateLimited, setRateLimited] = useState(false);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
+  const rateLimitRef = useRef({ count: 0, timer: null, resetAt: null });
+
+  const sessionIdKey = `livechat_sessionid_${requestId || "default"}`;
+  const sessionId = getOrCreateSessionId(sessionIdKey);
 
   // Listen for new messages for this requestId
   useEffect(() => {
@@ -105,14 +127,34 @@ const LiveChat = ({ requestId }) => {
           const isDuplicate =
             last &&
             last.sender === parsed.sender &&
-            last.text === parsed.message &&
+            last.message === parsed.message &&
             last.sessionId === parsed.sessionId;
           if (isDuplicate) return prev;
+
+          // If the sessionId exists in previous messages but with a different sender, update all previous senders for that sessionId
+          let needsUpdate = false;
+          for (const msg of prev) {
+            if (
+              msg.sessionId === parsed.sessionId &&
+              msg.sender !== parsed.sender
+            ) {
+              needsUpdate = true;
+              break;
+            }
+          }
+          let updatedLog = prev;
+          if (needsUpdate) {
+            updatedLog = prev.map((msg) =>
+              msg.sessionId === parsed.sessionId
+                ? { ...msg, sender: parsed.sender }
+                : msg
+            );
+          }
           return [
-            ...prev,
+            ...updatedLog,
             {
               sender: parsed.sender,
-              text: parsed.message,
+              message: parsed.message,
               sessionId: parsed.sessionId,
             },
           ];
@@ -121,7 +163,7 @@ const LiveChat = ({ requestId }) => {
         // ignore parse errors
       }
     }
-  }, [messagesByRequestId]);
+  }, [messagesByRequestId, requestId]);
 
   // Only scroll to bottom if user is already at (or near) the bottom
   useEffect(() => {
@@ -139,6 +181,8 @@ const LiveChat = ({ requestId }) => {
 
   const handleSend = (e) => {
     e.preventDefault();
+    // If rate limited, block sending
+    if (rateLimited) return;
     // If username is not set, treat input as username entry
     if (!customUsername) {
       if (!input.trim()) return;
@@ -156,11 +200,39 @@ const LiveChat = ({ requestId }) => {
     }
     if (!input.trim() || !websocketReady) return;
 
+    // Rate limiting logic (client-side, matches server: 5 messages per 10s)
+    const now = Date.now();
+    if (!rateLimitRef.current.resetAt || now > rateLimitRef.current.resetAt) {
+      rateLimitRef.current.count = 0;
+      rateLimitRef.current.resetAt = now + 10000;
+    }
+    rateLimitRef.current.count += 1;
+    if (rateLimitRef.current.count > 5) {
+      setRateLimited(true);
+      const msLeft = rateLimitRef.current.resetAt - now;
+      setRateLimitCountdown(Math.ceil(msLeft / 1000));
+      // Start countdown
+      if (rateLimitRef.current.timer) clearInterval(rateLimitRef.current.timer);
+      rateLimitRef.current.timer = setInterval(() => {
+        setRateLimitCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(rateLimitRef.current.timer);
+            setRateLimited(false);
+            rateLimitRef.current.count = 0;
+            rateLimitRef.current.resetAt = null;
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return;
+    }
+
     const messageObj = {
       requestId: requestId,
       message: input,
       sender: customUsername,
-      sessionId: sessionIdRef.current,
+      sessionId,
     };
     sendMessage && sendMessage(JSON.stringify(messageObj));
     setInput("");
@@ -184,15 +256,14 @@ const LiveChat = ({ requestId }) => {
     <PaddedContainer>
       <ChatLogArea ref={chatLogRef}>
         {chatLog.map((msg, idx) => {
-          const isUser =
-            msg.sessionId && msg.sessionId === sessionIdRef.current;
+          const isUser = msg.sessionId && msg.sessionId === sessionId;
           return (
             <ChatRow key={idx} isUser={isUser}>
               <ChatBubble isUser={isUser}>
                 <span style={{ fontWeight: "bold" }}>
                   {isUser ? "You" : msg.sender}:
                 </span>{" "}
-                {msg.text.split("\n").map((line, i) => (
+                {msg.message.split("\n").map((line, i) => (
                   <Fragment key={i}>
                     {i > 0 && <br />}
                     {line}
@@ -203,6 +274,13 @@ const LiveChat = ({ requestId }) => {
           );
         })}
       </ChatLogArea>
+      {rateLimited && (
+        <div style={{ color: "#d32f2f", marginBottom: 8, textAlign: "center" }}>
+          You are sending messages too quickly. Please wait {rateLimitCountdown}{" "}
+          second{rateLimitCountdown !== 1 ? "s" : ""} before sending more
+          messages.
+        </div>
+      )}
       <form
         onSubmit={handleSend}
         style={{ display: "flex", gap: 8, alignItems: "center" }}
@@ -242,12 +320,13 @@ const LiveChat = ({ requestId }) => {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleInputKeyDown}
             placeholder={websocketReady ? "Type a message..." : "Connecting..."}
-            disabled={!websocketReady || !customUsername}
+            disabled={!websocketReady || !customUsername || rateLimited}
           />
         )}
         <SendButton
           type="submit"
           disabled={
+            rateLimited ||
             (!customUsername && !input.trim()) ||
             (customUsername &&
               !editingUsername &&

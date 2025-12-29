@@ -15,6 +15,8 @@ dependencies = [
     "better_profanity==0.7.0",
     "bleach==6.1.0",
     "bleach[css]",
+    "channels_redis==4.3.0",
+    "django-redis==6.0.0",
     "cssutils==2.11.1",
     "pytest-django",
     "pytest-mock",

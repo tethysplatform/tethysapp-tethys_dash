@@ -34,6 +34,10 @@ from tethysapp.tethysdash.utilities import sanitize_html
 from django.contrib.auth import get_user_model
 import shutil
 import filecmp
+from sqlalchemy import event, Table, DDL
+import sqlalchemy
+from sqlalchemy.orm.session import Session as SASession
+from datetime import timedelta
 
 Base = declarative_base()
 
@@ -308,6 +312,30 @@ class PermissionGroupUser(Base):
     permission = Column(Enum(GroupPermissionLevel), nullable=False)
 
     group = relationship("PermissionGroup", back_populates="members")
+
+
+class Message(Base):
+    """
+    SQLAlchemy model for chat messages (partitioned by day).
+
+    Attributes:
+        id (int): Primary key identifier
+        timestamp (datetime): Time the message was sent
+        request_id (str): Associated request/session identifier
+        session_id (str): Session ID of the sender
+        sender (str): Name or identifier of the sender
+        message (str): Message content
+    """
+
+    __tablename__ = "messages"
+    __table_args__ = {"postgresql_partition_by": "RANGE (timestamp)"}
+
+    id = Column(Integer, primary_key=True)
+    timestamp = Column(DateTime, nullable=False, index=True)
+    request_id = Column(String, nullable=False, index=True)
+    session_id = Column(String, nullable=True, index=True)
+    sender = Column(String, nullable=False)
+    message = Column(String, nullable=False)
 
 
 def add_new_dashboard(
@@ -1916,58 +1944,47 @@ def check_for_liveChat(grid_item_uuid):
         session.close()
 
 
-def init_primary_db(engine, first_time):
-    """
-    Initialize and upgrade the primary database schema.
+def get_partition_name(ts):
+    return f"messages_{ts.strftime('%Y_%m_%d')}"
 
-    Sets up the database schema using Alembic migrations, handling both
-    initial setup and upgrades from existing versions. Manages migration
-    conflicts for existing installations.
+
+def create_partition_for_date(connection, ts):
+    partition_name = get_partition_name(ts)
+    start = ts.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + timedelta(days=1)
+    sql = f"""
+        CREATE TABLE IF NOT EXISTS {partition_name} PARTITION OF messages
+        FOR VALUES FROM ('{start.isoformat()}') TO ('{end.isoformat()}');
+    """
+    print(f"Creating partition: {partition_name} for {start.date()} to {end.date()}")
+    connection.execute(sqlalchemy.text(sql))
+
+
+def create_message_partitions_for_rolling_window(days_past=7, days_future=7):
+    """
+    Create partitions for the Message table for a rolling window (past 7 days and next 7 days).
+    Intended to be called by a weekly cron job or with `tethys syncstores tethysdash`.
 
     Args:
-        engine: SQLAlchemy database engine
-        first_time (bool): Whether this is the first time setup
-
-    Raises:
-        ProgrammingError: If migration fails due to schema conflicts
-        OperationalError: If database operation fails
+        days_past (int): Number of days in the past to create partitions for
+        days_future (int): Number of days in the future to create partitions for
     """
-    # Load Alembic configuration
-    tethysdash_directory = Path(__file__).resolve().parent
-    alembic_directory = str(tethysdash_directory / "alembic")
-    alembic_cfg = Config(tethysdash_directory / "alembic.ini")
-    alembic_cfg.set_main_option("script_location", alembic_directory)
-    script_directory = script.ScriptDirectory.from_config(alembic_cfg)
-
-    command.ensure_version(alembic_cfg)
-
-    result = subprocess.run(
-        ["alembic", "current"], capture_output=True, text=True, cwd=tethysdash_directory
+    print(
+        f"Creating message partitions for rolling window: past {days_past} days, future {days_future} days"
     )
-    current_revision = result.stdout.split(" ")[0]
+    engine = App.get_persistent_store_database("primary_db", as_sessionmaker=False)
+    connection = engine.connect()
+    try:
+        today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        for offset in range(-days_past, days_future + 1):
+            day = today + timedelta(days=offset)
+            print(f"Ensuring partition exists for: {day.date()}")
+            create_partition_for_date(connection, day)
+    finally:
+        connection.close()
 
-    if current_revision:
-        print("Upgrading to head")
-        command.upgrade(alembic_cfg, "head")
-    else:
-        # Iterate over revisions in order
-        revisions = list(script_directory.walk_revisions(base="base", head="head"))
-        revisions.reverse()  # walk_revisions returns in reverse order (head -> base)
 
-        for rev in revisions:
-            try:
-                print(f"Attempting to upgrade to revision {rev.revision}")
-                command.upgrade(alembic_cfg, rev.revision)
-                print(f"Successfully upgraded to revision {rev.revision}")
-            except (ProgrammingError, OperationalError) as e:
-                if "already exists" in str(e):
-                    command.stamp(alembic_cfg, rev.revision)
-                    print(
-                        f"Stamped and Skipped revision {rev.revision} (column/table already exists)"  # noqa: E501
-                    )
-                else:
-                    raise  # Unknown error — don't skip
-
+def cleanup_old_jsons():
     # for moving json and geojson files from old structure to new structure (https://github.com/tethysplatform/tethysapp-tethys_dash/pull/35)  # noqa: E501
     app_workspace = get_app_workspace(App)
     json_root = os.path.join(app_workspace.path, "json")
@@ -2073,3 +2090,60 @@ def init_primary_db(engine, first_time):
         remove_empty_dirs(app_workspace.path)
     finally:
         session.close()
+
+
+def init_primary_db(engine, first_time):
+    """
+    Initialize and upgrade the primary database schema.
+
+    Sets up the database schema using Alembic migrations, handling both
+    initial setup and upgrades from existing versions. Manages migration
+    conflicts for existing installations.
+
+    Args:
+        engine: SQLAlchemy database engine
+        first_time (bool): Whether this is the first time setup
+
+    Raises:
+        ProgrammingError: If migration fails due to schema conflicts
+        OperationalError: If database operation fails
+    """
+    # Load Alembic configuration
+    tethysdash_directory = Path(__file__).resolve().parent
+    alembic_directory = str(tethysdash_directory / "alembic")
+    alembic_cfg = Config(tethysdash_directory / "alembic.ini")
+    alembic_cfg.set_main_option("script_location", alembic_directory)
+    script_directory = script.ScriptDirectory.from_config(alembic_cfg)
+
+    command.ensure_version(alembic_cfg)
+
+    result = subprocess.run(
+        ["alembic", "current"], capture_output=True, text=True, cwd=tethysdash_directory
+    )
+    current_revision = result.stdout.split(" ")[0]
+
+    if current_revision:
+        print("Upgrading to head")
+        command.upgrade(alembic_cfg, "head")
+    else:
+        # Iterate over revisions in order
+        revisions = list(script_directory.walk_revisions(base="base", head="head"))
+        revisions.reverse()  # walk_revisions returns in reverse order (head -> base)
+
+        for rev in revisions:
+            try:
+                print(f"Attempting to upgrade to revision {rev.revision}")
+                command.upgrade(alembic_cfg, rev.revision)
+                print(f"Successfully upgraded to revision {rev.revision}")
+            except (ProgrammingError, OperationalError) as e:
+                if "already exists" in str(e):
+                    command.stamp(alembic_cfg, rev.revision)
+                    print(
+                        f"Stamped and Skipped revision {rev.revision} (column/table already exists)"  # noqa: E501
+                    )
+                else:
+                    raise  # Unknown error — don't skip
+
+    cleanup_old_jsons()
+
+    create_message_partitions_for_rolling_window()

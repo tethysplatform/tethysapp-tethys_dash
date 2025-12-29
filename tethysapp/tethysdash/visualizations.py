@@ -1,5 +1,5 @@
 import intake
-from tethysapp.tethysdash.model import get_visualization_user_permission
+from tethysapp.tethysdash.model import get_visualization_user_permission, Message
 from tethysapp.tethysdash.app import App
 from tethysapp.tethysdash.exceptions import VisualizationError
 
@@ -167,6 +167,30 @@ def get_visualization(viz_source, viz_args, user, viz_request_id):
         AttributeError: If visualization plugin doesn't exist
         Exception: If data loading fails
     """
+    if viz_source == "Live Chat":
+        print("Fetching live chat messages from database...")
+        Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
+        session = Session()
+        try:
+            messages = (
+                session.query(Message)
+                .filter(Message.request_id == viz_request_id)
+                .order_by(Message.timestamp.asc())
+                .all()
+            )
+            result = [
+                {
+                    "sender": m.sender,
+                    "sessionId": m.session_id,
+                    "timestamp": m.timestamp.isoformat(),
+                    "message": m.message,
+                }
+                for m in messages
+            ]
+        finally:
+            session.close()
+        return viz_source, {"chatHistory": result}
+
     try:
         intake.source.registry[viz_source]
     except KeyError:

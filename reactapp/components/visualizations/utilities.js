@@ -105,11 +105,6 @@ export async function getVisualization({
     });
 
     return;
-  } else if (itemData.source === "Live Chat") {
-    setVizType("liveChat");
-    setVizData({ requestId: itemData.requestId });
-
-    return;
   }
 
   if (vizLoadingIcon && sourceType !== "map") {
@@ -191,6 +186,13 @@ export async function getVisualization({
         initial_value: responseData.initial_value,
         variable_options_source: responseData.variable_options_source,
         metadata: responseData.metadata,
+      });
+    } else if (apiResponse.viz_type === "Live Chat") {
+      console.log(responseData);
+      setVizType("liveChat");
+      setVizData({
+        requestId: itemData.requestId,
+        chatHistory: responseData.chatHistory,
       });
     } else {
       setVizType("vizWarning");

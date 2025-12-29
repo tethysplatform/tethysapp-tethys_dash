@@ -26,7 +26,10 @@ from tethysapp.tethysdash.model import (
     get_user_app_permissions,
     update_visualization_permissions as update_viz_perms,
     check_for_liveChat,
+    Message,
+    App,
 )
+from django.core.cache import cache
 from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
     get_visualization,
@@ -281,10 +284,41 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
         sessionId = data.get("sessionId", None)
         censored_message = profanity.censor(message)
 
+        rate_key = f"chat_rate_{request_id}_{sessionId}"
+        count = cache.get(rate_key, 0)
+        if count >= 5:
+            print(f"Rate limit exceeded for session {sessionId} in room {request_id}")
+            return
+        if count == 0:
+            cache.set(rate_key, 1, timeout=10)  # 10 seconds window
+        else:
+            cache.incr(rate_key)
+
         # Broadcast the message
         await sync_to_async(send_websocket_message)(
             request_id, censored_message, sender=sender, sessionId=sessionId
         )
+
+        def save_message():
+            Session = App.get_persistent_store_database(
+                "primary_db", as_sessionmaker=True
+            )
+            db_session = Session()
+            try:
+                db_session.add(
+                    Message(
+                        timestamp=datetime.utcnow(),
+                        request_id=request_id,
+                        session_id=sessionId,
+                        sender=sender,
+                        message=censored_message,
+                    )
+                )
+                db_session.commit()
+            finally:
+                db_session.close()
+
+        await sync_to_async(save_message)()
 
     async def send_message(self, event):
         message = event["message"]
@@ -337,7 +371,6 @@ def visualization_permissions(request):
     )
 
 
-@api_view(["POST"])
 @controller(url="tethysdash/visualizations/permissions/update", login_required=True)
 def update_visualization_permissions(request):
     """
