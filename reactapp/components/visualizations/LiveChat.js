@@ -132,7 +132,7 @@ const MessageTextarea = styled.textarea`
   max-height: 80px;
 `;
 
-// todo: delete chat messages when grid items changes, copy live chat not working
+// todo: copy live chat not working, changing from live chat to something else doesnt change
 
 function getOrCreateSessionId(sessionIdKey) {
   let sid = null;

@@ -141,7 +141,7 @@ class GridItem(Base):
     id = Column(Integer, primary_key=True)
     dashboard_id = Column(Integer, ForeignKey("dashboards.id"), nullable=False)
     dashboard = relationship("Dashboard", back_populates="grid_items")
-    uuid = Column(String, nullable=False)
+    uuid = Column(String, nullable=False, unique=True)
     i = Column(String, nullable=False)
     x = Column(Integer, nullable=False)
     y = Column(Integer, nullable=False)
@@ -332,7 +332,12 @@ class Message(Base):
 
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, nullable=False, index=True)
-    request_id = Column(String, nullable=False, index=True)
+    request_id = Column(
+        String,
+        ForeignKey("griditems.uuid", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
     session_id = Column(String, nullable=False, index=True)
     message_id = Column(String, nullable=False, index=True)
     sender = Column(String, nullable=False)
@@ -862,6 +867,11 @@ def update_named_dashboard(user, id, dashboard_updates):
                 for grid_item_id in existing_grid_item_ids - set(updated_grid_item_ids):
                     db_grid_item = session.get(GridItem, grid_item_id)
                     if db_grid_item:
+                        # If the grid item is a Live Chat, delete all associated messages
+                        if db_grid_item.source == "Live Chat":
+                            session.query(Message).filter(
+                                Message.request_id == db_grid_item.uuid
+                            ).delete(synchronize_session=False)
                         session.delete(db_grid_item)
 
                 # Process grid items in order
@@ -879,6 +889,15 @@ def update_named_dashboard(user, id, dashboard_updates):
 
                     if grid_item_id and grid_item_id in existing_grid_items_by_id:
                         db_grid_item = existing_grid_items_by_id[grid_item_id]
+                        # If changing from 'Live Chat' to something else, delete associated messages
+                        if (
+                            db_grid_item.source == "Live Chat"
+                            and grid_item_source != "Live Chat"
+                        ):
+                            session.query(Message).filter(
+                                Message.request_id == db_grid_item.uuid
+                            ).delete(synchronize_session=False)
+
                         db_grid_item.i = str(grid_item_i)
                         db_grid_item.x = grid_item["x"]
                         db_grid_item.y = grid_item["y"]

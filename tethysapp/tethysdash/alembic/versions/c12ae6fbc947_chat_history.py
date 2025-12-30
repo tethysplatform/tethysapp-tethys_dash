@@ -20,15 +20,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create the messages table with partitioning by RANGE (timestamp)
+    # Ensure griditems.uuid is unique and not null
+    op.create_unique_constraint("uq_griditems_uuid", "griditems", ["uuid"])
+
+    # Create the messages table with partitioning by RANGE (timestamp),
+    # and request_id as a foreign key to griditems.uuid with ON DELETE CASCADE
     op.execute(
         """
         CREATE TABLE IF NOT EXISTS messages (
             id SERIAL,
             timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-            request_id VARCHAR NOT NULL,
-            session_id VARCHAR,
-            message_id VARCHAR,
+            request_id VARCHAR NOT NULL REFERENCES griditems(uuid) ON DELETE CASCADE,
+            session_id VARCHAR NOT NULL,
+            message_id VARCHAR NOT NULL,
             sender VARCHAR NOT NULL,
             message VARCHAR NOT NULL,
             PRIMARY KEY (id, timestamp)
@@ -39,3 +43,5 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.execute("DROP TABLE IF EXISTS messages CASCADE;")
+    # Remove the unique constraint on griditems.uuid if it exists
+    op.drop_constraint("uq_griditems_uuid", "griditems", type_="unique")
