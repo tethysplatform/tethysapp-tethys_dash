@@ -381,6 +381,7 @@ export const DashboardHeader = () => {
       };
     }
     newGridItem.uuid = uuidv4();
+    newGridItem.id = null;
     newGridItem.i = `${parseInt(maxGridItemI) + 1}`;
     let updatedGridItems;
     if (unrestrictedPlacement) {

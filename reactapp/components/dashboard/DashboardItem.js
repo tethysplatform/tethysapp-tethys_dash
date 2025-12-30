@@ -333,6 +333,7 @@ const DashboardItem = ({
     const copiedGridItem = getGridItem(gridItems, gridItemI);
     const newGridItem = { ...copiedGridItem };
     newGridItem.i = `${parseInt(maxGridItemI) + 1}`;
+    newGridItem.id = null;
     newGridItem.uuid = uuidv4();
     if (newGridItem.source === "Variable Input") {
       const newGridItemArgs = JSON.parse(newGridItem.args_string);

@@ -132,7 +132,7 @@ const MessageTextarea = styled.textarea`
   max-height: 80px;
 `;
 
-// todo: copy live chat not working, changing from live chat to something else doesnt change
+// todo: changing from live chat to something else doesnt change, api hit 3 times on load
 
 function getOrCreateSessionId(sessionIdKey) {
   let sid = null;
