@@ -132,7 +132,7 @@ const MessageTextarea = styled.textarea`
   max-height: 80px;
 `;
 
-// todo: put a loading icon on the send button until successful, if not successful show error (maybe in chatlog?), auto scroll to bottom on history, delete chat messages when grid items changes
+// todo: delete chat messages when grid items changes, copy live chat not working
 
 function getOrCreateSessionId(sessionIdKey) {
   let sid = null;
@@ -272,19 +272,27 @@ const LiveChat = ({ requestId, chatHistory }) => {
     }
   }, [errorMessagesByRequestId, requestId, pendingMessageId]);
 
-  // Only scroll to bottom if user is already at (or near) the bottom
+  // Scroll to bottom on chatLog update, or on initial load if chatHistory exists
   useEffect(() => {
     const el = chatLogRef.current;
-    if (el) {
-      // How far from the bottom is considered "at bottom" (px)
-      const threshold = 100;
-      const isAtBottom =
-        el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
-      if (isAtBottom) {
-        el.scrollTop = el.scrollHeight;
-      }
+    if (!el) return;
+    // If this is the initial load and chatHistory exists, always scroll to bottom
+    if (
+      chatHistory &&
+      chatHistory.length > 0 &&
+      chatLog.length === chatHistory.length
+    ) {
+      el.scrollTop = el.scrollHeight;
+      return;
     }
-  }, [chatLog]);
+    // Otherwise, only scroll if user is already at (or near) the bottom
+    const threshold = 100;
+    const isAtBottom =
+      el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    if (isAtBottom) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [chatLog, chatHistory]);
 
   const handleSend = async (e) => {
     e.preventDefault();
