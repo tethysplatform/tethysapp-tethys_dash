@@ -1,10 +1,11 @@
-import { useContext, useState, useRef, useEffect, Fragment } from "react";
+import { useContext, useState, useRef, useEffect, Fragment, memo } from "react";
 import PropTypes from "prop-types";
 import { AppContext } from "components/contexts/Contexts";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import styled from "styled-components";
 import { v4 as uuidv4 } from "uuid";
 import { format } from "date-fns";
+import { valuesEqual } from "components/modals/utilities";
 
 const PaddedContainer = styled.div`
   padding: 16px;
@@ -132,7 +133,7 @@ const MessageTextarea = styled.textarea`
   max-height: 80px;
 `;
 
-// todo: changing from live chat to something else doesnt change, api hit 3 times on load
+// todo: api hit 3 times on load
 
 function getOrCreateSessionId(sessionIdKey) {
   let sid = null;
@@ -499,4 +500,4 @@ LiveChat.propTypes = {
   requestId: PropTypes.string,
 };
 
-export default LiveChat;
+export default memo(LiveChat, valuesEqual);

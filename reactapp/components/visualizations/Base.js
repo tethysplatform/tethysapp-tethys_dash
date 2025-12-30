@@ -312,6 +312,8 @@ const BaseVisualization = ({
   const dashboardVizRef = useRef();
   const { getMessageForRequest } = useContext(WebsocketContext);
   const requestId = useRef(uuid);
+  // Add a ref to track the latest visualization request
+  const latestVizRequest = useRef(0);
 
   useEffect(() => {
     const args = JSON.parse(argsString);
@@ -364,6 +366,7 @@ const BaseVisualization = ({
     const originalArgs = JSON.parse(argsString);
     const args = JSON.parse(argsString);
     const gridMetadata = JSON.parse(metadataString);
+    const thisVizRequest = ++latestVizRequest.current;
     const visualization = findSelectOptionByValue(
       visualizations,
       source,
@@ -407,9 +410,18 @@ const BaseVisualization = ({
       gridItemSource.current = source;
       customMessages.current = customMessaging;
 
+      // setVizType and setVizData only if this is the latest request. used to prevent race conditions when changing visualizations quickly
       await getVisualization({
-        setVizType,
-        setVizData,
+        setVizType: (...args) => {
+          if (thisVizRequest === latestVizRequest.current) {
+            setVizType(...args);
+          }
+        },
+        setVizData: (...args) => {
+          if (thisVizRequest === latestVizRequest.current) {
+            setVizData(...args);
+          }
+        },
         sourceType,
         itemData,
         argsString,
