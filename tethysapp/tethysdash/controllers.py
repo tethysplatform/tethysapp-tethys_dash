@@ -272,37 +272,72 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             request_id = data.get("requestId")
             message = data.get("message")
         except Exception as e:
-            print(f"Failed to parse text_data: {e}")
+            await self.send(
+                json.dumps(
+                    {"error": "Invalid message format. requestId and message required."}
+                )
+            )
             return
 
         valid_liveChat = await sync_to_async(check_for_liveChat)(request_id)
         if not valid_liveChat:
-            print(f"Invalid liveChat request ID: {request_id}")
+            await self.send(json.dumps({"error": "Invalid liveChat request ID."}))
             return
 
         sender = data.get("sender", "unknown")
         sessionId = data.get("sessionId", None)
+        messageId = data.get("messageId", None)
         censored_message = profanity.censor(message)
         timestamp = datetime.utcnow()
 
         rate_key = f"chat_rate_{request_id}_{sessionId}"
         count = cache.get(rate_key, 0)
         if count >= 5:
-            print(f"Rate limit exceeded for session {sessionId} in room {request_id}")
+            # Try to get the remaining time until the rate limit resets
+            retry_after = 10  # Default fallback
+            try:
+                # Django cache backends may support .ttl(), but not all do
+                retry_after = cache.ttl(rate_key)
+                if retry_after is None:
+                    retry_after = 10
+            except Exception:
+                retry_after = 10
+            await self.send(
+                json.dumps(
+                    {
+                        "error": f"Rate limit exceeded. Please wait {retry_after} seconds before sending more messages.",
+                        "requestId": request_id,
+                        "messageId": messageId,
+                    }
+                )
+            )
             return
         if count == 0:
             cache.set(rate_key, 1, timeout=10)  # 10 seconds window
         else:
             cache.incr(rate_key)
 
-        # Broadcast the message
-        await sync_to_async(send_websocket_message)(
-            request_id,
-            censored_message,
-            sender=sender,
-            sessionId=sessionId,
-            timestamp=timestamp.isoformat() + "Z",
-        )
+        try:
+            # Broadcast the message (include messageId)
+            await sync_to_async(send_websocket_message)(
+                request_id,
+                censored_message,
+                sender=sender,
+                sessionId=sessionId,
+                timestamp=timestamp.isoformat() + "Z",
+                messageId=messageId,
+            )
+        except Exception as e:
+            await self.send(
+                json.dumps(
+                    {
+                        "error": "Failed to broadcast message.",
+                        "requestId": request_id,
+                        "messageId": messageId,
+                    }
+                )
+            )
+            return
 
         def save_message():
             Session = App.get_persistent_store_database(
@@ -330,13 +365,27 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
                         session_id=sessionId,
                         sender=sender,
                         message=censored_message,
+                        message_id=messageId,
                     )
                 )
                 db_session.commit()
             finally:
                 db_session.close()
 
-        await sync_to_async(save_message)()
+        try:
+            await sync_to_async(save_message)()
+        except Exception as e:
+            print(e)
+            await self.send(
+                json.dumps(
+                    {
+                        "error": "Failed to save message to database.",
+                        "requestId": request_id,
+                        "messageId": messageId,
+                    }
+                )
+            )
+            return
 
     async def send_message(self, event):
         message = event["message"]

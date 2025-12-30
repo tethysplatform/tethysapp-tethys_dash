@@ -161,8 +161,12 @@ function getOrCreateUsername(usernameKey, fallbackUsername = "") {
 }
 
 const LiveChat = ({ requestId, chatHistory }) => {
-  const { websocketReady, sendMessage, messagesByRequestId } =
-    useContext(WebsocketContext);
+  const {
+    websocketReady,
+    sendMessage,
+    messagesByRequestId,
+    errorMessagesByRequestId,
+  } = useContext(WebsocketContext);
   const { user } = useContext(AppContext);
   const usernameKey = `livechat_username_${requestId || "default"}`;
   // Initialize customUsername from localStorage if available, else from user.username
@@ -178,24 +182,36 @@ const LiveChat = ({ requestId, chatHistory }) => {
   const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
   const rateLimitRef = useRef({ count: 0, timer: null, resetAt: null });
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const [pendingMessageId, setPendingMessageId] = useState(null);
 
   const sessionIdKey = `livechat_sessionid_${requestId || "default"}`;
   const sessionId = getOrCreateSessionId(sessionIdKey);
 
-  // Listen for new messages for this requestId
+  // Listen for new successful messages for this requestId
   useEffect(() => {
     if (!requestId) return;
     const messageData = messagesByRequestId[requestId];
     if (messageData) {
       try {
         const parsed = JSON.parse(messageData);
+
+        // Handle rebroadcasted message with messageId
+        if (parsed.messageId && parsed.messageId === pendingMessageId) {
+          setSending(false);
+          setSendError("");
+          setInput("");
+          setPendingMessageId(null);
+        }
+
         setChatLog((prev) => {
           const last = prev[prev.length - 1];
           const isDuplicate =
             last &&
             last.sender === parsed.sender &&
             last.message === parsed.message &&
-            last.sessionId === parsed.sessionId;
+            last.sessionId === parsed.sessionId &&
+            last.messageId === parsed.messageId;
           if (isDuplicate) return prev;
 
           let needsUpdate = false;
@@ -223,6 +239,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
               message: parsed.message,
               sessionId: parsed.sessionId,
               timestamp: parsed.timestamp,
+              messageId: parsed.messageId,
             },
           ];
         });
@@ -230,7 +247,30 @@ const LiveChat = ({ requestId, chatHistory }) => {
         // ignore parse errors
       }
     }
-  }, [messagesByRequestId, requestId]);
+  }, [messagesByRequestId, requestId, sessionId, pendingMessageId]);
+
+  // Listen for error messages for this requestId
+  useEffect(() => {
+    if (!requestId) return;
+    if (!errorMessagesByRequestId) return;
+    const errorData = errorMessagesByRequestId[requestId];
+    if (errorData) {
+      try {
+        const parsed = JSON.parse(errorData);
+        if (
+          parsed.error &&
+          parsed.messageId &&
+          parsed.messageId === pendingMessageId
+        ) {
+          setSendError(parsed.error);
+          setSending(false);
+          setPendingMessageId(null);
+        }
+      } catch (e) {
+        // ignore parse errors
+      }
+    }
+  }, [errorMessagesByRequestId, requestId, pendingMessageId]);
 
   // Only scroll to bottom if user is already at (or near) the bottom
   useEffect(() => {
@@ -248,6 +288,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
 
   const handleSend = async (e) => {
     e.preventDefault();
+    setSendError("");
     if (rateLimited || sending) return;
     if (!customUsername) {
       if (!input.trim()) return;
@@ -298,22 +339,24 @@ const LiveChat = ({ requestId, chatHistory }) => {
     }
 
     setSending(true);
+    const messageId = uuidv4();
+    setPendingMessageId(messageId);
     const messageObj = {
       requestId: requestId,
       message: input,
       sender: customUsername,
       sessionId,
+      messageId,
     };
     try {
       await Promise.resolve(
         sendMessage && sendMessage(JSON.stringify(messageObj))
       );
     } catch (e) {
-      // Optionally show error
+      setSendError("Failed to send message. Please try again.");
+      setSending(false);
+      setPendingMessageId(null);
     }
-    setInput("");
-    // Wait for message to appear in chatLog (optimistic: short delay fallback)
-    setTimeout(() => setSending(false), 500);
   };
 
   // Autofocus message input when username is set or updated
@@ -337,7 +380,6 @@ const LiveChat = ({ requestId, chatHistory }) => {
           const isUser = msg.sessionId && msg.sessionId === sessionId;
           // Always use msg.timestamp if available, else fallback to now (for legacy messages)
           let timestamp = format(new Date(msg.timestamp), "MMM dd, hh:mm a");
-          console.log(timestamp, msg.timestamp);
 
           return (
             <ChatRow key={idx} isUser={isUser}>
@@ -362,6 +404,11 @@ const LiveChat = ({ requestId, chatHistory }) => {
           You are sending messages too quickly. Please wait {rateLimitCountdown}{" "}
           second{rateLimitCountdown !== 1 ? "s" : ""} before sending more
           messages.
+        </div>
+      )}
+      {sendError && (
+        <div style={{ color: "#d32f2f", marginBottom: 8, textAlign: "center" }}>
+          {sendError}
         </div>
       )}
       <form

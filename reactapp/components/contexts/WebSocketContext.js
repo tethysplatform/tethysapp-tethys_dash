@@ -7,6 +7,7 @@ export const WebsocketContext = createContext();
 const WebsocketProvider = ({ children }) => {
   const [websocketReady, setWebsocketReady] = useState(false);
   const [messagesByRequestId, setMessagesByRequestId] = useState({});
+  const [errorMessagesByRequestId, setErrorMessagesByRequestId] = useState({});
   const [timeoutReached, setTimeoutReached] = useState(false);
   const ws = useRef(null);
 
@@ -42,25 +43,33 @@ const WebsocketProvider = ({ children }) => {
       return;
     }
 
-    if (
-      messageData === null ||
-      !Object.prototype.hasOwnProperty.call(messageData, "requestId") ||
-      !Object.prototype.hasOwnProperty.call(messageData, "message")
-    ) {
-      return;
+    if (Object.prototype.hasOwnProperty.call(messageData, "requestId")) {
+      const { requestId } = messageData;
+
+      if (Object.prototype.hasOwnProperty.call(messageData, "message")) {
+        setMessagesByRequestId((prevMessages) => {
+          const updatedMessages = { ...prevMessages };
+          updatedMessages[requestId] = event.data;
+          return updatedMessages;
+        });
+      } else if (Object.prototype.hasOwnProperty.call(messageData, "error")) {
+        setErrorMessagesByRequestId((prevErrors) => {
+          const updatedErrors = { ...prevErrors };
+          updatedErrors[requestId] = event.data;
+          return updatedErrors;
+        });
+      }
     }
-
-    const { requestId } = messageData;
-
-    setMessagesByRequestId((prevMessages) => {
-      const updatedMessages = { ...prevMessages };
-      updatedMessages[requestId] = event.data;
-      return updatedMessages;
-    });
   };
 
   const getMessageForRequest = (requestId) => {
     return messagesByRequestId[requestId] && messagesByRequestId[requestId];
+  };
+
+  const getErrorMessageForRequest = (requestId) => {
+    return (
+      errorMessagesByRequestId[requestId] && errorMessagesByRequestId[requestId]
+    );
   };
 
   const onSend = (data) => {
@@ -78,7 +87,9 @@ const WebsocketProvider = ({ children }) => {
       value={{
         websocketReady,
         messagesByRequestId,
+        errorMessagesByRequestId,
         getMessageForRequest,
+        getErrorMessageForRequest,
         sendMessage: onSend,
       }}
     >

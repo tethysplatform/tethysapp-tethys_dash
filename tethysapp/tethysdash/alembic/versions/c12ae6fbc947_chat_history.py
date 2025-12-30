@@ -28,6 +28,7 @@ def upgrade() -> None:
             timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
             request_id VARCHAR NOT NULL,
             session_id VARCHAR,
+            message_id VARCHAR,
             sender VARCHAR NOT NULL,
             message VARCHAR NOT NULL,
             PRIMARY KEY (id, timestamp)

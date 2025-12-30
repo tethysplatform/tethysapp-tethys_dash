@@ -188,7 +188,6 @@ export async function getVisualization({
         metadata: responseData.metadata,
       });
     } else if (apiResponse.viz_type === "Live Chat") {
-      console.log(responseData);
       setVizType("liveChat");
       setVizData({
         requestId: itemData.requestId,

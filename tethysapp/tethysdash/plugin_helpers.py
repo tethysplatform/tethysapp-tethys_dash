@@ -20,6 +20,7 @@ def send_websocket_message(
     sender=None,
     sessionId=None,
     timestamp=None,
+    messageId=None,
 ):
     """
     Send a message to a Django Channels group for WebSocket delivery.
@@ -53,6 +54,9 @@ def send_websocket_message(
 
         if timestamp:
             websocket_message["timestamp"] = timestamp
+
+        if messageId:
+            websocket_message["messageId"] = messageId
 
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(

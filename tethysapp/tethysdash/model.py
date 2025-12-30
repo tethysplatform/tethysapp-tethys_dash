@@ -333,7 +333,8 @@ class Message(Base):
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, nullable=False, index=True)
     request_id = Column(String, nullable=False, index=True)
-    session_id = Column(String, nullable=True, index=True)
+    session_id = Column(String, nullable=False, index=True)
+    message_id = Column(String, nullable=False, index=True)
     sender = Column(String, nullable=False)
     message = Column(String, nullable=False)
 
