@@ -161,14 +161,14 @@ function getOrCreateSessionId(sessionIdKey) {
   try {
     sid = window.localStorage.getItem(sessionIdKey);
   } catch (e) {
-    // Ignore localStorage errors (e.g., private mode)
+    /* no-op */
   }
   if (!sid) {
     sid = uuidv4();
     try {
       window.localStorage.setItem(sessionIdKey, sid);
     } catch (e) {
-      // Ignore localStorage errors (e.g., private mode)
+      /* no-op */
     }
   }
   return sid;
@@ -178,7 +178,9 @@ function getOrCreateUsername(usernameKey, fallbackUsername = "") {
   let cached = "";
   try {
     cached = window.localStorage.getItem(usernameKey) || "";
-  } catch (e) {}
+  } catch (e) {
+    /* no-op */
+  }
   return cached || fallbackUsername || "";
 }
 
@@ -205,6 +207,7 @@ const ChatMessage = ({
       setIsEditing(false);
       setUpdating(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingMessageId]);
 
   const handleEditClick = (msg) => {
@@ -482,7 +485,9 @@ const LiveChat = ({ requestId, chatHistory }) => {
       setCustomUsername(input.trim());
       try {
         window.localStorage.setItem(usernameKey, input.trim());
-      } catch (e) {}
+      } catch (e) {
+        /* no-op */
+      }
       setInput("");
       return;
     }
@@ -491,7 +496,9 @@ const LiveChat = ({ requestId, chatHistory }) => {
       setCustomUsername(input.trim());
       try {
         window.localStorage.setItem(usernameKey, input.trim());
-      } catch (e) {}
+      } catch (e) {
+        /* no-op */
+      }
       setEditingUsername(false);
       setInput("");
       return;
@@ -663,8 +670,34 @@ const LiveChat = ({ requestId, chatHistory }) => {
   );
 };
 
+ChatMessage.propTypes = {
+  msg: PropTypes.shape({
+    message: PropTypes.string.isRequired,
+    sessionId: PropTypes.string,
+    sender: PropTypes.string,
+    timestamp: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    messageId: PropTypes.string,
+    edited: PropTypes.bool,
+  }).isRequired,
+  sessionId: PropTypes.string.isRequired,
+  requestId: PropTypes.string,
+  messageId: PropTypes.string,
+  setPendingMessageId: PropTypes.func.isRequired,
+  pendingMessageId: PropTypes.string,
+};
+
 LiveChat.propTypes = {
   requestId: PropTypes.string,
+  chatHistory: PropTypes.arrayOf(
+    PropTypes.shape({
+      message: PropTypes.string.isRequired,
+      sessionId: PropTypes.string,
+      sender: PropTypes.string,
+      timestamp: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      messageId: PropTypes.string,
+      edited: PropTypes.bool,
+    })
+  ),
 };
 
 export default memo(LiveChat, valuesEqual);

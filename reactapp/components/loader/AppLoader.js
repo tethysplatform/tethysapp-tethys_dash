@@ -418,6 +418,7 @@ function Loader({ children }) {
 
       return apiResponse;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [appContext]
   );
 

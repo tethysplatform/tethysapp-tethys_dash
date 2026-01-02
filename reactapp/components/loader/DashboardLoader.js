@@ -115,6 +115,7 @@ const DashboardLoader = ({
         updateVariableInputValuesWithGridItems([updatedProperties]);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [tabs, activeTabId, variableInputValues]
   );
 
@@ -122,6 +123,7 @@ const DashboardLoader = ({
     setTabs(originalTabs.current);
     setActiveTabId(originalTabs.current[0].id);
     updateVariableInputValuesWithGridItems(originalTabs.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [originalTabs]);
 
   const saveLayoutContext = useCallback(
@@ -170,6 +172,7 @@ const DashboardLoader = ({
     (newOrder) => {
       setTabs(newOrder);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [tabs]
   );
 

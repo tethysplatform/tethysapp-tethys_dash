@@ -356,14 +356,14 @@ function DataViewerModal({
 }
 
 DataViewerModal.propTypes = {
-  gridItemIndex: PropTypes.number,
-  source: PropTypes.string,
-  argsString: PropTypes.string,
-  metadataString: PropTypes.string,
-  setGridItemMessage: PropTypes.func,
-  setShowGridItemMessage: PropTypes.func,
-  showModal: PropTypes.bool,
-  handleModalClose: PropTypes.func,
+  gridItemIndex: PropTypes.number.isRequired,
+  source: PropTypes.string.isRequired,
+  args: PropTypes.object.isRequired,
+  metadata: PropTypes.object,
+  setGridItemMessage: PropTypes.func.isRequired,
+  setShowGridItemMessage: PropTypes.func.isRequired,
+  showModal: PropTypes.bool.isRequired,
+  handleModalClose: PropTypes.func.isRequired,
 };
 
 export default DataViewerModal;

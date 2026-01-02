@@ -479,6 +479,7 @@ BaseVisualization.propTypes = {
   source: PropTypes.string,
   args: PropTypes.object,
   metadata: PropTypes.object,
+  uuid: PropTypes.string,
   shouldLoad: PropTypes.bool,
 };
 

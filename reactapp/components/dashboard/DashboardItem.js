@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import styled, { css } from "styled-components";
 import Container from "react-bootstrap/Container";
-import { memo, useState, useContext, useEffect, useMemo } from "react";
+import { memo, useState, useContext, useEffect } from "react";
 import { BsInfoCircle } from "react-icons/bs";
 import {
   EditingContext,
@@ -473,11 +473,13 @@ const DashboardItem = ({
 };
 
 DashboardItem.propTypes = {
-  gridItemSource: PropTypes.string,
-  gridItemI: PropTypes.string,
-  gridItemArgsString: PropTypes.string,
-  gridItemMetadataString: PropTypes.string,
-  gridItemIndex: PropTypes.number,
+  gridItemSource: PropTypes.string.isRequired,
+  gridItemI: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
+    .isRequired,
+  gridItemArgs: PropTypes.object.isRequired,
+  gridItemMetadata: PropTypes.object,
+  gridItemIndex: PropTypes.number.isRequired,
+  gridItemUUID: PropTypes.string,
   shouldLoad: PropTypes.bool,
 };
 
