@@ -32,11 +32,32 @@ const ChatBubble = styled.div`
   color: #222;
   border-radius: 16px;
   padding: 8px 14px;
+  padding-right: ${(props) => (props.isUser ? "28px" : "14px")};
   max-width: 75%;
   font-size: 15px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   align-self: ${(props) => (props.isUser ? "flex-end" : "flex-start")};
   margin-top: 2px;
+  position: relative;
+`;
+
+const EditButton = styled.button`
+  background: none;
+  border: none;
+  color: #1976d2;
+  cursor: pointer;
+  font-size: 16px;
+  margin-left: 8px;
+  margin-top: 2px;
+  padding: 0;
+  display: none;
+  position: absolute;
+  top: 6px;
+  right: 8px;
+
+  ${ChatBubble}:hover & {
+    display: block;
+  }
 `;
 
 const ChatMetaRow = styled.div`
@@ -161,6 +182,140 @@ function getOrCreateUsername(usernameKey, fallbackUsername = "") {
   return cached || fallbackUsername || "";
 }
 
+const ChatMessage = ({
+  msg,
+  sessionId,
+  requestId,
+  messageId,
+  setPendingMessageId,
+  pendingMessageId,
+}) => {
+  const { sendMessage } = useContext(WebsocketContext);
+  const [editInput, setEditInput] = useState(msg.message);
+  const [isEditing, setIsEditing] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState("");
+
+  const isUser = msg.sessionId && msg.sessionId === sessionId;
+  let timestamp = format(new Date(msg.timestamp), "MMM dd, hh:mm a");
+
+  // Exit edit mode when edit is confirmed (pendingMessageId matches this messageId and message has been updated)
+  useEffect(() => {
+    if (isEditing && messageId === pendingMessageId) {
+      setIsEditing(false);
+      setUpdating(false);
+    }
+  }, [pendingMessageId]);
+
+  const handleEditClick = (msg) => {
+    setIsEditing(true);
+  };
+
+  const handleEditCancel = () => {
+    setIsEditing(false);
+  };
+
+  const handleEditSave = async () => {
+    if (!editInput.trim()) return;
+    setUpdating(true);
+    setUpdateError("");
+    const editObj = {
+      requestId,
+      message: editInput,
+      sender: msg.sender,
+      sessionId,
+      messageId,
+    };
+    setPendingMessageId(messageId);
+    try {
+      await Promise.resolve(
+        sendMessage && sendMessage(JSON.stringify(editObj))
+      );
+      // updating will be reset when edit is confirmed and isEditing is set to false
+    } catch (e) {
+      setUpdateError("Failed to update message. Please try again.");
+      setUpdating(false);
+      setPendingMessageId(null);
+    }
+  };
+
+  return (
+    <ChatRow isUser={isUser}>
+      <ChatMetaRow isUser={isUser}>
+        {!isUser && <ChatMetaName>{msg.sender}</ChatMetaName>}
+        <ChatMetaText>
+          {timestamp}
+          {msg.edited ? " - Edited" : ""}
+        </ChatMetaText>
+      </ChatMetaRow>
+      <ChatBubble isUser={isUser}>
+        {isEditing ? (
+          <>
+            <MessageTextarea
+              value={editInput}
+              onChange={(e) => setEditInput(e.target.value)}
+              style={{ marginBottom: 4 }}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: 6, marginTop: 2 }}>
+              {updateError && (
+                <div
+                  style={{ color: "#d32f2f", marginBottom: 4, fontSize: 13 }}
+                >
+                  {updateError}
+                </div>
+              )}
+              {updating ? (
+                <Spinner aria-label="Loading" />
+              ) : (
+                <SendButton
+                  type="button"
+                  onClick={handleEditSave}
+                  disabled={!editInput.trim()}
+                  style={{ minWidth: 32, fontSize: 14 }}
+                >
+                  Save
+                </SendButton>
+              )}
+              <SendButton
+                type="button"
+                onClick={handleEditCancel}
+                style={{
+                  background: "#eee",
+                  color: "#1976d2",
+                  minWidth: 32,
+                  fontSize: 14,
+                }}
+              >
+                Cancel
+              </SendButton>
+            </div>
+          </>
+        ) : (
+          <>
+            {msg.message.split("\n").map((line, i) => (
+              <Fragment key={i}>
+                {i > 0 && <br />}
+                {line}
+              </Fragment>
+            ))}
+            {isUser && (
+              <EditButton
+                type="button"
+                title="Edit message"
+                aria-label="Edit message"
+                onClick={handleEditClick}
+              >
+                &#9998;
+              </EditButton>
+            )}
+          </>
+        )}
+      </ChatBubble>
+    </ChatRow>
+  );
+};
+
 const LiveChat = ({ requestId, chatHistory }) => {
   const {
     websocketReady,
@@ -206,6 +361,28 @@ const LiveChat = ({ requestId, chatHistory }) => {
         }
 
         setChatLog((prev) => {
+          // If a message with the same messageId exists, update its message and edited fields
+          const msgIdx = prev.findIndex(
+            (msg) =>
+              msg.messageId &&
+              parsed.messageId &&
+              msg.messageId === parsed.messageId
+          );
+          if (msgIdx !== -1) {
+            // Update the message and edited fields, keep other fields the same
+            return prev.map((msg, idx) =>
+              idx === msgIdx
+                ? {
+                    ...msg,
+                    message: parsed.message,
+                    edited: true,
+                    timestamp: parsed.timestamp,
+                  }
+                : msg
+            );
+          }
+
+          // Otherwise, add as a new message (with sender update logic)
           const last = prev[prev.length - 1];
           const isDuplicate =
             last &&
@@ -241,6 +418,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
               sessionId: parsed.sessionId,
               timestamp: parsed.timestamp,
               messageId: parsed.messageId,
+              edited: parsed.edited,
             },
           ];
         });
@@ -385,28 +563,17 @@ const LiveChat = ({ requestId, chatHistory }) => {
   return (
     <PaddedContainer>
       <ChatLogArea ref={chatLogRef}>
-        {chatLog.map((msg, idx) => {
-          const isUser = msg.sessionId && msg.sessionId === sessionId;
-          // Always use msg.timestamp if available, else fallback to now (for legacy messages)
-          let timestamp = format(new Date(msg.timestamp), "MMM dd, hh:mm a");
-
-          return (
-            <ChatRow key={idx} isUser={isUser}>
-              <ChatMetaRow isUser={isUser}>
-                {!isUser && <ChatMetaName>{msg.sender}</ChatMetaName>}
-                <ChatMetaText>{timestamp}</ChatMetaText>
-              </ChatMetaRow>
-              <ChatBubble isUser={isUser}>
-                {msg.message.split("\n").map((line, i) => (
-                  <Fragment key={i}>
-                    {i > 0 && <br />}
-                    {line}
-                  </Fragment>
-                ))}
-              </ChatBubble>
-            </ChatRow>
-          );
-        })}
+        {chatLog.map((msg, idx) => (
+          <ChatMessage
+            key={msg.messageId}
+            msg={msg}
+            sessionId={sessionId}
+            requestId={requestId}
+            messageId={msg.messageId}
+            setPendingMessageId={setPendingMessageId}
+            pendingMessageId={pendingMessageId}
+          />
+        ))}
       </ChatLogArea>
       {rateLimited && (
         <div style={{ color: "#d32f2f", marginBottom: 8, textAlign: "center" }}>

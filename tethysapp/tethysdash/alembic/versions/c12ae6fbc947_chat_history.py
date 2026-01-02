@@ -35,6 +35,7 @@ def upgrade() -> None:
             message_id VARCHAR NOT NULL,
             sender VARCHAR NOT NULL,
             message VARCHAR NOT NULL,
+            edited BOOLEAN NOT NULL DEFAULT FALSE,
             PRIMARY KEY (id, timestamp)
         ) PARTITION BY RANGE (timestamp);
         """

@@ -342,6 +342,7 @@ class Message(Base):
     message_id = Column(String, nullable=False, index=True)
     sender = Column(String, nullable=False)
     message = Column(String, nullable=False)
+    edited = Column(Boolean, nullable=False, default=False)
 
 
 def add_new_dashboard(

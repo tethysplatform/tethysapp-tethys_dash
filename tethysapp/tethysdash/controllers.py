@@ -345,7 +345,27 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             )
             db_session = Session()
             try:
-                # Check if there are previous messages with this session_id and request_id
+                # If messageId is provided, try to update the existing message
+                if messageId:
+                    existing_message = (
+                        db_session.query(Message)
+                        .filter_by(
+                            message_id=messageId,
+                            request_id=request_id,
+                            session_id=sessionId,
+                        )
+                        .first()
+                    )
+                    if existing_message:
+                        # Update the existing message
+                        existing_message.timestamp = timestamp
+                        existing_message.sender = sender
+                        existing_message.message = censored_message
+                        existing_message.edited = True
+                        db_session.commit()
+                        return
+
+                # Otherwise, insert new message as before
                 previous_messages = (
                     db_session.query(Message)
                     .filter_by(session_id=sessionId, request_id=request_id)
@@ -379,7 +399,7 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             await self.send(
                 json.dumps(
                     {
-                        "error": "Failed to save message to database.",
+                        "error": "Failed to save message.",
                         "requestId": request_id,
                         "messageId": messageId,
                     }
