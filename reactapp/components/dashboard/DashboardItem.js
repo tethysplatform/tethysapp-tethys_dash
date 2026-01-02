@@ -219,24 +219,6 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
   };
 };
 
-// [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Text', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
-// DashboardItem.js:207 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
-// DashboardLayout.js:41 [DashboardLayout] Render START {tabId: 86, gridItemsLength: 1, shouldLoad: true}
-// DashboardLayout.js:47 [DashboardLayout] gridItems keys: ['1']
-// DashboardItem.js:164 [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Text', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
-// DashboardItem.js:207 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
-// DashboardItem.js:164 [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Text', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
-// DashboardItem.js:207 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
-
-// [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Live Chat', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
-// DashboardItem.js:217 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
-// DashboardLayout.js:41 [DashboardLayout] Render START {tabId: 86, gridItemsLength: 1, shouldLoad: true}
-// DashboardLayout.js:47 [DashboardLayout] gridItems keys: ['1']
-// DashboardItem.js:174 [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Live Chat', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
-// DashboardItem.js:217 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
-// DashboardItem.js:174 [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Live Chat', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
-// DashboardItem.js:217 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
-
 const DashboardItem = ({
   gridItemSource,
   gridItemI,
@@ -246,16 +228,6 @@ const DashboardItem = ({
   gridItemUUID,
   shouldLoad,
 }) => {
-  // Log render and all props
-  console.log("[DashboardItem] Render START", {
-    gridItemI,
-    gridItemSource,
-    gridItemArgs,
-    gridItemMetadata,
-    gridItemIndex,
-    gridItemUUID,
-    shouldLoad,
-  });
   // Context and state hooks (declare only once)
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
@@ -275,13 +247,6 @@ const DashboardItem = ({
     findVisualizationBySource(visualizations, gridItemSource)?.attribution
   );
   const [showAttribution, setShowAttribution] = useState(false);
-  // Log context values (shallow)
-  console.log("[DashboardItem] Context snapshot", {
-    isEditing,
-    variableInputValuesKeys: Object.keys(variableInputValues),
-    uuid,
-    activeAppTour,
-  });
 
   useEffect(() => {
     setAttribution(

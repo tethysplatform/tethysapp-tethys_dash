@@ -26,17 +26,6 @@ const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
 const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
-  // Log render and props
-  console.log("[DashboardLayout] Render START", {
-    tabId,
-    gridItemsLength: gridItems.length,
-    shouldLoad,
-  });
-  // Log gridItems keys for more detail
-  console.log(
-    "[DashboardLayout] gridItems keys:",
-    gridItems.map((g) => g.i)
-  );
   const { unrestrictedPlacement } = useContext(LayoutContext);
   const { updateTab } = useContext(TabContext);
   const { isEditing } = useContext(EditingContext);
