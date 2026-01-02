@@ -292,13 +292,7 @@ const filterNonRelativeDateArgs = (args, variableInputs, types) => {
   return filtered;
 };
 
-const BaseVisualization = ({
-  source,
-  argsString,
-  metadataString,
-  uuid,
-  shouldLoad,
-}) => {
+const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
   const { visualizations } = useContext(AppContext);
@@ -316,7 +310,6 @@ const BaseVisualization = ({
   const latestVizRequest = useRef(0);
 
   useEffect(() => {
-    const args = JSON.parse(argsString);
     if (source === "") {
       setVizType("unknown");
     } else if (source === "Variable Input") {
@@ -331,7 +324,7 @@ const BaseVisualization = ({
       setVariableDependentVisualizations({});
     }
     // eslint-disable-next-line
-  }, [source, argsString, metadataString]);
+  }, [source, args, metadata]);
 
   useEffect(() => {
     if (!["", "Variable Input"].includes(source)) {
@@ -341,8 +334,7 @@ const BaseVisualization = ({
   }, [variableInputValues, shouldLoad]);
 
   useEffect(() => {
-    const gridMetadata = JSON.parse(metadataString);
-    const refreshRate = gridMetadata.refreshRate;
+    const refreshRate = metadata.refreshRate;
     if (
       refreshRate &&
       refreshRate > 0 &&
@@ -360,12 +352,10 @@ const BaseVisualization = ({
       return () => clearInterval(interval);
     }
     // eslint-disable-next-line
-  }, [metadataString, isEditing]);
+  }, [metadata, isEditing]);
 
   async function setVariableDependentVisualizations({ refresh }) {
-    const originalArgs = JSON.parse(argsString);
-    const args = JSON.parse(argsString);
-    const gridMetadata = JSON.parse(metadataString);
+    const originalArgs = args;
     const thisVizRequest = ++latestVizRequest.current;
     const visualization = findSelectOptionByValue(
       visualizations,
@@ -381,12 +371,11 @@ const BaseVisualization = ({
     );
 
     const updatedGridItemMetadata = updateObjectWithVariableInputs(
-      gridMetadata,
+      metadata,
       variableInputValues,
       argTypes
     );
-    const customMessaging = gridMetadata.customMessaging;
-
+    const customMessaging = metadata.customMessaging;
     const filteredOriginalArgs = filterNonRelativeDateArgs(
       originalArgs,
       variableInputValues,
@@ -395,7 +384,7 @@ const BaseVisualization = ({
 
     if (
       (refresh ||
-        (source && argsString === "{}") ||
+        (source && Object.keys(args).length === 0) ||
         !compareFilteredArgs(
           gridItemArgsWithVariableInputs.current,
           updatedGridItemArgs,
@@ -424,8 +413,8 @@ const BaseVisualization = ({
         },
         sourceType,
         itemData,
-        argsString,
-        metadataString,
+        args,
+        metadata,
         variableInputValues,
         dashboardView: true,
         vizLoadingIcon: findSelectOptionByValue(
@@ -484,8 +473,8 @@ const BaseVisualization = ({
 
 BaseVisualization.propTypes = {
   source: PropTypes.string,
-  argsString: PropTypes.string,
-  metadataString: PropTypes.string,
+  args: PropTypes.object,
+  metadata: PropTypes.object,
   shouldLoad: PropTypes.bool,
 };
 
@@ -505,8 +494,8 @@ const areBasePropsEqual = (prevProps, nextProps) => {
   // Only rerender if the actual props that affect visualization change
   return (
     valuesEqual(prevProps.source, nextProps.source) &&
-    valuesEqual(prevProps.argsString, nextProps.argsString) &&
-    valuesEqual(prevProps.metadataString, nextProps.metadataString) &&
+    valuesEqual(prevProps.args, nextProps.args) &&
+    valuesEqual(prevProps.metadata, nextProps.metadata) &&
     valuesEqual(prevProps.shouldLoad, nextProps.shouldLoad)
   );
 };

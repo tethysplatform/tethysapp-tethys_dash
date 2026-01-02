@@ -1,5 +1,13 @@
 import PropTypes from "prop-types";
-import { useState, useEffect, useContext, useRef, memo } from "react";
+import {
+  useState,
+  useEffect,
+  useContext,
+  useRef,
+  memo,
+  useCallback,
+  useMemo,
+} from "react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 import appAPI from "services/api/app";
 import {
@@ -68,65 +76,74 @@ const DashboardLoader = ({
     }
   }, [isEditing]);
 
-  function updateVariableInputValuesWithGridItems(updatedTabs) {
-    const updatedVariableInputValues = JSON.parse(
-      JSON.stringify(variableInputValues)
-    );
-    for (let tab of updatedTabs) {
-      for (let gridItem of tab.gridItems) {
-        const args = JSON.parse(gridItem.args_string);
+  const updateVariableInputValuesWithGridItems = useCallback(
+    (updatedTabs) => {
+      const updatedVariableInputValues = JSON.parse(
+        JSON.stringify(variableInputValues)
+      );
+      for (let tab of updatedTabs) {
+        for (let gridItem of tab.gridItems) {
+          const args = JSON.parse(gridItem.args_string);
 
-        if (gridItem.source === "Variable Input") {
-          if (!(args.variable_name in variableInputValues)) {
-            let initialValue = args.initial_value;
-            if (
-              args.variable_options_source === "checkbox" &&
-              args.initial_value === null
-            ) {
-              initialValue = false;
+          if (gridItem.source === "Variable Input") {
+            if (!(args.variable_name in variableInputValues)) {
+              let initialValue = args.initial_value;
+              if (
+                args.variable_options_source === "checkbox" &&
+                args.initial_value === null
+              ) {
+                initialValue = false;
+              }
+              updatedVariableInputValues[args.variable_name] = initialValue;
             }
-            updatedVariableInputValues[args.variable_name] = initialValue;
           }
         }
       }
-    }
-    setVariableInputValues(updatedVariableInputValues);
-  }
+      setVariableInputValues(updatedVariableInputValues);
+    },
+    [variableInputValues]
+  );
 
-  function updateTab(tabId, updatedProperties) {
-    setTabs((prevTabs) =>
-      prevTabs.map((tab) =>
-        tab.id === tabId ? { ...tab, ...updatedProperties } : tab
-      )
-    );
-    if ("gridItems" in updatedProperties) {
-      updateVariableInputValuesWithGridItems([updatedProperties]);
-    }
-  }
+  const updateTab = useCallback(
+    (tabId, updatedProperties) => {
+      setTabs((prevTabs) =>
+        prevTabs.map((tab) =>
+          tab.id === tabId ? { ...tab, ...updatedProperties } : tab
+        )
+      );
+      if ("gridItems" in updatedProperties) {
+        updateVariableInputValuesWithGridItems([updatedProperties]);
+      }
+    },
+    [tabs, activeTabId, variableInputValues]
+  );
 
-  function resetTabs() {
+  const resetTabs = useCallback(() => {
     setTabs(originalTabs.current);
     setActiveTabId(originalTabs.current[0].id);
     updateVariableInputValuesWithGridItems(originalTabs.current);
-  }
+  }, [originalTabs]);
 
-  async function saveLayoutContext(newProperties) {
-    const apiResponse = await updateDashboard({ id, newProperties });
-    if (apiResponse["success"]) {
-      const updatedDashboard = apiResponse.updated_dashboard;
-      if ("tabs" in newProperties) {
-        const originalActiveTabIndex = tabs.findIndex(
-          (tab) => tab.id === activeTabId
-        );
-        setTabs(updatedDashboard.tabs);
-        originalTabs.current = updatedDashboard.tabs;
-        setActiveTabId(updatedDashboard.tabs[originalActiveTabIndex].id);
+  const saveLayoutContext = useCallback(
+    async (newProperties) => {
+      const apiResponse = await updateDashboard({ id, newProperties });
+      if (apiResponse["success"]) {
+        const updatedDashboard = apiResponse.updated_dashboard;
+        if ("tabs" in newProperties) {
+          const originalActiveTabIndex = tabs.findIndex(
+            (tab) => tab.id === activeTabId
+          );
+          setTabs(updatedDashboard.tabs);
+          originalTabs.current = updatedDashboard.tabs;
+          setActiveTabId(updatedDashboard.tabs[originalActiveTabIndex].id);
+        }
       }
-    }
-    return apiResponse;
-  }
+      return apiResponse;
+    },
+    [updateDashboard, id, tabs, activeTabId]
+  );
 
-  const addTab = () => {
+  const addTab = useCallback(() => {
     const tabName = `Tab ${tabs.length + 1}`;
     const newTab = {
       id: tabName,
@@ -136,23 +153,112 @@ const DashboardLoader = ({
     };
     setTabs([...tabs, newTab]);
     setActiveTabId(newTab.id);
-  };
+  }, [tabs]);
 
-  const deleteTab = (tabId) => {
-    const newTabs = tabs.filter((tab) => tab.id !== tabId);
-    setTabs(newTabs);
-    if (activeTabId === tabId && newTabs.length > 0) {
-      setActiveTabId(newTabs[0].id);
-    }
-  };
+  const deleteTab = useCallback(
+    (tabId) => {
+      const newTabs = tabs.filter((tab) => tab.id !== tabId);
+      setTabs(newTabs);
+      if (activeTabId === tabId && newTabs.length > 0) {
+        setActiveTabId(newTabs[0].id);
+      }
+    },
+    [tabs, activeTabId]
+  );
 
-  const reorderTabs = (newOrder) => {
-    setTabs(newOrder);
-  };
+  const reorderTabs = useCallback(
+    (newOrder) => {
+      setTabs(newOrder);
+    },
+    [tabs]
+  );
 
-  const getActiveTab = () => tabs.find((tab) => tab.id === activeTabId);
+  const getActiveTab = useCallback(
+    () => tabs.find((tab) => tab.id === activeTabId),
+    [tabs, activeTabId]
+  );
 
-  const getTab = (tabId) => tabs.find((tab) => tab.id === tabId);
+  const getTab = useCallback(
+    (tabId) => tabs.find((tab) => tab.id === tabId),
+    [tabs]
+  );
+
+  // Always call hooks in the same order
+  const variableInputsContextValue = useMemo(
+    () => ({
+      variableInputValues,
+      setVariableInputValues,
+    }),
+    [variableInputValues, setVariableInputValues]
+  );
+  const tabContextValue = useMemo(
+    () => ({
+      tabs,
+      activeTabId,
+      setActiveTabId,
+      addTab,
+      updateTab,
+      deleteTab,
+      reorderTabs,
+      resetTabs,
+      getActiveTab,
+      getTab,
+    }),
+    [
+      tabs,
+      activeTabId,
+      addTab,
+      updateTab,
+      deleteTab,
+      reorderTabs,
+      resetTabs,
+      getActiveTab,
+      getTab,
+      setActiveTabId,
+    ]
+  );
+  const layoutContextValue = useMemo(
+    () => ({
+      saveLayoutContext,
+      id,
+      uuid,
+      name,
+      notes,
+      editable,
+      publicDashboard,
+      userPermission,
+      permissions,
+      unrestrictedPlacement,
+      description,
+      owner,
+    }),
+    [
+      saveLayoutContext,
+      id,
+      uuid,
+      name,
+      notes,
+      editable,
+      publicDashboard,
+      userPermission,
+      permissions,
+      unrestrictedPlacement,
+      description,
+      owner,
+    ]
+  );
+  const editingContextValue = useMemo(
+    () => ({ isEditing, setIsEditing }),
+    [isEditing, setIsEditing]
+  );
+  const disabledEditingMovementContextValue = useMemo(
+    () => ({ disabledEditingMovement, setDisabledEditingMovement }),
+    [disabledEditingMovement, setDisabledEditingMovement]
+  );
+  const dataViewerModeContextValue = useMemo(
+    () => ({ inDataViewerMode, setInDataViewerMode }),
+    [inDataViewerMode, setInDataViewerMode]
+  );
 
   if (loadError) {
     return (
@@ -160,68 +266,29 @@ const DashboardLoader = ({
         The dashboard failed to load. Please try again or contact admins.
       </Error>
     );
-  } else if (!isLoaded) {
-    return <LoadingAnimation text="Loading Dashboard..." />;
-  } else {
-    return (
-      <VariableInputsContext.Provider
-        value={{
-          variableInputValues,
-          setVariableInputValues,
-        }}
-      >
-        <TabContext.Provider
-          value={{
-            tabs,
-            activeTabId,
-            setActiveTabId,
-            addTab,
-            updateTab,
-            deleteTab,
-            reorderTabs,
-            resetTabs,
-            getActiveTab,
-            getTab,
-          }}
-        >
-          <LayoutContext.Provider
-            value={{
-              saveLayoutContext,
-              id,
-              uuid,
-              name,
-              notes,
-              editable,
-              publicDashboard,
-              userPermission,
-              permissions,
-              unrestrictedPlacement,
-              description,
-              owner,
-            }}
-          >
-            <EditingContext.Provider value={{ isEditing, setIsEditing }}>
-              <DisabledEditingMovementContext.Provider
-                value={{
-                  disabledEditingMovement,
-                  setDisabledEditingMovement,
-                }}
-              >
-                <DataViewerModeContext.Provider
-                  value={{
-                    inDataViewerMode,
-                    setInDataViewerMode,
-                  }}
-                >
-                  {children}
-                </DataViewerModeContext.Provider>
-              </DisabledEditingMovementContext.Provider>
-            </EditingContext.Provider>
-          </LayoutContext.Provider>
-        </TabContext.Provider>
-      </VariableInputsContext.Provider>
-    );
   }
+  if (!isLoaded) {
+    return <LoadingAnimation text="Loading Dashboard..." />;
+  }
+  return (
+    <VariableInputsContext.Provider value={variableInputsContextValue}>
+      <TabContext.Provider value={tabContextValue}>
+        <LayoutContext.Provider value={layoutContextValue}>
+          <EditingContext.Provider value={editingContextValue}>
+            <DisabledEditingMovementContext.Provider
+              value={disabledEditingMovementContextValue}
+            >
+              <DataViewerModeContext.Provider
+                value={dataViewerModeContextValue}
+              >
+                {children}
+              </DataViewerModeContext.Provider>
+            </DisabledEditingMovementContext.Provider>
+          </EditingContext.Provider>
+        </LayoutContext.Provider>
+      </TabContext.Provider>
+    </VariableInputsContext.Provider>
+  );
 };
 
 DashboardLoader.propTypes = {

@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, memo, useCallback, useMemo } from "react";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import {
   nonDropDownVariableInputTypes,
@@ -292,68 +292,58 @@ function Loader({ children }) {
     // eslint-disable-next-line
   }, []);
 
-  async function copyDashboard(id, name) {
-    // let the user input a new name
-    const apiResponse = await appAPI.copyDashboard(
-      { id, newName: `${name} - Copy` },
-      appContext.csrf
-    );
-    if (apiResponse.success) {
-      const newDashboard = apiResponse.new_dashboard;
-      setAvailableDashboards([...availableDashboards, newDashboard]);
-    }
-    return apiResponse;
-  }
-
-  async function addDashboard(dashboardContext) {
-    const apiResponse = await appAPI.addDashboard(
-      dashboardContext,
-      appContext.csrf
-    );
-    if (apiResponse.success) {
-      const newDashboard = apiResponse.new_dashboard;
-      setAvailableDashboards([...availableDashboards, newDashboard]);
-    }
-    return apiResponse;
-  }
-
-  async function deleteDashboard(id) {
-    const apiResponse = await appAPI.deleteDashboard({ id }, appContext.csrf);
-    if (apiResponse["success"]) {
-      setAvailableDashboards(availableDashboards.filter((d) => d.id !== id));
-    }
-    return apiResponse;
-  }
-
-  async function importDashboard(dashboardContext) {
-    if (!("name" in dashboardContext)) {
-      return { success: false, message: "Dashboards must include a name" };
-    }
-    dashboardContext.uuid = uuidv4();
-
-    if (dashboardContext.gridItems && dashboardContext.gridItems.length > 0) {
-      const updatedGridItems = [];
-      for (let gridItem of dashboardContext.gridItems) {
-        const { success, message, importedGridItem } =
-          await handleGridItemImport(
-            gridItem,
-            appContext.csrf,
-            dashboardContext.uuid
-          );
-        if (success) {
-          updatedGridItems.push(importedGridItem);
-        } else {
-          return { success, message };
-        }
+  const copyDashboard = useCallback(
+    async (id, name) => {
+      // let the user input a new name
+      const apiResponse = await appAPI.copyDashboard(
+        { id, newName: `${name} - Copy` },
+        appContext.csrf
+      );
+      if (apiResponse.success) {
+        const newDashboard = apiResponse.new_dashboard;
+        setAvailableDashboards([...availableDashboards, newDashboard]);
       }
-      dashboardContext.gridItems = updatedGridItems;
-    }
+      return apiResponse;
+    },
+    [appContext, availableDashboards]
+  );
 
-    if (dashboardContext.tabs && dashboardContext.tabs.length > 0) {
-      const updatedTabs = [];
-      for (let tab of dashboardContext.tabs) {
+  const addDashboard = useCallback(
+    async (dashboardContext) => {
+      const apiResponse = await appAPI.addDashboard(
+        dashboardContext,
+        appContext.csrf
+      );
+      if (apiResponse.success) {
+        const newDashboard = apiResponse.new_dashboard;
+        setAvailableDashboards([...availableDashboards, newDashboard]);
+      }
+      return apiResponse;
+    },
+    [appContext, availableDashboards]
+  );
+
+  const deleteDashboard = useCallback(
+    async (id) => {
+      const apiResponse = await appAPI.deleteDashboard({ id }, appContext.csrf);
+      if (apiResponse["success"]) {
+        setAvailableDashboards(availableDashboards.filter((d) => d.id !== id));
+      }
+      return apiResponse;
+    },
+    [appContext, availableDashboards]
+  );
+
+  const importDashboard = useCallback(
+    async (dashboardContext) => {
+      if (!("name" in dashboardContext)) {
+        return { success: false, message: "Dashboards must include a name" };
+      }
+      dashboardContext.uuid = uuidv4();
+
+      if (dashboardContext.gridItems && dashboardContext.gridItems.length > 0) {
         const updatedGridItems = [];
-        for (let gridItem of tab.gridItems) {
+        for (let gridItem of dashboardContext.gridItems) {
           const { success, message, importedGridItem } =
             await handleGridItemImport(
               gridItem,
@@ -366,134 +356,187 @@ function Loader({ children }) {
             return { success, message };
           }
         }
-        updatedTabs.push({ ...tab, gridItems: updatedGridItems });
+        dashboardContext.gridItems = updatedGridItems;
       }
-      dashboardContext.tabs = updatedTabs;
-    }
 
-    const apiResponse = await addDashboard(dashboardContext);
-    return apiResponse;
-  }
-
-  async function exportDashboard(id) {
-    const apiResponse = await appAPI.getDashboard({ id });
-    if (apiResponse.success) {
-      const { id, tabs, uuid, ...dashboardProperties } = apiResponse.dashboard;
-
-      const exportedTabs = [];
-      for (const tab of tabs) {
-        const updatedGridItems = [];
-        for (const gridItem of tab.gridItems) {
-          const exportedGridItem = await handleGridItemExport(gridItem, uuid);
-          updatedGridItems.push(exportedGridItem);
+      if (dashboardContext.tabs && dashboardContext.tabs.length > 0) {
+        const updatedTabs = [];
+        for (let tab of dashboardContext.tabs) {
+          const updatedGridItems = [];
+          for (let gridItem of tab.gridItems) {
+            const { success, message, importedGridItem } =
+              await handleGridItemImport(
+                gridItem,
+                appContext.csrf,
+                dashboardContext.uuid
+              );
+            if (success) {
+              updatedGridItems.push(importedGridItem);
+            } else {
+              return { success, message };
+            }
+          }
+          updatedTabs.push({ ...tab, gridItems: updatedGridItems });
         }
-        exportedTabs.push({ ...tab, gridItems: updatedGridItems });
+        dashboardContext.tabs = updatedTabs;
       }
 
-      const exportedDashboard = {
-        ...dashboardProperties,
-        tabs: exportedTabs,
-      };
+      const apiResponse = await addDashboard(dashboardContext);
+      return apiResponse;
+    },
+    [appContext, addDashboard]
+  );
 
-      try {
-        downloadJSONFile(exportedDashboard, `${exportedDashboard.name}.json`);
-      } catch (err) {
-        return { success: false };
-      }
-    }
+  const exportDashboard = useCallback(
+    async (id) => {
+      const apiResponse = await appAPI.getDashboard({ id });
+      if (apiResponse.success) {
+        const { id, tabs, uuid, ...dashboardProperties } =
+          apiResponse.dashboard;
 
-    return apiResponse;
-  }
-
-  async function updateDashboard({ id, newProperties }) {
-    const apiResponse = await appAPI.updateDashboard(
-      { ...newProperties, id },
-      appContext.csrf
-    );
-    if (apiResponse.success) {
-      const updatedDashboard = apiResponse.updated_dashboard;
-      setAvailableDashboards(
-        availableDashboards.map((d) =>
-          d.id === updatedDashboard.id ? updatedDashboard : d
-        )
-      );
-    }
-    return apiResponse;
-  }
-
-  async function updatePermissionGroup(updatedPermissionGroup) {
-    const apiResponse = await appAPI.updatePermissionGroup(
-      updatedPermissionGroup,
-      appContext.csrf
-    );
-    if (apiResponse.success) {
-      const responsePermissionGroup = apiResponse.updated_permission_group;
-      setPermissionGroups((existingPermissionGroups) => {
-        if (updatedPermissionGroup.id) {
-          return existingPermissionGroups.map((g) =>
-            g.id === responsePermissionGroup.id ? responsePermissionGroup : g
-          );
-        } else {
-          return [...existingPermissionGroups, responsePermissionGroup];
+        const exportedTabs = [];
+        for (const tab of tabs) {
+          const updatedGridItems = [];
+          for (const gridItem of tab.gridItems) {
+            const exportedGridItem = await handleGridItemExport(gridItem, uuid);
+            updatedGridItems.push(exportedGridItem);
+          }
+          exportedTabs.push({ ...tab, gridItems: updatedGridItems });
         }
-      });
-    }
-    return apiResponse;
-  }
 
-  async function deletePermissionGroup(id) {
-    const apiResponse = await appAPI.deletePermissionGroup(
-      { id },
-      appContext.csrf
-    );
-    if (apiResponse.success) {
-      setPermissionGroups((existingPermissionGroups) =>
-        existingPermissionGroups.filter((g) => g.id !== id)
+        const exportedDashboard = {
+          ...dashboardProperties,
+          tabs: exportedTabs,
+        };
+
+        try {
+          downloadJSONFile(exportedDashboard, `${exportedDashboard.name}.json`);
+        } catch (err) {
+          return { success: false };
+        }
+      }
+
+      return apiResponse;
+    },
+    [appContext]
+  );
+
+  const updateDashboard = useCallback(
+    async ({ id, newProperties }) => {
+      const apiResponse = await appAPI.updateDashboard(
+        { ...newProperties, id },
+        appContext.csrf
       );
-    }
-    return apiResponse;
-  }
+      if (apiResponse.success) {
+        const updatedDashboard = apiResponse.updated_dashboard;
+        setAvailableDashboards(
+          availableDashboards.map((d) =>
+            d.id === updatedDashboard.id ? updatedDashboard : d
+          )
+        );
+      }
+      return apiResponse;
+    },
+    [appContext, availableDashboards]
+  );
+
+  const updatePermissionGroup = useCallback(
+    async (updatedPermissionGroup) => {
+      const apiResponse = await appAPI.updatePermissionGroup(
+        updatedPermissionGroup,
+        appContext.csrf
+      );
+      if (apiResponse.success) {
+        const responsePermissionGroup = apiResponse.updated_permission_group;
+        setPermissionGroups((existingPermissionGroups) => {
+          if (updatedPermissionGroup.id) {
+            return existingPermissionGroups.map((g) =>
+              g.id === responsePermissionGroup.id ? responsePermissionGroup : g
+            );
+          } else {
+            return [...existingPermissionGroups, responsePermissionGroup];
+          }
+        });
+      }
+      return apiResponse;
+    },
+    [appContext]
+  );
+
+  const deletePermissionGroup = useCallback(
+    async (id) => {
+      const apiResponse = await appAPI.deletePermissionGroup(
+        { id },
+        appContext.csrf
+      );
+      if (apiResponse.success) {
+        setPermissionGroups((existingPermissionGroups) =>
+          existingPermissionGroups.filter((g) => g.id !== id)
+        );
+      }
+      return apiResponse;
+    },
+    [appContext]
+  );
+
+  // Always call hooks in the same order
+  const appContextValue = useMemo(() => appContext, [appContext]);
+  const permissionGroupContextValue = useMemo(
+    () => ({
+      permissionGroups,
+      updatePermissionGroup,
+      deletePermissionGroup,
+    }),
+    [permissionGroups, updatePermissionGroup, deletePermissionGroup]
+  );
+  const availableDashboardsContextValue = useMemo(
+    () => ({
+      availableDashboards,
+      setAvailableDashboards,
+      addDashboard,
+      deleteDashboard,
+      copyDashboard,
+      updateDashboard,
+      exportDashboard,
+      importDashboard,
+    }),
+    [
+      availableDashboards,
+      addDashboard,
+      deleteDashboard,
+      copyDashboard,
+      updateDashboard,
+      exportDashboard,
+      importDashboard,
+      setAvailableDashboards,
+    ]
+  );
 
   if (error) {
     // Throw error so it will be caught by the ErrorBoundary
     throw error;
-  } else if (!isLoaded) {
-    return <LoadingAnimation text="Loading TethysDash..." />;
-  } else {
-    return (
-      <>
-        <AppContext.Provider value={appContext}>
-          <PermissionGroupContext.Provider
-            value={{
-              permissionGroups,
-              updatePermissionGroup,
-              deletePermissionGroup,
-            }}
-          >
-            <AvailableDashboardsContext.Provider
-              value={{
-                availableDashboards,
-                setAvailableDashboards,
-                addDashboard,
-                deleteDashboard,
-                copyDashboard,
-                updateDashboard,
-                exportDashboard,
-                importDashboard,
-              }}
-            >
-              <AppTourContextProvider>
-                <WebsocketProvider>
-                  {children}
-                  <IdleTimerManager />
-                </WebsocketProvider>
-              </AppTourContextProvider>
-            </AvailableDashboardsContext.Provider>
-          </PermissionGroupContext.Provider>
-        </AppContext.Provider>
-      </>
-    );
   }
+  if (!isLoaded) {
+    return <LoadingAnimation text="Loading TethysDash..." />;
+  }
+  return (
+    <>
+      <AppContext.Provider value={appContextValue}>
+        <PermissionGroupContext.Provider value={permissionGroupContextValue}>
+          <AvailableDashboardsContext.Provider
+            value={availableDashboardsContextValue}
+          >
+            <AppTourContextProvider>
+              <WebsocketProvider>
+                {children}
+                <IdleTimerManager />
+              </WebsocketProvider>
+            </AppTourContextProvider>
+          </AvailableDashboardsContext.Provider>
+        </PermissionGroupContext.Provider>
+      </AppContext.Provider>
+    </>
+  );
 }
 
 Loader.propTypes = {

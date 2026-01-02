@@ -1,7 +1,7 @@
 import PropTypes from "prop-types";
 import styled, { css } from "styled-components";
 import Container from "react-bootstrap/Container";
-import { memo, useState, useContext, useEffect } from "react";
+import { memo, useState, useContext, useEffect, useMemo } from "react";
 import { BsInfoCircle } from "react-icons/bs";
 import {
   EditingContext,
@@ -219,24 +219,50 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
   };
 };
 
+// [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Text', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
+// DashboardItem.js:207 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
+// DashboardLayout.js:41 [DashboardLayout] Render START {tabId: 86, gridItemsLength: 1, shouldLoad: true}
+// DashboardLayout.js:47 [DashboardLayout] gridItems keys: ['1']
+// DashboardItem.js:164 [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Text', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
+// DashboardItem.js:207 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
+// DashboardItem.js:164 [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Text', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
+// DashboardItem.js:207 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
+
+// [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Live Chat', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
+// DashboardItem.js:217 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
+// DashboardLayout.js:41 [DashboardLayout] Render START {tabId: 86, gridItemsLength: 1, shouldLoad: true}
+// DashboardLayout.js:47 [DashboardLayout] gridItems keys: ['1']
+// DashboardItem.js:174 [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Live Chat', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
+// DashboardItem.js:217 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
+// DashboardItem.js:174 [DashboardItem] Render START {gridItemI: '1', gridItemSource: 'Live Chat', gridItemArgs: {…}, gridItemMetadata: {…}, gridItemIndex: 0, …}
+// DashboardItem.js:217 [DashboardItem] Context snapshot {isEditing: false, variableInputValuesKeys: Array(0), uuid: '0f6b069e-b703-44ca-a6b0-aefbe50617ce', activeAppTour: false}
+
 const DashboardItem = ({
   gridItemSource,
   gridItemI,
-  gridItemArgsString,
-  gridItemMetadataString,
+  gridItemArgs,
+  gridItemMetadata,
   gridItemIndex,
   gridItemUUID,
   shouldLoad,
 }) => {
+  // Log render and all props
+  console.log("[DashboardItem] Render START", {
+    gridItemI,
+    gridItemSource,
+    gridItemArgs,
+    gridItemMetadata,
+    gridItemIndex,
+    gridItemUUID,
+    shouldLoad,
+  });
+  // Context and state hooks (declare only once)
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
   const [gridItemWarning, setGridItemWarning] = useState("");
   const [showGridItemWarning, setShowGridItemWarning] = useState(false);
-  const [gridItemStyling, setGridItemStyling] = useState(
-    JSON.parse(gridItemMetadataString)
-  );
   const { getActiveTab, updateTab } = useContext(TabContext);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
@@ -249,6 +275,13 @@ const DashboardItem = ({
     findVisualizationBySource(visualizations, gridItemSource)?.attribution
   );
   const [showAttribution, setShowAttribution] = useState(false);
+  // Log context values (shallow)
+  console.log("[DashboardItem] Context snapshot", {
+    isEditing,
+    variableInputValuesKeys: Object.keys(variableInputValues),
+    uuid,
+    activeAppTour,
+  });
 
   useEffect(() => {
     setAttribution(
@@ -256,11 +289,6 @@ const DashboardItem = ({
     );
     // eslint-disable-next-line
   }, [gridItemSource]);
-
-  useEffect(() => {
-    setGridItemStyling(JSON.parse(gridItemMetadataString));
-    // eslint-disable-next-line
-  }, [gridItemMetadataString]);
 
   async function deleteGridItem(e) {
     if (await confirm("Are you sure you want to delete the item?")) {
@@ -395,13 +423,13 @@ const DashboardItem = ({
     <>
       <StyledDiv
         $isEditing={isEditing}
-        $borderProps={gridItemStyling?.border}
-        $backgroundColorProps={gridItemStyling?.backgroundColor}
-        $boxShadowProps={gridItemStyling?.boxShadow}
+        $borderProps={gridItemMetadata?.border}
+        $backgroundColorProps={gridItemMetadata?.backgroundColor}
+        $boxShadowProps={gridItemMetadata?.boxShadow}
         aria-label="gridItemDiv"
         className="no-caret"
       >
-        {gridItemStyling?.attribution !== false && attribution && (
+        {gridItemMetadata?.attribution !== false && attribution && (
           <InfoIconWrapper
             onMouseEnter={() => setShowAttribution(true)}
             onMouseLeave={() => setShowAttribution(false)}
@@ -441,8 +469,8 @@ const DashboardItem = ({
           <BaseVisualization
             key={gridItemI}
             source={gridItemSource}
-            argsString={gridItemArgsString}
-            metadataString={gridItemMetadataString}
+            args={gridItemArgs}
+            metadata={gridItemMetadata}
             uuid={gridItemUUID}
             shouldLoad={shouldLoad}
           />
@@ -451,8 +479,8 @@ const DashboardItem = ({
           <DataViewerModal
             gridItemIndex={gridItemIndex}
             source={gridItemSource}
-            argsString={gridItemArgsString}
-            metadataString={gridItemMetadataString}
+            args={gridItemArgs}
+            metadata={gridItemMetadata}
             showModal={showDataViewerModal}
             handleModalClose={hideDataViewerModal}
             setGridItemMessage={setGridItemMessage}

@@ -1,4 +1,11 @@
-import { createContext, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  useEffect,
+  useRef,
+  useState,
+  useCallback,
+  useMemo,
+} from "react";
 import LoadingAnimation from "components/loader/LoadingAnimation";
 import PropTypes from "prop-types";
 
@@ -62,37 +69,53 @@ const WebsocketProvider = ({ children }) => {
     }
   };
 
-  const getMessageForRequest = (requestId) => {
-    return messagesByRequestId[requestId] && messagesByRequestId[requestId];
-  };
+  const getMessageForRequest = useCallback(
+    (requestId) =>
+      messagesByRequestId[requestId] && messagesByRequestId[requestId],
+    [messagesByRequestId]
+  );
 
-  const getErrorMessageForRequest = (requestId) => {
-    return (
-      errorMessagesByRequestId[requestId] && errorMessagesByRequestId[requestId]
-    );
-  };
+  const getErrorMessageForRequest = useCallback(
+    (requestId) =>
+      errorMessagesByRequestId[requestId] &&
+      errorMessagesByRequestId[requestId],
+    [errorMessagesByRequestId]
+  );
 
-  const onSend = (data) => {
-    if (ws.current && websocketReady) {
-      ws.current.send(data);
-    }
-  };
+  const onSend = useCallback(
+    (data) => {
+      if (ws.current && websocketReady) {
+        ws.current.send(data);
+      }
+    },
+    [websocketReady]
+  );
+
+  const contextValue = useMemo(
+    () => ({
+      websocketReady,
+      messagesByRequestId,
+      errorMessagesByRequestId,
+      getMessageForRequest,
+      getErrorMessageForRequest,
+      sendMessage: onSend,
+    }),
+    [
+      websocketReady,
+      messagesByRequestId,
+      errorMessagesByRequestId,
+      getMessageForRequest,
+      getErrorMessageForRequest,
+      onSend,
+    ]
+  );
 
   if (!websocketReady && !timeoutReached) {
     return <LoadingAnimation text="Connecting to WebSocket..." />;
   }
 
   return (
-    <WebsocketContext.Provider
-      value={{
-        websocketReady,
-        messagesByRequestId,
-        errorMessagesByRequestId,
-        getMessageForRequest,
-        getErrorMessageForRequest,
-        sendMessage: onSend,
-      }}
-    >
+    <WebsocketContext.Provider value={contextValue}>
       {children}
     </WebsocketContext.Provider>
   );

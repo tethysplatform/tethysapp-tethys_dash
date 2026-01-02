@@ -339,8 +339,8 @@ function VisualizationPane({
         setVizData,
         sourceType,
         itemData,
-        argsString: JSON.stringify(vizInputsValues),
-        metadataString: JSON.stringify(settings),
+        args: vizInputsValues,
+        metadata: settings,
         variableInputValues,
         vizLoadingIcon: true,
       });
