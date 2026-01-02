@@ -292,10 +292,6 @@ const filterNonRelativeDateArgs = (args, variableInputs, types) => {
   return filtered;
 };
 
-// [BaseVisualization] Rendered {source: 'cnrfc_10day_daily_maximum_streamflow_probability', args: {…}, metadata: {…}, uuid: '7925dd25-1a65-4850-9ace-a65ac109b964', shouldLoad: true}
-// VM21296 Base.js:260 [BaseVisualization] Rendered {source: 'cnrfc_10day_daily_maximum_streamflow_probability', args: {…}, metadata: {…}, uuid: '7925dd25-1a65-4850-9ace-a65ac109b964', shouldLoad: true}
-// VM21296 Base.js:260 [BaseVisualization] Rendered {source: 'cnrfc_10day_daily_maximum_streamflow_probability', args: {…}, metadata: {…}, uuid: '7925dd25-1a65-4850-9ace-a65ac109b964', shouldLoad: true}
-
 const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
@@ -310,8 +306,6 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
   const dashboardVizRef = useRef();
   const { getMessageForRequest } = useContext(WebsocketContext);
   const requestId = useRef(uuid);
-  // Add a ref to track the latest visualization request
-  const latestVizRequest = useRef(0);
 
   useEffect(() => {
     if (source === "") {
@@ -360,7 +354,6 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
 
   async function setVariableDependentVisualizations({ refresh }) {
     const originalArgs = args;
-    const thisVizRequest = ++latestVizRequest.current;
     const visualization = findSelectOptionByValue(
       visualizations,
       source,
@@ -405,16 +398,8 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
 
       // setVizType and setVizData only if this is the latest request. used to prevent race conditions when changing visualizations quickly
       await getVisualization({
-        setVizType: (...args) => {
-          if (thisVizRequest === latestVizRequest.current) {
-            setVizType(...args);
-          }
-        },
-        setVizData: (...args) => {
-          if (thisVizRequest === latestVizRequest.current) {
-            setVizData(...args);
-          }
-        },
+        setVizType,
+        setVizData,
         sourceType,
         itemData,
         args,
