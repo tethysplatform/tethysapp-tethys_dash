@@ -27,7 +27,6 @@ from tethysapp.tethysdash.model import (
     update_visualization_permissions as update_viz_perms,
     check_for_liveChat,
     Message,
-    App,
 )
 from django.core.cache import cache
 from tethysapp.tethysdash.visualizations import (
@@ -143,7 +142,10 @@ def ping(request):
     except NameError:
         # This is caused by trying to use a function that doesn't exist
         # Useful for resetting a website that used to have the session security.
-        delattr(request, "session")
+        try:
+            del request.session
+        except AttributeError:
+            pass
         print(
             "Deleting session information due to django-session-security being uninstalled."  # noqa: E501
         )
@@ -272,6 +274,7 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             request_id = data.get("requestId")
             message = data.get("message")
         except Exception as e:
+            print(e)
             await self.send(
                 json.dumps(
                     {"error": "Invalid message format. requestId and message required."}
@@ -305,7 +308,7 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             await self.send(
                 json.dumps(
                     {
-                        "error": f"Rate limit exceeded. Please wait {retry_after} seconds before sending more messages.",
+                        "error": f"Rate limit exceeded. Please wait {retry_after} seconds before sending more messages.",  # noqa: E501
                         "requestId": request_id,
                         "messageId": messageId,
                     }
@@ -328,6 +331,7 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
                 messageId=messageId,
             )
         except Exception as e:
+            print(e)
             await self.send(
                 json.dumps(
                     {
@@ -371,7 +375,7 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
                     .filter_by(session_id=sessionId, request_id=request_id)
                     .all()
                 )
-                # If any previous message has a different sender, update all to new sender
+                # If any prev message has a different sender, update all to new sender
                 if previous_messages and any(
                     m.sender != sender for m in previous_messages
                 ):

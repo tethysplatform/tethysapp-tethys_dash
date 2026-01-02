@@ -34,9 +34,7 @@ from tethysapp.tethysdash.utilities import sanitize_html
 from django.contrib.auth import get_user_model
 import shutil
 import filecmp
-from sqlalchemy import event, Table, DDL
 import sqlalchemy
-from sqlalchemy.orm.session import Session as SASession
 from datetime import timedelta
 
 Base = declarative_base()
@@ -868,7 +866,7 @@ def update_named_dashboard(user, id, dashboard_updates):
                 for grid_item_id in existing_grid_item_ids - set(updated_grid_item_ids):
                     db_grid_item = session.get(GridItem, grid_item_id)
                     if db_grid_item:
-                        # If the grid item is a Live Chat, delete all associated messages
+                        # If the grid item is a Live Chat, delete all messages
                         if db_grid_item.source == "Live Chat":
                             session.query(Message).filter(
                                 Message.request_id == db_grid_item.uuid
@@ -890,7 +888,7 @@ def update_named_dashboard(user, id, dashboard_updates):
 
                     if grid_item_id and grid_item_id in existing_grid_items_by_id:
                         db_grid_item = existing_grid_items_by_id[grid_item_id]
-                        # If changing from 'Live Chat' to something else, delete associated messages
+                        # If changing from 'Live Chat' to something else, delete associated messages  # noqa: E501
                         if (
                             db_grid_item.source == "Live Chat"
                             and grid_item_source != "Live Chat"
@@ -1983,15 +1981,16 @@ def create_partition_for_date(connection, ts):
 
 def create_message_partitions_for_rolling_window(days_past=7, days_future=7):
     """
-    Create partitions for the Message table for a rolling window (past 7 days and next 7 days).
-    Intended to be called by a weekly cron job or with `tethys syncstores tethysdash`.
+    Create partitions for the Message table for a rolling window
+    (past 7 days and next 7 days). Intended to be called by a weekly cron job or
+    with `tethys syncstores tethysdash`.
 
     Args:
         days_past (int): Number of days in the past to create partitions for
         days_future (int): Number of days in the future to create partitions for
     """
     print(
-        f"Creating message partitions for rolling window: past {days_past} days, future {days_future} days"
+        f"Creating message partitions for rolling window: past {days_past} days, future {days_future} days"  # noqa: E501
     )
     engine = App.get_persistent_store_database("primary_db", as_sessionmaker=False)
     connection = engine.connect()
