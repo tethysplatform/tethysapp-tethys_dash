@@ -306,8 +306,12 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
   const dashboardVizRef = useRef();
   const { getMessageForRequest } = useContext(WebsocketContext);
   const requestId = useRef(uuid);
+  // Ref to track if we've already loaded for this source with empty args
+  const loadedEmptyArgsForSource = useRef({});
 
   useEffect(() => {
+    // Reset the loadedEmptyArgsForSource ref when the source changes
+    loadedEmptyArgsForSource.current = {};
     if (source === "") {
       setVizType("unknown");
     } else if (source === "Variable Input") {
@@ -379,17 +383,28 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
       argTypes
     );
 
+    // Only allow the empty args load to run once per source unless refresh is true
+    const isEmptyArgs = source && Object.keys(args).length === 0;
+    const alreadyLoadedEmptyArgs = loadedEmptyArgsForSource.current[source];
+
     if (
       (refresh ||
-        (source && Object.keys(args).length === 0) ||
-        !compareFilteredArgs(
-          gridItemArgsWithVariableInputs.current,
-          updatedGridItemArgs,
-          filteredOriginalArgs
-        ) ||
-        !valuesEqual(customMessages.current, customMessaging)) &&
+        (isEmptyArgs && !alreadyLoadedEmptyArgs) ||
+        (!isEmptyArgs &&
+          (!compareFilteredArgs(
+            gridItemArgsWithVariableInputs.current,
+            updatedGridItemArgs,
+            filteredOriginalArgs
+          ) ||
+            !valuesEqual(customMessages.current, customMessaging)))) &&
       shouldLoad
     ) {
+      if (isEmptyArgs) {
+        loadedEmptyArgsForSource.current[source] = true;
+      }
+      console.log(
+        `Loading visualization for source: ${source} with requestId: ${requestId.current}`
+      );
       itemData.args = updatedGridItemArgs;
       itemData.requestId = requestId.current;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;

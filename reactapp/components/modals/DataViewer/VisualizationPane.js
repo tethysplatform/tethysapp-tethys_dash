@@ -167,6 +167,10 @@ function VisualizationPane({
   const { variableInputValues } = useContext(VariableInputsContext);
   const { activeAppTour } = useAppTourContext();
   const currentSelectedVizTypeOption = useRef(selectedVizTypeOption);
+  // Ref to track if we've already previewed for this source with empty args
+  const loadedEmptyArgsForSource = useRef({});
+  // Ref to guard checkAllInputs after type change
+  const justUpdatedType = useRef(false);
 
   const defaultVisualizationOptions = visualizations.find((obj) => {
     return obj.label === "Default";
@@ -182,6 +186,9 @@ function VisualizationPane({
     ) {
       visualizationRef.current = null;
       setSettings({});
+      // Reset the loadedEmptyArgsForSource ref when visualization type changes
+      loadedEmptyArgsForSource.current = {};
+      justUpdatedType.current = true;
 
       let updatedVizArguments = [];
       const updatedVizInputsValues = {};
@@ -275,12 +282,24 @@ function VisualizationPane({
   );
 
   function checkAllInputs() {
+    if (justUpdatedType.current) {
+      justUpdatedType.current = false;
+      return;
+    }
     if (selectedVizTypeOption) {
-      if (
-        Object.values(vizInputsValues).every(
-          (value) => !["", null].includes(value)
-        )
-      ) {
+      const allFilled = Object.values(vizInputsValues).every(
+        (value) => !["", null].includes(value)
+      );
+      const isEmptyArgs =
+        Object.keys(vizInputsValues).length === 0 ||
+        Object.values(vizInputsValues).every((v) => v === undefined);
+      const source = selectedVizTypeOption["source"];
+      const alreadyLoadedEmptyArgs = loadedEmptyArgsForSource.current[source];
+      if (allFilled || (isEmptyArgs && !alreadyLoadedEmptyArgs)) {
+        if (isEmptyArgs) {
+          loadedEmptyArgsForSource.current[source] = true;
+        }
+        // Set the flag BEFORE calling previewVisualization to prevent race conditions
         previewVisualization();
       } else {
         setVizType("unknown");
