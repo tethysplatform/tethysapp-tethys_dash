@@ -301,8 +301,8 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
         """
         try:
             data = json.loads(text_data)
-            request_id = data.get("requestId")
-            message = data.get("message")
+            request_id = data["requestId"]
+            message = data["message"]
         except Exception as e:
             print(e)
             await self.send(

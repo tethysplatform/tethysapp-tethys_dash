@@ -149,7 +149,7 @@ class GridItem(Base):
     source = Column(String)
     args_string = Column(String)
     metadata_string = Column(String)
-    order = Column(Integer)
+    order = Column(Integer, default=0)
 
     # relationships
     tab_id = Column(

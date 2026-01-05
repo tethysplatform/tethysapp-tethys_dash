@@ -1830,12 +1830,21 @@ async def test_visualization_consumer_send_message():
     assert json.loads(sent["text"]) == message
 
 
+@pytest.mark.django_db
 @pytest.mark.asyncio
-async def test_visualization_consumer_receive():
+async def test_visualization_consumer_receive(mock_app_get_ps_db, create_today_partition, live_chat_dashboard):
     """Test that receive does nothing (pass)."""
+    mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
+
     application = VisualizationConsumer()
     # Should not raise
-    await application.receive(text_data="test")
+    await application.receive(
+        text_data=json.dumps(
+            {"requestId": grid_item_uuid, "message": "test", "sessionId": "abc", "messageId": "1"}
+        )
+    )
 
 
 @pytest.mark.django_db

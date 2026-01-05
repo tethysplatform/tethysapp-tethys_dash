@@ -1,6 +1,6 @@
 import pytest
 import json
-import uuid
+from uuid import uuid4
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from django.conf import settings
@@ -9,6 +9,8 @@ from unittest.mock import MagicMock
 from tethysapp.tethysdash.model import (
     GroupPermissionLevel,
     Dashboard,
+    DashboardTab,
+    GridItem,
     DashboardPermission,
     DashboardPermissionLevel,
     PermissionGroup,
@@ -16,6 +18,8 @@ from tethysapp.tethysdash.model import (
     VisualizationPermission,
 )
 from django.contrib.auth import get_user_model
+import datetime
+from tethysapp.tethysdash.model import create_partition_for_date
 
 
 @pytest.fixture(scope="module")
@@ -68,6 +72,14 @@ def db_session(session_maker):
 
 
 @pytest.fixture(scope="function")
+def create_today_partition(db_connection):
+    """
+    Fixture to create a date partition for the messages table for today.
+    """
+    create_partition_for_date(db_connection, datetime.datetime.utcnow())
+
+
+@pytest.fixture(scope="function")
 def mock_app_get_ps_db(session_maker, mocker):
     """Create a SQLAlchemy session for the primary database."""
 
@@ -106,7 +118,7 @@ def test_owner_user(db):
 
 @pytest.fixture(scope="function")
 def permission_group(test_admin_user, test_member_user, test_owner_user):
-    unique_name = f"{uuid.uuid4()}"
+    unique_name = f"{uuid4()}"
     return {
         "name": unique_name,
         "description": "",
@@ -203,6 +215,35 @@ def grid_item():
 
 
 @pytest.fixture(scope="function")
+def live_chat_grid_item():
+    return [
+        {
+            "i": "1",
+            "x": 1,
+            "y": 1,
+            "w": 1,
+            "h": 1,
+            "source": "Live Chat",
+            "args_string": json.dumps({}),
+            "metadata_string": json.dumps({"refreshRate": 0}),
+        }
+    ]
+
+
+@pytest.fixture(scope="function")
+def live_chat_dashboard_data(test_owner_user):
+    return {
+        "name": "live_chat_dashboard",
+        "description": "live_chat_dashboard",
+        "uuid": "some_live_chat_dashboard_uuid",
+        "notes": "some notes",
+        "owner": test_owner_user.username,
+        "public": False,
+        "unrestricted_placement": False,
+    }
+
+
+@pytest.fixture(scope="function")
 def dashboard(db_session, dashboard_data, permission_group_table, test_admin_user):
     dashboard = Dashboard(**dashboard_data)
     db_session.add(dashboard)
@@ -282,6 +323,56 @@ def public_dashboard(db_session, public_dashboard_data):
     )
     if refreshed_owner_permission:
         db_session.delete(refreshed_owner_permission)
+    db_session.commit()
+
+
+@pytest.fixture(scope="function")
+def live_chat_dashboard(db_session, live_chat_dashboard_data, test_owner_user):
+    dashboard = Dashboard(**live_chat_dashboard_data)
+    db_session.add(dashboard)
+    db_session.commit()
+    db_session.refresh(dashboard)
+
+    dashboard_tab = DashboardTab(
+        dashboard_id=dashboard.id,
+        name="Tab 1",
+    )
+    db_session.add(dashboard_tab)
+    db_session.commit()
+    db_session.refresh(dashboard_tab)
+
+    grid_item = GridItem(
+        dashboard_id=dashboard.id,
+        tab_id=dashboard_tab.id,
+        uuid=str(uuid4()),
+        i="1",
+        x=0,
+        y=0,
+        w=4,
+        h=4,
+        source="Live Chat",
+        args_string=json.dumps({}),
+        metadata_string=json.dumps({"refreshRate": 0}),
+    )
+    db_session.add(grid_item)
+    db_session.commit()
+    db_session.refresh(grid_item)
+
+    yield dashboard
+
+    # Only delete if dashboard still exists
+    refreshed_dashboard = db_session.get(Dashboard, dashboard.id)
+    if refreshed_dashboard:
+        db_session.delete(refreshed_dashboard)
+
+    refreshed_owner_permission = (
+        db_session.query(DashboardPermission)
+        .filter_by(dashboard_id=dashboard.id, username=dashboard.owner)
+        .first()
+    )
+    if refreshed_owner_permission:
+        db_session.delete(refreshed_owner_permission)
+
     db_session.commit()
 
 
