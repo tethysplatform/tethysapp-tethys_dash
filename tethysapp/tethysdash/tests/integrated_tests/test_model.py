@@ -110,6 +110,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_use
     grid_item_args_string = json.dumps({"uri": "some_path"})
     grid_item_refreshRate = 0
     grid_item_order = 0
+    uuid = str(uuid4())
     new_grid_item = add_new_grid_item(
         db_session,
         dashboard_id,
@@ -122,6 +123,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_use
         grid_item_args_string,
         grid_item_refreshRate,
         grid_item_order,
+        uuid,
         dashboard.tabs[0].id,
     )
 
@@ -130,6 +132,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_use
     )
     assert new_grid_item.x == grid_item_x
     assert new_grid_item.w == grid_item_w
+    assert new_grid_item.uuid == uuid
     new_grid_item_id = new_grid_item.id
 
     # Delete the dashboard and Verify dashboard, rows, and columns were deleted
@@ -228,6 +231,7 @@ def test_add_dashboard_with_tabs(db_session, mock_app_get_ps_db, test_owner_user
                     "w": 1,
                     "h": 1,
                     "source": "Text",
+                    "uuid": "12345678-1234-5678-1234-567812345678",
                     "args_string": json.dumps({"text": "Some text"}),
                     "metadata_string": json.dumps({}),
                 }
@@ -271,7 +275,8 @@ def test_add_dashboard_with_tabs(db_session, mock_app_get_ps_db, test_owner_user
     assert dashboard.grid_items[0].source == "Text"
     assert dashboard.grid_items[0].args_string == json.dumps({"text": "Some text"})
 
-    add_new_grid_item(
+    uuid = str(uuid4())
+    new_grid_item = add_new_grid_item(
         db_session,
         dashboard.id,
         "2",
@@ -283,8 +288,15 @@ def test_add_dashboard_with_tabs(db_session, mock_app_get_ps_db, test_owner_user
         {"text": "Some more text"},
         {"refreshRate": 0},
         1,
+        uuid,
         dashboard.tabs[0].id,
     )
+
+    new_grid_item = (
+        db_session.query(GridItem).filter(GridItem.id == new_grid_item.id).first()
+    )
+    assert new_grid_item.uuid == uuid
+    assert new_grid_item.uuid != "12345678-1234-5678-1234-567812345678"
 
 
 @pytest.mark.django_db
@@ -358,6 +370,7 @@ def test_update_named_dashboard_grid_items(
             "source": "Custom Image",
             "args_string": json.dumps({"uri": "some_path"}),
             "metadata_string": json.dumps({"refreshRate": 0}),
+            "uuid": str(uuid4()),
         },
         {
             "i": "1",
@@ -368,6 +381,7 @@ def test_update_named_dashboard_grid_items(
             "source": "Text",
             "args_string": json.dumps({"text": "some text"}),
             "metadata_string": json.dumps({"refreshRate": 0}),
+            "uuid": str(uuid4()),
         },
     ]
 
@@ -381,6 +395,7 @@ def test_update_named_dashboard_grid_items(
             "source": "Custom Image",
             "args_string": json.dumps({"uri": "some_path"}),
             "metadata_string": json.dumps({"refreshRate": 0}),
+            "uuid": str(uuid4()),
         },
     ]
     tabs = [
@@ -445,6 +460,7 @@ def test_update_named_dashboard_grid_items(
             "source": "Text",
             "args_string": json.dumps({"text": "some text"}),
             "metadata_string": json.dumps({"refreshRate": 30}),
+            "uuid": grid_item1.uuid,
         },
         {
             "i": "1",
@@ -455,6 +471,7 @@ def test_update_named_dashboard_grid_items(
             "source": "Text",
             "args_string": json.dumps({"text": "some text"}),
             "metadata_string": json.dumps({"refreshRate": 0}),
+            "uuid": str(uuid4()),
         },
     ]
 
@@ -772,6 +789,7 @@ def test_copy_named_dashboard(
                     "source": "Custom Image",
                     "args_string": json.dumps({"uri": "some_path"}),
                     "metadata_string": json.dumps({"refreshRate": 0}),
+                    "uuid": str(uuid4()),
                 },
             ],
         }
@@ -979,6 +997,7 @@ def test_clean_up_jsons(
                 }
             ),
             "metadata_string": json.dumps({"refreshRate": 0}),
+            "uuid": str(uuid4()),
         },
     ]
 
@@ -1061,6 +1080,7 @@ def test_clean_up_jsons_no_existing_dashboard_folder(
                 }
             ),
             "metadata_string": json.dumps({"refreshRate": 0}),
+            "uuid": str(uuid4()),
         },
     ]
 
@@ -1094,6 +1114,10 @@ def test_init_primary_db_with_current_revision(
 
     mock_alembic.script.walk_revisions.return_value = []
 
+    mocker.patch(
+        "tethysapp.tethysdash.model.create_message_partitions_for_rolling_window"
+    )
+
     init_primary_db(engine=mocker.Mock(), first_time=True)
 
     mock_alembic.upgrade.assert_called_once_with(mock_alembic.config, "head")
@@ -1119,6 +1143,10 @@ def test_init_primary_db_no_current_revision_upgrade_all(
     rev1 = mocker.Mock(revision="rev1")
     rev2 = mocker.Mock(revision="rev2")
     mock_alembic.script.walk_revisions.return_value = [rev2, rev1]
+
+    mocker.patch(
+        "tethysapp.tethysdash.model.create_message_partitions_for_rolling_window"
+    )
 
     init_primary_db(engine=mocker.Mock(), first_time=True)
 
@@ -1150,6 +1178,10 @@ def test_init_primary_db_skips_existing_table(
     error = ProgrammingError("select 1", {}, Exception("relation already exists"))
     error.args = ("table already exists",)
     mock_alembic.upgrade.side_effect = error
+
+    mocker.patch(
+        "tethysapp.tethysdash.model.create_message_partitions_for_rolling_window"
+    )
 
     init_primary_db(engine=mocker.Mock(), first_time=True)
 
@@ -2053,6 +2085,10 @@ def test_init_primary_db_moves_json_and_geojson_files(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
     )
+
+    mocker.patch(
+        "tethysapp.tethysdash.model.create_message_partitions_for_rolling_window"
+    )
     temp_workspace = tmp_path
     json_dir = os.path.join(temp_workspace, "json")
     admin_user_dir = os.path.join(json_dir, "admin")
@@ -2131,6 +2167,10 @@ def test_init_primary_db_moves_no_json_and_geojson_folders(
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
+    )
+
+    mocker.patch(
+        "tethysapp.tethysdash.model.create_message_partitions_for_rolling_window"
     )
 
     mock_get_app_workspace = mocker.patch(

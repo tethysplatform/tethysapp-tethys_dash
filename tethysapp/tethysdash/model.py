@@ -36,6 +36,7 @@ import shutil
 import filecmp
 import sqlalchemy
 from datetime import timedelta
+from uuid import uuid4
 
 Base = declarative_base()
 
@@ -427,6 +428,7 @@ def add_new_dashboard(
                         grid_item_source = grid_item["source"]
                         grid_item_args_string = grid_item["args_string"]
                         grid_item_metadata_string = grid_item["metadata_string"]
+                        grid_item_uuid = str(uuid4())
                         if grid_item_source == "Text":
                             if type(grid_item_args_string) is not dict:
                                 grid_item_args_string = json.loads(
@@ -448,6 +450,7 @@ def add_new_dashboard(
                             grid_item_args_string,
                             grid_item_metadata_string,
                             index,
+                            grid_item_uuid,
                             tab_id=new_tab.id,
                         )
                         grid_item_i += 1
@@ -463,6 +466,7 @@ def add_new_dashboard(
                     grid_item_source = grid_item["source"]
                     grid_item_args_string = grid_item["args_string"]
                     grid_item_metadata_string = grid_item["metadata_string"]
+                    grid_item_uuid = str(uuid4())
                     if grid_item_source == "Text":
                         if type(grid_item_args_string) is not dict:
                             grid_item_args_string = json.loads(grid_item_args_string)
@@ -482,6 +486,7 @@ def add_new_dashboard(
                         grid_item_args_string,
                         grid_item_metadata_string,
                         index,
+                        grid_item_uuid,
                         tab_id=default_tab.id,
                     )
                     grid_item_i += 1
@@ -498,6 +503,7 @@ def add_new_dashboard(
                     "{}",
                     "{}",
                     0,
+                    str(uuid4()),
                     tab_id=default_tab.id,
                 )
 
@@ -675,7 +681,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
                 dashboard_id=new_dashboard.id,
                 tab_id=new_tab_id,
                 order=index,
-                uuid=grid_item.uuid,
+                uuid=str(uuid4()),
             )
             session.add(new_item)
             new_grid_items.append(new_item)

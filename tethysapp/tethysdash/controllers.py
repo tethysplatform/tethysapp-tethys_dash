@@ -259,16 +259,46 @@ def visualizations(request):
     name="visualization_notifications", url="tethysdash/visualizations/notifications/"
 )
 class VisualizationConsumer(AsyncWebsocketConsumer):
+    """
+    WebSocket consumer for real-time visualization notifications and chat.
+
+    Handles WebSocket connections for dashboard updates, chat messaging, and rate limiting.
+    Messages are censored for profanity and persisted to the database. Supports message editing and sender updates.
+    """
+
     async def connect(self):
+        """
+        Handles a new WebSocket connection.
+
+        Adds the connection to the 'dashboard_updates' group and accepts the connection.
+        """
         # Add to groups
         await self.channel_layer.group_add("dashboard_updates", self.channel_name)
 
         await self.accept()
 
     async def disconnect(self, code):
+        """
+        Handles WebSocket disconnection.
+
+        Removes the connection from the 'dashboard_updates' group.
+        Args:
+            code (int): The close code for the disconnect event.
+        """
         await self.channel_layer.group_discard("dashboard_updates", self.channel_name)
 
     async def receive(self, text_data=None, bytes_data=None):
+        """
+        Handles incoming WebSocket messages.
+
+        Expects JSON-formatted messages with 'requestId', 'message', and optional metadata.
+        Applies rate limiting, profanity filtering, and persists messages to the database.
+        Broadcasts messages to the group and handles message edits.
+
+        Args:
+            text_data (str, optional): JSON string containing the message data.
+            bytes_data (bytes, optional): Not used.
+        """
         try:
             data = json.loads(text_data)
             request_id = data.get("requestId")
@@ -372,7 +402,10 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
                 # Otherwise, insert new message as before
                 previous_messages = (
                     db_session.query(Message)
-                    .filter_by(session_id=sessionId, request_id=request_id)
+                    .filter_by(
+                        session_id=sessionId,
+                        request_id=request_id,
+                    )
                     .all()
                 )
                 # If any prev message has a different sender, update all to new sender
@@ -412,6 +445,12 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             return
 
     async def send_message(self, event):
+        """
+        Sends a message to the WebSocket client.
+
+        Args:
+            event (dict): Event containing the message payload under the 'message' key.
+        """
         message = event["message"]
         await self.send(json.dumps(message))
 
