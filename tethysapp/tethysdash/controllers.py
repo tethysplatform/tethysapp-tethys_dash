@@ -299,15 +299,20 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             text_data (str, optional): JSON string containing the message data.
             bytes_data (bytes, optional): Not used.
         """
+        print(text_data)
         try:
             data = json.loads(text_data)
             request_id = data["requestId"]
             message = data["message"]
+            session_id = data["sessionId"]
+            sender = data["sender"]
         except Exception as e:
             print(e)
             await self.send(
                 json.dumps(
-                    {"error": "Invalid message format. requestId and message required."}
+                    {
+                        "error": "Invalid message format. requestId, message, sessionId, and sender required."
+                    }
                 )
             )
             return
@@ -317,13 +322,11 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             await self.send(json.dumps({"error": "Invalid liveChat request ID."}))
             return
 
-        sender = data.get("sender", "unknown")
-        sessionId = data.get("sessionId", None)
         messageId = data.get("messageId", None)
         censored_message = profanity.censor(message)
         timestamp = datetime.utcnow()
 
-        rate_key = f"chat_rate_{request_id}_{sessionId}"
+        rate_key = f"chat_rate_{request_id}_{session_id}"
         count = cache.get(rate_key, 0)
         if count >= 5:
             # Try to get the remaining time until the rate limit resets
@@ -345,6 +348,7 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
                 )
             )
             return
+
         if count == 0:
             cache.set(rate_key, 1, timeout=10)  # 10 seconds window
         else:
@@ -356,7 +360,7 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
                 request_id,
                 censored_message,
                 sender=sender,
-                sessionId=sessionId,
+                sessionId=session_id,
                 timestamp=timestamp.isoformat() + "Z",
                 messageId=messageId,
             )
@@ -379,6 +383,22 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             )
             db_session = Session()
             try:
+                previous_messages = (
+                    db_session.query(Message)
+                    .filter_by(
+                        session_id=session_id,
+                        request_id=request_id,
+                    )
+                    .all()
+                )
+
+                # If any prev message has a different sender, update all to new sender
+                if previous_messages and any(
+                    m.sender != sender for m in previous_messages
+                ):
+                    for m in previous_messages:
+                        m.sender = sender
+
                 # If messageId is provided, try to update the existing message
                 if messageId:
                     existing_message = (
@@ -386,7 +406,7 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
                         .filter_by(
                             message_id=messageId,
                             request_id=request_id,
-                            session_id=sessionId,
+                            session_id=session_id,
                         )
                         .first()
                     )
@@ -399,27 +419,11 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
                         db_session.commit()
                         return
 
-                # Otherwise, insert new message as before
-                previous_messages = (
-                    db_session.query(Message)
-                    .filter_by(
-                        session_id=sessionId,
-                        request_id=request_id,
-                    )
-                    .all()
-                )
-                # If any prev message has a different sender, update all to new sender
-                if previous_messages and any(
-                    m.sender != sender for m in previous_messages
-                ):
-                    for m in previous_messages:
-                        m.sender = sender
-
                 db_session.add(
                     Message(
                         timestamp=timestamp,
                         request_id=request_id,
-                        session_id=sessionId,
+                        session_id=session_id,
                         sender=sender,
                         message=censored_message,
                         message_id=messageId,

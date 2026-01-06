@@ -1,7 +1,7 @@
 import pytest
 import json
 from django.urls import reverse
-from tethysapp.tethysdash.model import Dashboard
+from tethysapp.tethysdash.model import Dashboard, Message, create_partition_for_date
 from unittest.mock import MagicMock
 import os
 import shutil
@@ -1832,19 +1832,439 @@ async def test_visualization_consumer_send_message():
 
 @pytest.mark.django_db
 @pytest.mark.asyncio
-async def test_visualization_consumer_receive(mock_app_get_ps_db, create_today_partition, live_chat_dashboard):
+async def test_visualization_consumer_receives_and_edit(
+    mocker, mock_app_get_ps_db, db_connection, live_chat_dashboard, db_session
+):
     """Test that receive does nothing (pass)."""
+    mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_broadcast = mocker.patch(
+        "tethysapp.tethysdash.controllers.send_websocket_message"
+    )
+    mock_datetime = mocker.patch("tethysapp.tethysdash.controllers.datetime")
+    date = datetime(2024, 1, 1, 0, 0, 0)
+    mock_datetime.utcnow.return_value = date
+    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
+    create_partition_for_date(db_connection, date)
+
+    application = VisualizationConsumer()
+
+    # Should not raise
+    websocket_message = {
+        "requestId": grid_item_uuid,
+        "message": "test",
+        "sessionId": "abc",
+        "messageId": "1",
+        "sender": "user1",
+    }
+    await application.receive(text_data=json.dumps(websocket_message))
+    mock_broadcast.assert_called_with(grid_item_uuid, "test", sender="user1", sessionId='abc', timestamp='2024-01-01T00:00:00Z', messageId='1')
+
+    first_message = (
+        db_session.query(Message).filter_by(request_id=grid_item_uuid, message_id='1').first()
+    )
+    assert first_message is not None
+    assert first_message.message == "test"
+    assert first_message.edited is False
+    assert first_message.sender == "user1"
+
+    # Should not raise
+    websocket_message = {
+        "requestId": grid_item_uuid,
+        "message": "second test",
+        "sessionId": "abc",
+        "messageId": "2",
+        "sender": "user1",
+    }
+    await application.receive(text_data=json.dumps(websocket_message))
+    mock_broadcast.assert_called_with(grid_item_uuid, "second test", sender="user1", sessionId='abc', timestamp='2024-01-01T00:00:00Z', messageId='2')
+    
+    second_message = (
+        db_session.query(Message).filter_by(request_id=grid_item_uuid, message_id='2').first()
+    )
+    assert second_message is not None
+    assert second_message.message == "second test"
+    assert second_message.edited is False
+    assert second_message.sender == "user1"
+
+    # Should not raise
+    websocket_message = {
+        "requestId": grid_item_uuid,
+        "message": "an edited message",
+        "sessionId": "abc",
+        "messageId": "1",
+        "sender": "new user1",
+    }
+    await application.receive(text_data=json.dumps(websocket_message))
+    mock_broadcast.assert_called_with(grid_item_uuid, "an edited message", sender="new user1", sessionId='abc', timestamp='2024-01-01T00:00:00Z', messageId='1')
+
+    db_session.refresh(first_message)
+    assert first_message is not None
+    assert first_message.message == "an edited message"
+    assert first_message.edited is True
+    assert first_message.sender == "new user1"
+    
+    db_session.refresh(second_message)
+    assert second_message is not None
+    assert second_message.sender == "new user1"
+    
+    
+@pytest.mark.django_db
+@pytest.mark.asyncio
+async def test_visualization_consumer_receive_missing_requestid(mock_app_get_ps_db):
+    """Test that receive does nothing (pass)."""
+    mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+
+    application = VisualizationConsumer()
+    sent = []
+
+    async def fake_send(message):
+        sent.append(message)
+
+    application.send = fake_send
+
+    await application.receive(
+        text_data=json.dumps({"message": "test", "sessionId": "abc", "messageId": "1",
+                "sender": "user1",})
+    )
+
+    assert (
+        sent[0]
+        == '{"error": "Invalid message format. requestId, message, sessionId, and sender required."}'
+    )
+
+
+@pytest.mark.django_db
+@pytest.mark.asyncio
+async def test_visualization_consumer_receive_not_live_chat(mock_app_get_ps_db):
+    """Test that receive does nothing (pass)."""
+    mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+
+    application = VisualizationConsumer()
+    sent = []
+
+    async def fake_send(message):
+        sent.append(message)
+
+    application.send = fake_send
+
+    await application.receive(
+        text_data=json.dumps(
+            {
+                "requestId": "invalid_uuid",
+                "message": "test",
+                "sessionId": "abc",
+                "messageId": "1",
+                "sender": "user1",
+            }
+        )
+    )
+
+    assert sent[0] == '{"error": "Invalid liveChat request ID."}'
+
+
+@pytest.mark.django_db
+@pytest.mark.asyncio
+async def test_visualization_consumer_receive_rate_limit_error(
+    mock_app_get_ps_db, mocker, create_today_partition, live_chat_dashboard, db_session
+):
+    """Test that receive sends rate limit error when rate limit is exceeded."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
 
     application = VisualizationConsumer()
+    sent = []
+
+    async def fake_send(message):
+        sent.append(message)
+
+    application.send = fake_send
+
+    # Patch only cache.get and cache.ttl
+    mocker.patch("tethysapp.tethysdash.controllers.cache.get", return_value=5)
+    mocker.patch("tethysapp.tethysdash.controllers.cache.ttl", return_value=7)
+
+    await application.receive(
+        text_data=json.dumps(
+            {
+                "requestId": grid_item_uuid,
+                "message": "test",
+                "sessionId": "abc",
+                "messageId": "1",
+                "sender": "user1",
+            }
+        )
+    )
+
+    expected = json.dumps(
+        {
+            "error": "Rate limit exceeded. Please wait 7 seconds before sending more messages.",
+            "requestId": grid_item_uuid,
+            "messageId": "1",
+        }
+    )
+    assert sent[0] == expected
+
+    new_message = (
+        db_session.query(Message).filter(Message.request_id == grid_item_uuid).first()
+    )
+    assert new_message is None
+
+
+@pytest.mark.django_db
+@pytest.mark.asyncio
+async def test_visualization_consumer_receive_rate_limit_ttl_None(
+    mock_app_get_ps_db, mocker, create_today_partition, live_chat_dashboard, db_session
+):
+    """Test that receive sends rate limit error when rate limit is exceeded."""
+    mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
+
+    application = VisualizationConsumer()
+    sent = []
+
+    async def fake_send(message):
+        sent.append(message)
+
+    application.send = fake_send
+
+    # Patch only cache.get and cache.ttl
+    mocker.patch("tethysapp.tethysdash.controllers.cache.get", return_value=5)
+    mocker.patch("tethysapp.tethysdash.controllers.cache.ttl", return_value=None)
+
+    await application.receive(
+        text_data=json.dumps(
+            {
+                "requestId": grid_item_uuid,
+                "message": "test",
+                "sessionId": "abc",
+                "messageId": "1",
+                "sender": "user1",
+            }
+        )
+    )
+
+    expected = json.dumps(
+        {
+            "error": "Rate limit exceeded. Please wait 10 seconds before sending more messages.",
+            "requestId": grid_item_uuid,
+            "messageId": "1",
+        }
+    )
+    assert sent[0] == expected
+
+    new_message = (
+        db_session.query(Message).filter(Message.request_id == grid_item_uuid).first()
+    )
+    assert new_message is None
+
+
+@pytest.mark.django_db
+@pytest.mark.asyncio
+async def test_visualization_consumer_receive_rate_limit_ttl_exception(
+    mock_app_get_ps_db, mocker, create_today_partition, live_chat_dashboard, db_session
+):
+    """Test that receive sends rate limit error when rate limit is exceeded."""
+    mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
+
+    application = VisualizationConsumer()
+    sent = []
+
+    async def fake_send(message):
+        sent.append(message)
+
+    application.send = fake_send
+
+    # Patch only cache.get and cache.ttl
+    mocker.patch("tethysapp.tethysdash.controllers.cache.get", return_value=5)
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.cache.ttl",
+        side_effect=[Exception("TTL error")],
+    )
+
+    await application.receive(
+        text_data=json.dumps(
+            {
+                "requestId": grid_item_uuid,
+                "message": "test",
+                "sessionId": "abc",
+                "messageId": "1",
+                "sender": "user1",
+            }
+        )
+    )
+
+    expected = json.dumps(
+        {
+            "error": "Rate limit exceeded. Please wait 10 seconds before sending more messages.",
+            "requestId": grid_item_uuid,
+            "messageId": "1",
+        }
+    )
+    assert sent[0] == expected
+
+    new_message = (
+        db_session.query(Message).filter(Message.request_id == grid_item_uuid).first()
+    )
+    assert new_message is None
+
+
+@pytest.mark.asyncio
+async def test_visualization_consumer_rate_limit_incr(
+    mock_app_get_ps_db, mocker, create_today_partition, live_chat_dashboard, db_session
+):
+    """
+    Test that VisualizationConsumer.receive calls cache.incr(rate_key) when count > 0 and < 5.
+    """
+    # Patch cache.get and cache.incr
+    mock_cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
+    mock_cache.get.return_value = 2  # Simulate count > 0 and < 5
+    mock_cache.incr = MagicMock()
+
+    mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
+
+    application = VisualizationConsumer()
+    sent = []
+
+    async def fake_send(message):
+        sent.append(message)
+
+    application.send = fake_send
+
+    # Patch only cache.get and cache.ttl
+    mocker.patch("tethysapp.tethysdash.controllers.cache.get", return_value=2)
+
+    await application.receive(
+        text_data=json.dumps(
+            {
+                "requestId": grid_item_uuid,
+                "message": "test",
+                "sessionId": "abc",
+                "messageId": "1",
+                "sender": "user1",
+            }
+        )
+    )
+
+    # Assert cache.incr was called
+    mock_cache.incr.assert_called_once()
+    # Assert no rate limit error was sent
+    assert not any("Rate limit exceeded" in c["error"] for c in sent)
+
+    new_message = (
+        db_session.query(Message).filter(Message.request_id == grid_item_uuid).first()
+    )
+    assert new_message is not None
+    assert new_message.message == "test"
+
+
+@pytest.mark.django_db
+@pytest.mark.asyncio
+async def test_visualization_consumer_receive_failed_broadcast(
+    mocker, mock_app_get_ps_db, create_today_partition, live_chat_dashboard, db_session
+):
+    """Test that receive does nothing (pass)."""
+    mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_broadcast = mocker.patch(
+        "tethysapp.tethysdash.controllers.send_websocket_message"
+    )
+    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
+
+    mock_broadcast.side_effect = Exception("broadcast failed")
+
+    application = VisualizationConsumer()
+    sent = []
+
+    async def fake_send(message):
+        sent.append(message)
+
+    application.send = fake_send
+
     # Should not raise
     await application.receive(
         text_data=json.dumps(
-            {"requestId": grid_item_uuid, "message": "test", "sessionId": "abc", "messageId": "1"}
+            {
+                "requestId": grid_item_uuid,
+                "message": "test",
+                "sessionId": "abc",
+                "messageId": "1",
+                "sender": "user1",
+            }
         )
     )
+
+    expected = json.dumps(
+        {
+            "error": "Failed to broadcast message.",
+            "requestId": grid_item_uuid,
+            "messageId": "1",
+        }
+    )
+    assert sent[0] == expected
+
+    new_message = (
+        db_session.query(Message).filter(Message.request_id == grid_item_uuid).first()
+    )
+    assert new_message is None
+
+
+@pytest.mark.django_db
+@pytest.mark.asyncio
+async def test_visualization_consumer_receive_failed_db_save(
+    mocker, mock_app_get_ps_db, create_today_partition, live_chat_dashboard, db_session
+):
+    """Test that receive does nothing (pass)."""
+    mock_app = mocker.patch("tethysapp.tethysdash.controllers.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mocker.patch(
+        "tethysapp.tethysdash.controllers.send_websocket_message"
+    )
+    mock_app.get_persistent_store_database.side_effect = Exception("database save failed")
+    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
+
+    application = VisualizationConsumer()
+    sent = []
+
+    async def fake_send(message):
+        sent.append(message)
+
+    application.send = fake_send
+
+    # Should not raise
+    await application.receive(
+        text_data=json.dumps(
+            {
+                "requestId": grid_item_uuid,
+                "message": "test",
+                "sessionId": "abc",
+                "messageId": "1",
+                "sender": "user1",
+            }
+        )
+    )
+
+    expected = json.dumps(
+        {
+            "error": "Failed to save message.",
+            "requestId": grid_item_uuid,
+            "messageId": "1",
+        }
+    )
+    assert sent[0] == expected
+
+    new_message = (
+        db_session.query(Message).filter(Message.request_id == grid_item_uuid).first()
+    )
+    assert new_message is None
 
 
 @pytest.mark.django_db
