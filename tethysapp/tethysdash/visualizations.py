@@ -174,7 +174,7 @@ def get_visualization(viz_source, viz_args, user, viz_request_id):
         try:
             messages = (
                 session.query(Message)
-                .filter(Message.request_id == viz_request_id)
+                .filter_by(request_id=viz_request_id)
                 .order_by(Message.timestamp.asc())
                 .all()
             )

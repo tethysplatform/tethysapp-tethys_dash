@@ -327,11 +327,20 @@ def public_dashboard(db_session, public_dashboard_data):
 
 
 @pytest.fixture(scope="function")
-def live_chat_dashboard(db_session, live_chat_dashboard_data, test_owner_user):
+def live_chat_dashboard(db_session, live_chat_dashboard_data, live_chat_grid_item):
     dashboard = Dashboard(**live_chat_dashboard_data)
     db_session.add(dashboard)
     db_session.commit()
     db_session.refresh(dashboard)
+    dashboard_id = dashboard.id
+
+    owner_permission = DashboardPermission(
+        dashboard_id=dashboard_id,
+        username=dashboard.owner,
+        permission=DashboardPermissionLevel.admin,
+    )
+    db_session.add(owner_permission)
+    db_session.commit()
 
     dashboard_tab = DashboardTab(
         dashboard_id=dashboard.id,
@@ -345,14 +354,14 @@ def live_chat_dashboard(db_session, live_chat_dashboard_data, test_owner_user):
         dashboard_id=dashboard.id,
         tab_id=dashboard_tab.id,
         uuid=str(uuid4()),
-        i="1",
-        x=0,
-        y=0,
-        w=4,
-        h=4,
-        source="Live Chat",
-        args_string=json.dumps({}),
-        metadata_string=json.dumps({"refreshRate": 0}),
+        i=live_chat_grid_item[0]["i"],
+        x=live_chat_grid_item[0]["x"],
+        y=live_chat_grid_item[0]["y"],
+        w=live_chat_grid_item[0]["w"],
+        h=live_chat_grid_item[0]["h"],
+        source=live_chat_grid_item[0]["source"],
+        args_string=live_chat_grid_item[0]["args_string"],
+        metadata_string=live_chat_grid_item[0]["metadata_string"],
     )
     db_session.add(grid_item)
     db_session.commit()

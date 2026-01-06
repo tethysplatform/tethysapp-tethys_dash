@@ -262,8 +262,10 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
     """
     WebSocket consumer for real-time visualization notifications and chat.
 
-    Handles WebSocket connections for dashboard updates, chat messaging, and rate limiting.
-    Messages are censored for profanity and persisted to the database. Supports message editing and sender updates.
+    Handles WebSocket connections for dashboard updates, chat messaging, and
+    rate limiting.
+    Messages are censored for profanity and persisted to the database. Supports
+    message editing and sender updates.
     """
 
     async def connect(self):
@@ -291,8 +293,10 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
         """
         Handles incoming WebSocket messages.
 
-        Expects JSON-formatted messages with 'requestId', 'message', and optional metadata.
-        Applies rate limiting, profanity filtering, and persists messages to the database.
+        Expects JSON-formatted messages with 'requestId', 'message', and optional
+        metadata.
+        Applies rate limiting, profanity filtering, and persists messages to the
+        database.
         Broadcasts messages to the group and handles message edits.
 
         Args:
@@ -311,7 +315,7 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             await self.send(
                 json.dumps(
                     {
-                        "error": "Invalid message format. requestId, message, sessionId, and sender required."
+                        "error": "Invalid message format. requestId, message, sessionId, and sender required."  # noqa: E501
                     }
                 )
             )

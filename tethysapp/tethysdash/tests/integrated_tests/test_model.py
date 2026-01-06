@@ -14,6 +14,7 @@ from tethysapp.tethysdash.model import (
     DashboardPermissionLevel,
     PermissionGroup,
     GroupPermissionLevel,
+    Message,
     parse_db_dashboard,
     clean_up_jsons,
     init_primary_db,
@@ -25,6 +26,8 @@ from tethysapp.tethysdash.model import (
     get_visualization_user_permission,
     get_visualization_permissions,
     update_visualization_permissions,
+    create_message_partitions_for_rolling_window,
+    get_partition_name,
 )
 from unittest.mock import MagicMock
 import base64
@@ -35,6 +38,75 @@ from sqlalchemy.exc import ProgrammingError
 from django.contrib.auth.models import AnonymousUser
 from django.test import override_settings
 from uuid import uuid4
+from datetime import datetime, timedelta
+
+
+def test_create_message_partitions_for_rolling_window_executes_sql_for_each_day(mocker):
+    # Mock App.get_persistent_store_database to return a mock engine
+    mock_engine = mocker.Mock()
+    mock_connection = mocker.Mock()
+    mock_engine.connect.return_value = mock_connection
+    mocker.patch(
+        "tethysapp.tethysdash.model.App.get_persistent_store_database",
+        return_value=mock_engine,
+    )
+    # Patch create_partition_for_date to track calls
+    called_days = []
+
+    def fake_create_partition_for_date(connection, ts):
+        called_days.append(ts)
+
+    mocker.patch(
+        "tethysapp.tethysdash.model.create_partition_for_date",
+        side_effect=fake_create_partition_for_date,
+    )
+
+    days_past = 2
+    days_future = 2
+    create_message_partitions_for_rolling_window(
+        days_past=days_past, days_future=days_future
+    )
+
+    # Should be called for each day in the window
+    assert len(called_days) == days_past + days_future + 1
+    # Check that the days are consecutive and centered on today (UTC)
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    expected_days = [
+        today + timedelta(days=offset) for offset in range(-days_past, days_future + 1)
+    ]
+    # Compare only dates
+    assert [d.date() for d in called_days] == [d.date() for d in expected_days]
+
+
+def test_create_message_partitions_for_rolling_window_sql_execution(mocker):
+    # Patch App.get_persistent_store_database to return a mock engine
+    mock_engine = mocker.Mock()
+    mock_connection = mocker.Mock()
+    mock_engine.connect.return_value = mock_connection
+    mocker.patch(
+        "tethysapp.tethysdash.model.App.get_persistent_store_database",
+        return_value=mock_engine,
+    )
+
+    # Patch sqlalchemy.text to just return the SQL string
+    mocker.patch(
+        "tethysapp.tethysdash.model.sqlalchemy.text", side_effect=lambda sql: sql
+    )
+
+    # Actually call the real create_partition_for_date to test SQL
+    from tethysapp.tethysdash import model as model_mod
+
+    ts = datetime(2026, 1, 6)
+    model_mod.create_partition_for_date(mock_connection, ts)
+    # Check that execute was called with the expected SQL
+    partition_name = get_partition_name(ts)
+    start = ts.replace(hour=0, minute=0, second=0, microsecond=0)
+    end = start + model_mod.timedelta(days=1)
+    expected_sql = f"""
+        CREATE TABLE IF NOT EXISTS {partition_name} PARTITION OF messages
+        FOR VALUES FROM ('{start.isoformat()}') TO ('{end.isoformat()}');
+    """
+    mock_connection.execute.assert_called_with(expected_sql)
 
 
 @pytest.fixture
@@ -548,6 +620,71 @@ def test_update_named_dashboard_image(
         updated_dashboard["image"]
         == "/media/tethysdash/app/some_user_dashboard_uuid.png"
     )
+
+
+@pytest.mark.django_db
+def test_update_named_dashboard_live_chat(
+    db_session,
+    live_chat_dashboard,
+    mock_app_get_ps_db,
+    mocker,
+    tmp_path,
+    test_owner_user,
+    create_today_partition,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
+    mock_get_app_media.return_value = MagicMock(path=tmp_path)
+
+    tab_id = live_chat_dashboard.tabs[0].id
+    grid_item_id = live_chat_dashboard.tabs[0].grid_items[0].id
+    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
+
+    message = Message(
+        timestamp=datetime.utcnow(),
+        request_id=grid_item_uuid,
+        session_id="some_session_id",
+        message_id="some_message_id",
+        sender="user",
+        message="Hello, this is a test message.",
+    )
+    db_session.add(message)
+    db_session.commit()
+    db_session.refresh(message)
+
+    message = db_session.query(Message).filter(Message.id == message.id).first()
+    message_id = message.id
+    assert message is not None
+
+    update_named_dashboard(
+        test_owner_user,
+        live_chat_dashboard.id,
+        {
+            "tabs": [
+                {
+                    "name": "Tab 1",
+                    "id": tab_id,
+                    "gridItems": [
+                        {
+                            "id": grid_item_id,
+                            "i": "1",
+                            "x": 1,
+                            "y": 1,
+                            "w": 1,
+                            "h": 1,
+                            "source": "text",
+                            "args_string": json.dumps({}),
+                            "metadata_string": json.dumps({"refreshRate": 0}),
+                            "uuid": grid_item_uuid,
+                        }
+                    ],
+                }
+            ]
+        },
+    )
+
+    old_messages = db_session.query(Message).filter(Message.id == message_id).first()
+    assert old_messages is None
 
 
 @pytest.mark.django_db

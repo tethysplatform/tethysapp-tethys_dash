@@ -2,6 +2,8 @@ from tethysapp.tethysdash.visualizations import (
     get_available_visualizations,
     get_visualization,
 )
+from tethysapp.tethysdash.model import Message
+from datetime import datetime
 import pytest
 from tethysapp.tethysdash.exceptions import VisualizationError
 
@@ -122,6 +124,54 @@ def test_get_visualization_not_restricted(mock_plugin2, mocker, test_owner_user)
     mock_intake.open_package_name2.assert_called_with(some_arg="test")
     assert viz_type == mock_plugin2.visualization_type
     assert viz_data == "some_data"
+
+
+def test_get_visualization_live_chat(
+    test_owner_user,
+    db_session,
+    live_chat_dashboard,
+    mock_app_get_ps_db,
+    create_today_partition,
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.visualizations.App")
+    grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
+
+    viz_type, viz_data = get_visualization(
+        "Live Chat", {}, test_owner_user, grid_item_uuid
+    )
+
+    assert viz_type == "Live Chat"
+    assert viz_data == {"chatHistory": []}
+
+    message = Message(
+        timestamp=datetime.utcnow(),
+        request_id=grid_item_uuid,
+        session_id="some_session_id",
+        message_id="some_message_id",
+        sender="user",
+        message="Hello, this is a test message.",
+    )
+    db_session.add(message)
+    db_session.commit()
+    db_session.refresh(message)
+
+    viz_type, viz_data = get_visualization(
+        "Live Chat", {}, test_owner_user, grid_item_uuid
+    )
+
+    assert viz_type == "Live Chat"
+    assert viz_data == {
+        "chatHistory": [
+            {
+                "edited": False,
+                "message": "Hello, this is a test message.",
+                "messageId": "some_message_id",
+                "sender": "user",
+                "timestamp": message.timestamp.isoformat() + "Z",
+                "sessionId": "some_session_id",
+            }
+        ]
+    }
 
 
 def test_get_visualization_without_request_id_kwarg(

@@ -872,11 +872,6 @@ def update_named_dashboard(user, id, dashboard_updates):
                 for grid_item_id in existing_grid_item_ids - set(updated_grid_item_ids):
                     db_grid_item = session.get(GridItem, grid_item_id)
                     if db_grid_item:
-                        # If the grid item is a Live Chat, delete all messages
-                        if db_grid_item.source == "Live Chat":
-                            session.query(Message).filter(
-                                Message.request_id == db_grid_item.uuid
-                            ).delete(synchronize_session=False)
                         session.delete(db_grid_item)
 
                 # Process grid items in order

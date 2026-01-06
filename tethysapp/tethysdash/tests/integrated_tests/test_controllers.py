@@ -1858,10 +1858,19 @@ async def test_visualization_consumer_receives_and_edit(
         "sender": "user1",
     }
     await application.receive(text_data=json.dumps(websocket_message))
-    mock_broadcast.assert_called_with(grid_item_uuid, "test", sender="user1", sessionId='abc', timestamp='2024-01-01T00:00:00Z', messageId='1')
+    mock_broadcast.assert_called_with(
+        grid_item_uuid,
+        "test",
+        sender="user1",
+        sessionId="abc",
+        timestamp="2024-01-01T00:00:00Z",
+        messageId="1",
+    )
 
     first_message = (
-        db_session.query(Message).filter_by(request_id=grid_item_uuid, message_id='1').first()
+        db_session.query(Message)
+        .filter_by(request_id=grid_item_uuid, message_id="1")
+        .first()
     )
     assert first_message is not None
     assert first_message.message == "test"
@@ -1877,10 +1886,19 @@ async def test_visualization_consumer_receives_and_edit(
         "sender": "user1",
     }
     await application.receive(text_data=json.dumps(websocket_message))
-    mock_broadcast.assert_called_with(grid_item_uuid, "second test", sender="user1", sessionId='abc', timestamp='2024-01-01T00:00:00Z', messageId='2')
-    
+    mock_broadcast.assert_called_with(
+        grid_item_uuid,
+        "second test",
+        sender="user1",
+        sessionId="abc",
+        timestamp="2024-01-01T00:00:00Z",
+        messageId="2",
+    )
+
     second_message = (
-        db_session.query(Message).filter_by(request_id=grid_item_uuid, message_id='2').first()
+        db_session.query(Message)
+        .filter_by(request_id=grid_item_uuid, message_id="2")
+        .first()
     )
     assert second_message is not None
     assert second_message.message == "second test"
@@ -1896,19 +1914,26 @@ async def test_visualization_consumer_receives_and_edit(
         "sender": "new user1",
     }
     await application.receive(text_data=json.dumps(websocket_message))
-    mock_broadcast.assert_called_with(grid_item_uuid, "an edited message", sender="new user1", sessionId='abc', timestamp='2024-01-01T00:00:00Z', messageId='1')
+    mock_broadcast.assert_called_with(
+        grid_item_uuid,
+        "an edited message",
+        sender="new user1",
+        sessionId="abc",
+        timestamp="2024-01-01T00:00:00Z",
+        messageId="1",
+    )
 
     db_session.refresh(first_message)
     assert first_message is not None
     assert first_message.message == "an edited message"
     assert first_message.edited is True
     assert first_message.sender == "new user1"
-    
+
     db_session.refresh(second_message)
     assert second_message is not None
     assert second_message.sender == "new user1"
-    
-    
+
+
 @pytest.mark.django_db
 @pytest.mark.asyncio
 async def test_visualization_consumer_receive_missing_requestid(mock_app_get_ps_db):
@@ -1925,13 +1950,19 @@ async def test_visualization_consumer_receive_missing_requestid(mock_app_get_ps_
     application.send = fake_send
 
     await application.receive(
-        text_data=json.dumps({"message": "test", "sessionId": "abc", "messageId": "1",
-                "sender": "user1",})
+        text_data=json.dumps(
+            {
+                "message": "test",
+                "sessionId": "abc",
+                "messageId": "1",
+                "sender": "user1",
+            }
+        )
     )
 
     assert (
         sent[0]
-        == '{"error": "Invalid message format. requestId, message, sessionId, and sender required."}'
+        == '{"error": "Invalid message format. requestId, message, sessionId, and sender required."}'  # noqa: E501
     )
 
 
@@ -2001,7 +2032,7 @@ async def test_visualization_consumer_receive_rate_limit_error(
 
     expected = json.dumps(
         {
-            "error": "Rate limit exceeded. Please wait 7 seconds before sending more messages.",
+            "error": "Rate limit exceeded. Please wait 7 seconds before sending more messages.",  # noqa: E501
             "requestId": grid_item_uuid,
             "messageId": "1",
         }
@@ -2050,7 +2081,7 @@ async def test_visualization_consumer_receive_rate_limit_ttl_None(
 
     expected = json.dumps(
         {
-            "error": "Rate limit exceeded. Please wait 10 seconds before sending more messages.",
+            "error": "Rate limit exceeded. Please wait 10 seconds before sending more messages.",  # noqa: E501
             "requestId": grid_item_uuid,
             "messageId": "1",
         }
@@ -2102,7 +2133,7 @@ async def test_visualization_consumer_receive_rate_limit_ttl_exception(
 
     expected = json.dumps(
         {
-            "error": "Rate limit exceeded. Please wait 10 seconds before sending more messages.",
+            "error": "Rate limit exceeded. Please wait 10 seconds before sending more messages.",  # noqa: E501
             "requestId": grid_item_uuid,
             "messageId": "1",
         }
@@ -2120,7 +2151,8 @@ async def test_visualization_consumer_rate_limit_incr(
     mock_app_get_ps_db, mocker, create_today_partition, live_chat_dashboard, db_session
 ):
     """
-    Test that VisualizationConsumer.receive calls cache.incr(rate_key) when count > 0 and < 5.
+    Test that VisualizationConsumer.receive calls cache.incr(rate_key)
+    when count > 0 and < 5.
     """
     # Patch cache.get and cache.incr
     mock_cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
@@ -2225,10 +2257,10 @@ async def test_visualization_consumer_receive_failed_db_save(
     """Test that receive does nothing (pass)."""
     mock_app = mocker.patch("tethysapp.tethysdash.controllers.App")
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-    mocker.patch(
-        "tethysapp.tethysdash.controllers.send_websocket_message"
+    mocker.patch("tethysapp.tethysdash.controllers.send_websocket_message")
+    mock_app.get_persistent_store_database.side_effect = Exception(
+        "database save failed"
     )
-    mock_app.get_persistent_store_database.side_effect = Exception("database save failed")
     grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
 
     application = VisualizationConsumer()
