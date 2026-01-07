@@ -1043,6 +1043,8 @@ test("DashboardCard editable, export", async () => {
   );
   delete downloadedDashboard.id;
   delete downloadedDashboard.uuid;
+  delete downloadedDashboard.tabs[0].gridItems[0].id;
+  delete downloadedDashboard.tabs[0].gridItems[0].uuid;
 
   render(
     createLoadedComponent({
@@ -1122,6 +1124,8 @@ test("DashboardCard editable, export fail", async () => {
   );
   delete downloadedDashboard.id;
   delete downloadedDashboard.uuid;
+  delete downloadedDashboard.tabs[0].gridItems[0].id;
+  delete downloadedDashboard.tabs[0].gridItems[0].uuid;
 
   render(
     createLoadedComponent({

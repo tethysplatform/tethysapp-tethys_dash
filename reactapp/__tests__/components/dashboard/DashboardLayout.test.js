@@ -59,6 +59,8 @@ test("Dashboard Layout resize and update layout", async () => {
       w: 28,
       x: 0,
       y: 0,
+      id: 1,
+      uuid: "some-uuid-1",
     },
   ];
   let { tabs, ...dashboardContextProperties } = expectedDashboard;

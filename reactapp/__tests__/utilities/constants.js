@@ -41,7 +41,11 @@ export const mockedLandingPageDashboards = {
       name: "editable",
       description: "test_description",
       publicDashboard: false,
+      userPermission: "admin",
+      permissions: [],
+      unrestrictedPlacement: false,
       image: "my_image.png",
+      owner: "owner",
     },
   ],
   public: [
@@ -51,7 +55,11 @@ export const mockedLandingPageDashboards = {
       name: "noneditable",
       description: "test_description2",
       publicDashboard: true,
+      userPermission: "viewer",
+      permissions: [],
+      unrestrictedPlacement: false,
       image: "public_image.png",
+      owner: "admin",
     },
   ],
 };
@@ -73,6 +81,8 @@ export const userDashboard = {
       name: "Tab 1",
       gridItems: [
         {
+          id: 1,
+          uuid: "some-uuid-1",
           i: "1",
           x: 0,
           y: 0,
@@ -106,6 +116,8 @@ export const publicDashboard = {
       name: "Tab 1",
       gridItems: [
         {
+          id: 1,
+          uuid: "some-uuid-1",
           i: "1",
           x: 0,
           y: 0,
@@ -142,6 +154,8 @@ export const viewerDashboard = {
       name: "Tab 1",
       gridItems: [
         {
+          id: 1,
+          uuid: "some-uuid-1",
           i: "1",
           x: 0,
           y: 0,
@@ -178,6 +192,8 @@ export const editorDashboard = {
       name: "Tab 1",
       gridItems: [
         {
+          id: 1,
+          uuid: "some-uuid-1",
           i: "1",
           x: 0,
           y: 0,
@@ -215,6 +231,7 @@ export const adminDashboard = {
       gridItems: [
         {
           id: 1,
+          uuid: "some-uuid-1",
           x: 0,
           y: 0,
           w: 20,
@@ -467,6 +484,7 @@ export const updatedDashboard = {
       gridItems: [
         {
           id: 1,
+          uuid: "some-uuid-1",
           i: "1",
           x: 0,
           y: 0,
@@ -497,6 +515,7 @@ export const newDashboard = {
       gridItems: [
         {
           id: 1,
+          uuid: "some-uuid-1",
           i: "1",
           x: 0,
           y: 0,
@@ -527,6 +546,7 @@ export const copiedDashboard = {
       gridItems: [
         {
           id: 1,
+          uuid: "some-uuid-1",
           i: "1",
           x: 0,
           y: 0,
@@ -544,6 +564,8 @@ export const copiedDashboard = {
 };
 
 export const mockedApiImageBase = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -560,6 +582,8 @@ export const mockedApiImageBase = {
 
 export const mockedPlotBase = {
   i: "1",
+  id: 1,
+  uuid: "some-uuid-1",
   x: 0,
   y: 0,
   w: 20,
@@ -611,6 +635,8 @@ export const mockedPlotData = {
 };
 
 export const mockedTableBase = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -655,6 +681,8 @@ export const mockedTableData = {
 
 export const mockedCardBase = {
   i: "1",
+  id: 1,
+  uuid: "some-uuid-1",
   x: 0,
   y: 0,
   w: 20,
@@ -694,6 +722,8 @@ export const mockedCardData = {
 
 export const mockedMapBase = {
   i: "1",
+  id: 1,
+  uuid: "some-uuid-1",
   x: 0,
   y: 0,
   w: 20,
@@ -856,6 +886,8 @@ export const mockedMapData = {
 };
 
 export const mockedUnknownBase = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -869,6 +901,8 @@ export const mockedUnknownBase = {
 };
 
 export const mockedCustomImageBase = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -884,6 +918,8 @@ export const mockedCustomImageBase = {
 };
 
 export const mockedTextBase = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -899,6 +935,8 @@ export const mockedTextBase = {
 };
 
 export const mockedSliderVariable = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -925,6 +963,8 @@ export const mockedSliderVariable = {
 };
 
 export const mockedCSVUploaderVariable = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -938,10 +978,12 @@ export const mockedCSVUploaderVariable = {
     "variable_options_source.metadata": {
       headers: ["A", "B"],
     },
-  })
-}
+  }),
+};
 
 export const mockedDateVariable = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -959,6 +1001,8 @@ export const mockedDateVariable = {
 };
 
 export const mockedDateHourVariable = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -976,6 +1020,8 @@ export const mockedDateHourVariable = {
 };
 
 export const mockedTextVariable = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -993,6 +1039,8 @@ export const mockedTextVariable = {
 };
 
 export const mockedNumberVariable = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -1010,6 +1058,8 @@ export const mockedNumberVariable = {
 };
 
 export const mockedCheckboxVariable = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -1027,6 +1077,8 @@ export const mockedCheckboxVariable = {
 };
 
 export const mockedNullCheckboxVariable = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,
@@ -1044,6 +1096,8 @@ export const mockedNullCheckboxVariable = {
 };
 
 export const mockedDropdownVariable = {
+  id: 1,
+  uuid: "some-uuid-1",
   i: "1",
   x: 0,
   y: 0,

@@ -46,7 +46,7 @@ jest.mock("components/inputs/DeleteConfirmation", () => {
 const mockedConfirm = jest.mocked(confirm);
 
 jest.mock("uuid", () => ({
-  v4: () => 12345678,
+  v4: () => "12345678",
 }));
 
 beforeEach(() => {
@@ -319,6 +319,8 @@ test("Dashboard Item delete grid item cancel", async () => {
   let expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
   expectedDashboard.tabs[0].gridItems = [
     {
+      id: 1,
+      uuid: "some-uuid-1",
       i: "1",
       x: 0,
       y: 0,
@@ -397,6 +399,8 @@ test("Dashboard Item copy item", async () => {
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
   mockedDashboard.tabs[0].gridItems = [
     {
+      id: 1,
+      uuid: "some-uuid-1",
       i: "1",
       x: 0,
       y: 0,
@@ -409,6 +413,8 @@ test("Dashboard Item copy item", async () => {
       }),
     },
     {
+      id: 3,
+      uuid: "some-uuid-3",
       i: "3",
       x: 0,
       y: 0,
@@ -421,6 +427,8 @@ test("Dashboard Item copy item", async () => {
       }),
     },
     {
+      id: 2,
+      uuid: "some-uuid-2",
       i: "2",
       x: 0,
       y: 0,
@@ -471,6 +479,8 @@ test("Dashboard Item copy item", async () => {
   let expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
   expectedDashboard.tabs[0].gridItems = [
     {
+      id: 1,
+      uuid: "some-uuid-1",
       i: "1",
       x: 0,
       y: 0,
@@ -483,6 +493,8 @@ test("Dashboard Item copy item", async () => {
       }),
     },
     {
+      id: 3,
+      uuid: "some-uuid-3",
       i: "3",
       x: 0,
       y: 0,
@@ -495,6 +507,8 @@ test("Dashboard Item copy item", async () => {
       }),
     },
     {
+      id: 2,
+      uuid: "some-uuid-2",
       i: "2",
       x: 0,
       y: 0,
@@ -507,6 +521,8 @@ test("Dashboard Item copy item", async () => {
       }),
     },
     {
+      id: null,
+      uuid: "12345678",
       i: "4",
       x: 0,
       y: 0,
@@ -535,6 +551,8 @@ test("Dashboard Item copy item variable input", async () => {
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
   mockedDashboard.tabs[0].gridItems = [
     {
+      id: 1,
+      uuid: "some-uuid-1",
       i: "1",
       x: 0,
       y: 0,
@@ -589,6 +607,8 @@ test("Dashboard Item copy item variable input", async () => {
   let expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
   expectedDashboard.tabs[0].gridItems = [
     {
+      id: 1,
+      uuid: "some-uuid-1",
       i: "1",
       x: 0,
       y: 0,
@@ -605,6 +625,8 @@ test("Dashboard Item copy item variable input", async () => {
       }),
     },
     {
+      id: null,
+      uuid: "12345678",
       i: "2",
       x: 0,
       y: 0,
@@ -643,6 +665,8 @@ test("Dashboard Item copy item variable input already exists", async () => {
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
   mockedDashboard.tabs[0].gridItems = [
     {
+      id: 1,
+      uuid: "some-uuid-1",
       i: "1",
       x: 0,
       y: 0,
@@ -659,6 +683,8 @@ test("Dashboard Item copy item variable input already exists", async () => {
       }),
     },
     {
+      id: 2,
+      uuid: "some-uuid-2",
       i: "2",
       x: 0,
       y: 0,
@@ -713,6 +739,8 @@ test("Dashboard Item copy item variable input already exists", async () => {
   let expectedDashboard = JSON.parse(JSON.stringify(mockedDashboard));
   expectedDashboard.tabs[0].gridItems = [
     {
+      id: 1,
+      uuid: "some-uuid-1",
       i: "1",
       x: 0,
       y: 0,
@@ -729,6 +757,8 @@ test("Dashboard Item copy item variable input already exists", async () => {
       }),
     },
     {
+      id: 2,
+      uuid: "some-uuid-2",
       i: "2",
       x: 0,
       y: 0,
@@ -745,6 +775,8 @@ test("Dashboard Item copy item variable input already exists", async () => {
       }),
     },
     {
+      id: null,
+      uuid: "12345678",
       i: "3",
       x: 0,
       y: 0,

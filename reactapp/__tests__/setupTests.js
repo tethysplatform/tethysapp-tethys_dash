@@ -15,6 +15,9 @@ import { MockWebSocket } from "./utilities/mockWebSocket.js";
 const originalError = console.error.bind(console.error);
 const originalEnv = process.env;
 
+global.WebSocket = MockWebSocket;
+global.__wsInstances = [];
+
 beforeEach(() => {
   jest.clearAllMocks();
   global.__wsInstances = [];
@@ -23,7 +26,6 @@ beforeEach(() => {
 // Setup mocked Tethys API
 beforeAll(() => {
   server.listen();
-  global.WebSocket = MockWebSocket;
   console.error = (...args) => {
     if (
       !args
@@ -45,9 +47,9 @@ afterEach(() => {
   cleanup();
   server.resetHandlers();
   process.env = originalEnv;
-  MockWebSocket.reset();
   jest.clearAllMocks();
   jest.restoreAllMocks();
+  global.__wsInstances = [];
 });
 
 afterAll(() => {
@@ -79,27 +81,3 @@ HTMLCanvasElement.prototype.getContext = function () {
     clip: () => {},
   };
 };
-
-global.__wsInstances = []; // Track all instances
-
-class WebSocketMock {
-  constructor(url) {
-    this.url = url;
-    this.readyState = 1; // OPEN
-    this.send = jest.fn();
-    this.close = jest.fn(() => {
-      if (this.onclose) this.onclose();
-    });
-    setTimeout(() => {
-      if (this.onopen) this.onopen();
-    }, 0);
-    global.__wsInstances.push(this);
-  }
-  mockMessage(data) {
-    if (this.onmessage) {
-      this.onmessage({ data: JSON.stringify(data) });
-    }
-  }
-}
-
-global.WebSocket = WebSocketMock;

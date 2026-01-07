@@ -113,6 +113,8 @@ it("Initializes a Base Item with an empty div", async () => {
 });
 
 it("Initializes a Base Item with an empty div and updates it with an image and progress message", async () => {
+  // Set REDIS_WS_URL so WebSocket logic is used
+  process.env.REDIS_WS_URL = "ws://localhost:1234";
   server.use(
     rest.get(
       "http://api.test/apps/tethysdash/visualizations/get/",
@@ -149,7 +151,7 @@ it("Initializes a Base Item with an empty div and updates it with an image and p
     expect(global.__wsInstances[0]).toBeDefined();
   });
   const wsInstance = global.__wsInstances[0];
-  wsInstance.mockMessage({
+  wsInstance.send({
     requestId: "12345678",
     message: "Progress Bar Testing...",
   });
@@ -157,7 +159,7 @@ it("Initializes a Base Item with an empty div and updates it with an image and p
   const progressMessage = await screen.findByText("Progress Bar Testing...");
   expect(progressMessage).toBeInTheDocument();
 
-  wsInstance.mockMessage({
+  wsInstance.send({
     requestId: "12345678",
     message: "Progress Bar Testing With Percent...",
     step: 1,

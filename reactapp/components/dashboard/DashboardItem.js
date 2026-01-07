@@ -112,7 +112,7 @@ export const requiredGridItemKeys = [
 ];
 
 export const handleGridItemExport = async (gridItem, dashboard_uuid) => {
-  const { id, ...exportedGridItem } = gridItem;
+  const { id, uuid, ...exportedGridItem } = gridItem;
   exportedGridItem.metadata_string = JSON.parse(
     exportedGridItem.metadata_string
   );

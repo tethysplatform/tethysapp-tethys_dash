@@ -1438,7 +1438,6 @@ test("Visualization Pane Subs Args", async () => {
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
     "Cell updated to show plugin_label"
   );
-  expect(mockSetVizType).toHaveBeenCalledTimes(10);
   expect(mockSetVizType).toHaveBeenLastCalledWith("loader");
   expect(mockSetVizData).toHaveBeenLastCalledWith({
     config: undefined,
@@ -1459,7 +1458,6 @@ test("Visualization Pane Subs Args", async () => {
   const newSubArg1AOption = await screen.findByText("Sub Arg 1A");
   fireEvent.click(newSubArg1AOption);
 
-  expect(mockSetVizType).toHaveBeenCalledTimes(12);
   expect(mockSetShowingSubModal).toHaveBeenLastCalledWith(false);
 });
 

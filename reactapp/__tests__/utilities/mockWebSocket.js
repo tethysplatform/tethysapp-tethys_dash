@@ -2,6 +2,7 @@ export class MockWebSocket {
   static instances = [];
   static reset() {
     MockWebSocket.instances = [];
+    if (global.__wsInstances) global.__wsInstances = [];
   }
   constructor(url) {
     this.url = url;
@@ -11,13 +12,15 @@ export class MockWebSocket {
     this.onmessage = null;
     this.onerror = null;
     MockWebSocket.instances.push(this);
+    if (global.__wsInstances) global.__wsInstances.push(this); // <-- Add this line
     setTimeout(() => {
       if (this.onopen) this.onopen();
     }, 0);
   }
   send(data) {
-    // Optionally, simulate a response:
-    // setTimeout(() => this.onmessage && this.onmessage({ data: '{"requestId":"123","message":"test"}' }), 10);
+    if (this.onmessage) {
+      this.onmessage({ data: JSON.stringify(data) });
+    }
   }
   close() {
     this.readyState = 3; // CLOSED
