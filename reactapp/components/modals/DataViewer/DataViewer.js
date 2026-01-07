@@ -60,8 +60,8 @@ const StyledVizCol = styled(Col)`
 function DataViewerModal({
   gridItemIndex,
   source,
-  args,
-  metadata,
+  argsString,
+  metadataString,
   showModal,
   handleModalClose,
   setGridItemMessage,
@@ -78,12 +78,13 @@ function DataViewerModal({
   let initialVizInputsValues = {};
   let initialVariableInputValue = null;
   if (initialSelectedVizTypeOption) {
+    const existingArgs = JSON.parse(argsString);
     if (source === "Variable Input") {
-      initialVariableInputValue = args.initial_value;
+      initialVariableInputValue = existingArgs.initial_value;
     }
     for (let arg in initialSelectedVizTypeOption.args) {
       let vizArgType = initialSelectedVizTypeOption.args[arg];
-      let existingArg = args[arg];
+      let existingArg = existingArgs[arg];
       initialVizArguments.push({
         label: arg,
         name: arg,
@@ -91,7 +92,7 @@ function DataViewerModal({
         value: existingArg,
       });
     }
-    initialVizInputsValues = args;
+    initialVizInputsValues = existingArgs;
   }
 
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(
@@ -116,8 +117,9 @@ function DataViewerModal({
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const { getMessageForRequest } = useContext(WebsocketContext);
 
+  const gridMetadata = JSON.parse(metadataString);
   const visualizationRef = useRef();
-  const [settings, setSettings] = useState(metadata);
+  const [settings, setSettings] = useState(gridMetadata);
   const [tabKey, setTabKey] = useState("visualization");
   const requestId = useRef(uuidv4());
 
@@ -132,7 +134,7 @@ function DataViewerModal({
 
         if (
           variableInputName in variableInputValues &&
-          args.variable_name !== variableInputName
+          JSON.parse(argsString).variable_name !== variableInputName
         ) {
           setAlertMessage(
             variableInputName + " is already in use for a variable name"
@@ -193,7 +195,7 @@ function DataViewerModal({
   }
 
   function updateVariableInputs(vizArgs, updatedGridItems) {
-    const existingVariableName = args.variable_name;
+    const existingVariableName = JSON.parse(argsString).variable_name;
     if (
       existingVariableName &&
       existingVariableName !== vizArgs.variable_name
@@ -356,14 +358,14 @@ function DataViewerModal({
 }
 
 DataViewerModal.propTypes = {
-  gridItemIndex: PropTypes.number.isRequired,
-  source: PropTypes.string.isRequired,
-  args: PropTypes.object.isRequired,
-  metadata: PropTypes.object,
-  setGridItemMessage: PropTypes.func.isRequired,
-  setShowGridItemMessage: PropTypes.func.isRequired,
-  showModal: PropTypes.bool.isRequired,
-  handleModalClose: PropTypes.func.isRequired,
+  gridItemIndex: PropTypes.number,
+  source: PropTypes.string,
+  argsString: PropTypes.string,
+  metadataString: PropTypes.string,
+  setGridItemMessage: PropTypes.func,
+  setShowGridItemMessage: PropTypes.func,
+  showModal: PropTypes.bool,
+  handleModalClose: PropTypes.func,
 };
 
 export default DataViewerModal;

@@ -18,7 +18,11 @@ const WebsocketProvider = ({ children }) => {
   const [timeoutReached, setTimeoutReached] = useState(false);
   const ws = useRef(null);
 
+  const hasWebSocketUrl = Boolean(process.env.REDIS_WS_URL);
+
   useEffect(() => {
+    if (!hasWebSocketUrl) return;
+
     const socket = new WebSocket(process.env.REDIS_WS_URL);
 
     socket.onopen = () => setWebsocketReady(true);
@@ -33,6 +37,8 @@ const WebsocketProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    if (!hasWebSocketUrl) return;
+
     const timer = setTimeout(() => {
       setTimeoutReached(true);
     }, 5000);
@@ -84,6 +90,7 @@ const WebsocketProvider = ({ children }) => {
 
   const onSend = useCallback(
     (data) => {
+      if (!hasWebSocketUrl) return;
       if (ws.current && websocketReady) {
         ws.current.send(data);
       }
@@ -110,7 +117,7 @@ const WebsocketProvider = ({ children }) => {
     ]
   );
 
-  if (!websocketReady && !timeoutReached) {
+  if (hasWebSocketUrl && !websocketReady && !timeoutReached) {
     return <LoadingAnimation text="Connecting to WebSocket..." />;
   }
 

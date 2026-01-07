@@ -222,19 +222,21 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
 const DashboardItem = ({
   gridItemSource,
   gridItemI,
-  gridItemArgs,
-  gridItemMetadata,
+  gridItemArgsString,
+  gridItemMetadataString,
   gridItemIndex,
   gridItemUUID,
   shouldLoad,
 }) => {
-  // Context and state hooks (declare only once)
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
   const [showGridItemMessage, setShowGridItemMessage] = useState(false);
   const [gridItemWarning, setGridItemWarning] = useState("");
   const [showGridItemWarning, setShowGridItemWarning] = useState(false);
+  const [gridItemStyling, setGridItemStyling] = useState(
+    JSON.parse(gridItemMetadataString)
+  );
   const { getActiveTab, updateTab } = useContext(TabContext);
   const { variableInputValues, setVariableInputValues } = useContext(
     VariableInputsContext
@@ -254,6 +256,11 @@ const DashboardItem = ({
     );
     // eslint-disable-next-line
   }, [gridItemSource]);
+
+  useEffect(() => {
+    setGridItemStyling(JSON.parse(gridItemMetadataString));
+    // eslint-disable-next-line
+  }, [gridItemMetadataString]);
 
   async function deleteGridItem(e) {
     if (await confirm("Are you sure you want to delete the item?")) {
@@ -388,13 +395,13 @@ const DashboardItem = ({
     <>
       <StyledDiv
         $isEditing={isEditing}
-        $borderProps={gridItemMetadata?.border}
-        $backgroundColorProps={gridItemMetadata?.backgroundColor}
-        $boxShadowProps={gridItemMetadata?.boxShadow}
+        $borderProps={gridItemStyling?.border}
+        $backgroundColorProps={gridItemStyling?.backgroundColor}
+        $boxShadowProps={gridItemStyling?.boxShadow}
         aria-label="gridItemDiv"
         className="no-caret"
       >
-        {gridItemMetadata?.attribution !== false && attribution && (
+        {gridItemStyling?.attribution !== false && attribution && (
           <InfoIconWrapper
             onMouseEnter={() => setShowAttribution(true)}
             onMouseLeave={() => setShowAttribution(false)}
@@ -434,8 +441,8 @@ const DashboardItem = ({
           <BaseVisualization
             key={gridItemI}
             source={gridItemSource}
-            args={gridItemArgs}
-            metadata={gridItemMetadata}
+            argsString={gridItemArgsString}
+            metadataString={gridItemMetadataString}
             uuid={gridItemUUID}
             shouldLoad={shouldLoad}
           />
@@ -444,8 +451,8 @@ const DashboardItem = ({
           <DataViewerModal
             gridItemIndex={gridItemIndex}
             source={gridItemSource}
-            args={gridItemArgs}
-            metadata={gridItemMetadata}
+            argsString={gridItemArgsString}
+            metadataString={gridItemMetadataString}
             showModal={showDataViewerModal}
             handleModalClose={hideDataViewerModal}
             setGridItemMessage={setGridItemMessage}
@@ -473,13 +480,11 @@ const DashboardItem = ({
 };
 
 DashboardItem.propTypes = {
-  gridItemSource: PropTypes.string.isRequired,
-  gridItemI: PropTypes.oneOfType([PropTypes.string, PropTypes.number])
-    .isRequired,
-  gridItemArgs: PropTypes.object.isRequired,
-  gridItemMetadata: PropTypes.object,
-  gridItemIndex: PropTypes.number.isRequired,
-  gridItemUUID: PropTypes.string,
+  gridItemSource: PropTypes.string,
+  gridItemI: PropTypes.string,
+  gridItemArgsString: PropTypes.string,
+  gridItemMetadataString: PropTypes.string,
+  gridItemIndex: PropTypes.number,
   shouldLoad: PropTypes.bool,
 };
 

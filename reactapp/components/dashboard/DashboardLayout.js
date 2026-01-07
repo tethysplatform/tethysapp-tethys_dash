@@ -48,8 +48,6 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
     () =>
       gridItems.map((item) => ({
         ...item,
-        parsedArgs: JSON.parse(item.args_string),
-        parsedMetadata: JSON.parse(item.metadata_string),
       })),
     [gridItems]
   );
@@ -123,8 +121,8 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
           <DashboardItem
             gridItemSource={item.source}
             gridItemI={item.i}
-            gridItemArgs={item.parsedArgs}
-            gridItemMetadata={item.parsedMetadata}
+            gridItemArgsString={item.args_string}
+            gridItemMetadataString={item.metadata_string}
             gridItemIndex={index}
             gridItemUUID={item.uuid}
             shouldLoad={shouldLoad}

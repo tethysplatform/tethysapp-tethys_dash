@@ -3,11 +3,12 @@ import { spaceAndCapitalize } from "components/modals/utilities";
 import { parseDateMath } from "components/inputs/DatePicker";
 
 export function checkForEmptyVariableInputs({
-  metadata,
-  args,
+  metadataString,
+  argsString,
   variableInputValues,
 }) {
-  const dependentVariableInputs = getDependentVariableInputs(args);
+  const metadata = JSON.parse(metadataString);
+  const dependentVariableInputs = getDependentVariableInputs(argsString);
   let warnings = [];
 
   if (!dependentVariableInputs.every((key) => key in variableInputValues)) {
@@ -59,15 +60,16 @@ export async function getVisualization({
   setVizData,
   sourceType,
   itemData,
-  args,
-  metadata,
+  argsString,
+  metadataString,
   variableInputValues,
   dashboardView,
   vizLoadingIcon = true,
 }) {
+  const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
-    metadata,
-    args,
+    metadataString,
+    argsString,
     variableInputValues,
   });
   if (emptyVariableWarnings) {

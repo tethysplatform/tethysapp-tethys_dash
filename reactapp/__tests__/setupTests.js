@@ -9,6 +9,7 @@ import { server } from "./utilities/server.js";
 // Mock `window.location` with Jest spies and extend expect
 import "jest-location-mock";
 import { createMocks } from "react-idle-timer";
+import { MockWebSocket } from "./utilities/mockWebSocket.js";
 
 // Make .env files accessible to tests (path relative to project root)
 const originalError = console.error.bind(console.error);
@@ -22,6 +23,7 @@ beforeEach(() => {
 // Setup mocked Tethys API
 beforeAll(() => {
   server.listen();
+  global.WebSocket = MockWebSocket;
   console.error = (...args) => {
     if (
       !args
@@ -43,6 +45,7 @@ afterEach(() => {
   cleanup();
   server.resetHandlers();
   process.env = originalEnv;
+  MockWebSocket.reset();
   jest.clearAllMocks();
   jest.restoreAllMocks();
 });

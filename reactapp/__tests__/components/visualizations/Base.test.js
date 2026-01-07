@@ -78,10 +78,6 @@ jest.mock("date-fns", () => {
   };
 });
 
-jest.mock("uuid", () => ({
-  v4: () => 12345678,
-}));
-
 const { ResizeObserver } = window;
 
 beforeEach(() => {
@@ -106,6 +102,7 @@ it("Initializes a Base Item with an empty div", async () => {
           source={""}
           argsString={"{}"}
           metadataString={"{}"}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -141,6 +138,7 @@ it("Initializes a Base Item with an empty div and updates it with an image and p
           source={mockedApiImageBase.source}
           argsString={mockedApiImageBase.args_string}
           metadataString={mockedApiImageBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -152,7 +150,7 @@ it("Initializes a Base Item with an empty div and updates it with an image and p
   });
   const wsInstance = global.__wsInstances[0];
   wsInstance.mockMessage({
-    requestId: 12345678,
+    requestId: "12345678",
     message: "Progress Bar Testing...",
   });
 
@@ -160,7 +158,7 @@ it("Initializes a Base Item with an empty div and updates it with an image and p
   expect(progressMessage).toBeInTheDocument();
 
   wsInstance.mockMessage({
-    requestId: 12345678,
+    requestId: "12345678",
     message: "Progress Bar Testing With Percent...",
     step: 1,
     totalSteps: 2,
@@ -207,6 +205,7 @@ it("Creates an Base Item with a Custom Image", async () => {
           source={mockedCustomImageBase.source}
           argsString={mockedCustomImageBase.args_string}
           metadataString={mockedCustomImageBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -228,6 +227,7 @@ it("Creates an Base Item with a Custom Image", async () => {
           source={mockedCustomImageBase.source}
           argsString={mockedCustomImageBase.args_string}
           metadataString={mockedCustomImageBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -250,6 +250,7 @@ it("Creates an Base Item with a Custom Image", async () => {
           source={mockedCustomImageBase.source}
           argsString={mockedCustomImageBase.args_string}
           metadataString={mockedCustomImageBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -267,6 +268,7 @@ it("Creates an Base Item with a Text Box", async () => {
           source={mockedTextBase.source}
           argsString={mockedTextBase.args_string}
           metadataString={mockedTextBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -288,6 +290,7 @@ it("Creates an Base Item with a Map", async () => {
             source={mockedMapBase.source}
             argsString={mockedMapBase.args_string}
             metadataString={mockedMapBase.metadata_string}
+            uuid={"12345678"}
             shouldLoad={true}
           />
         </div>
@@ -318,6 +321,7 @@ it("Creates an Base Item with a variable input text box", async () => {
             source={mockedTextVariable.source}
             argsString={mockedTextVariable.args_string}
             metadataString={mockedTextVariable.metadata_string}
+            uuid={"12345678"}
             shouldLoad={true}
           />
           <InputVariablePComponent />
@@ -380,6 +384,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
           source={apiImageBase.source}
           argsString={apiImageBase.args_string}
           metadataString={apiImageBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -443,6 +448,7 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
           source={apiImageBase.source}
           argsString={apiImageBase.args_string}
           metadataString={apiImageBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -496,6 +502,7 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
           source={mockedPlotBase.source}
           argsString={mockedPlotBase.args_string}
           metadataString={mockedPlotBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -535,6 +542,7 @@ it("Creates an Base Item with a custom module obtained from the api", async () =
           source={mockedTableBase.source}
           argsString={mockedTableBase.args_string}
           metadataString={mockedTableBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -574,6 +582,7 @@ it("Creates an Base Item with a table obtained from the api", async () => {
           source={mockedTableBase.source}
           argsString={mockedTableBase.args_string}
           metadataString={mockedTableBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -613,6 +622,7 @@ it("Creates an Base Item with a card obtained from the api", async () => {
           source={mockedCardBase.source}
           argsString={mockedCardBase.args_string}
           metadataString={mockedCardBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -652,6 +662,7 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
           source={mockedUnknownBase.source}
           argsString={mockedUnknownBase.args_string}
           metadataString={mockedUnknownBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -710,6 +721,7 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
           source={mockedUnknownBase.source}
           argsString={mockedUnknownBase.args_string}
           metadataString={mockedUnknownBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),
@@ -798,6 +810,7 @@ it("Base - update text variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[0].metadata_string
             }
+            uuid={"12345678"}
             shouldLoad={true}
           />
           <BaseVisualization
@@ -806,6 +819,7 @@ it("Base - update text variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[1].metadata_string
             }
+            uuid={"12345678"}
             shouldLoad={true}
           />
         </>
@@ -930,6 +944,7 @@ it("Base - update date variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[0].metadata_string
             }
+            uuid={"12345678"}
             shouldLoad={true}
           />
           <BaseVisualization
@@ -938,6 +953,7 @@ it("Base - update date variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[1].metadata_string
             }
+            uuid={"12345678"}
             shouldLoad={true}
           />
         </>
@@ -976,7 +992,7 @@ it("Base - update date variable input", async () => {
           args: {
             plugin_arg: "2025-01-01T00:00:00-06:00",
           },
-          requestId: 12345678,
+          requestId: "12345678",
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',
@@ -1015,7 +1031,7 @@ it("Base - update date variable input", async () => {
           args: {
             plugin_arg: "2020-01-01T00:00:00-06:00",
           },
-          requestId: 12345678,
+          requestId: "12345678",
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',
@@ -1063,7 +1079,7 @@ it("Base - update date variable input", async () => {
           args: {
             plugin_arg: expectedDateString,
           },
-          requestId: 12345678,
+          requestId: "12345678",
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',
@@ -1116,7 +1132,7 @@ it("Base - update date variable input", async () => {
           args: {
             plugin_arg: expectedDateString,
           },
-          requestId: 12345678,
+          requestId: "12345678",
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',
@@ -1224,6 +1240,7 @@ it("Base - initial relative date variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[0].metadata_string
             }
+            uuid={"12345678"}
             shouldLoad={true}
           />
           <BaseVisualization
@@ -1232,6 +1249,7 @@ it("Base - initial relative date variable input", async () => {
             metadataString={
               mockedDashboard.tabs[0].gridItems[1].metadata_string
             }
+            uuid={"12345678"}
             shouldLoad={true}
           />
         </>
@@ -1277,7 +1295,7 @@ it("Base - initial relative date variable input", async () => {
           args: {
             plugin_arg: expectedDateString,
           },
-          requestId: 12345678,
+          requestId: "12345678",
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',
@@ -1330,7 +1348,7 @@ it("Base - initial relative date variable input", async () => {
           args: {
             plugin_arg: expectedDateString,
           },
-          requestId: 12345678,
+          requestId: "12345678",
           source: "plugin_source",
         },
         metadataString: '{"refreshRate":0}',
@@ -1388,6 +1406,7 @@ it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine meta
           source={mockedPlotBase.source}
           argsString={mockedPlotBase.args_string}
           metadataString={mockedPlotBase.metadata_string}
+          uuid={"12345678"}
           shouldLoad={true}
         />
       ),

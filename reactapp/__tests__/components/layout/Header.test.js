@@ -1330,6 +1330,8 @@ test("DashboardHeader, editable, edit and save", async () => {
       metadata_string: JSON.stringify({
         refreshRate: 0,
       }),
+      id: 1,
+      uuid: "some-uuid-1",
     },
     {
       i: "3",
@@ -1342,6 +1344,8 @@ test("DashboardHeader, editable, edit and save", async () => {
       metadata_string: JSON.stringify({
         refreshRate: 0,
       }),
+      id: 3,
+      uuid: "some-uuid-3",
     },
     {
       i: "2",
@@ -1354,6 +1358,8 @@ test("DashboardHeader, editable, edit and save", async () => {
       metadata_string: JSON.stringify({
         refreshRate: 0,
       }),
+      id: 2,
+      uuid: "some-uuid-2",
     },
   ];
 
@@ -1374,6 +1380,8 @@ test("DashboardHeader, editable, edit and save", async () => {
             metadata_string: JSON.stringify({
               refreshRate: 0,
             }),
+            id: null,
+            uuid: 12345678,
           },
           {
             i: "1",
@@ -1386,6 +1394,8 @@ test("DashboardHeader, editable, edit and save", async () => {
             metadata_string: JSON.stringify({
               refreshRate: 0,
             }),
+            id: 1,
+            uuid: "some-uuid-1",
           },
           {
             i: "3",
@@ -1398,6 +1408,8 @@ test("DashboardHeader, editable, edit and save", async () => {
             metadata_string: JSON.stringify({
               refreshRate: 0,
             }),
+            id: 3,
+            uuid: "some-uuid-3",
           },
           {
             i: "2",
@@ -1410,6 +1422,8 @@ test("DashboardHeader, editable, edit and save", async () => {
             metadata_string: JSON.stringify({
               refreshRate: 0,
             }),
+            id: 2,
+            uuid: "some-uuid-2",
           },
         ],
       },

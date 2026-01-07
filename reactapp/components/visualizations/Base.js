@@ -292,7 +292,13 @@ const filterNonRelativeDateArgs = (args, variableInputs, types) => {
   return filtered;
 };
 
-const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
+const BaseVisualization = ({
+  source,
+  argsString,
+  metadataString,
+  uuid,
+  shouldLoad,
+}) => {
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
   const { visualizations } = useContext(AppContext);
@@ -310,8 +316,7 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
   const loadedEmptyArgsForSource = useRef({});
 
   useEffect(() => {
-    // Reset the loadedEmptyArgsForSource ref when the source changes
-    loadedEmptyArgsForSource.current = {};
+    const args = JSON.parse(argsString);
     if (source === "") {
       setVizType("unknown");
     } else if (source === "Variable Input") {
@@ -326,7 +331,7 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
       setVariableDependentVisualizations({});
     }
     // eslint-disable-next-line
-  }, [source, args, metadata]);
+  }, [source, argsString, metadataString]);
 
   useEffect(() => {
     if (!["", "Variable Input"].includes(source)) {
@@ -336,7 +341,8 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
   }, [variableInputValues, shouldLoad]);
 
   useEffect(() => {
-    const refreshRate = metadata.refreshRate;
+    const gridMetadata = JSON.parse(metadataString);
+    const refreshRate = gridMetadata.refreshRate;
     if (
       refreshRate &&
       refreshRate > 0 &&
@@ -354,10 +360,12 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
       return () => clearInterval(interval);
     }
     // eslint-disable-next-line
-  }, [metadata, isEditing]);
+  }, [metadataString, isEditing]);
 
   async function setVariableDependentVisualizations({ refresh }) {
-    const originalArgs = args;
+    const originalArgs = JSON.parse(argsString);
+    const args = JSON.parse(argsString);
+    const gridMetadata = JSON.parse(metadataString);
     const visualization = findSelectOptionByValue(
       visualizations,
       source,
@@ -372,11 +380,12 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
     );
 
     const updatedGridItemMetadata = updateObjectWithVariableInputs(
-      metadata,
+      gridMetadata,
       variableInputValues,
       argTypes
     );
-    const customMessaging = metadata.customMessaging;
+    const customMessaging = gridMetadata.customMessaging;
+
     const filteredOriginalArgs = filterNonRelativeDateArgs(
       originalArgs,
       variableInputValues,
@@ -411,14 +420,13 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
       gridItemSource.current = source;
       customMessages.current = customMessaging;
 
-      // setVizType and setVizData only if this is the latest request. used to prevent race conditions when changing visualizations quickly
       await getVisualization({
         setVizType,
         setVizData,
         sourceType,
         itemData,
-        args,
-        metadata,
+        argsString,
+        metadataString,
         variableInputValues,
         dashboardView: true,
         vizLoadingIcon: findSelectOptionByValue(
@@ -477,8 +485,8 @@ const BaseVisualization = ({ source, args, metadata, uuid, shouldLoad }) => {
 
 BaseVisualization.propTypes = {
   source: PropTypes.string,
-  args: PropTypes.object,
-  metadata: PropTypes.object,
+  argsString: PropTypes.string,
+  metadataString: PropTypes.string,
   uuid: PropTypes.string,
   shouldLoad: PropTypes.bool,
 };
@@ -499,9 +507,10 @@ const areBasePropsEqual = (prevProps, nextProps) => {
   // Only rerender if the actual props that affect visualization change
   return (
     valuesEqual(prevProps.source, nextProps.source) &&
-    valuesEqual(prevProps.args, nextProps.args) &&
-    valuesEqual(prevProps.metadata, nextProps.metadata) &&
-    valuesEqual(prevProps.shouldLoad, nextProps.shouldLoad)
+    valuesEqual(prevProps.argsString, nextProps.argsString) &&
+    valuesEqual(prevProps.metadataString, nextProps.metadataString) &&
+    valuesEqual(prevProps.shouldLoad, nextProps.shouldLoad) &&
+    valuesEqual(prevProps.uuid, nextProps.uuid)
   );
 };
 
