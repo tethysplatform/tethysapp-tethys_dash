@@ -184,7 +184,7 @@ function getOrCreateUsername(usernameKey, fallbackUsername = "") {
   return cached || fallbackUsername || "";
 }
 
-const ChatMessage = ({
+export const ChatMessage = ({
   msg,
   sessionId,
   requestId,
@@ -272,6 +272,7 @@ const ChatMessage = ({
                 <Spinner aria-label="Loading" />
               ) : (
                 <SendButton
+                  aria-label="Save Button"
                   type="button"
                   onClick={handleEditSave}
                   disabled={!editInput.trim()}
@@ -332,7 +333,9 @@ const LiveChat = ({ requestId, chatHistory }) => {
   const [customUsername, setCustomUsername] = useState(() =>
     getOrCreateUsername(usernameKey, user.username)
   );
-  const [editingUsername, setEditingUsername] = useState(false);
+  const [editingUsername, setEditingUsername] = useState(
+    customUsername ? false : true
+  );
   const [input, setInput] = useState("");
   const messageInputRef = useRef(null);
   const [chatLog, setChatLog] = useState(chatHistory || []);
@@ -480,17 +483,6 @@ const LiveChat = ({ requestId, chatHistory }) => {
     e.preventDefault();
     setSendError("");
     if (rateLimited || sending) return;
-    if (!customUsername) {
-      if (!input.trim()) return;
-      setCustomUsername(input.trim());
-      try {
-        window.localStorage.setItem(usernameKey, input.trim());
-      } catch (e) {
-        /* no-op */
-      }
-      setInput("");
-      return;
-    }
     if (editingUsername) {
       if (!input.trim()) return;
       setCustomUsername(input.trim());
