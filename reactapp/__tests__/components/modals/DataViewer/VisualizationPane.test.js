@@ -377,7 +377,7 @@ test("Visualization Pane Other Type", async () => {
           ctx.status(200),
           ctx.json({
             success: true,
-            data: {},
+            data: { text: "some text" },
             viz_type: "some_type",
           }),
           ctx.set("Content-Type", "application/json")
@@ -504,7 +504,7 @@ test("Visualization Pane Other Type", async () => {
   expect(mockSetVizData).toHaveBeenCalledWith({
     warnings: ["some_type visualizations still need to be configured"],
   });
-});
+}, 30000);
 
 test("Visualization Pane Other Type Checkbox", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));

@@ -228,6 +228,16 @@ test("AppLoader", async () => {
             description:
               "An input that acts as a dashboard variable. This variable can be referenced in other visualizations to allow for dynamic updating.",
           },
+          {
+            source: "Live Chat",
+            value: "Live Chat",
+            label: "Live Chat",
+            type: "liveChat",
+            args: {},
+            tags: ["chat", "default"],
+            description:
+              "A live chart box that allows users to send and receive messages with other users.",
+          },
         ],
       },
     ])

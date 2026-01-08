@@ -169,8 +169,8 @@ function VisualizationPane({
   const currentSelectedVizTypeOption = useRef(selectedVizTypeOption);
   // Ref to track if we've already previewed for this source with empty args
   const loadedEmptyArgsForSource = useRef({});
-  // Ref to guard checkAllInputs after type change
-  const justUpdatedType = useRef(false);
+  // Ref to track the latest visualization request (prevents race conditions)
+  const vizRequestId = useRef(0);
 
   const defaultVisualizationOptions = visualizations.find((obj) => {
     return obj.label === "Default";
@@ -188,8 +188,7 @@ function VisualizationPane({
       setSettings({});
       // Reset the loadedEmptyArgsForSource ref when visualization type changes
       loadedEmptyArgsForSource.current = {};
-      justUpdatedType.current = true;
-
+      vizRequestId.current += 1; // increment request id on type change
       let updatedVizArguments = [];
       const updatedVizInputsValues = {};
       for (let arg in selectedVizTypeOption.args) {
@@ -282,10 +281,6 @@ function VisualizationPane({
   );
 
   function checkAllInputs() {
-    if (justUpdatedType.current) {
-      justUpdatedType.current = false;
-      return;
-    }
     if (selectedVizTypeOption) {
       const allFilled = Object.values(vizInputsValues).every(
         (value) => !["", null].includes(value)
@@ -299,8 +294,8 @@ function VisualizationPane({
         if (isEmptyArgs) {
           loadedEmptyArgsForSource.current[source] = true;
         }
-        // Set the flag BEFORE calling previewVisualization to prevent race conditions
-        previewVisualization();
+        // Pass the current request id to previewVisualization
+        previewVisualization(vizRequestId.current);
       } else {
         setVizType("unknown");
         setVizData({});
@@ -309,7 +304,7 @@ function VisualizationPane({
     }
   }
 
-  async function previewVisualization() {
+  async function previewVisualization(requestIdCheck) {
     const itemData = {
       source: selectedVizTypeOption["source"],
       args: Object.fromEntries(
@@ -321,6 +316,8 @@ function VisualizationPane({
     };
     const sourceType = selectedVizTypeOption.type;
 
+    // Only update state if this is the latest request
+    if (requestIdCheck !== vizRequestId.current) return;
     setVizMetadata(itemData);
     setGridItemMessage(
       "Cell updated to show " + selectedVizTypeOption["label"]
