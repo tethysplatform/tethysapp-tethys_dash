@@ -11,7 +11,7 @@ jest.mock("plotly.js-strict-dist-min", () => mockPlotly);
 // eslint-disable-next-line
 import { render, screen } from "@testing-library/react";
 // eslint-disable-next-line
-import React from "react";
+import { createRef } from "react";
 
 const {
   default: BasePlot,
@@ -51,7 +51,7 @@ describe("BasePlot", () => {
         data={data}
         layout={layout}
         config={config}
-        visualizationRef={React.createRef()}
+        visualizationRef={createRef()}
       />
     );
     // Should render a plot container div with flex style

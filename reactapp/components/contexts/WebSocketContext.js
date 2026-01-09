@@ -34,6 +34,7 @@ const WebsocketProvider = ({ children }) => {
     return () => {
       socket.close();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -46,6 +47,7 @@ const WebsocketProvider = ({ children }) => {
       clearTimeout(timer);
     }
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [websocketReady]);
 
   const onMessage = (event) => {
@@ -93,6 +95,7 @@ const WebsocketProvider = ({ children }) => {
       if (!hasWebSocketUrl) return;
       ws.current.send(data);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [websocketReady]
   );
 

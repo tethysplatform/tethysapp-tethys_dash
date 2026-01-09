@@ -485,6 +485,7 @@ DashboardItem.propTypes = {
   gridItemArgsString: PropTypes.string,
   gridItemMetadataString: PropTypes.string,
   gridItemIndex: PropTypes.number,
+  gridItemUUID: PropTypes.string,
   shouldLoad: PropTypes.bool,
 };
 

@@ -1,4 +1,4 @@
-import React, { act } from "react";
+import { act, useContext } from "react";
 import { render, waitFor, screen } from "@testing-library/react";
 import WebsocketProvider, {
   WebsocketContext,
@@ -99,7 +99,7 @@ describe("WebsocketProvider", () => {
   it("stores and retrieves messages by requestId", async () => {
     let contextValue;
     const TestConsumer = () => {
-      contextValue = React.useContext(WebsocketContext);
+      contextValue = useContext(WebsocketContext);
       return <div>test</div>;
     };
 
@@ -132,7 +132,7 @@ describe("WebsocketProvider", () => {
   it("doesnt store and retrieve messages if not requestId", async () => {
     let contextValue;
     const TestConsumer = () => {
-      contextValue = React.useContext(WebsocketContext);
+      contextValue = useContext(WebsocketContext);
       return <div>test</div>;
     };
 
@@ -159,7 +159,7 @@ describe("WebsocketProvider", () => {
   it("doesnt store and retrieve messages if missing message or error", async () => {
     let contextValue;
     const TestConsumer = () => {
-      contextValue = React.useContext(WebsocketContext);
+      contextValue = useContext(WebsocketContext);
       return <div>test</div>;
     };
 
@@ -186,7 +186,7 @@ describe("WebsocketProvider", () => {
   it("stores and retrieves error messages by requestId", async () => {
     let contextValue;
     const TestConsumer = () => {
-      contextValue = React.useContext(WebsocketContext);
+      contextValue = useContext(WebsocketContext);
       return <div>test</div>;
     };
 
@@ -221,7 +221,7 @@ describe("WebsocketProvider", () => {
   it("sendMessage calls ws.send", async () => {
     let contextValue;
     const TestConsumer = () => {
-      contextValue = React.useContext(WebsocketContext);
+      contextValue = useContext(WebsocketContext);
       return <div>test</div>;
     };
 
@@ -243,7 +243,7 @@ describe("WebsocketProvider", () => {
   it("getMessageForRequest returns undefined for missing or invalid messages", async () => {
     let contextValue;
     const TestConsumer = () => {
-      contextValue = React.useContext(WebsocketContext);
+      contextValue = useContext(WebsocketContext);
       return <div>test</div>;
     };
 
@@ -283,7 +283,7 @@ describe("WebsocketProvider", () => {
   it("getErrorMessageForRequest returns undefined for missing or invalid messages", async () => {
     let contextValue;
     const TestConsumer = () => {
-      contextValue = React.useContext(WebsocketContext);
+      contextValue = useContext(WebsocketContext);
       return <div>test</div>;
     };
 
@@ -324,7 +324,7 @@ describe("WebsocketProvider", () => {
     delete process.env.REDIS_WS_URL;
     let contextValue;
     const TestConsumer = () => {
-      contextValue = React.useContext(WebsocketContext);
+      contextValue = useContext(WebsocketContext);
       return <div>test</div>;
     };
 

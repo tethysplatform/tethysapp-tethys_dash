@@ -1,4 +1,4 @@
-import React from "react";
+import React, { createRef, forwardRef, useEffect } from "react";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import PropTypes from "prop-types";
@@ -47,7 +47,7 @@ describe("ModuleLoader", () => {
     module: "testModule",
     url: "https://example.com/test.js",
     props: { testProp: "testValue" },
-    visualizationRef: React.createRef(),
+    visualizationRef: createRef(),
   };
 
   beforeEach(() => {
@@ -214,7 +214,7 @@ describe("ModuleLoader", () => {
             module="testModule"
             // url is intentionally missing
             props={{}}
-            visualizationRef={React.createRef()}
+            visualizationRef={createRef()}
           />
         </Wrapper>
       );
@@ -321,9 +321,9 @@ describe("ModuleLoader", () => {
         return typeof updater === "function" ? updater(prev) : updater;
       });
       // Dummy component to capture props
-      const DummyComponent = React.forwardRef((props, ref) => {
+      const DummyComponent = forwardRef((props, ref) => {
         const { updateVariableInputValues } = props;
-        React.useEffect(() => {
+        useEffect(() => {
           if (updateVariableInputValues) {
             updateVariableInputValues({ b: 2 });
           }
@@ -347,7 +347,7 @@ describe("ModuleLoader", () => {
             module="testModule"
             url="https://example.com/test.js"
             props={{}}
-            visualizationRef={React.createRef()}
+            visualizationRef={createRef()}
           />
         </Wrapper>
       );
@@ -450,7 +450,7 @@ describe("ModuleLoader", () => {
         // Simulate the dynamic import and ready state
         useDynamicScript.mockReturnValue({ ready: true, failed: false });
         // Patch React.lazy to return a dummy component
-        const DummyComponent = React.forwardRef((props, ref) => (
+        const DummyComponent = forwardRef((props, ref) => (
           <div data-testid="dynamic-component">Dynamic Loaded</div>
         ));
         DummyComponent.displayName = "DummyComponent";
@@ -463,7 +463,7 @@ describe("ModuleLoader", () => {
               module="testModule"
               url="https://example.com/test.js"
               props={{}}
-              visualizationRef={React.createRef()}
+              visualizationRef={createRef()}
             />
           </Wrapper>
         );
@@ -484,7 +484,7 @@ describe("ModuleLoader", () => {
             module="testModule"
             url="https://example.com/test.js"
             props={{}}
-            visualizationRef={React.createRef()}
+            visualizationRef={createRef()}
           />
         </Wrapper>
       );

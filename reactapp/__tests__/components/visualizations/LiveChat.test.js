@@ -1,5 +1,5 @@
 import { useState, useImperativeHandle, createRef, act } from "react";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import LiveChat, { ChatMessage } from "components/visualizations/LiveChat";
 import { AppContext } from "components/contexts/Contexts";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
@@ -87,6 +87,7 @@ describe("LiveChat", () => {
         element.tagName.toLowerCase() === "div" &&
         element.textContent === "Hello world!"
     );
+    // eslint-disable-next-line
     expect(div.querySelector("br")).toBeInTheDocument();
     expect(screen.getByLabelText("Change Username")).toBeInTheDocument();
   });
@@ -144,6 +145,7 @@ describe("LiveChat", () => {
   });
 
   it("sends a message", async () => {
+    // eslint-disable-next-line
     function TestWrapper({ rerenderRef, ...props }) {
       const [messagesByRequestId, setMessagesByRequestId] = useState({});
       useImperativeHandle(rerenderRef, () => ({ setMessagesByRequestId }), [
@@ -231,6 +233,7 @@ describe("LiveChat", () => {
   });
 
   it("Updates previous messages", async () => {
+    // eslint-disable-next-line
     function TestWrapper({ rerenderRef, ...props }) {
       const [messagesByRequestId, setMessagesByRequestId] = useState({});
       useImperativeHandle(rerenderRef, () => ({ setMessagesByRequestId }), [
@@ -273,6 +276,7 @@ describe("LiveChat", () => {
   });
 
   it("Show websocket error messages", async () => {
+    // eslint-disable-next-line
     function TestWrapper({ rerenderRef, ...props }) {
       const [errorMessagesByRequestId, setErrorMessagesByRequestId] = useState(
         {}
@@ -335,6 +339,7 @@ describe("LiveChat", () => {
 
   it("shows rate limit message and disables send", async () => {
     jest.useFakeTimers();
+    // eslint-disable-next-line
     function TestWrapper({ rerenderRef, ...props }) {
       const [messagesByRequestId, setMessagesByRequestId] = useState({});
       useImperativeHandle(rerenderRef, () => ({ setMessagesByRequestId }), [
@@ -366,7 +371,7 @@ describe("LiveChat", () => {
         // eslint-disable-next-line
         expect(sent.message).toBe(`msg${i}`);
         rerenderRef.current.setMessagesByRequestId({
-          ["req-1"]: JSON.stringify({ ...sent, timestamp: Date.now() }),
+          "req-1": JSON.stringify({ ...sent, timestamp: Date.now() }),
         });
       }
     }
@@ -409,7 +414,7 @@ describe("LiveChat", () => {
         // eslint-disable-next-line
         expect(sent.message).toBe(`msg${i}`);
         rerenderRef.current.setMessagesByRequestId({
-          ["req-1"]: JSON.stringify({ ...sent, timestamp: Date.now() }),
+          "req-1": JSON.stringify({ ...sent, timestamp: Date.now() }),
         });
       }
     }

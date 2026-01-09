@@ -1,9 +1,9 @@
-import React from "react";
+import { useState, useEffect } from "react";
 const useDynamicScript = (args) => {
-  const [ready, setReady] = React.useState(false);
-  const [failed, setFailed] = React.useState(false);
+  const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!args.url) {
       return;
     }
