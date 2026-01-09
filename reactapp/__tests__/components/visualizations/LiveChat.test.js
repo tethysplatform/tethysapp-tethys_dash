@@ -61,6 +61,56 @@ describe("LiveChat", () => {
     expect(screen.getByLabelText("Change Username")).toBeInTheDocument();
   });
 
+  it("renders chat history with a new line in a message", () => {
+    render(
+      <AppContext.Provider value={mockAppContext}>
+        <WebsocketContext.Provider value={mockWebsocketContext}>
+          <LiveChat
+            requestId="req-1"
+            chatHistory={[
+              {
+                message: "Hello \nworld!",
+                sessionId: "session-1",
+                sender: "Alice",
+                timestamp: Date.now(),
+                messageId: "msg-1",
+                edited: false,
+              },
+            ]}
+          />
+        </WebsocketContext.Provider>
+      </AppContext.Provider>
+    );
+
+    const div = screen.getByText(
+      (content, element) =>
+        element.tagName.toLowerCase() === "div" &&
+        element.textContent === "Hello world!"
+    );
+    expect(div.querySelector("br")).toBeInTheDocument();
+    expect(screen.getByLabelText("Change Username")).toBeInTheDocument();
+  });
+
+  it("set username if no cache", async () => {
+    render(
+      <AppContext.Provider value={{ user: { username: "" } }}>
+        <WebsocketContext.Provider value={mockWebsocketContext}>
+          <LiveChat requestId="req-1" chatHistory={chatHistory} />
+        </WebsocketContext.Provider>
+      </AppContext.Provider>
+    );
+
+    expect(await screen.findByLabelText("Set Username")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Change Username")).not.toBeInTheDocument();
+    const input = screen.getByPlaceholderText(/enter your username/i);
+
+    fireEvent.change(input, { target: { value: "NewUser" } });
+    fireEvent.click(screen.getByLabelText("Set Username"));
+    expect(window.localStorage.getItem("livechat_username_req-1")).toBe(
+      "NewUser"
+    );
+  });
+
   it("allows custom username change", () => {
     renderWithContexts();
     fireEvent.click(screen.getByLabelText("Change Username"));
@@ -94,14 +144,57 @@ describe("LiveChat", () => {
   });
 
   it("sends a message", async () => {
-    renderWithContexts();
+    function TestWrapper({ rerenderRef, ...props }) {
+      const [messagesByRequestId, setMessagesByRequestId] = useState({});
+      useImperativeHandle(rerenderRef, () => ({ setMessagesByRequestId }), [
+        setMessagesByRequestId,
+      ]);
+      const customWebsocketContext = {
+        ...mockWebsocketContext,
+        messagesByRequestId,
+      };
+      return (
+        <AppContext.Provider value={mockAppContext}>
+          <WebsocketContext.Provider value={customWebsocketContext}>
+            <LiveChat requestId="req-1" chatHistory={chatHistory} {...props} />
+          </WebsocketContext.Provider>
+        </AppContext.Provider>
+      );
+    }
+    const rerenderRef = createRef();
+    render(<TestWrapper rerenderRef={rerenderRef} />);
+
     const textarea = screen.getByPlaceholderText(/type a message/i);
     fireEvent.change(textarea, { target: { value: "Test message" } });
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
-    await waitFor(() => expect(mockSendMessage).toHaveBeenCalled());
+    expect(mockSendMessage).toHaveBeenCalled();
     const sent = JSON.parse(mockSendMessage.mock.calls[0][0]);
     expect(sent.message).toBe("Test message");
     expect(sent.sender).toBe("TestUser");
+
+    rerenderRef.current.setMessagesByRequestId({
+      "req-1": JSON.stringify({ ...sent, timestamp: Date.now() }),
+    });
+    expect(await screen.findByLabelText("Edit message")).toBeInTheDocument();
+
+    // send a duplicate message to get an error message
+    fireEvent.change(textarea, { target: { value: "Test message" } });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    expect(textarea.value).toBe("Test message");
+    expect(
+      screen.getByText(
+        "Duplicate message detected. Please send a different message."
+      )
+    ).toBeInTheDocument();
+  });
+
+  it("empty message disables button", async () => {
+    renderWithContexts();
+    const textarea = screen.getByPlaceholderText(/type a message/i);
+    fireEvent.change(textarea, { target: { value: "" } });
+    const sendButton = screen.getByRole("button", { name: /send/i });
+    expect(sendButton).toBeDisabled();
   });
 
   it("adds a new line with Shift+Enter in message textarea", async () => {
@@ -282,18 +375,52 @@ describe("LiveChat", () => {
     expect(
       screen.getByText(/sending messages too quickly/i)
     ).toBeInTheDocument();
-    const sendBtn = screen.getByLabelText("Send");
+    let sendBtn = screen.getByLabelText("Send");
     expect(sendBtn).toBeDisabled();
+
+    expect(
+      screen.getByText(/please wait 10 seconds before/i)
+    ).toBeInTheDocument();
+
+    // Fast-forward timer
+    act(() => {
+      jest.advanceTimersByTime(9000); // triggers the countdown decrement and reset
+    });
+
+    expect(
+      screen.getByText(/please wait 1 second before/i)
+    ).toBeInTheDocument();
 
     // Fast-forward timer to trigger countdown reset
     act(() => {
-      jest.advanceTimersByTime(10000); // triggers the countdown decrement and reset
+      jest.advanceTimersByTime(1000); // triggers the countdown decrement and reset
     });
 
     // Wait for the send button to be enabled again
-    await waitFor(() => {
-      expect(screen.getByLabelText("Send")).toBeEnabled();
-    });
+    expect(await screen.findByLabelText("Send")).toBeEnabled();
+
+    for (let i = 0; i < 6; i++) {
+      const sendBtn = await screen.findByLabelText("Send");
+      fireEvent.change(textarea, { target: { value: `msg${i}` } });
+      fireEvent.click(sendBtn);
+      if (i < 5) {
+        // Simulate message acknowledgment by updating messagesByRequestId
+        const sent = JSON.parse(mockSendMessage.mock.calls[i][0]);
+        // eslint-disable-next-line
+        expect(sent.message).toBe(`msg${i}`);
+        rerenderRef.current.setMessagesByRequestId({
+          ["req-1"]: JSON.stringify({ ...sent, timestamp: Date.now() }),
+        });
+      }
+    }
+
+    // After the 6th send, do NOT rerender, so rateLimited state persists
+    expect(
+      screen.getByText(/sending messages too quickly/i)
+    ).toBeInTheDocument();
+    sendBtn = screen.getByLabelText("Send");
+    expect(sendBtn).toBeDisabled();
+
     jest.useRealTimers();
   });
 

@@ -573,6 +573,68 @@ test("getVisualization variable input", async () => {
   });
 });
 
+test("getVisualization Live Chat", async () => {
+  const date = Date.now();
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: {
+              chatHistory: [
+                {
+                  message: "Hello world!",
+                  sessionId: "session-1",
+                  sender: "Alice",
+                  timestamp: date,
+                  messageId: "msg-1",
+                  edited: false,
+                },
+              ],
+              requestId: "some-request-id",
+            },
+            viz_type: "Live Chat",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "Live Chat",
+    itemData: { requestId: "some-request-id" },
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("liveChat");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    chatHistory: [
+      {
+        message: "Hello world!",
+        sessionId: "session-1",
+        sender: "Alice",
+        timestamp: date,
+        messageId: "msg-1",
+        edited: false,
+      },
+    ],
+    requestId: "some-request-id",
+  });
+});
+
 test("getGridItem", async () => {
   const gridItems = [
     { i: 1, data: "1" },

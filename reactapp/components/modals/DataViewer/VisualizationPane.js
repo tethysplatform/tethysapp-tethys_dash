@@ -169,8 +169,6 @@ function VisualizationPane({
   const currentSelectedVizTypeOption = useRef(selectedVizTypeOption);
   // Ref to track if we've already previewed for this source with empty args
   const loadedEmptyArgsForSource = useRef({});
-  // Ref to track the latest visualization request (prevents race conditions)
-  const vizRequestId = useRef(0);
 
   const defaultVisualizationOptions = visualizations.find((obj) => {
     return obj.label === "Default";
@@ -188,7 +186,6 @@ function VisualizationPane({
       setSettings({});
       // Reset the loadedEmptyArgsForSource ref when visualization type changes
       loadedEmptyArgsForSource.current = {};
-      vizRequestId.current += 1; // increment request id on type change
       let updatedVizArguments = [];
       const updatedVizInputsValues = {};
       for (let arg in selectedVizTypeOption.args) {
@@ -290,12 +287,12 @@ function VisualizationPane({
         Object.values(vizInputsValues).every((v) => v === undefined);
       const source = selectedVizTypeOption["source"];
       const alreadyLoadedEmptyArgs = loadedEmptyArgsForSource.current[source];
-      if (allFilled || (isEmptyArgs && !alreadyLoadedEmptyArgs)) {
-        if (isEmptyArgs) {
+      if (allFilled) {
+        if (isEmptyArgs && !alreadyLoadedEmptyArgs) {
           loadedEmptyArgsForSource.current[source] = true;
         }
         // Pass the current request id to previewVisualization
-        previewVisualization(vizRequestId.current);
+        previewVisualization();
       } else {
         setVizType("unknown");
         setVizData({});
@@ -304,7 +301,7 @@ function VisualizationPane({
     }
   }
 
-  async function previewVisualization(requestIdCheck) {
+  async function previewVisualization() {
     const itemData = {
       source: selectedVizTypeOption["source"],
       args: Object.fromEntries(
@@ -316,8 +313,6 @@ function VisualizationPane({
     };
     const sourceType = selectedVizTypeOption.type;
 
-    // Only update state if this is the latest request
-    if (requestIdCheck !== vizRequestId.current) return;
     setVizMetadata(itemData);
     setGridItemMessage(
       "Cell updated to show " + selectedVizTypeOption["label"]

@@ -174,7 +174,7 @@ function getOrCreateSessionId(sessionIdKey) {
   return sid;
 }
 
-function getOrCreateUsername(usernameKey, fallbackUsername = "") {
+function getOrCreateUsername(usernameKey, fallbackUsername) {
   let cached = "";
   try {
     cached = window.localStorage.getItem(usernameKey) || "";
@@ -219,7 +219,6 @@ export const ChatMessage = ({
   };
 
   const handleEditSave = async () => {
-    if (!editInput.trim()) return;
     setUpdating(true);
     setUpdateError("");
     const editObj = {
@@ -328,7 +327,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
     errorMessagesByRequestId,
   } = useContext(WebsocketContext);
   const { user } = useContext(AppContext);
-  const usernameKey = `livechat_username_${requestId || "default"}`;
+  const usernameKey = `livechat_username_${requestId}`;
   // Initialize customUsername from localStorage if available, else from user.username
   const [customUsername, setCustomUsername] = useState(() =>
     getOrCreateUsername(usernameKey, user.username)
@@ -338,7 +337,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
   );
   const [input, setInput] = useState("");
   const messageInputRef = useRef(null);
-  const [chatLog, setChatLog] = useState(chatHistory || []);
+  const [chatLog, setChatLog] = useState(chatHistory);
   const chatLogRef = useRef(null);
   const [rateLimited, setRateLimited] = useState(false);
   const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
@@ -347,12 +346,11 @@ const LiveChat = ({ requestId, chatHistory }) => {
   const [sendError, setSendError] = useState("");
   const [pendingMessageId, setPendingMessageId] = useState(null);
 
-  const sessionIdKey = `livechat_sessionid_${requestId || "default"}`;
+  const sessionIdKey = `livechat_sessionid_${requestId}`;
   const sessionId = getOrCreateSessionId(sessionIdKey);
 
   // Listen for new successful messages for this requestId
   useEffect(() => {
-    if (!requestId) return;
     const messageData = messagesByRequestId[requestId];
     if (messageData) {
       try {
@@ -387,16 +385,6 @@ const LiveChat = ({ requestId, chatHistory }) => {
                 : msg
             );
           }
-
-          // Otherwise, add as a new message (with sender update logic)
-          const last = prev[prev.length - 1];
-          const isDuplicate =
-            last &&
-            last.sender === parsed.sender &&
-            last.message === parsed.message &&
-            last.sessionId === parsed.sessionId &&
-            last.messageId === parsed.messageId;
-          if (isDuplicate) return prev;
 
           let needsUpdate = false;
           for (const msg of prev) {
@@ -436,8 +424,6 @@ const LiveChat = ({ requestId, chatHistory }) => {
 
   // Listen for error messages for this requestId
   useEffect(() => {
-    if (!requestId) return;
-    if (!errorMessagesByRequestId) return;
     const errorData = errorMessagesByRequestId[requestId];
     if (errorData) {
       try {
@@ -460,7 +446,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
   // Scroll to bottom on chatLog update, or on initial load if chatHistory exists
   useEffect(() => {
     const el = chatLogRef.current;
-    if (!el) return;
+
     // If this is the initial load and chatHistory exists, always scroll to bottom
     if (
       chatHistory &&
@@ -482,7 +468,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
   const handleSend = async (e) => {
     e.preventDefault();
     setSendError("");
-    if (rateLimited || sending) return;
+
     if (editingUsername) {
       if (!input.trim()) return;
       setCustomUsername(input.trim());
@@ -495,7 +481,19 @@ const LiveChat = ({ requestId, chatHistory }) => {
       setInput("");
       return;
     }
-    if (!input.trim() || !websocketReady) return;
+
+    // Prevent sending duplicate message (same sender, message, sessionId as latest message from this user)
+    const latestUserMsg = [...chatLog]
+      .reverse()
+      .find(
+        (msg) => msg.sender === customUsername && msg.sessionId === sessionId
+      );
+    if (latestUserMsg && latestUserMsg.message === input) {
+      setSendError(
+        "Duplicate message detected. Please send a different message."
+      );
+      return;
+    }
 
     // Rate limiting logic (client-side, matches server: 5 messages per 10s)
     const now = Date.now();

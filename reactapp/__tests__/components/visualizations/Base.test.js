@@ -18,6 +18,7 @@ import {
   mockedUnknownBase,
   userDashboard,
   mockedMapBase,
+  mockedLiveChatBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization, {
   toLocalISO,
@@ -30,6 +31,10 @@ import { Map } from "ol";
 import * as utilities from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
+
+jest.mock("uuid", () => ({
+  v4: () => 12345678,
+}));
 
 jest.mock("components/visualizations/ModuleLoader", () => {
   const MockModuleLoader = () => <div>ModuleLoader Mock</div>;
@@ -308,6 +313,58 @@ it("Creates an Base Item with a Map", async () => {
   expect(
     await screen.findByLabelText("Show Layers Control")
   ).toBeInTheDocument();
+});
+
+it("Creates an Base Item with a Live Chat", async () => {
+  const date = Date.now();
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: {
+              chatHistory: [
+                {
+                  message: "Hello world!",
+                  sessionId: "session-1",
+                  sender: "Alice",
+                  timestamp: date,
+                  messageId: "msg-1",
+                  edited: false,
+                },
+              ],
+              requestId: "some-request-id",
+            },
+            viz_type: "Live Chat",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+
+  render(
+    createLoadedComponent({
+      children: (
+        <div>
+          <BaseVisualization
+            source={mockedLiveChatBase.source}
+            argsString={mockedLiveChatBase.args_string}
+            metadataString={mockedLiveChatBase.metadata_string}
+            uuid={"12345678"}
+            shouldLoad={true}
+          />
+        </div>
+      ),
+    })
+  );
+
+  expect(await screen.findByLabelText("Change Username")).toBeInTheDocument();
+  expect(await screen.findByText("Hello world!")).toBeInTheDocument();
+  expect(await screen.findByText("Alice")).toBeInTheDocument();
 });
 
 it("Creates an Base Item with a variable input text box", async () => {

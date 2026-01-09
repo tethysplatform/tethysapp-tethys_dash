@@ -504,7 +504,7 @@ test("Visualization Pane Other Type", async () => {
   expect(mockSetVizData).toHaveBeenCalledWith({
     warnings: ["some_type visualizations still need to be configured"],
   });
-}, 30000);
+});
 
 test("Visualization Pane Other Type Checkbox", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
@@ -637,6 +637,113 @@ test("Visualization Pane Other Type Checkbox", async () => {
       plugin_arg: false,
     })
   );
+});
+
+test("Visualization Pane Viz With Empty Args", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+  const mockSetShowingSubModal = jest.fn();
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            data: { text: "some text" },
+            viz_type: "some_type",
+          }),
+          ctx.set("Content-Type", "application/json")
+        );
+      }
+    )
+  );
+  const mockedVisualizations = [
+    {
+      label: "Visualization Group",
+      options: [
+        {
+          source: "plugin_source",
+          value: "plugin_value",
+          label: "plugin_label",
+          args: {},
+          type: "some type",
+          tags: [],
+          description: "",
+          loading_icon: true,
+        },
+      ],
+    },
+  ];
+
+  const loadedComponent = createLoadedComponent({
+    children: (
+      <TestingComponent
+        layoutContext={mockedDashboard}
+        source={gridItem.source}
+        argsString={gridItem.args_string}
+        setGridItemMessage={mockSetGridItemMessage}
+        vizType={"loader"}
+        setVizType={mockSetVizType}
+        setVizData={mockSetVizData}
+        setVizMetadata={mockSetVizMetadata}
+        setShowingSubModal={mockSetShowingSubModal}
+      />
+    ),
+    options: {
+      inDataViewerMode: true,
+      visualizations: mockedVisualizations,
+    },
+  });
+  const { rerender } = render(loadedComponent);
+
+  expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
+  expect(mockSetVizType).toHaveBeenCalledTimes(0);
+  expect(mockSetVizData).toHaveBeenCalledTimes(0);
+
+  const visualizationTypeSelect = await screen.findByLabelText(
+    "Search Visualization Type Button"
+  );
+  await userEvent.click(visualizationTypeSelect);
+  const groupOption = await screen.findByText("Visualization Group");
+  fireEvent.click(groupOption);
+
+  const visualizationOption = await screen.findByLabelText(
+    "plugin_label Visualization Card"
+  );
+  fireEvent.click(visualizationOption);
+
+  const pluginLabelOption = await screen.findByText("plugin_label");
+  fireEvent.click(pluginLabelOption);
+
+  expect(mockSetVizType).toHaveBeenLastCalledWith("loader");
+  expect(mockSetVizData).toHaveBeenLastCalledWith({});
+
+  expect(mockSetVizMetadata).toHaveBeenLastCalledWith({
+    source: "plugin_source",
+    args: {},
+    requestId: 12345678,
+  });
+  expect(mockSetVizMetadata).toHaveBeenCalledTimes(2);
+  expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
+    "Cell updated to show plugin_label"
+  );
+  expect(mockSetVizType).toHaveBeenLastCalledWith("loader");
+  expect(mockSetVizData).toHaveBeenLastCalledWith({});
+  expect(mockSetVizType).toHaveBeenCalledTimes(2);
+  expect(mockSetVizData).toHaveBeenCalledTimes(1);
+
+  rerender(loadedComponent);
+
+  expect(mockSetVizMetadata).toHaveBeenCalledTimes(2);
+  expect(mockSetGridItemMessage).toHaveBeenCalledTimes(1);
+  expect(mockSetVizType).toHaveBeenCalledTimes(2);
+  expect(mockSetVizData).toHaveBeenCalledTimes(1);
 });
 
 test("Visualization Pane Use Existing Bad Type", async () => {

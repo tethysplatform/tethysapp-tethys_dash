@@ -129,6 +129,95 @@ describe("WebsocketProvider", () => {
     expect(contextValue.getMessageForRequest("nonexistent")).toBeUndefined();
   });
 
+  it("doesnt store and retrieve messages if not requestId", async () => {
+    let contextValue;
+    const TestConsumer = () => {
+      contextValue = React.useContext(WebsocketContext);
+      return <div>test</div>;
+    };
+
+    render(
+      <WebsocketProvider>
+        <TestConsumer />
+      </WebsocketProvider>
+    );
+
+    act(() => {
+      MockWebSocket.instances[0].triggerOpen();
+    });
+
+    // Simulate a message
+    const msg = JSON.stringify({ message: "hello" });
+    act(() => {
+      MockWebSocket.instances[0].triggerMessage(msg);
+    });
+
+    // getMessageForRequest for requestId that doesn't exist
+    expect(contextValue.messagesByRequestId).toEqual({});
+  });
+
+  it("doesnt store and retrieve messages if missing message or error", async () => {
+    let contextValue;
+    const TestConsumer = () => {
+      contextValue = React.useContext(WebsocketContext);
+      return <div>test</div>;
+    };
+
+    render(
+      <WebsocketProvider>
+        <TestConsumer />
+      </WebsocketProvider>
+    );
+
+    act(() => {
+      MockWebSocket.instances[0].triggerOpen();
+    });
+
+    // Simulate a message
+    const msg = JSON.stringify({ requestId: "abc" });
+    act(() => {
+      MockWebSocket.instances[0].triggerMessage(msg);
+    });
+
+    expect(contextValue.messagesByRequestId).toEqual({});
+    expect(contextValue.errorMessagesByRequestId).toEqual({});
+  });
+
+  it("stores and retrieves error messages by requestId", async () => {
+    let contextValue;
+    const TestConsumer = () => {
+      contextValue = React.useContext(WebsocketContext);
+      return <div>test</div>;
+    };
+
+    render(
+      <WebsocketProvider>
+        <TestConsumer />
+      </WebsocketProvider>
+    );
+
+    act(() => {
+      MockWebSocket.instances[0].triggerOpen();
+    });
+
+    // Simulate a message
+    const msg = JSON.stringify({ requestId: "abc", error: "Test Error" });
+    act(() => {
+      MockWebSocket.instances[0].triggerMessage(msg);
+    });
+
+    await waitFor(() => {
+      expect(contextValue.errorMessagesByRequestId["abc"]).toBe(msg);
+    });
+    // getErrorMessageForRequest returns the message
+    expect(contextValue.getErrorMessageForRequest("abc")).toBe(msg);
+
+    // getMessageForRequest for requestId that doesn't exist
+    expect(
+      contextValue.getErrorMessageForRequest("nonexistent")
+    ).toBeUndefined();
+  });
+
   it("sendMessage calls ws.send", async () => {
     let contextValue;
     const TestConsumer = () => {
@@ -189,5 +278,66 @@ describe("WebsocketProvider", () => {
       MockWebSocket.instances[0].triggerMessage(missingIdMsg);
     });
     expect(contextValue.getMessageForRequest("notfound")).toBeUndefined();
+  });
+
+  it("getErrorMessageForRequest returns undefined for missing or invalid messages", async () => {
+    let contextValue;
+    const TestConsumer = () => {
+      contextValue = React.useContext(WebsocketContext);
+      return <div>test</div>;
+    };
+
+    render(
+      <WebsocketProvider>
+        <TestConsumer />
+      </WebsocketProvider>
+    );
+
+    act(() => {
+      MockWebSocket.instances[0].triggerOpen();
+    });
+    // No message for id
+    expect(contextValue.getErrorMessageForRequest("notfound")).toBeUndefined();
+
+    // Invalid JSON
+    act(() => {
+      MockWebSocket.instances[0].triggerMessage("notjson");
+    });
+    expect(contextValue.getErrorMessageForRequest("notfound")).toBeUndefined();
+
+    // Message with wrong requestId
+    const wrongIdMsg = JSON.stringify({ requestId: "other", error: "hi" });
+    act(() => {
+      MockWebSocket.instances[0].triggerMessage(wrongIdMsg);
+    });
+    expect(contextValue.getErrorMessageForRequest("notfound")).toBeUndefined();
+
+    // Message missing requestId
+    const missingIdMsg = JSON.stringify({ error: "hi" });
+    act(() => {
+      MockWebSocket.instances[0].triggerMessage(missingIdMsg);
+    });
+    expect(contextValue.getErrorMessageForRequest("notfound")).toBeUndefined();
+  });
+
+  it("webSocketUrl not defined", async () => {
+    delete process.env.REDIS_WS_URL;
+    let contextValue;
+    const TestConsumer = () => {
+      contextValue = React.useContext(WebsocketContext);
+      return <div>test</div>;
+    };
+
+    render(
+      <WebsocketProvider>
+        <TestConsumer />
+      </WebsocketProvider>
+    );
+
+    expect(MockWebSocket.instances.length).toBe(0);
+
+    expect(contextValue.sendMessage()).toEqual(undefined);
+    expect(contextValue.messagesByRequestId).toEqual({});
+    expect(contextValue.errorMessagesByRequestId).toEqual({});
   });
 });

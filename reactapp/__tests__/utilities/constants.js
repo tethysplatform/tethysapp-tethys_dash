@@ -720,6 +720,21 @@ export const mockedCardData = {
   title: "Company Statistics",
 };
 
+export const mockedLiveChatBase = {
+  i: "1",
+  id: 1,
+  uuid: "some-uuid-1",
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Live Chat",
+  args_string: JSON.stringify({}),
+  metadata_string: JSON.stringify({
+    refreshRate: 0,
+  }),
+};
+
 export const mockedMapBase = {
   i: "1",
   id: 1,

@@ -91,9 +91,7 @@ const WebsocketProvider = ({ children }) => {
   const onSend = useCallback(
     (data) => {
       if (!hasWebSocketUrl) return;
-      if (ws.current && websocketReady) {
-        ws.current.send(data);
-      }
+      ws.current.send(data);
     },
     [websocketReady]
   );
