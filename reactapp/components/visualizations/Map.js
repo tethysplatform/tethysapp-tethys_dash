@@ -108,6 +108,7 @@ const Popup = ({ layerAttributes }) => (
     navigation={{ nextEl: ".custom-next", prevEl: ".custom-prev" }}
     pagination={{ el: ".custom-pagination", type: "fraction" }}
     className="mySwiper"
+    simulateTouch={false}
   >
     {layerAttributes.map((selectedFeature, index) => (
       <MarginSwiperSlide key={index}>
@@ -128,12 +129,33 @@ const Popup = ({ layerAttributes }) => (
                 </tr>
               </thead>
               <tbody>
-                {Object.keys(selectedFeature.attributes).map((field) => (
-                  <tr key={field}>
-                    <OverflowTD>{field}</OverflowTD>
-                    <OverflowTD>{selectedFeature.attributes[field]}</OverflowTD>
-                  </tr>
-                ))}
+                {Object.keys(selectedFeature.attributes).map((field) => {
+                  const value = selectedFeature.attributes[field];
+                  // Simple URL regex: matches http(s)://, ftp://, or www.
+                  const urlRegex =
+                    /^(https?:\/\/|ftp:\/\/|www\.)[\w\-]+(\.[\w\-]+)+([\w\-.,@?^=%&:/~+#]*[\w\-@?^=%&/~+#])?/i;
+                  let renderedValue;
+                  if (typeof value === "string" && urlRegex.test(value)) {
+                    // Ensure protocol for www. links
+                    const href =
+                      value.startsWith("http") || value.startsWith("ftp")
+                        ? value
+                        : `https://${value}`;
+                    renderedValue = (
+                      <a href={href} target="_blank" rel="noopener noreferrer">
+                        {value}
+                      </a>
+                    );
+                  } else {
+                    renderedValue = value;
+                  }
+                  return (
+                    <tr key={field}>
+                      <OverflowTD>{field}</OverflowTD>
+                      <OverflowTD>{renderedValue}</OverflowTD>
+                    </tr>
+                  );
+                })}
               </tbody>
             </FixedTable>
           </div>
