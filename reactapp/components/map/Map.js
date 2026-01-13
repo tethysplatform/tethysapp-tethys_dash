@@ -1,6 +1,8 @@
 import { memo, useEffect, useState, useRef, useContext } from "react";
 import { Map, View } from "ol";
-import moduleLoader from "components/map/ModuleLoader";
+import moduleLoader, {
+  createJsonStyleFunction,
+} from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
 import LegendControl from "components/map/LegendControl";
 import DrawInteractions from "components/map/DrawInteractions";
@@ -234,7 +236,10 @@ const MapComponent = ({
               try {
                 await applyStyle(newLayer, layerConfig.style, name);
               } catch (err) {
-                console.log(err);
+                const styleFunction = createJsonStyleFunction(
+                  layerConfig.style
+                );
+                newLayer.setStyle(styleFunction);
               }
             }
           } catch (err) {

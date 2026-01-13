@@ -5,6 +5,14 @@ import GeoJSON from "ol/format/GeoJSON.js";
 import EsriJSON from "ol/format/EsriJSON";
 import { tile as tileStrategy } from "ol/loadingstrategy.js";
 import { createXYZ } from "ol/tilegrid.js";
+import {
+  Style,
+  Circle as CircleStyle,
+  RegularShape,
+  Icon,
+  Fill,
+  Stroke,
+} from "ol/style";
 
 const moduleCache = {};
 
@@ -233,5 +241,209 @@ const loadESRIJSON = (config) => {
   });
   return vectorSource;
 };
+
+function getSizeFromData(value, sizeRanges = []) {
+  const val = parseFloat(value);
+  if (isNaN(val)) return 5; // default size
+
+  for (const range of sizeRanges) {
+    const min = range.min ?? -Infinity;
+    const max = range.max ?? Infinity;
+    if (val >= min && val < max) {
+      return range.size;
+    }
+  }
+
+  return 5; // fallback default
+}
+
+export function createJsonStyleFunction(styleJson) {
+  return function styleFunction(feature) {
+    const properties = feature.getProperties();
+
+    for (const rule of styleJson.rules || []) {
+      const conditions = rule.conditions || {};
+      const matches = Object.keys(conditions).every(
+        (key) => properties[key] === conditions[key]
+      );
+
+      if (!matches) continue;
+
+      // Determine size
+      let size = 5; // default
+      if (rule.size) {
+        if (typeof rule.size === "string" && properties[rule.size] != null) {
+          size = getSizeFromData(properties[rule.size], styleJson.sizeRanges);
+        } else {
+          size = rule.size;
+        }
+      }
+
+      const fill = new Fill({ color: rule.fill || "gray" });
+      const stroke = new Stroke({
+        color: rule.stroke || "black",
+        width: rule.strokeWidth || 1,
+      });
+
+      // Shape handling
+      switch (rule.shape) {
+        case "circle":
+          return new Style({
+            image: new CircleStyle({ radius: size, fill, stroke }),
+          });
+
+        case "square":
+          return new Style({
+            image: new RegularShape({
+              fill: fill,
+              stroke: stroke,
+              points: 4,
+              radius: size,
+              angle: Math.PI / 4,
+            }),
+          });
+
+        case "rectangle":
+          return new Style({
+            image: new RegularShape({
+              fill: fill,
+              stroke: stroke,
+              radius: 10 / Math.SQRT2,
+              radius2: 10,
+              points: 4,
+              angle: 0,
+              scale: [1, 0.5],
+            }),
+          });
+
+        case "triangle":
+          return new Style({
+            image: new RegularShape({
+              points: 3,
+              radius: size,
+              fill,
+              stroke,
+              rotation: 0,
+            }),
+          });
+
+        case "star":
+          return new Style({
+            image: new RegularShape({
+              points: 5,
+              radius: size,
+              radius2: size / 2,
+              fill,
+              stroke,
+            }),
+          });
+
+        case "diamond":
+          return new Style({
+            image: new Icon({
+              anchor: [0.5, 0.5],
+              img: (() => {
+                const canvas = document.createElement("canvas");
+                const ctx = canvas.getContext("2d");
+                const s = size * 2;
+                canvas.width = s;
+                canvas.height = s;
+                ctx.translate(s / 2, s / 2);
+
+                const horizontalScale = 0.6; // makes diamond more pointy
+
+                ctx.fillStyle = fill.getColor();
+                ctx.strokeStyle = stroke.getColor();
+                ctx.lineWidth = stroke.getWidth();
+
+                // Top triangle
+                ctx.beginPath();
+                ctx.moveTo(0, -size); // top vertex
+                ctx.lineTo(size * horizontalScale, 0); // right vertex
+                ctx.lineTo(-size * horizontalScale, 0); // left vertex
+                ctx.closePath();
+                ctx.fill();
+                // Stroke only left and right edges
+                ctx.beginPath();
+                ctx.moveTo(0, -size);
+                ctx.lineTo(size * horizontalScale, 0);
+                ctx.moveTo(0, -size);
+                ctx.lineTo(-size * horizontalScale, 0);
+                ctx.stroke();
+
+                // Bottom triangle
+                ctx.beginPath();
+                ctx.moveTo(0, size); // bottom vertex
+                ctx.lineTo(size * horizontalScale, 0); // right vertex
+                ctx.lineTo(-size * horizontalScale, 0); // left vertex
+                ctx.closePath();
+                ctx.fill();
+                // Stroke only left and right edges
+                ctx.beginPath();
+                ctx.moveTo(0, size);
+                ctx.lineTo(size * horizontalScale, 0);
+                ctx.moveTo(0, size);
+                ctx.lineTo(-size * horizontalScale, 0);
+                ctx.stroke();
+
+                return canvas;
+              })(),
+              imgSize: [size * 2, size * 2],
+            }),
+          });
+
+        case "cross":
+          return new Style({
+            image: new RegularShape({
+              fill: fill,
+              stroke: stroke,
+              points: 4,
+              radius: size,
+              radius2: 0,
+              angle: 0,
+            }),
+          });
+
+        case "x":
+          return new Style({
+            image: new RegularShape({
+              fill: fill,
+              stroke: stroke,
+              points: 4,
+              radius: size,
+              radius2: 0,
+              angle: Math.PI / 4,
+            }),
+          });
+
+        case "icon":
+          if (rule.iconUrl) {
+            return new Style({
+              image: new Icon({
+                src: rule.iconUrl,
+                scale: size / 10, // adjust icon scale if needed
+              }),
+            });
+          }
+          break;
+
+        default:
+          // fallback to circle
+          return new Style({
+            image: new CircleStyle({ radius: size, fill, stroke }),
+          });
+      }
+    }
+
+    // default style if no rules match
+    return new Style({
+      image: new CircleStyle({
+        radius: 5,
+        fill: new Fill({ color: "gray" }),
+        stroke: new Stroke({ color: "black", width: 1 }),
+      }),
+    });
+  };
+}
 
 export default moduleLoader;
