@@ -2,6 +2,120 @@ import { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import { FaLayerGroup, FaTimes } from "react-icons/fa"; // Import icons
+import Icon from "ol/style/Icon";
+import Style from "ol/style/Style";
+
+// Helper to extract icon URL from a layer's style
+function getLayerIconUrl(layer) {
+  // Try to get the style (could be a function or a Style object)
+  const style = layer.getStyle && layer.getStyle();
+  if (layer.get("name") === "Wind") {
+    console.log("Layer style:", style);
+  }
+  if (!style) return null;
+
+  // If it's a function, try calling with a dummy feature
+  if (typeof style === "function") {
+    // Try to get a sample feature from the layer's source
+    let feature = null;
+    if (layer.getSource && layer.getSource()) {
+      const features =
+        layer.getSource().getFeatures && layer.getSource().getFeatures();
+      if (features && features.length > 0) {
+        feature = features[0];
+      }
+    }
+    // If no real feature, create a dummy one
+    if (!feature && window.ol && window.ol.Feature) {
+      feature = new window.ol.Feature();
+    }
+    let styleObj = null;
+    try {
+      styleObj = style(feature);
+    } catch (e) {
+      // ignore errors from dummy feature
+    }
+    if (styleObj instanceof Style) {
+      const image = styleObj.getImage && styleObj.getImage();
+      if (image instanceof Icon) {
+        return image.getSrc();
+      } else {
+        // If getImage() returns a canvas, crop and scale it to a 20x20 preview
+        try {
+          const origCanvas = image.getImage();
+          if (origCanvas instanceof HTMLCanvasElement) {
+            // Find the bounding box of non-transparent pixels
+            const ctx = origCanvas.getContext("2d");
+            const w = origCanvas.width;
+            const h = origCanvas.height;
+            const imgData = ctx.getImageData(0, 0, w, h);
+            let minX = w,
+              minY = h,
+              maxX = 0,
+              maxY = 0,
+              found = false;
+            for (let y = 0; y < h; y++) {
+              for (let x = 0; x < w; x++) {
+                const alpha = imgData.data[(y * w + x) * 4 + 3];
+                if (alpha > 0) {
+                  found = true;
+                  if (x < minX) minX = x;
+                  if (x > maxX) maxX = x;
+                  if (y < minY) minY = y;
+                  if (y > maxY) maxY = y;
+                }
+              }
+            }
+            if (!found) return null;
+
+            const pad = 5;
+            const cropW = maxX - minX + 1 + pad * 2;
+            const cropH = maxY - minY + 1 + pad * 2;
+            const cropCanvas = document.createElement("canvas");
+            cropCanvas.width = 20;
+            cropCanvas.height = 20;
+            const cropCtx = cropCanvas.getContext("2d");
+            // Center and scale the symbol
+            const scale = Math.min(18 / cropW, 18 / cropH, 1);
+            const dx = (20 - cropW * scale) / 2;
+            const dy = (20 - cropH * scale) / 2;
+            cropCtx.save();
+            cropCtx.translate(dx, dy);
+            cropCtx.scale(scale, scale);
+            cropCtx.drawImage(
+              origCanvas,
+              minX - pad,
+              minY - pad,
+              cropW,
+              cropH,
+              0,
+              0,
+              cropW,
+              cropH
+            );
+            cropCtx.restore();
+            return cropCanvas.toDataURL();
+          } else {
+            return origCanvas && origCanvas.toDataURL
+              ? origCanvas.toDataURL()
+              : null;
+          }
+        } catch (e) {
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+  // If it's a Style object
+  if (style instanceof Style) {
+    const image = style.getImage && style.getImage();
+    if (image instanceof Icon) {
+      return image.getSrc();
+    }
+  }
+  return null;
+}
 
 const ControlWrapper = styled.div`
   position: absolute;
@@ -108,6 +222,8 @@ const LayersControl = ({ updater, visualizationRef }) => {
             >
               {layers.map((layer, index) => {
                 const layerName = layer.get("name") ?? `Layer ${index + 1}`;
+                // Try to get icon URL for this layer
+                const iconUrl = getLayerIconUrl(layer);
                 return (
                   <div
                     key={index}
@@ -127,6 +243,13 @@ const LayersControl = ({ updater, visualizationRef }) => {
                         style={{ marginRight: "8px" }}
                         aria-label={layerName + " Set Visible"}
                       />
+                      {iconUrl && (
+                        <img
+                          src={iconUrl}
+                          alt="layer symbol"
+                          style={{ width: 20, height: 20, marginRight: 6 }}
+                        />
+                      )}
                       <span>{layerName}</span>
                     </label>
                   </div>

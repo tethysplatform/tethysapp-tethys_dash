@@ -234,12 +234,17 @@ const MapComponent = ({
 
             if (layerConfig.style) {
               try {
-                await applyStyle(newLayer, layerConfig.style, name);
+                await applyStyle(newLayer, layerConfig.style);
               } catch (err) {
-                const styleFunction = createJsonStyleFunction(
-                  layerConfig.style
-                );
-                newLayer.setStyle(styleFunction);
+                if (
+                  err.message !==
+                  "Cannot read properties of undefined (reading 'crs')"
+                ) {
+                  const styleFunction = createJsonStyleFunction(
+                    layerConfig.style
+                  );
+                  newLayer.setStyle(styleFunction);
+                }
               }
             }
           } catch (err) {
