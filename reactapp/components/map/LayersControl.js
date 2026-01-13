@@ -9,9 +9,7 @@ import Style from "ol/style/Style";
 function getLayerIconUrl(layer) {
   // Try to get the style (could be a function or a Style object)
   const style = layer.getStyle && layer.getStyle();
-  if (layer.get("name") === "Wind") {
-    console.log("Layer style:", style);
-  }
+
   if (!style) return null;
 
   // If it's a function, try calling with a dummy feature
@@ -32,6 +30,9 @@ function getLayerIconUrl(layer) {
     let styleObj = null;
     try {
       styleObj = style(feature);
+      if (Array.isArray(styleObj)) {
+        styleObj = styleObj[0]; // this happens with ol-mapbox-style sometimes
+      }
     } catch (e) {
       // ignore errors from dummy feature
     }
