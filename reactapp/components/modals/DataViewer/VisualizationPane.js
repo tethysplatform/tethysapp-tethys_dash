@@ -62,9 +62,6 @@ export const VisualizationArguments = ({
           { label: "True", value: true },
           { label: "False", value: false },
         ];
-        value = value
-          ? { label: "True", value: true }
-          : { label: "False", value: false };
       }
 
       if (Array.isArray(vizArgType) && typeof value !== "object") {
