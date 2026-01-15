@@ -851,6 +851,9 @@ export async function saveLayerJSON({
   dashboard_uuid,
 }) {
   let parsedJSON;
+  if (stringJSON.startsWith('"') && stringJSON.endsWith('"')) {
+    stringJSON = stringJSON.slice(1, -1);
+  }
   // If it looks like a JSON string (starts with `{` or `[`), parse it directly
   const trimmed = stringJSON.trim();
   const looksLikeJson = trimmed.startsWith("{") || trimmed.startsWith("[");
@@ -871,6 +874,7 @@ export async function saveLayerJSON({
 
     parsedJSON = JSON5.parse(jsonText);
   } catch (err) {
+    console.log("Failed to parse JSON or fetch file:", err);
     return {
       success: false,
       message: "Invalid JSON or failed to fetch/parse the file.",
