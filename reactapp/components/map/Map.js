@@ -169,53 +169,21 @@ const MapComponent = ({
     setErrorMessage(null);
     const updateLayers = async () => {
       const map = visualizationRef.current;
+      if (!map) return;
+
+      // Remove all layers from the map
       const currentMapLayers = map.getLayers().getArray();
+      currentMapLayers.forEach((layer) => {
+        map.removeLayer(layer);
+      });
 
-      // Remove only layers not in the new config
-      const layersToRemove = [];
-      const layersToKeep = [];
-      if (currentLayers.current.length !== 0) {
-        (layers ?? []).forEach((layer) => {
-          const matchingLayer = currentLayers.current.find((currentLayer) =>
-            valuesEqual(layer.props, currentLayer.props)
-          );
-
-          if (matchingLayer) {
-            layersToKeep.push(layer.props.name);
-          }
-        });
-
-        currentLayers.current.forEach((currentLayer) => {
-          const isStillUsed = (layers ?? []).find((layer) =>
-            valuesEqual(layer.props, currentLayer.props)
-          );
-
-          if (!isStillUsed) {
-            layersToRemove.push(currentLayer.props.name);
-          }
-        });
-
-        // Remove layers from the map that are in layersToRemove
-        currentMapLayers.forEach((layer) => {
-          const layerName = layer.get("name");
-          if (layersToRemove.includes(layerName)) {
-            map.removeLayer(layer);
-          }
-        });
-      }
-
-      // setup constants for handling new layers
+      // Add all layers passed in
       const customLayers = layers ?? [];
       let failedLayers = [];
 
-      // Add or update layers in parallel
       await Promise.all(
         customLayers.map(async (layerConfig) => {
           const name = layerConfig.props?.name;
-          if (layersToKeep.includes(name)) {
-            return;
-          }
-
           try {
             const newLayer = await moduleLoader(
               layerConfig,

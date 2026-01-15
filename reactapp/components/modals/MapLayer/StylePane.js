@@ -1,10 +1,11 @@
 import PropTypes from "prop-types";
-import { useEffect, useState, memo, useContext } from "react";
+import { useEffect, useState, useRef, memo, useContext } from "react";
 import styled from "styled-components";
 import FileUpload from "components/inputs/FileUpload";
 import appAPI from "services/api/app";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
+import RuleStyleEditor from "components/inputs/RuleStyleEditor";
 import { LayoutContext } from "components/contexts/Contexts";
 
 const StyledTextInput = styled.textarea`
@@ -14,6 +15,8 @@ const StyledTextInput = styled.textarea`
 
 const StylePane = ({ style, setStyle, setErrorMessage }) => {
   const [styleSource, setStyleSource] = useState("custom"); // track the geojson value
+  const [styleMode, setStyleMode] = useState("json"); // "json" or "rules"
+  const [rules, setRules] = useState([]);
   const { uuid } = useContext(LayoutContext);
 
   useEffect(() => {
@@ -48,12 +51,53 @@ const StylePane = ({ style, setStyle, setErrorMessage }) => {
     // eslint-disable-next-line
   }, [style]);
 
+  // Only sync rules from style JSON when switching to rules mode
+  const lastStyleMode = useRef(styleMode);
+  useEffect(() => {
+    if (lastStyleMode.current !== styleMode && styleMode === "rules") {
+      try {
+        if (typeof style === "string" && style.trim().startsWith("{")) {
+          const parsed = JSON.parse(style);
+          setRules(Array.isArray(parsed.rules) ? parsed.rules : []);
+        }
+      } catch (e) {
+        setRules([]);
+      }
+    }
+    lastStyleMode.current = styleMode;
+  }, [styleMode, style]);
+
+  // Only update style JSON when rules change and in rules mode
+  const lastRules = useRef(rules);
+  useEffect(() => {
+    if (styleMode === "rules" && lastRules.current !== rules) {
+      setStyle(JSON.stringify({ rules }, null, 2));
+    }
+    lastRules.current = rules;
+  }, [rules, styleMode, setStyle]);
+
   function handleStyleJSONUpload({ fileContent }) {
     setStyle(fileContent);
+    if (styleMode === "rules") {
+      try {
+        const parsed = JSON.parse(fileContent);
+        setRules(Array.isArray(parsed.rules) ? parsed.rules : []);
+      } catch {
+        setRules([]);
+      }
+    }
   }
 
   function handleStyleJSONChange(e) {
     setStyle(e.target.value);
+    if (styleMode === "rules") {
+      try {
+        const parsed = JSON.parse(e.target.value);
+        setRules(Array.isArray(parsed.rules) ? parsed.rules : []);
+      } catch {
+        setRules([]);
+      }
+    }
   }
 
   function handleStyleSourceChange(e) {
@@ -80,16 +124,29 @@ const StylePane = ({ style, setStyle, setErrorMessage }) => {
       />
       {styleSource === "custom" ? (
         <>
+          <DataRadioSelect
+            label="Style Editor Mode"
+            selectedRadio={styleMode}
+            radioOptions={[
+              { value: "json", label: "JSON Editor" },
+              { value: "rules", label: "Rule-based Editor" },
+            ]}
+            onChange={(e) => setStyleMode(e.target.value)}
+          />
           <FileUpload
             label="Upload style file"
             onFileUpload={handleStyleJSONUpload}
             extensionsAllowed={["json"]}
           />
-          <StyledTextInput
-            value={style}
-            onChange={handleStyleJSONChange}
-            aria-label={"style-text-area"}
-          />
+          {styleMode === "json" ? (
+            <StyledTextInput
+              value={style}
+              onChange={handleStyleJSONChange}
+              aria-label={"style-text-area"}
+            />
+          ) : (
+            <RuleStyleEditor rules={rules} setRules={setRules} />
+          )}
         </>
       ) : (
         <NormalInput

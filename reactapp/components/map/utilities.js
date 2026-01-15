@@ -709,88 +709,90 @@ export async function loadLayerJSONs(
   dashboard_uuid,
   keep_urls = false
 ) {
-  if (
-    mapLayer?.configuration?.style &&
-    typeof mapLayer.configuration.style !== "object"
-  ) {
-    if (mapLayer.configuration.style.includes("/")) {
-      if (!keep_urls) {
-        const response = await fetch(mapLayer.configuration.style);
-        if (response.ok) {
-          const jsonText = await response.text();
-          const parsedJSON = JSON5.parse(jsonText);
-          mapLayer.configuration.style = parsedJSON;
-        } else {
-          delete mapLayer.configuration.style;
-          console.error(
-            `Failed to load the style for ${mapLayer.configuration.props.name} layer`
-          );
+  // Helper to load style JSON
+  async function loadStyle(style, layerName) {
+    if (typeof style !== "object") {
+      if (style.includes("/")) {
+        if (keep_urls) return style;
+        const response = await fetch(style);
+        if (!response.ok) {
+          console.error(`Failed to load the style for ${layerName} layer`);
+          return undefined;
         }
+        return JSON5.parse(await response.text());
+      } else {
+        const styleJSONResponse = await appAPI.downloadJSON({
+          filename: style,
+          dashboard_uuid,
+        });
+        if (!styleJSONResponse.success) {
+          console.error(`Failed to load the style for ${layerName} layer`);
+          return undefined;
+        }
+        return styleJSONResponse.data;
       }
+    }
+    return style;
+  }
+
+  // Helper to load GeoJSON
+  async function loadGeoJSON(geojson, layerConfig) {
+    if (typeof geojson === "object") return geojson;
+    if (geojson.includes("/")) {
+      if (keep_urls) return geojson;
+      const response = await fetch(geojson);
+      if (!response.ok)
+        return {
+          success: false,
+          message: `Failed to fetch: ${response.statusText}`,
+        };
+      geojson = JSON5.parse(await response.text());
     } else {
-      const styleJSONResponse = await appAPI.downloadJSON({
-        filename: mapLayer.configuration.style,
+      const geoJSONResponse = await appAPI.downloadJSON({
+        filename: geojson,
         dashboard_uuid,
       });
-      if (styleJSONResponse.success) {
-        mapLayer.configuration.style = styleJSONResponse.data;
-      } else {
-        delete mapLayer.configuration.style;
-        console.error(
-          `Failed to load the style for ${mapLayer.configuration.props.name} layer`
-        );
-      }
+      if (!geoJSONResponse.success) return geoJSONResponse;
+      geojson = geoJSONResponse.data;
+    }
+    const crs = checkForCRS(geojson);
+    if (!crs)
+      return {
+        success: false,
+        message:
+          "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson.",
+      };
+    geojson.crs = geojson.crs || {};
+    geojson.crs.properties = geojson.crs.properties || {};
+    geojson.crs.properties.name = crs;
+    return geojson;
+  }
+
+  // Load style if needed
+  if (mapLayer?.configuration?.style) {
+    const style = await loadStyle(
+      mapLayer.configuration.style,
+      mapLayer.configuration.props?.name
+    );
+    if (style !== undefined) {
+      mapLayer.configuration.style = style;
+    } else {
+      delete mapLayer.configuration.style;
     }
   }
 
-  if (
-    mapLayer?.configuration?.props?.source?.type === "GeoJSON" &&
-    mapLayer?.configuration?.props?.source?.geojson &&
-    typeof mapLayer.configuration.props.source.geojson !== "object"
-  ) {
-    if (mapLayer.configuration.props.source.geojson.includes("/")) {
-      if (!keep_urls) {
-        const response = await fetch(
-          mapLayer.configuration.props.source.geojson
-        );
-        if (response.ok) {
-          const jsonText = await response.text();
-          const parsedJSON = JSON5.parse(jsonText);
-          const crs = checkForCRS(parsedJSON);
-
-          if (!crs) {
-            delete mapLayer.configuration.props.source.geojson;
-            return {
-              success: false,
-              message:
-                "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson.",
-            };
-          }
-
-          parsedJSON.crs = parsedJSON.crs || {};
-          parsedJSON.crs.properties = parsedJSON.crs.properties || {};
-          parsedJSON.crs.properties.name = crs;
-          mapLayer.configuration.props.source.geojson = parsedJSON;
-        } else {
-          delete mapLayer.configuration.props.source.geojson;
-          return {
-            success: false,
-            message: `Failed to fetch: ${response.statusText}`,
-          };
-        }
-      }
-    } else {
-      const geoJSONResponse = await appAPI.downloadJSON({
-        filename: mapLayer.configuration.props.source.geojson,
-        dashboard_uuid,
-      });
-      if (geoJSONResponse.success) {
-        mapLayer.configuration.props.source.geojson = geoJSONResponse.data;
-      } else {
-        delete mapLayer.configuration.props.source.geojson;
-        return geoJSONResponse;
-      }
+  // Load GeoJSON if needed
+  const source = mapLayer?.configuration?.props?.source;
+  if (source?.type === "GeoJSON" && source?.geojson) {
+    const geojson = await loadGeoJSON(
+      source.geojson,
+      mapLayer.configuration.props.source
+    );
+    if (geojson?.success === false) {
+      delete mapLayer.configuration.props.source.geojson;
+      return geojson;
     }
+    mapLayer.configuration.props.source.geojson = geojson;
   }
 
   return { success: true };
