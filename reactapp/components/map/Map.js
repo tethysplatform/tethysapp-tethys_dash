@@ -19,7 +19,6 @@ import { useMapContext } from "components/contexts/MapContext";
 import { fromExtent } from "ol/geom/Polygon";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import GeoJSON from "ol/format/GeoJSON";
-import { valuesEqual } from "components/modals/utilities";
 
 const StyledAlert = styled(Alert)`
   position: absolute;

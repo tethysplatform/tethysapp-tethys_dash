@@ -13,7 +13,7 @@ const StyledTextInput = styled.textarea`
   height: 30vh;
 `;
 
-const StylePane = ({ style, setStyle, setErrorMessage }) => {
+const StylePane = ({ style, setStyle, setErrorMessage, containerRef }) => {
   const [styleSource, setStyleSource] = useState("custom"); // track the geojson value
   const [styleMode, setStyleMode] = useState("json"); // "json" or "rules"
   const [rules, setRules] = useState([]);
@@ -145,7 +145,11 @@ const StylePane = ({ style, setStyle, setErrorMessage }) => {
               aria-label={"style-text-area"}
             />
           ) : (
-            <RuleStyleEditor rules={rules} setRules={setRules} />
+            <RuleStyleEditor
+              rules={rules}
+              setRules={setRules}
+              containerRef={containerRef}
+            />
           )}
         </>
       ) : (

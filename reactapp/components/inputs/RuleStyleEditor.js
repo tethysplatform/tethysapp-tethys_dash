@@ -11,7 +11,7 @@ const AddButton = styled.button`
   margin-bottom: 12px;
 `;
 
-const RuleStyleEditor = ({ rules, setRules }) => {
+const RuleStyleEditor = ({ rules, setRules, containerRef }) => {
   const availableShapes = [
     "circle",
     "square",
@@ -60,6 +60,7 @@ const RuleStyleEditor = ({ rules, setRules }) => {
             onChange={(newRule) => handleRuleChange(idx, newRule)}
             onRemove={() => handleRemoveRule(idx)}
             availableShapes={availableShapes}
+            containerRef={containerRef}
           />
         ))}
       </RulesList>

@@ -83,7 +83,8 @@ const MapLayerModal = ({
   const [style, setStyle] = useState(layerInfo.style);
   const [legend, setLegend] = useState(layerInfo.legend);
   const [selectedOption, setSelectedOption] = useState(null);
-  const containerRef = useRef(null);
+  const legendContainerRef = useRef(null);
+  const styleContainerRef = useRef(null);
   const { csrf, mapLayerTemplates } = useContext(AppContext);
   const { uuid } = useContext(LayoutContext);
 
@@ -314,11 +315,14 @@ const MapLayerModal = ({
               aria-label="layer-style-tab"
               className="layer-style-tab"
             >
-              <StylePane
-                style={style}
-                setStyle={setStyle}
-                setErrorMessage={setErrorMessage}
-              />
+              <div ref={styleContainerRef}>
+                <StylePane
+                  style={style}
+                  setStyle={setStyle}
+                  setErrorMessage={setErrorMessage}
+                  containerRef={styleContainerRef}
+                />
+              </div>
             </Tab>
             <Tab
               eventKey="legend"
@@ -326,12 +330,12 @@ const MapLayerModal = ({
               aria-label="layer-legend-tab"
               className="layer-legend-tab"
             >
-              <div ref={containerRef}>
+              <div ref={legendContainerRef}>
                 <LegendPane
                   legend={legend}
                   setLegend={setLegend}
                   sourceProps={sourceProps}
-                  containerRef={containerRef}
+                  containerRef={legendContainerRef}
                 />
               </div>
             </Tab>
