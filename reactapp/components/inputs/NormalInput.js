@@ -9,11 +9,12 @@ const NormalInput = ({
   ariaLabel,
   placeholder,
   divProps,
+  labelProps,
 }) => {
   return (
     <div {...divProps}>
       {label && (
-        <Form.Label className="no-caret">
+        <Form.Label className="no-caret" {...labelProps}>
           <b>{label}</b>:
         </Form.Label>
       )}

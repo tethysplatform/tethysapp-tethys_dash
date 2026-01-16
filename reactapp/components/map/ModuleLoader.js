@@ -242,207 +242,252 @@ const loadESRIJSON = (config) => {
   return vectorSource;
 };
 
-function getSizeFromData(value, sizeRanges = []) {
-  const val = parseFloat(value);
-  if (isNaN(val)) return 5; // default size
+function mergeStyleProperties(base, override) {
+  return {
+    ...base,
+    ...Object.fromEntries(
+      Object.entries(override).filter(([, v]) => v !== undefined)
+    ),
+  };
+}
 
-  for (const range of sizeRanges) {
-    const min = range.min ?? -Infinity;
-    const max = range.max ?? Infinity;
-    if (val >= min && val < max) {
-      return range.size;
+function matchesCondition(featureValue, type, conditionValue) {
+  const a = featureValue;
+  const b =
+    typeof conditionValue === "string" && !isNaN(conditionValue)
+      ? Number(conditionValue)
+      : conditionValue;
+
+  const av = typeof a === "string" && !isNaN(a) ? Number(a) : a;
+
+  switch (type) {
+    case "=":
+      return av === b;
+    case "!=":
+      return av !== b;
+    case "<":
+      return av < b;
+    case "<=":
+      return av <= b;
+    case ">":
+      return av > b;
+    case ">=":
+      return av >= b;
+    default:
+      return false;
+  }
+}
+function resolveSize(feature, rules, defaultSize) {
+  let size = defaultSize;
+  let bestThreshold = null;
+
+  for (const rule of rules) {
+    if (rule.size == null) continue;
+
+    const featureValue = feature.get(rule.conditionField);
+    if (featureValue == null) continue;
+
+    const ruleValue = Number(rule.conditionValue);
+    const fv = Number(featureValue);
+
+    if (isNaN(ruleValue) || isNaN(fv)) continue;
+
+    const matches = matchesCondition(fv, rule.conditionType, ruleValue);
+    if (!matches) continue;
+
+    if (bestThreshold === null || ruleValue > bestThreshold) {
+      bestThreshold = ruleValue;
+      size = Number(rule.size);
     }
   }
 
-  return 5; // fallback default
+  return size;
+}
+
+export function createDiamondIconStyle({ size, fill, stroke }) {
+  const canvasSize = size * 2;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasSize;
+  canvas.height = canvasSize;
+
+  const ctx = canvas.getContext("2d");
+  ctx.translate(canvasSize / 2, canvasSize / 2);
+
+  const horizontalScale = 0.6; // controls how pointy the diamond is
+
+  ctx.fillStyle = fill.getColor();
+  ctx.strokeStyle = stroke.getColor();
+  ctx.lineWidth = stroke.getWidth();
+
+  // --- Top triangle ---
+  ctx.beginPath();
+  ctx.moveTo(0, -size);
+  ctx.lineTo(size * horizontalScale, 0);
+  ctx.lineTo(-size * horizontalScale, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Stroke only outer edges
+  ctx.beginPath();
+  ctx.moveTo(0, -size);
+  ctx.lineTo(size * horizontalScale, 0);
+  ctx.moveTo(0, -size);
+  ctx.lineTo(-size * horizontalScale, 0);
+  ctx.stroke();
+
+  // --- Bottom triangle ---
+  ctx.beginPath();
+  ctx.moveTo(0, size);
+  ctx.lineTo(size * horizontalScale, 0);
+  ctx.lineTo(-size * horizontalScale, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(0, size);
+  ctx.lineTo(size * horizontalScale, 0);
+  ctx.moveTo(0, size);
+  ctx.lineTo(-size * horizontalScale, 0);
+  ctx.stroke();
+
+  return new Style({
+    image: new Icon({
+      img: canvas,
+      imgSize: [canvasSize, canvasSize],
+      anchor: [0.5, 0.5],
+    }),
+  });
 }
 
 export function createJsonStyleFunction(styleJson) {
-  return function styleFunction(feature) {
+  return function (feature) {
     const properties = feature.getProperties();
 
+    // Start with defaults
+    let merged = {
+      ...(styleJson.default || {}),
+    };
+
+    // Apply every matching rule
     for (const rule of styleJson.rules || []) {
-      const conditions = rule.conditions || {};
-      const matches = Object.keys(conditions).every(
-        (key) => properties[key] === conditions[key]
-      );
+      if (rule.size != null) continue;
 
-      if (!matches) continue;
-
-      // Determine size
-      let size = 5; // default
-      if (rule.size) {
-        if (typeof rule.size === "string" && properties[rule.size] != null) {
-          size = getSizeFromData(properties[rule.size], styleJson.sizeRanges);
-        } else {
-          size = rule.size;
-        }
-      }
-
-      const fill = new Fill({ color: rule.fill || "gray" });
-      const stroke = new Stroke({
-        color: rule.stroke || "black",
-        width: rule.strokeWidth || 1,
-      });
-
-      // Shape handling
-      switch (rule.shape) {
-        case "circle":
-          return new Style({
-            image: new CircleStyle({ radius: size, fill, stroke }),
-          });
-
-        case "square":
-          return new Style({
-            image: new RegularShape({
-              fill: fill,
-              stroke: stroke,
-              points: 4,
-              radius: size,
-              angle: Math.PI / 4,
-            }),
-          });
-
-        case "rectangle":
-          return new Style({
-            image: new RegularShape({
-              fill: fill,
-              stroke: stroke,
-              radius: 10 / Math.SQRT2,
-              radius2: 10,
-              points: 4,
-              angle: 0,
-              scale: [1, 0.5],
-            }),
-          });
-
-        case "triangle":
-          return new Style({
-            image: new RegularShape({
-              points: 3,
-              radius: size,
-              fill,
-              stroke,
-              rotation: 0,
-            }),
-          });
-
-        case "star":
-          return new Style({
-            image: new RegularShape({
-              points: 5,
-              radius: size,
-              radius2: size / 2,
-              fill,
-              stroke,
-            }),
-          });
-
-        case "diamond":
-          return new Style({
-            image: new Icon({
-              anchor: [0.5, 0.5],
-              img: (() => {
-                const canvas = document.createElement("canvas");
-                const ctx = canvas.getContext("2d");
-                const s = size * 2;
-                canvas.width = s;
-                canvas.height = s;
-                ctx.translate(s / 2, s / 2);
-
-                const horizontalScale = 0.6; // makes diamond more pointy
-
-                ctx.fillStyle = fill.getColor();
-                ctx.strokeStyle = stroke.getColor();
-                ctx.lineWidth = stroke.getWidth();
-
-                // Top triangle
-                ctx.beginPath();
-                ctx.moveTo(0, -size); // top vertex
-                ctx.lineTo(size * horizontalScale, 0); // right vertex
-                ctx.lineTo(-size * horizontalScale, 0); // left vertex
-                ctx.closePath();
-                ctx.fill();
-                // Stroke only left and right edges
-                ctx.beginPath();
-                ctx.moveTo(0, -size);
-                ctx.lineTo(size * horizontalScale, 0);
-                ctx.moveTo(0, -size);
-                ctx.lineTo(-size * horizontalScale, 0);
-                ctx.stroke();
-
-                // Bottom triangle
-                ctx.beginPath();
-                ctx.moveTo(0, size); // bottom vertex
-                ctx.lineTo(size * horizontalScale, 0); // right vertex
-                ctx.lineTo(-size * horizontalScale, 0); // left vertex
-                ctx.closePath();
-                ctx.fill();
-                // Stroke only left and right edges
-                ctx.beginPath();
-                ctx.moveTo(0, size);
-                ctx.lineTo(size * horizontalScale, 0);
-                ctx.moveTo(0, size);
-                ctx.lineTo(-size * horizontalScale, 0);
-                ctx.stroke();
-
-                return canvas;
-              })(),
-              imgSize: [size * 2, size * 2],
-            }),
-          });
-
-        case "cross":
-          return new Style({
-            image: new RegularShape({
-              fill: fill,
-              stroke: stroke,
-              points: 4,
-              radius: size,
-              radius2: 0,
-              angle: 0,
-            }),
-          });
-
-        case "x":
-          return new Style({
-            image: new RegularShape({
-              fill: fill,
-              stroke: stroke,
-              points: 4,
-              radius: size,
-              radius2: 0,
-              angle: Math.PI / 4,
-            }),
-          });
-
-        case "icon":
-          if (rule.iconUrl) {
-            return new Style({
-              image: new Icon({
-                src: rule.iconUrl,
-                scale: size / 10, // adjust icon scale if needed
-              }),
-            });
-          }
-          break;
-
-        default:
-          // fallback to circle
-          return new Style({
-            image: new CircleStyle({ radius: size, fill, stroke }),
-          });
+      const fv = properties[rule.conditionField];
+      if (
+        rule.conditionField &&
+        rule.conditionType &&
+        matchesCondition(fv, rule.conditionType, rule.conditionValue)
+      ) {
+        merged = mergeStyleProperties(merged, rule);
       }
     }
 
-    // default style if no rules match
-    return new Style({
-      image: new CircleStyle({
-        radius: 5,
-        fill: new Fill({ color: "gray" }),
-        stroke: new Stroke({ color: "black", width: 1 }),
-      }),
+    // Resolve size separately
+    const size = resolveSize(feature, styleJson.rules || [], merged.size ?? 5);
+
+    // --- Build final style ---
+
+    const fill = new Fill({ color: merged.fill || "gray" });
+    const stroke = new Stroke({
+      color: merged.stroke || "black",
+      width: merged.strokeWidth ?? 1,
     });
+    switch (merged.shape) {
+      case "circle":
+        return new Style({
+          image: new CircleStyle({ radius: size, fill, stroke }),
+        });
+
+      case "square":
+        return new Style({
+          image: new RegularShape({
+            fill: fill,
+            stroke: stroke,
+            points: 4,
+            radius: size,
+            angle: Math.PI / 4,
+          }),
+        });
+
+      case "rectangle":
+        return new Style({
+          image: new RegularShape({
+            fill: fill,
+            stroke: stroke,
+            radius: 10 / Math.SQRT2,
+            radius2: 10,
+            points: 4,
+            angle: 0,
+            scale: [1, 0.5],
+          }),
+        });
+
+      case "triangle":
+        return new Style({
+          image: new RegularShape({
+            points: 3,
+            radius: size,
+            fill,
+            stroke,
+            rotation: 0,
+          }),
+        });
+
+      case "star":
+        return new Style({
+          image: new RegularShape({
+            points: 5,
+            radius: size,
+            radius2: size / 2,
+            fill,
+            stroke,
+          }),
+        });
+
+      case "diamond":
+        return createDiamondIconStyle({ size, fill, stroke });
+      case "cross":
+        return new Style({
+          image: new RegularShape({
+            fill: fill,
+            stroke: stroke,
+            points: 4,
+            radius: size,
+            radius2: 0,
+            angle: 0,
+          }),
+        });
+
+      case "x":
+        return new Style({
+          image: new RegularShape({
+            fill: fill,
+            stroke: stroke,
+            points: 4,
+            radius: size,
+            radius2: 0,
+            angle: Math.PI / 4,
+          }),
+        });
+
+      case "icon":
+        if (merged.iconUrl) {
+          return new Style({
+            image: new Icon({
+              src: merged.iconUrl,
+              scale: size / 10, // adjust icon scale if needed
+            }),
+          });
+        }
+        break;
+
+      default:
+        // fallback to circle
+        return new Style({
+          image: new CircleStyle({ radius: size, fill, stroke }),
+        });
+    }
   };
 }
 

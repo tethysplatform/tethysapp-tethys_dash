@@ -9,6 +9,7 @@ import {
   attributePropsPropType,
   sourcePropType,
 } from "components/map/utilities";
+import { getAvailableAttributeFields } from "components/map/attributeFields";
 import Spinner from "react-bootstrap/Spinner";
 import {
   valuesEqual,

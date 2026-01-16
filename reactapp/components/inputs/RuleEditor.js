@@ -1,10 +1,8 @@
-import { useRef, useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
-import ColorPicker from "components/inputs/ColorPicker";
-import Overlay from "react-bootstrap/Overlay";
-import Popover from "react-bootstrap/Popover";
+import DataSelect from "components/inputs/DataSelect";
+import ColorPickerPopover from "components/inputs/ColorPickerPopOver";
 
 const RuleContainer = styled.div`
   border: 1px solid #ccc;
@@ -14,278 +12,262 @@ const RuleContainer = styled.div`
   background: #fafbfc;
 `;
 
-const StyledPopoverBody = styled(Popover.Body)`
-  max-height: 70vh;
-  overflow-y: auto;
-`;
+const CONDITION_OPTIONS = [
+  { value: "=", label: "=" },
+  { value: "!=", label: "≠" },
+  { value: "<", label: "<" },
+  { value: "<=", label: "≤" },
+  { value: ">", label: ">" },
+  { value: ">=", label: "≥" },
+];
+
+const STYLE_OPTIONS = [
+  { value: "fill", label: "Fill Color" },
+  { value: "stroke", label: "Stroke Color" },
+  { value: "strokeWidth", label: "Stroke Width" },
+  { value: "size", label: "Size" },
+  { value: "shape", label: "Shape" },
+];
 
 const RuleEditor = ({
   rule,
   onChange,
-  onRemove,
   availableShapes,
+  availableFields,
   containerRef,
+  hideConditionFields = false,
 }) => {
-  const colorFillTarget = useRef(null);
-  const colorStrokeTarget = useRef(null);
-  const [showColorFillPopover, setShowColorFillPopover] = useState(false);
-  const [showColorStrokePopover, setShowColorStrokePopover] = useState(false);
+  // Extract condition
+  const conditionField = rule.conditionField || "";
+  const conditionType = rule.conditionType || "=";
+  const conditionValue = rule.conditionValue || "";
 
-  const handleFieldChange = (field, value) => {
-    onChange({ ...rule, [field]: value });
+  // Style options
+  const styleKeys = Object.keys(rule).filter(
+    (key) =>
+      !["conditionField", "conditionType", "conditionValue"].includes(key)
+  );
+
+  // Add style option
+  const handleAddStyle = (selected) => {
+    if (!selected || styleKeys.includes(selected.value)) return;
+    const newRule = { ...rule };
+    if (selected.value === "fill" || selected.value === "stroke") {
+      newRule[selected.value] = "#888888";
+    } else {
+      newRule[selected.value] = "";
+    }
+    onChange(newRule);
   };
 
-  // Small input style
-  const smallInputStyle = {
-    fontSize: "0.9em",
-    padding: "4px 6px",
-    borderRadius: "3px",
-    border: "1px solid #ccc",
-    width: "100%",
-    boxSizing: "border-box",
-    minWidth: 0,
-    maxWidth: "120px",
+  // Remove style option
+  const handleRemoveStyle = (key) => {
+    const newRule = { ...rule };
+    delete newRule[key];
+    onChange(newRule);
+  };
+
+  // Update style value
+  const handleStyleValueChange = (key, value) => {
+    const newRule = { ...rule };
+    newRule[key] = value;
+    onChange(newRule);
   };
 
   return (
     <RuleContainer>
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          display: "flex",
           gap: 8,
-          position: "relative",
+          alignItems: "center",
+          flexWrap: "wrap",
         }}
       >
-        <NormalInput
-          label="Field (Condition)"
-          value={Object.keys(rule.conditions || {})[0] || ""}
-          type="text"
-          style={smallInputStyle}
-          onChange={(e) => {
-            const oldKey = Object.keys(rule.conditions || {})[0];
-            const newKey = e.target.value;
-            const newConditions = { ...rule.conditions };
-            if (oldKey && oldKey !== newKey) {
-              delete newConditions[oldKey];
-            }
-            if (newKey) newConditions[newKey] = rule.conditions?.[oldKey] || "";
-            onChange({ ...rule, conditions: newConditions });
-          }}
-        />
-        <NormalInput
-          label="Value (Condition)"
-          value={Object.values(rule.conditions || {})[0] || ""}
-          type="text"
-          style={smallInputStyle}
-          onChange={(e) => {
-            const key = Object.keys(rule.conditions || {})[0];
-            onChange({
-              ...rule,
-              conditions: key ? { [key]: e.target.value } : {},
-            });
-          }}
-        />
-
-        {/* Group shape, size, fill, stroke, stroke width side by side */}
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            alignItems: "center",
-            gridColumn: "1 / span 2",
-          }}
-        >
-          {/* Shape dropdown */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-start",
-            }}
-          >
-            <label
-              htmlFor="shape-select"
-              style={{ fontWeight: "bold", fontSize: "0.95em" }}
-            >
-              Shape
-            </label>
-            <select
-              id="shape-select"
-              value={rule.shape || "circle"}
-              onChange={(e) => handleFieldChange("shape", e.target.value)}
-              style={{
-                ...smallInputStyle,
-                padding: "4px 6px",
-                maxWidth: "80px",
-              }}
-            >
-              {availableShapes.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Icon shape: show iconUrl and size only */}
-          {rule.shape === "icon" ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "flex-start",
-              }}
-            >
+        {!hideConditionFields && (
+          <>
+            <DataSelect
+              label="Field"
+              options={availableFields.map((f) => ({ value: f, label: f }))}
+              selectedOption={
+                conditionField
+                  ? { value: conditionField, label: conditionField }
+                  : null
+              }
+              onChange={(opt) =>
+                onChange({ ...rule, conditionField: opt?.value || "" })
+              }
+              creatable={false}
+              divProps={{ style: { marginBottom: 0 } }}
+            />
+            <DataSelect
+              label="Condition"
+              options={CONDITION_OPTIONS}
+              selectedOption={CONDITION_OPTIONS.find(
+                (o) => o.value === conditionType
+              )}
+              onChange={(opt) =>
+                onChange({ ...rule, conditionType: opt?.value || "=" })
+              }
+              creatable={false}
+              divProps={{ style: { marginBottom: 0 } }}
+            />
+            <NormalInput
+              label="Value"
+              value={conditionValue}
+              type="text"
+              onChange={(e) =>
+                onChange({ ...rule, conditionValue: e.target.value })
+              }
+              labelProps={{ style: { marginBottom: 0 } }}
+            />
+            {rule.shape === "icon" && (
               <NormalInput
                 label="Icon URL"
                 value={rule.iconUrl || ""}
                 type="text"
-                style={{ ...smallInputStyle, maxWidth: "120px" }}
-                onChange={(e) => handleFieldChange("iconUrl", e.target.value)}
+                onChange={(e) => onChange({ ...rule, iconUrl: e.target.value })}
+                style={{ minWidth: 120 }}
               />
-              <NormalInput
-                label="Size"
-                value={rule.size || ""}
-                type="number"
-                style={{ ...smallInputStyle, maxWidth: "50px" }}
-                onChange={(e) => handleFieldChange("size", e.target.value)}
-              />
-            </div>
-          ) : (
-            <>
-              {/* Size input */}
-              <NormalInput
-                label="Size"
-                value={rule.size || ""}
-                type="number"
-                style={{ ...smallInputStyle, maxWidth: "50px" }}
-                onChange={(e) => handleFieldChange("size", e.target.value)}
-              />
-
-              {/* Fill color preview square and popover */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-start",
-                }}
-              >
-                <label style={{ fontWeight: "bold", fontSize: "0.95em" }}>
-                  Fill
-                </label>
+            )}
+          </>
+        )}
+        {!hideConditionFields && (
+          <DataSelect
+            label="Add Style Option"
+            options={STYLE_OPTIONS.filter(
+              (opt) => !styleKeys.includes(opt.value)
+            )}
+            selectedOption={null}
+            onChange={handleAddStyle}
+            creatable={false}
+            divProps={{ style: { marginBottom: 0 } }}
+          />
+        )}
+        <div style={{ width: "100%" }}>
+          {hideConditionFields
+            ? STYLE_OPTIONS.map((opt) => (
                 <div
-                  ref={colorFillTarget}
-                  onClick={() => setShowColorFillPopover(!showColorFillPopover)}
+                  key={opt.value}
                   style={{
-                    width: "24px",
-                    height: "24px",
-                    background: rule.fill || "#cccccc",
-                    border: "1px solid #aaa",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    marginTop: "2px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    marginTop: 8,
                   }}
-                  title="Click to change fill color"
-                />
-                <Overlay
-                  container={containerRef}
-                  target={colorFillTarget.current}
-                  show={showColorFillPopover}
-                  placement="left"
-                  rootClose
-                  onHide={() => setShowColorFillPopover(false)}
                 >
-                  <Popover className="color-picker-popover">
-                    <StyledPopoverBody>
-                      <ColorPicker
-                        hideInput={["rgb", "hsv"]}
-                        color={rule.fill || "#cccccc"}
-                        onChange={(color) => {
-                          handleFieldChange("fill", color);
-                        }}
-                      />
-                    </StyledPopoverBody>
-                  </Popover>
-                </Overlay>
-              </div>
-
-              {/* Stroke color preview square and popover */}
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-start",
-                }}
-              >
-                <label style={{ fontWeight: "bold", fontSize: "0.95em" }}>
-                  Stroke
-                </label>
+                  {opt.value === "fill" || opt.value === "stroke" ? (
+                    <ColorPickerPopover
+                      label={opt.label === "fill" ? "Fill" : "Stroke"}
+                      color={rule[opt.value]}
+                      onChange={(color) =>
+                        handleStyleValueChange(opt.value, color)
+                      }
+                      containerRef={containerRef}
+                    />
+                  ) : opt.value === "shape" ? (
+                    <DataSelect
+                      label="Shape"
+                      options={availableShapes.map((s) => ({
+                        value: s,
+                        label: s,
+                      }))}
+                      selectedOption={
+                        rule[opt.value]
+                          ? {
+                              value: rule[opt.value],
+                              label: rule[opt.value],
+                            }
+                          : null
+                      }
+                      onChange={(o) =>
+                        handleStyleValueChange(opt.value, o?.value || "circle")
+                      }
+                      creatable={false}
+                      style={{ minWidth: 100 }}
+                    />
+                  ) : (
+                    <NormalInput
+                      label={
+                        opt.value === "strokeWidth" ? "Stroke Width" : "Size"
+                      }
+                      value={rule[opt.value] || ""}
+                      type="number"
+                      onChange={(e) =>
+                        handleStyleValueChange(opt.value, e.target.value)
+                      }
+                      style={{ minWidth: 60 }}
+                    />
+                  )}
+                </div>
+              ))
+            : styleKeys.map((key) => (
                 <div
-                  ref={colorStrokeTarget}
-                  onClick={() =>
-                    setShowColorStrokePopover(!showColorStrokePopover)
-                  }
+                  key={key}
                   style={{
-                    width: "24px",
-                    height: "24px",
-                    background: rule.stroke || "#000000",
-                    border: "1px solid #aaa",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                    marginTop: "2px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    marginTop: 8,
                   }}
-                  title="Click to change stroke color"
-                />
-                <Overlay
-                  container={containerRef}
-                  target={colorStrokeTarget.current}
-                  show={showColorStrokePopover}
-                  placement="left"
-                  rootClose
-                  onHide={() => setShowColorStrokePopover(false)}
                 >
-                  <Popover className="color-picker-popover">
-                    <StyledPopoverBody>
-                      <ColorPicker
-                        hideInput={["rgb", "hsv"]}
-                        color={rule.stroke || "#000000"}
-                        onChange={(color) => {
-                          handleFieldChange("stroke", color);
-                        }}
-                      />
-                    </StyledPopoverBody>
-                  </Popover>
-                </Overlay>
-              </div>
-
-              {/* Stroke width input */}
-              <NormalInput
-                label="Stroke Width"
-                value={rule.strokeWidth || ""}
-                type="number"
-                style={{ ...smallInputStyle, maxWidth: "50px" }}
-                onChange={(e) =>
-                  handleFieldChange("strokeWidth", e.target.value)
-                }
-              />
-            </>
-          )}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveStyle(key)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#d32f2f",
+                      fontWeight: "bold",
+                      fontSize: 20,
+                      cursor: "pointer",
+                      zIndex: 2,
+                      marginRight: 4,
+                    }}
+                    aria-label={`Remove ${key} style option`}
+                    title={`Remove ${key} style option`}
+                  >
+                    ×
+                  </button>
+                  {key === "fill" || key === "stroke" ? (
+                    <ColorPickerPopover
+                      label={key === "fill" ? "Fill" : "Stroke"}
+                      color={rule[key]}
+                      onChange={(color) => handleStyleValueChange(key, color)}
+                      containerRef={containerRef}
+                    />
+                  ) : key === "shape" ? (
+                    <DataSelect
+                      label="Shape"
+                      options={availableShapes.map((s) => ({
+                        value: s,
+                        label: s,
+                      }))}
+                      selectedOption={
+                        rule[key]
+                          ? { value: rule[key], label: rule[key] }
+                          : null
+                      }
+                      onChange={(opt) =>
+                        handleStyleValueChange(key, opt?.value || "circle")
+                      }
+                      creatable={false}
+                      style={{ minWidth: 100 }}
+                    />
+                  ) : (
+                    <NormalInput
+                      label={key === "strokeWidth" ? "Stroke Width" : "Size"}
+                      value={rule[key]}
+                      type="number"
+                      onChange={(e) =>
+                        handleStyleValueChange(key, e.target.value)
+                      }
+                      style={{ minWidth: 60 }}
+                    />
+                  )}
+                </div>
+              ))}
         </div>
-
-        <button
-          type="button"
-          onClick={onRemove}
-          style={{
-            marginTop: 8,
-            gridColumn: "1 / -1",
-            justifySelf: "end",
-            fontSize: "0.95em",
-            padding: "4px 10px",
-          }}
-        >
-          Remove
-        </button>
       </div>
     </RuleContainer>
   );
@@ -296,6 +278,7 @@ RuleEditor.propTypes = {
   onChange: PropTypes.func.isRequired,
   onRemove: PropTypes.func.isRequired,
   availableShapes: PropTypes.array.isRequired,
+  availableFields: PropTypes.array.isRequired,
 };
 
 export default RuleEditor;

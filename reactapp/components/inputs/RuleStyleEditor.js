@@ -1,17 +1,15 @@
-// ...existing code...
 import PropTypes from "prop-types";
 import RuleEditor from "components/inputs/RuleEditor";
-import styled from "styled-components";
+import Accordion from "react-bootstrap/Accordion";
 
-const RulesList = styled.div`
-  margin-bottom: 16px;
-`;
-
-const AddButton = styled.button`
-  margin-bottom: 12px;
-`;
-
-const RuleStyleEditor = ({ rules, setRules, containerRef }) => {
+const RuleStyleEditor = ({
+  rules,
+  setRules,
+  availableFields,
+  defaultStyle,
+  setDefaultStyle,
+  containerRef,
+}) => {
   const availableShapes = [
     "circle",
     "square",
@@ -33,37 +31,71 @@ const RuleStyleEditor = ({ rules, setRules, containerRef }) => {
     setRules(rules.filter((_, i) => i !== idx));
   };
 
-  const handleAddRule = () => {
-    setRules([
-      ...rules,
-      {
-        conditions: {},
-        shape: "circle",
-        fill: "gray",
-        stroke: "black",
-        strokeWidth: 1,
-        size: 5,
-      },
-    ]);
-  };
-
   return (
     <div>
-      <AddButton type="button" onClick={handleAddRule}>
-        + Add Rule
-      </AddButton>
-      <RulesList>
+      <Accordion alwaysOpen>
+        <Accordion.Item eventKey="default-style">
+          <Accordion.Header>
+            <span style={{ flex: 1, fontWeight: 500 }}>Default Style</span>
+          </Accordion.Header>
+          <Accordion.Body>
+            <RuleEditor
+              rule={defaultStyle}
+              onChange={setDefaultStyle}
+              availableShapes={availableShapes}
+              availableFields={[]} // Hide field/condition/value for default style
+              hideConditionFields={true}
+              containerRef={containerRef}
+            />
+          </Accordion.Body>
+        </Accordion.Item>
         {rules.map((rule, idx) => (
-          <RuleEditor
-            key={idx}
-            rule={rule}
-            onChange={(newRule) => handleRuleChange(idx, newRule)}
-            onRemove={() => handleRemoveRule(idx)}
-            availableShapes={availableShapes}
-            containerRef={containerRef}
-          />
+          <Accordion.Item eventKey={idx.toString()} key={idx}>
+            <Accordion.Header>
+              <span
+                style={{ display: "flex", alignItems: "center", width: "100%" }}
+              >
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleRemoveRule(idx);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#d32f2f",
+                    fontWeight: "bold",
+                    fontSize: 20,
+                    cursor: "pointer",
+                    marginLeft: 8,
+                  }}
+                  aria-label="Remove Rule"
+                  title="Remove Rule"
+                >
+                  ×
+                </button>
+                <span style={{ flex: 1 }}>
+                  {rule.conditionField &&
+                  rule.conditionType &&
+                  rule.conditionValue
+                    ? `${rule.conditionField} ${rule.conditionType} ${rule.conditionValue}`
+                    : `Rule ${idx + 1}`}
+                </span>
+              </span>
+            </Accordion.Header>
+            <Accordion.Body>
+              <RuleEditor
+                rule={rule}
+                onChange={(newRule) => handleRuleChange(idx, newRule)}
+                availableShapes={availableShapes}
+                availableFields={availableFields}
+                containerRef={containerRef}
+              />
+            </Accordion.Body>
+          </Accordion.Item>
         ))}
-      </RulesList>
+      </Accordion>
     </div>
   );
 };
@@ -71,6 +103,7 @@ const RuleStyleEditor = ({ rules, setRules, containerRef }) => {
 RuleStyleEditor.propTypes = {
   rules: PropTypes.array.isRequired,
   setRules: PropTypes.func.isRequired,
+  availableFields: PropTypes.array,
 };
 
 export default RuleStyleEditor;

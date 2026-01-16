@@ -6,17 +6,36 @@ import appAPI from "services/api/app";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
 import NormalInput from "components/inputs/NormalInput";
 import RuleStyleEditor from "components/inputs/RuleStyleEditor";
+import Button from "react-bootstrap/Button";
 import { LayoutContext } from "components/contexts/Contexts";
+
+const EditorModeRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+`;
 
 const StyledTextInput = styled.textarea`
   width: 100%;
   height: 30vh;
 `;
 
-const StylePane = ({ style, setStyle, setErrorMessage, containerRef }) => {
+const StylePane = ({
+  style,
+  setStyle,
+  setErrorMessage,
+  containerRef,
+  availableFields = [],
+}) => {
   const [styleSource, setStyleSource] = useState("custom"); // track the geojson value
   const [styleMode, setStyleMode] = useState("json"); // "json" or "rules"
   const [rules, setRules] = useState([]);
+  const [defaultStyle, setDefaultStyle] = useState({
+    shape: "circle",
+    fill: "gray",
+    size: 5,
+  });
   const { uuid } = useContext(LayoutContext);
 
   useEffect(() => {
@@ -59,22 +78,35 @@ const StylePane = ({ style, setStyle, setErrorMessage, containerRef }) => {
         if (typeof style === "string" && style.trim().startsWith("{")) {
           const parsed = JSON.parse(style);
           setRules(Array.isArray(parsed.rules) ? parsed.rules : []);
+          if (parsed.default && typeof parsed.default === "object") {
+            setDefaultStyle(parsed.default);
+          }
+        } else {
+          setRules([]);
+          setDefaultStyle({ shape: "circle", fill: "gray", size: 5 });
         }
       } catch (e) {
         setRules([]);
+        setDefaultStyle({ shape: "circle", fill: "gray", size: 5 });
       }
     }
     lastStyleMode.current = styleMode;
   }, [styleMode, style]);
 
-  // Only update style JSON when rules change and in rules mode
+  // Only update style JSON when rules or default style change and in rules mode
   const lastRules = useRef(rules);
+  const lastDefaultStyle = useRef(defaultStyle);
+
   useEffect(() => {
-    if (styleMode === "rules" && lastRules.current !== rules) {
-      setStyle(JSON.stringify({ rules }, null, 2));
+    if (
+      styleMode === "rules" &&
+      (lastRules.current !== rules || lastDefaultStyle.current !== defaultStyle)
+    ) {
+      setStyle(JSON.stringify({ rules, default: defaultStyle }, null, 2));
     }
     lastRules.current = rules;
-  }, [rules, styleMode, setStyle]);
+    lastDefaultStyle.current = defaultStyle;
+  }, [rules, defaultStyle, styleMode, setStyle]);
 
   function handleStyleJSONUpload({ fileContent }) {
     setStyle(fileContent);
@@ -124,30 +156,56 @@ const StylePane = ({ style, setStyle, setErrorMessage, containerRef }) => {
       />
       {styleSource === "custom" ? (
         <>
-          <DataRadioSelect
-            label="Style Editor Mode"
-            selectedRadio={styleMode}
-            radioOptions={[
-              { value: "json", label: "JSON Editor" },
-              { value: "rules", label: "Rule-based Editor" },
-            ]}
-            onChange={(e) => setStyleMode(e.target.value)}
-          />
-          <FileUpload
-            label="Upload style file"
-            onFileUpload={handleStyleJSONUpload}
-            extensionsAllowed={["json"]}
-          />
-          {styleMode === "json" ? (
-            <StyledTextInput
-              value={style}
-              onChange={handleStyleJSONChange}
-              aria-label={"style-text-area"}
+          <EditorModeRow>
+            <DataRadioSelect
+              label="Style Editor Mode"
+              selectedRadio={styleMode}
+              radioOptions={[
+                { value: "json", label: "JSON Editor" },
+                { value: "rules", label: "Rule-based Editor" },
+              ]}
+              onChange={(e) => setStyleMode(e.target.value)}
             />
+            {styleMode === "rules" && (
+              <Button
+                variant="info"
+                onClick={() =>
+                  setRules([
+                    ...rules,
+                    {
+                      conditionField: "",
+                      conditionType: "=",
+                      conditionValue: "",
+                    },
+                  ])
+                }
+                aria-label="Add Rule Button"
+                style={{ width: "30%" }}
+              >
+                + Add Rule
+              </Button>
+            )}
+          </EditorModeRow>
+          {styleMode === "json" ? (
+            <>
+              <FileUpload
+                label="Upload style file"
+                onFileUpload={handleStyleJSONUpload}
+                extensionsAllowed={["json"]}
+              />
+              <StyledTextInput
+                value={style}
+                onChange={handleStyleJSONChange}
+                aria-label={"style-text-area"}
+              />
+            </>
           ) : (
             <RuleStyleEditor
               rules={rules}
               setRules={setRules}
+              availableFields={availableFields}
+              defaultStyle={defaultStyle}
+              setDefaultStyle={setDefaultStyle}
               containerRef={containerRef}
             />
           )}
