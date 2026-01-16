@@ -121,6 +121,16 @@ const RuleEditor = ({
               }
               labelProps={{ style: { marginBottom: 0 } }}
             />
+            <DataSelect
+              label="Add Style Option"
+              options={STYLE_OPTIONS.filter(
+                (opt) => !styleKeys.includes(opt.value)
+              )}
+              selectedOption={null}
+              onChange={handleAddStyle}
+              creatable={false}
+              divProps={{ style: { marginBottom: 0 } }}
+            />
             {rule.shape === "icon" && (
               <NormalInput
                 label="Icon URL"
@@ -132,33 +142,24 @@ const RuleEditor = ({
             )}
           </>
         )}
-        {!hideConditionFields && (
-          <DataSelect
-            label="Add Style Option"
-            options={STYLE_OPTIONS.filter(
-              (opt) => !styleKeys.includes(opt.value)
-            )}
-            selectedOption={null}
-            onChange={handleAddStyle}
-            creatable={false}
-            divProps={{ style: { marginBottom: 0 } }}
-          />
-        )}
         <div style={{ width: "100%" }}>
-          {hideConditionFields
-            ? STYLE_OPTIONS.map((opt) => (
+          {hideConditionFields ? (
+            <div
+              style={{
+                display: "flex",
+                gap: 16,
+                alignItems: "center",
+                marginTop: 8,
+              }}
+            >
+              {STYLE_OPTIONS.map((opt) => (
                 <div
                   key={opt.value}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    marginTop: 8,
-                  }}
+                  style={{ display: "flex", alignItems: "center", gap: 4 }}
                 >
                   {opt.value === "fill" || opt.value === "stroke" ? (
                     <ColorPickerPopover
-                      label={opt.label === "fill" ? "Fill" : "Stroke"}
+                      label={opt.value === "fill" ? "Fill" : "Stroke"}
                       color={rule[opt.value]}
                       onChange={(color) =>
                         handleStyleValueChange(opt.value, color)
@@ -184,7 +185,7 @@ const RuleEditor = ({
                         handleStyleValueChange(opt.value, o?.value || "circle")
                       }
                       creatable={false}
-                      style={{ minWidth: 100 }}
+                      divProps={{ style: { marginBottom: 0 } }}
                     />
                   ) : (
                     <NormalInput
@@ -196,77 +197,78 @@ const RuleEditor = ({
                       onChange={(e) =>
                         handleStyleValueChange(opt.value, e.target.value)
                       }
-                      style={{ minWidth: 60 }}
-                    />
-                  )}
-                </div>
-              ))
-            : styleKeys.map((key) => (
-                <div
-                  key={key}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    marginTop: 8,
-                  }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveStyle(key)}
-                    style={{
-                      background: "none",
-                      border: "none",
-                      color: "#d32f2f",
-                      fontWeight: "bold",
-                      fontSize: 20,
-                      cursor: "pointer",
-                      zIndex: 2,
-                      marginRight: 4,
-                    }}
-                    aria-label={`Remove ${key} style option`}
-                    title={`Remove ${key} style option`}
-                  >
-                    ×
-                  </button>
-                  {key === "fill" || key === "stroke" ? (
-                    <ColorPickerPopover
-                      label={key === "fill" ? "Fill" : "Stroke"}
-                      color={rule[key]}
-                      onChange={(color) => handleStyleValueChange(key, color)}
-                      containerRef={containerRef}
-                    />
-                  ) : key === "shape" ? (
-                    <DataSelect
-                      label="Shape"
-                      options={availableShapes.map((s) => ({
-                        value: s,
-                        label: s,
-                      }))}
-                      selectedOption={
-                        rule[key]
-                          ? { value: rule[key], label: rule[key] }
-                          : null
-                      }
-                      onChange={(opt) =>
-                        handleStyleValueChange(key, opt?.value || "circle")
-                      }
-                      creatable={false}
-                      style={{ minWidth: 100 }}
-                    />
-                  ) : (
-                    <NormalInput
-                      label={key === "strokeWidth" ? "Stroke Width" : "Size"}
-                      value={rule[key]}
-                      type="number"
-                      onChange={(e) =>
-                        handleStyleValueChange(key, e.target.value)
-                      }
-                      style={{ minWidth: 60 }}
+                      labelProps={{ style: { marginBottom: 0 } }}
                     />
                   )}
                 </div>
               ))}
+            </div>
+          ) : (
+            styleKeys.map((key) => (
+              <div
+                key={key}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  marginTop: 8,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => handleRemoveStyle(key)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#d32f2f",
+                    fontWeight: "bold",
+                    fontSize: 20,
+                    cursor: "pointer",
+                    zIndex: 2,
+                    marginRight: 4,
+                  }}
+                  aria-label={`Remove ${key} style option`}
+                  title={`Remove ${key} style option`}
+                >
+                  ×
+                </button>
+                {key === "fill" || key === "stroke" ? (
+                  <ColorPickerPopover
+                    label={key === "fill" ? "Fill" : "Stroke"}
+                    color={rule[key]}
+                    onChange={(color) => handleStyleValueChange(key, color)}
+                    containerRef={containerRef}
+                  />
+                ) : key === "shape" ? (
+                  <DataSelect
+                    label="Shape"
+                    options={availableShapes.map((s) => ({
+                      value: s,
+                      label: s,
+                    }))}
+                    selectedOption={
+                      rule[key] ? { value: rule[key], label: rule[key] } : null
+                    }
+                    onChange={(opt) =>
+                      handleStyleValueChange(key, opt?.value || "circle")
+                    }
+                    creatable={false}
+                    style={{ minWidth: 100 }}
+                  />
+                ) : (
+                  <NormalInput
+                    label={key === "strokeWidth" ? "Stroke Width" : "Size"}
+                    value={rule[key]}
+                    type="number"
+                    onChange={(e) =>
+                      handleStyleValueChange(key, e.target.value)
+                    }
+                    style={{ minWidth: 60 }}
+                  />
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
     </RuleContainer>
@@ -279,6 +281,8 @@ RuleEditor.propTypes = {
   onRemove: PropTypes.func.isRequired,
   availableShapes: PropTypes.array.isRequired,
   availableFields: PropTypes.array.isRequired,
+  containerRef: PropTypes.object.isRequired,
+  hideConditionFields: PropTypes.bool,
 };
 
 export default RuleEditor;
