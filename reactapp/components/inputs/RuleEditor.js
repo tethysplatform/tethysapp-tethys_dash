@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
@@ -8,8 +8,8 @@ import { spaceAndCapitalize } from "components/modals/utilities";
 
 // Styled number input wrapper for consistent width
 const NumberInputWrapper = styled.div`
-  min-width: 100px;
-  width: 100px;
+  min-width: 150px;
+  width: 150px;
 `;
 
 const availableShapes = [
@@ -122,7 +122,12 @@ const RuleEditor = ({
   defaultSection = false,
 }) => {
   const [selectedGeomType, setSelectedGeomType] = useState(
-    rule.geometryType || "point",
+    rule.geometryType
+      ? {
+          value: rule.geometryType,
+          label: spaceAndCapitalize(rule.geometryType),
+        }
+      : { value: "point", label: "Point" },
   );
   const [styleOptions, setStyleOptions] = useState(
     getStyleKeysForGeom(rule.geometryType || "point"),
@@ -221,7 +226,6 @@ const RuleEditor = ({
               }
               labelProps={{ style: { marginBottom: 0 } }}
             />
-            {/* Add Style Option Dropdown, filtered by styleOptionFilter */}
             <DataSelect
               label="Add Style Option"
               options={styleOptions}
@@ -236,6 +240,7 @@ const RuleEditor = ({
                 value={rule.iconUrl || ""}
                 type="text"
                 onChange={(e) => onChange({ ...rule, iconUrl: e.target.value })}
+                labelProps={{ style: { marginBottom: 0 } }}
               />
             )}
           </>
@@ -298,6 +303,7 @@ const RuleEditor = ({
                             handleStyleValueChange(optKey, opt.value)
                           }
                           creatable={false}
+                          divProps={{ style: { marginBottom: 0 } }}
                         />
                         {rule?.[defaultSection]?.[optKey] === "hatch" && (
                           <>
@@ -331,6 +337,7 @@ const RuleEditor = ({
                                 )
                               }
                               creatable={false}
+                              divProps={{ style: { marginBottom: 0 } }}
                             />
                             <NumberInputWrapper>
                               <NormalInput
@@ -343,6 +350,7 @@ const RuleEditor = ({
                                     e.target.value,
                                   )
                                 }
+                                labelProps={{ style: { marginBottom: 0 } }}
                               />
                             </NumberInputWrapper>
                             <ColorPickerPopover
@@ -368,6 +376,7 @@ const RuleEditor = ({
                                     e.target.value,
                                   )
                                 }
+                                labelProps={{ style: { marginBottom: 0 } }}
                               />
                             </NumberInputWrapper>
                             <NumberInputWrapper>
@@ -381,6 +390,7 @@ const RuleEditor = ({
                                     e.target.value,
                                   )
                                 }
+                                labelProps={{ style: { marginBottom: 0 } }}
                               />
                             </NumberInputWrapper>
                             <ColorPickerPopover
@@ -467,6 +477,7 @@ const RuleEditor = ({
                           handleStyleValueChange(key, opt?.value || "solid")
                         }
                         creatable={false}
+                        divProps={{ style: { marginBottom: 0 } }}
                       />
                       {rule[key] === "hatch" && (
                         <>
@@ -497,6 +508,7 @@ const RuleEditor = ({
                               )
                             }
                             creatable={false}
+                            divProps={{ style: { marginBottom: 0 } }}
                           />
                           <NumberInputWrapper>
                             <NormalInput
@@ -509,6 +521,7 @@ const RuleEditor = ({
                                   e.target.value,
                                 )
                               }
+                              labelProps={{ style: { marginBottom: 0 } }}
                             />
                           </NumberInputWrapper>
                           <ColorPickerPopover
@@ -534,6 +547,7 @@ const RuleEditor = ({
                                   e.target.value,
                                 )
                               }
+                              labelProps={{ style: { marginBottom: 0 } }}
                             />
                           </NumberInputWrapper>
                           <NumberInputWrapper>
@@ -547,6 +561,7 @@ const RuleEditor = ({
                                   e.target.value,
                                 )
                               }
+                              labelProps={{ style: { marginBottom: 0 } }}
                             />
                           </NumberInputWrapper>
                           <ColorPickerPopover
@@ -595,6 +610,7 @@ const RuleEditor = ({
                           handleStyleValueChange(key, opt?.value || "circle")
                         }
                         creatable={false}
+                        divProps={{ style: { marginBottom: 0 } }}
                       />
                     ) : key === "strokeDash" ? (
                       <DataSelect
@@ -609,6 +625,7 @@ const RuleEditor = ({
                           handleStyleValueChange(key, opt?.value || "")
                         }
                         creatable={false}
+                        divProps={{ style: { marginBottom: 0 } }}
                       />
                     ) : (
                       <NumberInputWrapper>
@@ -619,6 +636,7 @@ const RuleEditor = ({
                           onChange={(e) =>
                             handleStyleValueChange(key, e.target.value)
                           }
+                          labelProps={{ style: { marginBottom: 0 } }}
                         />
                       </NumberInputWrapper>
                     )}
