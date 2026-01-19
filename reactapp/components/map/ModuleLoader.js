@@ -530,16 +530,9 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
 function getGeometryBucket(feature) {
   const type = feature.getGeometry()?.getType().toLowerCase();
   if (type === "point" || type === "multipoint") return "point";
-  if (type === "linestring" || type === "multilinestring") return "line";
+  if (type === "linestring" || type === "multilinestring") return "linestring";
   if (type === "polygon" || type === "multipolygon") return "polygon";
   return "point";
-}
-
-function filterByGeometryOptions(style, geometryType) {
-  const allowed = geomStyleOptions[geometryType] || [];
-  return Object.fromEntries(
-    Object.entries(style).filter(([k]) => allowed.includes(k)),
-  );
 }
 
 function buildPolygonFill(merged) {
@@ -569,10 +562,7 @@ export function createJsonStyleFunction(styleJson) {
     const geometryBucket = getGeometryBucket(feature); // 'point', 'line', 'polygon'
 
     // --- Defaults (geometry-specific) ---
-    let merged = filterByGeometryOptions(
-      styleJson.default?.[geometryBucket] || {},
-      geometryBucket,
-    );
+    let merged = styleJson.default?.[geometryBucket] || {};
 
     // --- Apply matching rules ---
     for (const rule of styleJson.rules || []) {
@@ -596,10 +586,7 @@ export function createJsonStyleFunction(styleJson) {
         rule.conditionType &&
         matchesCondition(fv, rule.conditionType, ruleValue)
       ) {
-        merged = mergeStyleProperties(
-          merged,
-          filterByGeometryOptions(rule, geometryBucket),
-        );
+        merged = mergeStyleProperties(merged, rule);
       }
     }
 
@@ -617,11 +604,27 @@ export function createJsonStyleFunction(styleJson) {
     }
 
     // --- Build style ---
+    // Ensure strokeDash is an array of numbers or undefined
+    let lineDash = undefined;
+    if (merged.strokeDash && typeof merged.strokeDash === "string") {
+      // Accept empty string as solid
+      if (merged.strokeDash.trim() !== "") {
+        lineDash = merged.strokeDash
+          .split(",")
+          .map((s) => Number(s.trim()))
+          .filter((n) => !isNaN(n));
+        if (lineDash.length === 0) lineDash = undefined;
+      }
+    } else if (Array.isArray(merged.strokeDash)) {
+      lineDash = merged.strokeDash.map(Number).filter((n) => !isNaN(n));
+      if (lineDash.length === 0) lineDash = undefined;
+    }
+
     const stroke = merged.stroke
       ? new Stroke({
           color: merged.stroke,
           width: merged.strokeWidth ?? 1,
-          lineDash: merged.strokeDash,
+          lineDash,
         })
       : new Stroke({
           color: merged.stroke || "black",
@@ -644,7 +647,7 @@ export function createJsonStyleFunction(styleJson) {
       );
     }
     // --- LINE ---
-    else if (geometryBucket === "line") {
+    else if (geometryBucket === "linestring") {
       style = new Style({ stroke, zIndex });
     }
     // --- POLYGON ---

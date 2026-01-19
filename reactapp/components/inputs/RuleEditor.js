@@ -6,6 +6,12 @@ import DataSelect from "components/inputs/DataSelect";
 import ColorPickerPopover from "components/inputs/ColorPickerPopOver";
 import { spaceAndCapitalize } from "components/modals/utilities";
 
+// Styled number input wrapper for consistent width
+const NumberInputWrapper = styled.div`
+  min-width: 100px;
+  width: 100px;
+`;
+
 const availableShapes = [
   "circle",
   "square",
@@ -18,23 +24,19 @@ const availableShapes = [
   "icon",
 ];
 
+const availableStrokeDashOptions = [
+  { value: "", label: "Solid" },
+  { value: "4,4", label: "Dash" },
+  { value: "1,4", label: "Dot" },
+  { value: "8,4,2,4", label: "Dash Dot" },
+  { value: "8,4,2,4,2,4", label: "Dash Dot Dot" },
+];
+
 // Geometry-specific style option filters
 export const geomStyleOptions = {
   point: ["fill", "stroke", "strokeWidth", "size", "shape", "zIndex"],
   linestring: ["stroke", "strokeWidth", "strokeDash", "zIndex"],
-  polygon: [
-    "fill",
-    "stroke",
-    "strokeWidth",
-    "polygonFillType",
-    "hatchDirection",
-    "hatchSpacing",
-    "hatchColor",
-    "dotRadius",
-    "dotSpacing",
-    "dotColor",
-    "zIndex",
-  ],
+  polygon: ["fill", "stroke", "strokeWidth", "polygonFillType", "zIndex"],
 };
 
 const RuleContainer = styled.div`
@@ -43,6 +45,44 @@ const RuleContainer = styled.div`
   padding: 12px;
   margin-bottom: 12px;
   background: #fafbfc;
+`;
+
+const FlexContainer = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+`;
+
+const XButton = styled.button`
+  background: none;
+  border: none;
+  color: #d32f2f;
+  font-weight: bold;
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 2;
+  margin-right: 4px;
+`;
+
+const FullWidthContainer = styled.div`
+  width: 100%;
+`;
+
+const StyleContainer = styled.div`
+  display: flex;
+  gap: ${(props) => (props.gap ? props.gap : 16)}px;
+  align-items: center;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
 `;
 
 const CONDITION_OPTIONS = [
@@ -63,7 +103,6 @@ const GEOMETRY_TYPE_OPTIONS = [
 const POLYGON_FILL_TYPES = [
   { value: "solid", label: "Solid" },
   { value: "hatch", label: "Hatch" },
-  { value: "crosshatch", label: "Crosshatch" },
   { value: "dot", label: "Dot" },
 ];
 const getStyleKeysForGeom = (geomType) => {
@@ -126,20 +165,17 @@ const RuleEditor = ({
   // Update style value
   const handleStyleValueChange = (key, value) => {
     const newRule = { ...rule };
-    newRule[key] = value;
+    if (defaultSection) {
+      newRule[defaultSection] = { ...newRule[defaultSection], [key]: value };
+    } else {
+      newRule[key] = value;
+    }
     onChange(newRule);
   };
 
   return (
     <RuleContainer>
-      <div
-        style={{
-          display: "flex",
-          gap: 8,
-          alignItems: "center",
-          flexWrap: "wrap",
-        }}
-      >
+      <FlexContainer>
         {!defaultSection && (
           <>
             <DataSelect
@@ -200,48 +236,27 @@ const RuleEditor = ({
                 value={rule.iconUrl || ""}
                 type="text"
                 onChange={(e) => onChange({ ...rule, iconUrl: e.target.value })}
-                style={{ minWidth: 120 }}
               />
             )}
           </>
         )}
-        <div style={{ width: "100%" }}>
+        <FullWidthContainer>
           {defaultSection ? (
             <div key={defaultSection} style={{ marginBottom: 24 }}>
               <div style={{ fontWeight: 600, marginBottom: 8 }}>
                 {spaceAndCapitalize(defaultSection)}
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 16,
-                  alignItems: "center",
-                  marginTop: 8,
-                }}
-              >
+              <StyleContainer>
                 {geomStyleOptions[defaultSection].map((optKey) => {
-                  const value =
-                    rule[defaultSection]?.[optKey] !== undefined
-                      ? rule[defaultSection][optKey]
-                      : optKey === "fill" || optKey === "stroke"
-                        ? "#888888"
-                        : "";
-                  // Handler for nested default object
-                  const handleNestedChange = (key, val) => {
-                    const newRule = { ...rule };
-                    newRule[defaultSection] = {
-                      ...newRule[defaultSection],
-                      [optKey]: val,
-                    };
-                    onChange(newRule);
-                  };
                   if (optKey === "fill" || optKey === "stroke") {
                     return (
                       <ColorPickerPopover
                         key={optKey}
                         label={optKey === "fill" ? "Fill" : "Stroke"}
-                        color={value}
-                        onChange={(color) => handleNestedChange(optKey, color)}
+                        color={rule[defaultSection]?.[optKey] || "#888888"}
+                        onChange={(color) =>
+                          handleStyleValueChange(optKey, color)
+                        }
                         containerRef={containerRef}
                       />
                     );
@@ -254,9 +269,16 @@ const RuleEditor = ({
                           value: s,
                           label: s,
                         }))}
-                        selectedOption={value ? { value, label: value } : null}
+                        selectedOption={
+                          rule?.[defaultSection]?.[optKey]
+                            ? {
+                                value: rule[defaultSection][optKey],
+                                label: rule[defaultSection][optKey],
+                              }
+                            : null
+                        }
                         onChange={(o) =>
-                          handleNestedChange(optKey, o?.value || "circle")
+                          handleStyleValueChange(optKey, o.value)
                         }
                         creatable={false}
                         divProps={{ style: { marginBottom: 0 } }}
@@ -264,19 +286,114 @@ const RuleEditor = ({
                     );
                   } else if (optKey === "polygonFillType") {
                     return (
-                      <DataSelect
-                        key={optKey}
-                        label="Polygon Fill Type"
-                        options={POLYGON_FILL_TYPES}
-                        selectedOption={POLYGON_FILL_TYPES.find(
-                          (o) => o.value === value,
+                      <>
+                        <DataSelect
+                          key={optKey}
+                          label="Polygon Fill Type"
+                          options={POLYGON_FILL_TYPES}
+                          selectedOption={POLYGON_FILL_TYPES.find(
+                            (o) => o.value === rule?.[defaultSection]?.[optKey],
+                          )}
+                          onChange={(opt) =>
+                            handleStyleValueChange(optKey, opt.value)
+                          }
+                          creatable={false}
+                        />
+                        {rule?.[defaultSection]?.[optKey] === "hatch" && (
+                          <>
+                            <DataSelect
+                              label="Hatch Direction"
+                              options={[
+                                { value: "diagonal", label: "Diagonal" },
+                                { value: "horizontal", label: "Horizontal" },
+                                { value: "vertical", label: "Vertical" },
+                                { value: "cross", label: "Cross" },
+                              ]}
+                              selectedOption={
+                                rule?.[defaultSection]?.hatchDirection
+                                  ? {
+                                      value:
+                                        rule[defaultSection].hatchDirection,
+                                      label:
+                                        rule[defaultSection].hatchDirection
+                                          .charAt(0)
+                                          .toUpperCase() +
+                                        rule[
+                                          defaultSection
+                                        ].hatchDirection.slice(1),
+                                    }
+                                  : null
+                              }
+                              onChange={(opt) =>
+                                handleStyleValueChange(
+                                  "hatchDirection",
+                                  opt.value,
+                                )
+                              }
+                              creatable={false}
+                            />
+                            <NumberInputWrapper>
+                              <NormalInput
+                                label="Hatch Spacing"
+                                value={rule[defaultSection]?.hatchSpacing || ""}
+                                type="number"
+                                onChange={(e) =>
+                                  handleStyleValueChange(
+                                    "hatchSpacing",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </NumberInputWrapper>
+                            <ColorPickerPopover
+                              label="Hatch Color"
+                              color={rule[defaultSection]?.hatchColor || "#000"}
+                              onChange={(color) =>
+                                handleStyleValueChange("hatchColor", color)
+                              }
+                              containerRef={containerRef}
+                            />
+                          </>
                         )}
-                        onChange={(opt) =>
-                          handleNestedChange(optKey, opt?.value || "solid")
-                        }
-                        creatable={false}
-                        style={{ minWidth: 120 }}
-                      />
+                        {rule?.[defaultSection]?.[optKey] === "dot" && (
+                          <>
+                            <NumberInputWrapper>
+                              <NormalInput
+                                label="Dot Radius"
+                                value={rule[defaultSection]?.dotRadius || ""}
+                                type="number"
+                                onChange={(e) =>
+                                  handleStyleValueChange(
+                                    "dotRadius",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </NumberInputWrapper>
+                            <NumberInputWrapper>
+                              <NormalInput
+                                label="Dot Spacing"
+                                value={rule[defaultSection]?.dotSpacing || ""}
+                                type="number"
+                                onChange={(e) =>
+                                  handleStyleValueChange(
+                                    "dotSpacing",
+                                    e.target.value,
+                                  )
+                                }
+                              />
+                            </NumberInputWrapper>
+                            <ColorPickerPopover
+                              label="Dot Color"
+                              color={rule[defaultSection]?.dotColor || "#444"}
+                              onChange={(color) =>
+                                handleStyleValueChange("dotColor", color)
+                              }
+                              containerRef={containerRef}
+                            />
+                          </>
+                        )}
+                      </>
                     );
                   } else if (optKey === "hatchColor" || optKey === "dotColor") {
                     return (
@@ -286,9 +403,12 @@ const RuleEditor = ({
                           optKey === "hatchColor" ? "Hatch Color" : "Dot Color"
                         }
                         color={
-                          value || (optKey === "hatchColor" ? "#000" : "#444")
+                          rule?.[defaultSection]?.[optKey] ||
+                          (optKey === "hatchColor" ? "#000" : "#444")
                         }
-                        onChange={(color) => handleNestedChange(optKey, color)}
+                        onChange={(color) =>
+                          handleStyleValueChange(optKey, color)
+                        }
                         containerRef={containerRef}
                       />
                     );
@@ -298,20 +418,21 @@ const RuleEditor = ({
                       .replace(/([A-Z])/g, " $1")
                       .replace(/^./, (str) => str.toUpperCase());
                     return (
-                      <NormalInput
-                        key={optKey}
-                        label={label}
-                        value={value}
-                        type="number"
-                        onChange={(e) =>
-                          handleNestedChange(optKey, e.target.value)
-                        }
-                        labelProps={{ style: { marginBottom: 0 } }}
-                      />
+                      <NumberInputWrapper key={optKey}>
+                        <NormalInput
+                          label={label}
+                          value={rule?.[defaultSection]?.[optKey]}
+                          type="number"
+                          onChange={(e) =>
+                            handleStyleValueChange(optKey, e.target.value)
+                          }
+                          labelProps={{ style: { marginBottom: 0 } }}
+                        />
+                      </NumberInputWrapper>
                     );
                   }
                 })}
-              </div>
+              </StyleContainer>
             </div>
           ) : (
             Object.keys(rule)
@@ -327,33 +448,15 @@ const RuleEditor = ({
               .map((key) => {
                 if (key === "polygonFillType") {
                   return (
-                    <div
-                      key={key}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        marginTop: 8,
-                      }}
-                    >
-                      <button
+                    <StyleContainer gap={8} key={key}>
+                      <XButton
                         type="button"
                         onClick={() => handleRemoveStyle(key)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "#d32f2f",
-                          fontWeight: "bold",
-                          fontSize: 20,
-                          cursor: "pointer",
-                          zIndex: 2,
-                          marginRight: 4,
-                        }}
                         aria-label={`Remove ${key} style option`}
                         title={`Remove ${key} style option`}
                       >
                         ×
-                      </button>
+                      </XButton>
                       <DataSelect
                         label="Polygon Fill Type"
                         options={POLYGON_FILL_TYPES}
@@ -364,9 +467,7 @@ const RuleEditor = ({
                           handleStyleValueChange(key, opt?.value || "solid")
                         }
                         creatable={false}
-                        style={{ minWidth: 120 }}
                       />
-                      {/* Conditional extra options for hatching/crosshatch/dot */}
                       {rule[key] === "hatch" && (
                         <>
                           <DataSelect
@@ -375,6 +476,7 @@ const RuleEditor = ({
                               { value: "diagonal", label: "Diagonal" },
                               { value: "horizontal", label: "Horizontal" },
                               { value: "vertical", label: "Vertical" },
+                              { value: "cross", label: "Cross" },
                             ]}
                             selectedOption={
                               rule.hatchDirection
@@ -395,44 +497,20 @@ const RuleEditor = ({
                               )
                             }
                             creatable={false}
-                            style={{ minWidth: 100 }}
                           />
-                          <NormalInput
-                            label="Hatch Spacing"
-                            value={rule.hatchSpacing || ""}
-                            type="number"
-                            onChange={(e) =>
-                              handleStyleValueChange(
-                                "hatchSpacing",
-                                e.target.value,
-                              )
-                            }
-                            style={{ minWidth: 60 }}
-                          />
-                          <ColorPickerPopover
-                            label="Hatch Color"
-                            color={rule.hatchColor || "#000"}
-                            onChange={(color) =>
-                              handleStyleValueChange("hatchColor", color)
-                            }
-                            containerRef={containerRef}
-                          />
-                        </>
-                      )}
-                      {rule[key] === "crosshatch" && (
-                        <>
-                          <NormalInput
-                            label="Hatch Spacing"
-                            value={rule.hatchSpacing || ""}
-                            type="number"
-                            onChange={(e) =>
-                              handleStyleValueChange(
-                                "hatchSpacing",
-                                e.target.value,
-                              )
-                            }
-                            style={{ minWidth: 60 }}
-                          />
+                          <NumberInputWrapper>
+                            <NormalInput
+                              label="Hatch Spacing"
+                              value={rule.hatchSpacing || ""}
+                              type="number"
+                              onChange={(e) =>
+                                handleStyleValueChange(
+                                  "hatchSpacing",
+                                  e.target.value,
+                                )
+                              }
+                            />
+                          </NumberInputWrapper>
                           <ColorPickerPopover
                             label="Hatch Color"
                             color={rule.hatchColor || "#000"}
@@ -445,30 +523,32 @@ const RuleEditor = ({
                       )}
                       {rule[key] === "dot" && (
                         <>
-                          <NormalInput
-                            label="Dot Radius"
-                            value={rule.dotRadius || ""}
-                            type="number"
-                            onChange={(e) =>
-                              handleStyleValueChange(
-                                "dotRadius",
-                                e.target.value,
-                              )
-                            }
-                            style={{ minWidth: 60 }}
-                          />
-                          <NormalInput
-                            label="Dot Spacing"
-                            value={rule.dotSpacing || ""}
-                            type="number"
-                            onChange={(e) =>
-                              handleStyleValueChange(
-                                "dotSpacing",
-                                e.target.value,
-                              )
-                            }
-                            style={{ minWidth: 60 }}
-                          />
+                          <NumberInputWrapper>
+                            <NormalInput
+                              label="Dot Radius"
+                              value={rule.dotRadius || ""}
+                              type="number"
+                              onChange={(e) =>
+                                handleStyleValueChange(
+                                  "dotRadius",
+                                  e.target.value,
+                                )
+                              }
+                            />
+                          </NumberInputWrapper>
+                          <NumberInputWrapper>
+                            <NormalInput
+                              label="Dot Spacing"
+                              value={rule.dotSpacing || ""}
+                              type="number"
+                              onChange={(e) =>
+                                handleStyleValueChange(
+                                  "dotSpacing",
+                                  e.target.value,
+                                )
+                              }
+                            />
+                          </NumberInputWrapper>
                           <ColorPickerPopover
                             label="Dot Color"
                             color={rule.dotColor || "#444"}
@@ -479,37 +559,19 @@ const RuleEditor = ({
                           />
                         </>
                       )}
-                    </div>
+                    </StyleContainer>
                   );
                 }
                 return (
-                  <div
-                    key={key}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                      marginTop: 8,
-                    }}
-                  >
-                    <button
+                  <StyleContainer key={key} gap={4}>
+                    <XButton
                       type="button"
                       onClick={() => handleRemoveStyle(key)}
-                      style={{
-                        background: "none",
-                        border: "none",
-                        color: "#d32f2f",
-                        fontWeight: "bold",
-                        fontSize: 20,
-                        cursor: "pointer",
-                        zIndex: 2,
-                        marginRight: 4,
-                      }}
                       aria-label={`Remove ${key} style option`}
                       title={`Remove ${key} style option`}
                     >
                       ×
-                    </button>
+                    </XButton>
                     {key === "fill" || key === "stroke" ? (
                       <ColorPickerPopover
                         label={key === "fill" ? "Fill" : "Stroke"}
@@ -533,25 +595,39 @@ const RuleEditor = ({
                           handleStyleValueChange(key, opt?.value || "circle")
                         }
                         creatable={false}
-                        style={{ minWidth: 100 }}
+                      />
+                    ) : key === "strokeDash" ? (
+                      <DataSelect
+                        label="Stroke Dash"
+                        options={availableStrokeDashOptions}
+                        selectedOption={
+                          availableStrokeDashOptions.find(
+                            (o) => o.value === (rule[key] || ""),
+                          ) || availableStrokeDashOptions[0]
+                        }
+                        onChange={(opt) =>
+                          handleStyleValueChange(key, opt?.value || "")
+                        }
+                        creatable={false}
                       />
                     ) : (
-                      <NormalInput
-                        label={key}
-                        value={rule[key]}
-                        type="number"
-                        onChange={(e) =>
-                          handleStyleValueChange(key, e.target.value)
-                        }
-                        style={{ minWidth: 60 }}
-                      />
+                      <NumberInputWrapper>
+                        <NormalInput
+                          label={key}
+                          value={rule[key]}
+                          type="number"
+                          onChange={(e) =>
+                            handleStyleValueChange(key, e.target.value)
+                          }
+                        />
+                      </NumberInputWrapper>
                     )}
-                  </div>
+                  </StyleContainer>
                 );
               })
           )}
-        </div>
-      </div>
+        </FullWidthContainer>
+      </FlexContainer>
     </RuleContainer>
   );
 };
