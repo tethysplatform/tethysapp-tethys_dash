@@ -196,6 +196,7 @@ const StylePane = ({
                       conditionField: "",
                       conditionType: "=",
                       conditionValue: "",
+                      geometryType: "point",
                     },
                   ])
                 }

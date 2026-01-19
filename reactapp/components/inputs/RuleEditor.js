@@ -65,7 +65,6 @@ const XButton = styled.button`
   font-weight: bold;
   font-size: 20px;
   cursor: pointer;
-  z-index: 2;
   margin-right: 4px;
 `;
 
