@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
@@ -129,9 +129,21 @@ const RuleEditor = ({
         }
       : { value: "point", label: "Point" },
   );
-  const [styleOptions, setStyleOptions] = useState(
-    getStyleKeysForGeom(rule.geometryType || "point"),
-  );
+  const [styleOptions, setStyleOptions] = useState(() => {
+    return getStyleKeysForGeom(rule.geometryType || "point").map((key) => ({
+      value: key,
+      label: spaceAndCapitalize(key),
+    }));
+  });
+  const currentGeomType = useRef(rule.geometryType || "point");
+
+  useEffect(() => {
+    // when geometry type changes, remove old rules
+    if (currentGeomType.current !== selectedGeomType.value) {
+      onChange({ geometryType: selectedGeomType.value });
+      currentGeomType.current = selectedGeomType.value;
+    }
+  }, [rule.geometryType]);
 
   // Extract condition
   const conditionField = rule.conditionField || "";
@@ -234,15 +246,6 @@ const RuleEditor = ({
               creatable={false}
               divProps={{ style: { marginBottom: 0 } }}
             />
-            {rule.shape === "icon" && (
-              <NormalInput
-                label="Icon URL"
-                value={rule.iconUrl || ""}
-                type="text"
-                onChange={(e) => onChange({ ...rule, iconUrl: e.target.value })}
-                labelProps={{ style: { marginBottom: 0 } }}
-              />
-            )}
           </>
         )}
         <FullWidthContainer>
@@ -267,27 +270,45 @@ const RuleEditor = ({
                     );
                   } else if (optKey === "shape") {
                     return (
-                      <DataSelect
-                        key={optKey}
-                        label="Shape"
-                        options={availableShapes.map((s) => ({
-                          value: s,
-                          label: s,
-                        }))}
-                        selectedOption={
-                          rule?.[defaultSection]?.[optKey]
-                            ? {
-                                value: rule[defaultSection][optKey],
-                                label: rule[defaultSection][optKey],
+                      <>
+                        <DataSelect
+                          key={optKey}
+                          label="Shape"
+                          options={availableShapes.map((s) => ({
+                            value: s,
+                            label: s,
+                          }))}
+                          selectedOption={
+                            rule?.[defaultSection]?.[optKey]
+                              ? {
+                                  value: rule[defaultSection][optKey],
+                                  label: rule[defaultSection][optKey],
+                                }
+                              : null
+                          }
+                          onChange={(o) =>
+                            handleStyleValueChange(optKey, o.value)
+                          }
+                          creatable={false}
+                          divProps={{ style: { marginBottom: 0 } }}
+                        />
+                        {rule?.[defaultSection]?.[optKey] === "icon" && (
+                          <>
+                            <NormalInput
+                              label="Icon URL"
+                              value={rule[defaultSection]?.iconUrl || ""}
+                              type="text"
+                              onChange={(e) =>
+                                handleStyleValueChange(
+                                  "iconUrl",
+                                  e.target.value,
+                                )
                               }
-                            : null
-                        }
-                        onChange={(o) =>
-                          handleStyleValueChange(optKey, o.value)
-                        }
-                        creatable={false}
-                        divProps={{ style: { marginBottom: 0 } }}
-                      />
+                              labelProps={{ style: { marginBottom: 0 } }}
+                            />
+                          </>
+                        )}
+                      </>
                     );
                   } else if (optKey === "polygonFillType") {
                     return (
@@ -453,6 +474,13 @@ const RuleEditor = ({
                     "conditionType",
                     "conditionValue",
                     "geometryType",
+                    "iconUrl",
+                    "hatchDirection",
+                    "hatchSpacing",
+                    "hatchColor",
+                    "dotColor",
+                    "dotRadius",
+                    "dotSpacing",
                   ].includes(key),
               )
               .map((key) => {
@@ -576,7 +604,53 @@ const RuleEditor = ({
                       )}
                     </StyleContainer>
                   );
+                } else if (key === "shape") {
+                  return (
+                    <StyleContainer gap={8} key={key}>
+                      <XButton
+                        type="button"
+                        onClick={() => handleRemoveStyle(key)}
+                        aria-label={`Remove ${key} style option`}
+                        title={`Remove ${key} style option`}
+                      >
+                        ×
+                      </XButton>
+                      <DataSelect
+                        key={key}
+                        label="Shape"
+                        options={availableShapes.map((s) => ({
+                          value: s,
+                          label: s,
+                        }))}
+                        selectedOption={
+                          rule.shape
+                            ? {
+                                value: rule.shape,
+                                label: rule.shape,
+                              }
+                            : null
+                        }
+                        onChange={(o) => handleStyleValueChange(key, o.value)}
+                        creatable={false}
+                        divProps={{ style: { marginBottom: 0 } }}
+                      />
+                      {rule.shape === "icon" && (
+                        <>
+                          <NormalInput
+                            label="Icon URL"
+                            value={rule.iconUrl || ""}
+                            type="text"
+                            onChange={(e) =>
+                              handleStyleValueChange("iconUrl", e.target.value)
+                            }
+                            labelProps={{ style: { marginBottom: 0 } }}
+                          />
+                        </>
+                      )}
+                    </StyleContainer>
+                  );
                 }
+
                 return (
                   <StyleContainer key={key} gap={4}>
                     <XButton
@@ -593,24 +667,6 @@ const RuleEditor = ({
                         color={rule[key]}
                         onChange={(color) => handleStyleValueChange(key, color)}
                         containerRef={containerRef}
-                      />
-                    ) : key === "shape" ? (
-                      <DataSelect
-                        label="Shape"
-                        options={availableShapes.map((s) => ({
-                          value: s,
-                          label: s,
-                        }))}
-                        selectedOption={
-                          rule[key]
-                            ? { value: rule[key], label: rule[key] }
-                            : null
-                        }
-                        onChange={(opt) =>
-                          handleStyleValueChange(key, opt?.value || "circle")
-                        }
-                        creatable={false}
-                        divProps={{ style: { marginBottom: 0 } }}
                       />
                     ) : key === "strokeDash" ? (
                       <DataSelect
