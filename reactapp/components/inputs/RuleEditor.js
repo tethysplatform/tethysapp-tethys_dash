@@ -202,7 +202,7 @@ const RuleEditor = ({
               onChange={(opt) =>
                 onChange({ ...rule, conditionField: opt?.value || "" })
               }
-              creatable={false}
+              creatable={true}
               divProps={{ style: { marginBottom: 0 } }}
             />
             <DataSelect

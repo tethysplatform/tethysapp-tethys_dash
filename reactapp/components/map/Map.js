@@ -186,7 +186,7 @@ const MapComponent = ({
           try {
             const newLayer = await moduleLoader(
               layerConfig,
-              map.getView().getProjection().getCode()
+              map.getView().getProjection().getCode(),
             );
             newLayer.set("name", name);
 
@@ -208,9 +208,11 @@ const MapComponent = ({
                   "Cannot read properties of undefined (reading 'crs')"
                 ) {
                   const styleFunction = createJsonStyleFunction(
-                    layerConfig.style
+                    layerConfig.style,
                   );
-                  newLayer.setStyle(styleFunction);
+                  if (typeof newLayer.setStyle === "function") {
+                    newLayer.setStyle(styleFunction);
+                  }
                 }
               }
             }
@@ -218,12 +220,12 @@ const MapComponent = ({
             console.log(err);
             failedLayers.push(name);
           }
-        })
+        }),
       );
 
       if (failedLayers.length > 0) {
         setErrorMessage(
-          `Failed to load the "${failedLayers.join(", ")}" layer(s)`
+          `Failed to load the "${failedLayers.join(", ")}" layer(s)`,
         );
       }
 
@@ -234,7 +236,7 @@ const MapComponent = ({
           if (onMapClickCurrent.current) {
             visualizationRef.current.un(
               "singleclick",
-              onMapClickCurrent.current
+              onMapClickCurrent.current,
             );
           }
           onMapClickCurrent.current = async function (evt) {
@@ -334,7 +336,7 @@ MapComponent.propTypes = {
   layers: PropTypes.arrayOf(
     PropTypes.shape({
       configuration: configurationPropType,
-    })
+    }),
   ),
   legend: PropTypes.arrayOf(legendPropType),
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present

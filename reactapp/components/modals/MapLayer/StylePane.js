@@ -21,11 +21,23 @@ const StyledTextInput = styled.textarea`
   height: 30vh;
 `;
 
+const CenteredDiv = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40vh;
+  width: 100%;
+  text-align: center;
+  font-size: large;
+  font-weight: bold;
+`;
+
 const StylePane = ({
   style,
   setStyle,
   setErrorMessage,
   containerRef,
+  sourceProps,
   availableFields = [],
 }) => {
   const [styleSource, setStyleSource] = useState("custom"); // track the geojson value
@@ -137,6 +149,18 @@ const StylePane = ({
     } else {
       setStyle("");
     }
+  }
+
+  if (
+    sourceProps.type !== "GeoJSON" &&
+    sourceProps.type !== "ESRI Feature Service"
+  ) {
+    return (
+      <CenteredDiv>
+        Custom Styling is only available for GeoJSON and ESRI Feature Service
+        layers.
+      </CenteredDiv>
+    );
   }
 
   return (
