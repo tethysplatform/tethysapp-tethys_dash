@@ -13,7 +13,7 @@ import {
   Fill,
   Stroke,
 } from "ol/style";
-import { geomStyleOptions } from "components/inputs/RuleStyleEditor.js";
+import { geomStyleOptions } from "components/inputs/RuleEditor.js";
 
 const moduleCache = {};
 const styleCache = new Map();
@@ -576,13 +576,25 @@ export function createJsonStyleFunction(styleJson) {
 
     // --- Apply matching rules ---
     for (const rule of styleJson.rules || []) {
-      if (rule.size != null) continue;
+      // Only apply rule if it matches this geometry type
+      const ruleGeom = rule.geometryType || geometryBucket;
+      if (ruleGeom !== geometryBucket) continue;
 
+      // Defensive: convert rule values to correct types
       const fv = properties[rule.conditionField];
+      let ruleValue = rule.conditionValue;
+      if (
+        typeof fv === "number" &&
+        typeof ruleValue === "string" &&
+        !isNaN(ruleValue)
+      ) {
+        ruleValue = Number(ruleValue);
+      }
+
       if (
         rule.conditionField &&
         rule.conditionType &&
-        matchesCondition(fv, rule.conditionType, rule.conditionValue)
+        matchesCondition(fv, rule.conditionType, ruleValue)
       ) {
         merged = mergeStyleProperties(
           merged,

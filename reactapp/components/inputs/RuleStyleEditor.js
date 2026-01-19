@@ -1,36 +1,6 @@
 import PropTypes from "prop-types";
 import RuleEditor from "components/inputs/RuleEditor";
 import Accordion from "react-bootstrap/Accordion";
-const availableShapes = [
-  "circle",
-  "square",
-  "rectangle",
-  "triangle",
-  "star",
-  "diamond",
-  "cross",
-  "x",
-  "icon",
-];
-
-// Geometry-specific style option filters
-export const geomStyleOptions = {
-  point: ["fill", "stroke", "strokeWidth", "size", "shape", "zIndex"],
-  linestring: ["stroke", "strokeWidth", "strokeDash", "zIndex"],
-  polygon: [
-    "fill",
-    "stroke",
-    "strokeWidth",
-    "polygonFillType",
-    "hatchDirection",
-    "hatchSpacing",
-    "hatchColor",
-    "dotRadius",
-    "dotSpacing",
-    "dotColor",
-    "zIndex",
-  ],
-};
 
 const RuleStyleEditor = ({
   rules,
@@ -41,16 +11,6 @@ const RuleStyleEditor = ({
   setDefaultStyle,
   containerRef,
 }) => {
-  const getStyleKeysForGeom = (geomType) => {
-    if (["point", "multipoint"].includes(geomType))
-      return geomStyleOptions.point;
-    if (["linestring", "multilinestring"].includes(geomType))
-      return geomStyleOptions.linestring;
-    if (["polygon", "multipolygon"].includes(geomType))
-      return geomStyleOptions.polygon;
-    return [];
-  };
-
   const handleRuleChange = (idx, newRule) => {
     const updated = rules.map((r, i) => (i === idx ? newRule : r));
     setRules(updated);
@@ -78,11 +38,9 @@ const RuleStyleEditor = ({
                   <RuleEditor
                     rule={defaultStyle}
                     onChange={setDefaultStyle}
-                    availableShapes={availableShapes}
                     availableFields={[]}
-                    defaultSection={true}
+                    defaultSection={geomType}
                     containerRef={containerRef}
-                    styleOptionFilter={getStyleKeysForGeom(geomType)}
                   />
                 </div>
               ))}
@@ -127,12 +85,8 @@ const RuleStyleEditor = ({
               <RuleEditor
                 rule={rule}
                 onChange={(newRule) => handleRuleChange(idx, newRule)}
-                availableShapes={availableShapes}
                 availableFields={availableFields}
                 containerRef={containerRef}
-                styleOptionFilter={getStyleKeysForGeom(
-                  layerGeomTypes && layerGeomTypes[0],
-                )}
               />
             </Accordion.Body>
           </Accordion.Item>
