@@ -1,26 +1,55 @@
 import PropTypes from "prop-types";
 import RuleEditor from "components/inputs/RuleEditor";
 import Accordion from "react-bootstrap/Accordion";
+const availableShapes = [
+  "circle",
+  "square",
+  "rectangle",
+  "triangle",
+  "star",
+  "diamond",
+  "cross",
+  "x",
+  "icon",
+];
+
+// Geometry-specific style option filters
+export const geomStyleOptions = {
+  point: ["fill", "stroke", "strokeWidth", "size", "shape", "zIndex"],
+  linestring: ["stroke", "strokeWidth", "strokeDash", "zIndex"],
+  polygon: [
+    "fill",
+    "stroke",
+    "strokeWidth",
+    "polygonFillType",
+    "hatchDirection",
+    "hatchSpacing",
+    "hatchColor",
+    "dotRadius",
+    "dotSpacing",
+    "dotColor",
+    "zIndex",
+  ],
+};
 
 const RuleStyleEditor = ({
   rules,
   setRules,
+  layerGeomTypes = ["point", "linestring", "polygon"],
   availableFields,
   defaultStyle,
   setDefaultStyle,
   containerRef,
 }) => {
-  const availableShapes = [
-    "circle",
-    "square",
-    "rectangle",
-    "triangle",
-    "star",
-    "diamond",
-    "cross",
-    "x",
-    "icon",
-  ];
+  const getStyleKeysForGeom = (geomType) => {
+    if (["point", "multipoint"].includes(geomType))
+      return geomStyleOptions.point;
+    if (["linestring", "multilinestring"].includes(geomType))
+      return geomStyleOptions.linestring;
+    if (["polygon", "multipolygon"].includes(geomType))
+      return geomStyleOptions.polygon;
+    return [];
+  };
 
   const handleRuleChange = (idx, newRule) => {
     const updated = rules.map((r, i) => (i === idx ? newRule : r));
@@ -39,14 +68,24 @@ const RuleStyleEditor = ({
             <span style={{ flex: 1, fontWeight: 500 }}>Default Style</span>
           </Accordion.Header>
           <Accordion.Body>
-            <RuleEditor
-              rule={defaultStyle}
-              onChange={setDefaultStyle}
-              availableShapes={availableShapes}
-              availableFields={[]} // Hide field/condition/value for default style
-              hideConditionFields={true}
-              containerRef={containerRef}
-            />
+            {layerGeomTypes &&
+              layerGeomTypes.length > 0 &&
+              layerGeomTypes.map((geomType) => (
+                <div key={geomType} style={{ marginBottom: 24 }}>
+                  <div style={{ fontWeight: 600, marginBottom: 8 }}>
+                    {geomType.replace("Multi", "")} Style
+                  </div>
+                  <RuleEditor
+                    rule={defaultStyle}
+                    onChange={setDefaultStyle}
+                    availableShapes={availableShapes}
+                    availableFields={[]}
+                    defaultSection={true}
+                    containerRef={containerRef}
+                    styleOptionFilter={getStyleKeysForGeom(geomType)}
+                  />
+                </div>
+              ))}
           </Accordion.Body>
         </Accordion.Item>
         {rules.map((rule, idx) => (
@@ -91,6 +130,9 @@ const RuleStyleEditor = ({
                 availableShapes={availableShapes}
                 availableFields={availableFields}
                 containerRef={containerRef}
+                styleOptionFilter={getStyleKeysForGeom(
+                  layerGeomTypes && layerGeomTypes[0],
+                )}
               />
             </Accordion.Body>
           </Accordion.Item>

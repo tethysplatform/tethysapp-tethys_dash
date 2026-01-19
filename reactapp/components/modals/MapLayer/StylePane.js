@@ -31,11 +31,7 @@ const StylePane = ({
   const [styleSource, setStyleSource] = useState("custom"); // track the geojson value
   const [styleMode, setStyleMode] = useState("json"); // "json" or "rules"
   const [rules, setRules] = useState([]);
-  const [defaultStyle, setDefaultStyle] = useState({
-    shape: "circle",
-    fill: "gray",
-    size: 5,
-  });
+  const [defaultStyle, setDefaultStyle] = useState({});
   const { uuid } = useContext(LayoutContext);
 
   useEffect(() => {
@@ -83,11 +79,11 @@ const StylePane = ({
           }
         } else {
           setRules([]);
-          setDefaultStyle({ shape: "circle", fill: "gray", size: 5 });
+          setDefaultStyle({});
         }
       } catch (e) {
         setRules([]);
-        setDefaultStyle({ shape: "circle", fill: "gray", size: 5 });
+        setDefaultStyle({});
       }
     }
     lastStyleMode.current = styleMode;

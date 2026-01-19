@@ -177,7 +177,7 @@ export function createMarkerLayer(coordinate) {
         src: svgURI,
         anchor: [0.5, 1], // Align the bottom-center of the icon to the point
       }),
-    })
+    }),
   );
   const markerLayer = new VectorLayer({
     source: new VectorSource({
@@ -265,7 +265,7 @@ export function transformCoordinates(coords, sourceProj, destProj) {
   if (Array.isArray(coords[0])) {
     // run function again to transform nested values
     return coords.map((coord) =>
-      transformCoordinates(coord, sourceProj, destProj)
+      transformCoordinates(coord, sourceProj, destProj),
     );
   } else if (
     coords.length === 2 &&
@@ -277,6 +277,62 @@ export function transformCoordinates(coords, sourceProj, destProj) {
   } else {
     throw new Error("Invalid coordinate structure");
   }
+}
+
+export async function getLayerGeometryTypes(layerInfo, map) {
+  // ESRI Image/Map/Feature Service: geometryType is usually available in metadata
+  const sourceType = layerInfo?.configuration?.props?.source?.type;
+  const sourceProps = layerInfo?.configuration?.props?.source?.props;
+  if (sourceType && sourceType.includes("ESRI")) {
+    // Try to fetch layer metadata for geometryType
+    const url = sourceProps?.url;
+    if (url) {
+      try {
+        const metaUrl = url.endsWith("/") ? url + "?f=json" : url + "/?f=json";
+        const resp = await fetch(metaUrl);
+        if (resp.ok) {
+          const meta = await resp.json();
+          if (meta.geometryType) {
+            // e.g., esriGeometryPolygon, esriGeometryPoint, esriGeometryPolyline
+            if (meta.geometryType.includes("Polygon")) return ["polygon"];
+            if (meta.geometryType.includes("Polyline")) return ["linestring"];
+            if (meta.geometryType.includes("Point")) return ["point"];
+          }
+        }
+      } catch {}
+    }
+    // Fallback: unknown
+    return [];
+  }
+
+  // GeoJSON or WMS: inspect features on the map
+  const geomTypes = new Set();
+  if (sourceType === "GeoJSON" || sourceType === "WMS") {
+    // Use map.forEachFeatureAtPixel to get all features, or inspect the source
+    // We'll try to get all features from the layer
+    const layerName = layerInfo?.configuration?.props?.name;
+    map.getLayers().forEach((layer) => {
+      if (layer.get("name") === layerName) {
+        const source = layer.getSource && layer.getSource();
+        if (source && source.getFeatures) {
+          const features = source.getFeatures();
+          features.forEach((feature) => {
+            const geom = feature.getGeometry();
+            if (geom) {
+              let type = geom.getType().toLowerCase();
+              // Normalize Multi* to base type
+              if (type.startsWith("multi")) type = type.slice(5);
+              geomTypes.add(type);
+            }
+          });
+        }
+      }
+    });
+    return Array.from(geomTypes);
+  }
+
+  // Fallback: unknown
+  return [];
 }
 
 export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
@@ -303,7 +359,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         sourceUrl,
         sourceParams,
         map,
-        pixel
+        pixel,
       );
     } else if (
       sourceType === "GeoJSON" ||
@@ -313,7 +369,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         map,
         pixel,
         coordinate,
-        LayerName
+        LayerName,
       );
     } else {
       throw Error(`${sourceType} is not currently configured to be queried`);
@@ -401,7 +457,7 @@ async function getImageWMSLayerFeatures(sourceUrl, sourceParams, map, pixel) {
       transformedCoords = transformCoordinates(
         transformedCoords,
         featuresSRSFormatted,
-        mapSRS
+        mapSRS,
       );
     }
     const updatedGeometry = {
@@ -455,7 +511,7 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate, LayerName) {
             const distance =
               Math.sqrt(
                 Math.pow(closestPoint[0] - coordinate[0], 2) +
-                  Math.pow(closestPoint[1] - coordinate[1], 2)
+                  Math.pow(closestPoint[1] - coordinate[1], 2),
               ) / resolution;
 
             // if the closest point distance is less than the threshold, count it as being clicked
@@ -514,7 +570,7 @@ export async function getLayerAttributes(sourceProps, layerName) {
     attributes = await getArcGISFeatureServiceLayerAttributes(
       sourceUrl,
       layerNumber,
-      layerName
+      layerName,
     );
   } else {
     throw Error(`${sourceType} is not currently configured to be queried`);
@@ -561,7 +617,7 @@ async function getImageArcGISRestLayerAttributes(sourceUrl) {
 async function getArcGISFeatureServiceLayerAttributes(
   sourceUrl,
   layerNumber,
-  layerName
+  layerName,
 ) {
   sourceUrl += sourceUrl.endsWith("/") ? layerNumber : `/${layerNumber}`;
 
@@ -613,14 +669,14 @@ async function getImageWMSLayerAttributes(sourceUrl, sourceParams) {
       sourceInfoResponse = await fetch(sourceInfoUrl);
     } catch (e) {
       throw new Error(
-        `Failed to fetch attribute data for layer '${layerName}'. Check if the layer exists.`
+        `Failed to fetch attribute data for layer '${layerName}'. Check if the layer exists.`,
       );
     }
 
     const sourceInfoText = await sourceInfoResponse.text();
     if (sourceInfoText.includes("ExceptionReport")) {
       throw new Error(
-        `WFS DescribeFeatureType request failed for layer '${layerName}'. Ensure WFS is enabled and the layer name is correct.`
+        `WFS DescribeFeatureType request failed for layer '${layerName}'. Ensure WFS is enabled and the layer name is correct.`,
       );
     }
 
@@ -629,12 +685,12 @@ async function getImageWMSLayerAttributes(sourceUrl, sourceParams) {
 
     if (!schema || !Array.isArray(schema.children)) {
       throw new Error(
-        `Unexpected DescribeFeatureType format for layer '${layerName}'.`
+        `Unexpected DescribeFeatureType format for layer '${layerName}'.`,
       );
     }
 
     const allLayersInfo = schema.children.filter((obj) =>
-      Reflect.has(obj, "xsd:complexType")
+      Reflect.has(obj, "xsd:complexType"),
     );
 
     for (const { "xsd:complexType": layerInfo } of allLayersInfo) {
@@ -687,7 +743,7 @@ async function getGeoJSONLayerAttributes(sourceGeoJSON, layerName) {
   // for each feature, get an array of all the available properties/fields and then flatten into a single array
   const propertyKeys = sourceFeatures
     .map((feature) =>
-      feature.properties ? Object.keys(feature.properties) : []
+      feature.properties ? Object.keys(feature.properties) : [],
     )
     .flat();
 
@@ -707,7 +763,7 @@ async function getGeoJSONLayerAttributes(sourceGeoJSON, layerName) {
 export async function loadLayerJSONs(
   mapLayer,
   dashboard_uuid,
-  keep_urls = false
+  keep_urls = false,
 ) {
   // Helper to load style JSON
   async function loadStyle(style, layerName) {
@@ -772,7 +828,7 @@ export async function loadLayerJSONs(
   if (mapLayer?.configuration?.style) {
     const style = await loadStyle(
       mapLayer.configuration.style,
-      mapLayer.configuration.props?.name
+      mapLayer.configuration.props?.name,
     );
     if (style !== undefined) {
       mapLayer.configuration.style = style;
@@ -786,7 +842,7 @@ export async function loadLayerJSONs(
   if (source?.type === "GeoJSON" && source?.geojson) {
     const geojson = await loadGeoJSON(
       source.geojson,
-      mapLayer.configuration.props.source
+      mapLayer.configuration.props.source,
     );
     if (geojson?.success === false) {
       delete mapLayer.configuration.props.source.geojson;
@@ -910,12 +966,12 @@ export async function saveLayerJSON({
 
 // layer attribute variable for the layer, structure is {layerName: {"field1": "Variable Name 1"}}
 export const attributeVariablesPropType = PropTypes.objectOf(
-  PropTypes.objectOf(PropTypes.string)
+  PropTypes.objectOf(PropTypes.string),
 );
 
 // layer attributes to be omitted in the popups, structure is {layerName: ["field1", "field2"]}
 export const omittedPopupAttributesPropType = PropTypes.objectOf(
-  PropTypes.arrayOf(PropTypes.string)
+  PropTypes.arrayOf(PropTypes.string),
 );
 
 export const attributePropsPropType = PropTypes.shape({

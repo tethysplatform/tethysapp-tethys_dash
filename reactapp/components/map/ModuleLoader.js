@@ -13,8 +13,10 @@ import {
   Fill,
   Stroke,
 } from "ol/style";
+import { geomStyleOptions } from "components/inputs/RuleStyleEditor.js";
 
 const moduleCache = {};
+const styleCache = new Map();
 
 const moduleLoader = async (config, mapProjection) => {
   if (config.type.includes("ESRI")) {
@@ -95,7 +97,7 @@ const resolveProps = async (props, mapProjection) => {
             } else {
               return item;
             }
-          })
+          }),
         );
       } else {
         // It's a regular object; recursively resolve its properties
@@ -213,7 +215,7 @@ const loadESRIJSON = (config) => {
             extent[3] +
             ',"spatialReference":{"wkid":' +
             srid +
-            "}}"
+            "}}",
         ) +
         "&geometryType=esriGeometryEnvelope&inSR=" +
         srid +
@@ -235,18 +237,82 @@ const loadESRIJSON = (config) => {
     strategy: tileStrategy(
       createXYZ({
         tileSize: 512,
-      })
+      }),
     ),
     attributions: config.props.attributions,
   });
   return vectorSource;
 };
 
+function getStyleCacheKey(geometryType, style) {
+  return `${geometryType}:${JSON.stringify(style)}`;
+}
+
+function createDotFill({ color = "#000", radius = 2, spacing = 8 }) {
+  const canvas = document.createElement("canvas");
+  canvas.width = spacing;
+  canvas.height = spacing;
+
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = color;
+
+  ctx.beginPath();
+  ctx.arc(spacing / 2, spacing / 2, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  const pattern = ctx.createPattern(canvas, "repeat");
+
+  return new Fill({
+    color: pattern,
+  });
+}
+
+function createHatchFill({
+  color = "#000",
+  spacing = 8,
+  direction = "diagonal",
+}) {
+  const canvas = document.createElement("canvas");
+  canvas.width = spacing;
+  canvas.height = spacing;
+
+  const ctx = canvas.getContext("2d");
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+
+  if (direction === "horizontal" || direction === "cross") {
+    ctx.beginPath();
+    ctx.moveTo(0, spacing / 2);
+    ctx.lineTo(spacing, spacing / 2);
+    ctx.stroke();
+  }
+
+  if (direction === "vertical" || direction === "cross") {
+    ctx.beginPath();
+    ctx.moveTo(spacing / 2, 0);
+    ctx.lineTo(spacing / 2, spacing);
+    ctx.stroke();
+  }
+
+  if (direction === "diagonal") {
+    ctx.beginPath();
+    ctx.moveTo(0, spacing);
+    ctx.lineTo(spacing, 0);
+    ctx.stroke();
+  }
+
+  const pattern = ctx.createPattern(canvas, "repeat");
+
+  return new Fill({
+    color: pattern,
+  });
+}
+
 function mergeStyleProperties(base, override) {
   return {
     ...base,
     ...Object.fromEntries(
-      Object.entries(override).filter(([, v]) => v !== undefined)
+      Object.entries(override).filter(([, v]) => v !== undefined),
     ),
   };
 }
@@ -360,16 +426,155 @@ export function createDiamondIconStyle({ size, fill, stroke }) {
   });
 }
 
+export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
+  switch (shape) {
+    case "circle":
+      return new Style({
+        image: new CircleStyle({ radius: size, fill, stroke }),
+      });
+
+    case "square":
+      return new Style({
+        image: new RegularShape({
+          points: 4,
+          radius: size,
+          angle: Math.PI / 4,
+          fill,
+          stroke,
+        }),
+      });
+
+    case "rectangle":
+      return new Style({
+        image: new RegularShape({
+          fill: fill,
+          stroke: stroke,
+          radius: 10 / Math.SQRT2,
+          radius2: 10,
+          points: 4,
+          angle: 0,
+          scale: [1, 0.5],
+        }),
+      });
+
+    case "triangle":
+      return new Style({
+        image: new RegularShape({
+          points: 3,
+          radius: size,
+          fill,
+          stroke,
+        }),
+      });
+
+    case "star":
+      return new Style({
+        image: new RegularShape({
+          points: 5,
+          radius: size,
+          radius2: size / 2,
+          fill,
+          stroke,
+        }),
+      });
+
+    case "diamond":
+      return createDiamondIconStyle({ size, fill, stroke });
+
+    case "cross":
+      return new Style({
+        image: new RegularShape({
+          points: 4,
+          radius: size,
+          radius2: 0,
+          angle: 0,
+          fill,
+          stroke,
+        }),
+      });
+
+    case "x":
+      return new Style({
+        image: new RegularShape({
+          points: 4,
+          radius: size,
+          radius2: 0,
+          angle: Math.PI / 4,
+          fill,
+          stroke,
+        }),
+      });
+
+    case "icon":
+      if (iconUrl) {
+        return new Style({
+          image: new Icon({
+            src: iconUrl,
+            scale: size / 10, // optional scaling
+          }),
+        });
+      }
+      // fallback to circle if no iconUrl
+      return new Style({
+        image: new CircleStyle({ radius: size, fill, stroke }),
+      });
+
+    default:
+      // fallback to circle
+      return new Style({
+        image: new CircleStyle({ radius: size, fill, stroke }),
+      });
+  }
+}
+
+function getGeometryBucket(feature) {
+  const type = feature.getGeometry()?.getType().toLowerCase();
+  if (type === "point" || type === "multipoint") return "point";
+  if (type === "linestring" || type === "multilinestring") return "line";
+  if (type === "polygon" || type === "multipolygon") return "polygon";
+  return "point";
+}
+
+function filterByGeometryOptions(style, geometryType) {
+  const allowed = geomStyleOptions[geometryType] || [];
+  return Object.fromEntries(
+    Object.entries(style).filter(([k]) => allowed.includes(k)),
+  );
+}
+
+function buildPolygonFill(merged) {
+  if (merged.polygonFillType === "hatch") {
+    return createHatchFill({
+      color: merged.hatchColor || merged.fill || "#000",
+      spacing: merged.hatchSpacing ?? 8,
+      direction: merged.hatchDirection ?? "diagonal",
+    });
+  }
+
+  if (merged.polygonFillType === "dot") {
+    return createDotFill({
+      color: merged.dotColor || merged.fill || "#000",
+      radius: merged.dotRadius ?? 2,
+      spacing: merged.dotSpacing ?? 8,
+    });
+  }
+
+  // solid default
+  return new Fill({ color: merged.fill || "gray" });
+}
+
 export function createJsonStyleFunction(styleJson) {
   return function (feature) {
-    const properties = feature.getProperties();
+    let properties = feature.getProperties();
+    const geometryBucket = getGeometryBucket(feature); // 'point', 'line', 'polygon'
 
-    // Start with defaults
-    let merged = {
-      ...(styleJson.default || {}),
-    };
+    // --- Defaults (geometry-specific) ---
+    let merged = filterByGeometryOptions(
+      styleJson.default?.[geometryBucket] || {},
+      geometryBucket,
+    );
 
-    // Apply every matching rule
+    // --- Apply matching rules ---
     for (const rule of styleJson.rules || []) {
       if (rule.size != null) continue;
 
@@ -379,115 +584,66 @@ export function createJsonStyleFunction(styleJson) {
         rule.conditionType &&
         matchesCondition(fv, rule.conditionType, rule.conditionValue)
       ) {
-        merged = mergeStyleProperties(merged, rule);
+        merged = mergeStyleProperties(
+          merged,
+          filterByGeometryOptions(rule, geometryBucket),
+        );
       }
     }
 
-    // Resolve size separately
-    const size = resolveSize(feature, styleJson.rules || [], merged.size ?? 5);
-
-    // --- Build final style ---
-
-    const fill = new Fill({ color: merged.fill || "gray" });
-    const stroke = new Stroke({
-      color: merged.stroke || "black",
-      width: merged.strokeWidth ?? 1,
-    });
-    switch (merged.shape) {
-      case "circle":
-        return new Style({
-          image: new CircleStyle({ radius: size, fill, stroke }),
-        });
-
-      case "square":
-        return new Style({
-          image: new RegularShape({
-            fill: fill,
-            stroke: stroke,
-            points: 4,
-            radius: size,
-            angle: Math.PI / 4,
-          }),
-        });
-
-      case "rectangle":
-        return new Style({
-          image: new RegularShape({
-            fill: fill,
-            stroke: stroke,
-            radius: 10 / Math.SQRT2,
-            radius2: 10,
-            points: 4,
-            angle: 0,
-            scale: [1, 0.5],
-          }),
-        });
-
-      case "triangle":
-        return new Style({
-          image: new RegularShape({
-            points: 3,
-            radius: size,
-            fill,
-            stroke,
-            rotation: 0,
-          }),
-        });
-
-      case "star":
-        return new Style({
-          image: new RegularShape({
-            points: 5,
-            radius: size,
-            radius2: size / 2,
-            fill,
-            stroke,
-          }),
-        });
-
-      case "diamond":
-        return createDiamondIconStyle({ size, fill, stroke });
-      case "cross":
-        return new Style({
-          image: new RegularShape({
-            fill: fill,
-            stroke: stroke,
-            points: 4,
-            radius: size,
-            radius2: 0,
-            angle: 0,
-          }),
-        });
-
-      case "x":
-        return new Style({
-          image: new RegularShape({
-            fill: fill,
-            stroke: stroke,
-            points: 4,
-            radius: size,
-            radius2: 0,
-            angle: Math.PI / 4,
-          }),
-        });
-
-      case "icon":
-        if (merged.iconUrl) {
-          return new Style({
-            image: new Icon({
-              src: merged.iconUrl,
-              scale: size / 10, // adjust icon scale if needed
-            }),
-          });
-        }
-        break;
-
-      default:
-        // fallback to circle
-        return new Style({
-          image: new CircleStyle({ radius: size, fill, stroke }),
-        });
+    // --- Set sensible defaults for points ---
+    if (geometryBucket === "point") {
+      if (merged.size == null) merged.size = 5;
+      if (!merged.shape) merged.shape = "circle";
+      merged.size = resolveSize(feature, styleJson.rules || [], merged.size);
     }
+
+    // --- Cache lookup ---
+    const cacheKey = getStyleCacheKey(geometryBucket, merged);
+    if (styleCache.has(cacheKey)) {
+      return styleCache.get(cacheKey);
+    }
+
+    // --- Build style ---
+    const stroke = merged.stroke
+      ? new Stroke({
+          color: merged.stroke,
+          width: merged.strokeWidth ?? 1,
+          lineDash: merged.strokeDash,
+        })
+      : new Stroke({
+          color: merged.stroke || "black",
+          width: merged.strokeWidth ?? 1,
+        });
+
+    const zIndex = merged.zIndex ?? 0;
+
+    let style;
+
+    // --- POINT ---
+    if (geometryBucket === "point") {
+      const fill = new Fill({ color: merged.fill || "gray" });
+      style = buildPointStyle(
+        merged.shape,
+        merged.size,
+        fill,
+        stroke,
+        merged.iconUrl,
+      );
+    }
+    // --- LINE ---
+    else if (geometryBucket === "line") {
+      style = new Style({ stroke, zIndex });
+    }
+    // --- POLYGON ---
+    else if (geometryBucket === "polygon") {
+      const fill = buildPolygonFill(merged);
+      style = new Style({ fill, stroke, zIndex });
+    }
+
+    // --- Cache & return ---
+    styleCache.set(cacheKey, style);
+    return style;
   };
 }
 
