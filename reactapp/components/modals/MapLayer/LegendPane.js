@@ -95,7 +95,7 @@ const LegendTemplate = ({
   // Push symbol or color change up
   useEffect(() => {
     const updatedItems = legendItems.map((item, i) =>
-      i === index ? { ...item, symbol: symbolValue, color: symbolColor } : item
+      i === index ? { ...item, symbol: symbolValue, color: symbolColor } : item,
     );
     setLegendItems(updatedItems);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,7 +105,7 @@ const LegendTemplate = ({
     const newLabel = e.target.value;
     setLocalLabel(newLabel);
     const updatedItems = legendItems.map((item, i) =>
-      i === index ? { ...item, label: newLabel } : item
+      i === index ? { ...item, label: newLabel } : item,
     );
     setLegendItems(updatedItems);
   };
@@ -179,13 +179,13 @@ const LegendTemplate = ({
 
 const LegendPane = ({ legend, setLegend, containerRef, sourceProps }) => {
   const [legendMode, setLegendMode] = useState(
-    !legend ? "off" : legend === "default" ? "default" : "custom"
+    !legend ? "off" : legend === "default" ? "default" : "custom",
   );
   const previousCustomLegendRef = useRef(
-    legend && legend !== "default" ? legend : null
+    legend && legend !== "default" ? legend : null,
   );
 
-  const limitedLegendTypes = ["GeoJSON", "Image Tile", "Vector Tile"];
+  const limitedLegendTypes = ["Image Tile"];
   const limitedLegendOptions = [
     { label: "No Legend", value: "off" },
     { label: "Custom Legend", value: "custom" },

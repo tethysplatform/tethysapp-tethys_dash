@@ -17,7 +17,7 @@ test("LegendControl", async () => {
   expect(await screen.findByText("Some Title")).toBeInTheDocument();
   expect(await screen.findByText("square")).toBeInTheDocument();
   expect(await screen.findByText("circle")).toBeInTheDocument();
-  expect(await screen.findByText("upTriangle")).toBeInTheDocument();
+  expect(await screen.findByText("triangle")).toBeInTheDocument();
   expect(await screen.findByText("rightTriangle")).toBeInTheDocument();
   expect(await screen.findByText("downTriangle")).toBeInTheDocument();
   expect(await screen.findByText("leftTriangle")).toBeInTheDocument();
@@ -40,7 +40,7 @@ test("LegendControl", async () => {
   expect(await screen.findByText("legend item 1")).toBeInTheDocument();
 
   const closeLegendButton = await screen.findByLabelText(
-    "Close Legend Control"
+    "Close Legend Control",
   );
   fireEvent.click(closeLegendButton);
   expect(screen.queryByText("Some New Title")).not.toBeInTheDocument();

@@ -113,6 +113,19 @@ const getStyleKeysForGeom = (geomType) => {
   return [];
 };
 
+export const defaultFill = "gray";
+export const defaultStroke = "black";
+export const defaultStrokeWidth = 1;
+export const defaultSize = 5;
+export const defaultZIndex = 0;
+export const defaultShape = "circle";
+export const defaultHatchColor = "black";
+export const defaultHatchSpacing = 8;
+export const defaultHatchDirection = "diagonal";
+export const defaultDotColor = "black";
+export const defaultDotSpacing = 8;
+export const defaultDotRadius = 2;
+
 const RuleEditor = ({
   rule,
   onChange,
@@ -139,7 +152,12 @@ const RuleEditor = ({
   useEffect(() => {
     // when geometry type changes, remove old rules
     if (currentGeomType.current !== selectedGeomType.value) {
-      onChange({ geometryType: selectedGeomType.value });
+      onChange({
+        geometryType: selectedGeomType.value,
+        conditionField: "",
+        conditionType: "=",
+        conditionValue: "",
+      });
       currentGeomType.current = selectedGeomType.value;
     }
   }, [rule.geometryType]);
@@ -163,8 +181,16 @@ const RuleEditor = ({
   // Add style option
   const handleAddStyle = (selected) => {
     const newRule = { ...rule };
-    if (selected.value === "fill" || selected.value === "stroke") {
-      newRule[selected.value] = "#888888";
+    if (selected.value === "fill") {
+      newRule.fill = defaultFill;
+    } else if (selected.value === "stroke") {
+      newRule.stroke = defaultStroke;
+    } else if (selected.value === "strokeWidth") {
+      newRule.strokeWidth = defaultStrokeWidth;
+    } else if (selected.value === "size") {
+      newRule.size = defaultSize;
+    } else if (selected.value === "zIndex") {
+      newRule.zIndex = defaultZIndex;
     } else {
       newRule[selected.value] = "";
     }
@@ -260,7 +286,11 @@ const RuleEditor = ({
                       <ColorPickerPopover
                         key={optKey}
                         label={optKey === "fill" ? "Fill" : "Stroke"}
-                        color={rule[defaultSection]?.[optKey] || "#888888"}
+                        color={
+                          optKey === "fill"
+                            ? rule[defaultSection]?.fill || defaultFill
+                            : rule[defaultSection]?.stroke || defaultStroke
+                        }
                         onChange={(color) =>
                           handleStyleValueChange(optKey, color)
                         }
@@ -283,7 +313,7 @@ const RuleEditor = ({
                                   value: rule[defaultSection][optKey],
                                   label: rule[defaultSection][optKey],
                                 }
-                              : null
+                              : { value: defaultShape, label: defaultShape }
                           }
                           onChange={(o) =>
                             handleStyleValueChange(optKey, o.value)
@@ -316,9 +346,12 @@ const RuleEditor = ({
                           key={optKey}
                           label="Polygon Fill Type"
                           options={POLYGON_FILL_TYPES}
-                          selectedOption={POLYGON_FILL_TYPES.find(
-                            (o) => o.value === rule?.[defaultSection]?.[optKey],
-                          )}
+                          selectedOption={
+                            POLYGON_FILL_TYPES.find(
+                              (o) =>
+                                o.value === rule?.[defaultSection]?.[optKey],
+                            ) || POLYGON_FILL_TYPES[0]
+                          }
                           onChange={(opt) =>
                             handleStyleValueChange(optKey, opt.value)
                           }
@@ -348,7 +381,14 @@ const RuleEditor = ({
                                           defaultSection
                                         ].hatchDirection.slice(1),
                                     }
-                                  : null
+                                  : {
+                                      value: defaultHatchDirection,
+                                      label:
+                                        defaultHatchDirection
+                                          .charAt(0)
+                                          .toUpperCase() +
+                                        defaultHatchDirection.slice(1),
+                                    }
                               }
                               onChange={(opt) =>
                                 handleStyleValueChange(
@@ -362,7 +402,10 @@ const RuleEditor = ({
                             <NumberInputWrapper>
                               <NormalInput
                                 label="Hatch Spacing"
-                                value={rule[defaultSection]?.hatchSpacing || ""}
+                                value={
+                                  rule[defaultSection]?.hatchSpacing ||
+                                  defaultHatchSpacing
+                                }
                                 type="number"
                                 onChange={(e) =>
                                   handleStyleValueChange(
@@ -375,7 +418,10 @@ const RuleEditor = ({
                             </NumberInputWrapper>
                             <ColorPickerPopover
                               label="Hatch Color"
-                              color={rule[defaultSection]?.hatchColor || "#000"}
+                              color={
+                                rule[defaultSection]?.hatchColor ||
+                                defaultHatchColor
+                              }
                               onChange={(color) =>
                                 handleStyleValueChange("hatchColor", color)
                               }
@@ -388,7 +434,10 @@ const RuleEditor = ({
                             <NumberInputWrapper>
                               <NormalInput
                                 label="Dot Radius"
-                                value={rule[defaultSection]?.dotRadius || ""}
+                                value={
+                                  rule[defaultSection]?.dotRadius ||
+                                  defaultDotRadius
+                                }
                                 type="number"
                                 onChange={(e) =>
                                   handleStyleValueChange(
@@ -402,7 +451,10 @@ const RuleEditor = ({
                             <NumberInputWrapper>
                               <NormalInput
                                 label="Dot Spacing"
-                                value={rule[defaultSection]?.dotSpacing || ""}
+                                value={
+                                  rule[defaultSection]?.dotSpacing ||
+                                  defaultDotSpacing
+                                }
                                 type="number"
                                 onChange={(e) =>
                                   handleStyleValueChange(
@@ -415,7 +467,10 @@ const RuleEditor = ({
                             </NumberInputWrapper>
                             <ColorPickerPopover
                               label="Dot Color"
-                              color={rule[defaultSection]?.dotColor || "#444"}
+                              color={
+                                rule[defaultSection]?.dotColor ||
+                                defaultDotColor
+                              }
                               onChange={(color) =>
                                 handleStyleValueChange("dotColor", color)
                               }
@@ -434,7 +489,9 @@ const RuleEditor = ({
                         }
                         color={
                           rule?.[defaultSection]?.[optKey] ||
-                          (optKey === "hatchColor" ? "#000" : "#444")
+                          (optKey === "hatchColor"
+                            ? defaultHatchColor
+                            : defaultDotColor)
                         }
                         onChange={(color) =>
                           handleStyleValueChange(optKey, color)
@@ -442,6 +499,23 @@ const RuleEditor = ({
                         containerRef={containerRef}
                       />
                     );
+                  } else if (optKey === "strokeDash") {
+                    <DataSelect
+                      label="Stroke Dash"
+                      options={availableStrokeDashOptions}
+                      selectedOption={
+                        availableStrokeDashOptions.find(
+                          (o) =>
+                            o.value ===
+                            (rule?.[defaultSection]?.strokeDash || ""),
+                        ) || availableStrokeDashOptions[0]
+                      }
+                      onChange={(opt) =>
+                        handleStyleValueChange(optKey, opt.value)
+                      }
+                      creatable={false}
+                      divProps={{ style: { marginBottom: 0 } }}
+                    />;
                   } else {
                     // Fallback label: Capitalize and add spaces
                     const label = optKey
@@ -451,7 +525,16 @@ const RuleEditor = ({
                       <NumberInputWrapper key={optKey}>
                         <NormalInput
                           label={label}
-                          value={rule?.[defaultSection]?.[optKey]}
+                          value={
+                            rule?.[defaultSection]?.[optKey] ??
+                            (optKey === "strokeWidth"
+                              ? defaultStrokeWidth
+                              : optKey === "size"
+                                ? defaultSize
+                                : optKey === "zIndex"
+                                  ? defaultZIndex
+                                  : "")
+                          }
                           type="number"
                           onChange={(e) =>
                             handleStyleValueChange(optKey, e.target.value)
@@ -497,9 +580,11 @@ const RuleEditor = ({
                       <DataSelect
                         label="Polygon Fill Type"
                         options={POLYGON_FILL_TYPES}
-                        selectedOption={POLYGON_FILL_TYPES.find(
-                          (o) => o.value === rule[key],
-                        )}
+                        selectedOption={
+                          POLYGON_FILL_TYPES.find(
+                            (o) => o.value === rule[key],
+                          ) || POLYGON_FILL_TYPES[0]
+                        }
                         onChange={(opt) =>
                           handleStyleValueChange(key, opt?.value || "solid")
                         }
@@ -663,7 +748,10 @@ const RuleEditor = ({
                     {key === "fill" || key === "stroke" ? (
                       <ColorPickerPopover
                         label={key === "fill" ? "Fill" : "Stroke"}
-                        color={rule[key]}
+                        color={
+                          rule[key] ||
+                          (key === "fill" ? defaultFill : defaultStroke)
+                        }
                         onChange={(color) => handleStyleValueChange(key, color)}
                         containerRef={containerRef}
                       />
@@ -686,7 +774,16 @@ const RuleEditor = ({
                       <NumberInputWrapper>
                         <NormalInput
                           label={key}
-                          value={rule[key]}
+                          value={
+                            rule[key] ??
+                            (key === "strokeWidth"
+                              ? defaultStrokeWidth
+                              : key === "size"
+                                ? defaultSize
+                                : key === "zIndex"
+                                  ? defaultZIndex
+                                  : "")
+                          }
                           type="number"
                           onChange={(e) =>
                             handleStyleValueChange(key, e.target.value)

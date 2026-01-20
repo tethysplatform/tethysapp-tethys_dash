@@ -13,7 +13,20 @@ import {
   Fill,
   Stroke,
 } from "ol/style";
-import { geomStyleOptions } from "components/inputs/RuleEditor.js";
+import {
+  defaultFill,
+  defaultStroke,
+  defaultStrokeWidth,
+  defaultSize,
+  defaultZIndex,
+  defaultShape,
+  defaultHatchColor,
+  defaultHatchSpacing,
+  defaultHatchDirection,
+  defaultDotColor,
+  defaultDotSpacing,
+  defaultDotRadius,
+} from "components/inputs/RuleEditor.js";
 
 const moduleCache = {};
 const styleCache = new Map();
@@ -538,22 +551,22 @@ function getGeometryBucket(feature) {
 function buildPolygonFill(merged) {
   if (merged.polygonFillType === "hatch") {
     return createHatchFill({
-      color: merged.hatchColor || merged.fill || "#000",
-      spacing: merged.hatchSpacing ?? 8,
-      direction: merged.hatchDirection ?? "diagonal",
+      color: merged.hatchColor || merged.fill || defaultHatchColor,
+      spacing: merged.hatchSpacing ?? defaultHatchSpacing,
+      direction: merged.hatchDirection ?? defaultHatchDirection,
     });
   }
 
   if (merged.polygonFillType === "dot") {
     return createDotFill({
-      color: merged.dotColor || merged.fill || "#000",
-      radius: merged.dotRadius ?? 2,
-      spacing: merged.dotSpacing ?? 8,
+      color: merged.dotColor || merged.fill || defaultDotColor,
+      radius: merged.dotRadius ?? defaultDotRadius,
+      spacing: merged.dotSpacing ?? defaultDotSpacing,
     });
   }
 
   // solid default
-  return new Fill({ color: merged.fill || "gray" });
+  return new Fill({ color: merged.fill || defaultFill });
 }
 
 export function createJsonStyleFunction(styleJson) {
@@ -592,8 +605,8 @@ export function createJsonStyleFunction(styleJson) {
 
     // --- Set sensible defaults for points ---
     if (geometryBucket === "point") {
-      if (merged.size == null) merged.size = 5;
-      if (!merged.shape) merged.shape = "circle";
+      if (merged.size == null) merged.size = defaultSize;
+      if (!merged.shape) merged.shape = defaultShape;
       merged.size = resolveSize(feature, styleJson.rules || [], merged.size);
     }
 
@@ -623,21 +636,20 @@ export function createJsonStyleFunction(styleJson) {
     const stroke = merged.stroke
       ? new Stroke({
           color: merged.stroke,
-          width: merged.strokeWidth ?? 1,
+          width: merged.strokeWidth ?? defaultStrokeWidth,
           lineDash,
         })
       : new Stroke({
-          color: merged.stroke || "black",
-          width: merged.strokeWidth ?? 1,
+          color: merged.stroke || defaultStroke,
+          width: merged.strokeWidth ?? defaultStrokeWidth,
         });
 
-    const zIndex = merged.zIndex ?? 0;
-
+    const zIndex = merged.zIndex ?? defaultZIndex;
     let style;
 
     // --- POINT ---
     if (geometryBucket === "point") {
-      const fill = new Fill({ color: merged.fill || "gray" });
+      const fill = new Fill({ color: merged.fill || defaultFill });
       style = buildPointStyle(
         merged.shape,
         merged.size,

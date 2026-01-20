@@ -1,14 +1,21 @@
 import { useEffect, useState, memo } from "react";
 import PropTypes from "prop-types";
-import { RiRectangleFill } from "react-icons/ri";
+import { RiRectangleFill, RiAddFill } from "react-icons/ri";
+import { GoFileDirectoryFill } from "react-icons/go";
 import { IoAnalyticsOutline } from "react-icons/io5";
 import {
   BsFillTriangleFill,
   BsFillSquareFill,
   BsFillCircleFill,
+  BsFillStarFill,
+  BsDiamondFill,
 } from "react-icons/bs";
 import { legendPropType } from "components/map/utilities";
 import styled from "styled-components";
+
+const RotatedAdd = styled(RiAddFill)`
+  transform: rotate(45deg);
+`;
 
 const RightTriangle = styled(BsFillTriangleFill)`
   transform: rotate(90deg);
@@ -25,22 +32,36 @@ const LeftTriangle = styled(BsFillTriangleFill)`
 export const legendSymbols = {
   square: BsFillSquareFill,
   circle: BsFillCircleFill,
-  upTriangle: BsFillTriangleFill,
+  triangle: BsFillTriangleFill,
   rightTriangle: RightTriangle,
   downTriangle: DownTriangle,
   leftTriangle: LeftTriangle,
   rectangle: RiRectangleFill,
   line: IoAnalyticsOutline,
+  star: BsFillStarFill,
+  diamond: BsDiamondFill,
+  cross: RiAddFill,
+  x: RotatedAdd,
+  polygon: GoFileDirectoryFill,
+  linestring: IoAnalyticsOutline,
 };
 
-export const LegendSymbol = ({ symbol, color, ...rest }) => {
+export const LegendSymbol = ({ symbol, color, stroke, ...rest }) => {
   const isValidSymbol = symbol in legendSymbols;
   const SymbolComponent = isValidSymbol
     ? legendSymbols[symbol]
     : BsFillSquareFill;
   const label = `${color}-${isValidSymbol ? symbol : "square"}`;
 
-  return <SymbolComponent aria-label={label} color={color} {...rest} />;
+  // If stroke is provided, use SVG inline style for stroke
+  return (
+    <SymbolComponent
+      aria-label={label}
+      color={color}
+      style={stroke ? { stroke: stroke, strokeWidth: 2 } : {}}
+      {...rest}
+    />
+  );
 };
 
 const LegendWrapper = styled.div`
@@ -165,8 +186,8 @@ function LegendRenderer({ legend }) {
               img.onload = () => resolve(entry);
               img.onerror = reject;
               img.src = entry.url;
-            })
-        )
+            }),
+        ),
       )
         .then((entries) => setWmsImages(entries))
         .catch((err) => {
@@ -197,7 +218,7 @@ function LegendRenderer({ legend }) {
             const allLayerIds = data.layers.map((l) => l.layerId);
             const selectedIds = parseLayerFilter(legend.layers, allLayerIds);
             const filtered = data.layers.filter((layer) =>
-              selectedIds.includes(layer.layerId)
+              selectedIds.includes(layer.layerId),
             );
 
             setEsriItems(filtered);
@@ -217,7 +238,7 @@ function LegendRenderer({ legend }) {
 
   if (!legend) return null;
 
-  // 🟢 Custom legend
+  // 🟢 Custom legend (array of items)
   if (legend.items) {
     return (
       <LegendWrapper>
@@ -226,6 +247,84 @@ function LegendRenderer({ legend }) {
           {legend.items.map((item, index) => (
             <LegendItem key={index}>
               <LegendSymbol symbol={item.symbol} color={item.color} />
+              <span>{item.label}</span>
+            </LegendItem>
+          ))}
+        </LegendList>
+      </LegendWrapper>
+    );
+  }
+
+  // 🟡 styleJSON legend (default + rules)
+  if (legend.styleJSON) {
+    const { default: defaultStyles = {}, rules = [] } = legend.styleJSON;
+    // Helper to get a color or fallback
+    const getColor = (obj, key, fallback) => (obj && obj[key]) || fallback;
+    // Helper to get a symbol for legend based on geometry
+    const getSymbol = (obj, geom) => {
+      if (geom === "polygon") return "polygon";
+      if (geom === "linestring") return "linestring";
+      return obj?.shape || "circle";
+    };
+
+    // Compose legend items: default for each geometry, then rules
+    const items = [];
+    // Default styles
+    for (const geom of ["point", "linestring", "polygon"]) {
+      if (defaultStyles[geom]) {
+        const shape = getSymbol(defaultStyles[geom], geom);
+        const iconUrl = defaultStyles[geom].iconUrl;
+        const fillColor = getColor(defaultStyles[geom], "fill", "gray");
+        const strokeColor = getColor(defaultStyles[geom], "stroke", "black");
+        items.push({
+          label: `${geom.charAt(0).toUpperCase() + geom.slice(1)} (Default)`,
+          symbol: shape,
+          color: fillColor,
+          stroke: strokeColor,
+          iconUrl: shape === "icon" && iconUrl ? iconUrl : undefined,
+        });
+      }
+    }
+    // Rules (merge with default for geometry type)
+    for (const rule of rules) {
+      const geom = rule.geometryType || "point";
+      const base = defaultStyles[geom] || {};
+      const merged = { ...base, ...rule };
+      const shape = getSymbol(merged, geom);
+      const iconUrl = merged.iconUrl;
+      const fillColor = getColor(merged, "fill", "gray");
+      const strokeColor = getColor(merged, "stroke", "black");
+      let label =
+        rule.conditionField && rule.conditionType && rule.conditionValue
+          ? `${geom.charAt(0).toUpperCase() + geom.slice(1)}: ${rule.conditionField} ${rule.conditionType} ${rule.conditionValue}`
+          : `${geom.charAt(0).toUpperCase() + geom.slice(1)} (Rule)`;
+      items.push({
+        label,
+        symbol: shape,
+        color: fillColor,
+        stroke: strokeColor,
+        iconUrl: shape === "icon" && iconUrl ? iconUrl : undefined,
+      });
+    }
+    return (
+      <LegendWrapper>
+        {legend.title && <LegendTitle>{legend.title}</LegendTitle>}
+        <LegendList>
+          {items.map((item, idx) => (
+            <LegendItem key={idx}>
+              {item.iconUrl ? (
+                <img
+                  src={item.iconUrl}
+                  alt="icon"
+                  style={{ width: 24, height: 24, marginRight: 6 }}
+                />
+              ) : (
+                <LegendSymbol
+                  symbol={item.symbol}
+                  color={item.color}
+                  stroke={item.stroke}
+                />
+              )}
               <span>{item.label}</span>
             </LegendItem>
           ))}

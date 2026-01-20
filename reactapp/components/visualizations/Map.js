@@ -274,7 +274,7 @@ const MapVisualization = ({
               <CenteredP>No Attributes Found</CenteredP>
             )}
           </StyledContent>
-        </OverlayContentWrapper>
+        </OverlayContentWrapper>,
       );
       // Highlight the first feature when the popup is created
       if (popupContent && popupContent.length > 0) {
@@ -284,7 +284,7 @@ const MapVisualization = ({
           if (selectedFeature.geometry) {
             addHighlightFeatures(
               highlightLayer.current,
-              selectedFeature.geometry
+              selectedFeature.geometry,
             );
           }
         }
@@ -327,13 +327,33 @@ const MapVisualization = ({
           await loadLayerJSONs(layer, uuid);
           if (layer.legend) {
             if (layer.legend === "default") {
-              newMapLegend.push({
-                sourceType: layer.configuration.props.source.type,
-                url: layer.configuration.props.source.props.url,
-                layers: layer.configuration.props.source.props?.params?.LAYERS,
-              });
-            } else {
-              newMapLegend.push(layer.legend);
+              // If the layer has a style JSON, pass it as legend metadata
+              if (layer.configuration.style) {
+                let styleJSON = null;
+                if (typeof layer.configuration.style === "string") {
+                  try {
+                    styleJSON = JSON.parse(layer.configuration.style);
+                  } catch {}
+                } else if (typeof layer.configuration.style === "object") {
+                  styleJSON = layer.configuration.style;
+                }
+
+                if (styleJSON && (styleJSON.rules || styleJSON.default)) {
+                  newMapLegend.push({
+                    styleJSON,
+                    title: layer.configuration?.props?.name || undefined,
+                  });
+                } else {
+                  newMapLegend.push(null);
+                }
+              } else {
+                newMapLegend.push({
+                  sourceType: layer.configuration.props.source.type,
+                  url: layer.configuration.props.source.props.url,
+                  layers:
+                    layer.configuration.props.source.props?.params?.LAYERS,
+                });
+              }
             }
           }
           newMapLayers.push(layer.configuration);
@@ -421,7 +441,7 @@ const MapVisualization = ({
     map.addLayer(newMarkerLayer);
 
     const queryableLayers = layers.filter(
-      (item) => !(item.queryable === false)
+      (item) => !(item.queryable === false),
     );
 
     // reduce the layer attributes variables values into a simplified object of layer names and then values
@@ -448,7 +468,7 @@ const MapVisualization = ({
         }
         return combined;
       },
-      {}
+      {},
     );
     mapAttributeVariablesRef.current = mapAttributeVariables;
 
@@ -464,7 +484,7 @@ const MapVisualization = ({
         }
         return combined;
       },
-      {}
+      {},
     );
 
     // query the layers
@@ -486,7 +506,7 @@ const MapVisualization = ({
               const newLayerAttributes = Object.fromEntries(
                 Object.entries(layerFeature.attributes)
                   .filter(([key]) => !omittedFields.includes(key))
-                  .map(([key, value]) => [aliasMap[key] || key, value])
+                  .map(([key, value]) => [aliasMap[key] || key, value]),
               );
 
               layerFeature.attributes = newLayerAttributes;
@@ -497,7 +517,7 @@ const MapVisualization = ({
         })
         .catch((error) => {
           console.error("Error:", error);
-        })
+        }),
     );
     const queryLayerFeaturesResults = await Promise.all(queryCalls);
 
@@ -508,12 +528,13 @@ const MapVisualization = ({
     setIsProcessing(false);
 
     const nonEmptyLayers = queryLayerFeaturesResults.filter(
-      (arr) => (arr && Array.isArray(arr) && arr.length > 0) || arr === "zoomed"
+      (arr) =>
+        (arr && Array.isArray(arr) && arr.length > 0) || arr === "zoomed",
     );
     const nonEmptyLayerAttributes = nonEmptyLayers
       .flat()
       .filter(
-        (item) => item !== "zoomed" && Object.keys(item.attributes).length > 0
+        (item) => item !== "zoomed" && Object.keys(item.attributes).length > 0,
       );
 
     let popupContent = null;
@@ -556,7 +577,7 @@ MapVisualization.propTypes = {
   layers: PropTypes.arrayOf(
     PropTypes.shape({
       configuration: configurationPropType,
-    })
+    }),
   ),
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
   baseMap: PropTypes.string, // url for basemap layer, maps to baseMapLayers layers in components/visualizations/utilities.js
