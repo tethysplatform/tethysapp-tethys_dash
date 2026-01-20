@@ -5,12 +5,12 @@ import Accordion from "react-bootstrap/Accordion";
 const RuleStyleEditor = ({
   rules,
   setRules,
-  layerGeomTypes = ["point", "linestring", "polygon"],
   availableFields,
   defaultStyle,
   setDefaultStyle,
   containerRef,
 }) => {
+  const layerGeomTypes = ["point", "linestring", "polygon"];
   const handleRuleChange = (idx, newRule) => {
     const updated = rules.map((r, i) => (i === idx ? newRule : r));
     setRules(updated);
@@ -100,6 +100,9 @@ RuleStyleEditor.propTypes = {
   rules: PropTypes.array.isRequired,
   setRules: PropTypes.func.isRequired,
   availableFields: PropTypes.array,
+  defaultStyle: PropTypes.object,
+  setDefaultStyle: PropTypes.func,
+  containerRef: PropTypes.object,
 };
 
 export default RuleStyleEditor;

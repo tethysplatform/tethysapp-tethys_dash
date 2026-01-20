@@ -168,7 +168,7 @@ test("Map default and update layers", async () => {
     expect(addLayerSpy.mock.calls.length).toBe(1);
   });
   expect(addLayerSpy.mock.calls[0][0].getSource().key_).toBe(
-    "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+    "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
   );
 
   addLayerSpy.mockClear(); // Reset the call count
@@ -212,7 +212,7 @@ test("Map default and update layers", async () => {
     expect(addLayerSpy.mock.calls.length).toBe(1);
   });
   expect(
-    addLayerSpy.mock.calls[0][0].getSource() instanceof ImageArcGISRest
+    addLayerSpy.mock.calls[0][0].getSource() instanceof ImageArcGISRest,
   ).toBe(true);
 });
 
@@ -275,13 +275,13 @@ test("Map GeoJSON with legend and style", async () => {
     expect(addLayerSpy.mock.calls.length).toBe(1);
   });
   expect(addLayerSpy.mock.calls[0][0].getSource() instanceof VectorSource).toBe(
-    true
+    true,
   );
   expect(
     addLayerSpy.mock.calls[0][0]
       .getSource()
       .getFeatures()[0]
-      .getGeometry() instanceof Point
+      .getGeometry() instanceof Point,
   ).toBe(true);
   expect(mockedApplyStyle).toHaveBeenCalledTimes(1);
 });
@@ -316,7 +316,7 @@ test("Map ESRI with default legend", async () => {
     expect(addLayerSpy.mock.calls.length).toBe(1);
   });
   expect(
-    addLayerSpy.mock.calls[0][0].getSource() instanceof ImageArcGISRest
+    addLayerSpy.mock.calls[0][0].getSource() instanceof ImageArcGISRest,
   ).toBe(true);
 });
 
@@ -396,7 +396,7 @@ test("Map click", async () => {
   });
 
   expect(
-    addLayerSpy.mock.calls[2][0].getSource() instanceof ImageArcGISRest
+    addLayerSpy.mock.calls[2][0].getSource() instanceof ImageArcGISRest,
   ).toBe(true);
 
   // highlight layer
@@ -404,7 +404,7 @@ test("Map click", async () => {
   expect(highLightLayer.get("name")).toBe("Highlighted Layer");
   expect(highLightLayer.getSource() instanceof VectorSource).toBe(true);
   expect(
-    highLightLayer.getSource().getFeatures()[0].getGeometry().getCoordinates()
+    highLightLayer.getSource().getFeatures()[0].getGeometry().getCoordinates(),
   ).toStrictEqual([
     [0, 0],
     [0, 1],
@@ -413,14 +413,14 @@ test("Map click", async () => {
   // marker layer
   expect(addLayerSpy.mock.calls[1][0].get("name")).toBe("Marker");
   expect(addLayerSpy.mock.calls[1][0].getSource() instanceof VectorSource).toBe(
-    true
+    true,
   );
   expect(
     addLayerSpy.mock.calls[1][0]
       .getSource()
       .getFeatures()[0]
       .getGeometry()
-      .getCoordinates()
+      .getCoordinates(),
   ).toStrictEqual(clickCoordinates);
 
   // popup
@@ -469,14 +469,14 @@ test("Map click", async () => {
 
   // marker layer
   expect(addLayerSpy.mock.calls[0][0].getSource() instanceof VectorSource).toBe(
-    true
+    true,
   );
   expect(
     addLayerSpy.mock.calls[0][0]
       .getSource()
       .getFeatures()[0]
       .getGeometry()
-      .getCoordinates()
+      .getCoordinates(),
   ).toStrictEqual(newClickCoordinates);
 });
 
@@ -647,7 +647,7 @@ test("Map click no queryable layer", async () => {
 
   expect(mockedQueryLayerFeatures.mock.calls.length).toBe(1);
   expect(
-    mockedQueryLayerFeatures.mock.calls[0][0].configuration.props.name
+    mockedQueryLayerFeatures.mock.calls[0][0].configuration.props.name,
   ).toBe("NWC");
 });
 
@@ -695,11 +695,14 @@ test("Map click no attributes found", async () => {
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
   expect(popSetPosition).toHaveBeenLastCalledWith(clickCoordinates);
-  expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+
+  await waitFor(async () => {
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+  });
 
   const popupCloser = await screen.findByLabelText("Popup Closer");
   fireEvent.click(popupCloser);
-  expect(screen.queryByText("No Attributes Found")).not.toBeInTheDocument();
+  expect(popSetPosition).toHaveBeenLastCalledWith(undefined);
 });
 
 test("Map click all attributes omitted", async () => {
@@ -818,7 +821,7 @@ test("Map click attribute variables update text variable input", async () => {
   render(LoadedComponent);
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "" })
+    JSON.stringify({ "Test Variable": "" }),
   );
 
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
@@ -835,11 +838,13 @@ test("Map click attribute variables update text variable input", async () => {
   expect(await screen.findByText("field1")).toBeInTheDocument();
   expect(await screen.findByText("some value")).toBeInTheDocument();
 
-  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({
-      "Test Variable": "some value",
-    })
-  );
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({
+        "Test Variable": "some value",
+      }),
+    );
+  });
   const variableInput = screen.getByRole("textbox");
   await waitFor(() => {
     expect(variableInput.value).toBe("some value");
@@ -922,14 +927,16 @@ test("Map click attribute variables update dropdown variable input", async () =>
   expect(await screen.findByText("field1")).toBeInTheDocument();
   expect(await screen.findByText("FTDC1")).toBeInTheDocument();
 
-  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({
-      "Test Variable": "FTDC1",
-    })
-  );
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({
+        "Test Variable": "FTDC1",
+      }),
+    );
+  });
   await waitFor(async () => {
     expect(
-      screen.getByText("FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE")
+      screen.getByText("FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE"),
     ).toBeInTheDocument();
   });
 });
@@ -982,7 +989,7 @@ test("Map click attribute variables Null values", async () => {
   });
   render(LoadedComponent);
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 
   expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
@@ -1000,7 +1007,7 @@ test("Map click attribute variables Null values", async () => {
   expect(await screen.findByText("Null")).toBeInTheDocument();
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 });
 
@@ -1114,7 +1121,7 @@ test("Map click not happen in dataviewer mode", async () => {
   });
 
   expect(
-    addLayerSpy.mock.calls[0][0].getSource() instanceof ImageArcGISRest
+    addLayerSpy.mock.calls[0][0].getSource() instanceof ImageArcGISRest,
   ).toBe(true);
   expect(popSetPosition).toHaveBeenCalledTimes(0);
 });
@@ -1167,7 +1174,7 @@ test("Map info div in dataviewer mode with pontermove", async () => {
   expect(await screen.findByLabelText("Info Div")).toBeInTheDocument();
   expect(await screen.findByText(/Zoom: 4.5/i)).toBeInTheDocument();
   expect(
-    await screen.findByText(/Lon: 10.00, Lat: 20.00/i)
+    await screen.findByText(/Lon: 10.00, Lat: 20.00/i),
   ).toBeInTheDocument();
   expect(await screen.findByText(/Projection: EPSG:3857/i)).toBeInTheDocument();
 });
@@ -1221,7 +1228,7 @@ test("Map info div in dataviewer mode with zoom", async () => {
   expect(await screen.findByLabelText("Info Div")).toBeInTheDocument();
   expect(await screen.findByText(/Zoom: 8/i)).toBeInTheDocument();
   expect(
-    await screen.findByText(/Lon: -10686671.12, Lat: 4721671.57/i)
+    await screen.findByText(/Lon: -10686671.12, Lat: 4721671.57/i),
   ).toBeInTheDocument();
   expect(await screen.findByText(/Projection: EPSG:3857/i)).toBeInTheDocument();
 });
@@ -1257,7 +1264,7 @@ test("Map bad basemap", async () => {
     expect(addLayerSpy.mock.calls.length).toBe(0);
   });
   expect(consoleErrorSpy).toHaveBeenCalledWith(
-    "some bad basemap is not a valid basemap"
+    "some bad basemap is not a valid basemap",
   );
 });
 
@@ -1312,7 +1319,7 @@ test("Map bad GeoJSON", async () => {
     expect(addLayerSpy.mock.calls.length).toBe(0);
   });
   expect(
-    await screen.findByText('Failed to load the "GeoJSON Layer" layer(s)')
+    await screen.findByText('Failed to load the "GeoJSON Layer" layer(s)'),
   ).toBeInTheDocument();
 });
 
@@ -1373,17 +1380,17 @@ test("Map bad style", async () => {
     expect(addLayerSpy.mock.calls.length).toBe(1);
   });
   expect(addLayerSpy.mock.calls[0][0].getSource() instanceof VectorSource).toBe(
-    true
+    true,
   );
   expect(
     addLayerSpy.mock.calls[0][0]
       .getSource()
       .getFeatures()[0]
-      .getGeometry() instanceof Point
+      .getGeometry() instanceof Point,
   ).toBe(true);
   expect(mockedApplyStyle).toHaveBeenCalledTimes(0);
   expect(consoleErrorSpy).toHaveBeenCalledWith(
-    "Failed to load the style for GeoJSON Layer layer"
+    "Failed to load the style for GeoJSON Layer layer",
   );
 });
 

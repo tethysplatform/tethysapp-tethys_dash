@@ -247,6 +247,11 @@ StylePane.propTypes = {
   style: PropTypes.string, // stringified json for styling layer
   setStyle: PropTypes.func,
   setErrorMessage: PropTypes.func,
+  sourceProps: PropTypes.shape({
+    type: PropTypes.string,
+  }),
+  containerRef: PropTypes.object,
+  availableFields: PropTypes.array,
 };
 
 export default memo(StylePane);

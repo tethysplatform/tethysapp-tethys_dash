@@ -354,6 +354,8 @@ const MapVisualization = ({
                     layer.configuration.props.source.props?.params?.LAYERS,
                 });
               }
+            } else {
+              newMapLegend.push(layer.legend);
             }
           }
           newMapLayers.push(layer.configuration);

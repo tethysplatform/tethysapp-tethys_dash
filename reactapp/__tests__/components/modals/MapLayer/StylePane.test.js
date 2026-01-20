@@ -37,7 +37,11 @@ const exampleStyle = {
   ],
 };
 
-const TestingComponent = ({ initialStyle, setErrorMessage }) => {
+const TestingComponent = ({
+  initialStyle,
+  setErrorMessage,
+  sourceProps = {},
+}) => {
   const [style, setStyle] = useState(initialStyle);
 
   return (
@@ -46,6 +50,7 @@ const TestingComponent = ({ initialStyle, setErrorMessage }) => {
         style={style}
         setStyle={setStyle}
         setErrorMessage={setErrorMessage}
+        sourceProps={sourceProps}
       />
       <p data-testid="style">{style}</p>
     </LayoutContext.Provider>
@@ -53,7 +58,7 @@ const TestingComponent = ({ initialStyle, setErrorMessage }) => {
 };
 
 test("StylePane json Input", async () => {
-  render(<TestingComponent />);
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
 
   expect(await screen.findByText("Upload style file")).toBeInTheDocument();
 
@@ -62,12 +67,12 @@ test("StylePane json Input", async () => {
     target: { value: JSON.stringify(exampleStyle) },
   });
   expect(await screen.findByTestId("style")).toHaveTextContent(
-    JSON.stringify(exampleStyle)
+    JSON.stringify(exampleStyle),
   );
 });
 
 test("StylePane Json File Upload", async () => {
-  render(<TestingComponent />);
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
 
   expect(await screen.findByText("Upload style file")).toBeInTheDocument();
 
@@ -79,7 +84,7 @@ test("StylePane Json File Upload", async () => {
 
   await waitFor(async () => {
     expect(await screen.findByTestId("style")).toHaveTextContent(
-      JSON.stringify(exampleStyle)
+      JSON.stringify(exampleStyle),
     );
   });
 });
@@ -90,7 +95,12 @@ test("StylePane Json URL", async () => {
   });
   const mockSetErrorMessage = jest.fn();
 
-  render(<TestingComponent setErrorMessage={mockSetErrorMessage} />);
+  render(
+    <TestingComponent
+      sourceProps={{ type: "GeoJSON" }}
+      setErrorMessage={mockSetErrorMessage}
+    />,
+  );
 
   expect(await screen.findByText("Style Source")).toBeInTheDocument();
 
@@ -103,7 +113,7 @@ test("StylePane Json URL", async () => {
     target: { value: "some/url/file.json" },
   });
   expect(await screen.findByTestId("style")).toHaveTextContent(
-    "some/url/file.json"
+    "some/url/file.json",
   );
   await waitFor(() => {
     expect(mockSetErrorMessage).toHaveBeenCalledTimes(0);
@@ -120,7 +130,12 @@ test("StylePane Json bad URL", async () => {
   });
   const mockSetErrorMessage = jest.fn();
 
-  render(<TestingComponent setErrorMessage={mockSetErrorMessage} />);
+  render(
+    <TestingComponent
+      sourceProps={{ type: "GeoJSON" }}
+      setErrorMessage={mockSetErrorMessage}
+    />,
+  );
 
   expect(await screen.findByText("Style Source")).toBeInTheDocument();
 
@@ -133,7 +148,7 @@ test("StylePane Json bad URL", async () => {
     target: { value: "some/url/file.json" },
   });
   expect(await screen.findByTestId("style")).toHaveTextContent(
-    "some/url/file.json"
+    "some/url/file.json",
   );
   await waitFor(() => {
     expect(mockSetErrorMessage).toHaveBeenCalledWith("Failed to retrieve JSON");
@@ -145,7 +160,12 @@ test("StylePane Updating Existing GeoJSON", async () => {
   jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
   mockDownloadJSON.mockResolvedValue({ data: exampleStyle });
 
-  render(<TestingComponent initialStyle={"some_file.json"} />);
+  render(
+    <TestingComponent
+      initialStyle={"some_file.json"}
+      sourceProps={{ type: "GeoJSON" }}
+    />,
+  );
 
   expect(await screen.findByText("Upload style file")).toBeInTheDocument();
   const textbox = await screen.findByRole("textbox");
@@ -154,7 +174,18 @@ test("StylePane Updating Existing GeoJSON", async () => {
   });
 });
 
+test("StylePane Styling not available", async () => {
+  render(<TestingComponent sourceProps={{ type: "NotGeoJSON" }} />);
+
+  expect(
+    await screen.findByText(
+      "Custom Styling is only available for GeoJSON and ESRI Feature Service layers.",
+    ),
+  ).toBeInTheDocument();
+});
+
 TestingComponent.propTypes = {
   initialStyle: PropTypes.string,
   setErrorMessage: PropTypes.func,
+  sourceProps: PropTypes.object,
 };
