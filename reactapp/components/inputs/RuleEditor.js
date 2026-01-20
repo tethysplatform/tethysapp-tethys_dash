@@ -119,10 +119,8 @@ export const defaultStrokeWidth = 1;
 export const defaultSize = 5;
 export const defaultZIndex = 0;
 export const defaultShape = "circle";
-export const defaultHatchColor = "black";
 export const defaultHatchSpacing = 8;
 export const defaultHatchDirection = "diagonal";
-export const defaultDotColor = "black";
 export const defaultDotSpacing = 8;
 export const defaultDotRadius = 2;
 
@@ -416,17 +414,6 @@ const RuleEditor = ({
                                 labelProps={{ style: { marginBottom: 0 } }}
                               />
                             </NumberInputWrapper>
-                            <ColorPickerPopover
-                              label="Hatch Color"
-                              color={
-                                rule[defaultSection]?.hatchColor ||
-                                defaultHatchColor
-                              }
-                              onChange={(color) =>
-                                handleStyleValueChange("hatchColor", color)
-                              }
-                              containerRef={containerRef}
-                            />
                           </>
                         )}
                         {rule?.[defaultSection]?.[optKey] === "dot" && (
@@ -465,39 +452,9 @@ const RuleEditor = ({
                                 labelProps={{ style: { marginBottom: 0 } }}
                               />
                             </NumberInputWrapper>
-                            <ColorPickerPopover
-                              label="Dot Color"
-                              color={
-                                rule[defaultSection]?.dotColor ||
-                                defaultDotColor
-                              }
-                              onChange={(color) =>
-                                handleStyleValueChange("dotColor", color)
-                              }
-                              containerRef={containerRef}
-                            />
                           </>
                         )}
                       </>
-                    );
-                  } else if (optKey === "hatchColor" || optKey === "dotColor") {
-                    return (
-                      <ColorPickerPopover
-                        key={optKey}
-                        label={
-                          optKey === "hatchColor" ? "Hatch Color" : "Dot Color"
-                        }
-                        color={
-                          rule?.[defaultSection]?.[optKey] ||
-                          (optKey === "hatchColor"
-                            ? defaultHatchColor
-                            : defaultDotColor)
-                        }
-                        onChange={(color) =>
-                          handleStyleValueChange(optKey, color)
-                        }
-                        containerRef={containerRef}
-                      />
                     );
                   } else if (optKey === "strokeDash") {
                     <DataSelect
@@ -559,8 +516,6 @@ const RuleEditor = ({
                     "iconUrl",
                     "hatchDirection",
                     "hatchSpacing",
-                    "hatchColor",
-                    "dotColor",
                     "dotRadius",
                     "dotSpacing",
                   ].includes(key),
@@ -636,14 +591,6 @@ const RuleEditor = ({
                               labelProps={{ style: { marginBottom: 0 } }}
                             />
                           </NumberInputWrapper>
-                          <ColorPickerPopover
-                            label="Hatch Color"
-                            color={rule.hatchColor || "#000"}
-                            onChange={(color) =>
-                              handleStyleValueChange("hatchColor", color)
-                            }
-                            containerRef={containerRef}
-                          />
                         </>
                       )}
                       {rule[key] === "dot" && (
@@ -676,14 +623,6 @@ const RuleEditor = ({
                               labelProps={{ style: { marginBottom: 0 } }}
                             />
                           </NumberInputWrapper>
-                          <ColorPickerPopover
-                            label="Dot Color"
-                            color={rule.dotColor || "#444"}
-                            onChange={(color) =>
-                              handleStyleValueChange("dotColor", color)
-                            }
-                            containerRef={containerRef}
-                          />
                         </>
                       )}
                     </StyleContainer>

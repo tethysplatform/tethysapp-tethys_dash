@@ -20,10 +20,8 @@ import {
   defaultSize,
   defaultZIndex,
   defaultShape,
-  defaultHatchColor,
   defaultHatchSpacing,
   defaultHatchDirection,
-  defaultDotColor,
   defaultDotSpacing,
   defaultDotRadius,
 } from "components/inputs/RuleEditor.js";
@@ -551,7 +549,7 @@ function getGeometryBucket(feature) {
 function buildPolygonFill(merged) {
   if (merged.polygonFillType === "hatch") {
     return createHatchFill({
-      color: merged.hatchColor || merged.fill || defaultHatchColor,
+      color: merged.fill || defaultFill,
       spacing: merged.hatchSpacing ?? defaultHatchSpacing,
       direction: merged.hatchDirection ?? defaultHatchDirection,
     });
@@ -559,7 +557,7 @@ function buildPolygonFill(merged) {
 
   if (merged.polygonFillType === "dot") {
     return createDotFill({
-      color: merged.dotColor || merged.fill || defaultDotColor,
+      color: merged.fill || defaultFill,
       radius: merged.dotRadius ?? defaultDotRadius,
       spacing: merged.dotSpacing ?? defaultDotSpacing,
     });
