@@ -102,7 +102,7 @@ const StyledContent = styled.div`
   margin-top: 1rem;
 `;
 
-const Popup = ({ layerAttributes, onSwipe }) => {
+export const Popup = ({ layerAttributes, onSwipe }) => {
   return (
     <StyledSwiper
       modules={[Pagination, Navigation]}
@@ -135,7 +135,7 @@ const Popup = ({ layerAttributes, onSwipe }) => {
                     const value = selectedFeature.attributes[field];
                     // Simple URL regex: matches http(s)://, ftp://, or www.
                     const urlRegex =
-                      /^(https?:\/\/|ftp:\/\/|www\.)[\w\-]+(\.[\w\-]+)+([\w\-.,@?^=%&:/~+#]*[\w\-@?^=%&/~+#])?/i;
+                      /^(https?:\/\/|ftp:\/\/|www\.)[\w-]+(\.[\w-]+)+([\w\-.,@?^=%&:/~+#]*[\w\-@?^=%&/~+#])?/i;
                     let renderedValue;
                     if (typeof value === "string" && urlRegex.test(value)) {
                       // Ensure protocol for www. links
@@ -169,9 +169,13 @@ const Popup = ({ layerAttributes, onSwipe }) => {
         </MarginSwiperSlide>
       ))}
       <SwiperControls>
-        <SwiperArrows className="custom-prev">❮</SwiperArrows>
+        <SwiperArrows className="custom-prev" aria-label="Previous Swiper">
+          ❮
+        </SwiperArrows>
         <SwiperPagination className="custom-pagination"></SwiperPagination>
-        <SwiperArrows className="custom-next">❯</SwiperArrows>
+        <SwiperArrows className="custom-next" aria-label="Next Swiper">
+          ❯
+        </SwiperArrows>
       </SwiperControls>
     </StyledSwiper>
   );
@@ -238,6 +242,7 @@ const MapVisualization = ({
 
     return () => {
       if (visualizationRef?.current) {
+        // known non-coverage for tests
         if (spinnerOverlayRef.current) {
           visualizationRef.current.removeOverlay(spinnerOverlayRef.current);
         }
@@ -276,18 +281,12 @@ const MapVisualization = ({
           </StyledContent>
         </OverlayContentWrapper>,
       );
+
       // Highlight the first feature when the popup is created
       if (popupContent && popupContent.length > 0) {
         const selectedFeature = popupContent[0];
-        if (highlightLayer.current) {
-          highlightLayer.current.getSource().clear();
-          if (selectedFeature.geometry) {
-            addHighlightFeatures(
-              highlightLayer.current,
-              selectedFeature.geometry,
-            );
-          }
-        }
+        addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
+
         // Also update variable inputs for the first feature
         const layerName = selectedFeature.layerName;
         const mapAttributeVariables = mapAttributeVariablesRef.current;
@@ -310,6 +309,7 @@ const MapVisualization = ({
         }
       }
     }
+    // eslint-disable-next-line
   }, [popupContent]);
 
   useEffect(() => {
@@ -329,19 +329,19 @@ const MapVisualization = ({
             if (layer.legend === "default") {
               // If the layer has a style JSON, pass it as legend metadata
               if (layer.configuration.style) {
-                let styleJSON = null;
+                let styleJSON = layer.configuration.style;
                 if (typeof layer.configuration.style === "string") {
                   try {
                     styleJSON = JSON.parse(layer.configuration.style);
-                  } catch {}
-                } else if (typeof layer.configuration.style === "object") {
-                  styleJSON = layer.configuration.style;
+                  } catch {
+                    newMapLegend.push(null);
+                  }
                 }
 
                 if (styleJSON && (styleJSON.rules || styleJSON.default)) {
                   newMapLegend.push({
                     styleJSON,
-                    title: layer.configuration?.props?.name || undefined,
+                    title: layer.configuration?.props?.name,
                   });
                 } else {
                   newMapLegend.push(null);
@@ -384,17 +384,11 @@ const MapVisualization = ({
   }, [layers, baseMap]);
 
   const onSwipe = (swiper) => {
-    if (!popupContent || !popupContent.length) return;
     const selectedFeature = popupContent[swiper.activeIndex];
-    if (!selectedFeature) return;
 
     // Update highlights to only show the currently visible feature
-    if (highlightLayer.current) {
-      highlightLayer.current.getSource().clear();
-      if (selectedFeature.geometry) {
-        addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
-      }
-    }
+    highlightLayer.current.getSource().clear();
+    addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
 
     // Use your variable mapping logic here
     const layerName = selectedFeature.layerName;
@@ -590,6 +584,7 @@ MapVisualization.propTypes = {
 
 Popup.propTypes = {
   layerAttributes: PropTypes.shape({ map: PropTypes.any }),
+  onSwipe: PropTypes.func, // function to call on swipe event
 };
 
 export default memo(MapVisualization);

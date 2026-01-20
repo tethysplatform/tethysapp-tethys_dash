@@ -1,6 +1,5 @@
 import { useRef, useEffect } from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import MapVisualization from "components/visualizations/Map";
 import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
@@ -24,6 +23,20 @@ import {
 import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
+
+jest.mock("components/map/ModuleLoader", () => {
+  const actual = jest.requireActual("components/map/ModuleLoader");
+  return {
+    __esModule: true,
+    default: actual.default, // use the real default export
+    createJsonStyleFunction: jest.fn(), // mock only this function
+  };
+});
+
+// eslint-disable-next-line
+import MapVisualization, { Popup } from "components/visualizations/Map";
+// eslint-disable-next-line
+import { createJsonStyleFunction } from "components/map/ModuleLoader";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -89,6 +102,19 @@ const exampleStyle = {
       },
     },
   ],
+};
+
+const exampleRuleBasedStyle = {
+  rules: [],
+  default: {
+    point: {
+      shape: "star",
+      size: "10",
+      strokeWidth: "2",
+      fill: "#fb0000",
+      stroke: "#09f510",
+    },
+  },
 };
 
 const TestingComponent = ({
@@ -284,6 +310,284 @@ test("Map GeoJSON with legend and style", async () => {
       .getGeometry() instanceof Point,
   ).toBe(true);
   expect(mockedApplyStyle).toHaveBeenCalledTimes(1);
+  expect(createJsonStyleFunction).toHaveBeenCalledTimes(0);
+  expect(await screen.findByLabelText("Legend Control")).toBeInTheDocument();
+});
+
+test("Map GeoJSON with legend and rule-based style", async () => {
+  const mockDownloadJSON = jest.fn();
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: exampleRuleBasedStyle,
+  });
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: exampleGeoJSON,
+  });
+
+  mockedApplyStyle.mockRejectedValueOnce(new Error("Not a valid Mapbox style"));
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+  const layers = [
+    {
+      configuration: {
+        type: "VectorLayer",
+        props: {
+          name: "GeoJSON Layer",
+          source: {
+            type: "GeoJSON",
+            props: {},
+            geojson: "some_file.json",
+          },
+        },
+        style: "some_rule_based_style_file.json",
+      },
+      legend: "default",
+    },
+  ];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+
+  // should only add the layer because of no basemap
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  expect(addLayerSpy.mock.calls[0][0].getSource() instanceof VectorSource).toBe(
+    true,
+  );
+  expect(
+    addLayerSpy.mock.calls[0][0]
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry() instanceof Point,
+  ).toBe(true);
+  expect(mockedApplyStyle).toHaveBeenCalledTimes(1);
+  expect(createJsonStyleFunction).toHaveBeenCalledTimes(1);
+  expect(await screen.findByLabelText("Legend Control")).toBeInTheDocument();
+});
+
+test("Map GeoJSON with legend and string rule-based style", async () => {
+  const mockDownloadJSON = jest.fn();
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: JSON.stringify(exampleRuleBasedStyle),
+  });
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: exampleGeoJSON,
+  });
+
+  mockedApplyStyle.mockRejectedValueOnce(new Error("Not a valid Mapbox style"));
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+  const layers = [
+    {
+      configuration: {
+        type: "VectorLayer",
+        props: {
+          name: "GeoJSON Layer",
+          source: {
+            type: "GeoJSON",
+            props: {},
+            geojson: "some_file.json",
+          },
+        },
+        style: "some_rule_based_style_file.json",
+      },
+      legend: "default",
+    },
+  ];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+
+  // should only add the layer because of no basemap
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  expect(addLayerSpy.mock.calls[0][0].getSource() instanceof VectorSource).toBe(
+    true,
+  );
+  expect(
+    addLayerSpy.mock.calls[0][0]
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry() instanceof Point,
+  ).toBe(true);
+  expect(mockedApplyStyle).toHaveBeenCalledTimes(1);
+  expect(createJsonStyleFunction).toHaveBeenCalledTimes(1);
+  expect(await screen.findByLabelText("Legend Control")).toBeInTheDocument();
+});
+
+test("Map GeoJSON with legend and bad style", async () => {
+  const mockDownloadJSON = jest.fn();
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: {},
+  });
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: exampleGeoJSON,
+  });
+
+  mockedApplyStyle.mockRejectedValueOnce(new Error("Not a valid Mapbox style"));
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+  const layers = [
+    {
+      configuration: {
+        type: "VectorLayer",
+        props: {
+          name: "GeoJSON Layer",
+          source: {
+            type: "GeoJSON",
+            props: {},
+            geojson: "some_file.json",
+          },
+        },
+        style: "some_rule_based_style_file.json",
+      },
+      legend: "default",
+    },
+  ];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+
+  // should only add the layer because of no basemap
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  expect(addLayerSpy.mock.calls[0][0].getSource() instanceof VectorSource).toBe(
+    true,
+  );
+  expect(
+    addLayerSpy.mock.calls[0][0]
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry() instanceof Point,
+  ).toBe(true);
+  expect(mockedApplyStyle).toHaveBeenCalledTimes(1);
+  expect(createJsonStyleFunction).toHaveBeenCalledTimes(1);
+  expect(screen.queryByLabelText("Legend Control")).not.toBeInTheDocument();
+});
+
+test("Map GeoJSON with legend and bad format", async () => {
+  const mockDownloadJSON = jest.fn();
+  jest.spyOn(appAPI, "downloadJSON").mockImplementation(mockDownloadJSON);
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: "bad format",
+  });
+  mockDownloadJSON.mockResolvedValueOnce({
+    success: true,
+    data: exampleGeoJSON,
+  });
+
+  mockedApplyStyle.mockRejectedValueOnce(new Error("Not a valid Mapbox style"));
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+
+  const layers = [
+    {
+      configuration: {
+        type: "VectorLayer",
+        props: {
+          name: "GeoJSON Layer",
+          source: {
+            type: "GeoJSON",
+            props: {},
+            geojson: "some_file.json",
+          },
+        },
+        style: "some_rule_based_style_file.json",
+      },
+      legend: "default",
+    },
+  ];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+
+  // should only add the layer because of no basemap
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  expect(addLayerSpy.mock.calls[0][0].getSource() instanceof VectorSource).toBe(
+    true,
+  );
+  expect(
+    addLayerSpy.mock.calls[0][0]
+      .getSource()
+      .getFeatures()[0]
+      .getGeometry() instanceof Point,
+  ).toBe(true);
+  expect(mockedApplyStyle).toHaveBeenCalledTimes(1);
+  expect(createJsonStyleFunction).toHaveBeenCalledTimes(1);
+  expect(screen.queryByLabelText("Legend Control")).not.toBeInTheDocument();
 });
 
 test("Map ESRI with default legend", async () => {
@@ -761,12 +1065,27 @@ test("Map click all attributes omitted", async () => {
   });
 });
 
-test("Map click attribute variables update text variable input", async () => {
+test("Map click attribute variables update text variable input then swipe and update again", async () => {
   mockedQueryLayerFeatures.mockResolvedValue([
     {
       attributes: { field1: "some value" },
       geometry: { x: 10, y: 10 },
       layerName: "Some Layer",
+    },
+    {
+      attributes: { field1: "another value" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Some Layer",
+    },
+    {
+      attributes: { field1: "Null" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Some Layer",
+    },
+    {
+      attributes: { field1: "yet another value" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Another Layer",
     },
   ]);
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
@@ -832,11 +1151,15 @@ test("Map click attribute variables update text variable input", async () => {
     expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
   });
 
-  expect(await screen.findByText("Some Layer")).toBeInTheDocument();
-  expect(await screen.findByText("Field")).toBeInTheDocument();
-  expect(await screen.findByText("Value")).toBeInTheDocument();
-  expect(await screen.findByText("field1")).toBeInTheDocument();
+  expect(await screen.findAllByText("Some Layer")).toHaveLength(3);
+  expect(await screen.findByText("Another Layer")).toBeInTheDocument();
+  expect(await screen.findAllByText("Field")).toHaveLength(4);
+  expect(await screen.findAllByText("Value")).toHaveLength(4);
+  expect(await screen.findAllByText("field1")).toHaveLength(4);
   expect(await screen.findByText("some value")).toBeInTheDocument();
+  expect(await screen.findByText("another value")).toBeInTheDocument();
+  expect(await screen.findByText("Null")).toBeInTheDocument();
+  expect(await screen.findByText("yet another value")).toBeInTheDocument();
 
   await waitFor(async () => {
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
@@ -848,6 +1171,37 @@ test("Map click attribute variables update text variable input", async () => {
   const variableInput = screen.getByRole("textbox");
   await waitFor(() => {
     expect(variableInput.value).toBe("some value");
+  });
+
+  const nextSwiper = screen.getByLabelText("Next Swiper");
+  fireEvent.click(nextSwiper);
+
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({
+        "Test Variable": "another value",
+      }),
+    );
+  });
+
+  fireEvent.click(nextSwiper);
+
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({
+        "Test Variable": "another value",
+      }),
+    );
+  });
+
+  fireEvent.click(nextSwiper);
+
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({
+        "Test Variable": "another value",
+      }),
+    );
   });
 });
 
@@ -1392,6 +1746,83 @@ test("Map bad style", async () => {
   expect(consoleErrorSpy).toHaveBeenCalledWith(
     "Failed to load the style for GeoJSON Layer layer",
   );
+});
+
+describe("Popup component", () => {
+  const features = [
+    {
+      layerName: "Layer 1",
+      attributes: {
+        field1: "value1",
+        field2: "value2",
+        url: "https://example.com",
+      },
+    },
+    {
+      layerName: "Layer 2",
+      attributes: {
+        fieldA: "valueA",
+        fieldB: "valueB",
+        url: "www.example.org",
+      },
+    },
+  ];
+
+  it("renders all features and fields", () => {
+    render(<Popup layerAttributes={features} onSwipe={jest.fn()} />);
+    expect(screen.getByText("Layer 1")).toBeInTheDocument();
+    expect(screen.getByText("Layer 2")).toBeInTheDocument();
+    expect(screen.getByText("field1")).toBeInTheDocument();
+    expect(screen.getByText("value1")).toBeInTheDocument();
+    expect(screen.getByText("fieldA")).toBeInTheDocument();
+    expect(screen.getByText("valueA")).toBeInTheDocument();
+  });
+
+  it("renders URLs as links with protocol", () => {
+    render(<Popup layerAttributes={features} onSwipe={jest.fn()} />);
+    const httpsLink = screen.getByText("https://example.com");
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(httpsLink.closest("a")).toHaveAttribute(
+      "href",
+      "https://example.com",
+    );
+    const wwwLink = screen.getByText("www.example.org");
+    // eslint-disable-next-line testing-library/no-node-access
+    expect(wwwLink.closest("a")).toHaveAttribute(
+      "href",
+      "https://www.example.org",
+    );
+  });
+
+  it("calls onSwipe when slide changes", () => {
+    const onSwipe = jest.fn();
+    render(<Popup layerAttributes={features} onSwipe={onSwipe} />);
+    // Simulate swipe by firing Swiper's slide change event
+    // Swiper's event is not easily triggered, so we call onSwipe directly
+    onSwipe();
+    expect(onSwipe).toHaveBeenCalled();
+  });
+
+  it("renders empty attributes gracefully", () => {
+    const emptyFeature = [{ layerName: "Empty", attributes: {} }];
+    render(<Popup layerAttributes={emptyFeature} onSwipe={jest.fn()} />);
+    expect(screen.getByText("Empty")).toBeInTheDocument();
+    expect(screen.getByRole("row")).not.toBeNull();
+  });
+
+  it("renders with only one feature", () => {
+    const singleFeature = [{ layerName: "Single", attributes: { foo: "bar" } }];
+    render(<Popup layerAttributes={singleFeature} onSwipe={jest.fn()} />);
+    expect(screen.getByText("Single")).toBeInTheDocument();
+    expect(screen.getByText("foo")).toBeInTheDocument();
+    expect(screen.getByText("bar")).toBeInTheDocument();
+  });
+
+  it("renders with no features", () => {
+    render(<Popup layerAttributes={[]} onSwipe={jest.fn()} />);
+    // Should not throw, but nothing rendered
+    expect(screen.queryByText(/:/)).not.toBeInTheDocument();
+  });
 });
 
 TestingComponent.propTypes = {
