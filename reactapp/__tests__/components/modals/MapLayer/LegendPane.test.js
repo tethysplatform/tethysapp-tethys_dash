@@ -286,17 +286,12 @@ test("LegendPane updated sourceProps", async () => {
     }),
   );
 
-  rerender(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  rerender(<TestingComponent sourceProps={{ type: "Image Tile" }} />);
 
   expect(screen.getByLabelText("No Legend")).toBeInTheDocument();
-  expect(screen.getByLabelText("Default Legend")).toBeInTheDocument();
+  expect(screen.queryByLabelText("Default Legend")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Custom Legend")).toBeInTheDocument();
-  expect(await screen.findByTestId("legend")).toHaveTextContent(
-    JSON.stringify({
-      title: "",
-      items: [{ label: "", color: "#ff0000", symbol: "square" }],
-    }),
-  );
+  expect(await screen.findByTestId("legend")).toHaveTextContent("{}");
 
   rerender(
     <TestingComponent
