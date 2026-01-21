@@ -37,6 +37,29 @@ const exampleStyle = {
   ],
 };
 
+const exampleRuleBasedStyle = {
+  rules: [
+    {
+      conditionField: "id",
+      conditionType: "=",
+      conditionValue: "test-point",
+      geometryType: "point",
+      shape: "square",
+      size: "20",
+    },
+  ],
+  default: {
+    point: {
+      shape: "star",
+      iconUrl: "https://cw3e.ucsd.edu/yuba-feather/icons/rhombus_green.png",
+      size: "10",
+      strokeWidth: "2",
+      fill: "#fb0000",
+      stroke: "#09f510",
+    },
+  },
+};
+
 const TestingComponent = ({
   initialStyle,
   setErrorMessage,
@@ -182,6 +205,234 @@ test("StylePane Styling not available", async () => {
       "Custom Styling is only available for GeoJSON and ESRI Feature Service layers.",
     ),
   ).toBeInTheDocument();
+});
+
+test("StylePane switches to rules mode and syncs rules/defaultStyle from JSON", async () => {
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  // Switch to rules mode
+  const rulesRadio = await screen.findByLabelText("Rule-based Editor");
+  await userEvent.click(rulesRadio);
+  // Add a rule
+  const addRuleBtn = await screen.findByLabelText("Add Rule Button");
+  await userEvent.click(addRuleBtn);
+
+  expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual({
+    rules: [
+      {
+        conditionField: "",
+        conditionType: "=",
+        conditionValue: "",
+        geometryType: "point",
+      },
+    ],
+    default: {},
+  });
+});
+
+test("StylePane valid json and then reset when switch to rules mode", async () => {
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  const textArea = screen.getByLabelText("style-text-area");
+  fireEvent.change(textArea, {
+    target: { value: JSON.stringify(exampleRuleBasedStyle) },
+  });
+
+  expect(textArea.value).toStrictEqual(JSON.stringify(exampleRuleBasedStyle));
+
+  // Switch to rules mode
+  const rulesRadio = await screen.findByLabelText("Rule-based Editor");
+  await userEvent.click(rulesRadio);
+
+  await waitFor(() => {
+    expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual(
+      exampleRuleBasedStyle,
+    );
+  });
+
+  // Add a rule
+  const addRuleBtn = await screen.findByLabelText("Add Rule Button");
+  await userEvent.click(addRuleBtn);
+
+  const expectedRules = [
+    ...exampleRuleBasedStyle.rules,
+    {
+      conditionField: "",
+      conditionType: "=",
+      conditionValue: "",
+      geometryType: "point",
+    },
+  ];
+  expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual({
+    rules: expectedRules,
+    default: { ...exampleRuleBasedStyle.default },
+  });
+});
+
+test("StylePane valid json missing rules and then reset when switch to rules mode", async () => {
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+
+  const copiedStyle = { ...exampleRuleBasedStyle };
+  delete copiedStyle.rules;
+  copiedStyle.default = "string default";
+
+  const textArea = screen.getByLabelText("style-text-area");
+  fireEvent.change(textArea, {
+    target: { value: JSON.stringify(copiedStyle) },
+  });
+
+  expect(textArea.value).toStrictEqual(JSON.stringify(copiedStyle));
+
+  // Switch to rules mode
+  const rulesRadio = await screen.findByLabelText("Rule-based Editor");
+  await userEvent.click(rulesRadio);
+
+  await waitFor(() => {
+    expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual(
+      copiedStyle,
+    );
+  });
+
+  // Add a rule
+  const addRuleBtn = await screen.findByLabelText("Add Rule Button");
+  await userEvent.click(addRuleBtn);
+
+  expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual({
+    rules: [
+      {
+        conditionField: "",
+        conditionType: "=",
+        conditionValue: "",
+        geometryType: "point",
+      },
+    ],
+    default: {},
+  });
+});
+
+test("StylePane bad json and then reset when switch to rules mode", async () => {
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  const textArea = screen.getByLabelText("style-text-area");
+  fireEvent.change(textArea, {
+    target: {
+      value: "{rules: [{",
+    },
+  });
+
+  expect(textArea.value).toStrictEqual("{rules: [{");
+
+  // Switch to rules mode
+  const rulesRadio = await screen.findByLabelText("Rule-based Editor");
+  await userEvent.click(rulesRadio);
+
+  await waitFor(() => {
+    expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual({
+      rules: [],
+      default: {},
+    });
+  });
+
+  // Add a rule
+  const addRuleBtn = await screen.findByLabelText("Add Rule Button");
+  await userEvent.click(addRuleBtn);
+
+  expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual({
+    rules: [
+      {
+        conditionField: "",
+        conditionType: "=",
+        conditionValue: "",
+        geometryType: "point",
+      },
+    ],
+    default: {},
+  });
+});
+
+test("StylePane bad string and then reset when switch to rules mode", async () => {
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  const textArea = screen.getByLabelText("style-text-area");
+  fireEvent.change(textArea, {
+    target: { value: "a bad format" },
+  });
+
+  expect(textArea.value).toStrictEqual("a bad format");
+
+  // Switch to rules mode
+  const rulesRadio = await screen.findByLabelText("Rule-based Editor");
+  await userEvent.click(rulesRadio);
+
+  await waitFor(() => {
+    expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual({
+      rules: [],
+      default: {},
+    });
+  });
+
+  // Add a rule
+  const addRuleBtn = await screen.findByLabelText("Add Rule Button");
+  await userEvent.click(addRuleBtn);
+
+  expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual({
+    rules: [
+      {
+        conditionField: "",
+        conditionType: "=",
+        conditionValue: "",
+        geometryType: "point",
+      },
+    ],
+    default: {},
+  });
+});
+
+test("StylePane handleStyleJSONUpload sets style and rules", async () => {
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  // Switch to rules mode
+  const jsonRadio = await screen.findByLabelText("JSON Editor");
+  await userEvent.click(jsonRadio);
+  // Upload a file with rules
+  const file = new File(
+    [JSON.stringify({ rules: [{ foo: "bar" }], default: { color: "red" } })],
+    "test-file.json",
+    { type: "text/plain" },
+  );
+  const fileInput = screen.getByTestId("file-input");
+  fireEvent.change(fileInput, { target: { files: [file] } });
+
+  await waitFor(() => {
+    expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual({
+      rules: [
+        {
+          foo: "bar",
+        },
+      ],
+      default: { color: "red" },
+    });
+  });
+});
+
+test("StylePane handleStyleJSONChange sets style and rules", async () => {
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  // Switch to rules mode
+  const rulesRadio = await screen.findByLabelText("Rule-based Editor");
+  await userEvent.click(rulesRadio);
+  // Change textarea to valid rules JSON
+  const textArea = screen.getByLabelText("JSON Editor");
+  fireEvent.change(textArea, {
+    target: { value: JSON.stringify({ rules: [{ foo: "baz" }] }) },
+  });
+  expect(JSON.parse(textArea.value).rules[0].foo).toBe("baz");
+});
+
+test("StylePane handleStyleSourceChange resets style for custom and url", async () => {
+  render(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  // Switch to URL
+  const urlRadio = await screen.findByLabelText("URL");
+  await userEvent.click(urlRadio);
+  expect(screen.getByTestId("style").textContent).toBe("");
+  // Switch back to Custom
+  const customRadio = await screen.findByLabelText("Custom");
+  await userEvent.click(customRadio);
+  expect(screen.getByTestId("style").textContent).toBe("{}");
 });
 
 TestingComponent.propTypes = {

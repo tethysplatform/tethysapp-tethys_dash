@@ -99,7 +99,7 @@ const StylePane = ({
       }
     }
     lastStyleMode.current = styleMode;
-  }, [styleMode, style]);
+  }, [styleMode]);
 
   // Only update style JSON when rules or default style change and in rules mode
   const lastRules = useRef(rules);
@@ -118,26 +118,10 @@ const StylePane = ({
 
   function handleStyleJSONUpload({ fileContent }) {
     setStyle(fileContent);
-    if (styleMode === "rules") {
-      try {
-        const parsed = JSON.parse(fileContent);
-        setRules(Array.isArray(parsed.rules) ? parsed.rules : []);
-      } catch {
-        setRules([]);
-      }
-    }
   }
 
   function handleStyleJSONChange(e) {
     setStyle(e.target.value);
-    if (styleMode === "rules") {
-      try {
-        const parsed = JSON.parse(e.target.value);
-        setRules(Array.isArray(parsed.rules) ? parsed.rules : []);
-      } catch {
-        setRules([]);
-      }
-    }
   }
 
   function handleStyleSourceChange(e) {
