@@ -104,7 +104,7 @@ test("Dashboard Item not editing", async () => {
       options: {
         initialDashboard: userDashboard,
       },
-    })
+    }),
   );
 
   const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
@@ -116,10 +116,10 @@ test("Dashboard Item not editing", async () => {
   expect(styles.getPropertyValue("box-shadow")).toBe("none");
 
   expect(
-    screen.queryByLabelText("dashboard-item-dropdown-toggle")
+    screen.queryByLabelText("dashboard-item-dropdown-toggle"),
   ).not.toBeInTheDocument();
   expect(
-    screen.queryByLabelText("attribution-info-icon")
+    screen.queryByLabelText("attribution-info-icon"),
   ).not.toBeInTheDocument();
 });
 
@@ -146,7 +146,7 @@ test("Dashboard Item editing, no custom borders/css", async () => {
         initialDashboard: userDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
@@ -155,17 +155,17 @@ test("Dashboard Item editing, no custom borders/css", async () => {
 
   await waitFor(() => {
     expect(
-      window.getComputedStyle(dashboardGridItem).getPropertyValue("border")
+      window.getComputedStyle(dashboardGridItem).getPropertyValue("border"),
     ).toBe("1px solid #dcdcdc");
   });
   const styles = window.getComputedStyle(dashboardGridItem);
   expect(styles.getPropertyValue("background-color")).toBe("whitesmoke");
   expect(styles.getPropertyValue("box-shadow")).toBe(
-    "0 4px 8px rgba(0,0,0,0.1)"
+    "0 4px 8px rgba(0,0,0,0.1)",
   );
 
   expect(
-    screen.getByLabelText("dashboard-item-dropdown-toggle")
+    screen.getByLabelText("dashboard-item-dropdown-toggle"),
   ).toBeInTheDocument();
 });
 
@@ -200,7 +200,7 @@ test("Dashboard Item editing, custom borders/css", async () => {
         initialDashboard: userDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
@@ -209,25 +209,27 @@ test("Dashboard Item editing, custom borders/css", async () => {
 
   await waitFor(() => {
     expect(
-      window.getComputedStyle(dashboardGridItem).getPropertyValue("border-left")
+      window
+        .getComputedStyle(dashboardGridItem)
+        .getPropertyValue("border-left"),
     ).toBe("1px dashed #f03939");
   });
   const styles = window.getComputedStyle(dashboardGridItem);
   expect(styles.getPropertyValue("border-right")).toBe(
-    "3px solid rgb(57,84,240)"
+    "3px solid rgb(57,84,240)",
   );
   expect(styles.getPropertyValue("border-top")).toBe("");
   expect(styles.getPropertyValue("border-bottom")).toBe("");
   expect(styles.getPropertyValue("border")).toBe("");
   expect(styles.getPropertyValue("background-color")).toBe(
-    "rgba(161, 255, 141, 0.996)"
+    "rgba(161, 255, 141, 0.996)",
   );
   expect(styles.getPropertyValue("box-shadow")).toBe(
-    "4px 0 8px #f03939,-4px 0 8px rgb(57,84,240)"
+    "4px 0 8px #f03939,-4px 0 8px rgb(57,84,240)",
   );
 
   expect(
-    await screen.findByLabelText("dashboard-item-dropdown-toggle")
+    await screen.findByLabelText("dashboard-item-dropdown-toggle"),
   ).toBeInTheDocument();
 });
 
@@ -256,11 +258,11 @@ test("Dashboard Item delete grid item", async () => {
         initialDashboard: userDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
@@ -272,10 +274,10 @@ test("Dashboard Item delete grid item", async () => {
 
   let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
@@ -305,11 +307,11 @@ test("Dashboard Item delete grid item cancel", async () => {
         initialDashboard: userDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
@@ -335,10 +337,10 @@ test("Dashboard Item delete grid item cancel", async () => {
   ];
   let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
@@ -368,11 +370,11 @@ test("Dashboard Item edit item", async () => {
         initialDashboard: mockedDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
@@ -384,13 +386,13 @@ test("Dashboard Item edit item", async () => {
 
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(await screen.findByTestId("dataviewer-mode")).toHaveTextContent(
-    "dataviewer-mode"
+    "dataviewer-mode",
   );
 
   const closeDataViewerModalButton = within(dataViewerModal).getByText("Close");
   fireEvent.click(closeDataViewerModalButton);
   expect(await screen.findByTestId("dataviewer-mode")).toHaveTextContent(
-    "not in dataviewer-mode"
+    "not in dataviewer-mode",
   );
 });
 
@@ -465,11 +467,11 @@ test("Dashboard Item copy item", async () => {
         initialDashboard: mockedDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
@@ -538,10 +540,10 @@ test("Dashboard Item copy item", async () => {
 
   let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
 });
@@ -593,11 +595,11 @@ test("Dashboard Item copy item variable input", async () => {
         initialDashboard: mockedDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
@@ -645,10 +647,10 @@ test("Dashboard Item copy item variable input", async () => {
   ];
   let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
@@ -656,7 +658,7 @@ test("Dashboard Item copy item variable input", async () => {
     JSON.stringify({
       test_var: true,
       test_var_1: true,
-    })
+    }),
   );
 });
 
@@ -725,11 +727,11 @@ test("Dashboard Item copy item variable input already exists", async () => {
         initialDashboard: mockedDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
@@ -795,10 +797,10 @@ test("Dashboard Item copy item variable input already exists", async () => {
   ];
   let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
@@ -807,7 +809,7 @@ test("Dashboard Item copy item variable input already exists", async () => {
       test_var: true,
       test_var_1: true,
       test_var_2: true,
-    })
+    }),
   );
 });
 
@@ -837,11 +839,11 @@ test("Dashboard Item order options disabled for single grid item", async () => {
         initialDashboard: mockedDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
@@ -962,11 +964,11 @@ test("Dashboard Item order forward", async () => {
         initialDashboard: mockedDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
@@ -987,10 +989,10 @@ test("Dashboard Item order forward", async () => {
   ];
   let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   await userEvent.click(dashboardItemDropdownToggle);
@@ -1012,10 +1014,10 @@ test("Dashboard Item order forward", async () => {
   ];
   ({ tabs, ...dashboardContextProperties } = expectedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 });
 
@@ -1115,11 +1117,11 @@ test("Dashboard Item order backward", async () => {
         initialDashboard: mockedDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
@@ -1140,10 +1142,10 @@ test("Dashboard Item order backward", async () => {
   ];
   let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   await userEvent.click(dashboardItemDropdownToggle);
@@ -1164,10 +1166,10 @@ test("Dashboard Item order backward", async () => {
   ];
   ({ tabs, ...dashboardContextProperties } = expectedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 });
 
@@ -1199,11 +1201,11 @@ test("Dashboard Item export", async () => {
         initialDashboard: mockedDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
@@ -1225,7 +1227,7 @@ test("Dashboard Item export", async () => {
       x: 0,
       y: 0,
     },
-    "TethysDashGridItem.json"
+    "TethysDashGridItem.json",
   );
 });
 
@@ -1259,11 +1261,11 @@ test("Dashboard Item export fail", async () => {
         initialDashboard: mockedDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
 
   const dashboardItemDropdownToggle = await screen.findByLabelText(
-    "dashboard-item-dropdown-toggle"
+    "dashboard-item-dropdown-toggle",
   );
   await userEvent.click(dashboardItemDropdownToggle);
 
@@ -1285,10 +1287,10 @@ test("Dashboard Item export fail", async () => {
       x: 0,
       y: 0,
     },
-    "TethysDashGridItem.json"
+    "TethysDashGridItem.json",
   );
   expect(
-    await screen.findByText("Failed to export grid item.")
+    await screen.findByText("Failed to export grid item."),
   ).toBeInTheDocument();
 });
 
@@ -1335,7 +1337,7 @@ test("Dashboard attribution and show", async () => {
         initialDashboard: userDashboard,
         visualizations: availableVisualizations,
       },
-    })
+    }),
   );
 
   const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
@@ -1411,7 +1413,7 @@ test("Dashboard attribution www link and show", async () => {
         initialDashboard: userDashboard,
         visualizations: availableVisualizations,
       },
-    })
+    }),
   );
 
   const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
@@ -1483,7 +1485,7 @@ test("Dashboard attribution https link and show", async () => {
         initialDashboard: userDashboard,
         visualizations: availableVisualizations,
       },
-    })
+    }),
   );
 
   const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
@@ -1556,14 +1558,14 @@ test("Dashboard attribution and not show", async () => {
         initialDashboard: userDashboard,
         visualizations: availableVisualizations,
       },
-    })
+    }),
   );
 
   const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
   expect(dashboardGridItem).toBeInTheDocument();
 
   expect(
-    screen.queryByLabelText("attribution-info-icon")
+    screen.queryByLabelText("attribution-info-icon"),
   ).not.toBeInTheDocument();
 });
 
@@ -1742,7 +1744,10 @@ test("handleGridItemExport bad load", async () => {
 
   const response = await handleGridItemExport(gridItem);
 
-  expect(response).toStrictEqual(apiResponse);
+  expect(response).toStrictEqual({
+    success: false,
+    message: "Failed to fetch: some error",
+  });
 });
 
 test("handleGridItemImport", async () => {

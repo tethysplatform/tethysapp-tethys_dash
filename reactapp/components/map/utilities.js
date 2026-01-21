@@ -502,7 +502,11 @@ export async function getStyleFields({
   let fields = [];
   let geojson;
   if (sourceProps.type === "GeoJSON") {
-    geojson = await loadGeoJSON(sourceProps.geojson, dashboard_uuid);
+    try {
+      geojson = await loadGeoJSON(sourceProps.geojson, dashboard_uuid);
+    } catch (e) {
+      return fields;
+    }
     fields = [
       ...new Set(
         geojson.features.flatMap((feature) =>
@@ -715,14 +719,8 @@ async function getGeoJSONLayerAttributes(
   const attributes = [];
 
   // get the geojson features
-  let geoJSON;
-  if (typeof sourceGeoJSON === "object") {
-    geoJSON = sourceGeoJSON;
-  } else if (sourceGeoJSON.trim().startsWith("{")) {
-    geoJSON = JSON5.parse(sourceGeoJSON);
-  } else {
-    geoJSON = await loadGeoJSON(sourceGeoJSON, dashboard_uuid);
-  }
+  const geoJSON = await loadGeoJSON(sourceGeoJSON, dashboard_uuid);
+
   const sourceFeatures = geoJSON?.features ?? [];
 
   // for each feature, get an array of all the available properties/fields and then flatten into a single array
@@ -778,27 +776,21 @@ export async function loadGeoJSON(geojson, dashboard_uuid, keep_urls = false) {
   if (geojson.includes("/")) {
     if (keep_urls) return geojson;
     const response = await fetch(geojson);
-    if (!response.ok)
-      return {
-        success: false,
-        message: `Failed to fetch: ${response.statusText}`,
-      };
+    if (!response.ok) throw Error(`Failed to fetch: ${response.statusText}`);
     geojson = JSON5.parse(await response.text());
   } else {
     const geoJSONResponse = await appAPI.downloadJSON({
       filename: geojson,
       dashboard_uuid,
     });
-    if (!geoJSONResponse.success) return geoJSONResponse;
+    if (!geoJSONResponse.success) throw Error(geoJSONResponse.message);
     geojson = geoJSONResponse.data;
   }
   const crs = checkForCRS(geojson);
   if (!crs)
-    return {
-      success: false,
-      message:
-        "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson.",
-    };
+    throw Error(
+      "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson.",
+    );
   geojson.crs = geojson.crs || {};
   geojson.crs.properties = geojson.crs.properties || {};
   geojson.crs.properties.name = crs;
@@ -828,14 +820,15 @@ export async function loadLayerJSONs(
   // Load GeoJSON if needed
   const source = mapLayer?.configuration?.props?.source;
   if (source?.type === "GeoJSON" && source?.geojson) {
-    const geojson = await loadGeoJSON(
-      source.geojson,
-      dashboard_uuid,
-      keep_urls,
-    );
-    if (geojson?.success === false) {
+    let geojson;
+    try {
+      geojson = await loadGeoJSON(source.geojson, dashboard_uuid, keep_urls);
+    } catch (e) {
       delete mapLayer.configuration.props.source.geojson;
-      return geojson;
+      return {
+        success: false,
+        message: `Failed to fetch: ${e.message}`,
+      };
     }
     mapLayer.configuration.props.source.geojson = geojson;
   }
