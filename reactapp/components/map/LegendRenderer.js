@@ -391,6 +391,11 @@ function LegendRenderer({ legend }) {
     if (isEsri) {
       setIsLoading(true);
       setError(null);
+      if (!legend.url) {
+        setError("No URL provided for ESRI legend.");
+        setIsLoading(false);
+        return;
+      }
 
       const normalizedUrl = legend.url.replace(/FeatureServer/i, "MapServer");
       const legendUrl = `${normalizedUrl.replace(/\/+$/, "")}/legend?f=json`;

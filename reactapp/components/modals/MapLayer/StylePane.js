@@ -8,6 +8,7 @@ import NormalInput from "components/inputs/NormalInput";
 import RuleStyleEditor from "components/inputs/RuleStyleEditor";
 import Button from "react-bootstrap/Button";
 import { LayoutContext } from "components/contexts/Contexts";
+import { getStyleFields } from "components/map/utilities";
 
 const EditorModeRow = styled.div`
   display: flex;
@@ -38,13 +39,30 @@ const StylePane = ({
   setErrorMessage,
   containerRef,
   sourceProps,
-  availableFields = [],
+  layerProps,
 }) => {
   const [styleSource, setStyleSource] = useState("custom"); // track the geojson value
   const [styleMode, setStyleMode] = useState("json"); // "json" or "rules"
   const [rules, setRules] = useState([]);
   const [defaultStyle, setDefaultStyle] = useState({});
   const { uuid } = useContext(LayoutContext);
+  const [availableFields, setAvailableFields] = useState([]);
+
+  useEffect(() => {
+    const fetchAvailableFields = async () => {
+      try {
+        const fields = await getStyleFields({
+          sourceProps,
+          layerProps,
+          dashboard_uuid: uuid,
+        });
+        setAvailableFields(fields);
+      } catch (e) {
+        setAvailableFields([]);
+      }
+    };
+    fetchAvailableFields();
+  }, [sourceProps, layerProps, uuid]);
 
   useEffect(() => {
     const fetchJSON = async () => {

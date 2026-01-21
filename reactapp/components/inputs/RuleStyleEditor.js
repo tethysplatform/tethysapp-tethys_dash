@@ -1,3 +1,4 @@
+import { useEffect, memo } from "react";
 import PropTypes from "prop-types";
 import RuleEditor from "components/inputs/RuleEditor";
 import Accordion from "react-bootstrap/Accordion";
@@ -52,8 +53,7 @@ const RuleStyleEditor = ({
               <span
                 style={{ display: "flex", alignItems: "center", width: "100%" }}
               >
-                <button
-                  type="button"
+                <div
                   onClick={(e) => {
                     e.stopPropagation();
                     handleRemoveRule(idx);
@@ -66,12 +66,22 @@ const RuleStyleEditor = ({
                     fontSize: 20,
                     cursor: "pointer",
                     marginLeft: 8,
+                    display: "inline-block",
+                    lineHeight: 1,
                   }}
+                  role="button"
+                  tabIndex={0}
                   aria-label="Remove Rule"
                   title="Remove Rule"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.stopPropagation();
+                      handleRemoveRule(idx);
+                    }
+                  }}
                 >
                   ×
-                </button>
+                </div>
                 <span style={{ flex: 1 }}>
                   {rule.conditionField &&
                   rule.conditionType &&
@@ -105,4 +115,4 @@ RuleStyleEditor.propTypes = {
   containerRef: PropTypes.object,
 };
 
-export default RuleStyleEditor;
+export default memo(RuleStyleEditor);

@@ -279,62 +279,6 @@ export function transformCoordinates(coords, sourceProj, destProj) {
   }
 }
 
-export async function getLayerGeometryTypes(layerInfo, map) {
-  // ESRI Image/Map/Feature Service: geometryType is usually available in metadata
-  const sourceType = layerInfo?.configuration?.props?.source?.type;
-  const sourceProps = layerInfo?.configuration?.props?.source?.props;
-  if (sourceType && sourceType.includes("ESRI")) {
-    // Try to fetch layer metadata for geometryType
-    const url = sourceProps?.url;
-    if (url) {
-      try {
-        const metaUrl = url.endsWith("/") ? url + "?f=json" : url + "/?f=json";
-        const resp = await fetch(metaUrl);
-        if (resp.ok) {
-          const meta = await resp.json();
-          if (meta.geometryType) {
-            // e.g., esriGeometryPolygon, esriGeometryPoint, esriGeometryPolyline
-            if (meta.geometryType.includes("Polygon")) return ["polygon"];
-            if (meta.geometryType.includes("Polyline")) return ["linestring"];
-            if (meta.geometryType.includes("Point")) return ["point"];
-          }
-        }
-      } catch {}
-    }
-    // Fallback: unknown
-    return [];
-  }
-
-  // GeoJSON or WMS: inspect features on the map
-  const geomTypes = new Set();
-  if (sourceType === "GeoJSON" || sourceType === "WMS") {
-    // Use map.forEachFeatureAtPixel to get all features, or inspect the source
-    // We'll try to get all features from the layer
-    const layerName = layerInfo?.configuration?.props?.name;
-    map.getLayers().forEach((layer) => {
-      if (layer.get("name") === layerName) {
-        const source = layer.getSource && layer.getSource();
-        if (source && source.getFeatures) {
-          const features = source.getFeatures();
-          features.forEach((feature) => {
-            const geom = feature.getGeometry();
-            if (geom) {
-              let type = geom.getType().toLowerCase();
-              // Normalize Multi* to base type
-              if (type.startsWith("multi")) type = type.slice(5);
-              geomTypes.add(type);
-            }
-          });
-        }
-      }
-    });
-    return Array.from(geomTypes);
-  }
-
-  // Fallback: unknown
-  return [];
-}
-
 export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   // setup constants
   let features;
@@ -549,7 +493,45 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate, LayerName) {
   return features;
 }
 
-export async function getLayerAttributes(sourceProps, layerName) {
+export async function getStyleFields({
+  sourceProps,
+  layerProps,
+  dashboard_uuid,
+}) {
+  // make sure a valid json is supplied if the source is GeoJSON
+  let fields = [];
+  let geojson;
+  if (sourceProps.type === "GeoJSON") {
+    geojson = await loadGeoJSON(sourceProps.geojson, dashboard_uuid);
+    fields = [
+      ...new Set(
+        geojson.features.flatMap((feature) =>
+          Object.keys(feature.properties ?? {}),
+        ),
+      ),
+    ];
+  } else if (sourceProps.type === "ESRI Feature Service") {
+    const attributes = await getArcGISFeatureServiceLayerAttributes(
+      sourceProps.props.url,
+      sourceProps.props.layer,
+      layerProps.name,
+    );
+    fields = [
+      ...new Set(
+        Object.values(attributes).flatMap((fields) =>
+          fields.map((f) => f.name),
+        ),
+      ),
+    ];
+  }
+  return fields;
+}
+
+export async function getLayerAttributes(
+  sourceProps,
+  layerName,
+  dashboard_uuid,
+) {
   // setup constants
   let attributes;
   const sourceProperties = sourceProps.props;
@@ -565,7 +547,11 @@ export async function getLayerAttributes(sourceProps, layerName) {
   } else if (sourceType === "WMS") {
     attributes = await getImageWMSLayerAttributes(sourceUrl, sourceParams);
   } else if (sourceType === "GeoJSON") {
-    attributes = await getGeoJSONLayerAttributes(sourceGeoJSON, layerName);
+    attributes = await getGeoJSONLayerAttributes(
+      sourceGeoJSON,
+      layerName,
+      dashboard_uuid,
+    );
   } else if (sourceType === "ESRI Feature Service") {
     attributes = await getArcGISFeatureServiceLayerAttributes(
       sourceUrl,
@@ -614,7 +600,7 @@ async function getImageArcGISRestLayerAttributes(sourceUrl) {
   return sourceAttributes;
 }
 
-async function getArcGISFeatureServiceLayerAttributes(
+export async function getArcGISFeatureServiceLayerAttributes(
   sourceUrl,
   layerNumber,
   layerName,
@@ -719,7 +705,11 @@ async function getImageWMSLayerAttributes(sourceUrl, sourceParams) {
   return sourceAttributes;
 }
 
-async function getGeoJSONLayerAttributes(sourceGeoJSON, layerName) {
+async function getGeoJSONLayerAttributes(
+  sourceGeoJSON,
+  layerName,
+  dashboard_uuid,
+) {
   // setup constants
   const sourceAttributes = {};
   const attributes = [];
@@ -731,12 +721,7 @@ async function getGeoJSONLayerAttributes(sourceGeoJSON, layerName) {
   } else if (sourceGeoJSON.trim().startsWith("{")) {
     geoJSON = JSON5.parse(sourceGeoJSON);
   } else {
-    const response = await fetch(sourceGeoJSON);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch: ${response.statusText}`);
-    }
-    const jsonText = await response.text();
-    geoJSON = JSON5.parse(jsonText);
+    geoJSON = await loadGeoJSON(sourceGeoJSON, dashboard_uuid);
   }
   const sourceFeatures = geoJSON?.features ?? [];
 
@@ -760,75 +745,78 @@ async function getGeoJSONLayerAttributes(sourceGeoJSON, layerName) {
   return sourceAttributes;
 }
 
+async function loadStyle(style, layerName, dashboard_uuid, keep_urls = false) {
+  if (typeof style !== "object") {
+    if (style.includes("/")) {
+      if (keep_urls) return style;
+      const response = await fetch(style);
+      if (!response.ok) {
+        console.error(`Failed to load the style for ${layerName} layer`);
+        return undefined;
+      }
+      return JSON5.parse(await response.text());
+    } else {
+      const styleJSONResponse = await appAPI.downloadJSON({
+        filename: style,
+        dashboard_uuid,
+      });
+      if (!styleJSONResponse.success) {
+        console.error(`Failed to load the style for ${layerName} layer`);
+        return undefined;
+      }
+      return styleJSONResponse.data;
+    }
+  }
+  return style;
+}
+
+export async function loadGeoJSON(geojson, dashboard_uuid, keep_urls = false) {
+  if (typeof geojson === "object") return geojson;
+  if (geojson.trim().startsWith("{")) {
+    return JSON5.parse(geojson);
+  }
+  if (geojson.includes("/")) {
+    if (keep_urls) return geojson;
+    const response = await fetch(geojson);
+    if (!response.ok)
+      return {
+        success: false,
+        message: `Failed to fetch: ${response.statusText}`,
+      };
+    geojson = JSON5.parse(await response.text());
+  } else {
+    const geoJSONResponse = await appAPI.downloadJSON({
+      filename: geojson,
+      dashboard_uuid,
+    });
+    if (!geoJSONResponse.success) return geoJSONResponse;
+    geojson = geoJSONResponse.data;
+  }
+  const crs = checkForCRS(geojson);
+  if (!crs)
+    return {
+      success: false,
+      message:
+        "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson.",
+    };
+  geojson.crs = geojson.crs || {};
+  geojson.crs.properties = geojson.crs.properties || {};
+  geojson.crs.properties.name = crs;
+  return geojson;
+}
+
 export async function loadLayerJSONs(
   mapLayer,
   dashboard_uuid,
   keep_urls = false,
 ) {
-  // Helper to load style JSON
-  async function loadStyle(style, layerName) {
-    if (typeof style !== "object") {
-      if (style.includes("/")) {
-        if (keep_urls) return style;
-        const response = await fetch(style);
-        if (!response.ok) {
-          console.error(`Failed to load the style for ${layerName} layer`);
-          return undefined;
-        }
-        return JSON5.parse(await response.text());
-      } else {
-        const styleJSONResponse = await appAPI.downloadJSON({
-          filename: style,
-          dashboard_uuid,
-        });
-        if (!styleJSONResponse.success) {
-          console.error(`Failed to load the style for ${layerName} layer`);
-          return undefined;
-        }
-        return styleJSONResponse.data;
-      }
-    }
-    return style;
-  }
-
-  // Helper to load GeoJSON
-  async function loadGeoJSON(geojson, layerConfig) {
-    if (typeof geojson === "object") return geojson;
-    if (geojson.includes("/")) {
-      if (keep_urls) return geojson;
-      const response = await fetch(geojson);
-      if (!response.ok)
-        return {
-          success: false,
-          message: `Failed to fetch: ${response.statusText}`,
-        };
-      geojson = JSON5.parse(await response.text());
-    } else {
-      const geoJSONResponse = await appAPI.downloadJSON({
-        filename: geojson,
-        dashboard_uuid,
-      });
-      if (!geoJSONResponse.success) return geoJSONResponse;
-      geojson = geoJSONResponse.data;
-    }
-    const crs = checkForCRS(geojson);
-    if (!crs)
-      return {
-        success: false,
-        message:
-          "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson.",
-      };
-    geojson.crs = geojson.crs || {};
-    geojson.crs.properties = geojson.crs.properties || {};
-    geojson.crs.properties.name = crs;
-    return geojson;
-  }
-
   // Load style if needed
   if (mapLayer?.configuration?.style) {
     const style = await loadStyle(
       mapLayer.configuration.style,
       mapLayer.configuration.props?.name,
+      dashboard_uuid,
+      keep_urls,
     );
     if (style !== undefined) {
       mapLayer.configuration.style = style;
@@ -842,7 +830,8 @@ export async function loadLayerJSONs(
   if (source?.type === "GeoJSON" && source?.geojson) {
     const geojson = await loadGeoJSON(
       source.geojson,
-      mapLayer.configuration.props.source,
+      dashboard_uuid,
+      keep_urls,
     );
     if (geojson?.success === false) {
       delete mapLayer.configuration.props.source.geojson;

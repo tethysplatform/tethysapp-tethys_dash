@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, memo, Fragment } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
@@ -297,7 +297,7 @@ const RuleEditor = ({
                     );
                   } else if (optKey === "shape") {
                     return (
-                      <>
+                      <Fragment key={optKey}>
                         <DataSelect
                           key={optKey}
                           label="Shape"
@@ -335,11 +335,11 @@ const RuleEditor = ({
                             />
                           </>
                         )}
-                      </>
+                      </Fragment>
                     );
                   } else if (optKey === "polygonFillType") {
                     return (
-                      <>
+                      <Fragment key={optKey}>
                         <DataSelect
                           key={optKey}
                           label="Polygon Fill Type"
@@ -454,10 +454,11 @@ const RuleEditor = ({
                             </NumberInputWrapper>
                           </>
                         )}
-                      </>
+                      </Fragment>
                     );
                   } else if (optKey === "strokeDash") {
                     <DataSelect
+                      key={optKey}
                       label="Stroke Dash"
                       options={availableStrokeDashOptions}
                       selectedOption={
@@ -744,12 +745,10 @@ const RuleEditor = ({
 RuleEditor.propTypes = {
   rule: PropTypes.object.isRequired,
   onChange: PropTypes.func.isRequired,
-  onRemove: PropTypes.func.isRequired,
-  availableShapes: PropTypes.array.isRequired,
-  availableFields: PropTypes.array.isRequired,
-  containerRef: PropTypes.object.isRequired,
+  availableFields: PropTypes.array,
+  containerRef: PropTypes.object,
   styleOptionFilter: PropTypes.array,
   hideConditionFields: PropTypes.bool,
 };
 
-export default RuleEditor;
+export default memo(RuleEditor);
