@@ -255,10 +255,6 @@ const loadESRIJSON = (config) => {
   return vectorSource;
 };
 
-function getStyleCacheKey(geometryType, style) {
-  return `${geometryType}:${JSON.stringify(style)}`;
-}
-
 function createDotFill({ color = "#000", radius = 2, spacing = 8 }) {
   const canvas = document.createElement("canvas");
   canvas.width = spacing;
@@ -328,7 +324,7 @@ function mergeStyleProperties(base, override) {
   };
 }
 
-function matchesCondition(featureValue, type, conditionValue) {
+export function matchesCondition(featureValue, type, conditionValue) {
   const a = featureValue;
   const b =
     typeof conditionValue === "string" && !isNaN(conditionValue)
@@ -354,7 +350,8 @@ function matchesCondition(featureValue, type, conditionValue) {
       return false;
   }
 }
-function resolveSize(feature, rules, defaultSize) {
+
+export function resolveSize(feature, rules, defaultSize) {
   let size = defaultSize;
   let bestThreshold = null;
 
@@ -460,8 +457,8 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
         image: new RegularShape({
           fill: fill,
           stroke: stroke,
-          radius: 10 / Math.SQRT2,
-          radius2: 10,
+          radius: size / Math.SQRT2,
+          radius2: size,
           points: 4,
           angle: 0,
           scale: [1, 0.5],
@@ -609,7 +606,7 @@ export function createJsonStyleFunction(styleJson) {
     }
 
     // --- Cache lookup ---
-    const cacheKey = getStyleCacheKey(geometryBucket, merged);
+    const cacheKey = `${geometryBucket}:${JSON.stringify(merged)}`;
     if (styleCache.has(cacheKey)) {
       return styleCache.get(cacheKey);
     }

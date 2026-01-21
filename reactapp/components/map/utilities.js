@@ -743,7 +743,7 @@ async function getGeoJSONLayerAttributes(
   return sourceAttributes;
 }
 
-async function loadStyle(style, layerName, dashboard_uuid, keep_urls = false) {
+async function loadStyle(style, layerName, dashboard_uuid, keep_urls) {
   if (typeof style !== "object") {
     if (style.includes("/")) {
       if (keep_urls) return style;
