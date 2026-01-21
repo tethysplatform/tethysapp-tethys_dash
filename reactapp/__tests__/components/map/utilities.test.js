@@ -8,6 +8,7 @@ import {
   loadLayerJSONs,
   saveLayerJSON,
   checkForCRS,
+  getStyleFields,
 } from "components/map/utilities";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
 import VectorLayer from "ol/layer/Vector.js";
@@ -22,6 +23,105 @@ import appAPI from "services/api/app";
 jest.mock("uuid", () => ({
   v4: () => 12345678,
 }));
+
+test("getStyleFields GeoJSON", async () => {
+  const sourceProps = layerConfigGeoJSON.configuration.props.source;
+  const layerName = layerConfigGeoJSON.configuration.props.name;
+  const styleFields = await getStyleFields({
+    sourceProps,
+    layerProps: { name: layerName },
+    dashboard_uuid: "some-uuid",
+  });
+
+  expect(styleFields).toStrictEqual(["Some Field"]);
+});
+
+test("getStyleFields  fails", async () => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      ok: false,
+      statusText: "missing",
+    }),
+  );
+
+  const updatedlayerConfigGeoJSON = JSON.parse(
+    JSON.stringify(layerConfigGeoJSON),
+  );
+  const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
+  sourceProps.geojson = "some/url.json";
+  const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
+
+  const styleFields = await getStyleFields({
+    sourceProps,
+    layerProps: { name: layerName },
+    dashboard_uuid: "some-uuid",
+  });
+
+  expect(styleFields).toStrictEqual([]);
+});
+
+test("getStyleFields ESRI Feature Service", async () => {
+  const mockServiceResults = {
+    id: 0,
+    name: "Max Status - Forecast Trend",
+    parentLayerId: -1,
+    defaultVisibility: true,
+    subLayerIds: null,
+    minScale: 0,
+    maxScale: 0,
+    type: "Feature Layer",
+    geometryType: "esriGeometryPoint",
+    supportsDynamicLegends: true,
+    fields: [
+      {
+        name: "nws_name",
+        type: "esriFieldTypeString",
+        alias: "Name",
+        length: 60000,
+        domain: null,
+      },
+      {
+        name: "producer",
+        type: "esriFieldTypeString",
+        alias: "RFC",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    }),
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+
+  const sourceProps =
+    layerConfigArcGISFeatureService.configuration.props.source;
+  const layerName = layerConfigArcGISFeatureService.configuration.props.name;
+
+  const styleFields = await getStyleFields({
+    sourceProps,
+    layerProps: { name: layerName },
+    dashboard_uuid: "some-uuid",
+  });
+
+  expect(styleFields).toStrictEqual(["nws_name", "producer"]);
+});
+
+test("getStyleFields Other Type", async () => {
+  const sourceProps = { type: "Other" };
+  const layerName = "Some Layer";
+  const styleFields = await getStyleFields({
+    sourceProps,
+    layerProps: { name: layerName },
+    dashboard_uuid: "some-uuid",
+  });
+
+  expect(styleFields).toStrictEqual([]);
+});
 
 test("createMarkerLayer", async () => {
   const markerLayer = createMarkerLayer([0, 0]);
@@ -1953,6 +2053,24 @@ test("saveLayerJSON stringified Object", async () => {
 
   expect(response.success).toBe(true);
   expect(response.filename).toBe("some_file.json");
+});
+
+test("saveLayerJSON double quote url", async () => {
+  const style = '"some/url/file.json"';
+
+  global.fetch = jest.fn().mockResolvedValueOnce({
+    ok: true,
+    text: () => Promise.resolve(JSON.stringify({})),
+  });
+
+  const response = await saveLayerJSON({
+    stringJSON: style,
+    csrf: "12345",
+    check_crs: false,
+  });
+
+  expect(response.success).toBe(true);
+  expect(response.filename).toBe("some/url/file.json");
 });
 
 test("saveLayerJSON url", async () => {
