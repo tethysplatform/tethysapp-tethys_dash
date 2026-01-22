@@ -457,23 +457,25 @@ const RuleEditor = ({
                       </Fragment>
                     );
                   } else if (optKey === "strokeDash") {
-                    <DataSelect
-                      key={optKey}
-                      label="Stroke Dash"
-                      options={availableStrokeDashOptions}
-                      selectedOption={
-                        availableStrokeDashOptions.find(
-                          (o) =>
-                            o.value ===
-                            (rule?.[defaultSection]?.strokeDash || ""),
-                        ) || availableStrokeDashOptions[0]
-                      }
-                      onChange={(opt) =>
-                        handleStyleValueChange(optKey, opt.value)
-                      }
-                      creatable={false}
-                      divProps={{ style: { marginBottom: 0 } }}
-                    />;
+                    return (
+                      <DataSelect
+                        key={optKey}
+                        label="Stroke Dash"
+                        options={availableStrokeDashOptions}
+                        selectedOption={
+                          availableStrokeDashOptions.find(
+                            (o) =>
+                              o.value ===
+                              (rule?.[defaultSection]?.strokeDash || ""),
+                          ) || availableStrokeDashOptions[0]
+                        }
+                        onChange={(opt) =>
+                          handleStyleValueChange(optKey, opt.value)
+                        }
+                        creatable={false}
+                        divProps={{ style: { marginBottom: 0 } }}
+                      />
+                    );
                   } else {
                     // Fallback label: Capitalize and add spaces
                     const label = optKey

@@ -628,7 +628,7 @@ export function createJsonStyleFunction(styleJson) {
       if (lineDash.length === 0) lineDash = undefined;
     }
 
-    const stroke = merged.stroke
+    const stroke = lineDash
       ? new Stroke({
           color: merged.stroke,
           width: merged.strokeWidth ?? defaultStrokeWidth,

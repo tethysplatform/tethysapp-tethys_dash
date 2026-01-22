@@ -1,7 +1,6 @@
 import { useEffect, useState, memo } from "react";
 import PropTypes from "prop-types";
 import { RiRectangleFill, RiAddFill } from "react-icons/ri";
-import { IoAnalyticsOutline } from "react-icons/io5";
 import {
   BsFillTriangleFill,
   BsFillSquareFill,
@@ -11,6 +10,7 @@ import {
 } from "react-icons/bs";
 import { legendPropType } from "components/map/utilities";
 import styled from "styled-components";
+import { defaultFill, defaultStroke } from "components/inputs/RuleEditor.js";
 
 const RotatedAdd = styled(RiAddFill)`
   transform: rotate(45deg);
@@ -42,6 +42,92 @@ export const legendSymbols = {
   x: RotatedAdd,
 };
 
+const LegendWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+`;
+
+const LegendTitle = styled.h3`
+  margin-bottom: 0.5rem;
+`;
+
+const LegendList = styled.ul`
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+`;
+
+const LegendItem = styled.li`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const LegendImage = styled.img`
+  && {
+    width: 85% !important;
+    border: 1px solid #ccc;
+    margin-bottom: 6px;
+  }
+`;
+
+const LayerBlock = styled.div`
+  margin-bottom: 1rem;
+  text-align: center;
+  width: 100%;
+`;
+
+const LayerTitle = styled.strong`
+  display: block;
+  margin-bottom: 0.25rem;
+`;
+
+const LoaderMessage = styled.div`
+  font-style: italic;
+`;
+
+const ErrorMessage = styled.div`
+  color: red;
+`;
+
+const parseLayerFilter = (raw, allLayerIds) => {
+  if (typeof raw === "number") return [raw];
+  if (typeof raw !== "string") return [];
+
+  // If raw contains ":", assume it's in mode:list format
+  if (raw.includes(":")) {
+    const [mode, list] = raw.split(":");
+    const ids = list
+      .split(",")
+      .map((id) => parseInt(id.trim(), 10))
+      .filter((id) => !isNaN(id));
+
+    switch (mode.trim()) {
+      case "show":
+        return ids;
+      case "hide":
+        return allLayerIds.filter((id) => !ids.includes(id));
+      case "include":
+        return Array.from(new Set([...ids, ...allLayerIds]));
+      case "exclude":
+        return allLayerIds.filter((id) => !ids.includes(id));
+      default:
+        return [];
+    }
+  }
+
+  // Fallback: assume it's a raw comma-delimited list
+  return raw
+    .split(",")
+    .map((id) => parseInt(id.trim(), 10))
+    .filter((id) => !isNaN(id));
+};
+
 // LegendSymbol supports SVG hatching for polygons
 export const LegendSymbol = ({
   symbol,
@@ -58,6 +144,7 @@ export const LegendSymbol = ({
 }) => {
   const isPolygonHatch = symbol === "polygon" && polygonFillType === "hatch";
   const isPolygonDot = symbol === "polygon" && polygonFillType === "dot";
+  symbol = symbol === "polygon" ? "square" : symbol;
   const isLineString = symbol === "linestring";
   const effectiveDotSpacing = isNaN(Number(dotSpacing))
     ? 8
@@ -228,7 +315,7 @@ export const LegendSymbol = ({
           y1="6"
           x2="30"
           y2="6"
-          stroke={stroke || color || "#222"}
+          stroke={stroke || color}
           strokeWidth={strokeWidth}
           strokeDasharray={dashArray}
           strokeLinecap="round"
@@ -239,8 +326,8 @@ export const LegendSymbol = ({
   const isValidSymbol = symbol in legendSymbols;
   const SymbolComponent = isValidSymbol
     ? legendSymbols[symbol]
-    : BsFillSquareFill;
-  const label = `${color}-${isValidSymbol ? symbol : "square"}`;
+    : BsFillCircleFill;
+  const label = `${color}-${isValidSymbol ? symbol : "circle"}`;
   return (
     <SymbolComponent
       aria-label={label}
@@ -249,92 +336,6 @@ export const LegendSymbol = ({
       {...rest}
     />
   );
-};
-
-const LegendWrapper = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-`;
-
-const LegendTitle = styled.h3`
-  margin-bottom: 0.5rem;
-`;
-
-const LegendList = styled.ul`
-  list-style: none;
-  padding-left: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.25rem;
-`;
-
-const LegendItem = styled.li`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-`;
-
-const LegendImage = styled.img`
-  && {
-    width: 85% !important;
-    border: 1px solid #ccc;
-    margin-bottom: 6px;
-  }
-`;
-
-const LayerBlock = styled.div`
-  margin-bottom: 1rem;
-  text-align: center;
-  width: 100%;
-`;
-
-const LayerTitle = styled.strong`
-  display: block;
-  margin-bottom: 0.25rem;
-`;
-
-const LoaderMessage = styled.div`
-  font-style: italic;
-`;
-
-const ErrorMessage = styled.div`
-  color: red;
-`;
-
-const parseLayerFilter = (raw, allLayerIds) => {
-  if (typeof raw === "number") return [raw];
-  if (typeof raw !== "string") return [];
-
-  // If raw contains ":", assume it's in mode:list format
-  if (raw.includes(":")) {
-    const [mode, list] = raw.split(":");
-    const ids = list
-      .split(",")
-      .map((id) => parseInt(id.trim(), 10))
-      .filter((id) => !isNaN(id));
-
-    switch (mode.trim()) {
-      case "show":
-        return ids;
-      case "hide":
-        return allLayerIds.filter((id) => !ids.includes(id));
-      case "include":
-        return Array.from(new Set([...ids, ...allLayerIds]));
-      case "exclude":
-        return allLayerIds.filter((id) => !ids.includes(id));
-      default:
-        return [];
-    }
-  }
-
-  // Fallback: assume it's a raw comma-delimited list
-  return raw
-    .split(",")
-    .map((id) => parseInt(id.trim(), 10))
-    .filter((id) => !isNaN(id));
 };
 
 function LegendRenderer({ legend }) {
@@ -466,10 +467,13 @@ function LegendRenderer({ legend }) {
       if (defaultStyles[geom]) {
         const shape = getSymbol(defaultStyles[geom], geom);
         const iconUrl = defaultStyles[geom].iconUrl;
-        const fillColor = getColor(defaultStyles[geom], "fill", "gray");
-        const strokeColor = getColor(defaultStyles[geom], "stroke", "black");
+        const fillColor = getColor(defaultStyles[geom], "fill", defaultFill);
+        const strokeColor = getColor(
+          defaultStyles[geom],
+          "stroke",
+          defaultStroke,
+        );
         const polygonFillType = defaultStyles[geom].polygonFillType;
-        const hatchColor = defaultStyles[geom].hatchColor;
         const hatchSpacing = defaultStyles[geom].hatchSpacing;
         const strokeDash = defaultStyles[geom].strokeDash;
         const strokeWidth = defaultStyles[geom].strokeWidth;
@@ -499,10 +503,9 @@ function LegendRenderer({ legend }) {
       const merged = { ...base, ...rule };
       const shape = getSymbol(merged, geom);
       const iconUrl = merged.iconUrl;
-      const fillColor = getColor(merged, "fill", "gray");
-      const strokeColor = getColor(merged, "stroke", "black");
+      const fillColor = getColor(merged, "fill", defaultFill);
+      const strokeColor = getColor(merged, "stroke", defaultStroke);
       const polygonFillType = merged.polygonFillType;
-      const hatchColor = merged.hatchColor;
       const hatchSpacing = merged.hatchSpacing;
       const strokeDash = merged.strokeDash;
       const strokeWidth = merged.strokeWidth;
@@ -536,6 +539,7 @@ function LegendRenderer({ legend }) {
             <LegendItem key={idx}>
               {item.iconUrl ? (
                 <img
+                  aria-label={`icon-${item.label}`}
                   src={item.iconUrl}
                   alt="icon"
                   style={{ width: 24, height: 24, marginRight: 6 }}

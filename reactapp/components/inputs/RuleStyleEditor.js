@@ -33,9 +33,6 @@ const RuleStyleEditor = ({
               layerGeomTypes.length > 0 &&
               layerGeomTypes.map((geomType) => (
                 <div key={geomType} style={{ marginBottom: 24 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 8 }}>
-                    {geomType.replace("Multi", "")} Style
-                  </div>
                   <RuleEditor
                     rule={defaultStyle}
                     onChange={setDefaultStyle}
