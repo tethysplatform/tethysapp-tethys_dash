@@ -62,7 +62,7 @@ const RuleStyleEditor = ({
                     fontWeight: "bold",
                     fontSize: 20,
                     cursor: "pointer",
-                    marginLeft: 8,
+                    marginRight: 20,
                     display: "inline-block",
                     lineHeight: 1,
                   }}
@@ -70,12 +70,6 @@ const RuleStyleEditor = ({
                   tabIndex={0}
                   aria-label="Remove Rule"
                   title="Remove Rule"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.stopPropagation();
-                      handleRemoveRule(idx);
-                    }
-                  }}
                 >
                   ×
                 </div>

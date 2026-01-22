@@ -274,7 +274,10 @@ const RuleEditor = ({
         <FullWidthContainer>
           {defaultSection ? (
             <div key={defaultSection} style={{ marginBottom: 24 }}>
-              <div style={{ fontWeight: 600, marginBottom: 8 }}>
+              <div
+                aria-label={`${defaultSection} default styling section`}
+                style={{ fontWeight: 600, marginBottom: 8 }}
+              >
                 {spaceAndCapitalize(defaultSection)}
               </div>
               <StyleContainer>
