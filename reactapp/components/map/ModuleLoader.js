@@ -535,7 +535,7 @@ export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
   }
 }
 
-function getGeometryBucket(feature) {
+export function getGeometryBucket(feature) {
   const type = feature.getGeometry()?.getType().toLowerCase();
   if (type === "point" || type === "multipoint") return "point";
   if (type === "linestring" || type === "multilinestring") return "linestring";

@@ -3,6 +3,8 @@ import moduleLoader, {
   matchesCondition,
   resolveSize,
   buildPointStyle,
+  getGeometryBucket,
+  buildPolygonFill,
 } from "components/map/ModuleLoader";
 import WebGLTile from "ol/layer/WebGLTile.js";
 import VectorTileLayer from "ol/layer/VectorTile.js";
@@ -66,7 +68,7 @@ test("ArcGIS Feature Service Instance", async () => {
   const copiedConfig = {
     ...layerConfigArcGISFeatureService.configuration,
   };
-  copiedConfig.props.params = {
+  copiedConfig.props.source.props.params = {
     TIME: "2020-01-01T00:00:00.000Z,2020-12-31T23:59:59.000Z",
   };
   const layerInstance = await moduleLoader(copiedConfig);
@@ -195,6 +197,78 @@ describe("createJsonStyleFunction", () => {
     expect(strokeWidth).toBe(2);
   });
 
+  it("returns a Style for a with strokeDash", () => {
+    const styleJson = {
+      default: {
+        linestring: { stroke: "#0000ff", strokeWidth: 2, strokeDash: [4, 8] },
+      },
+    };
+    const styleFn = createJsonStyleFunction(styleJson);
+    const feature = mockFeature({}, "LineString");
+    const style = styleFn(feature);
+    expect(style).toBeInstanceOf(Style);
+    const strokeColor = style.getStroke().getColor();
+    expect(strokeColor).toBe("#0000ff");
+    const strokeWidth = style.getStroke().getWidth();
+    expect(strokeWidth).toBe(2);
+    const strokeDash = style.getStroke().getLineDash();
+    expect(strokeDash).toEqual([4, 8]);
+  });
+
+  it("returns a Style for a with empty strokeDash", () => {
+    const styleJson = {
+      default: {
+        linestring: { stroke: "#0000ff", strokeWidth: 2, strokeDash: [] },
+      },
+    };
+    const styleFn = createJsonStyleFunction(styleJson);
+    const feature = mockFeature({}, "LineString");
+    const style = styleFn(feature);
+    expect(style).toBeInstanceOf(Style);
+    const strokeColor = style.getStroke().getColor();
+    expect(strokeColor).toBe("#0000ff");
+    const strokeWidth = style.getStroke().getWidth();
+    expect(strokeWidth).toBe(2);
+    const strokeDash = style.getStroke().getLineDash();
+    expect(strokeDash).toEqual(null);
+  });
+
+  it("returns a Style for a with string strokeDash", () => {
+    const styleJson = {
+      default: {
+        linestring: { stroke: "#0000ff", strokeWidth: 2, strokeDash: "4,8" },
+      },
+    };
+    const styleFn = createJsonStyleFunction(styleJson);
+    const feature = mockFeature({}, "LineString");
+    const style = styleFn(feature);
+    expect(style).toBeInstanceOf(Style);
+    const strokeColor = style.getStroke().getColor();
+    expect(strokeColor).toBe("#0000ff");
+    const strokeWidth = style.getStroke().getWidth();
+    expect(strokeWidth).toBe(2);
+    const strokeDash = style.getStroke().getLineDash();
+    expect(strokeDash).toEqual([4, 8]);
+  });
+
+  it("returns a Style for a with empty string strokeDash", () => {
+    const styleJson = {
+      default: {
+        linestring: { stroke: "#0000ff", strokeWidth: 2, strokeDash: "" },
+      },
+    };
+    const styleFn = createJsonStyleFunction(styleJson);
+    const feature = mockFeature({}, "LineString");
+    const style = styleFn(feature);
+    expect(style).toBeInstanceOf(Style);
+    const strokeColor = style.getStroke().getColor();
+    expect(strokeColor).toBe("#0000ff");
+    const strokeWidth = style.getStroke().getWidth();
+    expect(strokeWidth).toBe(2);
+    const strokeDash = style.getStroke().getLineDash();
+    expect(strokeDash).toEqual(null);
+  });
+
   it("returns a Style for a polygon", () => {
     const styleJson = {
       default: { polygon: { fill: "#cccccc", stroke: "#333333" } },
@@ -255,6 +329,12 @@ describe("matchesCondition", () => {
     expect(matchesCondition(2, "<=", 3)).toBe(true);
     expect(matchesCondition(3, "<=", 3)).toBe(true);
     expect(matchesCondition(5, "<=", 3)).toBe(false);
+  });
+
+  it("matches nonsense condition", () => {
+    expect(matchesCondition(2, "adasd", 3)).toBe(false);
+    expect(matchesCondition(3, "asdad", 3)).toBe(false);
+    expect(matchesCondition(5, "asdasd", 3)).toBe(false);
   });
 });
 
@@ -425,5 +505,49 @@ describe("buildPointStyle", () => {
     expect(image.getFill().getColor()).toBe("#ff0000");
     expect(image.getStroke().getColor()).toBe("#0000ff");
     expect(image.getStroke().getWidth()).toBe(2);
+  });
+});
+
+describe("getGeometryBucket", () => {
+  it("returns 'point' for Point geometry", () => {
+    const feature = mockFeature({}, "Point");
+    const bucket = getGeometryBucket(feature);
+    expect(bucket).toBe("point");
+  });
+
+  it("returns 'point' for MultiPoint geometry", () => {
+    const feature = mockFeature({}, "MultiPoint");
+    const bucket = getGeometryBucket(feature);
+    expect(bucket).toBe("point");
+  });
+
+  it("returns 'linestring' for LineString geometry", () => {
+    const feature = mockFeature({}, "LineString");
+    const bucket = getGeometryBucket(feature);
+    expect(bucket).toBe("linestring");
+  });
+
+  it("returns 'linestring' for MultiLineString geometry", () => {
+    const feature = mockFeature({}, "MultiLineString");
+    const bucket = getGeometryBucket(feature);
+    expect(bucket).toBe("linestring");
+  });
+
+  it("returns 'polygon' for Polygon geometry", () => {
+    const feature = mockFeature({}, "Polygon");
+    const bucket = getGeometryBucket(feature);
+    expect(bucket).toBe("polygon");
+  });
+
+  it("returns 'polygon' for MultiPolygon geometry", () => {
+    const feature = mockFeature({}, "MultiPolygon");
+    const bucket = getGeometryBucket(feature);
+    expect(bucket).toBe("polygon");
+  });
+
+  it("returns null for other geometry types", () => {
+    const feature = mockFeature({}, "GeometryCollection");
+    const bucket = getGeometryBucket(feature);
+    expect(bucket).toBe("point");
   });
 });
