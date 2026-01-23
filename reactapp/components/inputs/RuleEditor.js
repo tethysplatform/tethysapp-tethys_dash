@@ -158,6 +158,7 @@ const RuleEditor = ({
       });
       currentGeomType.current = selectedGeomType.value;
     }
+    // eslint-disable-next-line
   }, [rule.geometryType]);
 
   // Extract condition
@@ -823,6 +824,7 @@ RuleEditor.propTypes = {
   containerRef: PropTypes.object,
   styleOptionFilter: PropTypes.array,
   hideConditionFields: PropTypes.bool,
+  defaultSection: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
 };
 
 export default memo(RuleEditor);

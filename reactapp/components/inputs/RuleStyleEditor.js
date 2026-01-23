@@ -1,4 +1,4 @@
-import { useEffect, memo } from "react";
+import { memo } from "react";
 import PropTypes from "prop-types";
 import RuleEditor from "components/inputs/RuleEditor";
 import Accordion from "react-bootstrap/Accordion";

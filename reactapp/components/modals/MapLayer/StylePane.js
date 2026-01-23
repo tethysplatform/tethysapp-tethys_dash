@@ -117,6 +117,7 @@ const StylePane = ({
       }
     }
     lastStyleMode.current = styleMode;
+    // eslint-disable-next-line
   }, [styleMode]);
 
   // Only update style JSON when rules or default style change and in rules mode
@@ -251,6 +252,15 @@ StylePane.propTypes = {
   setErrorMessage: PropTypes.func,
   sourceProps: PropTypes.shape({
     type: PropTypes.string,
+  }),
+  layerProps: PropTypes.shape({
+    name: PropTypes.string, // name of the layer
+    opacity: PropTypes.string,
+    minResolution: PropTypes.string,
+    maxResolution: PropTypes.string,
+    minZoom: PropTypes.string,
+    maxZoom: PropTypes.string,
+    layerVisibility: PropTypes.bool,
   }),
   containerRef: PropTypes.object,
   availableFields: PropTypes.array,

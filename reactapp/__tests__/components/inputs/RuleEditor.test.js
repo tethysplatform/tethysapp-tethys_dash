@@ -1,3 +1,4 @@
+import PropTypes from "prop-types";
 import { useState, useRef } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import RuleEditor, {
@@ -899,3 +900,9 @@ describe("getStyleKeysForGeom", () => {
     expect(result).toStrictEqual([]);
   });
 });
+
+TestingComponent.propTypes = {
+  initialRules: PropTypes.object,
+  onRulesChange: PropTypes.func,
+  defaultSection: PropTypes.string,
+};

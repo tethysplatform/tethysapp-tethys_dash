@@ -617,7 +617,15 @@ function LegendRenderer({ legend }) {
 
 LegendSymbol.propTypes = {
   color: PropTypes.string, // legend item color
-  symbol: PropTypes.string, // legend item symbol
+  symbol: PropTypes.string, // legend item
+  stroke: PropTypes.string, // stroke color
+  polygonFillType: PropTypes.string, // "solid", "hatch", "dot" for polygons
+  hatchSpacing: PropTypes.number, // spacing for hatch pattern
+  hatchDirection: PropTypes.string, // direction for hatch pattern
+  dotSpacing: PropTypes.number, // spacing for dot pattern
+  dotRadius: PropTypes.number, // radius for dot pattern
+  strokeDash: PropTypes.string, // stroke dash array for linestrings
+  strokeWidth: PropTypes.number, // stroke width for linestrings
 };
 
 LegendRenderer.propTypes = {

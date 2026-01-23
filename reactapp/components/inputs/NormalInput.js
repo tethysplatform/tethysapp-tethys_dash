@@ -44,6 +44,7 @@ NormalInput.propTypes = {
   value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // state for input value
   type: PropTypes.string, // type of input to use
   divProps: PropTypes.object, // additional props to pass to the parent div
+  labelProps: PropTypes.object, // additional props to pass to the label
 };
 
 export default NormalInput;

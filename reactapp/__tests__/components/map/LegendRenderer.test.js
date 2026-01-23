@@ -467,6 +467,7 @@ test("LegendRenderer; styleJSON legend linestrings", async () => {
   const svgElements = await screen.findAllByLabelText("linestring");
   expect(svgElements).toHaveLength(2);
 
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElement = svgElements[0].querySelector("line");
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("x1", "2");
@@ -478,6 +479,7 @@ test("LegendRenderer; styleJSON legend linestrings", async () => {
   expect(lineElement).toHaveAttribute("stroke-linecap", "round");
   expect(lineElement).toHaveAttribute("stroke-dasharray", "8 4 2 4 2 4");
 
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElementRule = svgElements[1].querySelector("line");
   expect(lineElementRule).toBeInTheDocument();
   expect(lineElementRule).toHaveAttribute("x1", "2");
@@ -585,6 +587,7 @@ test("LegendRenderer; styleJSON legend points and missing some keys", async () =
     "style",
     "color: black; stroke: black; stroke-width: 2;",
   );
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElement = defaultSVGElement.querySelector("circle");
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("cx", "8");
@@ -694,6 +697,7 @@ test("LegendRenderer; styleJSON default icon shape missing url", async () => {
     "style",
     "color: black; stroke: black; stroke-width: 2;",
   );
+  // eslint-disable-next-line testing-library/no-node-access
   let lineElement = defaultSVGElement.querySelector("circle");
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("cx", "8");
@@ -706,6 +710,7 @@ test("LegendRenderer; styleJSON default icon shape missing url", async () => {
     "style",
     "color: black; stroke: black; stroke-width: 2;",
   );
+  // eslint-disable-next-line testing-library/no-node-access
   lineElement = ruleSVGElement.querySelector("circle");
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("cx", "8");
@@ -752,6 +757,7 @@ test("LegendRenderer; styleJSON legend bad geom", async () => {
     "style",
     "color: black; stroke: black; stroke-width: 2;",
   );
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElement = defaultSVGElement.querySelector("circle");
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("cx", "8");
@@ -885,6 +891,7 @@ test("LegendSymbol, polygon hatch diagonal pattern", async () => {
   const svgElement = await screen.findByLabelText("polygon-hatch");
   expect(svgElement).toBeInTheDocument();
 
+  // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
   expect(patternElement).toBeInTheDocument();
   expect(patternElement).toHaveAttribute("id");
@@ -893,6 +900,7 @@ test("LegendSymbol, polygon hatch diagonal pattern", async () => {
   expect(patternElement).toHaveAttribute("height", "10");
   expect(patternElement).toHaveAttribute("patternTransform", "rotate(45)");
 
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElement = patternElement.querySelector("line");
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("x1", "0");
@@ -917,6 +925,7 @@ test("LegendSymbol, polygon hatch horizontal pattern", async () => {
   const svgElement = await screen.findByLabelText("polygon-hatch");
   expect(svgElement).toBeInTheDocument();
 
+  // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
   expect(patternElement).toBeInTheDocument();
   expect(patternElement).toHaveAttribute("id");
@@ -925,6 +934,7 @@ test("LegendSymbol, polygon hatch horizontal pattern", async () => {
   expect(patternElement).toHaveAttribute("height", "10");
   expect(patternElement).not.toHaveAttribute("patternTransform");
 
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElement = patternElement.querySelector("line");
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("x1", "0");
@@ -949,6 +959,7 @@ test("LegendSymbol, polygon hatch vertical pattern", async () => {
   const svgElement = await screen.findByLabelText("polygon-hatch");
   expect(svgElement).toBeInTheDocument();
 
+  // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
   expect(patternElement).toBeInTheDocument();
   expect(patternElement).toHaveAttribute("id");
@@ -957,6 +968,7 @@ test("LegendSymbol, polygon hatch vertical pattern", async () => {
   expect(patternElement).toHaveAttribute("height", "10");
   expect(patternElement).not.toHaveAttribute("patternTransform");
 
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElement = patternElement.querySelector("line");
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("x1", "0");
@@ -981,6 +993,7 @@ test("LegendSymbol, polygon hatch cross pattern", async () => {
   const svgElement = await screen.findByLabelText("polygon-hatch");
   expect(svgElement).toBeInTheDocument();
 
+  // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
   expect(patternElement).toBeInTheDocument();
   expect(patternElement).toHaveAttribute("id");
@@ -989,6 +1002,7 @@ test("LegendSymbol, polygon hatch cross pattern", async () => {
   expect(patternElement).toHaveAttribute("height", "10");
   expect(patternElement).not.toHaveAttribute("patternTransform");
 
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElement1 = patternElement.querySelectorAll("line")[0];
   expect(lineElement1).toBeInTheDocument();
   expect(lineElement1).toHaveAttribute("x1", "0");
@@ -998,6 +1012,7 @@ test("LegendSymbol, polygon hatch cross pattern", async () => {
   expect(lineElement1).toHaveAttribute("stroke", "red");
   expect(lineElement1).toHaveAttribute("stroke-width", "2");
 
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElement2 = patternElement.querySelectorAll("line")[1];
   expect(lineElement2).toBeInTheDocument();
   expect(lineElement2).toHaveAttribute("x1", "0");
@@ -1021,6 +1036,7 @@ test("LegendSymbol, polygon hatch default (diagonal) pattern", async () => {
   const svgElement = await screen.findByLabelText("polygon-hatch");
   expect(svgElement).toBeInTheDocument();
 
+  // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
   expect(patternElement).toBeInTheDocument();
   expect(patternElement).toHaveAttribute("id");
@@ -1029,6 +1045,7 @@ test("LegendSymbol, polygon hatch default (diagonal) pattern", async () => {
   expect(patternElement).toHaveAttribute("height", "10");
   expect(patternElement).toHaveAttribute("patternTransform", "rotate(45)");
 
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElement = patternElement.querySelector("line");
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("x1", "0");
@@ -1053,6 +1070,7 @@ test("LegendSymbol, polygon dot fill", async () => {
   const svgElement = await screen.findByLabelText("polygon-dot");
   expect(svgElement).toBeInTheDocument();
 
+  // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
   expect(patternElement).toBeInTheDocument();
   expect(patternElement).toHaveAttribute("id");
@@ -1060,6 +1078,7 @@ test("LegendSymbol, polygon dot fill", async () => {
   expect(patternElement).toHaveAttribute("width", "16");
   expect(patternElement).toHaveAttribute("height", "16");
 
+  // eslint-disable-next-line testing-library/no-node-access
   const circleElement = patternElement.querySelector("circle");
   expect(circleElement).toBeInTheDocument();
   expect(circleElement).toHaveAttribute("cx", "8");
@@ -1082,6 +1101,7 @@ test("LegendSymbol, polygon dot fill and bad spacing", async () => {
   const svgElement = await screen.findByLabelText("polygon-dot");
   expect(svgElement).toBeInTheDocument();
 
+  // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
   expect(patternElement).toBeInTheDocument();
   expect(patternElement).toHaveAttribute("id");
@@ -1089,6 +1109,7 @@ test("LegendSymbol, polygon dot fill and bad spacing", async () => {
   expect(patternElement).toHaveAttribute("width", "8");
   expect(patternElement).toHaveAttribute("height", "8");
 
+  // eslint-disable-next-line testing-library/no-node-access
   const circleElement = patternElement.querySelector("circle");
   expect(circleElement).toBeInTheDocument();
   expect(circleElement).toHaveAttribute("cx", "4");
@@ -1103,6 +1124,7 @@ test("LegendSymbol, linestring", async () => {
   const svgElement = await screen.findByLabelText("linestring");
   expect(svgElement).toBeInTheDocument();
 
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElement = svgElement.querySelector("line");
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("x1", "2");
@@ -1121,6 +1143,7 @@ test("LegendSymbol, linestring with strokeDash", async () => {
   const svgElement = await screen.findByLabelText("linestring");
   expect(svgElement).toBeInTheDocument();
 
+  // eslint-disable-next-line testing-library/no-node-access
   const lineElement = svgElement.querySelector("line");
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("x1", "2");

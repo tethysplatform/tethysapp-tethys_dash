@@ -4,7 +4,6 @@ import moduleLoader, {
   resolveSize,
   buildPointStyle,
   getGeometryBucket,
-  buildPolygonFill,
 } from "components/map/ModuleLoader";
 import WebGLTile from "ol/layer/WebGLTile.js";
 import VectorTileLayer from "ol/layer/VectorTile.js";

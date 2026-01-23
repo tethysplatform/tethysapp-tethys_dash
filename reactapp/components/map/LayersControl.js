@@ -44,12 +44,6 @@ const CloseButton = styled.button`
   right: 5px;
 `;
 
-const IconImage = styled.img`
-  width: 20px !important;
-  height: 20px !important;
-  margin-right: 6px;
-`;
-
 const LayersControl = ({ updater, visualizationRef }) => {
   const [layers, setLayers] = useState([]); // [<openlayer layers>], controls what is shown in the layer controls
   const [isexpanded, setisexpanded] = useState(false); // bool, controls layer conrol menu expansion
