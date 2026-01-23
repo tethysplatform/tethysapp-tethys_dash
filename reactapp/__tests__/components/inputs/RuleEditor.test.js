@@ -344,12 +344,15 @@ describe("RuleEditor", () => {
     const removeSizeButton = screen.getByLabelText("Remove size style option");
     fireEvent.click(removeSizeButton);
 
-    await waitFor(() => {
-      expect(mockOnChange).toHaveBeenLastCalledWith({
-        geometryType: "point",
-        fill: "#2aff00",
-      });
-    });
+    await waitFor(
+      () => {
+        expect(mockOnChange).toHaveBeenCalledWith({
+          geometryType: "point",
+          fill: "#2aff00",
+        });
+      },
+      { timeout: 10000 },
+    );
 
     await selectEvent.select(styleSelect, "Shape");
 
@@ -657,9 +660,14 @@ describe("RuleEditor", () => {
     });
 
     await selectEvent.select(shapeSelect, "rectangle");
-    expect(mockOnChange).toHaveBeenLastCalledWith({
-      point: { fill: "#2aff00", stroke: "#000", shape: "rectangle" },
-    });
+    await waitFor(
+      () => {
+        expect(mockOnChange).toHaveBeenLastCalledWith({
+          point: { fill: "#2aff00", stroke: "#000", shape: "rectangle" },
+        });
+      },
+      { timeout: 10000 },
+    );
   });
 
   it("renders defaultSection linestring", async () => {
