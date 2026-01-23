@@ -125,6 +125,16 @@ export const sourcePropertiesOptions = {
       },
     },
   },
+  'PMTiles Vector': {
+    required: {
+      url: {'placeholder': 'PMTiles Vector URL'},
+    },
+    optional: {
+      attributions: {
+        placeholder: "Attributions",
+      }
+    }
+  }
 };
 
 export const layerPropertiesOptions = {

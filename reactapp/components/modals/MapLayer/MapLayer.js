@@ -117,7 +117,7 @@ const MapLayerModal = ({
     const mapConfiguration = {
       configuration: {
         type:
-          sourceProps.type === "Vector Tile"
+          sourceProps.type.includes("Vector")
             ? "VectorTileLayer"
             : sourceProps.type.includes("Tile")
               ? "TileLayer"

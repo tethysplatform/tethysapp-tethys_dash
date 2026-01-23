@@ -32,7 +32,7 @@ const generatePropertiesArrayWithValues = (
 
   const processKeys = (obj, required, parentKey, mappingObj) => {
     // loop through each key/value pair in the object
-    for (const [key, value] of Object.entries(obj)) {
+    for (const [key, value] of Object.entries(obj || {})) {
       // if processing a nested object, combine the parent with the key to get a master key
       const property = parentKey ? `${parentKey} - ${key}` : key;
 
