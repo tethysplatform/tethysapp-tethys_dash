@@ -12,7 +12,7 @@ const ColorSwatch = styled.div`
   border-radius: 4px;
   cursor: pointer;
   margin-top: 2px;
-  background: ${(props) => props.$color || "#cccccc"};
+  background: ${(props) => props.$color};
 `;
 
 const StyledPopoverBody = styled(Popover.Body)`
@@ -33,7 +33,7 @@ const ColorPickerPopover = ({ label, color, onChange, containerRef }) => {
         ref={divTarget}
         aria-label={`${label} color popover square`}
         onClick={() => setShowColorPopover(!showColorPopover)}
-        $color={color}
+        $color={color || "#cccccc"}
         title={`Click to change ${label.toLowerCase()} color`}
       />
       <Overlay
