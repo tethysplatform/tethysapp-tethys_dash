@@ -41,9 +41,8 @@ const moduleLoader = async (config, mapProjection) => {
 
     // Handle both default exports and named exports
     let ModuleConstructor = module.default;
-    
-    if (!ModuleConstructor && type === 'PMTiles Vector') {
-      ModuleConstructor = module.PMTilesVectorSource;
+    if (!ModuleConstructor) {
+      ModuleConstructor = type === "PMTiles Vector" ? module.PMTilesVectorSource : module.PMTilesRasterSource;
     }
 
     if (typeof ModuleConstructor !== "function") {
@@ -152,7 +151,8 @@ const getModuleImporter = (type) => {
     Fill: "ol/style/Fill.js",
     "ESRI Feature Service": "ol/format/EsriJSON.js",
     InvalidForTesting: "DontUseThis",
-    'PMTiles Vector': 'ol-pmtiles',
+    "PMTiles Vector": "ol-pmtiles",
+    "PMTiles Raster": "ol-pmtiles",
     // Add other mappings as needed
   };
 

@@ -114,17 +114,18 @@ const MapLayerModal = ({
       validSourceProps.urls = validSourceProps.urls.split(",");
     }
 
+    const getLayerType = (sourceType) => {
+      if (sourceType.includes("Vector")) return "VectorTileLayer";
+      if (sourceType.includes("Raster")) return "WebGLTile";
+      if (sourceType.includes("Tile")) return "TileLayer";
+      if (sourceType.includes("Image") || sourceType.includes("WMS"))
+        return "ImageLayer";
+      return "VectorLayer";
+    }
+
     const mapConfiguration = {
       configuration: {
-        type:
-          sourceProps.type.includes("Vector")
-            ? "VectorTileLayer"
-            : sourceProps.type.includes("Tile")
-              ? "TileLayer"
-              : sourceProps.type.includes("Image") ||
-                  sourceProps.type.includes("WMS")
-                ? "ImageLayer"
-                : "VectorLayer",
+        type: getLayerType(sourceProps.type),
         props: {
           ...validLayerProps,
           source: {

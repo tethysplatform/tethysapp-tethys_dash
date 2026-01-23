@@ -125,13 +125,23 @@ export const sourcePropertiesOptions = {
       },
     },
   },
-  'PMTiles Vector': {
+  "PMTiles Vector": {
     required: {
-      url: {'placeholder': 'PMTiles Vector URL'},
+      url: {"placeholder": "PMTiles Vector URL"},
     },
     optional: {
       attributions: {
         placeholder: "Attributions",
+      }
+    }
+  },
+  "PMTiles Raster": {
+    required: {
+      url: {"placeholder": "PMTiles Raster URL"},
+    },
+    optional: {
+      attributions: {
+        placeholder: "Attributions", 
       }
     }
   }
