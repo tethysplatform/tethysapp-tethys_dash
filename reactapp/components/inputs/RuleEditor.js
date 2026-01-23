@@ -69,7 +69,7 @@ const availableShapes = [
   "icon",
 ];
 
-const availableStrokeDashOptions = [
+export const availableStrokeDashOptions = [
   { value: "", label: "Solid" },
   { value: "4,4", label: "Dash" },
   { value: "1,4", label: "Dot" },
@@ -306,7 +306,7 @@ const RuleEditor = ({
                   : null
               }
               onChange={(opt) =>
-                onChange({ ...rule, conditionField: opt?.value || "" })
+                onChange({ ...rule, conditionField: opt.value })
               }
               creatable={true}
               divProps={{ style: { marginBottom: 0 } }}
@@ -318,7 +318,7 @@ const RuleEditor = ({
                 (o) => o.value === conditionType,
               )}
               onChange={(opt) =>
-                onChange({ ...rule, conditionType: opt?.value || "=" })
+                onChange({ ...rule, conditionType: opt.value })
               }
               creatable={false}
               divProps={{ style: { marginBottom: 0 } }}
@@ -565,9 +565,7 @@ const RuleEditor = ({
                               ? defaultStrokeWidth
                               : optKey === "size"
                                 ? defaultSize
-                                : optKey === "zIndex"
-                                  ? defaultZIndex
-                                  : "")
+                                : defaultZIndex)
                           }
                           type="number"
                           onChange={(e) =>
@@ -618,7 +616,7 @@ const RuleEditor = ({
                           ) || POLYGON_FILL_TYPES[0]
                         }
                         onChange={(opt) =>
-                          handleStyleValueChange(key, opt?.value || "solid")
+                          handleStyleValueChange(key, opt.value)
                         }
                         creatable={false}
                         divProps={{ style: { marginBottom: 0 } }}
@@ -648,7 +646,7 @@ const RuleEditor = ({
                             onChange={(opt) =>
                               handleStyleValueChange(
                                 "hatchDirection",
-                                opt?.value || "diagonal",
+                                opt.value,
                               )
                             }
                             creatable={false}
@@ -783,7 +781,7 @@ const RuleEditor = ({
                           ) || availableStrokeDashOptions[0]
                         }
                         onChange={(opt) =>
-                          handleStyleValueChange(key, opt?.value || "")
+                          handleStyleValueChange(key, opt.value)
                         }
                         creatable={false}
                         divProps={{ style: { marginBottom: 0 } }}
@@ -798,9 +796,7 @@ const RuleEditor = ({
                               ? defaultStrokeWidth
                               : key === "size"
                                 ? defaultSize
-                                : key === "zIndex"
-                                  ? defaultZIndex
-                                  : "")
+                                : defaultZIndex)
                           }
                           type="number"
                           onChange={(e) =>

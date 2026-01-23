@@ -7,6 +7,7 @@ import RuleEditor, {
   defaultStrokeWidth,
   defaultZIndex,
   defaultSize,
+  availableStrokeDashOptions,
 } from "components/inputs/RuleEditor";
 import selectEvent from "react-select-event";
 
@@ -389,6 +390,13 @@ describe("RuleEditor", () => {
       geometryType: "point",
       fill: "#2aff00",
     });
+
+    await selectEvent.select(styleSelect, "Stroke");
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "point",
+      fill: "#2aff00",
+      stroke: defaultStroke,
+    });
   });
 
   it("add style for linestring", async () => {
@@ -439,6 +447,60 @@ describe("RuleEditor", () => {
       strokeWidth: defaultStrokeWidth,
       strokeDash: "1,4",
     });
+  });
+
+  it("point with null fill, stroke, strokeWidth, size, and zindex", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRules={{
+          geometryType: "point",
+          fill: null,
+          stroke: null,
+          strokeWidth: null,
+          size: null,
+          zIndex: null,
+        }}
+        onRulesChange={mockOnChange}
+      />,
+    );
+
+    const fillColorPopoverSquare = screen.getByLabelText(
+      "Fill color popover square",
+    );
+    expect(fillColorPopoverSquare).toBeInTheDocument();
+    expect(fillColorPopoverSquare).toHaveStyle(`background: ${defaultFill}`);
+
+    const strokeColorPopoverSquare = screen.getByLabelText(
+      "Stroke color popover square",
+    );
+    expect(strokeColorPopoverSquare).toBeInTheDocument();
+    expect(strokeColorPopoverSquare).toHaveStyle(
+      `background: ${defaultStroke}`,
+    );
+
+    const strokeWidthInput = screen.getByLabelText("strokeWidth Input");
+    expect(strokeWidthInput).toHaveValue(defaultStrokeWidth);
+
+    const sizeInput = screen.getByLabelText("size Input");
+    expect(sizeInput).toHaveValue(defaultSize);
+
+    const zIndexInput = screen.getByLabelText("zIndex Input");
+    expect(zIndexInput).toHaveValue(defaultZIndex);
+  });
+
+  it("linestring with stroke Dash", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRules={{ geometryType: "linestring", strokeDash: "0" }}
+        onRulesChange={mockOnChange}
+      />,
+    );
+
+    expect(
+      screen.getByText(availableStrokeDashOptions[0].label),
+    ).toBeInTheDocument();
   });
 
   it("removes hatchDirection and hatchSpacing when polygonFillType is changed from Hatch to Solid", async () => {
@@ -500,6 +562,28 @@ describe("RuleEditor", () => {
           geometryType: "point",
           shape: "icon",
           iconUrl: "https://example.com/icon.png",
+        }}
+        onRulesChange={mockOnChange}
+      />,
+    );
+
+    const shapeSelect = screen.getByRole("combobox", { name: /shape/i });
+    await selectEvent.select(shapeSelect, "circle");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "point",
+      shape: "circle",
+    });
+  });
+
+  it("shape is changed from icon to circle without iconUrl", async () => {
+    const mockOnChange = jest.fn();
+
+    render(
+      <TestingComponent
+        initialRules={{
+          geometryType: "point",
+          shape: "icon",
         }}
         onRulesChange={mockOnChange}
       />,
@@ -591,6 +675,7 @@ describe("RuleEditor", () => {
     expect(screen.getByText("Linestring")).toBeInTheDocument();
     expect(screen.getByText("Stroke")).toBeInTheDocument();
     expect(screen.getByText("Stroke Dash")).toBeInTheDocument();
+    expect(screen.getByText("Stroke Width")).toBeInTheDocument();
     expect(screen.getByText("Z Index")).toBeInTheDocument();
 
     const zIndexInput = screen.getByLabelText("Z Index Input");
@@ -608,6 +693,33 @@ describe("RuleEditor", () => {
     expect(mockOnChange).toHaveBeenLastCalledWith({
       linestring: { stroke: "#000", zIndex: "2", strokeDash: "1,4" },
     });
+
+    const strokeWidthInput = screen.getByLabelText("Stroke Width Input");
+    fireEvent.change(strokeWidthInput, { target: { value: 5 } });
+
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      linestring: {
+        stroke: "#000",
+        zIndex: "2",
+        strokeDash: "1,4",
+        strokeWidth: "5",
+      },
+    });
+  });
+
+  it("renders defaultSection linestring with stroke Dash", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRules={{ linestring: { strokeDash: "0" } }}
+        defaultSection="linestring"
+        onRulesChange={mockOnChange}
+      />,
+    );
+
+    expect(
+      screen.getByText(availableStrokeDashOptions[0].label),
+    ).toBeInTheDocument();
   });
 
   it("renders defaultSection polygon", async () => {
@@ -716,6 +828,26 @@ describe("RuleEditor", () => {
         zIndex: "2",
         polygonFillType: "solid",
       },
+    });
+  });
+
+  it("default point section iconUrl not present when shape is changed", async () => {
+    const mockOnChange = jest.fn();
+    render(
+      <TestingComponent
+        initialRules={{
+          point: { shape: "icon" },
+        }}
+        defaultSection="point"
+        onRulesChange={mockOnChange}
+      />,
+    );
+
+    const shapeSelect = screen.getByRole("combobox", { name: /shape/i });
+    await selectEvent.select(shapeSelect, "circle");
+
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      point: { shape: "circle" },
     });
   });
 });
