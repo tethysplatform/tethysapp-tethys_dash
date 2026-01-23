@@ -26,9 +26,12 @@ const ColorPickerPopover = ({ label, color, onChange, containerRef }) => {
 
   return (
     <>
-      <span style={{ fontWeight: 500 }}>{label}:</span>
+      <span style={{ fontWeight: 500 }}>
+        <b>{label}</b>:
+      </span>
       <ColorSwatch
         ref={divTarget}
+        aria-label={`${label} color popover square`}
         onClick={() => setShowColorPopover(!showColorPopover)}
         $color={color}
         title={`Click to change ${label.toLowerCase()} color`}

@@ -6,39 +6,6 @@ import DataSelect from "components/inputs/DataSelect";
 import ColorPickerPopover from "components/inputs/ColorPickerPopOver";
 import { spaceAndCapitalize } from "components/modals/utilities";
 
-// Styled number input wrapper for consistent width
-const NumberInputWrapper = styled.div`
-  min-width: 150px;
-  width: 150px;
-`;
-
-const availableShapes = [
-  "circle",
-  "square",
-  "rectangle",
-  "triangle",
-  "star",
-  "diamond",
-  "cross",
-  "x",
-  "icon",
-];
-
-const availableStrokeDashOptions = [
-  { value: "", label: "Solid" },
-  { value: "4,4", label: "Dash" },
-  { value: "1,4", label: "Dot" },
-  { value: "8,4,2,4", label: "Dash Dot" },
-  { value: "8,4,2,4,2,4", label: "Dash Dot Dot" },
-];
-
-// Geometry-specific style option filters
-export const geomStyleOptions = {
-  point: ["fill", "stroke", "strokeWidth", "size", "shape", "zIndex"],
-  linestring: ["stroke", "strokeWidth", "strokeDash", "zIndex"],
-  polygon: ["fill", "stroke", "strokeWidth", "polygonFillType", "zIndex"],
-};
-
 const RuleContainer = styled.div`
   border: 1px solid #ccc;
   border-radius: 6px;
@@ -84,6 +51,39 @@ const StyleContainer = styled.div`
   overflow-wrap: anywhere;
 `;
 
+// Styled number input wrapper for consistent width
+const NumberInputWrapper = styled.div`
+  min-width: 150px;
+  width: 150px;
+`;
+
+const availableShapes = [
+  "circle",
+  "square",
+  "rectangle",
+  "triangle",
+  "star",
+  "diamond",
+  "cross",
+  "x",
+  "icon",
+];
+
+const availableStrokeDashOptions = [
+  { value: "", label: "Solid" },
+  { value: "4,4", label: "Dash" },
+  { value: "1,4", label: "Dot" },
+  { value: "8,4,2,4", label: "Dash Dot" },
+  { value: "8,4,2,4,2,4", label: "Dash Dot Dot" },
+];
+
+// Geometry-specific style option filters
+export const geomStyleOptions = {
+  point: ["fill", "stroke", "strokeWidth", "size", "shape", "zIndex"],
+  linestring: ["stroke", "strokeWidth", "strokeDash", "zIndex"],
+  polygon: ["fill", "stroke", "strokeWidth", "polygonFillType", "zIndex"],
+};
+
 const CONDITION_OPTIONS = [
   { value: "=", label: "=" },
   { value: "!=", label: "≠" },
@@ -104,7 +104,7 @@ const POLYGON_FILL_TYPES = [
   { value: "hatch", label: "Hatch" },
   { value: "dot", label: "Dot" },
 ];
-const getStyleKeysForGeom = (geomType) => {
+export const getStyleKeysForGeom = (geomType) => {
   if (["point", "multipoint"].includes(geomType)) return geomStyleOptions.point;
   if (["linestring", "multilinestring"].includes(geomType))
     return geomStyleOptions.linestring;
@@ -199,12 +199,83 @@ const RuleEditor = ({
   const handleRemoveStyle = (key) => {
     const newRule = { ...rule };
     delete newRule[key];
+
+    if (key === "polygonFillType") {
+      if ("hatchDirection" in newRule) {
+        delete newRule.hatchDirection;
+      }
+      if ("hatchSpacing" in newRule) {
+        delete newRule.hatchSpacing;
+      }
+      if ("dotRadius" in newRule) {
+        delete newRule.dotRadius;
+      }
+      if ("dotSpacing" in newRule) {
+        delete newRule.dotSpacing;
+      }
+    }
+
+    if (key === "shape" && "iconUrl" in newRule) {
+      delete newRule.iconUrl;
+    }
+
     onChange(newRule);
   };
 
   // Update style value
   const handleStyleValueChange = (key, value) => {
     const newRule = { ...rule };
+
+    // Clean up hatch and dot rules when polygonFillType changes
+    if (key === "polygonFillType") {
+      if (defaultSection) {
+        // Clean up inside the defaultSection object
+        const section = { ...newRule[defaultSection] };
+        if ("hatchDirection" in section) {
+          delete section.hatchDirection;
+        }
+        if ("hatchSpacing" in section) {
+          delete section.hatchSpacing;
+        }
+        if ("dotRadius" in section) {
+          delete section.dotRadius;
+        }
+        if ("dotSpacing" in section) {
+          delete section.dotSpacing;
+        }
+        newRule[defaultSection] = section;
+      } else {
+        // Clean up at the top level
+        if ("hatchDirection" in newRule) {
+          delete newRule.hatchDirection;
+        }
+        if ("hatchSpacing" in newRule) {
+          delete newRule.hatchSpacing;
+        }
+        if ("dotRadius" in newRule) {
+          delete newRule.dotRadius;
+        }
+        if ("dotSpacing" in newRule) {
+          delete newRule.dotSpacing;
+        }
+      }
+    }
+
+    if (key === "shape" && value !== "icon") {
+      // Remove iconUrl if shape is changed from icon to something else
+      if (defaultSection) {
+        const section = { ...newRule[defaultSection] };
+        if ("iconUrl" in section) {
+          delete section.iconUrl;
+        }
+        newRule[defaultSection] = section;
+      } else {
+        if ("iconUrl" in newRule) {
+          delete newRule.iconUrl;
+        }
+      }
+    }
+
     if (defaultSection) {
       newRule[defaultSection] = { ...newRule[defaultSection], [key]: value };
     } else {
@@ -446,12 +517,12 @@ const RuleEditor = ({
                                   defaultDotSpacing
                                 }
                                 type="number"
-                                onChange={(e) =>
+                                onChange={(e) => {
                                   handleStyleValueChange(
                                     "dotSpacing",
                                     e.target.value,
-                                  )
-                                }
+                                  );
+                                }}
                                 labelProps={{ style: { marginBottom: 0 } }}
                               />
                             </NumberInputWrapper>
@@ -697,7 +768,9 @@ const RuleEditor = ({
                           rule[key] ||
                           (key === "fill" ? defaultFill : defaultStroke)
                         }
-                        onChange={(color) => handleStyleValueChange(key, color)}
+                        onChange={(color) => {
+                          handleStyleValueChange(key, color);
+                        }}
                         containerRef={containerRef}
                       />
                     ) : key === "strokeDash" ? (

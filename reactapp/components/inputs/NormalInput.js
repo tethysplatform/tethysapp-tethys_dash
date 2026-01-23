@@ -21,7 +21,9 @@ const NormalInput = ({
       <Form.Control
         aria-label={ariaLabel || label + " Input"}
         type={type}
-        onChange={onChange}
+        onChange={(e) => {
+          onChange(e);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault(); // prevents submitting form on enter
