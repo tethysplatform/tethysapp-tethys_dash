@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, memo, Fragment } from "react";
+import { useEffect, useState, useRef, memo } from "react";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
