@@ -335,11 +335,31 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         coordinate,
         LayerName
       );
+    } else if (sourceType == "PMTiles Vector") {
+      features = getVectorTileLayerFeatures(map, pixel, LayerName);
     } else {
       throw Error(`${sourceType} is not currently configured to be queried`);
     }
   }
 
+  return features;
+}
+
+function getVectorTileLayerFeatures(map, pixel, LayerName) {
+  const features = [];
+  map.forEachFeatureAtPixel(pixel, function (feature, layer) {
+    if (layer.get("name") !== LayerName) {
+      return;
+    }
+    features.push({  // RenderFeature itself is geometry
+      layerName: LayerName,
+      attributes: feature.getProperties(),
+      geometry: {
+        type: feature.getType(),
+        coordinates: feature.getFlatCoordinates(),  // FIXME: this doesn't work for linestrings or polygons
+      },
+    });
+  });
   return features;
 }
 
