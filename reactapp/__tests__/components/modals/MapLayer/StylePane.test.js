@@ -286,9 +286,10 @@ test("StylePane valid json missing rules and then reset when switch to rules mod
   await userEvent.click(rulesRadio);
 
   await waitFor(() => {
-    expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual(
-      copiedStyle,
-    );
+    expect(JSON.parse(screen.getByTestId("style").textContent)).toStrictEqual({
+      default: {},
+      rules: [],
+    });
   });
 
   // Add a rule

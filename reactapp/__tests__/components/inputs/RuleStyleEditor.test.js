@@ -86,8 +86,16 @@ describe("RuleStyleEditor", () => {
     ]);
   });
 
-  it("renders fallback rule label if condition fields are missing", () => {
-    const fallbackRules = [{}, {}];
+  it("renders rule names", () => {
+    const fallbackRules = [
+      { name: "A custom rule name" },
+      { conditionField: "", conditionType: "=" },
+      {
+        conditionField: "some field",
+        conditionType: "=",
+        conditionValue: "some value",
+      },
+    ];
     render(
       <RuleStyleEditor
         rules={fallbackRules}
@@ -98,7 +106,8 @@ describe("RuleStyleEditor", () => {
         containerRef={mockContainerRef}
       />,
     );
-    expect(screen.getByText("Rule 1")).toBeInTheDocument();
+    expect(screen.getByText("A custom rule name")).toBeInTheDocument();
     expect(screen.getByText("Rule 2")).toBeInTheDocument();
+    expect(screen.getByText("some field = some value")).toBeInTheDocument();
   });
 });

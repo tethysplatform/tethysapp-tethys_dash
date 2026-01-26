@@ -74,11 +74,13 @@ const RuleStyleEditor = ({
                   ×
                 </div>
                 <span style={{ flex: 1 }}>
-                  {rule.conditionField &&
-                  rule.conditionType &&
-                  rule.conditionValue
-                    ? `${rule.conditionField} ${rule.conditionType} ${rule.conditionValue}`
-                    : `Rule ${idx + 1}`}
+                  {rule.name
+                    ? rule.name
+                    : rule.conditionField &&
+                        rule.conditionType &&
+                        rule.conditionValue
+                      ? `${rule.conditionField} ${rule.conditionType} ${rule.conditionValue}`
+                      : `Rule ${idx + 1}`}
                 </span>
               </span>
             </Accordion.Header>

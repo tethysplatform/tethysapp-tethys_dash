@@ -4,7 +4,7 @@ import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
 import DataSelect from "components/inputs/DataSelect";
 import ColorPickerPopover from "components/inputs/ColorPickerPopOver";
-import { spaceAndCapitalize } from "components/modals/utilities";
+import { spaceAndCapitalize, valuesEqual } from "components/modals/utilities";
 
 const RuleContainer = styled.div`
   border: 1px solid #ccc;
@@ -113,9 +113,9 @@ export const getStyleKeysForGeom = (geomType) => {
   return [];
 };
 
-export const defaultFill = "gray";
-export const defaultStroke = "black";
-export const defaultStrokeWidth = 1;
+export const defaultFill = "rgba(255, 255, 255, 0.4)";
+export const defaultStroke = "#3399CC";
+export const defaultStrokeWidth = 1.25;
 export const defaultSize = 5;
 export const defaultZIndex = 0;
 export const defaultShape = "circle";
@@ -198,6 +198,7 @@ const RuleEditor = ({
     setStyleOptions(formatedStyleOptions);
     onChange({ ...rule, geometryType: opt.value });
   };
+
   const handleAddStyle = (selected) => {
     const newRule = { ...rule };
     if (selected.value === "fill") newRule.fill = defaultFill;
@@ -264,6 +265,7 @@ const RuleEditor = ({
                     "hatchSpacing",
                     "dotRadius",
                     "dotSpacing",
+                    "name",
                   ].includes(key),
               )
               .map((key) => (
@@ -539,8 +541,16 @@ const RuleConditionEditor = ({
   const conditionField = rule.conditionField || "";
   const conditionType = rule.conditionType || "=";
   const conditionValue = rule.conditionValue || "";
+  const ruleName = rule.name || "";
   return (
     <>
+      <NormalInput
+        label="Rule Name"
+        value={ruleName}
+        type="text"
+        onChange={(e) => onChange({ ...rule, name: e.target.value })}
+        labelProps={{ style: { marginBottom: 0 } }}
+      />
       <DataSelect
         label="Geometry Type"
         options={GEOMETRY_TYPE_OPTIONS}
@@ -654,4 +664,4 @@ RuleConditionEditor.propTypes = {
   CONDITION_OPTIONS: PropTypes.array.isRequired,
 };
 
-export default memo(RuleEditor);
+export default memo(RuleEditor, valuesEqual);

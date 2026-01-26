@@ -509,8 +509,9 @@ function LegendRenderer({ legend }) {
       const hatchSpacing = merged.hatchSpacing;
       const strokeDash = merged.strokeDash;
       const strokeWidth = merged.strokeWidth;
-      let label =
-        rule.conditionField && rule.conditionType && rule.conditionValue
+      let label = rule.name
+        ? rule.name
+        : rule.conditionField && rule.conditionType && rule.conditionValue
           ? `${geom.charAt(0).toUpperCase() + geom.slice(1)}: ${rule.conditionField} ${rule.conditionType} ${rule.conditionValue}`
           : `${geom.charAt(0).toUpperCase() + geom.slice(1)} (Rule)`;
       const hatchDirection = merged.hatchDirection;

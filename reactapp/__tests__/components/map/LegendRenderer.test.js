@@ -1,5 +1,6 @@
 import LegendRenderer, { LegendSymbol } from "components/map/LegendRenderer";
 import { render, screen, waitFor } from "@testing-library/react";
+import { defaultStroke } from "components/inputs/RuleEditor";
 
 const ESRIResponse = {
   layers: [
@@ -474,7 +475,7 @@ test("LegendRenderer; styleJSON legend linestrings", async () => {
   expect(lineElement).toHaveAttribute("y1", "6");
   expect(lineElement).toHaveAttribute("x2", "30");
   expect(lineElement).toHaveAttribute("y2", "6");
-  expect(lineElement).toHaveAttribute("stroke", "black");
+  expect(lineElement).toHaveAttribute("stroke", "#3399CC");
   expect(lineElement).toHaveAttribute("stroke-width", "2.5");
   expect(lineElement).toHaveAttribute("stroke-linecap", "round");
   expect(lineElement).toHaveAttribute("stroke-dasharray", "8 4 2 4 2 4");
@@ -525,18 +526,20 @@ test("LegendRenderer; styleJSON legend polygon", async () => {
   expect(screen.getByText("Polygon (Default)")).toBeInTheDocument();
   expect(screen.getByText("Polygon: id = test-line")).toBeInTheDocument();
 
-  const defaultSVGElement = await screen.findByLabelText("gray-square");
+  const defaultSVGElement = await screen.findByLabelText(
+    "rgba(255, 255, 255, 0.4)-square",
+  );
   expect(defaultSVGElement).toBeInTheDocument();
   expect(defaultSVGElement).toHaveAttribute(
     "style",
-    "color: gray; stroke: black; stroke-width: 2;",
+    "color: rgba(255, 255, 255, 0.4); stroke: #3399CC; stroke-width: 2;",
   );
 
   const rule1SVGElement = await screen.findByLabelText("#f50000-square");
   expect(rule1SVGElement).toBeInTheDocument();
   expect(rule1SVGElement).toHaveAttribute(
     "style",
-    "color: rgb(245, 0, 0); stroke: black; stroke-width: 2;",
+    "color: rgb(245, 0, 0); stroke: #3399CC; stroke-width: 2;",
   );
 });
 
@@ -559,6 +562,15 @@ test("LegendRenderer; styleJSON legend points and missing some keys", async () =
           shape: "icon",
           size: 1,
         },
+        {
+          name: "Custom Point Rule",
+          geometryType: "point",
+          conditionField: "id",
+          conditionType: "=",
+          conditionValue: "test-point-3",
+          shape: "square",
+          size: 2,
+        },
       ],
       default: {
         point: {
@@ -575,17 +587,18 @@ test("LegendRenderer; styleJSON legend points and missing some keys", async () =
   expect(list).toBeInTheDocument();
 
   const items = screen.queryAllByRole("listitem"); // <li>
-  expect(items).toHaveLength(3); //default and 2 rule
+  expect(items).toHaveLength(4); //default and 2 rule
 
   expect(screen.getByText("Point (Default)")).toBeInTheDocument();
   expect(screen.getByText("Point (Rule)")).toBeInTheDocument();
   expect(screen.getByText("Point: id = test-point-2")).toBeInTheDocument();
+  expect(screen.getByText("Custom Point Rule")).toBeInTheDocument();
 
   const defaultSVGElement = await screen.findByLabelText("black-circle");
   expect(defaultSVGElement).toBeInTheDocument();
   expect(defaultSVGElement).toHaveAttribute(
     "style",
-    "color: black; stroke: black; stroke-width: 2;",
+    "color: black; stroke: #3399CC; stroke-width: 2;",
   );
   // eslint-disable-next-line testing-library/no-node-access
   const lineElement = defaultSVGElement.querySelector("circle");
@@ -606,6 +619,13 @@ test("LegendRenderer; styleJSON legend points and missing some keys", async () =
   );
   expect(rule2Icon).toBeInTheDocument();
   expect(rule2Icon).toHaveAttribute("src", "http://example.com/icon.png");
+
+  const rule3SVGElement = await screen.findByLabelText("black-square");
+  expect(rule3SVGElement).toBeInTheDocument();
+  expect(rule3SVGElement).toHaveAttribute(
+    "style",
+    "color: black; stroke: #3399CC; stroke-width: 2;",
+  );
 });
 
 test("LegendRenderer; styleJSON default icon shape", async () => {
@@ -695,7 +715,7 @@ test("LegendRenderer; styleJSON default icon shape missing url", async () => {
   expect(defaultSVGElement).toBeInTheDocument();
   expect(defaultSVGElement).toHaveAttribute(
     "style",
-    "color: black; stroke: black; stroke-width: 2;",
+    "color: black; stroke: #3399CC; stroke-width: 2;",
   );
   // eslint-disable-next-line testing-library/no-node-access
   let lineElement = defaultSVGElement.querySelector("circle");
@@ -708,7 +728,7 @@ test("LegendRenderer; styleJSON default icon shape missing url", async () => {
   expect(ruleSVGElement).toBeInTheDocument();
   expect(ruleSVGElement).toHaveAttribute(
     "style",
-    "color: black; stroke: black; stroke-width: 2;",
+    "color: black; stroke: #3399CC; stroke-width: 2;",
   );
   // eslint-disable-next-line testing-library/no-node-access
   lineElement = ruleSVGElement.querySelector("circle");
@@ -755,7 +775,7 @@ test("LegendRenderer; styleJSON legend bad geom", async () => {
   expect(defaultSVGElement).toBeInTheDocument();
   expect(defaultSVGElement).toHaveAttribute(
     "style",
-    "color: black; stroke: black; stroke-width: 2;",
+    `color: black; stroke: ${defaultStroke}; stroke-width: 2;`,
   );
   // eslint-disable-next-line testing-library/no-node-access
   const lineElement = defaultSVGElement.querySelector("circle");
@@ -764,11 +784,13 @@ test("LegendRenderer; styleJSON legend bad geom", async () => {
   expect(lineElement).toHaveAttribute("cy", "8");
   expect(lineElement).toHaveAttribute("r", "8");
 
-  const rule1SVGElement = await screen.findByLabelText("gray-triangle");
+  const rule1SVGElement = await screen.findByLabelText(
+    "rgba(255, 255, 255, 0.4)-triangle",
+  );
   expect(rule1SVGElement).toBeInTheDocument();
   expect(rule1SVGElement).toHaveAttribute(
     "style",
-    "color: gray; stroke: #f50000; stroke-width: 2;",
+    "color: rgba(255, 255, 255, 0.4); stroke: #f50000; stroke-width: 2;",
   );
 });
 

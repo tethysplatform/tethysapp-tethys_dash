@@ -27,23 +27,24 @@ afterEach(() => {
 });
 
 const TestingComponent = ({
-  initialRules = {},
-  onRulesChange,
+  initialRule = {},
+  onRuleChange,
   defaultSection,
 }) => {
   const availableFields = ["field1", "field2"];
-  const [rules, setRules] = useState(initialRules);
+  const [rule, setRule] = useState(initialRule);
   const containerRef = useRef(null);
 
-  const handleChange = (newRules) => {
-    setRules(newRules);
-    if (onRulesChange) onRulesChange(newRules);
+  const handleChange = (newRule) => {
+    setRule(newRule);
+
+    if (onRuleChange) onRuleChange(newRule);
   };
 
   return (
     <div ref={containerRef}>
       <RuleEditor
-        rule={rules}
+        rule={JSON.parse(JSON.stringify(rule))}
         onChange={handleChange}
         availableFields={availableFields}
         containerRef={containerRef}
@@ -66,7 +67,7 @@ describe("RuleEditor", () => {
   it("calls onChange when geometry type changes", async () => {
     const mockOnChange = jest.fn();
 
-    render(<TestingComponent onRulesChange={mockOnChange} />);
+    render(<TestingComponent onRuleChange={mockOnChange} />);
     expect(screen.getByText("Point")).toBeInTheDocument(); // default geometry type
 
     const geomTypeSelect = screen.getByRole("combobox", {
@@ -87,8 +88,8 @@ describe("RuleEditor", () => {
 
     render(
       <TestingComponent
-        initialRules={{ geometryType: "polygon" }}
-        onRulesChange={mockOnChange}
+        initialRule={{ geometryType: "polygon" }}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -122,13 +123,31 @@ describe("RuleEditor", () => {
     });
   });
 
+  it("update rule name", async () => {
+    const mockOnChange = jest.fn();
+
+    render(
+      <TestingComponent
+        initialRule={{ geometryType: "polygon" }}
+        onRuleChange={mockOnChange}
+      />,
+    );
+
+    const ruleNameInput = screen.getByLabelText("Rule Name Input");
+    fireEvent.change(ruleNameInput, { target: { value: "My Rule" } });
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "polygon",
+      name: "My Rule",
+    });
+  });
+
   it("add style for polygon", async () => {
     const mockOnChange = jest.fn();
 
     render(
       <TestingComponent
-        initialRules={{ geometryType: "polygon" }}
-        onRulesChange={mockOnChange}
+        initialRule={{ geometryType: "polygon" }}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -294,8 +313,8 @@ describe("RuleEditor", () => {
 
     render(
       <TestingComponent
-        initialRules={{ geometryType: "point" }}
-        onRulesChange={mockOnChange}
+        initialRule={{ geometryType: "point" }}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -408,8 +427,8 @@ describe("RuleEditor", () => {
 
     render(
       <TestingComponent
-        initialRules={{ geometryType: "linestring" }}
-        onRulesChange={mockOnChange}
+        initialRule={{ geometryType: "linestring" }}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -457,7 +476,7 @@ describe("RuleEditor", () => {
     const mockOnChange = jest.fn();
     render(
       <TestingComponent
-        initialRules={{
+        initialRule={{
           geometryType: "point",
           fill: null,
           stroke: null,
@@ -465,7 +484,7 @@ describe("RuleEditor", () => {
           size: null,
           zIndex: null,
         }}
-        onRulesChange={mockOnChange}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -497,8 +516,8 @@ describe("RuleEditor", () => {
     const mockOnChange = jest.fn();
     render(
       <TestingComponent
-        initialRules={{ geometryType: "linestring", strokeDash: "0" }}
-        onRulesChange={mockOnChange}
+        initialRule={{ geometryType: "linestring", strokeDash: "0" }}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -512,13 +531,13 @@ describe("RuleEditor", () => {
 
     render(
       <TestingComponent
-        initialRules={{
+        initialRule={{
           geometryType: "polygon",
           polygonFillType: "hatch",
           hatchDirection: "horizontal",
           hatchSpacing: 5,
         }}
-        onRulesChange={mockOnChange}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -537,13 +556,13 @@ describe("RuleEditor", () => {
 
     render(
       <TestingComponent
-        initialRules={{
+        initialRule={{
           geometryType: "polygon",
           polygonFillType: "dot",
           dotRadius: 3,
           dotSpacing: 7,
         }}
-        onRulesChange={mockOnChange}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -562,12 +581,12 @@ describe("RuleEditor", () => {
 
     render(
       <TestingComponent
-        initialRules={{
+        initialRule={{
           geometryType: "point",
           shape: "icon",
           iconUrl: "https://example.com/icon.png",
         }}
-        onRulesChange={mockOnChange}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -585,11 +604,11 @@ describe("RuleEditor", () => {
 
     render(
       <TestingComponent
-        initialRules={{
+        initialRule={{
           geometryType: "point",
           shape: "icon",
         }}
-        onRulesChange={mockOnChange}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -604,11 +623,11 @@ describe("RuleEditor", () => {
 
   it("renders defaultSection point", async () => {
     const mockOnChange = jest.fn();
-    render(
+    const { rerender } = render(
       <TestingComponent
-        initialRules={{ point: { fill: "#fff", stroke: "#000" } }}
+        initialRule={{ point: { fill: "#fff", stroke: "#000" } }}
         defaultSection="point"
-        onRulesChange={mockOnChange}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -660,6 +679,21 @@ describe("RuleEditor", () => {
       });
     });
 
+    rerender(
+      <TestingComponent
+        initialRule={{
+          point: {
+            fill: "#2aff00",
+            stroke: "#000",
+            shape: "icon",
+            iconUrl: "https://example.com/icon.png",
+          },
+        }}
+        defaultSection="point"
+        onRuleChange={mockOnChange}
+      />,
+    );
+
     await selectEvent.select(shapeSelect, "rectangle");
     await waitFor(
       () => {
@@ -675,9 +709,9 @@ describe("RuleEditor", () => {
     const mockOnChange = jest.fn();
     render(
       <TestingComponent
-        initialRules={{ linestring: { stroke: "#000" } }}
+        initialRule={{ linestring: { stroke: "#000" } }}
         defaultSection="linestring"
-        onRulesChange={mockOnChange}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -720,9 +754,9 @@ describe("RuleEditor", () => {
     const mockOnChange = jest.fn();
     render(
       <TestingComponent
-        initialRules={{ linestring: { strokeDash: "0" } }}
+        initialRule={{ linestring: { strokeDash: "0" } }}
         defaultSection="linestring"
-        onRulesChange={mockOnChange}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -735,9 +769,9 @@ describe("RuleEditor", () => {
     const mockOnChange = jest.fn();
     render(
       <TestingComponent
-        initialRules={{ polygon: { stroke: "#000" } }}
+        initialRule={{ polygon: { stroke: "#000" } }}
         defaultSection="polygon"
-        onRulesChange={mockOnChange}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -844,11 +878,11 @@ describe("RuleEditor", () => {
     const mockOnChange = jest.fn();
     render(
       <TestingComponent
-        initialRules={{
+        initialRule={{
           point: { shape: "icon" },
         }}
         defaultSection="point"
-        onRulesChange={mockOnChange}
+        onRuleChange={mockOnChange}
       />,
     );
 
@@ -902,7 +936,7 @@ describe("getStyleKeysForGeom", () => {
 });
 
 TestingComponent.propTypes = {
-  initialRules: PropTypes.object,
-  onRulesChange: PropTypes.func,
+  initialRule: PropTypes.object,
+  onRuleChange: PropTypes.func,
   defaultSection: PropTypes.string,
 };

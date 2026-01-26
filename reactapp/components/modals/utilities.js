@@ -116,8 +116,8 @@ export const removeEmptyValues = (values) => {
       .filter(
         ([_, value]) =>
           value &&
-          !(typeof value === "object" && Object.keys(value).length === 0) // Remove empty objects
-      )
+          !(typeof value === "object" && Object.keys(value).length === 0), // Remove empty objects
+      ),
   );
 };
 
@@ -125,7 +125,7 @@ export const removeEmptyValues = (values) => {
 export const checkRequiredKeys = (
   requiredKeysObj,
   checkingObj,
-  parentKey = ""
+  parentKey = "",
 ) => {
   let missingKeys = [];
 
@@ -141,7 +141,7 @@ export const checkRequiredKeys = (
     ) {
       // Recursively check nested objects
       missingKeys = missingKeys.concat(
-        checkRequiredKeys(value, checkingObj[key], fullKey)
+        checkRequiredKeys(value, checkingObj[key], fullKey),
       );
     }
   }

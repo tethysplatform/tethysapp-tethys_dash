@@ -3,15 +3,16 @@ import { useRef } from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
 import ColorPickerPopover from "components/inputs/ColorPickerPopOver";
 
-// Mock Overlay to immediately call onHide when show is false
-const MockOverlay = ({ show, onHide, children, ...props }) => {
-  if (!show && onHide) {
-    setTimeout(onHide, 0);
-  }
-  return show ? <div data-testid="overlay-mock">{children}</div> : null;
-};
-MockOverlay.displayName = "Overlay";
-jest.mock("react-bootstrap/Overlay", () => MockOverlay);
+jest.mock("react-bootstrap/Overlay", () => {
+  // eslint-disable-next-line react/prop-types
+  const MockOverlay = ({ show, onHide, children, ...props }) => {
+    if (!show && onHide) {
+      setTimeout(onHide, 0);
+    }
+    return show ? <div data-testid="overlay-mock">{children}</div> : null;
+  };
+  return MockOverlay;
+});
 
 beforeEach(() => {
   delete window.ResizeObserver;
@@ -100,10 +101,4 @@ TestingComponent.propTypes = {
   label: PropTypes.string,
   color: PropTypes.string,
   onChange: PropTypes.func,
-};
-
-MockOverlay.propTypes = {
-  show: PropTypes.bool,
-  onHide: PropTypes.func,
-  children: PropTypes.node,
 };
