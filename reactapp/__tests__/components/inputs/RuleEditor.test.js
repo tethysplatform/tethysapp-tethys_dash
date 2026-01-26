@@ -311,7 +311,7 @@ describe("RuleEditor", () => {
   it("add style for point", async () => {
     const mockOnChange = jest.fn();
 
-    render(
+    const { rerender } = render(
       <TestingComponent
         initialRule={{ geometryType: "point" }}
         onRuleChange={mockOnChange}
@@ -360,6 +360,13 @@ describe("RuleEditor", () => {
         size: "10",
       });
     });
+
+    rerender(
+      <TestingComponent
+        initialRule={{ geometryType: "point" }}
+        onRuleChange={mockOnChange}
+      />,
+    );
 
     const removeSizeButton = screen.getByLabelText("Remove size style option");
     fireEvent.click(removeSizeButton);
@@ -420,6 +427,15 @@ describe("RuleEditor", () => {
       fill: "#2aff00",
       stroke: defaultStroke,
     });
+
+    const removeFillStyleButton = screen.getByLabelText(
+      "Remove fill style option",
+    );
+    fireEvent.click(removeFillStyleButton);
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "point",
+      stroke: defaultStroke,
+    });
   });
 
   it("add style for linestring", async () => {
@@ -469,6 +485,16 @@ describe("RuleEditor", () => {
       stroke: defaultStroke,
       strokeWidth: defaultStrokeWidth,
       strokeDash: "1,4",
+    });
+
+    const removeStrokeDashButton = screen.getByLabelText(
+      "Remove strokeDash style option",
+    );
+    fireEvent.click(removeStrokeDashButton);
+    expect(mockOnChange).toHaveBeenLastCalledWith({
+      geometryType: "linestring",
+      stroke: defaultStroke,
+      strokeWidth: defaultStrokeWidth,
     });
   });
 
