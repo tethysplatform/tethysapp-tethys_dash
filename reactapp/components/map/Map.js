@@ -19,6 +19,7 @@ import { useMapContext } from "components/contexts/MapContext";
 import { fromExtent } from "ol/geom/Polygon";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import GeoJSON from "ol/format/GeoJSON";
+import { valuesEqual } from "components/modals/utilities";
 
 const StyledAlert = styled(Alert)`
   position: absolute;
@@ -168,21 +169,44 @@ const MapComponent = ({
     setErrorMessage(null);
     const updateLayers = async () => {
       const map = visualizationRef.current;
-      if (!map) return;
-
-      // Remove all layers from the map
       const currentMapLayers = map.getLayers().getArray();
-      currentMapLayers.forEach((layer) => {
-        map.removeLayer(layer);
-      });
 
-      // Add all layers passed in
+      // Clean up layers: determine which to keep and which to remove
+      const layersToKeep = [];
+      const layersToRemove = [];
+      if (currentLayers.current.length) {
+        const newLayerProps = (layers ?? []).map((l) => l.props);
+        currentLayers.current.forEach((currentLayer) => {
+          const shouldKeep =
+            newLayerProps.some((newProps) =>
+              valuesEqual(newProps, currentLayer.props),
+            ) && currentLayer.type !== "VectorLayer";
+          if (shouldKeep) {
+            layersToKeep.push(currentLayer.props.name);
+          }
+        });
+
+        // Remove layers from the map that are not in layersToKeep
+        currentMapLayers.forEach((layer) => {
+          const layerName = layer.get("name");
+          if (!layersToKeep.includes(layerName)) {
+            layersToRemove.push(layer);
+          }
+        });
+      }
+
+      // setup constants for handling new layers
       const customLayers = layers ?? [];
       let failedLayers = [];
 
+      // Add or update layers in parallel
       await Promise.all(
         customLayers.map(async (layerConfig) => {
           const name = layerConfig.props?.name;
+          if (layersToKeep.includes(name)) {
+            return;
+          }
+
           try {
             const newLayer = await moduleLoader(
               layerConfig,
@@ -222,6 +246,11 @@ const MapComponent = ({
           }
         }),
       );
+
+      // Remove layers that are no longer needed
+      layersToRemove.forEach((layer) => {
+        map.removeLayer(layer);
+      });
 
       if (failedLayers.length > 0) {
         setErrorMessage(

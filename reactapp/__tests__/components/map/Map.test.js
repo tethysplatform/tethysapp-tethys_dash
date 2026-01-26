@@ -370,7 +370,7 @@ test("Map Layers and Updated Layers", async () => {
   rerender(newLoadedComponent);
 
   await waitFor(() => {
-    expect(addLayerSpy.mock.calls.length).toBe(4);
+    expect(addLayerSpy.mock.calls.length).toBe(3);
   });
   expect(removeLayerSpy.mock.calls.length).toBe(1);
 });
