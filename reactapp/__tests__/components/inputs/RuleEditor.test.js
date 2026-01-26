@@ -317,7 +317,7 @@ describe("RuleEditor", () => {
       size: defaultSize,
     });
 
-    const sizeInput = screen.getByLabelText("size Input");
+    const sizeInput = screen.getByLabelText("Size Input");
     fireEvent.change(sizeInput, { target: { value: 10 } });
 
     expect(mockOnChange).toHaveBeenLastCalledWith({
@@ -483,13 +483,13 @@ describe("RuleEditor", () => {
       `background: ${defaultStroke}`,
     );
 
-    const strokeWidthInput = screen.getByLabelText("strokeWidth Input");
+    const strokeWidthInput = screen.getByLabelText("Stroke Width Input");
     expect(strokeWidthInput).toHaveValue(defaultStrokeWidth);
 
-    const sizeInput = screen.getByLabelText("size Input");
+    const sizeInput = screen.getByLabelText("Size Input");
     expect(sizeInput).toHaveValue(defaultSize);
 
-    const zIndexInput = screen.getByLabelText("zIndex Input");
+    const zIndexInput = screen.getByLabelText("Z Index Input");
     expect(zIndexInput).toHaveValue(defaultZIndex);
   });
 

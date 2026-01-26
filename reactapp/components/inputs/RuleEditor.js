@@ -124,6 +124,34 @@ export const defaultHatchDirection = "diagonal";
 export const defaultDotSpacing = 8;
 export const defaultDotRadius = 2;
 
+// Centralized style value change/cleanup logic
+function updateStyleValue({ rule, key, value, sectionName, defaultSection }) {
+  const newRule = { ...rule };
+  const section = sectionName ? { ...newRule[sectionName] } : null;
+
+  // Clean up hatch and dot rules when polygonFillType changes
+  if (key === "polygonFillType") {
+    const target = sectionName ? section : newRule;
+    ["hatchDirection", "hatchSpacing", "dotRadius", "dotSpacing"].forEach(
+      (k) => {
+        if (k in target) delete target[k];
+      },
+    );
+    if (sectionName) newRule[sectionName] = target;
+  }
+  if (key === "shape" && value !== "icon") {
+    const target = sectionName ? section : newRule;
+    if ("iconUrl" in target) delete target.iconUrl;
+    if (sectionName) newRule[sectionName] = target;
+  }
+  if (sectionName) {
+    newRule[sectionName] = { ...section, [key]: value };
+  } else {
+    newRule[key] = value;
+  }
+  return newRule;
+}
+
 const RuleEditor = ({
   rule,
   onChange,
@@ -148,7 +176,6 @@ const RuleEditor = ({
   const currentGeomType = useRef(rule.geometryType || "point");
 
   useEffect(() => {
-    // when geometry type changes, remove old rules
     if (currentGeomType.current !== selectedGeomType.value) {
       onChange({
         geometryType: selectedGeomType.value,
@@ -161,11 +188,6 @@ const RuleEditor = ({
     // eslint-disable-next-line
   }, [rule.geometryType]);
 
-  // Extract condition
-  const conditionField = rule.conditionField || "";
-  const conditionType = rule.conditionType || "=";
-  const conditionValue = rule.conditionValue || "";
-
   const handleGeomTypeChange = (opt) => {
     setSelectedGeomType(opt);
     const newStyleOptions = getStyleKeysForGeom(opt.value);
@@ -176,111 +198,30 @@ const RuleEditor = ({
     setStyleOptions(formatedStyleOptions);
     onChange({ ...rule, geometryType: opt.value });
   };
-
-  // Add style option
   const handleAddStyle = (selected) => {
     const newRule = { ...rule };
-    if (selected.value === "fill") {
-      newRule.fill = defaultFill;
-    } else if (selected.value === "stroke") {
-      newRule.stroke = defaultStroke;
-    } else if (selected.value === "strokeWidth") {
+    if (selected.value === "fill") newRule.fill = defaultFill;
+    else if (selected.value === "stroke") newRule.stroke = defaultStroke;
+    else if (selected.value === "strokeWidth")
       newRule.strokeWidth = defaultStrokeWidth;
-    } else if (selected.value === "size") {
-      newRule.size = defaultSize;
-    } else if (selected.value === "zIndex") {
-      newRule.zIndex = defaultZIndex;
-    } else {
-      newRule[selected.value] = "";
-    }
+    else if (selected.value === "size") newRule.size = defaultSize;
+    else if (selected.value === "zIndex") newRule.zIndex = defaultZIndex;
+    else newRule[selected.value] = "";
     onChange(newRule);
   };
 
-  // Remove style option
   const handleRemoveStyle = (key) => {
     const newRule = { ...rule };
     delete newRule[key];
-
     if (key === "polygonFillType") {
-      if ("hatchDirection" in newRule) {
-        delete newRule.hatchDirection;
-      }
-      if ("hatchSpacing" in newRule) {
-        delete newRule.hatchSpacing;
-      }
-      if ("dotRadius" in newRule) {
-        delete newRule.dotRadius;
-      }
-      if ("dotSpacing" in newRule) {
-        delete newRule.dotSpacing;
-      }
+      ["hatchDirection", "hatchSpacing", "dotRadius", "dotSpacing"].forEach(
+        (k) => {
+          if (k in newRule) delete newRule[k];
+        },
+      );
     }
-
     if (key === "shape" && "iconUrl" in newRule) {
       delete newRule.iconUrl;
-    }
-
-    onChange(newRule);
-  };
-
-  // Update style value
-  const handleStyleValueChange = (key, value) => {
-    const newRule = { ...rule };
-
-    // Clean up hatch and dot rules when polygonFillType changes
-    if (key === "polygonFillType") {
-      if (defaultSection) {
-        // Clean up inside the defaultSection object
-        const section = { ...newRule[defaultSection] };
-        if ("hatchDirection" in section) {
-          delete section.hatchDirection;
-        }
-        if ("hatchSpacing" in section) {
-          delete section.hatchSpacing;
-        }
-        if ("dotRadius" in section) {
-          delete section.dotRadius;
-        }
-        if ("dotSpacing" in section) {
-          delete section.dotSpacing;
-        }
-        newRule[defaultSection] = section;
-      } else {
-        // Clean up at the top level
-        if ("hatchDirection" in newRule) {
-          delete newRule.hatchDirection;
-        }
-        if ("hatchSpacing" in newRule) {
-          delete newRule.hatchSpacing;
-        }
-        if ("dotRadius" in newRule) {
-          delete newRule.dotRadius;
-        }
-        if ("dotSpacing" in newRule) {
-          delete newRule.dotSpacing;
-        }
-      }
-    }
-
-    if (key === "shape" && value !== "icon") {
-      // Remove iconUrl if shape is changed from icon to something else
-      if (defaultSection) {
-        const section = { ...newRule[defaultSection] };
-        if ("iconUrl" in section) {
-          delete section.iconUrl;
-        }
-        newRule[defaultSection] = section;
-      } else {
-        if ("iconUrl" in newRule) {
-          delete newRule.iconUrl;
-        }
-      }
-    }
-
-    if (defaultSection) {
-      newRule[defaultSection] = { ...newRule[defaultSection], [key]: value };
-    } else {
-      newRule[key] = value;
     }
     onChange(newRule);
   };
@@ -289,297 +230,26 @@ const RuleEditor = ({
     <RuleContainer>
       <FlexContainer>
         {!defaultSection && (
-          <>
-            <DataSelect
-              label="Geometry Type"
-              options={GEOMETRY_TYPE_OPTIONS}
-              selectedOption={selectedGeomType}
-              onChange={handleGeomTypeChange}
-              creatable={false}
-              divProps={{ style: { marginBottom: 0 } }}
-            />
-            <DataSelect
-              label="Field"
-              options={availableFields.map((f) => ({ value: f, label: f }))}
-              selectedOption={
-                conditionField
-                  ? { value: conditionField, label: conditionField }
-                  : null
-              }
-              onChange={(opt) =>
-                onChange({ ...rule, conditionField: opt.value })
-              }
-              creatable={true}
-              divProps={{ style: { marginBottom: 0 } }}
-            />
-            <DataSelect
-              label="Condition"
-              options={CONDITION_OPTIONS}
-              selectedOption={CONDITION_OPTIONS.find(
-                (o) => o.value === conditionType,
-              )}
-              onChange={(opt) =>
-                onChange({ ...rule, conditionType: opt.value })
-              }
-              creatable={false}
-              divProps={{ style: { marginBottom: 0 } }}
-            />
-            <NormalInput
-              label="Value"
-              value={conditionValue}
-              type="text"
-              onChange={(e) =>
-                onChange({ ...rule, conditionValue: e.target.value })
-              }
-              labelProps={{ style: { marginBottom: 0 } }}
-            />
-            <DataSelect
-              label="Add Style Option"
-              options={styleOptions}
-              selectedOption={null}
-              onChange={handleAddStyle}
-              creatable={false}
-              divProps={{ style: { marginBottom: 0 } }}
-            />
-          </>
+          <RuleConditionEditor
+            rule={rule}
+            onChange={onChange}
+            availableFields={availableFields}
+            selectedGeomType={selectedGeomType}
+            handleGeomTypeChange={handleGeomTypeChange}
+            styleOptions={styleOptions}
+            handleAddStyle={handleAddStyle}
+            GEOMETRY_TYPE_OPTIONS={GEOMETRY_TYPE_OPTIONS}
+            CONDITION_OPTIONS={CONDITION_OPTIONS}
+          />
         )}
         <FullWidthContainer>
           {defaultSection ? (
-            <div key={defaultSection} style={{ marginBottom: 24 }}>
-              <div
-                aria-label={`${defaultSection} default styling section`}
-                style={{ fontWeight: 600, marginBottom: 8 }}
-              >
-                {spaceAndCapitalize(defaultSection)}
-              </div>
-              <StyleContainer>
-                {geomStyleOptions[defaultSection].map((optKey) => {
-                  if (optKey === "fill" || optKey === "stroke") {
-                    return (
-                      <ColorPickerPopover
-                        key={optKey}
-                        label={optKey === "fill" ? "Fill" : "Stroke"}
-                        color={
-                          optKey === "fill"
-                            ? rule[defaultSection]?.fill || defaultFill
-                            : rule[defaultSection]?.stroke || defaultStroke
-                        }
-                        onChange={(color) =>
-                          handleStyleValueChange(optKey, color)
-                        }
-                        containerRef={containerRef}
-                      />
-                    );
-                  } else if (optKey === "shape") {
-                    return (
-                      <Fragment key={optKey}>
-                        <DataSelect
-                          key={optKey}
-                          label="Shape"
-                          options={availableShapes.map((s) => ({
-                            value: s,
-                            label: s,
-                          }))}
-                          selectedOption={
-                            rule?.[defaultSection]?.[optKey]
-                              ? {
-                                  value: rule[defaultSection][optKey],
-                                  label: rule[defaultSection][optKey],
-                                }
-                              : { value: defaultShape, label: defaultShape }
-                          }
-                          onChange={(o) =>
-                            handleStyleValueChange(optKey, o.value)
-                          }
-                          creatable={false}
-                          divProps={{ style: { marginBottom: 0 } }}
-                        />
-                        {rule?.[defaultSection]?.[optKey] === "icon" && (
-                          <>
-                            <NormalInput
-                              label="Icon URL"
-                              value={rule[defaultSection]?.iconUrl || ""}
-                              type="text"
-                              onChange={(e) =>
-                                handleStyleValueChange(
-                                  "iconUrl",
-                                  e.target.value,
-                                )
-                              }
-                              labelProps={{ style: { marginBottom: 0 } }}
-                            />
-                          </>
-                        )}
-                      </Fragment>
-                    );
-                  } else if (optKey === "polygonFillType") {
-                    return (
-                      <Fragment key={optKey}>
-                        <DataSelect
-                          key={optKey}
-                          label="Polygon Fill Type"
-                          options={POLYGON_FILL_TYPES}
-                          selectedOption={
-                            POLYGON_FILL_TYPES.find(
-                              (o) =>
-                                o.value === rule?.[defaultSection]?.[optKey],
-                            ) || POLYGON_FILL_TYPES[0]
-                          }
-                          onChange={(opt) =>
-                            handleStyleValueChange(optKey, opt.value)
-                          }
-                          creatable={false}
-                          divProps={{ style: { marginBottom: 0 } }}
-                        />
-                        {rule?.[defaultSection]?.[optKey] === "hatch" && (
-                          <>
-                            <DataSelect
-                              label="Hatch Direction"
-                              options={[
-                                { value: "diagonal", label: "Diagonal" },
-                                { value: "horizontal", label: "Horizontal" },
-                                { value: "vertical", label: "Vertical" },
-                                { value: "cross", label: "Cross" },
-                              ]}
-                              selectedOption={
-                                rule?.[defaultSection]?.hatchDirection
-                                  ? {
-                                      value:
-                                        rule[defaultSection].hatchDirection,
-                                      label:
-                                        rule[defaultSection].hatchDirection
-                                          .charAt(0)
-                                          .toUpperCase() +
-                                        rule[
-                                          defaultSection
-                                        ].hatchDirection.slice(1),
-                                    }
-                                  : {
-                                      value: defaultHatchDirection,
-                                      label:
-                                        defaultHatchDirection
-                                          .charAt(0)
-                                          .toUpperCase() +
-                                        defaultHatchDirection.slice(1),
-                                    }
-                              }
-                              onChange={(opt) =>
-                                handleStyleValueChange(
-                                  "hatchDirection",
-                                  opt.value,
-                                )
-                              }
-                              creatable={false}
-                              divProps={{ style: { marginBottom: 0 } }}
-                            />
-                            <NumberInputWrapper>
-                              <NormalInput
-                                label="Hatch Spacing"
-                                value={
-                                  rule[defaultSection]?.hatchSpacing ||
-                                  defaultHatchSpacing
-                                }
-                                type="number"
-                                onChange={(e) =>
-                                  handleStyleValueChange(
-                                    "hatchSpacing",
-                                    e.target.value,
-                                  )
-                                }
-                                labelProps={{ style: { marginBottom: 0 } }}
-                              />
-                            </NumberInputWrapper>
-                          </>
-                        )}
-                        {rule?.[defaultSection]?.[optKey] === "dot" && (
-                          <>
-                            <NumberInputWrapper>
-                              <NormalInput
-                                label="Dot Radius"
-                                value={
-                                  rule[defaultSection]?.dotRadius ||
-                                  defaultDotRadius
-                                }
-                                type="number"
-                                onChange={(e) =>
-                                  handleStyleValueChange(
-                                    "dotRadius",
-                                    e.target.value,
-                                  )
-                                }
-                                labelProps={{ style: { marginBottom: 0 } }}
-                              />
-                            </NumberInputWrapper>
-                            <NumberInputWrapper>
-                              <NormalInput
-                                label="Dot Spacing"
-                                value={
-                                  rule[defaultSection]?.dotSpacing ||
-                                  defaultDotSpacing
-                                }
-                                type="number"
-                                onChange={(e) => {
-                                  handleStyleValueChange(
-                                    "dotSpacing",
-                                    e.target.value,
-                                  );
-                                }}
-                                labelProps={{ style: { marginBottom: 0 } }}
-                              />
-                            </NumberInputWrapper>
-                          </>
-                        )}
-                      </Fragment>
-                    );
-                  } else if (optKey === "strokeDash") {
-                    return (
-                      <DataSelect
-                        key={optKey}
-                        label="Stroke Dash"
-                        options={availableStrokeDashOptions}
-                        selectedOption={
-                          availableStrokeDashOptions.find(
-                            (o) =>
-                              o.value ===
-                              (rule?.[defaultSection]?.strokeDash || ""),
-                          ) || availableStrokeDashOptions[0]
-                        }
-                        onChange={(opt) =>
-                          handleStyleValueChange(optKey, opt.value)
-                        }
-                        creatable={false}
-                        divProps={{ style: { marginBottom: 0 } }}
-                      />
-                    );
-                  } else {
-                    // Fallback label: Capitalize and add spaces
-                    const label = optKey
-                      .replace(/([A-Z])/g, " $1")
-                      .replace(/^./, (str) => str.toUpperCase());
-                    return (
-                      <NumberInputWrapper key={optKey}>
-                        <NormalInput
-                          label={label}
-                          value={
-                            rule?.[defaultSection]?.[optKey] ??
-                            (optKey === "strokeWidth"
-                              ? defaultStrokeWidth
-                              : optKey === "size"
-                                ? defaultSize
-                                : defaultZIndex)
-                          }
-                          type="number"
-                          onChange={(e) =>
-                            handleStyleValueChange(optKey, e.target.value)
-                          }
-                          labelProps={{ style: { marginBottom: 0 } }}
-                        />
-                      </NumberInputWrapper>
-                    );
-                  }
-                })}
-              </StyleContainer>
-            </div>
+            <DefaultStyleSection
+              rule={rule}
+              onChange={onChange}
+              containerRef={containerRef}
+              sectionName={defaultSection}
+            />
           ) : (
             Object.keys(rule)
               .filter(
@@ -596,225 +266,370 @@ const RuleEditor = ({
                     "dotSpacing",
                   ].includes(key),
               )
-              .map((key) => {
-                if (key === "polygonFillType") {
-                  return (
-                    <StyleContainer gap={8} key={key}>
-                      <XButton
-                        type="button"
-                        onClick={() => handleRemoveStyle(key)}
-                        aria-label={`Remove ${key} style option`}
-                        title={`Remove ${key} style option`}
-                      >
-                        ×
-                      </XButton>
-                      <DataSelect
-                        label="Polygon Fill Type"
-                        options={POLYGON_FILL_TYPES}
-                        selectedOption={
-                          POLYGON_FILL_TYPES.find(
-                            (o) => o.value === rule[key],
-                          ) || POLYGON_FILL_TYPES[0]
-                        }
-                        onChange={(opt) =>
-                          handleStyleValueChange(key, opt.value)
-                        }
-                        creatable={false}
-                        divProps={{ style: { marginBottom: 0 } }}
-                      />
-                      {rule[key] === "hatch" && (
-                        <>
-                          <DataSelect
-                            label="Hatch Direction"
-                            options={[
-                              { value: "diagonal", label: "Diagonal" },
-                              { value: "horizontal", label: "Horizontal" },
-                              { value: "vertical", label: "Vertical" },
-                              { value: "cross", label: "Cross" },
-                            ]}
-                            selectedOption={
-                              rule.hatchDirection
-                                ? {
-                                    value: rule.hatchDirection,
-                                    label:
-                                      rule.hatchDirection
-                                        .charAt(0)
-                                        .toUpperCase() +
-                                      rule.hatchDirection.slice(1),
-                                  }
-                                : null
-                            }
-                            onChange={(opt) =>
-                              handleStyleValueChange(
-                                "hatchDirection",
-                                opt.value,
-                              )
-                            }
-                            creatable={false}
-                            divProps={{ style: { marginBottom: 0 } }}
-                          />
-                          <NumberInputWrapper>
-                            <NormalInput
-                              label="Hatch Spacing"
-                              value={rule.hatchSpacing || ""}
-                              type="number"
-                              onChange={(e) =>
-                                handleStyleValueChange(
-                                  "hatchSpacing",
-                                  e.target.value,
-                                )
-                              }
-                              labelProps={{ style: { marginBottom: 0 } }}
-                            />
-                          </NumberInputWrapper>
-                        </>
-                      )}
-                      {rule[key] === "dot" && (
-                        <>
-                          <NumberInputWrapper>
-                            <NormalInput
-                              label="Dot Radius"
-                              value={rule.dotRadius || ""}
-                              type="number"
-                              onChange={(e) =>
-                                handleStyleValueChange(
-                                  "dotRadius",
-                                  e.target.value,
-                                )
-                              }
-                              labelProps={{ style: { marginBottom: 0 } }}
-                            />
-                          </NumberInputWrapper>
-                          <NumberInputWrapper>
-                            <NormalInput
-                              label="Dot Spacing"
-                              value={rule.dotSpacing || ""}
-                              type="number"
-                              onChange={(e) =>
-                                handleStyleValueChange(
-                                  "dotSpacing",
-                                  e.target.value,
-                                )
-                              }
-                              labelProps={{ style: { marginBottom: 0 } }}
-                            />
-                          </NumberInputWrapper>
-                        </>
-                      )}
-                    </StyleContainer>
-                  );
-                } else if (key === "shape") {
-                  return (
-                    <StyleContainer gap={8} key={key}>
-                      <XButton
-                        type="button"
-                        onClick={() => handleRemoveStyle(key)}
-                        aria-label={`Remove ${key} style option`}
-                        title={`Remove ${key} style option`}
-                      >
-                        ×
-                      </XButton>
-                      <DataSelect
-                        key={key}
-                        label="Shape"
-                        options={availableShapes.map((s) => ({
-                          value: s,
-                          label: s,
-                        }))}
-                        selectedOption={
-                          rule.shape
-                            ? {
-                                value: rule.shape,
-                                label: rule.shape,
-                              }
-                            : null
-                        }
-                        onChange={(o) => handleStyleValueChange(key, o.value)}
-                        creatable={false}
-                        divProps={{ style: { marginBottom: 0 } }}
-                      />
-                      {rule.shape === "icon" && (
-                        <>
-                          <NormalInput
-                            label="Icon URL"
-                            value={rule.iconUrl || ""}
-                            type="text"
-                            onChange={(e) =>
-                              handleStyleValueChange("iconUrl", e.target.value)
-                            }
-                            labelProps={{ style: { marginBottom: 0 } }}
-                          />
-                        </>
-                      )}
-                    </StyleContainer>
-                  );
-                }
-
-                return (
-                  <StyleContainer key={key} gap={4}>
-                    <XButton
-                      type="button"
-                      onClick={() => handleRemoveStyle(key)}
-                      aria-label={`Remove ${key} style option`}
-                      title={`Remove ${key} style option`}
-                    >
-                      ×
-                    </XButton>
-                    {key === "fill" || key === "stroke" ? (
-                      <ColorPickerPopover
-                        label={key === "fill" ? "Fill" : "Stroke"}
-                        color={
-                          rule[key] ||
-                          (key === "fill" ? defaultFill : defaultStroke)
-                        }
-                        onChange={(color) => {
-                          handleStyleValueChange(key, color);
-                        }}
-                        containerRef={containerRef}
-                      />
-                    ) : key === "strokeDash" ? (
-                      <DataSelect
-                        label="Stroke Dash"
-                        options={availableStrokeDashOptions}
-                        selectedOption={
-                          availableStrokeDashOptions.find(
-                            (o) => o.value === (rule[key] || ""),
-                          ) || availableStrokeDashOptions[0]
-                        }
-                        onChange={(opt) =>
-                          handleStyleValueChange(key, opt.value)
-                        }
-                        creatable={false}
-                        divProps={{ style: { marginBottom: 0 } }}
-                      />
-                    ) : (
-                      <NumberInputWrapper>
-                        <NormalInput
-                          label={key}
-                          value={
-                            rule[key] ??
-                            (key === "strokeWidth"
-                              ? defaultStrokeWidth
-                              : key === "size"
-                                ? defaultSize
-                                : defaultZIndex)
-                          }
-                          type="number"
-                          onChange={(e) =>
-                            handleStyleValueChange(key, e.target.value)
-                          }
-                          labelProps={{ style: { marginBottom: 0 } }}
-                        />
-                      </NumberInputWrapper>
-                    )}
-                  </StyleContainer>
-                );
-              })
+              .map((key) => (
+                <StyleOptionControl
+                  key={key}
+                  keyName={key}
+                  rule={rule}
+                  onChange={onChange}
+                  containerRef={containerRef}
+                  handleRemoveStyle={handleRemoveStyle}
+                />
+              ))
           )}
         </FullWidthContainer>
       </FlexContainer>
     </RuleContainer>
   );
+};
+
+// Reusable style option control
+function StyleOptionControl({
+  keyName,
+  rule,
+  onChange,
+  containerRef,
+  handleRemoveStyle,
+  sectionName,
+  defaultSection,
+}) {
+  const value = sectionName ? rule?.[sectionName]?.[keyName] : rule[keyName];
+  const styleValueChange = (k, v) => {
+    onChange(
+      updateStyleValue({ rule, key: k, value: v, sectionName, defaultSection }),
+    );
+  };
+  if (keyName === "polygonFillType") {
+    return (
+      <StyleContainer gap={8} key={keyName}>
+        {handleRemoveStyle && (
+          <XButton
+            type="button"
+            onClick={() => handleRemoveStyle(keyName)}
+            aria-label={`Remove ${keyName} style option`}
+            title={`Remove ${keyName} style option`}
+          >
+            ×
+          </XButton>
+        )}
+        <DataSelect
+          label="Polygon Fill Type"
+          options={POLYGON_FILL_TYPES}
+          selectedOption={
+            POLYGON_FILL_TYPES.find((o) => o.value === value) ||
+            POLYGON_FILL_TYPES[0]
+          }
+          onChange={(opt) => styleValueChange(keyName, opt.value)}
+          creatable={false}
+          divProps={{ style: { marginBottom: 0 } }}
+        />
+        {value === "hatch" && (
+          <>
+            <DataSelect
+              label="Hatch Direction"
+              options={[
+                { value: "diagonal", label: "Diagonal" },
+                { value: "horizontal", label: "Horizontal" },
+                { value: "vertical", label: "Vertical" },
+                { value: "cross", label: "Cross" },
+              ]}
+              selectedOption={(() => {
+                const hatchDir = sectionName
+                  ? rule?.[sectionName]?.hatchDirection
+                  : rule.hatchDirection;
+                return hatchDir
+                  ? {
+                      value: hatchDir,
+                      label:
+                        hatchDir.charAt(0).toUpperCase() + hatchDir.slice(1),
+                    }
+                  : null;
+              })()}
+              onChange={(opt) => styleValueChange("hatchDirection", opt.value)}
+              creatable={false}
+              divProps={{ style: { marginBottom: 0 } }}
+            />
+            <NumberInputWrapper>
+              <NormalInput
+                label="Hatch Spacing"
+                value={
+                  sectionName
+                    ? rule?.[sectionName]?.hatchSpacing || ""
+                    : rule.hatchSpacing || ""
+                }
+                type="number"
+                onChange={(e) =>
+                  styleValueChange("hatchSpacing", e.target.value)
+                }
+                labelProps={{ style: { marginBottom: 0 } }}
+              />
+            </NumberInputWrapper>
+          </>
+        )}
+        {value === "dot" && (
+          <>
+            <NumberInputWrapper>
+              <NormalInput
+                label="Dot Radius"
+                value={
+                  sectionName
+                    ? rule?.[sectionName]?.dotRadius || ""
+                    : rule.dotRadius || ""
+                }
+                type="number"
+                onChange={(e) => styleValueChange("dotRadius", e.target.value)}
+                labelProps={{ style: { marginBottom: 0 } }}
+              />
+            </NumberInputWrapper>
+            <NumberInputWrapper>
+              <NormalInput
+                label="Dot Spacing"
+                value={
+                  sectionName
+                    ? rule?.[sectionName]?.dotSpacing || ""
+                    : rule.dotSpacing || ""
+                }
+                type="number"
+                onChange={(e) => styleValueChange("dotSpacing", e.target.value)}
+                labelProps={{ style: { marginBottom: 0 } }}
+              />
+            </NumberInputWrapper>
+          </>
+        )}
+      </StyleContainer>
+    );
+  }
+  if (keyName === "shape") {
+    return (
+      <StyleContainer gap={8} key={keyName}>
+        {handleRemoveStyle && (
+          <XButton
+            type="button"
+            onClick={() => handleRemoveStyle(keyName)}
+            aria-label={`Remove ${keyName} style option`}
+            title={`Remove ${keyName} style option`}
+          >
+            ×
+          </XButton>
+        )}
+        <DataSelect
+          label="Shape"
+          options={availableShapes.map((s) => ({ value: s, label: s }))}
+          selectedOption={
+            value
+              ? { value, label: value }
+              : { value: defaultShape, label: defaultShape }
+          }
+          onChange={(o) => styleValueChange(keyName, o.value)}
+          creatable={false}
+          divProps={{ style: { marginBottom: 0 } }}
+        />
+        {value === "icon" && (
+          <NormalInput
+            label="Icon URL"
+            value={
+              sectionName
+                ? rule?.[sectionName]?.iconUrl || ""
+                : rule.iconUrl || ""
+            }
+            type="text"
+            onChange={(e) => styleValueChange("iconUrl", e.target.value)}
+            labelProps={{ style: { marginBottom: 0 } }}
+          />
+        )}
+      </StyleContainer>
+    );
+  }
+  if (keyName === "fill" || keyName === "stroke") {
+    return (
+      <StyleContainer key={keyName} gap={4}>
+        {handleRemoveStyle && (
+          <XButton
+            type="button"
+            onClick={() => handleRemoveStyle(keyName)}
+            aria-label={`Remove ${keyName} style option`}
+            title={`Remove ${keyName} style option`}
+          >
+            ×
+          </XButton>
+        )}
+        <ColorPickerPopover
+          label={keyName === "fill" ? "Fill" : "Stroke"}
+          color={value || (keyName === "fill" ? defaultFill : defaultStroke)}
+          onChange={(color) => styleValueChange(keyName, color)}
+          containerRef={containerRef}
+        />
+      </StyleContainer>
+    );
+  }
+  if (keyName === "strokeDash") {
+    return (
+      <StyleContainer key={keyName} gap={4}>
+        {handleRemoveStyle && (
+          <XButton
+            type="button"
+            onClick={() => handleRemoveStyle(keyName)}
+            aria-label={`Remove ${keyName} style option`}
+            title={`Remove ${keyName} style option`}
+          >
+            ×
+          </XButton>
+        )}
+        <DataSelect
+          label="Stroke Dash"
+          options={availableStrokeDashOptions}
+          selectedOption={
+            availableStrokeDashOptions.find((o) => o.value === (value || "")) ||
+            availableStrokeDashOptions[0]
+          }
+          onChange={(opt) => styleValueChange(keyName, opt.value)}
+          creatable={false}
+          divProps={{ style: { marginBottom: 0 } }}
+        />
+      </StyleContainer>
+    );
+  }
+  // Fallback for number input
+  const label = keyName
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (str) => str.toUpperCase());
+  return (
+    <StyleContainer key={keyName} gap={4}>
+      {handleRemoveStyle && (
+        <XButton
+          type="button"
+          onClick={() => handleRemoveStyle(keyName)}
+          aria-label={`Remove ${keyName} style option`}
+          title={`Remove ${keyName} style option`}
+        >
+          ×
+        </XButton>
+      )}
+      <NumberInputWrapper>
+        <NormalInput
+          label={label}
+          value={
+            value ??
+            (keyName === "strokeWidth"
+              ? defaultStrokeWidth
+              : keyName === "size"
+                ? defaultSize
+                : defaultZIndex)
+          }
+          type="number"
+          onChange={(e) => styleValueChange(keyName, e.target.value)}
+          labelProps={{ style: { marginBottom: 0 } }}
+        />
+      </NumberInputWrapper>
+    </StyleContainer>
+  );
+}
+
+const RuleConditionEditor = ({
+  rule,
+  onChange,
+  availableFields,
+  selectedGeomType,
+  handleGeomTypeChange,
+  styleOptions,
+  handleAddStyle,
+  GEOMETRY_TYPE_OPTIONS,
+  CONDITION_OPTIONS,
+}) => {
+  const conditionField = rule.conditionField || "";
+  const conditionType = rule.conditionType || "=";
+  const conditionValue = rule.conditionValue || "";
+  return (
+    <>
+      <DataSelect
+        label="Geometry Type"
+        options={GEOMETRY_TYPE_OPTIONS}
+        selectedOption={selectedGeomType}
+        onChange={handleGeomTypeChange}
+        creatable={false}
+        divProps={{ style: { marginBottom: 0 } }}
+      />
+      <DataSelect
+        label="Field"
+        options={availableFields.map((f) => ({ value: f, label: f }))}
+        selectedOption={
+          conditionField
+            ? { value: conditionField, label: conditionField }
+            : null
+        }
+        onChange={(opt) => onChange({ ...rule, conditionField: opt.value })}
+        creatable={true}
+        divProps={{ style: { marginBottom: 0 } }}
+      />
+      <DataSelect
+        label="Condition"
+        options={CONDITION_OPTIONS}
+        selectedOption={CONDITION_OPTIONS.find(
+          (o) => o.value === conditionType,
+        )}
+        onChange={(opt) => onChange({ ...rule, conditionType: opt.value })}
+        creatable={false}
+        divProps={{ style: { marginBottom: 0 } }}
+      />
+      <NormalInput
+        label="Value"
+        value={conditionValue}
+        type="text"
+        onChange={(e) => onChange({ ...rule, conditionValue: e.target.value })}
+        labelProps={{ style: { marginBottom: 0 } }}
+      />
+      <DataSelect
+        label="Add Style Option"
+        options={styleOptions}
+        selectedOption={null}
+        onChange={handleAddStyle}
+        creatable={false}
+        divProps={{ style: { marginBottom: 0 } }}
+      />
+    </>
+  );
+};
+
+const DefaultStyleSection = ({ rule, onChange, containerRef, sectionName }) => (
+  <div key={sectionName} style={{ marginBottom: 24 }}>
+    <div
+      aria-label={`${sectionName} default styling section`}
+      style={{ fontWeight: 600, marginBottom: 8 }}
+    >
+      {spaceAndCapitalize(sectionName)}
+    </div>
+    <StyleContainer>
+      {geomStyleOptions[sectionName].map((optKey) => (
+        <div key={optKey} style={{ display: "flex", alignItems: "center" }}>
+          <StyleOptionControl
+            keyName={optKey}
+            rule={rule}
+            onChange={onChange}
+            containerRef={containerRef}
+            sectionName={sectionName}
+            defaultSection={sectionName}
+          />
+        </div>
+      ))}
+    </StyleContainer>
+  </div>
+);
+
+StyleOptionControl.propTypes = {
+  keyName: PropTypes.string.isRequired,
+  rule: PropTypes.object.isRequired,
+  onChange: PropTypes.func.isRequired,
+  containerRef: PropTypes.object,
+  handleRemoveStyle: PropTypes.func,
+  sectionName: PropTypes.string,
+  defaultSection: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
+};
+
+DefaultStyleSection.propTypes = {
+  rule: PropTypes.object.isRequired,
+  onChange: PropTypes.func.isRequired,
+  containerRef: PropTypes.object,
+  sectionName: PropTypes.string.isRequired,
 };
 
 RuleEditor.propTypes = {
@@ -825,6 +640,18 @@ RuleEditor.propTypes = {
   styleOptionFilter: PropTypes.array,
   hideConditionFields: PropTypes.bool,
   defaultSection: PropTypes.oneOfType([PropTypes.string, PropTypes.bool]),
+};
+
+RuleConditionEditor.propTypes = {
+  rule: PropTypes.object.isRequired,
+  onChange: PropTypes.func.isRequired,
+  availableFields: PropTypes.array.isRequired,
+  selectedGeomType: PropTypes.object.isRequired,
+  handleGeomTypeChange: PropTypes.func.isRequired,
+  styleOptions: PropTypes.array.isRequired,
+  handleAddStyle: PropTypes.func.isRequired,
+  GEOMETRY_TYPE_OPTIONS: PropTypes.array.isRequired,
+  CONDITION_OPTIONS: PropTypes.array.isRequired,
 };
 
 export default memo(RuleEditor);
