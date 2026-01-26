@@ -23,7 +23,7 @@ const StyledTextInput = styled.textarea`
 // loop through the properties of a source type and extract potential settings and placeholders, setting new values from existing values if applicable
 const generatePropertiesArrayWithValues = (
   sourceProperties,
-  existingPropertyValues
+  existingPropertyValues,
 ) => {
   const properties = [];
   const placeholders = [];
@@ -111,7 +111,7 @@ const SourcePane = ({
       const { properties, placeholders, types } =
         generatePropertiesArrayWithValues(
           sourcePropertiesOptions[sourceProps.type],
-          sourceProps.props
+          sourceProps.props,
         );
       setSourceProperties(properties);
       SetPropertyPlaceholders(placeholders);
@@ -173,7 +173,7 @@ const SourcePane = ({
   function handlePropertyChange({ newValue, rowIndex, field }) {
     // update table values
     const updatedSourceProperties = JSON.parse(
-      JSON.stringify(sourceProperties)
+      JSON.stringify(sourceProperties),
     );
     updatedSourceProperties[rowIndex][field] = newValue;
     setSourceProperties(updatedSourceProperties);
@@ -195,7 +195,7 @@ const SourcePane = ({
     const { properties, placeholders, types } =
       generatePropertiesArrayWithValues(
         sourcePropertiesOptions[e.value],
-        sourceProps.props
+        sourceProps.props,
       );
     setSourceProperties(properties);
     SetPropertyPlaceholders(placeholders);
@@ -203,13 +203,19 @@ const SourcePane = ({
 
     // update layer source props
     const parsedSourceProps = parsePropertiesArray(properties);
-    setSourceProps((previousSourceProps) => ({
-      ...previousSourceProps,
-      ...{
-        type: e.value,
-        props: removeEmptyValues(parsedSourceProps),
-      },
-    }));
+    setSourceProps((previousSourceProps) => {
+      if ("geojson" in previousSourceProps) {
+        delete previousSourceProps.geojson;
+      }
+
+      return {
+        ...previousSourceProps,
+        ...{
+          type: e.value,
+          props: removeEmptyValues(parsedSourceProps),
+        },
+      };
+    });
 
     // reset attribute variable and omitted popup attributes since the source has changed
     setAttributeProps({});

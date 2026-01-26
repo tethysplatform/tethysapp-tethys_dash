@@ -111,7 +111,7 @@ it("Initializes a Base Item with an empty div", async () => {
           shouldLoad={true}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByTestId("Source_Unknown")).toBeInTheDocument();
@@ -132,10 +132,10 @@ it("Initializes a Base Item with an empty div and updates it with an image and p
             data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
             viz_type: "image",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -149,7 +149,7 @@ it("Initializes a Base Item with an empty div and updates it with an image and p
           shouldLoad={true}
         />
       ),
-    })
+    }),
   );
 
   await waitFor(() => {
@@ -172,7 +172,7 @@ it("Initializes a Base Item with an empty div and updates it with an image and p
   });
 
   const progressMessage2 = await screen.findByText(
-    "Progress Bar Testing With Percent..."
+    "Progress Bar Testing With Percent...",
   );
   expect(progressMessage2).toBeInTheDocument();
   expect(screen.getByRole("progressbar")).toBeInTheDocument();
@@ -180,7 +180,7 @@ it("Initializes a Base Item with an empty div and updates it with an image and p
 
   const image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
-    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
   );
 });
 
@@ -195,7 +195,7 @@ it("Creates an Base Item with a Custom Image but does not load", async () => {
           shouldLoad={false}
         />
       ),
-    })
+    }),
   );
 
   const spinner = await screen.findByTestId("Loading...");
@@ -216,7 +216,7 @@ it("Creates an Base Item with a Custom Image", async () => {
           shouldLoad={true}
         />
       ),
-    })
+    }),
   );
 
   const image = await screen.findByAltText("custom_image");
@@ -238,11 +238,11 @@ it("Creates an Base Item with a Custom Image", async () => {
           shouldLoad={true}
         />
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("test_variable variable is empty")
+    await screen.findByText("test_variable variable is empty"),
   ).toBeInTheDocument();
 
   mockedCustomImageBase.metadata_string = JSON.stringify({
@@ -261,7 +261,7 @@ it("Creates an Base Item with a Custom Image", async () => {
           shouldLoad={true}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("missing variable")).toBeInTheDocument();
@@ -279,7 +279,7 @@ it("Creates an Base Item with a Text Box", async () => {
           shouldLoad={true}
         />
       ),
-    })
+    }),
   );
 
   const text = await screen.findByText("Custom Text");
@@ -302,7 +302,7 @@ it("Creates an Base Item with a Map", async () => {
           />
         </div>
       ),
-    })
+    }),
   );
 
   const mapDiv = await screen.findByLabelText("Map Div");
@@ -311,7 +311,7 @@ it("Creates an Base Item with a Map", async () => {
 
   expect(await screen.findByLabelText("Map Legend")).toBeInTheDocument();
   expect(
-    await screen.findByLabelText("Show Layers Control")
+    await screen.findByLabelText("Show Layers Control"),
   ).toBeInTheDocument();
 });
 
@@ -340,10 +340,10 @@ it("Creates an Base Item with a Live Chat", async () => {
             },
             viz_type: "Live Chat",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -359,7 +359,7 @@ it("Creates an Base Item with a Live Chat", async () => {
           />
         </div>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByLabelText("Change Username")).toBeInTheDocument();
@@ -387,7 +387,7 @@ it("Creates an Base Item with a variable input text box", async () => {
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   expect(await screen.findByText("Test Variable")).toBeInTheDocument();
@@ -398,7 +398,7 @@ it("Creates an Base Item with a variable input text box", async () => {
 
   expect(variableInput).toHaveValue("Hello World");
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "" })
+    JSON.stringify({ "Test Variable": "" }),
   );
 
   const refreshButton = screen.getByRole("button");
@@ -406,7 +406,7 @@ it("Creates an Base Item with a variable input text box", async () => {
   await user.click(refreshButton);
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "Hello World" })
+    JSON.stringify({ "Test Variable": "Hello World" }),
   );
 });
 
@@ -425,10 +425,10 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
             data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
             viz_type: "image",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
@@ -447,7 +447,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
           shouldLoad={true}
         />
       ),
-    })
+    }),
   );
 
   const spinner = await screen.findByTestId("Loading...");
@@ -459,7 +459,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
 
   const image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
-    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
   );
   expect(utilities.getVisualization).toHaveBeenCalledTimes(2);
 
@@ -469,7 +469,7 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
   });
 
   expect(image.src).toBe(
-    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
   );
   expect(utilities.getVisualization).toHaveBeenCalledTimes(3);
 
@@ -489,10 +489,10 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
             data: "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
             viz_type: "image",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   const apiImageBase = JSON.parse(JSON.stringify(mockedApiImageBase));
@@ -512,12 +512,12 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
         />
       ),
       options: { inEditing: true },
-    })
+    }),
   );
 
   const image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
-    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
   );
 
   // for refresh rate of 1 minute, doesnt update after 50 seconds
@@ -548,10 +548,10 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
             data: mockedPlotData,
             viz_type: "plotly",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -565,7 +565,7 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
           shouldLoad={true}
         />
       ),
-    })
+    }),
   );
 
   const spinner = await screen.findByTestId("Loading...");
@@ -588,10 +588,10 @@ it("Creates an Base Item with a custom module obtained from the api", async () =
             data: mockedCustomData,
             viz_type: "custom",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -605,7 +605,7 @@ it("Creates an Base Item with a custom module obtained from the api", async () =
           shouldLoad={true}
         />
       ),
-    })
+    }),
   );
 
   const spinner = await screen.findByTestId("Loading...");
@@ -628,10 +628,10 @@ it("Creates an Base Item with a table obtained from the api", async () => {
             data: mockedTableData,
             viz_type: "table",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -645,7 +645,7 @@ it("Creates an Base Item with a table obtained from the api", async () => {
           shouldLoad={true}
         />
       ),
-    })
+    }),
   );
 
   const spinner = await screen.findByTestId("Loading...");
@@ -668,10 +668,10 @@ it("Creates an Base Item with a card obtained from the api", async () => {
             data: mockedCardData,
             viz_type: "card",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -685,7 +685,7 @@ it("Creates an Base Item with a card obtained from the api", async () => {
           shouldLoad={true}
         />
       ),
-    })
+    }),
   );
 
   const spinner = await screen.findByTestId("Loading...");
@@ -708,10 +708,10 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
             data: {},
             viz_type: "random_viz_type",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -743,14 +743,14 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
           },
         ],
       },
-    })
+    }),
   );
 
   const spinner = await screen.findByTestId("Loading...");
   expect(spinner).toBeInTheDocument();
 
   const message = await screen.findByText(
-    "random_viz_type visualizations still need to be configured"
+    "random_viz_type visualizations still need to be configured",
   );
   expect(message).toBeInTheDocument();
 });
@@ -767,10 +767,10 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
             data: {},
             viz_type: "",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -802,7 +802,7 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
           },
         ],
       },
-    })
+    }),
   );
 
   const message = await screen.findByText("Failed to retrieve data");
@@ -853,10 +853,10 @@ it("Base - update text variable input", async () => {
             data: "${Test Variable}",
             viz_type: "image",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -884,7 +884,7 @@ it("Base - update text variable input", async () => {
         </>
       ),
       options: { dashboards, initialDashboard: mockedDashboard },
-    })
+    }),
   );
 
   let image = await screen.findByAltText(mockedApiImageBase.source);
@@ -909,7 +909,7 @@ it("Base - update text variable input", async () => {
 
   image = await screen.findByAltText(mockedApiImageBase.source);
   expect(image.src).toBe(
-    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png"
+    "https://www.cnrfc.noaa.gov/images/ensembles/PLBC1.ens_accum10day.png",
   );
 });
 
@@ -987,10 +987,10 @@ it("Base - update date variable input", async () => {
             data: "${Test Variable}",
             viz_type: "text",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -1037,7 +1037,7 @@ it("Base - update date variable input", async () => {
           },
         ],
       },
-    })
+    }),
   );
 
   // check getVisualization call with date
@@ -1060,7 +1060,7 @@ it("Base - update date variable input", async () => {
           "Test Variable": "01/01/2025 12:00 AM",
         },
         vizLoadingIcon: undefined,
-      })
+      }),
     );
   });
 
@@ -1099,7 +1099,7 @@ it("Base - update date variable input", async () => {
           "Test Variable": "01/01/2020 12:00 AM",
         },
         vizLoadingIcon: undefined,
-      })
+      }),
     );
   });
 
@@ -1122,11 +1122,11 @@ it("Base - update date variable input", async () => {
 
   expectedDateString = formatDate(
     addDays(mockDate, -1),
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'"
+    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
   );
   let expectedVariableDateString = formatDate(
     addDays(mockDate, -1),
-    "MM/dd/yyyy h:mm a"
+    "MM/dd/yyyy h:mm a",
   );
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
@@ -1147,7 +1147,7 @@ it("Base - update date variable input", async () => {
           "Test Variable": expectedVariableDateString,
         },
         vizLoadingIcon: undefined,
-      })
+      }),
     );
   });
 
@@ -1175,11 +1175,11 @@ it("Base - update date variable input", async () => {
 
   expectedDateString = formatDate(
     addDays(mockDate, -2),
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'"
+    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
   );
   expectedVariableDateString = formatDate(
     addDays(mockDate, -2),
-    "MM/dd/yyyy h:mm a"
+    "MM/dd/yyyy h:mm a",
   );
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
@@ -1200,7 +1200,7 @@ it("Base - update date variable input", async () => {
           "Test Variable": expectedVariableDateString,
         },
         vizLoadingIcon: undefined,
-      })
+      }),
     );
   });
 
@@ -1283,10 +1283,10 @@ it("Base - initial relative date variable input", async () => {
             data: "${Test Variable}",
             viz_type: "text",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -1333,7 +1333,7 @@ it("Base - initial relative date variable input", async () => {
           },
         ],
       },
-    })
+    }),
   );
 
   const refreshButton = await screen.findByLabelText("Refresh variable input");
@@ -1342,7 +1342,7 @@ it("Base - initial relative date variable input", async () => {
   // check getVisualization call with date
   let expectedDateString = formatDate(
     mockDate,
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'"
+    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
   );
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
@@ -1363,7 +1363,7 @@ it("Base - initial relative date variable input", async () => {
           "Test Variable": "now",
         },
         vizLoadingIcon: undefined,
-      })
+      }),
     );
   });
 
@@ -1391,11 +1391,11 @@ it("Base - initial relative date variable input", async () => {
 
   expectedDateString = formatDate(
     addDays(mockDate, -1),
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'"
+    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
   );
   const expectedVariableDateString = formatDate(
     addDays(mockDate, -1),
-    "MM/dd/yyyy h:mm a"
+    "MM/dd/yyyy h:mm a",
   );
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
@@ -1416,7 +1416,7 @@ it("Base - initial relative date variable input", async () => {
           "Test Variable": expectedVariableDateString,
         },
         vizLoadingIcon: undefined,
-      })
+      }),
     );
   });
 
@@ -1428,7 +1428,7 @@ it("Base - initial relative date variable input", async () => {
 it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine metadata", async () => {
   const spyAddVerticalLine = jest.spyOn(
     require("components/visualizations/BasePlot"),
-    "addVerticalLine"
+    "addVerticalLine",
   );
   const plotlyMeta = {
     plotlyVerticalLine: {
@@ -1452,10 +1452,10 @@ it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine meta
             data: mockedPlotData,
             viz_type: "plotly",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -1487,7 +1487,7 @@ it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine meta
           },
         ],
       },
-    })
+    }),
   );
 
   const plot = await screen.findByText("bar chart example");
@@ -1542,7 +1542,7 @@ describe("toLocalISO function", () => {
       // Verify the complete format structure
       const completeResult = toLocalISO(baseDate);
       expect(completeResult).toMatch(
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/,
       );
     } finally {
       // Always restore the original method
@@ -1560,7 +1560,7 @@ describe("compareFilteredArgs function", () => {
     const resultWithNull = compareFilteredArgs(
       currentArgs,
       null,
-      keysToCompare
+      keysToCompare,
     );
     expect(resultWithNull).toBe(false); // Different because currentArgs has values but updatedArgs is null
 
@@ -1568,7 +1568,7 @@ describe("compareFilteredArgs function", () => {
     const resultWithUndefined = compareFilteredArgs(
       currentArgs,
       undefined,
-      keysToCompare
+      keysToCompare,
     );
     expect(resultWithUndefined).toBe(false); // Different because currentArgs has values but updatedArgs is undefined
 
@@ -1576,7 +1576,7 @@ describe("compareFilteredArgs function", () => {
     const resultWithEmptyObject = compareFilteredArgs(
       currentArgs,
       {},
-      keysToCompare
+      keysToCompare,
     );
     expect(resultWithEmptyObject).toBe(false); // Different because currentArgs has values but updatedArgs is empty
 
@@ -1585,7 +1585,7 @@ describe("compareFilteredArgs function", () => {
     const resultWithDifferentKeys = compareFilteredArgs(
       currentArgs,
       updatedArgsWithDifferentKeys,
-      keysToCompare
+      keysToCompare,
     );
     expect(resultWithDifferentKeys).toBe(false); // Different because the keys don't match
 
@@ -1594,7 +1594,7 @@ describe("compareFilteredArgs function", () => {
     const resultMatching = compareFilteredArgs(
       currentArgs,
       updatedArgsMatching,
-      keysToCompare
+      keysToCompare,
     );
     expect(resultMatching).toBe(true); // Should match because filtered keys a and b have same values
 
@@ -1603,7 +1603,7 @@ describe("compareFilteredArgs function", () => {
     const resultPartialMatch = compareFilteredArgs(
       currentArgs,
       updatedArgsPartialMatch,
-      keysToCompare
+      keysToCompare,
     );
     expect(resultPartialMatch).toBe(false); // Should not match because b values are different
 
@@ -1612,7 +1612,7 @@ describe("compareFilteredArgs function", () => {
     const resultWithUndefinedValues = compareFilteredArgs(
       currentArgs,
       updatedArgsWithUndefinedValues,
-      keysToCompare
+      keysToCompare,
     );
     expect(resultWithUndefinedValues).toBe(false); // Should not match because b is undefined in updatedArgs but defined in currentArgs
   });
@@ -1625,7 +1625,7 @@ describe("compareFilteredArgs function", () => {
     const resultWithNullCurrent = compareFilteredArgs(
       null,
       updatedArgs,
-      keysToCompare
+      keysToCompare,
     );
     expect(resultWithNullCurrent).toBe(false);
 
@@ -1633,7 +1633,7 @@ describe("compareFilteredArgs function", () => {
     const resultWithUndefinedCurrent = compareFilteredArgs(
       undefined,
       updatedArgs,
-      keysToCompare
+      keysToCompare,
     );
     expect(resultWithUndefinedCurrent).toBe(false);
   });

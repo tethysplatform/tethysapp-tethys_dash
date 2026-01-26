@@ -102,51 +102,84 @@ const StyledContent = styled.div`
   margin-top: 1rem;
 `;
 
-const Popup = ({ layerAttributes }) => (
-  <StyledSwiper
-    modules={[Pagination, Navigation]}
-    navigation={{ nextEl: ".custom-next", prevEl: ".custom-prev" }}
-    pagination={{ el: ".custom-pagination", type: "fraction" }}
-    className="mySwiper"
-  >
-    {layerAttributes.map((selectedFeature, index) => (
-      <MarginSwiperSlide key={index}>
-        <PopupDiv>
-          <div>
-            <p>
-              <b>{selectedFeature.layerName}</b>:
-            </p>
-            <FixedTable striped bordered hover size="sm">
-              <thead>
-                <tr>
-                  <th className="text-center" style={{ width: "33%" }}>
-                    Field
-                  </th>
-                  <th className="text-center" style={{ width: "33%" }}>
-                    Value
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.keys(selectedFeature.attributes).map((field) => (
-                  <tr key={field}>
-                    <OverflowTD>{field}</OverflowTD>
-                    <OverflowTD>{selectedFeature.attributes[field]}</OverflowTD>
+export const Popup = ({ layerAttributes, onSwipe }) => {
+  return (
+    <StyledSwiper
+      modules={[Pagination, Navigation]}
+      navigation={{ nextEl: ".custom-next", prevEl: ".custom-prev" }}
+      pagination={{ el: ".custom-pagination", type: "fraction" }}
+      className="mySwiper"
+      simulateTouch={false}
+      onSlideChange={onSwipe}
+    >
+      {layerAttributes.map((selectedFeature, index) => (
+        <MarginSwiperSlide key={index}>
+          <PopupDiv>
+            <div>
+              <p>
+                <b>{selectedFeature.layerName}</b>:
+              </p>
+              <FixedTable striped bordered hover size="sm">
+                <thead>
+                  <tr>
+                    <th className="text-center" style={{ width: "33%" }}>
+                      Field
+                    </th>
+                    <th className="text-center" style={{ width: "33%" }}>
+                      Value
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </FixedTable>
-          </div>
-        </PopupDiv>
-      </MarginSwiperSlide>
-    ))}
-    <SwiperControls>
-      <SwiperArrows className="custom-prev">❮</SwiperArrows>
-      <SwiperPagination className="custom-pagination"></SwiperPagination>
-      <SwiperArrows className="custom-next">❯</SwiperArrows>
-    </SwiperControls>
-  </StyledSwiper>
-);
+                </thead>
+                <tbody>
+                  {Object.keys(selectedFeature.attributes).map((field) => {
+                    const value = selectedFeature.attributes[field];
+                    // Simple URL regex: matches http(s)://, ftp://, or www.
+                    const urlRegex =
+                      /^(https?:\/\/|ftp:\/\/|www\.)[\w-]+(\.[\w-]+)+([\w\-.,@?^=%&:/~+#]*[\w\-@?^=%&/~+#])?/i;
+                    let renderedValue;
+                    if (typeof value === "string" && urlRegex.test(value)) {
+                      // Ensure protocol for www. links
+                      const href =
+                        value.startsWith("http") || value.startsWith("ftp")
+                          ? value
+                          : `https://${value}`;
+                      renderedValue = (
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {value}
+                        </a>
+                      );
+                    } else {
+                      renderedValue = value;
+                    }
+                    return (
+                      <tr key={field}>
+                        <OverflowTD>{field}</OverflowTD>
+                        <OverflowTD>{renderedValue}</OverflowTD>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </FixedTable>
+            </div>
+          </PopupDiv>
+        </MarginSwiperSlide>
+      ))}
+      <SwiperControls>
+        <SwiperArrows className="custom-prev" aria-label="Previous Swiper">
+          ❮
+        </SwiperArrows>
+        <SwiperPagination className="custom-pagination"></SwiperPagination>
+        <SwiperArrows className="custom-next" aria-label="Next Swiper">
+          ❯
+        </SwiperArrows>
+      </SwiperControls>
+    </StyledSwiper>
+  );
+};
 
 const MapVisualization = ({
   mapConfig,
@@ -165,6 +198,7 @@ const MapVisualization = ({
   const highlightLayer = useRef();
   const currentLayers = useRef([]);
   const currentBaseMap = useRef();
+  const mapAttributeVariablesRef = useRef({});
   const { setVariableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { uuid } = useContext(LayoutContext);
@@ -208,6 +242,7 @@ const MapVisualization = ({
 
     return () => {
       if (visualizationRef?.current) {
+        // known non-coverage for tests
         if (spinnerOverlayRef.current) {
           visualizationRef.current.removeOverlay(spinnerOverlayRef.current);
         }
@@ -223,28 +258,58 @@ const MapVisualization = ({
   useEffect(() => {
     if (popupRootRef.current) {
       popupRootRef.current.render(
-        popupContent ? (
-          <OverlayContentWrapper aria-label="Map Popup" id="map-popup">
-            <StyledCloser
-              href="#"
-              id="popup-closer"
-              className="ol-popup-closer"
-              aria-label="Popup Closer"
-              onClick={(e) => {
-                e.preventDefault();
-                popupOverlayRef.current.setPosition(undefined);
-                setPopupContent(null);
-              }}
-            >
-              <FaTimes />
-            </StyledCloser>
-            <StyledContent aria-label="Map Popup Content" id="popup-content">
-              {popupContent}
-            </StyledContent>
-          </OverlayContentWrapper>
-        ) : null
+        <OverlayContentWrapper aria-label="Map Popup" id="map-popup">
+          <StyledCloser
+            href="#"
+            id="popup-closer"
+            className="ol-popup-closer"
+            aria-label="Popup Closer"
+            onClick={(e) => {
+              e.preventDefault();
+              popupOverlayRef.current.setPosition(undefined);
+              setPopupContent(null);
+            }}
+          >
+            <FaTimes />
+          </StyledCloser>
+          <StyledContent aria-label="Map Popup Content" id="popup-content">
+            {popupContent ? (
+              <Popup layerAttributes={popupContent} onSwipe={onSwipe} />
+            ) : (
+              <CenteredP>No Attributes Found</CenteredP>
+            )}
+          </StyledContent>
+        </OverlayContentWrapper>,
       );
+
+      // Highlight the first feature when the popup is created
+      if (popupContent && popupContent.length > 0) {
+        const selectedFeature = popupContent[0];
+        addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
+
+        // Also update variable inputs for the first feature
+        const layerName = selectedFeature.layerName;
+        const mapAttributeVariables = mapAttributeVariablesRef.current;
+        if (layerName && mapAttributeVariables[layerName]) {
+          let updatedVariableInputs = {};
+          for (const layerAlias in mapAttributeVariables[layerName]) {
+            const variableInputName =
+              mapAttributeVariables[layerName][layerAlias];
+            const featureValue = selectedFeature.attributes[layerAlias];
+            if (featureValue && featureValue !== "Null") {
+              updatedVariableInputs[variableInputName] = featureValue;
+            }
+          }
+          if (Object.keys(updatedVariableInputs).length > 0) {
+            setVariableInputValues((previousVariableInputValues) => ({
+              ...previousVariableInputValues,
+              ...updatedVariableInputs,
+            }));
+          }
+        }
+      }
     }
+    // eslint-disable-next-line
   }, [popupContent]);
 
   useEffect(() => {
@@ -262,11 +327,33 @@ const MapVisualization = ({
           await loadLayerJSONs(layer, uuid);
           if (layer.legend) {
             if (layer.legend === "default") {
-              newMapLegend.push({
-                sourceType: layer.configuration.props.source.type,
-                url: layer.configuration.props.source.props.url,
-                layers: layer.configuration.props.source.props?.params?.LAYERS,
-              });
+              // If the layer has a style JSON, pass it as legend metadata
+              if (layer.configuration.style) {
+                let styleJSON = layer.configuration.style;
+                if (typeof layer.configuration.style === "string") {
+                  try {
+                    styleJSON = JSON.parse(layer.configuration.style);
+                  } catch {
+                    newMapLegend.push(null);
+                  }
+                }
+
+                if (styleJSON && (styleJSON.rules || styleJSON.default)) {
+                  newMapLegend.push({
+                    styleJSON,
+                    title: layer.configuration?.props?.name,
+                  });
+                } else {
+                  newMapLegend.push(null);
+                }
+              } else {
+                newMapLegend.push({
+                  sourceType: layer.configuration.props.source.type,
+                  url: layer.configuration.props.source.props.url,
+                  layers:
+                    layer.configuration.props.source.props?.params?.LAYERS,
+                });
+              }
             } else {
               newMapLegend.push(layer.legend);
             }
@@ -296,6 +383,34 @@ const MapVisualization = ({
     // eslint-disable-next-line
   }, [layers, baseMap]);
 
+  const onSwipe = (swiper) => {
+    const selectedFeature = popupContent[swiper.activeIndex];
+
+    // Update highlights to only show the currently visible feature
+    highlightLayer.current.getSource().clear();
+    addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
+
+    // Use your variable mapping logic here
+    const layerName = selectedFeature.layerName;
+    const mapAttributeVariables = mapAttributeVariablesRef.current;
+    if (layerName && mapAttributeVariables[layerName]) {
+      let updatedVariableInputs = {};
+      for (const layerAlias in mapAttributeVariables[layerName]) {
+        const variableInputName = mapAttributeVariables[layerName][layerAlias];
+        const featureValue = selectedFeature.attributes[layerAlias];
+        if (featureValue && featureValue !== "Null") {
+          updatedVariableInputs[variableInputName] = featureValue;
+        }
+      }
+      if (Object.keys(updatedVariableInputs).length > 0) {
+        setVariableInputValues((previousVariableInputValues) => ({
+          ...previousVariableInputValues,
+          ...updatedVariableInputs,
+        }));
+      }
+    }
+  };
+
   const onMapClick = async (map, evt) => {
     // known non-coverage for tests
     if (drawing.current || isProcessing) return;
@@ -322,7 +437,7 @@ const MapVisualization = ({
     map.addLayer(newMarkerLayer);
 
     const queryableLayers = layers.filter(
-      (item) => !(item.queryable === false)
+      (item) => !(item.queryable === false),
     );
 
     // reduce the layer attributes variables values into a simplified object of layer names and then values
@@ -349,8 +464,9 @@ const MapVisualization = ({
         }
         return combined;
       },
-      {}
+      {},
     );
+    mapAttributeVariablesRef.current = mapAttributeVariables;
 
     // reduce the layer omitted popup attribute values into a simplified object of layer names and then values
     const mapOmittedPopupAttributes = queryableLayers.reduce(
@@ -364,7 +480,7 @@ const MapVisualization = ({
         }
         return combined;
       },
-      {}
+      {},
     );
 
     // query the layers
@@ -378,54 +494,18 @@ const MapVisualization = ({
             Array.isArray(layerFeatures) &&
             layerFeatures.length > 0
           ) {
-            let updatedVariableInputs = {};
             for (const layerFeature of layerFeatures) {
-              addHighlightFeatures(
-                highlightLayer.current,
-                layerFeature.geometry
-              );
-
               const layerName = layerFeature.layerName;
-
-              if (layerName in mapAttributeVariables) {
-                const mappedLayerVariableInputs = {};
-                // check each layer attribute variable to see if the features have valid values
-                for (const layerAlias in mapAttributeVariables[layerName]) {
-                  const variableInputName =
-                    mapAttributeVariables[layerName][layerAlias];
-                  const featureValue = layerFeature.attributes[layerAlias];
-                  // if the selected feature value is not undefined or "Null" then add it
-                  if (featureValue && featureValue !== "Null") {
-                    mappedLayerVariableInputs[variableInputName] = featureValue;
-                  }
-                }
-                // Once a selected feature has a valid value for variable input, go to the next variable input
-                if (Object.keys(mappedLayerVariableInputs).length > 0) {
-                  updatedVariableInputs = {
-                    ...updatedVariableInputs,
-                    ...mappedLayerVariableInputs,
-                  };
-                }
-              }
-
               const aliasMap = mapAttributeAliases[layerName] || {};
               const omittedFields = mapOmittedPopupAttributes[layerName] || [];
 
               const newLayerAttributes = Object.fromEntries(
                 Object.entries(layerFeature.attributes)
                   .filter(([key]) => !omittedFields.includes(key))
-                  .map(([key, value]) => [aliasMap[key] || key, value])
+                  .map(([key, value]) => [aliasMap[key] || key, value]),
               );
 
               layerFeature.attributes = newLayerAttributes;
-            }
-
-            // if the map click found any variable inputs to update, then do it
-            if (Object.keys(updatedVariableInputs).length > 0) {
-              setVariableInputValues((previousVariableInputValues) => ({
-                ...previousVariableInputValues,
-                ...updatedVariableInputs,
-              }));
             }
           }
 
@@ -433,7 +513,7 @@ const MapVisualization = ({
         })
         .catch((error) => {
           console.error("Error:", error);
-        })
+        }),
     );
     const queryLayerFeaturesResults = await Promise.all(queryCalls);
 
@@ -444,27 +524,26 @@ const MapVisualization = ({
     setIsProcessing(false);
 
     const nonEmptyLayers = queryLayerFeaturesResults.filter(
-      (arr) => (arr && Array.isArray(arr) && arr.length > 0) || arr === "zoomed"
+      (arr) =>
+        (arr && Array.isArray(arr) && arr.length > 0) || arr === "zoomed",
     );
     const nonEmptyLayerAttributes = nonEmptyLayers
       .flat()
       .filter(
-        (item) => item !== "zoomed" && Object.keys(item.attributes).length > 0
+        (item) => item !== "zoomed" && Object.keys(item.attributes).length > 0,
       );
 
-    let PopupContent;
+    let popupContent = null;
     let popupCoordinate;
     if (nonEmptyLayers.length === 0) {
-      PopupContent = <CenteredP>No Attributes Found</CenteredP>;
       popupCoordinate = coordinate;
     } else if (nonEmptyLayerAttributes.length === 0) {
-      PopupContent = null;
       popupCoordinate = undefined;
     } else {
-      PopupContent = <Popup layerAttributes={nonEmptyLayerAttributes} />;
+      popupContent = nonEmptyLayerAttributes;
       popupCoordinate = coordinate;
     }
-    setPopupContent(PopupContent);
+    setPopupContent(popupContent);
     popupOverlayRef.current?.setPosition(popupCoordinate);
   };
 
@@ -494,7 +573,7 @@ MapVisualization.propTypes = {
   layers: PropTypes.arrayOf(
     PropTypes.shape({
       configuration: configurationPropType,
-    })
+    }),
   ),
   visualizationRef: PropTypes.shape({ current: PropTypes.any }), // react ref pointing to the ol Map
   baseMap: PropTypes.string, // url for basemap layer, maps to baseMapLayers layers in components/visualizations/utilities.js
@@ -505,6 +584,7 @@ MapVisualization.propTypes = {
 
 Popup.propTypes = {
   layerAttributes: PropTypes.shape({ map: PropTypes.any }),
+  onSwipe: PropTypes.func, // function to call on swipe event
 };
 
 export default memo(MapVisualization);

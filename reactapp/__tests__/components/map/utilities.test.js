@@ -8,6 +8,7 @@ import {
   loadLayerJSONs,
   saveLayerJSON,
   checkForCRS,
+  getStyleFields,
 } from "components/map/utilities";
 import { LineString, Point, MultiPolygon, Polygon } from "ol/geom";
 import VectorLayer from "ol/layer/Vector.js";
@@ -22,6 +23,105 @@ import appAPI from "services/api/app";
 jest.mock("uuid", () => ({
   v4: () => 12345678,
 }));
+
+test("getStyleFields GeoJSON", async () => {
+  const sourceProps = layerConfigGeoJSON.configuration.props.source;
+  const layerName = layerConfigGeoJSON.configuration.props.name;
+  const styleFields = await getStyleFields({
+    sourceProps,
+    layerProps: { name: layerName },
+    dashboard_uuid: "some-uuid",
+  });
+
+  expect(styleFields).toStrictEqual(["Some Field"]);
+});
+
+test("getStyleFields  fails", async () => {
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      ok: false,
+      statusText: "missing",
+    }),
+  );
+
+  const updatedlayerConfigGeoJSON = JSON.parse(
+    JSON.stringify(layerConfigGeoJSON),
+  );
+  const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
+  sourceProps.geojson = "some/url.json";
+  const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
+
+  const styleFields = await getStyleFields({
+    sourceProps,
+    layerProps: { name: layerName },
+    dashboard_uuid: "some-uuid",
+  });
+
+  expect(styleFields).toStrictEqual([]);
+});
+
+test("getStyleFields ESRI Feature Service", async () => {
+  const mockServiceResults = {
+    id: 0,
+    name: "Max Status - Forecast Trend",
+    parentLayerId: -1,
+    defaultVisibility: true,
+    subLayerIds: null,
+    minScale: 0,
+    maxScale: 0,
+    type: "Feature Layer",
+    geometryType: "esriGeometryPoint",
+    supportsDynamicLegends: true,
+    fields: [
+      {
+        name: "nws_name",
+        type: "esriFieldTypeString",
+        alias: "Name",
+        length: 60000,
+        domain: null,
+      },
+      {
+        name: "producer",
+        type: "esriFieldTypeString",
+        alias: "RFC",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    }),
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+
+  const sourceProps =
+    layerConfigArcGISFeatureService.configuration.props.source;
+  const layerName = layerConfigArcGISFeatureService.configuration.props.name;
+
+  const styleFields = await getStyleFields({
+    sourceProps,
+    layerProps: { name: layerName },
+    dashboard_uuid: "some-uuid",
+  });
+
+  expect(styleFields).toStrictEqual(["nws_name", "producer"]);
+});
+
+test("getStyleFields Other Type", async () => {
+  const sourceProps = { type: "Other" };
+  const layerName = "Some Layer";
+  const styleFields = await getStyleFields({
+    sourceProps,
+    layerProps: { name: layerName },
+    dashboard_uuid: "some-uuid",
+  });
+
+  expect(styleFields).toStrictEqual([]);
+});
 
 test("createMarkerLayer", async () => {
   const markerLayer = createMarkerLayer([0, 0]);
@@ -140,7 +240,7 @@ test("createHighlightLayer MultiPolygon", async () => {
   const highlightLayerFeature = highlightLayer.getSource().getFeatures()[0];
 
   expect(highlightLayerFeature.getGeometry() instanceof MultiPolygon).toBe(
-    true
+    true,
   );
 });
 
@@ -248,7 +348,7 @@ test("transformCoordinates error", async () => {
   const destProj = "EPSG:3857";
 
   expect(() => transformCoordinates(coords, sourceProj, destProj)).toThrow(
-    "Invalid coordinate structure"
+    "Invalid coordinate structure",
   );
 });
 
@@ -276,7 +376,7 @@ test("queryLayerFeatures No Feature Found", async () => {
     layerConfigGeoJSON,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   expect(features).toStrictEqual([]);
@@ -318,7 +418,7 @@ test("queryLayerFeatures Highlight Layer Found", async () => {
     layerConfigGeoJSON,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   expect(features).toStrictEqual([]);
@@ -360,7 +460,7 @@ test("queryLayerFeatures Valid GeoJSON Found", async () => {
     layerConfigGeoJSON,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   expect(features).toStrictEqual([
@@ -403,7 +503,7 @@ test("queryLayerFeatures Valid GeoJSON No Features Found", async () => {
     layerConfigGeoJSON,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   expect(features).toStrictEqual([]);
@@ -477,7 +577,7 @@ test("queryLayerFeatures Valid GeoJSON GeometryCollection Found", async () => {
     layerConfigGeoJSON,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   expect(features).toStrictEqual([
@@ -548,7 +648,7 @@ test("queryLayerFeatures Valid GeoJSON GeometryCollection Found No Points Close 
     layerConfigGeoJSON,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   expect(features).toStrictEqual([]);
@@ -617,7 +717,7 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
         Promise.resolve({
           results: mockArgisResults,
         }),
-    })
+    }),
   );
 
   const mockMap = {
@@ -660,7 +760,7 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
     layerConfigImageArcGISRest,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   const params = new URLSearchParams({
@@ -678,7 +778,7 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
     layerConfigImageArcGISRest.configuration.props.source.props.url +
     "/identify";
   expect(global.fetch).toHaveBeenCalledWith(
-    `${featureQueryUrl}?${params.toString()}`
+    `${featureQueryUrl}?${params.toString()}`,
   );
   expect(features).toStrictEqual(mockArgisResults);
 
@@ -730,7 +830,7 @@ test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
     layerConfigImageArcGISRest,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   const params = new URLSearchParams({
@@ -748,7 +848,7 @@ test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
     layerConfigImageArcGISRest.configuration.props.source.props.url +
     "/identify";
   expect(global.fetch).toHaveBeenCalledWith(
-    `${featureQueryUrl}?${params.toString()}`
+    `${featureQueryUrl}?${params.toString()}`,
   );
   expect(features).toStrictEqual(mockArgisResults);
 
@@ -776,7 +876,7 @@ test("queryLayerFeatures ImageArcGISRest with minZoomQuery", async () => {
     layerConfigImageArcGISRest,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   expect(global.fetch).toHaveBeenCalledTimes(0);
@@ -822,7 +922,7 @@ test("queryLayerFeatures ImageWMS", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
       json: () => Promise.resolve(mockfetchResults),
-    })
+    }),
   );
 
   const mockMap = {
@@ -842,7 +942,7 @@ test("queryLayerFeatures ImageWMS", async () => {
     layerConfigImageWMS,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   const params = new URLSearchParams({
@@ -861,7 +961,7 @@ test("queryLayerFeatures ImageWMS", async () => {
   const featureQueryUrl =
     layerConfigImageWMS.configuration.props.source.props.url;
   expect(global.fetch).toHaveBeenCalledWith(
-    `${featureQueryUrl}?${params.toString()}`
+    `${featureQueryUrl}?${params.toString()}`,
   );
 
   const expectedFeatures = [
@@ -919,7 +1019,7 @@ test("queryLayerFeatures ImageWMS Different Projection", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
       json: () => Promise.resolve(mockfetchResults),
-    })
+    }),
   );
 
   const mockMap = {
@@ -939,7 +1039,7 @@ test("queryLayerFeatures ImageWMS Different Projection", async () => {
     layerConfigImageWMS,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   const params = new URLSearchParams({
@@ -958,7 +1058,7 @@ test("queryLayerFeatures ImageWMS Different Projection", async () => {
   const featureQueryUrl =
     layerConfigImageWMS.configuration.props.source.props.url;
   expect(global.fetch).toHaveBeenCalledWith(
-    `${featureQueryUrl}?${params.toString()}`
+    `${featureQueryUrl}?${params.toString()}`,
   );
 
   const expectedFeatures = [
@@ -1003,7 +1103,7 @@ test("queryLayerFeatures ImageWMS Bad Request", async () => {
     layerConfigImageWMS,
     mockMap,
     coordinate,
-    pixel
+    pixel,
   );
 
   const params = new URLSearchParams({
@@ -1022,7 +1122,7 @@ test("queryLayerFeatures ImageWMS Bad Request", async () => {
   const featureQueryUrl =
     layerConfigImageWMS.configuration.props.source.props.url;
   expect(global.fetch).toHaveBeenCalledWith(
-    `${featureQueryUrl}?${params.toString()}`
+    `${featureQueryUrl}?${params.toString()}`,
   );
   expect(features).toStrictEqual(mockfetchResults);
 
@@ -1057,7 +1157,7 @@ test("queryLayerFeatures SourceType Not Configured", async () => {
   const pixel = [639, 366];
 
   await expect(
-    queryLayerFeatures(layerConfig, mockMap, coordinate, pixel)
+    queryLayerFeatures(layerConfig, mockMap, coordinate, pixel),
   ).rejects.toThrow("sdfsdfsdf is not currently configured to be queried");
 });
 
@@ -1102,7 +1202,7 @@ test("getLayerAttributes ImageArcGISRest", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
       json: mockFetch,
-    })
+    }),
   );
   mockFetch.mockResolvedValueOnce(mockServiceResults);
   mockFetch.mockResolvedValueOnce(mockLayerResults);
@@ -1153,7 +1253,7 @@ test("getLayerAttributes ArcGISFeatureService", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
       json: mockFetch,
-    })
+    }),
   );
   mockFetch.mockResolvedValueOnce(mockServiceResults);
 
@@ -1178,7 +1278,7 @@ test("getLayerAttributes ArcGISFeatureService", async () => {
     "/" +
     layerConfigArcGISFeatureService.configuration.props.source.props.layer;
   expect(global.fetch).toHaveBeenCalledWith(
-    `${featureQueryUrl}?${params.toString()}`
+    `${featureQueryUrl}?${params.toString()}`,
   );
 });
 
@@ -1216,7 +1316,7 @@ test("getLayerAttributes ArcGISFeatureService with slash", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
       json: mockFetch,
-    })
+    }),
   );
   mockFetch.mockResolvedValueOnce(mockServiceResults);
 
@@ -1241,7 +1341,7 @@ test("getLayerAttributes ArcGISFeatureService with slash", async () => {
     layerConfigArcGISFeatureService.configuration.props.source.props.url +
     layerConfigArcGISFeatureService.configuration.props.source.props.layer;
   expect(global.fetch).toHaveBeenCalledWith(
-    `${featureQueryUrl}?${params.toString()}`
+    `${featureQueryUrl}?${params.toString()}`,
   );
 });
 
@@ -1253,7 +1353,7 @@ test("getLayerAttributes ImageWMS", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
       text: mockFetch,
-    })
+    }),
   );
   mockFetch.mockResolvedValueOnce(mockInfoResults);
 
@@ -1276,7 +1376,7 @@ test("getLayerAttributes ImageWMS Bad Fetch", async () => {
   const layerName = layerConfigImageWMS.configuration.props.name;
 
   await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
-    "Failed to fetch attribute data for layer 'topp:states'. Check if the layer exists."
+    "Failed to fetch attribute data for layer 'topp:states'. Check if the layer exists.",
   );
 });
 
@@ -1288,7 +1388,7 @@ test("getLayerAttributes ImageWMS XML Error", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
       text: mockFetch,
-    })
+    }),
   );
   mockFetch.mockResolvedValueOnce(mockInfoResults);
 
@@ -1296,7 +1396,7 @@ test("getLayerAttributes ImageWMS XML Error", async () => {
   const layerName = layerConfigImageWMS.configuration.props.name;
 
   await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
-    "WFS DescribeFeatureType request failed for layer 'topp:states'. Ensure WFS is enabled and the layer name is correct."
+    "WFS DescribeFeatureType request failed for layer 'topp:states'. Ensure WFS is enabled and the layer name is correct.",
   );
 });
 
@@ -1308,7 +1408,7 @@ test("getLayerAttributes ImageWMS XML Schema Error", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
       text: mockFetch,
-    })
+    }),
   );
   mockFetch.mockResolvedValueOnce(mockInfoResults);
 
@@ -1316,7 +1416,7 @@ test("getLayerAttributes ImageWMS XML Schema Error", async () => {
   const layerName = layerConfigImageWMS.configuration.props.name;
 
   await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
-    "Unexpected DescribeFeatureType format for layer 'topp:states'."
+    "Unexpected DescribeFeatureType format for layer 'topp:states'.",
   );
 });
 
@@ -1328,7 +1428,7 @@ test("getLayerAttributes ImageWMS XML Bad Fields", async () => {
   global.fetch = jest.fn(() =>
     Promise.resolve({
       text: mockFetch,
-    })
+    }),
   );
   mockFetch.mockResolvedValueOnce(mockInfoResults);
 
@@ -1347,7 +1447,7 @@ test("getLayerAttributes ImageWMS No complexType Type and No element Name", asyn
   global.fetch = jest.fn(() =>
     Promise.resolve({
       text: mockFetch,
-    })
+    }),
   );
   mockFetch.mockResolvedValueOnce(mockInfoResults);
 
@@ -1366,7 +1466,7 @@ test("getLayerAttributes ImageWMS no layers", async () => {
   const layerName = layerConfigImageWMS.configuration.props.name;
 
   await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
-    "No layers specified in source parameters."
+    "No layers specified in source parameters.",
   );
 });
 
@@ -1382,7 +1482,7 @@ test("getLayerAttributes GEOJSON", async () => {
 
 test("getLayerAttributes GEOJSON 2", async () => {
   const updatedlayerConfigGeoJSON = JSON.parse(
-    JSON.stringify(layerConfigGeoJSON)
+    JSON.stringify(layerConfigGeoJSON),
   );
   const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
   sourceProps.geojson = JSON.stringify(sourceProps.geojson);
@@ -1430,11 +1530,11 @@ test("getLayerAttributes GEOJSON URL", async () => {
     Promise.resolve({
       ok: true,
       text: () => Promise.resolve(JSON.stringify(mockfetchResults)),
-    })
+    }),
   );
 
   const updatedlayerConfigGeoJSON = JSON.parse(
-    JSON.stringify(layerConfigGeoJSON)
+    JSON.stringify(layerConfigGeoJSON),
   );
   const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
   sourceProps.geojson = "some/url.json";
@@ -1454,24 +1554,24 @@ test("getLayerAttributes GEOJSON Missing URL", async () => {
     Promise.resolve({
       ok: false,
       statusText: "missing",
-    })
+    }),
   );
 
   const updatedlayerConfigGeoJSON = JSON.parse(
-    JSON.stringify(layerConfigGeoJSON)
+    JSON.stringify(layerConfigGeoJSON),
   );
   const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
   sourceProps.geojson = "some/url.json";
   const layerName = updatedlayerConfigGeoJSON.configuration.props.name;
 
   await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
-    "Failed to fetch: missing"
+    "Failed to fetch: missing",
   );
 });
 
 test("getLayerAttributes GEOJSON no features", async () => {
   const updatedlayerConfigGeoJSON = JSON.parse(
-    JSON.stringify(layerConfigGeoJSON)
+    JSON.stringify(layerConfigGeoJSON),
   );
   const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
   delete sourceProps.geojson.features;
@@ -1483,7 +1583,7 @@ test("getLayerAttributes GEOJSON no features", async () => {
 
 test("getLayerAttributes GEOJSON no feature properties", async () => {
   const updatedlayerConfigGeoJSON = JSON.parse(
-    JSON.stringify(layerConfigGeoJSON)
+    JSON.stringify(layerConfigGeoJSON),
   );
   const sourceProps = updatedlayerConfigGeoJSON.configuration.props.source;
   sourceProps.geojson.features = [
@@ -1505,7 +1605,7 @@ test("getLayerAttributes Error", async () => {
   const sourceProps = { type: "bad type", props: {} };
   const layerName = "test";
   await expect(getLayerAttributes(sourceProps, layerName)).rejects.toThrow(
-    "bad type is not currently configured to be queried"
+    "bad type is not currently configured to be queried",
   );
 });
 
@@ -1726,7 +1826,7 @@ test("loadLayerJSONs urls", async () => {
   const geoJSONWithCRS = JSON.parse(JSON.stringify(geojson));
   geoJSONWithCRS.crs = { properties: { name: "EPSG:4326" } };
   expect(mapLayer.configuration.props.source.geojson).toStrictEqual(
-    geoJSONWithCRS
+    geoJSONWithCRS,
   );
   expect(response.success).toBe(true);
 });
@@ -1784,7 +1884,7 @@ test("loadLayerJSONs urls cant get crs", async () => {
   expect(mapLayer.configuration.props.source.geojson).toStrictEqual(undefined);
   expect(response.success).toBe(false);
   expect(response.message).toBe(
-    "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson."
+    "Failed to fetch: GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson.",
   );
 });
 
@@ -1811,7 +1911,7 @@ test("loadLayerJSONs urls keep urls", async () => {
 
   expect(mapLayer.configuration.style).toStrictEqual(styleFile);
   expect(mapLayer.configuration.props.source.geojson).toStrictEqual(
-    geojsonFile
+    geojsonFile,
   );
   expect(response.success).toBe(true);
 });
@@ -1955,6 +2055,24 @@ test("saveLayerJSON stringified Object", async () => {
   expect(response.filename).toBe("some_file.json");
 });
 
+test("saveLayerJSON double quote url", async () => {
+  const style = '"some/url/file.json"';
+
+  global.fetch = jest.fn().mockResolvedValueOnce({
+    ok: true,
+    text: () => Promise.resolve(JSON.stringify({})),
+  });
+
+  const response = await saveLayerJSON({
+    stringJSON: style,
+    csrf: "12345",
+    check_crs: false,
+  });
+
+  expect(response.success).toBe(true);
+  expect(response.filename).toBe("some/url/file.json");
+});
+
 test("saveLayerJSON url", async () => {
   const style = "some/url/file.json";
 
@@ -1988,7 +2106,7 @@ test("saveLayerJSON url fail", async () => {
 
   expect(response.success).toBe(false);
   expect(response.message).toBe(
-    "Invalid JSON or failed to fetch/parse the file."
+    "Invalid JSON or failed to fetch/parse the file.",
   );
 });
 
@@ -2006,7 +2124,7 @@ test("saveLayerJSON geojson crs null", async () => {
 
   expect(response.success).toBe(false);
   expect(response.message).toBe(
-    "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson."
+    "GeoJSON does include a crs key and CRS could not be inferred from the data. Must be a valid geojson.",
   );
 });
 

@@ -40,7 +40,7 @@ const TestingComponent = ({ mapProps }) => {
         JSON.stringify({
           zoom: newView.getZoom(),
           center: newView.getCenter(),
-        })
+        }),
       );
     }
     // eslint-disable-next-line
@@ -78,13 +78,13 @@ test("Default Map", async () => {
       JSON.stringify({
         zoom: 4.5,
         center: [-10686671.12, 4721671.57],
-      })
+      }),
     );
   });
 
   expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
   expect(
-    screen.queryByLabelText("Show Layers Control")
+    screen.queryByLabelText("Show Layers Control"),
   ).not.toBeInTheDocument();
 });
 
@@ -101,7 +101,7 @@ test("Default Map with layer control and legend", async () => {
 
   expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
   expect(
-    await screen.findByLabelText("Show Layers Control")
+    await screen.findByLabelText("Show Layers Control"),
   ).toBeInTheDocument();
 });
 
@@ -130,7 +130,7 @@ test("Custom Map Config and View Config", async () => {
     JSON.stringify({
       zoom: 7,
       center: [-10686671.12, 4721671.57],
-    })
+    }),
   );
 
   loadedComponent = createLoadedComponent({
@@ -152,7 +152,7 @@ test("Custom Map Config and View Config", async () => {
     JSON.stringify({
       zoom: 8,
       center: [-10686671.12, 4721671.57],
-    })
+    }),
   );
 });
 
@@ -178,7 +178,7 @@ test("Custom bounding old map extent string", async () => {
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
-    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
+    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] }),
   );
 });
 
@@ -204,7 +204,7 @@ test("Custom bounding box map extent", async () => {
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
-    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
+    JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] }),
   );
 });
 
@@ -233,7 +233,7 @@ test("Custom bounding box map extent with variable", async () => {
 
   await waitFor(async () => {
     expect(await screen.findByTestId("map-view")).toHaveTextContent(
-      JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] })
+      JSON.stringify({ zoom: 19.578127880157357, center: [20, 30] }),
     );
   });
 
@@ -256,7 +256,7 @@ test("Custom bounding box map extent with variable", async () => {
           },
         ],
       },
-    })
+    }),
   );
 });
 
@@ -310,7 +310,7 @@ test("Map Layers and Updated Layers", async () => {
   expect(removeLayerSpy.mock.calls.length).toBe(0);
 
   expect(addLayerSpy.mock.calls[0][0].values_.name).toBe(
-    "World Light Gray Base"
+    "World Light Gray Base",
   );
   expect(addLayerSpy.mock.calls[1][0].values_.name).toBe("esri");
 
@@ -424,7 +424,7 @@ test("Map Layers  default invisible layer", async () => {
   });
 
   expect(addLayerSpy.mock.calls[0][0].values_.name).toBe(
-    "World Light Gray Base"
+    "World Light Gray Base",
   );
   expect(addLayerSpy.mock.calls[0][0].isVisible()).toBe(true);
   expect(addLayerSpy.mock.calls[1][0].values_.name).toBe("esri");
@@ -474,13 +474,13 @@ test("Bad Map Layers", async () => {
   const { rerender } = render(loadedComponent);
 
   const warningMessage = await screen.findByText(
-    'Failed to load the "Base Layer, Image Layer" layer(s)'
+    'Failed to load the "Base Layer, Image Layer" layer(s)',
   );
   expect(warningMessage).toBeInTheDocument();
   const alertCloseButton = await screen.findByLabelText("Close alert");
   fireEvent.click(alertCloseButton);
   expect(
-    screen.queryByText('Failed to load the "Base Layer, Image Layer" layer(s)')
+    screen.queryByText('Failed to load the "Base Layer, Image Layer" layer(s)'),
   ).not.toBeInTheDocument();
 
   let updatedLayers = [
@@ -514,7 +514,7 @@ test("Bad Map Layers", async () => {
   });
 
   expect(addLayerSpy.mock.calls[0][0].values_.name).toBe(
-    "World Light Gray Base"
+    "World Light Gray Base",
   );
 
   updatedLayers = [
@@ -552,7 +552,7 @@ test("Bad Map Layers", async () => {
 
   expect(addLayerSpy.mock.calls[1][0].values_.name).toBe("esri");
   expect(removeLayerSpy.mock.calls[0][0].values_.name).toBe(
-    "World Light Gray Base"
+    "World Light Gray Base",
   );
 });
 
@@ -582,7 +582,7 @@ test("Map Layer Styles", async () => {
           <TestingComponent mapProps={{ layers }} />
         </MapContextProvider>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
@@ -592,7 +592,7 @@ test("Map Layer Styles", async () => {
   });
 
   expect(addLayerSpy.mock.calls[0][0].values_.name).toBe(
-    "World Light Gray Base"
+    "World Light Gray Base",
   );
 });
 

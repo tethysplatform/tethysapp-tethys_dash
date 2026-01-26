@@ -1,6 +1,8 @@
 import { memo, useEffect, useState, useRef, useContext } from "react";
 import { Map, View } from "ol";
-import moduleLoader from "components/map/ModuleLoader";
+import moduleLoader, {
+  createJsonStyleFunction,
+} from "components/map/ModuleLoader";
 import LayersControl from "components/map/LayersControl";
 import LegendControl from "components/map/LegendControl";
 import DrawInteractions from "components/map/DrawInteractions";
@@ -169,35 +171,26 @@ const MapComponent = ({
       const map = visualizationRef.current;
       const currentMapLayers = map.getLayers().getArray();
 
-      // Remove only layers not in the new config
-      const layersToRemove = [];
+      // Clean up layers: determine which to keep and which to remove
       const layersToKeep = [];
-      if (currentLayers.current.length !== 0) {
-        (layers ?? []).forEach((layer) => {
-          const matchingLayer = currentLayers.current.find((currentLayer) =>
-            valuesEqual(layer.props, currentLayer.props)
-          );
-
-          if (matchingLayer) {
-            layersToKeep.push(layer.props.name);
-          }
-        });
-
+      const layersToRemove = [];
+      if (currentLayers.current.length) {
+        const newLayerProps = (layers ?? []).map((l) => l.props);
         currentLayers.current.forEach((currentLayer) => {
-          const isStillUsed = (layers ?? []).find((layer) =>
-            valuesEqual(layer.props, currentLayer.props)
-          );
-
-          if (!isStillUsed) {
-            layersToRemove.push(currentLayer.props.name);
+          const shouldKeep =
+            newLayerProps.some((newProps) =>
+              valuesEqual(newProps, currentLayer.props),
+            ) && currentLayer.type !== "VectorLayer";
+          if (shouldKeep) {
+            layersToKeep.push(currentLayer.props.name);
           }
         });
 
-        // Remove layers from the map that are in layersToRemove
+        // Remove layers from the map that are not in layersToKeep
         currentMapLayers.forEach((layer) => {
           const layerName = layer.get("name");
-          if (layersToRemove.includes(layerName)) {
-            map.removeLayer(layer);
+          if (!layersToKeep.includes(layerName)) {
+            layersToRemove.push(layer);
           }
         });
       }
@@ -217,7 +210,7 @@ const MapComponent = ({
           try {
             const newLayer = await moduleLoader(
               layerConfig,
-              map.getView().getProjection().getCode()
+              map.getView().getProjection().getCode(),
             );
             newLayer.set("name", name);
 
@@ -232,21 +225,36 @@ const MapComponent = ({
 
             if (layerConfig.style) {
               try {
-                await applyStyle(newLayer, layerConfig.style, name);
+                await applyStyle(newLayer, layerConfig.style);
               } catch (err) {
-                console.log(err);
+                if (
+                  err.message !==
+                  "Cannot read properties of undefined (reading 'crs')"
+                ) {
+                  const styleFunction = createJsonStyleFunction(
+                    layerConfig.style,
+                  );
+                  if (typeof newLayer.setStyle === "function") {
+                    newLayer.setStyle(styleFunction);
+                  }
+                }
               }
             }
           } catch (err) {
             console.log(err);
             failedLayers.push(name);
           }
-        })
+        }),
       );
+
+      // Remove layers that are no longer needed
+      layersToRemove.forEach((layer) => {
+        map.removeLayer(layer);
+      });
 
       if (failedLayers.length > 0) {
         setErrorMessage(
-          `Failed to load the "${failedLayers.join(", ")}" layer(s)`
+          `Failed to load the "${failedLayers.join(", ")}" layer(s)`,
         );
       }
 
@@ -257,7 +265,7 @@ const MapComponent = ({
           if (onMapClickCurrent.current) {
             visualizationRef.current.un(
               "singleclick",
-              onMapClickCurrent.current
+              onMapClickCurrent.current,
             );
           }
           onMapClickCurrent.current = async function (evt) {
@@ -357,7 +365,7 @@ MapComponent.propTypes = {
   layers: PropTypes.arrayOf(
     PropTypes.shape({
       configuration: configurationPropType,
-    })
+    }),
   ),
   legend: PropTypes.arrayOf(legendPropType),
   layerControl: PropTypes.bool, // deterimines if a layer control menu should be present

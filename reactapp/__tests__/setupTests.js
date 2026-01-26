@@ -16,6 +16,7 @@ const originalError = console.error.bind(console.error);
 const originalEnv = process.env;
 
 global.WebSocket = MockWebSocket;
+global.createPatternMock = jest.fn(() => ({}));
 global.__wsInstances = [];
 
 beforeEach(() => {
@@ -31,7 +32,7 @@ beforeAll(() => {
       !args
         .toString()
         .includes(
-          "Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`."
+          "Warning: `ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`.",
         ) &&
       !args.toString().includes("act(...)")
     ) {
@@ -79,5 +80,6 @@ HTMLCanvasElement.prototype.getContext = function () {
     fill: () => {},
     arc: () => {},
     clip: () => {},
+    createPattern: global.createPatternMock,
   };
 };

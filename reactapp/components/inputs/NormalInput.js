@@ -9,18 +9,21 @@ const NormalInput = ({
   ariaLabel,
   placeholder,
   divProps,
+  labelProps,
 }) => {
   return (
     <div {...divProps}>
       {label && (
-        <Form.Label className="no-caret">
+        <Form.Label className="no-caret" {...labelProps}>
           <b>{label}</b>:
         </Form.Label>
       )}
       <Form.Control
         aria-label={ariaLabel || label + " Input"}
         type={type}
-        onChange={onChange}
+        onChange={(e) => {
+          onChange(e);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault(); // prevents submitting form on enter
@@ -41,6 +44,7 @@ NormalInput.propTypes = {
   value: PropTypes.oneOfType([PropTypes.number, PropTypes.string]), // state for input value
   type: PropTypes.string, // type of input to use
   divProps: PropTypes.object, // additional props to pass to the parent div
+  labelProps: PropTypes.object, // additional props to pass to the label
 };
 
 export default NormalInput;

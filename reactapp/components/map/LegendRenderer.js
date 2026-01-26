@@ -1,14 +1,20 @@
 import { useEffect, useState, memo } from "react";
 import PropTypes from "prop-types";
-import { RiRectangleFill } from "react-icons/ri";
-import { IoAnalyticsOutline } from "react-icons/io5";
+import { RiRectangleFill, RiAddFill } from "react-icons/ri";
 import {
   BsFillTriangleFill,
   BsFillSquareFill,
   BsFillCircleFill,
+  BsFillStarFill,
+  BsDiamondFill,
 } from "react-icons/bs";
 import { legendPropType } from "components/map/utilities";
 import styled from "styled-components";
+import { defaultFill, defaultStroke } from "components/inputs/RuleEditor.js";
+
+const RotatedAdd = styled(RiAddFill)`
+  transform: rotate(45deg);
+`;
 
 const RightTriangle = styled(BsFillTriangleFill)`
   transform: rotate(90deg);
@@ -25,22 +31,15 @@ const LeftTriangle = styled(BsFillTriangleFill)`
 export const legendSymbols = {
   square: BsFillSquareFill,
   circle: BsFillCircleFill,
-  upTriangle: BsFillTriangleFill,
+  triangle: BsFillTriangleFill,
   rightTriangle: RightTriangle,
   downTriangle: DownTriangle,
   leftTriangle: LeftTriangle,
   rectangle: RiRectangleFill,
-  line: IoAnalyticsOutline,
-};
-
-export const LegendSymbol = ({ symbol, color, ...rest }) => {
-  const isValidSymbol = symbol in legendSymbols;
-  const SymbolComponent = isValidSymbol
-    ? legendSymbols[symbol]
-    : BsFillSquareFill;
-  const label = `${color}-${isValidSymbol ? symbol : "square"}`;
-
-  return <SymbolComponent aria-label={label} color={color} {...rest} />;
+  star: BsFillStarFill,
+  diamond: BsDiamondFill,
+  cross: RiAddFill,
+  x: RotatedAdd,
 };
 
 const LegendWrapper = styled.div`
@@ -129,6 +128,216 @@ const parseLayerFilter = (raw, allLayerIds) => {
     .filter((id) => !isNaN(id));
 };
 
+// LegendSymbol supports SVG hatching for polygons
+export const LegendSymbol = ({
+  symbol,
+  color,
+  stroke,
+  polygonFillType,
+  hatchSpacing = 8,
+  hatchDirection = "diagonal",
+  dotSpacing = 8,
+  dotRadius = 2,
+  strokeDash,
+  strokeWidth = 4,
+  ...rest
+}) => {
+  const isPolygonHatch = symbol === "polygon" && polygonFillType === "hatch";
+  const isPolygonDot = symbol === "polygon" && polygonFillType === "dot";
+  symbol = symbol === "polygon" ? "square" : symbol;
+  const isLineString = symbol === "linestring";
+  const effectiveDotSpacing = isNaN(Number(dotSpacing))
+    ? 8
+    : Number(dotSpacing);
+  const effectiveDotRadius = isNaN(Number(dotRadius)) ? 2 : Number(dotRadius);
+  if (isPolygonHatch) {
+    // SVG with hatch pattern supporting direction
+    let patternContent = null;
+    if (hatchDirection === "horizontal") {
+      patternContent = (
+        <line
+          x1="0"
+          y1="0"
+          x2={hatchSpacing}
+          y2="0"
+          stroke={color}
+          strokeWidth="2"
+        />
+      );
+    } else if (hatchDirection === "vertical") {
+      patternContent = (
+        <line
+          x1="0"
+          y1="0"
+          x2="0"
+          y2={hatchSpacing}
+          stroke={color}
+          strokeWidth="2"
+        />
+      );
+    } else if (hatchDirection === "cross") {
+      patternContent = (
+        <>
+          <line
+            x1="0"
+            y1="0"
+            x2={hatchSpacing}
+            y2="0"
+            stroke={color}
+            strokeWidth="2"
+          />
+          <line
+            x1="0"
+            y1="0"
+            x2="0"
+            y2={hatchSpacing}
+            stroke={color}
+            strokeWidth="2"
+          />
+        </>
+      );
+    } else {
+      // diagonal (default)
+      patternContent = (
+        <line
+          x1="0"
+          y1="0"
+          x2="0"
+          y2={hatchSpacing}
+          stroke={color}
+          strokeWidth="2"
+        />
+      );
+    }
+    let patternTransform = undefined;
+    if (hatchDirection === "diagonal") patternTransform = "rotate(45)";
+    return (
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        aria-label="polygon-hatch"
+        style={{
+          border: `1px solid ${stroke || "#222"}`,
+          borderRadius: 2,
+          background: "none",
+        }}
+        {...rest}
+      >
+        <defs>
+          <pattern
+            id="hatch"
+            width={hatchSpacing}
+            height={hatchSpacing}
+            patternTransform={patternTransform}
+            patternUnits="userSpaceOnUse"
+          >
+            {patternContent}
+          </pattern>
+        </defs>
+        <rect
+          x="2"
+          y="2"
+          width="20"
+          height="20"
+          fill={`url(#hatch)`}
+          stroke={stroke || "#222"}
+          strokeWidth="2"
+          rx="2"
+        />
+      </svg>
+    );
+  }
+  if (isPolygonDot) {
+    // SVG with dot pattern
+    return (
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        aria-label="polygon-dot"
+        style={{
+          border: `1px solid ${stroke || "#222"}`,
+          borderRadius: 2,
+          background: "none",
+        }}
+        {...rest}
+      >
+        <defs>
+          <pattern
+            id="dot"
+            width={effectiveDotSpacing}
+            height={effectiveDotSpacing}
+            patternUnits="userSpaceOnUse"
+          >
+            <circle
+              cx={effectiveDotSpacing / 2}
+              cy={effectiveDotSpacing / 2}
+              r={effectiveDotRadius}
+              fill={color}
+            />
+          </pattern>
+        </defs>
+        <rect
+          x="2"
+          y="2"
+          width="20"
+          height="20"
+          fill={`url(#dot)`}
+          stroke={stroke || "#222"}
+          strokeWidth="2"
+          rx="2"
+        />
+      </svg>
+    );
+  }
+  if (isLineString) {
+    // SVG for linestring with strokeDash
+    let dashArray = undefined;
+    if (strokeDash) {
+      dashArray = strokeDash
+        .split(",")
+        .map((v) => parseFloat(v.trim()))
+        .filter((v) => !isNaN(v))
+        .join(" ");
+    }
+    return (
+      <svg
+        width="32"
+        height="12"
+        viewBox="0 0 32 12"
+        aria-label="linestring"
+        style={{ display: "block" }}
+        {...rest}
+      >
+        <line
+          x1="2"
+          y1="6"
+          x2="30"
+          y2="6"
+          stroke={stroke || color}
+          strokeWidth={strokeWidth}
+          strokeDasharray={dashArray}
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+  const isValidSymbol = symbol in legendSymbols;
+  const SymbolComponent = isValidSymbol
+    ? legendSymbols[symbol]
+    : BsFillCircleFill;
+  const label = `${color}-${isValidSymbol ? symbol : "circle"}`;
+  return (
+    <SymbolComponent
+      aria-label={label}
+      color={color}
+      style={stroke ? { stroke: stroke, strokeWidth: 2 } : {}}
+      {...rest}
+    />
+  );
+};
+
 function LegendRenderer({ legend }) {
   const [wmsImages, setWmsImages] = useState([]);
   const [esriItems, setEsriItems] = useState([]);
@@ -165,8 +374,8 @@ function LegendRenderer({ legend }) {
               img.onload = () => resolve(entry);
               img.onerror = reject;
               img.src = entry.url;
-            })
-        )
+            }),
+        ),
       )
         .then((entries) => setWmsImages(entries))
         .catch((err) => {
@@ -183,6 +392,11 @@ function LegendRenderer({ legend }) {
     if (isEsri) {
       setIsLoading(true);
       setError(null);
+      if (!legend.url) {
+        setError("No URL provided for ESRI legend.");
+        setIsLoading(false);
+        return;
+      }
 
       const normalizedUrl = legend.url.replace(/FeatureServer/i, "MapServer");
       const legendUrl = `${normalizedUrl.replace(/\/+$/, "")}/legend?f=json`;
@@ -197,7 +411,7 @@ function LegendRenderer({ legend }) {
             const allLayerIds = data.layers.map((l) => l.layerId);
             const selectedIds = parseLayerFilter(legend.layers, allLayerIds);
             const filtered = data.layers.filter((layer) =>
-              selectedIds.includes(layer.layerId)
+              selectedIds.includes(layer.layerId),
             );
 
             setEsriItems(filtered);
@@ -217,7 +431,7 @@ function LegendRenderer({ legend }) {
 
   if (!legend) return null;
 
-  // 🟢 Custom legend
+  // 🟢 Custom legend (array of items)
   if (legend.items) {
     return (
       <LegendWrapper>
@@ -226,6 +440,125 @@ function LegendRenderer({ legend }) {
           {legend.items.map((item, index) => (
             <LegendItem key={index}>
               <LegendSymbol symbol={item.symbol} color={item.color} />
+              <span>{item.label}</span>
+            </LegendItem>
+          ))}
+        </LegendList>
+      </LegendWrapper>
+    );
+  }
+
+  // 🟡 styleJSON legend (default + rules)
+  if (legend.styleJSON) {
+    const { default: defaultStyles = {}, rules = [] } = legend.styleJSON;
+    // Helper to get a color or fallback
+    const getColor = (obj, key, fallback) => (obj && obj[key]) || fallback;
+    // Helper to get a symbol for legend based on geometry
+    const getSymbol = (obj, geom) => {
+      if (geom === "polygon") return "polygon";
+      if (geom === "linestring") return "linestring";
+      return obj?.shape || "circle";
+    };
+
+    // Compose legend items: default for each geometry, then rules
+    const items = [];
+    // Default styles
+    for (const geom of ["point", "linestring", "polygon"]) {
+      if (defaultStyles[geom]) {
+        const shape = getSymbol(defaultStyles[geom], geom);
+        const iconUrl = defaultStyles[geom].iconUrl;
+        const fillColor = getColor(defaultStyles[geom], "fill", defaultFill);
+        const strokeColor = getColor(
+          defaultStyles[geom],
+          "stroke",
+          defaultStroke,
+        );
+        const polygonFillType = defaultStyles[geom].polygonFillType;
+        const hatchSpacing = defaultStyles[geom].hatchSpacing;
+        const strokeDash = defaultStyles[geom].strokeDash;
+        const strokeWidth = defaultStyles[geom].strokeWidth;
+        const hatchDirection = defaultStyles[geom].hatchDirection;
+        const dotSpacing = defaultStyles[geom].dotSpacing;
+        const dotRadius = defaultStyles[geom].dotRadius;
+        items.push({
+          label: `${geom.charAt(0).toUpperCase() + geom.slice(1)} (Default)`,
+          symbol: shape,
+          color: fillColor,
+          stroke: strokeColor,
+          iconUrl: shape === "icon" && iconUrl ? iconUrl : undefined,
+          polygonFillType,
+          hatchSpacing,
+          hatchDirection,
+          dotSpacing,
+          dotRadius,
+          strokeDash,
+          strokeWidth,
+        });
+      }
+    }
+    // Rules (merge with default for geometry type)
+    for (const rule of rules) {
+      const geom = rule.geometryType || "point";
+      const base = defaultStyles[geom] || {};
+      const merged = { ...base, ...rule };
+      const shape = getSymbol(merged, geom);
+      const iconUrl = merged.iconUrl;
+      const fillColor = getColor(merged, "fill", defaultFill);
+      const strokeColor = getColor(merged, "stroke", defaultStroke);
+      const polygonFillType = merged.polygonFillType;
+      const hatchSpacing = merged.hatchSpacing;
+      const strokeDash = merged.strokeDash;
+      const strokeWidth = merged.strokeWidth;
+      let label = rule.name
+        ? rule.name
+        : rule.conditionField && rule.conditionType && rule.conditionValue
+          ? `${geom.charAt(0).toUpperCase() + geom.slice(1)}: ${rule.conditionField} ${rule.conditionType} ${rule.conditionValue}`
+          : `${geom.charAt(0).toUpperCase() + geom.slice(1)} (Rule)`;
+      const hatchDirection = merged.hatchDirection;
+      const dotSpacing = merged.dotSpacing;
+      const dotRadius = merged.dotRadius;
+      items.push({
+        label,
+        symbol: shape,
+        color: fillColor,
+        stroke: strokeColor,
+        iconUrl: shape === "icon" && iconUrl ? iconUrl : undefined,
+        polygonFillType,
+        hatchSpacing,
+        hatchDirection,
+        dotSpacing,
+        dotRadius,
+        strokeDash,
+        strokeWidth,
+      });
+    }
+    return (
+      <LegendWrapper>
+        {legend.title && <LegendTitle>{legend.title}</LegendTitle>}
+        <LegendList>
+          {items.map((item, idx) => (
+            <LegendItem key={idx}>
+              {item.iconUrl ? (
+                <img
+                  aria-label={`icon-${item.label}`}
+                  src={item.iconUrl}
+                  alt="icon"
+                  style={{ width: 24, height: 24, marginRight: 6 }}
+                />
+              ) : (
+                <LegendSymbol
+                  symbol={item.symbol}
+                  color={item.color}
+                  stroke={item.stroke}
+                  polygonFillType={item.polygonFillType}
+                  hatchSpacing={item.hatchSpacing}
+                  hatchDirection={item.hatchDirection}
+                  dotSpacing={item.dotSpacing}
+                  dotRadius={item.dotRadius}
+                  strokeDash={item.strokeDash}
+                  strokeWidth={item.strokeWidth}
+                />
+              )}
               <span>{item.label}</span>
             </LegendItem>
           ))}
@@ -285,7 +618,15 @@ function LegendRenderer({ legend }) {
 
 LegendSymbol.propTypes = {
   color: PropTypes.string, // legend item color
-  symbol: PropTypes.string, // legend item symbol
+  symbol: PropTypes.string, // legend item
+  stroke: PropTypes.string, // stroke color
+  polygonFillType: PropTypes.string, // "solid", "hatch", "dot" for polygons
+  hatchSpacing: PropTypes.number, // spacing for hatch pattern
+  hatchDirection: PropTypes.string, // direction for hatch pattern
+  dotSpacing: PropTypes.number, // spacing for dot pattern
+  dotRadius: PropTypes.number, // radius for dot pattern
+  strokeDash: PropTypes.string, // stroke dash array for linestrings
+  strokeWidth: PropTypes.number, // stroke width for linestrings
 };
 
 LegendRenderer.propTypes = {

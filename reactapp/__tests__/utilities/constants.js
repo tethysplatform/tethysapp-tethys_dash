@@ -1183,9 +1183,9 @@ export const legendItems = {
       symbol: "circle",
     },
     {
-      label: "upTriangle",
+      label: "triangle",
       color: "#4935d0",
-      symbol: "upTriangle",
+      symbol: "triangle",
     },
     {
       label: "rightTriangle",
