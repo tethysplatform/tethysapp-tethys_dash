@@ -154,6 +154,15 @@ test("Custom Map Config and View Config", async () => {
       center: [-10686671.12, 4721671.57],
     }),
   );
+
+  rerender(loadedComponent); // Rerendering with same props to test stability
+
+  expect(await screen.findByTestId("map-view")).toHaveTextContent(
+    JSON.stringify({
+      zoom: 8,
+      center: [-10686671.12, 4721671.57],
+    }),
+  );
 });
 
 test("Custom bounding old map extent string", async () => {

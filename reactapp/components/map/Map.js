@@ -116,11 +116,12 @@ const MapComponent = ({
     // eslint-disable-next-line
   }, []);
 
+  // Ref to track last applied mapExtent string
+  const lastAppliedExtentRef = useRef(null);
+
   useEffect(() => {
     if (!mapExtent) return;
 
-    const mapViewConfig = new View({ projection });
-    setProjection(mapViewConfig.getProjection().getCode());
     let extent;
     try {
       extent = mapExtent.extent.extent.replaceAll(" ", "");
@@ -131,6 +132,15 @@ const MapComponent = ({
         extent = mapExtent.replaceAll(" ", "");
       }
     }
+
+    // Only update if extent is different from last applied
+    if (lastAppliedExtentRef.current === extent) {
+      return;
+    }
+    lastAppliedExtentRef.current = extent;
+
+    const mapViewConfig = new View({ projection });
+    setProjection(mapViewConfig.getProjection().getCode());
 
     const parts = extent.split(",").map((p) => parseFloat(p.trim()));
     if (parts.length === 3) {
