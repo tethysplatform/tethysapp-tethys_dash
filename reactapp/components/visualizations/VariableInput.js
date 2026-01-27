@@ -50,7 +50,7 @@ const VariableInput = ({
   const { visualizationArgs } = useContext(AppContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { variableInputValues, setVariableInputValues } = useContext(
-    VariableInputsContext
+    VariableInputsContext,
   );
 
   // Initialize updatedMetadata when metadata or variableInputValues change
@@ -58,7 +58,7 @@ const VariableInput = ({
     if (metadata) {
       const newUpdatedMetadata = updateObjectWithVariableInputs(
         { ...metadata },
-        variableInputValues
+        variableInputValues,
       );
       setUpdatedMetadata(newUpdatedMetadata);
     }
@@ -74,7 +74,7 @@ const VariableInput = ({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [variable_name, setVariableInputValues]
+    [variable_name, setVariableInputValues],
   );
 
   useEffect(() => {
@@ -88,7 +88,8 @@ const VariableInput = ({
         nonDropDownVariableInputTypes.some(
           (type) =>
             (typeof type === "string" && type === variable_options_source) ||
-            (typeof type === "object" && type.value === variable_options_source)
+            (typeof type === "object" &&
+              type.value === variable_options_source),
         ) ||
         Array.isArray(variable_options_source)
       ) {
@@ -101,7 +102,7 @@ const VariableInput = ({
           setType(selectedArg.argOptions);
           initialVariableValue = findSelectOptionByValue(
             selectedArg.argOptions,
-            initialVariableValue
+            initialVariableValue,
           );
         } else {
           setType([]);
@@ -167,7 +168,7 @@ const VariableInput = ({
       type,
       inDataViewerMode,
       updateVariableInputs,
-    ]
+    ],
   );
 
   function handleInputRefresh() {
@@ -220,6 +221,19 @@ const VariableInput = ({
           outputFormat={updatedMetadata.outputFormat}
           dataType={updatedMetadata.dataType}
           dateTimeDelta={updatedMetadata?.dateTimeDelta}
+          speeds={
+            Array.isArray(updatedMetadata?.speedOptions)
+              ? updatedMetadata.speedOptions.map((v) => {
+                  // Map value to label
+                  if (v === 2000) return { label: "Extra Slow", value: 2000 };
+                  if (v === 1000) return { label: "Slow", value: 1000 };
+                  if (v === 500) return { label: "Medium", value: 500 };
+                  if (v === 250) return { label: "Fast", value: 250 };
+                  if (v === 100) return { label: "Extra Fast", value: 100 };
+                  return { label: `${v}ms`, value: v };
+                })
+              : undefined
+          }
           onChange={handleInputChange}
         />
       </StyledDiv>
@@ -284,7 +298,7 @@ VariableInput.propTypes = {
       PropTypes.oneOfType([
         PropTypes.string,
         PropTypes.shape({ label: PropTypes.string, value: PropTypes.any }),
-      ])
+      ]),
     ),
   ]), // This is where the name of the source comes in like in the dropdown
   onChange: PropTypes.func,
@@ -303,7 +317,7 @@ VariableInput.propTypes = {
     dataType: PropTypes.string, // For slider metadata
     initialValue: PropTypes.oneOfType([PropTypes.string, PropTypes.number]), // For slider metadata
     initialRange: PropTypes.arrayOf(
-      PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+      PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     ), // For slider metadata
     rangeMode: PropTypes.bool, // For slider metadata
     outputFormat: PropTypes.string, // For slider metadata
@@ -322,7 +336,7 @@ const arePropsEqual = (prevProps, nextProps) => {
     "metadata",
   ];
   return relevantKeys.every((key) =>
-    valuesEqual(prevProps[key], nextProps[key])
+    valuesEqual(prevProps[key], nextProps[key]),
   );
 };
 

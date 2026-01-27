@@ -20,7 +20,7 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
           visualizationRef={null}
         />
       </VariableInputsContext.Provider>
-    </DataViewerModeContext.Provider>
+    </DataViewerModeContext.Provider>,
   );
 
   expect(screen.getByText("Slider Mode")).toBeInTheDocument();
@@ -73,6 +73,7 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
     initialValue: 50,
     step: 1,
     outputFormat: "{{n}}",
+    speedOptions: [2000, 1000, 500, 250, 100],
   });
 
   await selectEvent.select(dataTypeSelect, "Date");
@@ -113,6 +114,39 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
     outputFormat: "MM/dd/yyyy",
     dateTimeDelta: "Days",
     rangeMode: false,
+    speedOptions: [2000, 1000, 500, 250, 100],
+  });
+
+  const extraSlowSpeedOption = screen.getByLabelText(/Extra Slow/i);
+  expect(extraSlowSpeedOption).toBeInTheDocument();
+  await userEvent.click(extraSlowSpeedOption);
+
+  expect(mockOnChange).toHaveBeenCalledTimes(6);
+  expect(mockOnChange).toHaveBeenLastCalledWith({
+    dataType: "Date",
+    min: "01/01/2020 12:00 AM",
+    max: "01/10/2020 12:00 AM",
+    initialValue: "2020-01-05T00:00:00",
+    step: 1,
+    outputFormat: "MM/dd/yyyy",
+    dateTimeDelta: "Days",
+    rangeMode: false,
+    speedOptions: [1000, 500, 250, 100],
+  });
+
+  await userEvent.click(extraSlowSpeedOption);
+
+  expect(mockOnChange).toHaveBeenCalledTimes(7);
+  expect(mockOnChange).toHaveBeenLastCalledWith({
+    dataType: "Date",
+    min: "01/01/2020 12:00 AM",
+    max: "01/10/2020 12:00 AM",
+    initialValue: "2020-01-05T00:00:00",
+    step: 1,
+    outputFormat: "MM/dd/yyyy",
+    dateTimeDelta: "Days",
+    rangeMode: false,
+    speedOptions: [2000, 1000, 500, 250, 100],
   });
 });
 
@@ -135,7 +169,7 @@ test("SliderMetadata with existing number, turn on range mode", async () => {
         values={values}
         visualizationRef={null}
       />
-    </VariableInputsContext.Provider>
+    </VariableInputsContext.Provider>,
   );
 
   expect(screen.getByText("Slider Mode")).toBeInTheDocument();
@@ -190,6 +224,7 @@ test("SliderMetadata with existing number, turn on range mode", async () => {
     initialRange: [20, 80],
     step: 1,
     outputFormat: "{{n}}",
+    speedOptions: [2000, 1000, 500, 250, 100],
   });
 });
 
@@ -215,7 +250,7 @@ test("SliderMetadata with existing date, turn on range mode", async () => {
           visualizationRef={null}
         />
       </VariableInputsContext.Provider>
-    </DataViewerModeContext.Provider>
+    </DataViewerModeContext.Provider>,
   );
 
   expect(screen.getByText("Slider Mode")).toBeInTheDocument();
@@ -271,5 +306,6 @@ test("SliderMetadata with existing date, turn on range mode", async () => {
     outputFormat: "MM/dd/yyyy",
     dateTimeDelta: "Days",
     rangeMode: true,
+    speedOptions: [2000, 1000, 500, 250, 100],
   });
 });

@@ -55,7 +55,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     expect(screen.getByText(/Test Slider/i)).toBeInTheDocument();
@@ -78,7 +78,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     expect(screen.getByText("007F")).toBeInTheDocument();
@@ -98,7 +98,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     expect(screen.getByText("000F - 010F")).toBeInTheDocument();
@@ -121,7 +121,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     expect(screen.getByText(/Test Slider/i)).toBeInTheDocument();
@@ -145,11 +145,11 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "002F - 008F"
+      "002F - 008F",
     );
     await waitFor(() => {
       expect(handleChange).toHaveBeenCalledWith("002F,008F");
@@ -167,11 +167,11 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "000F - 010F"
+      "000F - 010F",
     );
     await waitFor(() => {
       expect(handleChange).toHaveBeenCalledWith("000F,010F");
@@ -188,7 +188,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("000F");
@@ -210,7 +210,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
@@ -237,7 +237,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const firstStep = screen.getByLabelText("go to first");
@@ -263,7 +263,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const firstStep = screen.getByLabelText("go to first");
@@ -288,7 +288,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const previousStep = screen.getByLabelText("previous step");
@@ -314,7 +314,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const previousStep = screen.getByLabelText("previous step");
@@ -339,7 +339,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -365,7 +365,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -390,7 +390,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const lastStep = screen.getByLabelText("go to last");
@@ -416,7 +416,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const lastStep = screen.getByLabelText("go to last");
@@ -444,7 +444,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Days"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const firstStep = screen.getByLabelText("go to first");
@@ -454,7 +454,7 @@ describe("Slider Component", () => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-01");
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-01"
+      "2025-01-01",
     );
   });
 
@@ -475,7 +475,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Days"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const firstStep = screen.getByLabelText("go to first");
@@ -485,7 +485,7 @@ describe("Slider Component", () => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-01,2025-01-02");
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-01 - 2025-01-02"
+      "2025-01-01 - 2025-01-02",
     );
   });
 
@@ -505,7 +505,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Days"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const previousStep = screen.getByLabelText("previous step");
@@ -515,7 +515,7 @@ describe("Slider Component", () => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-02");
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-02"
+      "2025-01-02",
     );
   });
 
@@ -536,7 +536,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Days"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const previousStep = screen.getByLabelText("previous step");
@@ -546,7 +546,7 @@ describe("Slider Component", () => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-02,2025-01-03");
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-02 - 2025-01-03"
+      "2025-01-02 - 2025-01-03",
     );
   });
 
@@ -566,7 +566,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Days"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -576,7 +576,7 @@ describe("Slider Component", () => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-04");
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-04"
+      "2025-01-04",
     );
   });
 
@@ -596,7 +596,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Days"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -604,22 +604,22 @@ describe("Slider Component", () => {
 
     await waitFor(() => {
       expect(handleChange).toHaveBeenLastCalledWith(
-        format(addDays(new Date(), -4), "yyyy-MM-dd")
+        format(addDays(new Date(), -4), "yyyy-MM-dd"),
       );
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      format(addDays(new Date(), -4), "yyyy-MM-dd")
+      format(addDays(new Date(), -4), "yyyy-MM-dd"),
     );
 
     fireEvent.click(nextStep);
 
     await waitFor(() => {
       expect(handleChange).toHaveBeenLastCalledWith(
-        format(addDays(new Date(), -3), "yyyy-MM-dd")
+        format(addDays(new Date(), -3), "yyyy-MM-dd"),
       );
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      format(addDays(new Date(), -3), "yyyy-MM-dd")
+      format(addDays(new Date(), -3), "yyyy-MM-dd"),
     );
   });
 
@@ -639,7 +639,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Hours"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -647,22 +647,22 @@ describe("Slider Component", () => {
 
     await waitFor(() => {
       expect(handleChange).toHaveBeenLastCalledWith(
-        format(addHours(new Date(), -11), "yyyy-MM-dd HH")
+        format(addHours(new Date(), -11), "yyyy-MM-dd HH"),
       );
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      format(addHours(new Date(), -11), "yyyy-MM-dd HH")
+      format(addHours(new Date(), -11), "yyyy-MM-dd HH"),
     );
 
     fireEvent.click(nextStep);
 
     await waitFor(() => {
       expect(handleChange).toHaveBeenLastCalledWith(
-        format(addHours(new Date(), -10), "yyyy-MM-dd HH")
+        format(addHours(new Date(), -10), "yyyy-MM-dd HH"),
       );
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      format(addHours(new Date(), -10), "yyyy-MM-dd HH")
+      format(addHours(new Date(), -10), "yyyy-MM-dd HH"),
     );
   });
 
@@ -683,7 +683,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Days"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -693,7 +693,7 @@ describe("Slider Component", () => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-04,2025-01-05");
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-04 - 2025-01-05"
+      "2025-01-04 - 2025-01-05",
     );
   });
 
@@ -713,7 +713,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Days"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const lastStep = screen.getByLabelText("go to last");
@@ -723,7 +723,7 @@ describe("Slider Component", () => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-05");
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-05"
+      "2025-01-05",
     );
   });
 
@@ -744,7 +744,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Days"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     const lastStep = screen.getByLabelText("go to last");
@@ -754,7 +754,7 @@ describe("Slider Component", () => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-04,2025-01-05");
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-04 - 2025-01-05"
+      "2025-01-04 - 2025-01-05",
     );
   });
 
@@ -774,7 +774,7 @@ describe("Slider Component", () => {
         dateTimeDelta="Days"
         onChange={handleChange}
         debounceDelay={0}
-      />
+      />,
     );
 
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
@@ -785,7 +785,7 @@ describe("Slider Component", () => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-05");
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-05"
+      "2025-01-05",
     );
   });
 
@@ -808,7 +808,7 @@ describe("Slider Component", () => {
         rangeMode={true}
         initialRange={initialRange}
         debounceDelay={0}
-      />
+      />,
     );
 
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
@@ -820,7 +820,7 @@ describe("Slider Component", () => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-08,2025-01-10");
     });
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-08 - 2025-01-10"
+      "2025-01-08 - 2025-01-10",
     );
   });
 
@@ -842,7 +842,7 @@ describe("Slider Component", () => {
         rangeMode={true}
         initialRange={initialRange}
         debounceDelay={0}
-      />
+      />,
     );
 
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
@@ -870,7 +870,7 @@ describe("Slider Component", () => {
         onChange={handleChange}
         speeds={[{ label: "Fast", value: 100 }]}
         debounceDelay={0}
-      />
+      />,
     );
 
     const playBtn = screen.getByRole("button", { name: /play/i });
@@ -904,7 +904,7 @@ describe("Slider Component", () => {
         onChange={handleChange}
         speeds={[{ label: "Fast", value: 100 }]}
         debounceDelay={0}
-      />
+      />,
     );
 
     const playBtn = screen.getByRole("button", { name: /play/i });
@@ -936,7 +936,7 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
-      />
+      />,
     );
 
     const minLabel = screen.getByText("2025-01-01", { selector: "strong" });
@@ -961,17 +961,17 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
-      />
+      />,
     );
 
     const minLabel = screen.getByLabelText("Min Value");
     expect(
-      within(minLabel).getByText("2025-01-01T00:00:00")
+      within(minLabel).getByText("2025-01-01T00:00:00"),
     ).toBeInTheDocument();
 
     const maxLabel = screen.getByLabelText("Max Value");
     expect(
-      within(maxLabel).getByText("2025-01-05T00:00:00")
+      within(maxLabel).getByText("2025-01-05T00:00:00"),
     ).toBeInTheDocument();
 
     expect(handleChange).toHaveBeenCalledWith("2025-01-01T00:00:00");
@@ -996,7 +996,7 @@ describe("Slider Component", () => {
         rangeMode={true}
         initialRange={initialRange}
         debounceDelay={0}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /play/i }));
@@ -1004,7 +1004,7 @@ describe("Slider Component", () => {
 
     // Date should increment by 1 day
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-09 - 2025-01-10"
+      "2025-01-09 - 2025-01-10",
     );
     await waitFor(() => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-09,2025-01-10");
@@ -1014,7 +1014,7 @@ describe("Slider Component", () => {
 
     // Date should increment by 1 day
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-01 - 2025-01-02"
+      "2025-01-01 - 2025-01-02",
     );
     await waitFor(() => {
       expect(handleChange).toHaveBeenLastCalledWith("2025-01-01,2025-01-02");
@@ -1039,7 +1039,7 @@ describe("Slider Component", () => {
         rangeMode={true}
         initialRange={initialRange}
         debounceDelay={0}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /play/i }));
@@ -1078,7 +1078,7 @@ describe("Slider Component", () => {
         rangeMode={true}
         initialRange={initialRange}
         debounceDelay={0}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /play/i }));
@@ -1112,7 +1112,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         speeds={[{ label: "Fast", value: 100 }]}
-      />
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /play/i }));
@@ -1133,7 +1133,7 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={() => {}}
-      />
+      />,
     );
 
     const select = screen.getByLabelText(/speed select/i);
@@ -1156,7 +1156,7 @@ describe("Slider Component", () => {
         dataType="Date"
         dateTimeDelta="Days"
         onChange={handleChange}
-      />
+      />,
     );
 
     const minLabel = screen.getByLabelText("Min Value");
@@ -1166,7 +1166,7 @@ describe("Slider Component", () => {
     expect(within(maxLabel).getByText("2025-01-05")).toBeInTheDocument();
 
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
-      "2025-01-01"
+      "2025-01-01",
     );
     expect(handleChange).toHaveBeenCalledWith("2025-01-01");
   });
@@ -1183,7 +1183,7 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
-      />
+      />,
     );
 
     const minLabel = screen.getByLabelText("Min Value");
@@ -1210,7 +1210,7 @@ describe("Slider Component", () => {
         dataType="Number"
         onChange={handleChange}
         rangeMode={true}
-      />
+      />,
     );
 
     const minLabel = screen.getByLabelText("Min Value");
@@ -1238,7 +1238,7 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
-      />
+      />,
     );
 
     expect(handleChange).toHaveBeenCalledWith("5,6");
@@ -1257,7 +1257,7 @@ describe("Slider Component", () => {
         outputFormat="{{n}}"
         dataType="Number"
         onChange={handleChange}
-      />
+      />,
     );
 
     // The index should not have been updated, so no onChange should be called
@@ -1276,11 +1276,77 @@ describe("Slider Component", () => {
         outputFormat="{{n:2}}" // Different format but same value display for this case
         dataType="Number"
         onChange={handleChange}
-      />
+      />,
     );
 
     // Still no onChange calls should have happened due to index updates
     expect(handleChange).toHaveBeenCalledWith("05,06");
+  });
+
+  it("testing speeds prop", () => {
+    const { rerender } = render(
+      <Slider
+        step={1}
+        min={0}
+        max={10}
+        initialValue={0}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={() => {}}
+        speeds={[
+          { label: "Extra Slow", value: 2000 },
+          { label: "Slow", value: 1000 },
+          { label: "Medium", value: 500 },
+          { label: "Fast", value: 250 },
+          { label: "Extra Fast", value: 100 },
+        ]}
+      />,
+    );
+
+    let select = screen.getByLabelText(/speed select/i);
+    expect(select).toBeInTheDocument();
+    expect(select.children.length).toBe(5);
+    expect(select.children[0].textContent).toBe("Extra Slow");
+    expect(select.children[1].textContent).toBe("Slow");
+    expect(select.children[2].textContent).toBe("Medium");
+    expect(select.children[3].textContent).toBe("Fast");
+    expect(select.children[4].textContent).toBe("Extra Fast");
+    expect(screen.getByText("Extra Slow").selected).toBe(true);
+
+    rerender(
+      <Slider
+        step={1}
+        min={0}
+        max={10}
+        initialValue={0}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={() => {}}
+        speeds={[]}
+      />,
+    );
+
+    expect(screen.queryByLabelText(/speed select/i)).not.toBeInTheDocument();
+
+    rerender(
+      <Slider
+        step={1}
+        min={0}
+        max={10}
+        initialValue={0}
+        outputFormat="{{n}}"
+        dataType="Number"
+        onChange={() => {}}
+      />,
+    );
+
+    select = screen.getByLabelText(/speed select/i);
+    expect(select).toBeInTheDocument();
+    expect(select.children.length).toBe(3);
+    expect(select.children[0].textContent).toBe("Slow");
+    expect(select.children[1].textContent).toBe("Medium");
+    expect(select.children[2].textContent).toBe("Fast");
+    expect(screen.getByText("Slow").selected).toBe(true);
   });
 });
 
@@ -1292,7 +1358,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 1,
       unit: null,
       dataType: "Number",
-    })
+    }),
   ).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   expect(
     calculateSliderValues({
@@ -1301,7 +1367,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 3,
       unit: null,
       dataType: "Number",
-    })
+    }),
   ).toEqual([0, 3, 6, 9, 10]);
 
   expect(
@@ -1311,7 +1377,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 1,
       unit: "Days",
       dataType: "Date",
-    })
+    }),
   ).toEqual([
     "2025-01-01T00:00:00",
     "2025-01-02T00:00:00",
@@ -1326,7 +1392,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 3,
       unit: "Days",
       dataType: "Date",
-    })
+    }),
   ).toEqual([
     "2025-01-01T00:00:00",
     "2025-01-04T00:00:00",
@@ -1339,7 +1405,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 8,
       unit: "Hours",
       dataType: "Date",
-    })
+    }),
   ).toEqual([
     "2025-01-01T00:00:00",
     "2025-01-01T08:00:00",
@@ -1357,7 +1423,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 1,
       unit: "Days",
       dataType: "Date",
-    })
+    }),
   ).toEqual(["now-5D", "now-4D", "now-3D", "now-2D", "now-1D", "now"]);
 
   expect(
@@ -1367,7 +1433,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 1,
       unit: "Hours",
       dataType: "Date",
-    })
+    }),
   ).toEqual([
     "now-24H",
     "now-23H",
@@ -1403,7 +1469,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 1,
       unit: "Hours",
       dataType: "Date",
-    })
+    }),
   ).toEqual([
     "now-25H",
     "now-24H",
@@ -1441,7 +1507,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 3,
       unit: "Days",
       dataType: "Date",
-    })
+    }),
   ).toEqual(["now-5D", "now-2D", "now+1D", "now+2D"]);
 
   // Test for line 180: covers maxVal suffix generation for negative offset (when counting backwards)
@@ -1452,7 +1518,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 2,
       unit: "Days",
       dataType: "Date",
-    })
+    }),
   ).toEqual(["now+2D", "now", "now-2D", "now-3D"]);
 
   // Test for line 204: covers fallback case for unsupported dataType
@@ -1463,7 +1529,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 1,
       unit: null,
       dataType: "String",
-    })
+    }),
   ).toEqual([]);
   expect(
     calculateSliderValues({
@@ -1472,7 +1538,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 1,
       unit: null,
       dataType: "Boolean",
-    })
+    }),
   ).toEqual([]);
   expect(
     calculateSliderValues({
@@ -1481,7 +1547,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 1,
       unit: null,
       dataType: "Object",
-    })
+    }),
   ).toEqual([]);
   expect(
     calculateSliderValues({
@@ -1490,7 +1556,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 1,
       unit: null,
       dataType: undefined,
-    })
+    }),
   ).toEqual([]);
   expect(
     calculateSliderValues({
@@ -1499,7 +1565,7 @@ test("calculateSliderValues returns correct values", () => {
       step: 1,
       unit: null,
       dataType: null,
-    })
+    }),
   ).toEqual([]);
 });
 

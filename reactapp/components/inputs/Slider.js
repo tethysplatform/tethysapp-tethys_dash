@@ -74,7 +74,7 @@ function formatDateValue(date, template) {
   try {
     return formatDate(
       parseDateMath({ value: date, type: "date-hour" }),
-      template
+      template,
     );
   } catch (err) {
     console.error("Date formatting error:", err.message);
@@ -213,7 +213,7 @@ export const calculateSliderValues = ({ min, max, step, unit, dataType }) => {
     return ensureMaxIncluded(
       arr,
       toLocalISOString(maxDate).replace(/\.\d+$/, ""),
-      (a, b) => a.replace(/\.\d+$/, "") === b.replace(/\.\d+$/, "")
+      (a, b) => a.replace(/\.\d+$/, "") === b.replace(/\.\d+$/, ""),
     ).map((d) => d.replace(/\.\d+$/, ""));
   }
   return [];
@@ -242,11 +242,11 @@ const getInitialIndices = (values, initialValue, initialRange, rangeMode) => {
       return [
         Math.max(
           0,
-          values.findIndex((v) => v === initialRange[0])
+          values.findIndex((v) => v === initialRange[0]),
         ),
         Math.max(
           0,
-          values.findIndex((v) => v === initialRange[1])
+          values.findIndex((v) => v === initialRange[1]),
         ),
       ];
     } else {
@@ -281,18 +281,20 @@ const Slider = ({
   const unit = dateTimeDelta;
   const values = useMemo(
     () => calculateSliderValues({ min, max, step, unit, dataType }),
-    [min, max, step, unit, dataType]
+    [min, max, step, unit, dataType],
   );
 
   // Track index/indices
   const [currentIdx, setCurrentIdx] = useState(() =>
-    getInitialIndices(values, initialValue, initialRange, rangeMode)
+    getInitialIndices(values, initialValue, initialRange, rangeMode),
   );
 
   // Debounced version of currentIdx for onChange calls
   const debouncedCurrentIdx = useDebounce(currentIdx, debounceDelay);
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState(speeds[0].value);
+  const [speed, setSpeed] = useState(
+    speeds.length > 0 ? speeds[0].value : 1000,
+  );
   const intervalRef = useRef(null);
   const prev = useRef({
     rangeMode,
@@ -301,6 +303,17 @@ const Slider = ({
     min,
     max,
   });
+
+  // Update speed if speeds prop changes
+  useEffect(() => {
+    if (Array.isArray(speeds) && speeds.length > 0) {
+      setSpeed((prev) => {
+        // If current speed is not in new speeds, reset to first
+        const found = speeds.find((s) => s.value === prev);
+        return found ? prev : speeds[0].value;
+      });
+    }
+  }, [JSON.stringify(speeds)]);
 
   useEffect(() => {
     // Only update index if relevant props changed
@@ -313,7 +326,7 @@ const Slider = ({
       prev.current.valuesLength !== values.length;
     if (shouldUpdate) {
       setCurrentIdx(
-        getInitialIndices(values, initialValue, initialRange, rangeMode)
+        getInitialIndices(values, initialValue, initialRange, rangeMode),
       );
       prev.current = {
         rangeMode,
@@ -340,7 +353,7 @@ const Slider = ({
       const formatted = formatValue(
         values[debouncedCurrentIdx],
         outputFormat,
-        isDateType
+        isDateType,
       );
       onChange(formatted);
     }
@@ -444,6 +457,8 @@ const Slider = ({
     ? `${formatValue(values[currentIdx[0]], outputFormat, isDateType)} - ${formatValue(values[currentIdx[1]], outputFormat, isDateType)}`
     : formatValue(values[currentIdx], outputFormat, isDateType);
 
+  const showPlayControls = Array.isArray(speeds) && speeds.length > 0;
+
   return (
     <>
       {label && (
@@ -455,41 +470,45 @@ const Slider = ({
         {/* Top controls - Play button and Speed selector */}
         <Row className="align-items-center mb-2">
           <Col className="d-flex justify-content-center gap-2">
-            {/* Play/Stop button */}
-            {!playing ? (
-              <Button
-                variant="primary"
-                onClick={() => setPlaying(true)}
-                title="Play"
-                aria-label="play"
-              >
-                ▶️
-              </Button>
-            ) : (
-              <Button
-                variant="danger"
-                onClick={() => setPlaying(false)}
-                title="Stop"
-                aria-label="stop"
-              >
-                ⏹️
-              </Button>
-            )}
+            {showPlayControls && (
+              <>
+                {/* Play/Stop button */}
+                {!playing ? (
+                  <Button
+                    variant="primary"
+                    onClick={() => setPlaying(true)}
+                    title="Play"
+                    aria-label="play"
+                  >
+                    ▶️
+                  </Button>
+                ) : (
+                  <Button
+                    variant="danger"
+                    onClick={() => setPlaying(false)}
+                    title="Stop"
+                    aria-label="stop"
+                  >
+                    ⏹️
+                  </Button>
+                )}
 
-            {/* Speed selector */}
-            <Form.Select
-              value={speed}
-              onChange={(e) => setSpeed(Number(e.target.value))}
-              disabled={playing}
-              aria-label="Speed select"
-              style={{ width: "auto", minWidth: "80px" }}
-            >
-              {speeds.map(({ label, value }) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Form.Select>
+                {/* Speed selector */}
+                <Form.Select
+                  value={speed}
+                  onChange={(e) => setSpeed(Number(e.target.value))}
+                  disabled={playing}
+                  aria-label="Speed select"
+                  style={{ width: "auto", minWidth: "80px" }}
+                >
+                  {speeds.map(({ label, value }) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </Form.Select>
+              </>
+            )}
           </Col>
         </Row>
 
@@ -593,7 +612,7 @@ Slider.propTypes = {
   max: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
   initialValue: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   initialRange: PropTypes.arrayOf(
-    PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+    PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   ),
   rangeMode: PropTypes.bool,
   outputFormat: PropTypes.string.isRequired,
@@ -605,7 +624,7 @@ Slider.propTypes = {
     PropTypes.shape({
       label: PropTypes.string.isRequired,
       value: PropTypes.number.isRequired,
-    })
+    }),
   ),
 };
 
