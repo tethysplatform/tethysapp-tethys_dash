@@ -154,14 +154,11 @@ const StylePane = ({
     }
   }
 
-  if (
-    sourceProps.type !== "GeoJSON" &&
-    sourceProps.type !== "ESRI Feature Service"
-  ) {
+  const supportedTypes = ["GeoJSON", "ESRI Feature Service", "PMTiles Vector"];
+  if (!supportedTypes.includes(sourceProps.type)) {
     return (
       <CenteredDiv>
-        Custom Styling is only available for GeoJSON and ESRI Feature Service
-        layers.
+        Custom Styling is only available for {supportedTypes.join(", ")} layers.
       </CenteredDiv>
     );
   }
