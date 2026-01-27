@@ -7,6 +7,7 @@ import VectorSource from "ol/source/Vector";
 import { LineString, MultiPolygon, Polygon, Point } from "ol/geom";
 import { Stroke, Style, Circle } from "ol/style";
 import Icon from "ol/style/Icon";
+import { toGeometry } from "ol/render/Feature";
 import appAPI from "services/api/app";
 import { v4 as uuidv4 } from "uuid";
 import JSON5 from "json5";
@@ -351,12 +352,13 @@ function getVectorTileLayerFeatures(map, pixel, LayerName) {
     if (layer.get("name") !== LayerName) {
       return;
     }
-    features.push({  // RenderFeature itself is geometry
+    const geometry = toGeometry(feature);
+    features.push({
       layerName: LayerName,
       attributes: feature.getProperties(),
       geometry: {
-        type: feature.getType(),
-        coordinates: feature.getFlatCoordinates(),  // FIXME: this doesn't work for linestrings or polygons
+        type: geometry.getType(),
+        coordinates: geometry.getCoordinates(),
       },
     });
   });
