@@ -133,6 +133,9 @@ export const sourcePropertiesOptions = {
     optional: {
       attributions: {
         placeholder: "Attributions",
+      },
+      tileSize: {
+        placeholder: "Tile Size (e.g., 256, 512)",
       }
     }
   },
@@ -143,6 +146,9 @@ export const sourcePropertiesOptions = {
     optional: {
       attributions: {
         placeholder: "Attributions", 
+      },
+      tileSize: {
+        placeholder: "Tile Size (e.g., 256, 512)",
       }
     }
   }
