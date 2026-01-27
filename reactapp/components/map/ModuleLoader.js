@@ -5,8 +5,29 @@ import GeoJSON from "ol/format/GeoJSON.js";
 import EsriJSON from "ol/format/EsriJSON";
 import { tile as tileStrategy } from "ol/loadingstrategy.js";
 import { createXYZ } from "ol/tilegrid.js";
+import {
+  Style,
+  Circle as CircleStyle,
+  RegularShape,
+  Icon,
+  Fill,
+  Stroke,
+} from "ol/style";
+import {
+  defaultFill,
+  defaultStroke,
+  defaultStrokeWidth,
+  defaultSize,
+  defaultZIndex,
+  defaultShape,
+  defaultHatchSpacing,
+  defaultHatchDirection,
+  defaultDotSpacing,
+  defaultDotRadius,
+} from "components/inputs/RuleEditor.js";
 
 const moduleCache = {};
+const styleCache = new Map();
 
 const moduleLoader = async (config, mapProjection) => {
   if (config.type.includes("ESRI")) {
@@ -87,7 +108,7 @@ const resolveProps = async (props, mapProjection) => {
             } else {
               return item;
             }
-          })
+          }),
         );
       } else {
         // It's a regular object; recursively resolve its properties
@@ -205,7 +226,7 @@ const loadESRIJSON = (config) => {
             extent[3] +
             ',"spatialReference":{"wkid":' +
             srid +
-            "}}"
+            "}}",
         ) +
         "&geometryType=esriGeometryEnvelope&inSR=" +
         srid +
@@ -227,11 +248,425 @@ const loadESRIJSON = (config) => {
     strategy: tileStrategy(
       createXYZ({
         tileSize: 512,
-      })
+      }),
     ),
     attributions: config.props.attributions,
   });
   return vectorSource;
 };
+
+function createDotFill({ color = "#000", radius = 2, spacing = 8 }) {
+  const canvas = document.createElement("canvas");
+  canvas.width = spacing;
+  canvas.height = spacing;
+
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = color;
+
+  ctx.beginPath();
+  ctx.arc(spacing / 2, spacing / 2, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  const pattern = ctx.createPattern(canvas, "repeat");
+
+  return new Fill({
+    color: pattern,
+  });
+}
+
+function createHatchFill({
+  color = "#000",
+  spacing = 8,
+  direction = "diagonal",
+}) {
+  const canvas = document.createElement("canvas");
+  canvas.width = spacing;
+  canvas.height = spacing;
+
+  const ctx = canvas.getContext("2d");
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+
+  if (direction === "horizontal" || direction === "cross") {
+    ctx.beginPath();
+    ctx.moveTo(0, spacing / 2);
+    ctx.lineTo(spacing, spacing / 2);
+    ctx.stroke();
+  }
+
+  if (direction === "vertical" || direction === "cross") {
+    ctx.beginPath();
+    ctx.moveTo(spacing / 2, 0);
+    ctx.lineTo(spacing / 2, spacing);
+    ctx.stroke();
+  }
+
+  if (direction === "diagonal") {
+    ctx.beginPath();
+    ctx.moveTo(0, spacing);
+    ctx.lineTo(spacing, 0);
+    ctx.stroke();
+  }
+
+  const pattern = ctx.createPattern(canvas, "repeat");
+
+  return new Fill({
+    color: pattern,
+  });
+}
+
+function mergeStyleProperties(base, override) {
+  return {
+    ...base,
+    ...Object.fromEntries(
+      Object.entries(override).filter(([, v]) => v !== undefined),
+    ),
+  };
+}
+
+export function matchesCondition(featureValue, type, conditionValue) {
+  const a = featureValue;
+  const b =
+    typeof conditionValue === "string" && !isNaN(conditionValue)
+      ? Number(conditionValue)
+      : conditionValue;
+
+  const av = typeof a === "string" && !isNaN(a) ? Number(a) : a;
+
+  switch (type) {
+    case "=":
+      return av === b;
+    case "!=":
+      return av !== b;
+    case "<":
+      return av < b;
+    case "<=":
+      return av <= b;
+    case ">":
+      return av > b;
+    case ">=":
+      return av >= b;
+    default:
+      return false;
+  }
+}
+
+export function resolveSize(feature, rules, defaultSize) {
+  let size = defaultSize;
+  let bestThreshold = null;
+
+  for (const rule of rules) {
+    if (rule.size == null) continue;
+
+    const featureValue = feature.get(rule.conditionField);
+    if (featureValue == null) continue;
+
+    const ruleValue = Number(rule.conditionValue);
+    const fv = Number(featureValue);
+
+    if (isNaN(ruleValue) || isNaN(fv)) continue;
+
+    const matches = matchesCondition(fv, rule.conditionType, ruleValue);
+    if (!matches) continue;
+
+    if (bestThreshold === null || ruleValue > bestThreshold) {
+      bestThreshold = ruleValue;
+      size = Number(rule.size);
+    }
+  }
+
+  return size;
+}
+
+export function createDiamondIconStyle({ size, fill, stroke }) {
+  const canvasSize = size * 2;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = canvasSize;
+  canvas.height = canvasSize;
+
+  const ctx = canvas.getContext("2d");
+  ctx.translate(canvasSize / 2, canvasSize / 2);
+
+  const horizontalScale = 0.6; // controls how pointy the diamond is
+
+  ctx.fillStyle = fill.getColor();
+  ctx.strokeStyle = stroke.getColor();
+  ctx.lineWidth = stroke.getWidth();
+
+  // --- Top triangle ---
+  ctx.beginPath();
+  ctx.moveTo(0, -size);
+  ctx.lineTo(size * horizontalScale, 0);
+  ctx.lineTo(-size * horizontalScale, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Stroke only outer edges
+  ctx.beginPath();
+  ctx.moveTo(0, -size);
+  ctx.lineTo(size * horizontalScale, 0);
+  ctx.moveTo(0, -size);
+  ctx.lineTo(-size * horizontalScale, 0);
+  ctx.stroke();
+
+  // --- Bottom triangle ---
+  ctx.beginPath();
+  ctx.moveTo(0, size);
+  ctx.lineTo(size * horizontalScale, 0);
+  ctx.lineTo(-size * horizontalScale, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(0, size);
+  ctx.lineTo(size * horizontalScale, 0);
+  ctx.moveTo(0, size);
+  ctx.lineTo(-size * horizontalScale, 0);
+  ctx.stroke();
+
+  return new Style({
+    image: new Icon({
+      img: canvas,
+      imgSize: [canvasSize, canvasSize],
+      anchor: [0.5, 0.5],
+    }),
+  });
+}
+
+export function buildPointStyle(shape, size, fill, stroke, iconUrl) {
+  switch (shape) {
+    case "circle":
+      return new Style({
+        image: new CircleStyle({ radius: size, fill, stroke }),
+      });
+
+    case "square":
+      return new Style({
+        image: new RegularShape({
+          points: 4,
+          radius: size,
+          angle: Math.PI / 4,
+          fill,
+          stroke,
+        }),
+      });
+
+    case "rectangle":
+      return new Style({
+        image: new RegularShape({
+          fill: fill,
+          stroke: stroke,
+          radius: size / Math.SQRT2,
+          radius2: size,
+          points: 4,
+          angle: 0,
+          scale: [1, 0.5],
+        }),
+      });
+
+    case "triangle":
+      return new Style({
+        image: new RegularShape({
+          points: 3,
+          radius: size,
+          fill,
+          stroke,
+        }),
+      });
+
+    case "star":
+      return new Style({
+        image: new RegularShape({
+          points: 5,
+          radius: size,
+          radius2: size / 2,
+          fill,
+          stroke,
+        }),
+      });
+
+    case "diamond":
+      return createDiamondIconStyle({ size, fill, stroke });
+
+    case "cross":
+      return new Style({
+        image: new RegularShape({
+          points: 4,
+          radius: size,
+          radius2: 0,
+          angle: 0,
+          fill,
+          stroke,
+        }),
+      });
+
+    case "x":
+      return new Style({
+        image: new RegularShape({
+          points: 4,
+          radius: size,
+          radius2: 0,
+          angle: Math.PI / 4,
+          fill,
+          stroke,
+        }),
+      });
+
+    case "icon":
+      if (iconUrl) {
+        return new Style({
+          image: new Icon({
+            src: iconUrl,
+            scale: size / 10, // optional scaling
+          }),
+        });
+      }
+      // fallback to circle if no iconUrl
+      return new Style({
+        image: new CircleStyle({ radius: size, fill, stroke }),
+      });
+
+    default:
+      // fallback to circle
+      return new Style({
+        image: new CircleStyle({ radius: size, fill, stroke }),
+      });
+  }
+}
+
+export function getGeometryBucket(feature) {
+  const type = feature.getGeometry()?.getType().toLowerCase();
+  if (type === "point" || type === "multipoint") return "point";
+  if (type === "linestring" || type === "multilinestring") return "linestring";
+  if (type === "polygon" || type === "multipolygon") return "polygon";
+  return "point";
+}
+
+function buildPolygonFill(merged) {
+  if (merged.polygonFillType === "hatch") {
+    return createHatchFill({
+      color: merged.fill || defaultFill,
+      spacing: merged.hatchSpacing ?? defaultHatchSpacing,
+      direction: merged.hatchDirection ?? defaultHatchDirection,
+    });
+  }
+
+  if (merged.polygonFillType === "dot") {
+    return createDotFill({
+      color: merged.fill || defaultFill,
+      radius: merged.dotRadius ?? defaultDotRadius,
+      spacing: merged.dotSpacing ?? defaultDotSpacing,
+    });
+  }
+
+  // solid default
+  return new Fill({ color: merged.fill || defaultFill });
+}
+
+export function createJsonStyleFunction(styleJson) {
+  return function (feature) {
+    let properties = feature.getProperties();
+    const geometryBucket = getGeometryBucket(feature); // 'point', 'line', 'polygon'
+
+    // --- Defaults (geometry-specific) ---
+    let merged = styleJson.default?.[geometryBucket] || {};
+
+    // --- Apply matching rules ---
+    for (const rule of styleJson.rules || []) {
+      // Only apply rule if it matches this geometry type
+      const ruleGeom = rule.geometryType || geometryBucket;
+      if (ruleGeom !== geometryBucket) continue;
+
+      // Defensive: convert rule values to correct types
+      const fv = properties[rule.conditionField];
+      let ruleValue = rule.conditionValue;
+      if (
+        typeof fv === "number" &&
+        typeof ruleValue === "string" &&
+        !isNaN(ruleValue)
+      ) {
+        ruleValue = Number(ruleValue);
+      }
+
+      if (
+        rule.conditionField &&
+        rule.conditionType &&
+        matchesCondition(fv, rule.conditionType, ruleValue)
+      ) {
+        merged = mergeStyleProperties(merged, rule);
+      }
+    }
+
+    // --- Set sensible defaults for points ---
+    if (geometryBucket === "point") {
+      if (merged.size == null) merged.size = defaultSize;
+      if (!merged.shape) merged.shape = defaultShape;
+      merged.size = resolveSize(feature, styleJson.rules || [], merged.size);
+    }
+
+    // --- Cache lookup ---
+    const cacheKey = `${geometryBucket}:${JSON.stringify(merged)}`;
+    if (styleCache.has(cacheKey)) {
+      return styleCache.get(cacheKey);
+    }
+
+    // --- Build style ---
+    // Ensure strokeDash is an array of numbers or undefined
+    let lineDash = undefined;
+    if (merged.strokeDash && typeof merged.strokeDash === "string") {
+      // Accept empty string as solid
+      if (merged.strokeDash.trim() !== "") {
+        lineDash = merged.strokeDash
+          .split(",")
+          .map((s) => Number(s.trim()))
+          .filter((n) => !isNaN(n));
+        if (lineDash.length === 0) lineDash = undefined;
+      }
+    } else if (Array.isArray(merged.strokeDash)) {
+      lineDash = merged.strokeDash.map(Number).filter((n) => !isNaN(n));
+      if (lineDash.length === 0) lineDash = undefined;
+    }
+
+    const stroke = lineDash
+      ? new Stroke({
+          color: merged.stroke,
+          width: merged.strokeWidth ?? defaultStrokeWidth,
+          lineDash,
+        })
+      : new Stroke({
+          color: merged.stroke || defaultStroke,
+          width: merged.strokeWidth ?? defaultStrokeWidth,
+        });
+
+    const zIndex = merged.zIndex ?? defaultZIndex;
+    let style;
+
+    // --- POINT ---
+    if (geometryBucket === "point") {
+      const fill = new Fill({ color: merged.fill || defaultFill });
+      style = buildPointStyle(
+        merged.shape,
+        merged.size,
+        fill,
+        stroke,
+        merged.iconUrl,
+      );
+    }
+    // --- LINE ---
+    else if (geometryBucket === "linestring") {
+      style = new Style({ stroke, zIndex });
+    }
+    // --- POLYGON ---
+    else if (geometryBucket === "polygon") {
+      const fill = buildPolygonFill(merged);
+      style = new Style({ fill, stroke, zIndex });
+    }
+
+    // --- Cache & return ---
+    styleCache.set(cacheKey, style);
+    return style;
+  };
+}
 
 export default moduleLoader;

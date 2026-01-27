@@ -62,7 +62,7 @@ const AttributesPane = ({
   const [customAttributes, setCustomAttributes] = useState(null);
   const [layerPopupSwitch, setLayerPopupSwitch] = useState({});
   const [allowLayerQuery, setAllowLayerQuery] = useState(
-    attributeProps.queryable ?? true
+    attributeProps.queryable ?? true,
   );
 
   useEffect(() => {
@@ -72,14 +72,14 @@ const AttributesPane = ({
 
       if (!layerProps.name) {
         setErrorMessage(
-          "The layer name must be configured to retrieve attributes"
+          "The layer name must be configured to retrieve attributes",
         );
         return;
       }
 
       if (!sourceProps.type) {
         setErrorMessage(
-          "The source type must be configured to retrieve attributes"
+          "The source type must be configured to retrieve attributes",
         );
         return;
       }
@@ -88,11 +88,11 @@ const AttributesPane = ({
       const validSourceProps = removeEmptyValues(sourceProps.props);
       const missingRequiredProps = checkRequiredKeys(
         sourcePropertiesOptions[sourceProps.type].required,
-        validSourceProps
+        validSourceProps,
       );
       if (missingRequiredProps.length > 0) {
         setErrorMessage(
-          `Missing required ${missingRequiredProps} arguments. Please check the source and try again before getting attributes`
+          `Missing required ${missingRequiredProps} arguments. Please check the source and try again before getting attributes`,
         );
         return;
       }
@@ -114,7 +114,7 @@ const AttributesPane = ({
               <br />
               <br />
               <p>{err.message}</p>
-            </>
+            </>,
           );
           return;
         }
@@ -136,8 +136,8 @@ const AttributesPane = ({
             // remove an layers where no attributes were found
             layerAttributes = Object.fromEntries(
               Object.entries(queriedLayerAttributes).filter(
-                ([_, value]) => !(Array.isArray(value) && value.length === 0)
-              )
+                ([_, value]) => !(Array.isArray(value) && value.length === 0),
+              ),
             );
 
             // if the query failed, allow the user to create their own fields for configuration
@@ -152,7 +152,7 @@ const AttributesPane = ({
                 acc[key.toLowerCase()] = layerParams[key];
                 return acc;
               },
-              {}
+              {},
             );
 
             // Check params for potential layers, otherwise just use the layer name
@@ -170,10 +170,10 @@ const AttributesPane = ({
 
               // check to see if there are any current attributes or ommitted popups setup for the layer
               const existingLayerattributeVariableFields = Object.keys(
-                attributeProps?.variables?.[layerName] || {}
+                attributeProps?.variables?.[layerName] || {},
               );
               const existingLayerAttributeAliases = Object.keys(
-                attributeProps?.aliases?.[layerName] || {}
+                attributeProps?.aliases?.[layerName] || {},
               );
               const existingOmittedPopupAttributesFields =
                 attributeProps?.omitted?.[layerName] || [];
@@ -208,7 +208,7 @@ const AttributesPane = ({
           parseAttributes(layerAttributes);
 
           previousAttributeProps.current = JSON.parse(
-            JSON.stringify(attributeProps)
+            JSON.stringify(attributeProps),
           );
           setAttributeProps((previousAttributeProps) => ({
             ...previousAttributeProps,
@@ -227,7 +227,7 @@ const AttributesPane = ({
   useEffect(() => {
     if (!valuesEqual(previousAttributeProps.current, attributeProps)) {
       previousAttributeProps.current = JSON.parse(
-        JSON.stringify(attributeProps)
+        JSON.stringify(attributeProps),
       );
       parseAttributes(attributes);
     }
@@ -245,7 +245,7 @@ const AttributesPane = ({
         Object.entries(layerAttributes).map(([key, value]) => [
           key,
           !value.every((item) => item.popup === false), // false if all popups are false, true otherwise
-        ])
+        ]),
       );
     } else {
       setWarningMessage("No field attributes were found.");
@@ -272,7 +272,7 @@ const AttributesPane = ({
             Please provide the desired fields manually below or attempt to fix
             the issues and retry.
           </p>
-        </>
+        </>,
       );
       return;
     }
@@ -324,7 +324,7 @@ const AttributesPane = ({
           acc[name] = alias;
           return acc;
         },
-        {}
+        {},
       );
 
       result[layerName] = extractedAliases;
@@ -346,7 +346,7 @@ const AttributesPane = ({
           }
           return acc;
         },
-        {}
+        {},
       );
 
       // only add to the result if there are actually attribute variables for the layer
@@ -363,7 +363,7 @@ const AttributesPane = ({
 
     Object.keys(layerData).forEach((LayerName) => {
       const falsePopupNames = layerData[LayerName].filter(
-        ({ popup }) => popup === false
+        ({ popup }) => popup === false,
       ) // Get items where popup is false
         .map(({ name }) => name) // Extract name values
         .filter(Boolean); // Remove falsy values
@@ -406,12 +406,12 @@ const AttributesPane = ({
     if (field === "popup") {
       // make a deep copy of the layerPopupSwitch to actually cause a rerender on state change
       const updatedLayerPopupSwitch = JSON.parse(
-        JSON.stringify(layerPopupSwitch)
+        JSON.stringify(layerPopupSwitch),
       );
 
       // if any field popup is true, then the header checkbox is true
       updatedLayerPopupSwitch[layerName] = updatedAttributes[layerName].some(
-        ({ popup }) => popup
+        ({ popup }) => popup,
       );
 
       setLayerPopupSwitch(updatedLayerPopupSwitch);
@@ -421,7 +421,7 @@ const AttributesPane = ({
   function handleLayerPopup(layerName, checkedValue) {
     // update the header checkbox
     const updatedLayerPopupSwitch = JSON.parse(
-      JSON.stringify(layerPopupSwitch)
+      JSON.stringify(layerPopupSwitch),
     );
     updatedLayerPopupSwitch[layerName] = checkedValue;
     setLayerPopupSwitch(updatedLayerPopupSwitch);

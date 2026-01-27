@@ -60,7 +60,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
     JSON.stringify({
       title: "",
       items: [],
-    })
+    }),
   );
 
   const addRowButton = await screen.findByLabelText("Add Legend Item Button");
@@ -69,7 +69,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
     JSON.stringify({
       title: "",
       items: [{ label: "", color: "#ff0000", symbol: "square" }],
-    })
+    }),
   );
 
   const [titleInput, labelInput] = screen.getAllByRole("textbox");
@@ -79,7 +79,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
     JSON.stringify({
       title: "Some Title",
       items: [{ label: "", color: "#ff0000", symbol: "square" }],
-    })
+    }),
   );
 
   fireEvent.change(labelInput, { target: { value: "Some Label" } });
@@ -88,7 +88,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
     JSON.stringify({
       title: "Some Title",
       items: [{ label: "Some Label", color: "#ff0000", symbol: "square" }],
-    })
+    }),
   );
 
   fireEvent.click(addRowButton);
@@ -100,7 +100,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
           { label: "Some Label", color: "#ff0000", symbol: "square" },
           { label: "", color: "#ff0000", symbol: "square" },
         ],
-      })
+      }),
     );
   });
 
@@ -115,7 +115,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
           { label: "Some Label", color: "#ff0000", symbol: "square" },
           { label: "Another Label", color: "#ff0000", symbol: "square" },
         ],
-      })
+      }),
     );
   });
 
@@ -137,7 +137,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
         { label: "Some Label", color: "#ff0000", symbol: "circle" },
         { label: "Another Label", color: "#ff0000", symbol: "square" },
       ],
-    })
+    }),
   );
 
   // eslint-disable-next-line
@@ -151,7 +151,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
           { label: "Some Label", color: "#2aff00", symbol: "circle" },
           { label: "Another Label", color: "#ff0000", symbol: "square" },
         ],
-      })
+      }),
     );
   });
 
@@ -166,7 +166,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
     JSON.stringify({
       title: "Some Title",
       items: [{ label: "Another Label", color: "#ff0000", symbol: "square" }],
-    })
+    }),
   );
 
   fireEvent.click(offRadio);
@@ -175,7 +175,7 @@ test("LegendPane no initial legend, add new row and delete", async () => {
   rerender(<TestingComponent initialLegend={{ title: "some title" }} />);
 
   expect(await screen.findByTestId("legend")).toHaveTextContent(
-    JSON.stringify({ title: "some title" })
+    JSON.stringify({ title: "some title" }),
   );
 
   rerender(
@@ -183,13 +183,13 @@ test("LegendPane no initial legend, add new row and delete", async () => {
       initialLegend={{
         items: [{ color: "yellow", label: "Some Label", symbol: "square" }],
       }}
-    />
+    />,
   );
 
   expect(await screen.findByTestId("legend")).toHaveTextContent(
     JSON.stringify({
       items: [{ color: "yellow", label: "Some Label", symbol: "square" }],
-    })
+    }),
   );
 });
 
@@ -211,7 +211,7 @@ test("LegendPane initial legend", async () => {
   expect(offRadio.checked).toBe(false);
   expect(onRadio.checked).toBe(true);
   expect(await screen.findByTestId("legend")).toHaveTextContent(
-    JSON.stringify(initialLegend)
+    JSON.stringify(initialLegend),
   );
 
   const textboxes = screen.getAllByRole("textbox");
@@ -225,10 +225,10 @@ test("LegendPane initial legend", async () => {
 
   const tabelCells = screen.getAllByRole("cell");
   expect(
-    within(tabelCells[1]).getByLabelText("yellow-square")
+    within(tabelCells[1]).getByLabelText("yellow-square"),
   ).toBeInTheDocument();
   expect(
-    within(tabelCells[4]).getByLabelText("green-square")
+    within(tabelCells[4]).getByLabelText("green-square"),
   ).toBeInTheDocument();
 
   // Simulate dragging row 1 to row 2
@@ -247,10 +247,10 @@ test("LegendPane initial legend", async () => {
     expect(textboxes[2].value).toBe("Some Label");
   });
   expect(
-    within(tabelCells[1]).getByLabelText("green-square")
+    within(tabelCells[1]).getByLabelText("green-square"),
   ).toBeInTheDocument();
   expect(
-    within(tabelCells[4]).getByLabelText("yellow-square")
+    within(tabelCells[4]).getByLabelText("yellow-square"),
   ).toBeInTheDocument();
 });
 
@@ -260,7 +260,7 @@ test("LegendPane updated sourceProps", async () => {
   });
 
   const { rerender } = render(
-    <TestingComponent sourceProps={{ type: "ESRI Image and Map Service" }} />
+    <TestingComponent sourceProps={{ type: "ESRI Image and Map Service" }} />,
   );
 
   expect(screen.getByLabelText("No Legend")).toBeInTheDocument();
@@ -274,7 +274,7 @@ test("LegendPane updated sourceProps", async () => {
     JSON.stringify({
       title: "",
       items: [],
-    })
+    }),
   );
 
   const addRowButton = await screen.findByLabelText("Add Legend Item Button");
@@ -283,10 +283,10 @@ test("LegendPane updated sourceProps", async () => {
     JSON.stringify({
       title: "",
       items: [{ label: "", color: "#ff0000", symbol: "square" }],
-    })
+    }),
   );
 
-  rerender(<TestingComponent sourceProps={{ type: "GeoJSON" }} />);
+  rerender(<TestingComponent sourceProps={{ type: "Image Tile" }} />);
 
   expect(screen.getByLabelText("No Legend")).toBeInTheDocument();
   expect(screen.queryByLabelText("Default Legend")).not.toBeInTheDocument();
@@ -297,7 +297,7 @@ test("LegendPane updated sourceProps", async () => {
     <TestingComponent
       initialLegend={"default"}
       sourceProps={{ type: "ESRI Feature Service", props: { url: "some/url" } }}
-    />
+    />,
   );
 
   expect(screen.getByLabelText("No Legend")).toBeInTheDocument();
@@ -312,7 +312,7 @@ test("LegendPane updated sourceProps", async () => {
         type: "ESRI Image and Map Service",
         props: { url: "some/url" },
       }}
-    />
+    />,
   );
 
   expect(screen.getByLabelText("No Legend")).toBeInTheDocument();
@@ -332,7 +332,7 @@ test("LegendPane set to default", async () => {
         type: "ESRI Image and Map Service",
         props: { url: "some/url" },
       }}
-    />
+    />,
   );
 
   expect(screen.getByLabelText("No Legend")).toBeInTheDocument();
@@ -354,7 +354,7 @@ test("LegendPane title partial initial legend", async () => {
   expect(screen.getByTestId("legend").textContent?.trim()).toBe(
     JSON.stringify({
       title: "",
-    })
+    }),
   );
 
   const addRowButton = await screen.findByLabelText("Add Legend Item Button");
@@ -364,7 +364,7 @@ test("LegendPane title partial initial legend", async () => {
     JSON.stringify({
       title: "",
       items: [{ label: "", color: "#ff0000", symbol: "square" }],
-    })
+    }),
   );
 });
 
@@ -376,7 +376,7 @@ test("LegendPane items partial initial legend", async () => {
   expect(screen.getByTestId("legend").textContent?.trim()).toBe(
     JSON.stringify({
       items: [],
-    })
+    }),
   );
 
   const addRowButton = await screen.findByLabelText("Add Legend Item Button");
@@ -385,7 +385,7 @@ test("LegendPane items partial initial legend", async () => {
   expect(screen.getByTestId("legend").textContent?.trim()).toBe(
     JSON.stringify({
       items: [{ label: "", color: "#ff0000", symbol: "square" }],
-    })
+    }),
   );
 });
 

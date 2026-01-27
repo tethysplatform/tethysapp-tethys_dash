@@ -195,7 +195,7 @@ export const Visualization = memo(
           </SpinnerContainer>
         );
     }
-  }
+  },
 );
 
 // Helper function to check if a value is a relative date
@@ -249,7 +249,7 @@ const convertDates = (obj) => {
 export const compareFilteredArgs = (
   currentArgs,
   updatedArgs,
-  keysToCompare
+  keysToCompare,
 ) => {
   const filteredCurrent = {};
   const filteredUpdated = {};
@@ -355,7 +355,7 @@ const BaseVisualization = ({
             setVariableDependentVisualizations({ refresh: true });
           }
         },
-        parseInt(refreshRate) * 1000 * 60
+        parseInt(refreshRate) * 1000 * 60,
       );
       return () => clearInterval(interval);
     }
@@ -369,27 +369,27 @@ const BaseVisualization = ({
     const visualization = findSelectOptionByValue(
       visualizations,
       source,
-      "source"
+      "source",
     );
     const sourceType = visualization?.type;
     const argTypes = visualization?.args;
 
     const itemData = { source: source, args: args };
     const updatedGridItemArgs = convertDates(
-      updateObjectWithVariableInputs(args, variableInputValues, argTypes)
+      updateObjectWithVariableInputs(args, variableInputValues, argTypes),
     );
 
     const updatedGridItemMetadata = updateObjectWithVariableInputs(
       gridMetadata,
       variableInputValues,
-      argTypes
+      argTypes,
     );
     const customMessaging = gridMetadata.customMessaging;
 
     const filteredOriginalArgs = filterNonRelativeDateArgs(
       originalArgs,
       variableInputValues,
-      argTypes
+      argTypes,
     );
 
     // Only allow the empty args load to run once per source unless refresh is true
@@ -403,7 +403,7 @@ const BaseVisualization = ({
           (!compareFilteredArgs(
             gridItemArgsWithVariableInputs.current,
             updatedGridItemArgs,
-            filteredOriginalArgs
+            filteredOriginalArgs,
           ) ||
             !valuesEqual(customMessages.current, customMessaging)))) &&
       shouldLoad
@@ -411,9 +411,6 @@ const BaseVisualization = ({
       if (isEmptyArgs) {
         loadedEmptyArgsForSource.current[source] = true;
       }
-      console.log(
-        `Loading visualization for source: ${source} with requestId: ${requestId.current}`
-      );
       itemData.args = updatedGridItemArgs;
       itemData.requestId = requestId.current;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
@@ -432,7 +429,7 @@ const BaseVisualization = ({
         vizLoadingIcon: findSelectOptionByValue(
           visualizations,
           source,
-          "source"
+          "source",
         )?.loading_icon,
       });
     }
@@ -440,7 +437,7 @@ const BaseVisualization = ({
     if (
       !valuesEqual(
         gridItemMetadataWithVariableInputs.current,
-        updatedGridItemMetadata
+        updatedGridItemMetadata,
       )
     ) {
       gridItemMetadataWithVariableInputs.current = updatedGridItemMetadata;
@@ -448,7 +445,7 @@ const BaseVisualization = ({
       const sourceType = findSelectOptionByValue(
         visualizations,
         source,
-        "source"
+        "source",
       )?.type;
 
       if (

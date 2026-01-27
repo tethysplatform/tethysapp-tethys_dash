@@ -78,12 +78,13 @@ const MapLayerModal = ({
   const [sourceProps, setSourceProps] = useState(layerInfo.sourceProps ?? {});
   const [layerProps, setLayerProps] = useState(layerInfo.layerProps ?? {});
   const [attributeProps, setAttributeProps] = useState(
-    layerInfo.attributeProps ?? {}
+    layerInfo.attributeProps ?? {},
   );
   const [style, setStyle] = useState(layerInfo.style);
   const [legend, setLegend] = useState(layerInfo.legend);
   const [selectedOption, setSelectedOption] = useState(null);
-  const containerRef = useRef(null);
+  const legendContainerRef = useRef(null);
+  const styleContainerRef = useRef(null);
   const { csrf, mapLayerTemplates } = useContext(AppContext);
   const { uuid } = useContext(LayoutContext);
 
@@ -91,7 +92,7 @@ const MapLayerModal = ({
     setErrorMessage(null);
     if (!sourceProps.type || !layerProps.name) {
       setErrorMessage(
-        "Layer type and name must be provided in the configuration pane."
+        "Layer type and name must be provided in the configuration pane.",
       );
       return;
     }
@@ -101,11 +102,11 @@ const MapLayerModal = ({
     const validLayerProps = removeEmptyValues(layerProperties);
     const missingRequiredProps = checkRequiredKeys(
       sourcePropertiesOptions[sourceProps.type].required,
-      validSourceProps
+      validSourceProps,
     );
     if (missingRequiredProps.length > 0) {
       setErrorMessage(
-        `Missing required ${missingRequiredProps} arguments. Please check the configuration and try again.`
+        `Missing required ${missingRequiredProps} arguments. Please check the configuration and try again.`,
       );
       return;
     }
@@ -136,7 +137,7 @@ const MapLayerModal = ({
     };
 
     const minAttributeVariables = removeEmptyValues(
-      attributeProps.variables ?? {}
+      attributeProps.variables ?? {},
     );
 
     const minAttributeAliases = removeEmptyValues(attributeProps.aliases ?? {});
@@ -165,7 +166,7 @@ const MapLayerModal = ({
       if (typeof legend === "object" && Object.keys(legend).length > 0) {
         if (legend.title === "") {
           setErrorMessage(
-            "Provide a legend title if showing a legend for this layer"
+            "Provide a legend title if showing a legend for this layer",
           );
           return;
         }
@@ -173,13 +174,13 @@ const MapLayerModal = ({
         //check if any key in the object is empty
         const hasEmptyValues = (obj) => {
           return Object.values(obj).some(
-            (value) => value === "" || value === null || value === undefined
+            (value) => value === "" || value === null || value === undefined,
           );
         };
 
         if (legend.items.some(hasEmptyValues)) {
           setErrorMessage(
-            "All Legend Items must have a label, color, and symbol"
+            "All Legend Items must have a label, color, and symbol",
           );
           return;
         }
@@ -197,7 +198,7 @@ const MapLayerModal = ({
       if (!apiResponse.success) {
         setErrorMessage(
           apiResponse.message ??
-            "Failed to upload the json data. Check logs for more information."
+            "Failed to upload the json data. Check logs for more information.",
         );
         return;
       }
@@ -215,7 +216,7 @@ const MapLayerModal = ({
       if (!apiResponse.success) {
         setErrorMessage(
           apiResponse.message ??
-            "Failed to upload the json data. Check logs for more information."
+            "Failed to upload the json data. Check logs for more information.",
         );
         return;
       }
@@ -235,7 +236,7 @@ const MapLayerModal = ({
 
     if (!apiResponse.success) {
       setErrorMessage(
-        apiResponse.data?.error ?? "Failed to load layer template. Check logs."
+        apiResponse.data?.error ?? "Failed to load layer template. Check logs.",
       );
       return;
     }
@@ -247,8 +248,8 @@ const MapLayerModal = ({
     const queryableLayer = apiResponse.data.queryable === false ? false : true;
     const updatedLayerProps = Object.fromEntries(
       Object.entries(apiResponse.data.configuration.props).filter(
-        ([key]) => key !== "source"
-      )
+        ([key]) => key !== "source",
+      ),
     );
     updatedLayerProps.layerVisibility =
       apiResponse.data.configuration.layerVisibility;
@@ -314,11 +315,16 @@ const MapLayerModal = ({
               aria-label="layer-style-tab"
               className="layer-style-tab"
             >
-              <StylePane
-                style={style}
-                setStyle={setStyle}
-                setErrorMessage={setErrorMessage}
-              />
+              <div ref={styleContainerRef}>
+                <StylePane
+                  style={style}
+                  setStyle={setStyle}
+                  setErrorMessage={setErrorMessage}
+                  containerRef={styleContainerRef}
+                  layerProps={layerProps}
+                  sourceProps={sourceProps}
+                />
+              </div>
             </Tab>
             <Tab
               eventKey="legend"
@@ -326,12 +332,12 @@ const MapLayerModal = ({
               aria-label="layer-legend-tab"
               className="layer-legend-tab"
             >
-              <div ref={containerRef}>
+              <div ref={legendContainerRef}>
                 <LegendPane
                   legend={legend}
                   setLegend={setLegend}
                   sourceProps={sourceProps}
-                  containerRef={containerRef}
+                  containerRef={legendContainerRef}
                 />
               </div>
             </Tab>

@@ -33,6 +33,7 @@ const DataSelect = ({
           options={options}
           value={selectedOption}
           onChange={onChange}
+          aria-label={id}
           inputID={id}
           styles={{
             groupHeading: (base) => ({
@@ -52,6 +53,7 @@ const DataSelect = ({
           value={selectedOption}
           onChange={onChange}
           inputID={id}
+          aria-label={id}
           styles={{
             groupHeading: (base) => ({
               ...base,
