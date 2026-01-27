@@ -373,12 +373,19 @@ it("Create a Slider Input with speedOptions", async () => {
 
   let select = screen.getByLabelText(/speed select/i);
   expect(select).toBeInTheDocument();
+  // eslint-disable-next-line testing-library/no-node-access
   expect(select.children.length).toBe(6);
+  // eslint-disable-next-line testing-library/no-node-access
   expect(select.children[0].textContent).toBe("5000ms");
+  // eslint-disable-next-line testing-library/no-node-access
   expect(select.children[1].textContent).toBe("Extra Slow");
+  // eslint-disable-next-line testing-library/no-node-access
   expect(select.children[2].textContent).toBe("Slow");
+  // eslint-disable-next-line testing-library/no-node-access
   expect(select.children[3].textContent).toBe("Medium");
+  // eslint-disable-next-line testing-library/no-node-access
   expect(select.children[4].textContent).toBe("Fast");
+  // eslint-disable-next-line testing-library/no-node-access
   expect(select.children[5].textContent).toBe("Extra Fast");
   expect(screen.getByText("5000ms").selected).toBe(true);
 });

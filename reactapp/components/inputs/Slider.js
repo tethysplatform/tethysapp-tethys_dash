@@ -313,6 +313,7 @@ const Slider = ({
         return found ? prev : speeds[0].value;
       });
     }
+    // eslint-disable-next-line
   }, [JSON.stringify(speeds)]);
 
   useEffect(() => {

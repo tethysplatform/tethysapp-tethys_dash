@@ -1305,11 +1305,17 @@ describe("Slider Component", () => {
 
     let select = screen.getByLabelText(/speed select/i);
     expect(select).toBeInTheDocument();
+    // eslint-disable-next-line testing-library/no-node-access
     expect(select.children.length).toBe(5);
+    // eslint-disable-next-line testing-library/no-node-access
     expect(select.children[0].textContent).toBe("Extra Slow");
+    // eslint-disable-next-line testing-library/no-node-access
     expect(select.children[1].textContent).toBe("Slow");
+    // eslint-disable-next-line testing-library/no-node-access
     expect(select.children[2].textContent).toBe("Medium");
+    // eslint-disable-next-line testing-library/no-node-access
     expect(select.children[3].textContent).toBe("Fast");
+    // eslint-disable-next-line testing-library/no-node-access
     expect(select.children[4].textContent).toBe("Extra Fast");
     expect(screen.getByText("Extra Slow").selected).toBe(true);
 
@@ -1342,9 +1348,13 @@ describe("Slider Component", () => {
 
     select = screen.getByLabelText(/speed select/i);
     expect(select).toBeInTheDocument();
+    // eslint-disable-next-line testing-library/no-node-access
     expect(select.children.length).toBe(3);
+    // eslint-disable-next-line testing-library/no-node-access
     expect(select.children[0].textContent).toBe("Slow");
+    // eslint-disable-next-line testing-library/no-node-access
     expect(select.children[1].textContent).toBe("Medium");
+    // eslint-disable-next-line testing-library/no-node-access
     expect(select.children[2].textContent).toBe("Fast");
     expect(screen.getByText("Slow").selected).toBe(true);
   });
