@@ -199,10 +199,10 @@ test("StylePane Updating Existing GeoJSON", async () => {
 
 test("StylePane Styling not available", async () => {
   render(<TestingComponent sourceProps={{ type: "NotGeoJSON" }} />);
-
+  const supportedTypes = ["GeoJSON", "ESRI Feature Service", "PMTiles Vector"];
   expect(
     await screen.findByText(
-      "Custom Styling is only available for GeoJSON and ESRI Feature Service layers.",
+      `Custom Styling is only available for ${supportedTypes.join(", ")} layers.`,
     ),
   ).toBeInTheDocument();
 });
