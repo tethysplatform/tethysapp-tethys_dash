@@ -4,11 +4,11 @@ import NormalInput from "components/inputs/NormalInput";
 
 const DateFormat = ({ value, onChange, divProps }) => {
   const [outputFormat, setOutputFormat] = useState(
-    value?.format || "MM/dd/yyyy'T'HH:mm",
+    value || "MM/dd/yyyy'T'HH:mm",
   );
 
   useEffect(() => {
-    onChange({ format: outputFormat });
+    onChange(outputFormat);
   }, [outputFormat]);
 
   return (

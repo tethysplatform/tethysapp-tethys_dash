@@ -15,6 +15,7 @@ import DatePicker from "components/inputs/DatePicker";
 import DateFormat from "components/inputs/DateFormat";
 import { parseDate } from "components/inputs/dateUtils";
 import * as customInputs from "components/inputs/Custom";
+import { format } from "date-fns";
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;
@@ -80,7 +81,12 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
       />
     );
   } else if (type === "date-format") {
-    return <DateFormat onChange={onChange} value={value} />;
+    return (
+      <DateFormat
+        onChange={(newValue) => onChange({ format: newValue })}
+        value={value?.format}
+      />
+    );
   } else if (type === "date" || type === "date-hour") {
     return (
       <>

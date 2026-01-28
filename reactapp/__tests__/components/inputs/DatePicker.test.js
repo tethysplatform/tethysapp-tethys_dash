@@ -1,11 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import DatePicker from "components/inputs/DatePicker";
-import {
-  parseDateMath,
-  dateFormat,
-  dateHourFormat,
-} from "components/inputs/dateUtils";
+import { parseDateMath, dateHourFormat } from "components/inputs/dateUtils";
 import { format } from "date-fns";
 import { getOrdinal } from "__tests__/utilities/constants";
 import { DataViewerModeContext } from "components/contexts/Contexts";
@@ -24,7 +20,7 @@ test("DatePicker date", async () => {
   const input = screen.getByRole("textbox");
   await userEvent.click(input);
 
-  const expectedDateString = "01/01/2020";
+  const expectedDateString = "01/01/2020 12:00 AM";
   fireEvent.change(input, {
     target: { value: expectedDateString },
   });
@@ -261,8 +257,10 @@ test("DatePicker select tomorrow date", async () => {
   const tomorrowCalendarItem = screen.getByLabelText(formatted);
 
   await userEvent.click(tomorrowCalendarItem);
-  expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy"));
-  expect(mockOnChange).toHaveBeenCalledWith(format(tomorrow, "MM/dd/yyyy"));
+  expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy '12:00 AM'"));
+  expect(mockOnChange).toHaveBeenCalledWith(
+    format(tomorrow, "MM/dd/yyyy '12:00 AM'"),
+  );
 });
 
 test("DatePicker relative date in dataviewer mode", async () => {
@@ -302,7 +300,7 @@ describe("parseDateMath", () => {
   it("parses 'now' for date", () => {
     const today = new Date();
     const result = parseDateMath({ value: "now" });
-    expect(format(result, dateFormat)).toBe(format(today, dateFormat));
+    expect(format(result, dateHourFormat)).toBe(format(today, dateHourFormat));
   });
 
   it("parses 'now' for date-hour", () => {
@@ -321,7 +319,9 @@ describe("parseDateMath", () => {
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
     const result = parseDateMath({ value: "now+1D" });
-    expect(format(result, dateFormat)).toBe(format(tomorrow, dateFormat));
+    expect(format(result, dateHourFormat)).toBe(
+      format(tomorrow, dateHourFormat),
+    );
   });
 
   it("parses offset -1D", () => {
@@ -329,7 +329,9 @@ describe("parseDateMath", () => {
     const yesterday = new Date(today);
     yesterday.setDate(today.getDate() - 1);
     const result = parseDateMath({ value: "now-1D" });
-    expect(format(result, dateFormat)).toBe(format(yesterday, dateFormat));
+    expect(format(result, dateHourFormat)).toBe(
+      format(yesterday, dateHourFormat),
+    );
   });
 
   it("parses multiple offsets", () => {
@@ -339,7 +341,7 @@ describe("parseDateMath", () => {
     date.setMonth(date.getMonth() + 2);
     date.setDate(date.getDate() + 7);
     const result = parseDateMath({ value: "now+1Y+2M+1W" });
-    expect(format(result, dateFormat)).toBe(format(date, dateFormat));
+    expect(format(result, dateHourFormat)).toBe(format(date, dateHourFormat));
   });
 
   it("parses multiple time offsets", () => {
@@ -362,6 +364,6 @@ describe("parseDateMath", () => {
     const today = new Date();
     // 'Q' matches the offset regex but is not handled in the switch
     const result = parseDateMath({ value: "now+1Q" });
-    expect(format(result, dateFormat)).toBe(format(today, dateFormat));
+    expect(format(result, dateHourFormat)).toBe(format(today, dateHourFormat));
   });
 });

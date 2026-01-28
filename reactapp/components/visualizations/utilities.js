@@ -258,6 +258,11 @@ export const nonDropDownVariableInputTypes = [
   "number",
   "checkbox",
   { label: "date", value: "date", sub_args: { metadata: "date-format" } },
+  {
+    label: "date-hour (deprecated, use date instead)",
+    value: "date-hour",
+    sub_args: { metadata: "date-format" },
+  },
   "date-range",
   {
     value: "slider",

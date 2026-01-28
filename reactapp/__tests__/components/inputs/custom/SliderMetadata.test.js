@@ -104,7 +104,7 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
 
   fireEvent.change(outputFormatInput, { target: { value: "MM/dd/yyyy" } });
 
-  expect(mockOnChange).toHaveBeenCalledTimes(5);
+  expect(mockOnChange).toHaveBeenCalledTimes(7);
   expect(mockOnChange).toHaveBeenLastCalledWith({
     dataType: "Date",
     min: "01/01/2020 12:00 AM",
@@ -121,7 +121,7 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
   expect(extraSlowSpeedOption).toBeInTheDocument();
   await userEvent.click(extraSlowSpeedOption);
 
-  expect(mockOnChange).toHaveBeenCalledTimes(6);
+  expect(mockOnChange).toHaveBeenCalledTimes(8);
   expect(mockOnChange).toHaveBeenLastCalledWith({
     dataType: "Date",
     min: "01/01/2020 12:00 AM",
@@ -136,7 +136,7 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
 
   await userEvent.click(extraSlowSpeedOption);
 
-  expect(mockOnChange).toHaveBeenCalledTimes(7);
+  expect(mockOnChange).toHaveBeenCalledTimes(9);
   expect(mockOnChange).toHaveBeenLastCalledWith({
     dataType: "Date",
     min: "01/01/2020 12:00 AM",
