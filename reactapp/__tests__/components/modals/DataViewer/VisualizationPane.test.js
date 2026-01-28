@@ -4,7 +4,11 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import VisualizationPane, {
   VisualizationArguments,
 } from "components/modals/DataViewer/VisualizationPane";
-import { mockedDashboards, userDashboard } from "__tests__/utilities/constants";
+import {
+  mockedDashboards,
+  userDashboard,
+  mockedTextVariable,
+} from "__tests__/utilities/constants";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
 import { server } from "__tests__/utilities/server";
@@ -27,7 +31,7 @@ const TestingComponent = ({
   const { visualizations } = useContext(AppContext);
   let initialSelectedVizTypeOption = findVisualizationBySource(
     visualizations,
-    source
+    source,
   );
   let initialVizArguments = [];
   let initialVizInputsValues = {};
@@ -51,14 +55,14 @@ const TestingComponent = ({
   }
 
   const [selectedVizTypeOption, setSelectVizTypeOption] = useState(
-    initialSelectedVizTypeOption
+    initialSelectedVizTypeOption,
   );
   const [vizArguments, setVizArguments] = useState(initialVizArguments);
   const [vizInputsValues, setVizInputsValues] = useState(
-    initialVizInputsValues
+    initialVizInputsValues,
   );
   const [variableInputValue, setVariableInputValue] = useState(
-    initialVariableInputValue
+    initialVariableInputValue,
   );
   const [settings, setSettings] = useState({});
   const visualizationRef = useRef();
@@ -119,7 +123,7 @@ test("Visualization Pane Custom Image", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -127,14 +131,14 @@ test("Visualization Pane Custom Image", async () => {
   expect(mockSetVizData).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "Custom Image Visualization Card"
+    "Custom Image Visualization Card",
   );
   fireEvent.click(visualizationOption);
   expect(await screen.findByText("Image Source")).toBeInTheDocument();
@@ -152,7 +156,7 @@ test("Visualization Pane Custom Image", async () => {
     requestId: 12345678,
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show Custom Image"
+    "Cell updated to show Custom Image",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("image");
   expect(mockSetVizData).toHaveBeenLastCalledWith({
@@ -189,7 +193,7 @@ test("Visualization Pane Custom Image through Dropdown", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -216,7 +220,7 @@ test("Visualization Pane Custom Image through Dropdown", async () => {
     requestId: 12345678,
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show Custom Image"
+    "Cell updated to show Custom Image",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("image");
   expect(mockSetVizData).toHaveBeenLastCalledWith({
@@ -252,7 +256,7 @@ test("Visualization Pane Variable Input", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -260,14 +264,14 @@ test("Visualization Pane Variable Input", async () => {
   expect(mockSetVizData).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "Variable Input Visualization Card"
+    "Variable Input Visualization Card",
   );
   fireEvent.click(visualizationOption);
 
@@ -275,14 +279,14 @@ test("Visualization Pane Variable Input", async () => {
   fireEvent.click(customImageOption);
   expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
-    await screen.findByText("Variable Options Source")
+    await screen.findByText("Variable Options Source"),
   ).toBeInTheDocument();
 
   const variableNameInput = screen.getByLabelText("Variable Name Input");
   fireEvent.change(variableNameInput, { target: { value: "Test Variable" } });
 
   const variableOptionsSourceSelect = screen.getByLabelText(
-    "Variable Options Source Input"
+    "Variable Options Source Input",
   );
   await userEvent.click(variableOptionsSourceSelect);
   const textOption = await screen.findByText("text");
@@ -295,7 +299,7 @@ test("Visualization Pane Variable Input", async () => {
       metadata: undefined,
       variable_name: "Test Variable",
       variable_options_source: "text",
-    })
+    }),
   );
 
   expect(mockSetVizMetadata).toHaveBeenLastCalledWith({
@@ -307,7 +311,7 @@ test("Visualization Pane Variable Input", async () => {
     },
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show Variable Input"
+    "Cell updated to show Variable Input",
   );
 
   await userEvent.click(variableOptionsSourceSelect);
@@ -323,7 +327,7 @@ test("Visualization Pane Variable Input", async () => {
     },
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show Variable Input"
+    "Cell updated to show Variable Input",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("variableInput");
   expect(mockSetVizData).toHaveBeenLastCalledWith(
@@ -332,7 +336,7 @@ test("Visualization Pane Variable Input", async () => {
       metadata: undefined,
       variable_name: "Test Variable",
       variable_options_source: "number",
-    })
+    }),
   );
 
   await userEvent.click(variableOptionsSourceSelect);
@@ -348,7 +352,7 @@ test("Visualization Pane Variable Input", async () => {
     },
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show Variable Input"
+    "Cell updated to show Variable Input",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("variableInput");
   expect(mockSetVizData).toHaveBeenLastCalledWith(
@@ -357,7 +361,7 @@ test("Visualization Pane Variable Input", async () => {
       metadata: undefined,
       variable_name: "Test Variable",
       variable_options_source: "checkbox",
-    })
+    }),
   );
 });
 
@@ -380,10 +384,10 @@ test("Visualization Pane Other Type", async () => {
             data: { text: "some text" },
             viz_type: "some_type",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -404,7 +408,7 @@ test("Visualization Pane Other Type", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -412,14 +416,14 @@ test("Visualization Pane Other Type", async () => {
   expect(mockSetVizData).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Visualization Group");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "plugin_label Visualization Card"
+    "plugin_label Visualization Card",
   );
   fireEvent.click(visualizationOption);
 
@@ -441,7 +445,7 @@ test("Visualization Pane Other Type", async () => {
     requestId: 12345678,
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show plugin_label"
+    "Cell updated to show plugin_label",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("loader");
   expect(mockSetVizData).toHaveBeenLastCalledWith({});
@@ -451,7 +455,7 @@ test("Visualization Pane Other Type", async () => {
   fireEvent.click(group2Option);
 
   const visualization2Option = await screen.findByLabelText(
-    "plugin_label2 Visualization Card"
+    "plugin_label2 Visualization Card",
   );
   fireEvent.click(visualization2Option);
 
@@ -467,7 +471,7 @@ test("Visualization Pane Other Type", async () => {
     requestId: 12345678,
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show plugin_label2"
+    "Cell updated to show plugin_label2",
   );
   expect(mockSetVizType).toHaveBeenCalledWith("vizWarning");
   expect(mockSetVizData).toHaveBeenCalledWith({
@@ -479,7 +483,7 @@ test("Visualization Pane Other Type", async () => {
   fireEvent.click(group3Option);
 
   const visualization3Option = await screen.findByLabelText(
-    "plugin_label3 Visualization Card"
+    "plugin_label3 Visualization Card",
   );
   fireEvent.click(visualization3Option);
 
@@ -498,7 +502,7 @@ test("Visualization Pane Other Type", async () => {
     requestId: 12345678,
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show plugin_label3"
+    "Cell updated to show plugin_label3",
   );
   expect(mockSetVizType).toHaveBeenCalledWith("vizWarning");
   expect(mockSetVizData).toHaveBeenCalledWith({
@@ -509,6 +513,7 @@ test("Visualization Pane Other Type", async () => {
 test("Visualization Pane Other Type Checkbox", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  mockedDashboard.tabs[0].gridItems.push(mockedTextVariable);
   const mockSetGridItemMessage = jest.fn();
   const mockSetVizType = jest.fn();
   const mockSetVizData = jest.fn();
@@ -525,10 +530,10 @@ test("Visualization Pane Other Type Checkbox", async () => {
             data: {},
             viz_type: "some_type",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   const availableVisualizations = [
@@ -567,8 +572,9 @@ test("Visualization Pane Other Type Checkbox", async () => {
       options: {
         inDataViewerMode: true,
         visualizations: availableVisualizations,
+        dashboards: { dashboards: [mockedDashboard] },
       },
-    })
+    }),
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -576,14 +582,14 @@ test("Visualization Pane Other Type Checkbox", async () => {
   expect(mockSetVizData).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Other");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "plugin_label_checkbox Visualization Card"
+    "plugin_label_checkbox Visualization Card",
   );
   fireEvent.click(visualizationOption);
 
@@ -609,7 +615,7 @@ test("Visualization Pane Other Type Checkbox", async () => {
     requestId: 12345678,
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show plugin_label_checkbox"
+    "Cell updated to show plugin_label_checkbox",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("vizWarning");
   expect(mockSetVizData).toHaveBeenLastCalledWith({
@@ -618,7 +624,7 @@ test("Visualization Pane Other Type Checkbox", async () => {
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({
       plugin_arg: true,
-    })
+    }),
   );
 
   await userEvent.click(pluginArgSelect);
@@ -635,8 +641,28 @@ test("Visualization Pane Other Type Checkbox", async () => {
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
     JSON.stringify({
       plugin_arg: false,
-    })
+    }),
   );
+
+  await userEvent.click(pluginArgSelect);
+  const variableOption = await screen.findByText("Test Variable");
+  await userEvent.click(variableOption);
+
+  expect(mockSetVizMetadata).toHaveBeenLastCalledWith({
+    source: "plugin_source_checkbox",
+    args: {
+      plugin_arg: "",
+    },
+    requestId: 12345678,
+  });
+  expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
+    JSON.stringify({
+      // eslint-disable-next-line
+      plugin_arg: "${Test Variable}",
+    }),
+  );
+  // eslint-disable-next-line
+  expect(screen.getByText("${Test Variable}")).toBeInTheDocument();
 });
 
 test("Visualization Pane Viz With Empty Args", async () => {
@@ -658,10 +684,10 @@ test("Visualization Pane Viz With Empty Args", async () => {
             data: { text: "some text" },
             viz_type: "some_type",
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
   const mockedVisualizations = [
     {
@@ -707,14 +733,14 @@ test("Visualization Pane Viz With Empty Args", async () => {
   expect(mockSetVizData).toHaveBeenCalledTimes(0);
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Visualization Group");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "plugin_label Visualization Card"
+    "plugin_label Visualization Card",
   );
   fireEvent.click(visualizationOption);
 
@@ -731,7 +757,7 @@ test("Visualization Pane Viz With Empty Args", async () => {
   });
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(2);
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show plugin_label"
+    "Cell updated to show plugin_label",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("loader");
   expect(mockSetVizData).toHaveBeenLastCalledWith({});
@@ -789,7 +815,7 @@ test("Visualization Pane Use Existing Bad Type", async () => {
         inDataViewerMode: true,
         dashboards: updatedMockedDashboards,
       },
-    })
+    }),
   );
 
   expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
@@ -797,7 +823,7 @@ test("Visualization Pane Use Existing Bad Type", async () => {
   expect(mockSetVizType).toHaveBeenCalledTimes(0);
   expect(mockSetVizData).toHaveBeenCalledTimes(0);
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 });
 
@@ -852,7 +878,7 @@ test("Visualization Pane Use Existing Args Map", async () => {
         inDataViewerMode: true,
         dashboards: updatedMockedDashboards,
       },
-    })
+    }),
   );
 
   expect(await screen.findByText("Map")).toBeInTheDocument();
@@ -874,7 +900,7 @@ test("Visualization Pane Use Existing Args Map", async () => {
     });
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show Map"
+    "Cell updated to show Map",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("map");
   expect(mockSetVizData).toHaveBeenLastCalledWith({
@@ -931,7 +957,7 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
         inDataViewerMode: true,
         dashboards: updatedMockedDashboards,
       },
-    })
+    }),
   );
 
   await waitFor(async () => {
@@ -949,7 +975,7 @@ test("Visualization Pane Use Existing Args Variable Input", async () => {
   expect(await screen.findByText("text")).toBeInTheDocument();
 
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show Variable Input"
+    "Cell updated to show Variable Input",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("variableInput");
   expect(mockSetVizData.mock.calls[0][0].initial_value).toBe("some value");
@@ -1000,7 +1026,7 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
         inDataViewerMode: true,
         dashboards: updatedMockedDashboards,
       },
-    })
+    }),
   );
 
   expect(await screen.findByText("Custom Image")).toBeInTheDocument();
@@ -1015,7 +1041,7 @@ test("Visualization Pane Use Existing Args Custom Image", async () => {
     });
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show Custom Image"
+    "Cell updated to show Custom Image",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("image");
   expect(mockSetVizData).toHaveBeenLastCalledWith({
@@ -1085,7 +1111,7 @@ test("Visualization Pane Use Existing Args Viz with True checkbox", async () => 
         dashboards: updatedMockedDashboards,
         visualizations: mockedVisualizations,
       },
-    })
+    }),
   );
 
   expect(await screen.findByText("plugin_label")).toBeInTheDocument();
@@ -1102,13 +1128,13 @@ test("Visualization Pane Use Existing Args Viz with True checkbox", async () => 
     });
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show plugin_label"
+    "Cell updated to show plugin_label",
   );
   expect(mockSetVizType).toHaveBeenCalledWith("loader");
   expect(mockSetVizType).toHaveBeenLastCalledWith("plotly");
   expect(mockSetVizData).toHaveBeenLastCalledWith({});
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
-    JSON.stringify({ plugin_arg: true })
+    JSON.stringify({ plugin_arg: true }),
   );
 });
 
@@ -1173,7 +1199,7 @@ test("Visualization Pane Use Existing Args Viz with False checkbox", async () =>
         dashboards: updatedMockedDashboards,
         visualizations: mockedVisualizations,
       },
-    })
+    }),
   );
 
   expect(await screen.findByText("plugin_label")).toBeInTheDocument();
@@ -1190,14 +1216,14 @@ test("Visualization Pane Use Existing Args Viz with False checkbox", async () =>
     });
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show plugin_label"
+    "Cell updated to show plugin_label",
   );
   await waitFor(() => {
     expect(mockSetVizType).toHaveBeenLastCalledWith("plotly");
   });
   expect(mockSetVizData).toHaveBeenLastCalledWith({});
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
-    JSON.stringify({ plugin_arg: false })
+    JSON.stringify({ plugin_arg: false }),
   );
 });
 
@@ -1301,7 +1327,7 @@ test("Visualization Pane Use Existing Subs Args", async () => {
         dashboards: updatedMockedDashboards,
         visualizations: mockedVisualizations,
       },
-    })
+    }),
   );
 
   expect(await screen.findByText("plugin_label")).toBeInTheDocument();
@@ -1337,7 +1363,7 @@ test("Visualization Pane Use Existing Subs Args", async () => {
     });
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show plugin_label"
+    "Cell updated to show plugin_label",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("plotly");
   expect(mockSetVizData).toHaveBeenLastCalledWith({});
@@ -1348,7 +1374,7 @@ test("Visualization Pane Use Existing Subs Args", async () => {
       "plugin_arg.sub_arg1a.sub_arg1aa": false,
       plugin_arg2: "arg3",
       "plugin_arg2.sub_arg3a": "some value",
-    })
+    }),
   );
 });
 
@@ -1448,18 +1474,18 @@ test("Visualization Pane Subs Args", async () => {
         dashboards: updatedMockedDashboards,
         visualizations: mockedVisualizations,
       },
-    })
+    }),
   );
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Other");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "plugin_label Visualization Card"
+    "plugin_label Visualization Card",
   );
   fireEvent.click(visualizationOption);
 
@@ -1511,7 +1537,7 @@ test("Visualization Pane Subs Args", async () => {
     });
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show plugin_label"
+    "Cell updated to show plugin_label",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("loader");
   expect(mockSetVizData).toHaveBeenLastCalledWith({});
@@ -1522,7 +1548,7 @@ test("Visualization Pane Subs Args", async () => {
       "plugin_arg.sub_arg1a": "sub_arg1a",
       "plugin_arg.sub_arg1a.sub_arg1aa": true,
       "plugin_arg2.sub_arg3a": "some new value",
-    })
+    }),
   );
 
   await userEvent.click(subArg1ADropdown);
@@ -1543,7 +1569,7 @@ test("Visualization Pane Subs Args", async () => {
     });
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show plugin_label"
+    "Cell updated to show plugin_label",
   );
   expect(mockSetVizType).toHaveBeenLastCalledWith("loader");
   expect(mockSetVizData).toHaveBeenLastCalledWith({
@@ -1558,7 +1584,7 @@ test("Visualization Pane Subs Args", async () => {
       "plugin_arg.sub_arg1a": "sub_arg1b",
       "plugin_arg.sub_arg1a.sub_arg1aa": true,
       "plugin_arg2.sub_arg3a": "some new value",
-    })
+    }),
   );
 
   await userEvent.click(subArg1ADropdown);
@@ -1639,7 +1665,7 @@ test("Visualization Pane Use Existing Args and switch type with same arg", async
         dashboards: updatedMockedDashboards,
         visualizations: mockedVisualizations,
       },
-    })
+    }),
   );
 
   expect(await screen.findByText("plugin_label")).toBeInTheDocument();
@@ -1657,10 +1683,10 @@ test("Visualization Pane Use Existing Args and switch type with same arg", async
     });
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
-    "Cell updated to show plugin_label"
+    "Cell updated to show plugin_label",
   );
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
-    JSON.stringify({ plugin_arg: "some text value" })
+    JSON.stringify({ plugin_arg: "some text value" }),
   );
 
   const comboboxes = await screen.findAllByRole("combobox");
@@ -1679,7 +1705,7 @@ test("Visualization Pane Use Existing Args and switch type with same arg", async
   expect(mockSetVizType).toHaveBeenLastCalledWith("unknown");
   expect(mockSetVizData).toHaveBeenLastCalledWith({});
   expect(await screen.findByTestId("viz-input-values")).toHaveTextContent(
-    JSON.stringify({ plugin_arg: "some text value", plugin_arg2: "" })
+    JSON.stringify({ plugin_arg: "some text value", plugin_arg2: "" }),
   );
 });
 
@@ -1749,7 +1775,7 @@ test("VisualizationArguments", async () => {
         />
       ),
       options: { inDataViewerMode: true },
-    })
+    }),
   );
 
   expect(await screen.findByText("Array Arg")).toBeInTheDocument();
@@ -1762,7 +1788,7 @@ test("VisualizationArguments", async () => {
 
   const arrayArgSelect = await screen.findByText("Array Arg");
   expect(
-    await screen.findByRole("combobox", { name: "Array Arg Input" })
+    await screen.findByRole("combobox", { name: "Array Arg Input" }),
   ).toBeInTheDocument();
   expect(arrayArgSelect).toBeInTheDocument();
   expect(screen.getByText("Option 1")).toBeInTheDocument();
@@ -1823,14 +1849,14 @@ test("VisualizationArguments missing array initial value", async () => {
         />
       ),
       options: { inDataViewerMode: true },
-    })
+    }),
   );
 
   expect(await screen.findByText("Array Arg")).toBeInTheDocument();
 
   const arrayArgSelect = await screen.findByText("Array Arg");
   expect(
-    await screen.findByRole("combobox", { name: "Array Arg Input" })
+    await screen.findByRole("combobox", { name: "Array Arg Input" }),
   ).toBeInTheDocument();
   expect(arrayArgSelect).toBeInTheDocument();
   expect(screen.getByText("option3")).toBeInTheDocument();

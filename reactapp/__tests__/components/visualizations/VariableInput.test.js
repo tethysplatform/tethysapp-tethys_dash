@@ -48,7 +48,7 @@ it("Creates a Date Hour Input for a Variable Input", async () => {
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   expect(await screen.findByText("Test Variable")).toBeInTheDocument();
@@ -76,7 +76,7 @@ it("Creates a Date Hour Input for a Variable Input", async () => {
   await userEvent.click(tomorrowCalendarItem);
   expect(input.value).toBe(`${format(tomorrow, "MM/dd/yyyy")} 12:00 AM`);
   expect(handleChange).toHaveBeenLastCalledWith(
-    `${format(tomorrow, "MM/dd/yyyy")} 12:00 AM`
+    `${format(tomorrow, "MM/dd/yyyy")} 12:00 AM`,
   );
 
   fireEvent.change(input, { target: { value: "now" } });
@@ -84,7 +84,7 @@ it("Creates a Date Hour Input for a Variable Input", async () => {
   // there is a race condition where this could fail because the minute changed between the click and the change
   expect(handleChange).toHaveBeenLastCalledWith(expectedDatetimeString);
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "" })
+    JSON.stringify({ "Test Variable": "" }),
   );
 
   const refreshButton = screen.getByLabelText("Refresh variable input");
@@ -92,7 +92,7 @@ it("Creates a Date Hour Input for a Variable Input", async () => {
   await userEvent.click(refreshButton);
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": expectedDatetimeString })
+    JSON.stringify({ "Test Variable": expectedDatetimeString }),
   );
 });
 
@@ -116,7 +116,7 @@ it("Creates a Date Input for a Variable Input", async () => {
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   expect(await screen.findByText("Test Variable")).toBeInTheDocument();
@@ -150,7 +150,7 @@ it("Creates a Date Input for a Variable Input", async () => {
   // there is a race condition where this could fail because the minute changed between the click and the change
   expect(handleChange).toHaveBeenLastCalledWith(expectedDatetimeString);
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "" })
+    JSON.stringify({ "Test Variable": "" }),
   );
 
   const refreshButton = screen.getByLabelText("Refresh variable input");
@@ -158,7 +158,7 @@ it("Creates a Date Input for a Variable Input", async () => {
   await userEvent.click(refreshButton);
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": expectedDatetimeString })
+    JSON.stringify({ "Test Variable": expectedDatetimeString }),
   );
 });
 
@@ -183,7 +183,7 @@ it("Creates a Text Input for a Variable Input", async () => {
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   expect(await screen.findByText("Test Variable")).toBeInTheDocument();
@@ -197,7 +197,7 @@ it("Creates a Text Input for a Variable Input", async () => {
 
   // Only update the Text Input after clicking the input refresh button
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "" })
+    JSON.stringify({ "Test Variable": "" }),
   );
 
   const refreshButton = screen.getByRole("button");
@@ -205,7 +205,7 @@ it("Creates a Text Input for a Variable Input", async () => {
   await user.click(refreshButton);
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "Hello World" })
+    JSON.stringify({ "Test Variable": "Hello World" }),
   );
 });
 
@@ -232,7 +232,7 @@ it("Creates a Slider Input for a Variable Input", async () => {
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   expect(await screen.findByText("Test Variable")).toBeInTheDocument();
@@ -243,7 +243,7 @@ it("Creates a Slider Input for a Variable Input", async () => {
   expect(handleChange).toHaveBeenLastCalledWith("50");
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "50" })
+    JSON.stringify({ "Test Variable": "50" }),
   );
 
   await advanceTimers(1500);
@@ -253,7 +253,7 @@ it("Creates a Slider Input for a Variable Input", async () => {
   });
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "51" })
+    JSON.stringify({ "Test Variable": "51" }),
   );
 
   jest.useRealTimers();
@@ -279,12 +279,12 @@ it("Creates a Slider Input for a Variable Input, missing metadata", async () => 
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   expect(await screen.findByTestId("input-variables")).toBeInTheDocument();
   expect(
-    await screen.findByTestId("slider-missing-metadata")
+    await screen.findByTestId("slider-missing-metadata"),
   ).toBeInTheDocument();
 });
 
@@ -301,10 +301,10 @@ it("renders slider-missing-metadata when no initial value or range", async () =>
           />
         </>
       ),
-    })
+    }),
   );
   expect(
-    await screen.findByTestId("slider-missing-metadata")
+    await screen.findByTestId("slider-missing-metadata"),
   ).toBeInTheDocument();
 });
 
@@ -330,13 +330,64 @@ it("Creates a Slider Input for a Variable Input, missing metadata key", async ()
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   expect(await screen.findByTestId("input-variables")).toBeInTheDocument();
   expect(
-    await screen.findByTestId("slider-missing-metadata")
+    await screen.findByTestId("slider-missing-metadata"),
   ).toBeInTheDocument();
+});
+
+it("Create a Slider Input with speedOptions", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedSliderVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedSliderVariable.args_string);
+  varInputArgs["variable_options_source.metadata"].speedOptions = [
+    5000, 2000, 1000, 500, 250, 100,
+  ];
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            metadata={varInputArgs["variable_options_source.metadata"]}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByTestId("input-variables")).toBeInTheDocument();
+  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+  const playBtn = await screen.findByRole("button", { name: /play/i });
+  expect(playBtn).toBeInTheDocument();
+
+  let select = screen.getByLabelText(/speed select/i);
+  expect(select).toBeInTheDocument();
+  // eslint-disable-next-line testing-library/no-node-access
+  expect(select.children.length).toBe(6);
+  // eslint-disable-next-line testing-library/no-node-access
+  expect(select.children[0].textContent).toBe("5000ms");
+  // eslint-disable-next-line testing-library/no-node-access
+  expect(select.children[1].textContent).toBe("Extra Slow");
+  // eslint-disable-next-line testing-library/no-node-access
+  expect(select.children[2].textContent).toBe("Slow");
+  // eslint-disable-next-line testing-library/no-node-access
+  expect(select.children[3].textContent).toBe("Medium");
+  // eslint-disable-next-line testing-library/no-node-access
+  expect(select.children[4].textContent).toBe("Fast");
+  // eslint-disable-next-line testing-library/no-node-access
+  expect(select.children[5].textContent).toBe("Extra Fast");
+  expect(screen.getByText("5000ms").selected).toBe(true);
 });
 
 it("Creates a CSV Uploader for a Variable Input", async () => {
@@ -360,7 +411,7 @@ it("Creates a CSV Uploader for a Variable Input", async () => {
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   expect(await screen.findByText("Test Variable")).toBeInTheDocument();
@@ -394,12 +445,12 @@ it("Creates a CSV Uploader for a Variable Input, missing metadata key", async ()
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   expect(await screen.findByTestId("input-variables")).toBeInTheDocument();
   expect(
-    await screen.findByTestId("csvuploader-missing-metadata")
+    await screen.findByTestId("csvuploader-missing-metadata"),
   ).toBeInTheDocument();
 });
 
@@ -424,7 +475,7 @@ it("Creates a Number Input for a Variable Input", async () => {
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   expect(await screen.findByText("Test Variable")).toBeInTheDocument();
@@ -438,7 +489,7 @@ it("Creates a Number Input for a Variable Input", async () => {
 
   // Only update the Text Input after clicking the input refresh button
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": 0 })
+    JSON.stringify({ "Test Variable": 0 }),
   );
 
   const refreshButton = screen.getByRole("button");
@@ -446,7 +497,7 @@ it("Creates a Number Input for a Variable Input", async () => {
   await user.click(refreshButton);
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": 9 })
+    JSON.stringify({ "Test Variable": 9 }),
   );
 });
 
@@ -471,7 +522,7 @@ it("Creates a Checkbox Input for a Variable Input", async () => {
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   const variableInput = await screen.findByLabelText("Test Variable Input");
@@ -483,7 +534,7 @@ it("Creates a Checkbox Input for a Variable Input", async () => {
   expect(handleChange).toHaveBeenCalledWith(false);
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": false })
+    JSON.stringify({ "Test Variable": false }),
   );
 });
 
@@ -508,7 +559,7 @@ it("Creates a Checkbox Input for a Variable Input with a null value", async () =
         </>
       ),
       options: { dashboards: { dashboards: [dashboard] } },
-    })
+    }),
   );
 
   const variableInput = await screen.findByLabelText("Test Variable Input");
@@ -516,7 +567,7 @@ it("Creates a Checkbox Input for a Variable Input with a null value", async () =
   expect(variableInput).not.toBeChecked();
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": false })
+    JSON.stringify({ "Test Variable": false }),
   );
   await user.click(variableInput);
 
@@ -524,7 +575,7 @@ it("Creates a Checkbox Input for a Variable Input with a null value", async () =
   expect(handleChange).toHaveBeenCalledWith(true);
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": true })
+    JSON.stringify({ "Test Variable": true }),
   );
 });
 
@@ -551,20 +602,20 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
         dashboards: { dashboards: [dashboard] },
         visualizations: mockedDropdownVisualization,
       },
-    })
+    }),
   );
 
   const variableInput = await screen.findByLabelText("Test Variable Input");
   expect(variableInput).toBeInTheDocument();
   await select(
     variableInput,
-    "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
+    "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
   );
 
   expect(
     screen.getByText(
-      "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
-    )
+      "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
+    ),
   ).toBeInTheDocument();
   expect(handleChange).toHaveBeenCalledWith({
     label: "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
@@ -572,7 +623,7 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
   });
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "CREC1" })
+    JSON.stringify({ "Test Variable": "CREC1" }),
   );
 });
 
@@ -598,7 +649,7 @@ it("Creates a Dropdown Input for a Variable Input from invalid source", async ()
       options: {
         dashboards: { dashboards: [dashboard] },
       },
-    })
+    }),
   );
 
   const variableInput = await screen.findByLabelText("Test Variable Input");
@@ -607,7 +658,7 @@ it("Creates a Dropdown Input for a Variable Input from invalid source", async ()
   expect(screen.getByText("CREC1")).toBeInTheDocument();
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "CREC1" })
+    JSON.stringify({ "Test Variable": "CREC1" }),
   );
 });
 
@@ -652,7 +703,7 @@ it("Creates a Dropdown Input for a Variable Input from array", async () => {
       options: {
         dashboards: { dashboards: [dashboard] },
       },
-    })
+    }),
   );
 
   const variableInput = await screen.findByLabelText("Test Variable Input");
@@ -666,7 +717,7 @@ it("Creates a Dropdown Input for a Variable Input from array", async () => {
   });
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "value 1" })
+    JSON.stringify({ "Test Variable": "value 1" }),
   );
 });
 
@@ -694,24 +745,24 @@ it("Creates a Dropdown Input for a Variable Input, not signed in", async () => {
         visualizations: mockedDropdownVisualization,
         user: { username: null, isAuthenticated: true, isStaff: false },
       },
-    })
+    }),
   );
 
   const proceedWithoutSigningInButton = await screen.findByText(
-    "Proceed Without Signing in"
+    "Proceed Without Signing in",
   );
   await userEvent.click(proceedWithoutSigningInButton);
 
   const variableInput = await screen.findByLabelText("Test Variable Input");
   await select(
     variableInput,
-    "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
+    "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
   );
 
   expect(
     screen.getByText(
-      "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY"
-    )
+      "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
+    ),
   ).toBeInTheDocument();
   expect(handleChange).toHaveBeenCalledWith({
     label: "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
@@ -719,7 +770,7 @@ it("Creates a Dropdown Input for a Variable Input, not signed in", async () => {
   });
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "CREC1" })
+    JSON.stringify({ "Test Variable": "CREC1" }),
   );
 });
 
@@ -749,7 +800,7 @@ describe("When inDataViewerMode", () => {
           dashboards: { dashboards: [dashboard] },
           inDataViewerMode: true,
         },
-      })
+      }),
     );
 
     expect(await screen.findByText("Test Variable")).toBeInTheDocument();
@@ -763,7 +814,7 @@ describe("When inDataViewerMode", () => {
 
     // Only update the Text Input after clicking the input refresh button
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": "" })
+      JSON.stringify({ "Test Variable": "" }),
     );
 
     const refreshButton = screen.getByRole("button");
@@ -771,7 +822,7 @@ describe("When inDataViewerMode", () => {
     await user.click(refreshButton);
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": "" })
+      JSON.stringify({ "Test Variable": "" }),
     );
   });
 
@@ -799,7 +850,7 @@ describe("When inDataViewerMode", () => {
           dashboards: { dashboards: [dashboard] },
           inDataViewerMode: true,
         },
-      })
+      }),
     );
 
     expect(await screen.findByText("Test Variable")).toBeInTheDocument();
@@ -814,7 +865,7 @@ describe("When inDataViewerMode", () => {
     // Only update the Text Input after clicking the input refresh button
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": 0 })
+      JSON.stringify({ "Test Variable": 0 }),
     );
 
     const refreshButton = screen.getByRole("button");
@@ -822,7 +873,7 @@ describe("When inDataViewerMode", () => {
     await user.click(refreshButton);
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": 0 })
+      JSON.stringify({ "Test Variable": 0 }),
     );
   });
 
@@ -850,7 +901,7 @@ describe("When inDataViewerMode", () => {
           dashboards: { dashboards: [dashboard] },
           inDataViewerMode: true,
         },
-      })
+      }),
     );
 
     const variableInput = await screen.findByLabelText("Test Variable Input");
@@ -859,7 +910,7 @@ describe("When inDataViewerMode", () => {
 
     await waitFor(async () => {
       expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-        JSON.stringify({ "Test Variable": true })
+        JSON.stringify({ "Test Variable": true }),
       );
     });
     await user.click(variableInput);
@@ -869,7 +920,7 @@ describe("When inDataViewerMode", () => {
 
     await waitFor(async () => {
       expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-        JSON.stringify({ "Test Variable": true })
+        JSON.stringify({ "Test Variable": true }),
       );
     });
   });
@@ -898,7 +949,7 @@ describe("When inDataViewerMode", () => {
           dashboards: { dashboards: [dashboard] },
           inDataViewerMode: true,
         },
-      })
+      }),
     );
 
     const variableInput = await screen.findByLabelText("Test Variable Input");
@@ -907,7 +958,7 @@ describe("When inDataViewerMode", () => {
 
     const inputVariables = await screen.findByTestId("input-variables");
     expect(inputVariables).toHaveTextContent(
-      JSON.stringify({ "Test Variable": false })
+      JSON.stringify({ "Test Variable": false }),
     );
     await user.click(variableInput);
 
@@ -916,7 +967,7 @@ describe("When inDataViewerMode", () => {
 
     await waitFor(async () => {
       expect(inputVariables).toHaveTextContent(
-        JSON.stringify({ "Test Variable": false })
+        JSON.stringify({ "Test Variable": false }),
       );
     });
   });
@@ -945,20 +996,20 @@ describe("When inDataViewerMode", () => {
           inDataViewerMode: true,
           visualizations: mockedDropdownVisualization,
         },
-      })
+      }),
     );
 
     const variableInput = await screen.findByLabelText("Test Variable Input");
     expect(variableInput).toBeInTheDocument();
 
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-      JSON.stringify({ "Test Variable": "CREC1" })
+      JSON.stringify({ "Test Variable": "CREC1" }),
     );
 
     await select(variableInput, "FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE");
 
     expect(
-      screen.getByText("FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE")
+      screen.getByText("FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE"),
     ).toBeInTheDocument();
     expect(handleChange).toHaveBeenCalledWith({
       label: "FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE",
@@ -982,7 +1033,7 @@ it("Handles null variable_options_source gracefully", async () => {
           <InputVariablePComponent />
         </>
       ),
-    })
+    }),
   );
   // Should render a text input with label
   expect(await screen.findByText("Null Source Variable")).toBeInTheDocument();

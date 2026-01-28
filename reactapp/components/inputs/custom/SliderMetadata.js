@@ -21,6 +21,25 @@ const TimeDeltaDiv = styled.div`
   position: relative;
 `;
 
+const SpeedOptionWrapper = styled.div`
+  margin-bottom: 1rem;
+`;
+
+const SpeedOptionContainer = styled.div`
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+`;
+
+const defaultSpeedOptions = [
+  { label: "Extra Slow", value: 2000 },
+  { label: "Slow", value: 1000 },
+  { label: "Medium", value: 500 },
+  { label: "Fast", value: 250 },
+  { label: "Extra Fast", value: 100 },
+];
+
 const SliderMetadata = ({ onChange, values }) => {
   const [min, setMin] = useState(values?.min ?? null);
   const [max, setMax] = useState(values?.max ?? null);
@@ -28,18 +47,23 @@ const SliderMetadata = ({ onChange, values }) => {
   const [outputFormat, setOutputFormat] = useState(values?.outputFormat ?? "");
   const [rangeMode, setRangeMode] = useState(values?.rangeMode ?? false);
   const [initialValue, setInitialValue] = useState(
-    values?.initialValue ?? null
+    values?.initialValue ?? null,
   );
   const [initialRange, setInitialRange] = useState(
-    values?.initialRange ?? [null, null]
+    values?.initialRange ?? [null, null],
   );
   const [dataType, setDataType] = useState(
-    values?.dataType ? { value: values.dataType, label: values.dataType } : null
+    values?.dataType
+      ? { value: values.dataType, label: values.dataType }
+      : null,
   );
   const [dateTimeDelta, setDateTimeDelta] = useState(
     values?.dateTimeDelta
       ? { value: values.dateTimeDelta, label: values.dateTimeDelta }
-      : { value: "Days", label: "Days" }
+      : { value: "Days", label: "Days" },
+  );
+  const [speedOptions, setSpeedOptions] = useState(
+    values?.speedOptions || defaultSpeedOptions.map((opt) => opt.value),
   );
   const { variableInputValues } = useContext(VariableInputsContext);
 
@@ -54,8 +78,8 @@ const SliderMetadata = ({ onChange, values }) => {
               unit: dateTimeDelta?.value,
               dataType: dataType?.value,
             },
-            variableInputValues
-          )
+            variableInputValues,
+          ),
         )
       : [];
 
@@ -74,6 +98,7 @@ const SliderMetadata = ({ onChange, values }) => {
         dataType: dataType.value,
         outputFormat,
         rangeMode,
+        speedOptions,
       };
       if (rangeMode) {
         if (initialRange[0] == null || initialRange[1] == null) {
@@ -104,7 +129,22 @@ const SliderMetadata = ({ onChange, values }) => {
     outputFormat,
     dataType?.value,
     dateTimeDelta.value,
+    speedOptions,
   ]);
+
+  const handleSpeedOptionsChange = (e) => {
+    const { value, checked } = e.target;
+    setSpeedOptions((prev) => {
+      let updated;
+      if (checked) {
+        updated = [...prev, Number(value)];
+      } else {
+        updated = prev.filter((v) => v !== Number(value));
+      }
+      // Sort from most to least
+      return updated.sort((a, b) => b - a);
+    });
+  };
 
   const onDataTypeChange = (selected) => {
     setDataType(selected);
@@ -145,6 +185,27 @@ const SliderMetadata = ({ onChange, values }) => {
 
   return (
     <>
+      <SpeedOptionWrapper>
+        <label>
+          <b>Speed Options</b>:
+        </label>
+        <SpeedOptionContainer>
+          {defaultSpeedOptions.map((opt) => (
+            <label
+              key={opt.value}
+              style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}
+            >
+              <input
+                type="checkbox"
+                value={opt.value}
+                checked={speedOptions.includes(opt.value)}
+                onChange={handleSpeedOptionsChange}
+              />
+              {opt.label} ({opt.value / 1000}s)
+            </label>
+          ))}
+        </SpeedOptionContainer>
+      </SpeedOptionWrapper>
       <DataRadioSelect
         label="Slider Mode"
         radioOptions={[
@@ -358,11 +419,12 @@ SliderMetadata.propTypes = {
     dataType: PropTypes.string,
     initialValue: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     initialRange: PropTypes.arrayOf(
-      PropTypes.oneOfType([PropTypes.number, PropTypes.string])
+      PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     ),
     rangeMode: PropTypes.bool,
     outputFormat: PropTypes.string,
     dateTimeDelta: PropTypes.string, // For slider metadata
+    speedOptions: PropTypes.arrayOf(PropTypes.number),
   }),
 };
 
