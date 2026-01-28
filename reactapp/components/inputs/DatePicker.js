@@ -62,7 +62,10 @@ const DatePicker = ({
   }, [value]);
 
   // Derive selectedDate for calendar from value prop (only if not relative)
-  let selectedDate = parseDate(value, dateFormat);
+  let selectedDate = null;
+  if (!checkForVariable(value)) {
+    selectedDate = parseDate(value, dateFormat);
+  }
 
   const onRawChange = (val) => {
     setRawInputValue(val);
@@ -84,7 +87,7 @@ const DatePicker = ({
     }
 
     // Absolute date string
-    const parsedDate = parseDate(value, dateFormat, true);
+    const parsedDate = parseDate(val, dateFormat, true);
     if (parsedDate) {
       onChange(parsedDate);
     }

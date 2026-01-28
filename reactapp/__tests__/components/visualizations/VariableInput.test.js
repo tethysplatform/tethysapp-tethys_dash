@@ -21,80 +21,13 @@ import createLoadedComponent, {
 } from "__tests__/utilities/customRender";
 import { getOrdinal } from "__tests__/utilities/constants";
 import { format } from "date-fns";
+import { dateHourFormat } from "components/inputs/dateUtils";
 
 const advanceTimers = async (ms) => {
   await act(async () => {
     jest.advanceTimersByTime(ms);
   });
 };
-
-it("Creates a Date Hour Input for a Variable Input", async () => {
-  const dashboard = JSON.parse(JSON.stringify(userDashboard));
-  dashboard.tabs[0].gridItems = [mockedDateHourVariable];
-  const handleChange = jest.fn();
-  const varInputArgs = JSON.parse(mockedDateHourVariable.args_string);
-
-  render(
-    createLoadedComponent({
-      children: (
-        <>
-          <VariableInput
-            variable_name={varInputArgs.variable_name}
-            initial_value={varInputArgs.initial_value}
-            variable_options_source={varInputArgs.variable_options_source}
-            onChange={handleChange}
-          />
-          <InputVariablePComponent />
-        </>
-      ),
-      options: { dashboards: { dashboards: [dashboard] } },
-    }),
-  );
-
-  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
-
-  const input = screen.getByRole("textbox");
-  expect(input.value).toBe("");
-
-  const calendarButton = screen.getByLabelText("Calendar Icon");
-  await userEvent.click(calendarButton);
-
-  const datePicker = await screen.findByRole("dialog");
-  expect(datePicker).toBeInTheDocument();
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  const weekday = tomorrow.toLocaleDateString("en-US", { weekday: "long" });
-  const month = tomorrow.toLocaleDateString("en-US", { month: "long" });
-  const day = tomorrow.getDate();
-  const ordinal = getOrdinal(day);
-  const year = tomorrow.getFullYear();
-
-  const formatted = `Choose ${weekday}, ${month} ${day}${ordinal}, ${year}`;
-  const tomorrowCalendarItem = screen.getByLabelText(formatted);
-
-  await userEvent.click(tomorrowCalendarItem);
-  expect(input.value).toBe(`${format(tomorrow, "MM/dd/yyyy")} 12:00 AM`);
-  expect(handleChange).toHaveBeenLastCalledWith(
-    `${format(tomorrow, "MM/dd/yyyy")} 12:00 AM`,
-  );
-
-  fireEvent.change(input, { target: { value: "now" } });
-  const expectedDatetimeString = format(today, "MM/dd/yyyy h:mm aa");
-  // there is a race condition where this could fail because the minute changed between the click and the change
-  expect(handleChange).toHaveBeenLastCalledWith(expectedDatetimeString);
-  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": "" }),
-  );
-
-  const refreshButton = screen.getByLabelText("Refresh variable input");
-  expect(refreshButton).toBeInTheDocument();
-  await userEvent.click(refreshButton);
-
-  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": expectedDatetimeString }),
-  );
-});
 
 it("Creates a Date Input for a Variable Input", async () => {
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
@@ -142,11 +75,13 @@ it("Creates a Date Input for a Variable Input", async () => {
   const tomorrowCalendarItem = screen.getByLabelText(formatted);
 
   await userEvent.click(tomorrowCalendarItem);
-  expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy"));
-  expect(handleChange).toHaveBeenLastCalledWith(format(tomorrow, "MM/dd/yyyy"));
+  expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy '12:00 AM'"));
+  expect(handleChange).toHaveBeenLastCalledWith(
+    format(tomorrow, "MM/dd/yyyy '12:00 AM'"),
+  );
 
   fireEvent.change(input, { target: { value: "now" } });
-  const expectedDatetimeString = format(today, "MM/dd/yyyy");
+  const expectedDatetimeString = format(today, dateHourFormat);
   // there is a race condition where this could fail because the minute changed between the click and the change
   expect(handleChange).toHaveBeenLastCalledWith(expectedDatetimeString);
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(

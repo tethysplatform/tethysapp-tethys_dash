@@ -2,7 +2,6 @@ import { format, parse } from "date-fns";
 
 // Formats for date and date-hour
 export const dateHourFormat = "MM/dd/yyyy h:mm aa";
-export const dateFormat = "MM/dd/yyyy";
 
 /**
  * Parses a date string, supporting relative expressions like 'now', 'now-1D', etc.
@@ -23,7 +22,10 @@ export const parseDateMath = ({ value, dateFormat }) => {
       return null;
     }
     if (isNaN(date)) {
-      return null;
+      date = new Date(value);
+      if (isNaN(date)) {
+        return null;
+      }
     }
   }
 
@@ -85,11 +87,22 @@ export const parseDate = (
   return_formatted = false,
 ) => {
   let selectedDate = rawDate;
-  if (!checkForVariable(rawDate) && rawDate) {
+  if (checkForVariable(rawDate)) {
+    return rawDate;
+  }
+
+  if (rawDate) {
     selectedDate = parseDateMath({ value: rawDate, dateFormat });
   }
-  if (selectedDate && return_formatted) {
-    selectedDate = format(selectedDate, dateFormat);
+
+  // If formatting requested, only format if valid date
+  if (return_formatted) {
+    if (selectedDate instanceof Date && !isNaN(selectedDate)) {
+      return format(selectedDate, dateFormat);
+    } else {
+      // If invalid, return null (or could return rawDate if preferred)
+      return null;
+    }
   }
   return selectedDate;
 };
