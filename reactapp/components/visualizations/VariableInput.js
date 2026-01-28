@@ -265,7 +265,12 @@ const VariableInput = ({
         </label>
         <FlexDiv>
           <InputDiv>
-            <DataInput type={type} value={value} onChange={handleInputChange} />
+            <DataInput
+              type={type}
+              value={value}
+              onChange={handleInputChange}
+              inputProps={updatedMetadata}
+            />
           </InputDiv>
           <ButtonDiv>
             <TooltipButton

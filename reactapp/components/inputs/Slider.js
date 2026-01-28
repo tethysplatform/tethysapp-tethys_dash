@@ -20,7 +20,7 @@ import {
   differenceInYears,
   format as formatDate,
 } from "date-fns";
-import { parseDateMath } from "components/inputs/DatePicker";
+import { parseDateMath } from "components/inputs/dateUtils";
 import { valuesEqual } from "components/modals/utilities";
 
 export const timeDeltas = {

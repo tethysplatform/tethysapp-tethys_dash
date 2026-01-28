@@ -4,7 +4,7 @@ import DatePicker from "components/inputs/DatePicker";
 import { addVerticalLine } from "components/visualizations/BasePlot";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import { getDependentVariableInputs } from "components/visualizations/utilities";
-import { checkForVariable } from "components/inputs/DatePicker";
+import { checkForVariable } from "components/inputs/dateUtils";
 
 const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
   const { variableInputValues } = useContext(VariableInputsContext);
@@ -163,7 +163,6 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
               <DatePicker
                 label="Date/Time"
                 value={verticalLineValue}
-                type="date-hour"
                 onChange={(e) => handleVerticalLineValueChange(e)}
               />
             </div>

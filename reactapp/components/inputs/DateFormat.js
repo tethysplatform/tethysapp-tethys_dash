@@ -1,0 +1,31 @@
+import { useState, useEffect } from "react";
+import PropTypes from "prop-types";
+import NormalInput from "components/inputs/NormalInput";
+
+const DateFormat = ({ value, onChange, divProps }) => {
+  const [outputFormat, setOutputFormat] = useState(
+    value?.format || "MM/dd/yyyy'T'HH:mm",
+  );
+
+  useEffect(() => {
+    onChange({ format: outputFormat });
+  }, [outputFormat]);
+
+  return (
+    <NormalInput
+      label="Output Format"
+      value={outputFormat}
+      type="text"
+      onChange={(e) => setOutputFormat(e.target.value)}
+      placeholder="date-fns format tokens; e.g., MM/dd/yyyy, MM/dd/yyyy'T'HH:mm"
+      divProps={divProps}
+    />
+  );
+};
+
+DateFormat.propTypes = {
+  value: PropTypes.string,
+  onChange: PropTypes.func.isRequired,
+};
+
+export default DateFormat;
