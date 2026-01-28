@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, parse } from "date-fns";
 
 // Formats for date and date-hour
 export const dateHourFormat = "MM/dd/yyyy h:mm aa";
@@ -8,7 +8,7 @@ export const dateFormat = "MM/dd/yyyy";
  * Parses a date string, supporting relative expressions like 'now', 'now-1D', etc.
  * Returns a Date object or null if invalid.
  */
-export const parseDateMath = ({ value }) => {
+export const parseDateMath = ({ value, dateFormat }) => {
   if (value instanceof Date && !isNaN(value)) return value;
   if (!value || typeof value !== "string") return null;
   let date;
@@ -17,22 +17,12 @@ export const parseDateMath = ({ value }) => {
     date = new Date();
     value = value.slice(3);
   } else {
-    // Interpret as local time
-    let dateString = value;
-
-    // Check if this looks like a date-time string without timezone info
-    const hasTime = /\d{4}-\d{2}-\d{2}[\s|T]\d{2}:\d{2}/.test(value);
-    const hasTimezone = value.includes("Z") || /[+-]\d{2}:\d{2}$/.test(value);
-
-    if (hasTime && !hasTimezone) {
-      // Convert space to T for local interpretation
-      dateString = value.replace(/\s/, "T");
+    try {
+      date = parse(value, dateFormat, new Date());
+    } catch (e) {
+      return null;
     }
-
-    const isoDate = new Date(dateString);
-    if (!isNaN(isoDate)) {
-      date = isoDate;
-    } else {
+    if (isNaN(date)) {
       return null;
     }
   }
@@ -96,7 +86,7 @@ export const parseDate = (
 ) => {
   let selectedDate = rawDate;
   if (!checkForVariable(rawDate) && rawDate) {
-    selectedDate = parseDateMath({ value: rawDate });
+    selectedDate = parseDateMath({ value: rawDate, dateFormat });
   }
   if (selectedDate && return_formatted) {
     selectedDate = format(selectedDate, dateFormat);
