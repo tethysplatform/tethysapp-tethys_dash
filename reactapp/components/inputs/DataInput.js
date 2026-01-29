@@ -13,6 +13,7 @@ import NormalInput from "components/inputs/NormalInput";
 import CheckboxInput from "components/inputs/CheckboxInput";
 import DatePicker from "components/inputs/DatePicker";
 import DateFormat from "components/inputs/DateFormat";
+import DateRange from "components/inputs/DateRange";
 import { parseDate } from "components/inputs/dateUtils";
 import * as customInputs from "components/inputs/Custom";
 import { format } from "date-fns";
@@ -87,21 +88,44 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
         value={value?.format}
       />
     );
-  } else if (type === "date" || type === "date-hour") {
+  } else if (type.includes("date")) {
+    if (typeof value === "string") {
+      value = {};
+    }
+
     return (
       <>
-        <DatePicker
-          label={label}
-          onChange={onChange}
-          value={value}
-          dateFormat={inputProps?.format}
-        />
+        {type === "date-range" ? (
+          <DateRange
+            label={label}
+            startDate={value?.startDate}
+            startDateVariable={inputProps?.startDateVariable}
+            endDate={value?.endDate}
+            endDateVariable={inputProps?.endDateVariable}
+            onStartDateChange={(newDate) =>
+              onChange({ ...value, startDate: newDate })
+            }
+            onEndDateChange={(newDate) =>
+              onChange({ ...value, endDate: newDate })
+            }
+            dateFormat={inputProps?.format}
+          />
+        ) : (
+          <DatePicker
+            label={label}
+            onChange={onChange}
+            value={value}
+            dateFormat={inputProps?.format}
+          />
+        )}
         {inDataViewerMode && (
           <div style={{ marginTop: "1rem" }}>
             <label>
               <b>Example Date Output</b>:
             </label>{" "}
-            <span>{parseDate(value, inputProps?.format, true)}</span>
+            <span>
+              {parseDate(value.startDate || value, inputProps?.format, true)}
+            </span>
           </div>
         )}
       </>

@@ -34,6 +34,7 @@ const ButtonDiv = styled.div`
 const FlexDiv = styled.div`
   display: flex;
   width: 100%;
+  align-items: flex-end;
 `;
 
 const VariableInput = ({
@@ -260,9 +261,11 @@ const VariableInput = ({
   } else {
     return (
       <StyledDiv>
-        <label>
-          <b>{label}</b>:
-        </label>
+        {type !== "date-range" && (
+          <label>
+            <b>{label}</b>:
+          </label>
+        )}
         <FlexDiv>
           <InputDiv>
             <DataInput

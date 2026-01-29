@@ -263,7 +263,11 @@ export const nonDropDownVariableInputTypes = [
     value: "date-hour",
     sub_args: { metadata: "date-format" },
   },
-  "date-range",
+  {
+    label: "date-range",
+    value: "date-range",
+    sub_args: { metadata: "custom-DateRangeMetadata" },
+  },
   {
     value: "slider",
     label: "slider",

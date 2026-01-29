@@ -1,27 +1,33 @@
 import PropTypes from "prop-types";
-import { DatePicker } from "components/inputs/DatePicker";
+import DatePicker from "components/inputs/DatePicker";
 
 export const DateRange = ({
+  label,
   startDate,
+  startDateVariable,
   endDate,
+  endDateVariable,
   onStartDateChange,
   onEndDateChange,
+  divProps,
   ...props
 }) => {
   return (
-    <div style={{ display: "flex", gap: "1rem" }}>
-      <DatePicker
-        label="Start Date"
-        selectedDate={startDate}
-        onDateChange={onStartDateChange}
-        {...props}
-      />
-      <DatePicker
-        label="End Date"
-        selectedDate={endDate}
-        onDateChange={onEndDateChange}
-        {...props}
-      />
+    <div {...divProps}>
+      <div style={{ display: "flex", gap: "1rem" }}>
+        <DatePicker
+          label={startDateVariable}
+          value={startDate}
+          onChange={onStartDateChange}
+          {...props}
+        />
+        <DatePicker
+          label={endDateVariable}
+          value={endDate}
+          onChange={onEndDateChange}
+          {...props}
+        />
+      </div>
     </div>
   );
 };
