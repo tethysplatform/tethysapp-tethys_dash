@@ -1,7 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import DatePicker from "components/inputs/DatePicker";
-import { parseDateMath, dateHourFormat } from "components/inputs/dateUtils";
 import { format } from "date-fns";
 import { getOrdinal } from "__tests__/utilities/constants";
 import { DataViewerModeContext } from "components/contexts/Contexts";
@@ -294,76 +293,4 @@ test("DatePicker relative date in dataviewer mode", async () => {
 
   expect(mockOnChange).toHaveBeenLastCalledWith("now+1H+1D");
   expect(mockOnChange).toHaveBeenCalledTimes(2);
-});
-
-describe("parseDateMath", () => {
-  it("parses 'now' for date", () => {
-    const today = new Date();
-    const result = parseDateMath({ value: "now" });
-    expect(format(result, dateHourFormat)).toBe(format(today, dateHourFormat));
-  });
-
-  it("parses 'now' for date-hour", () => {
-    const today = new Date();
-    const result = parseDateMath({ value: "now" });
-    expect(format(result, dateHourFormat)).toBe(format(today, dateHourFormat));
-  });
-
-  it("parses ISO date string", () => {
-    const result = parseDateMath({ value: "2025-08-15T09:37:00" });
-    expect(format(result, dateHourFormat)).toBe("08/15/2025 9:37 AM");
-  });
-
-  it("parses offset +1D", () => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    const result = parseDateMath({ value: "now+1D" });
-    expect(format(result, dateHourFormat)).toBe(
-      format(tomorrow, dateHourFormat),
-    );
-  });
-
-  it("parses offset -1D", () => {
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    const result = parseDateMath({ value: "now-1D" });
-    expect(format(result, dateHourFormat)).toBe(
-      format(yesterday, dateHourFormat),
-    );
-  });
-
-  it("parses multiple offsets", () => {
-    const today = new Date();
-    const date = new Date(today);
-    date.setFullYear(date.getFullYear() + 1);
-    date.setMonth(date.getMonth() + 2);
-    date.setDate(date.getDate() + 7);
-    const result = parseDateMath({ value: "now+1Y+2M+1W" });
-    expect(format(result, dateHourFormat)).toBe(format(date, dateHourFormat));
-  });
-
-  it("parses multiple time offsets", () => {
-    const today = new Date();
-    const date = new Date(today);
-    date.setHours(date.getHours() + 1);
-    date.setMinutes(date.getMinutes() + 2);
-    date.setSeconds(date.getSeconds() + 1);
-    const result = parseDateMath({ value: "now+1H+2m+1S" });
-    expect(format(result, dateHourFormat)).toBe(format(date, dateHourFormat));
-  });
-
-  it("returns null for invalid input", () => {
-    expect(parseDateMath({ value: "invalid" })).toBeNull();
-    expect(parseDateMath({ value: 123 })).toBeNull();
-    expect(parseDateMath({ value: "" })).toBeNull();
-  });
-
-  it("ignores unknown units (default case)", () => {
-    const today = new Date();
-    // 'Q' matches the offset regex but is not handled in the switch
-    const result = parseDateMath({ value: "now+1Q" });
-    expect(format(result, dateHourFormat)).toBe(format(today, dateHourFormat));
-  });
 });

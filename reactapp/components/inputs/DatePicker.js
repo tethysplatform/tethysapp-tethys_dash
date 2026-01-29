@@ -75,7 +75,7 @@ const DatePicker = ({
       if (inDataViewerMode) {
         onChange(val);
       } else {
-        const formattedDate = format(parsedDate, dateFormat || dateHourFormat);
+        const formattedDate = format(parsedDate, dateFormat);
         onChange(formattedDate);
       }
       return;
@@ -94,9 +94,7 @@ const DatePicker = ({
   };
 
   const openCalendar = () => {
-    if (datePickerRef.current && datePickerRef.current.setOpen) {
-      datePickerRef.current.setOpen(true);
-    }
+    datePickerRef.current.setOpen(true);
   };
 
   const handleSelect = (date) => {

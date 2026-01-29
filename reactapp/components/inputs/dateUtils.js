@@ -16,11 +16,8 @@ export const parseDateMath = ({ value, dateFormat }) => {
     date = new Date();
     value = value.slice(3);
   } else {
-    try {
-      date = parse(value, dateFormat, new Date());
-    } catch (e) {
-      return null;
-    }
+    date = parse(value, dateFormat, new Date());
+
     if (isNaN(date)) {
       date = new Date(value);
       if (isNaN(date)) {
@@ -86,14 +83,13 @@ export const parseDate = (
   dateFormat = dateHourFormat,
   return_formatted = false,
 ) => {
+  if (!rawDate) return null;
   let selectedDate = rawDate;
   if (checkForVariable(rawDate)) {
     return rawDate;
   }
 
-  if (rawDate) {
-    selectedDate = parseDateMath({ value: rawDate, dateFormat });
-  }
+  selectedDate = parseDateMath({ value: rawDate, dateFormat });
 
   // If formatting requested, only format if valid date
   if (return_formatted) {
