@@ -355,6 +355,51 @@ test("renders date-hour", async () => {
   expect(mockOnChange).toHaveBeenCalledWith(expectedDateString);
 });
 
+test("renders date-range", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataInput
+          label="Test Date Range"
+          type="date-range"
+          value={{ startDate: "", endDate: "" }}
+          inputProps={{
+            format: "MM/dd/yyyy",
+            startDateVariable: "Start Var",
+            endDateVariable: "End Var",
+          }}
+          onChange={mockOnChange}
+        />
+      ),
+    }),
+  );
+
+  expect(await screen.findByText("Start Var")).toBeInTheDocument();
+  expect(await screen.findByText("End Var")).toBeInTheDocument();
+});
+
+test("renders date-range with string value", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataInput
+          label="Test Date Range"
+          type="date-range"
+          value={""}
+          onChange={mockOnChange}
+        />
+      ),
+    }),
+  );
+
+  expect(await screen.findByText("Start Date")).toBeInTheDocument();
+  expect(await screen.findByText("End Date")).toBeInTheDocument();
+});
+
 test("renders custom-AddMapLayer", async () => {
   const mockOnChange = jest.fn();
   const setShowingSubModal = jest.fn();
