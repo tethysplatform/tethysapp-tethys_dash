@@ -68,10 +68,16 @@ const VariableInput = ({
   const updateVariableInputs = useCallback(
     (new_value) => {
       if (new_value || new_value === false || new_value === 0) {
-        setVariableInputValues((prevVariableInputValues) => ({
-          ...prevVariableInputValues,
-          [variable_name]: new_value,
-        }));
+        setVariableInputValues((prevVariableInputValues) => {
+          let newVariableValues = { [variable_name]: new_value };
+          if (typeof new_value === "object") {
+            newVariableValues = { ...newVariableValues, ...new_value };
+          }
+          return {
+            ...prevVariableInputValues,
+            ...newVariableValues,
+          };
+        });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps

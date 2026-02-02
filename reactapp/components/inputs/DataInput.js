@@ -89,27 +89,14 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
       />
     );
   } else if (type.includes("date")) {
-    if (typeof value === "string") {
+    if (typeof value === "string" && type === "date-range") {
       value = {};
     }
 
     return (
       <>
         {type === "date-range" ? (
-          <DateRange
-            label={label}
-            startDate={value?.startDate}
-            startDateVariable={inputProps?.startDateVariable}
-            endDate={value?.endDate}
-            endDateVariable={inputProps?.endDateVariable}
-            onStartDateChange={(newDate) =>
-              onChange({ ...value, startDate: newDate })
-            }
-            onEndDateChange={(newDate) =>
-              onChange({ ...value, endDate: newDate })
-            }
-            dateFormat={inputProps?.format}
-          />
+          <DateRange values={value} onChange={onChange} metadata={inputProps} />
         ) : (
           <DatePicker
             label={label}
