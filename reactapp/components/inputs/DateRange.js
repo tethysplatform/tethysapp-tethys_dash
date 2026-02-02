@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import DatePicker from "components/inputs/DatePicker";
 
 export const DateRange = ({
