@@ -99,7 +99,7 @@ const DatePicker = ({
 
   const handleSelect = (date) => {
     const formattedDate = format(date, dateFormat);
-    setRawInputValue(formattedDate);
+    setRawInputValue(format(date, dateHourFormat));
     onChange(formattedDate);
   };
 

@@ -209,20 +209,20 @@ function DataViewerModal({
     e.stopPropagation();
     setShowAlert(false);
     if (selectedVizTypeOption !== null) {
-      let newVariableInputs = {};
-      let oldVariableInputs = {};
+      let newVariableInputNames = {};
+      let oldVariableInputNames = {};
       if (selectedVizTypeOption.source === "Variable Input") {
-        vizInputsValues.initial_value = variableInputValue;
-
-        newVariableInputs = getAllVariableInputNames(vizInputsValues);
-        oldVariableInputs = getAllVariableInputNames(JSON.parse(argsString));
+        newVariableInputNames = getAllVariableInputNames(vizInputsValues);
+        oldVariableInputNames = getAllVariableInputNames(
+          JSON.parse(argsString),
+        );
 
         var variableInputSource = vizInputsValues.variable_options_source;
 
-        for (const variableInputName of Object.keys(newVariableInputs)) {
+        for (const variableInputName of Object.values(newVariableInputNames)) {
           if (
             variableInputName in variableInputValues &&
-            !(variableInputName in oldVariableInputs)
+            !(variableInputName in oldVariableInputNames)
           ) {
             setAlertMessage(
               variableInputName + " is already in use for a variable name",
@@ -238,6 +238,7 @@ function DataViewerModal({
             return;
           }
         }
+        vizInputsValues.initial_value = variableInputValue;
       }
 
       if (

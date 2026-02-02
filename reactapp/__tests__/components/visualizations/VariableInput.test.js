@@ -14,6 +14,7 @@ import {
   mockedCSVUploaderVariable,
   mockedDateHourVariable,
   mockedDateVariable,
+  mockedDateRangeVariable,
 } from "__tests__/utilities/constants";
 import { select } from "react-select-event";
 import createLoadedComponent, {
@@ -94,6 +95,105 @@ it("Creates a Date Input for a Variable Input", async () => {
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({ "Test Variable": expectedDatetimeString }),
+  );
+});
+
+it("Creates a Date Range Input for a Variable Input", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedDateRangeVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedDateRangeVariable.args_string);
+
+  const { rerender } = render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            metadata={varInputArgs["variable_options_source.metadata"]}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByText("Start Date")).toBeInTheDocument();
+  expect(await screen.findByText("End Date")).toBeInTheDocument();
+
+  const inputs = screen.getAllByRole("textbox");
+  expect(inputs[0].value).toBe("01/14/2026T00:00");
+  expect(inputs[1].value).toBe("01/16/2026T00:00");
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      "Test Variable": {
+        "Start Date": "01/14/2026T00:00",
+        "End Date": "01/16/2026T00:00",
+      },
+      "Start Date": "01/14/2026T00:00",
+      "End Date": "01/16/2026T00:00",
+    }),
+  );
+
+  fireEvent.change(inputs[0], { target: { value: "now" } });
+  const today = new Date();
+  const expectedDatetimeString = format(
+    today,
+    varInputArgs["variable_options_source.metadata"].format,
+  );
+
+  const refreshButton = screen.getByLabelText("Refresh variable input");
+  expect(refreshButton).toBeInTheDocument();
+  await userEvent.click(refreshButton);
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      "Test Variable": {
+        "Start Date": expectedDatetimeString,
+        "End Date": "01/16/2026T00:00",
+      },
+      "Start Date": expectedDatetimeString,
+      "End Date": "01/16/2026T00:00",
+    }),
+  );
+
+  varInputArgs["variable_options_source.metadata"] = {
+    format: "MM/dd/yyyy'T'HH",
+    startDateVariable: "Start Date",
+    endDateVariable: "End Date",
+  };
+  rerender(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            metadata={varInputArgs["variable_options_source.metadata"]}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      "Test Variable": {
+        "Start Date": expectedDatetimeString,
+        "End Date": "01/16/2026T00:00",
+      },
+      "Start Date": expectedDatetimeString,
+      "End Date": "01/16/2026T00:00",
+    }),
   );
 });
 

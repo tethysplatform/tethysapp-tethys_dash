@@ -987,16 +987,16 @@ export const mockedDateRangeVariable = {
   h: 20,
   source: "Variable Input",
   args_string: JSON.stringify({
-    variable_name: "test",
+    variable_name: "Test Variable",
     variable_options_source: "date-range",
     "variable_options_source.metadata": {
-      format: "MM/dd/yyyy'T 'HH:mm",
+      format: "MM/dd/yyyy'T'HH:mm",
       startDateVariable: "Start Date",
       endDateVariable: "End Date",
     },
     initial_value: {
-      startDate: "now",
-      endDate: "01/16/2026T00:00",
+      "Start Date": "01/14/2026T00:00",
+      "End Date": "01/16/2026T00:00",
     },
   }),
   metadata_string: JSON.stringify({

@@ -50,12 +50,14 @@ export const DateRange = ({
           label={startDateVariable}
           value={startDate}
           onChange={onStartDateChange}
+          dateFormat={metadata?.format}
           {...props}
         />
         <DatePicker
           label={endDateVariable}
           value={endDate}
           onChange={onEndDateChange}
+          dateFormat={metadata?.format}
           {...props}
         />
       </div>

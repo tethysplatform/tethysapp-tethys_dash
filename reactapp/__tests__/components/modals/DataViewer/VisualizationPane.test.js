@@ -8,6 +8,7 @@ import {
   mockedDashboards,
   userDashboard,
   mockedTextVariable,
+  mockedTextBase,
 } from "__tests__/utilities/constants";
 import createLoadedComponent from "__tests__/utilities/customRender";
 import PropTypes from "prop-types";
@@ -163,6 +164,59 @@ test("Visualization Pane Custom Image", async () => {
     source: "some_png",
     alt: "custom_image",
   });
+});
+
+test("Visualization Pane Text", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  mockedDashboard.tabs[0].gridItems = [mockedTextBase];
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const mockSetVizMetadata = jest.fn();
+  const mockSetShowingSubModal = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <TestingComponent
+          gridItemIndex={0}
+          layoutContext={mockedDashboard}
+          source={gridItem.source}
+          argsString={gridItem.args_string}
+          setGridItemMessage={mockSetGridItemMessage}
+          vizType={"loader"}
+          setVizType={mockSetVizType}
+          setVizData={mockSetVizData}
+          setVizMetadata={mockSetVizMetadata}
+          setShowingSubModal={mockSetShowingSubModal}
+        />
+      ),
+      options: {
+        inDataViewerMode: true,
+      },
+    }),
+  );
+
+  expect(mockSetVizMetadata).toHaveBeenCalledTimes(0);
+  expect(mockSetVizType).toHaveBeenCalledTimes(0);
+  expect(mockSetVizData).toHaveBeenCalledTimes(0);
+
+  expect(await screen.findByText("Text")).toBeInTheDocument();
+
+  await waitFor(() => {
+    expect(mockSetVizMetadata).toHaveBeenLastCalledWith({
+      source: "Text",
+      args: {
+        text: "Custom Text",
+      },
+    });
+  });
+  expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
+    "Cell updated to show Text",
+  );
+  expect(mockSetVizType).toHaveBeenCalledTimes(0);
+  expect(mockSetVizData).toHaveBeenCalledTimes(0);
 });
 
 test("Visualization Pane Custom Image through Dropdown", async () => {
