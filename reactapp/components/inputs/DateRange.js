@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import DatePicker from "components/inputs/DatePicker";
 
 export const DateRange = ({
@@ -9,23 +9,37 @@ export const DateRange = ({
   divProps,
   ...props
 }) => {
-  const [startDate, setStartDate] = useState(
-    values?.[metadata?.startDateVariable || "Start Date"] || "",
-  );
-  const [endDate, setEndDate] = useState(
-    values?.[metadata?.endDateVariable || "End Date"] || "",
-  );
-
   const startDateVariable = metadata?.startDateVariable || "Start Date";
   const endDateVariable = metadata?.endDateVariable || "End Date";
+  const startDate = values?.[startDateVariable] || "";
+  const endDate = values?.[endDateVariable] || "";
+
+  const startDateVariableRef = useRef(startDateVariable);
+  const endDateVariableRef = useRef(endDateVariable);
+
+  useEffect(() => {
+    if (
+      startDateVariableRef.current === startDateVariable &&
+      endDateVariableRef.current === endDateVariable
+    )
+      return;
+
+    const oldStartDate = values?.[startDateVariableRef.current] || startDate;
+    const oldEndDate = values?.[endDateVariableRef.current] || endDate;
+    onChange({
+      [startDateVariable]: oldStartDate,
+      [endDateVariable]: oldEndDate,
+    });
+
+    startDateVariableRef.current = startDateVariable;
+    endDateVariableRef.current = endDateVariable;
+  }, [values, startDateVariable, endDateVariable]);
 
   const onStartDateChange = (newDate) => {
-    setStartDate(newDate);
     onChange({ [startDateVariable]: newDate, [endDateVariable]: endDate });
   };
 
   const onEndDateChange = (newDate) => {
-    setEndDate(newDate);
     onChange({ [startDateVariable]: startDate, [endDateVariable]: newDate });
   };
 
