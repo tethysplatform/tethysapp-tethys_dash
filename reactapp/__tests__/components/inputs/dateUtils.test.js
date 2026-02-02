@@ -103,7 +103,9 @@ describe("parseDateMath", () => {
 
 describe("checkForVariable", () => {
   it("detects variable expressions", () => {
+    // eslint-disable-next-line
     expect(checkForVariable("${variable}")).toBe(true);
+    // eslint-disable-next-line
     expect(checkForVariable("prefix_${variable}_suffix")).toBe(true);
   });
 
@@ -143,6 +145,7 @@ describe("isRelativeInput", () => {
 
 describe("parseDate", () => {
   it("returns variable expressions unchanged", () => {
+    // eslint-disable-next-line
     expect(parseDate("${variable}")).toBe("${variable}");
   });
 

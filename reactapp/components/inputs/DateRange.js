@@ -33,6 +33,7 @@ export const DateRange = ({
 
     startDateVariableRef.current = startDateVariable;
     endDateVariableRef.current = endDateVariable;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [values, startDateVariable, endDateVariable]);
 
   const onStartDateChange = (newDate) => {

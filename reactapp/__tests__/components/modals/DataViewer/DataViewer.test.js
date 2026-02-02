@@ -55,6 +55,7 @@ const TestingComponent = ({
 
   useEffect(() => {
     onTabUpdate(tabs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs]);
 
   return (
@@ -1030,6 +1031,7 @@ describe("updateVariableInputs", () => {
         uuid: "a4e09050-11ab-402d-b0b7-5c4d353c0296",
       },
       {
+        // eslint-disable-next-line
         args_string: '{"text": "<p>${Date Range Variable}</p>"}',
         h: 20,
         i: "2",
@@ -1042,6 +1044,7 @@ describe("updateVariableInputs", () => {
         uuid: "6526184d-e7a8-41d4-be3c-a728fad2fbed",
       },
       {
+        // eslint-disable-next-line
         args_string: '{"text": "<p>${Start Dats}</p>"}',
         h: 40,
         i: "3",
@@ -1093,6 +1096,7 @@ describe("updateVariableInputs", () => {
         y: 1,
       },
       {
+        // eslint-disable-next-line
         args_string: '{"text":"<p>${Date Range}</p>"}',
         h: 20,
         i: "2",
@@ -1105,6 +1109,7 @@ describe("updateVariableInputs", () => {
         y: 9,
       },
       {
+        // eslint-disable-next-line
         args_string: '{"text":"<p>${Start Date}</p>"}',
         h: 40,
         i: "3",

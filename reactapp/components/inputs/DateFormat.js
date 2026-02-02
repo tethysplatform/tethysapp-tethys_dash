@@ -9,6 +9,7 @@ const DateFormat = ({ value, onChange, divProps }) => {
 
   useEffect(() => {
     onChange(outputFormat);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outputFormat]);
 
   return (
@@ -26,6 +27,7 @@ const DateFormat = ({ value, onChange, divProps }) => {
 DateFormat.propTypes = {
   value: PropTypes.string,
   onChange: PropTypes.func.isRequired,
+  divProps: PropTypes.object,
 };
 
 export default DateFormat;

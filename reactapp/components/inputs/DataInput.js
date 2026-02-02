@@ -16,7 +16,6 @@ import DateFormat from "components/inputs/DateFormat";
 import DateRange from "components/inputs/DateRange";
 import { parseDate } from "components/inputs/dateUtils";
 import * as customInputs from "components/inputs/Custom";
-import { format } from "date-fns";
 
 const StyledDiv = styled.div`
   padding-bottom: 1rem;

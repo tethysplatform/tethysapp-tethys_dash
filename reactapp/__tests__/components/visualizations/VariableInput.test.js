@@ -12,7 +12,6 @@ import {
   userDashboard,
   mockedSliderVariable,
   mockedCSVUploaderVariable,
-  mockedDateHourVariable,
   mockedDateVariable,
   mockedDateRangeVariable,
 } from "__tests__/utilities/constants";

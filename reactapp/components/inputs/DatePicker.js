@@ -156,6 +156,7 @@ DatePicker.propTypes = {
   onChange: PropTypes.func,
   value: PropTypes.string,
   divProps: PropTypes.object,
+  dateFormat: PropTypes.string,
 };
 
 export default memo(DatePicker);
