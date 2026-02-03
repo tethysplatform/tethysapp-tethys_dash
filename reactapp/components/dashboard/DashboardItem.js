@@ -10,6 +10,7 @@ import {
   AppContext,
   LayoutContext,
   TabContext,
+  GridItemContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
@@ -114,7 +115,7 @@ export const requiredGridItemKeys = [
 export const handleGridItemExport = async (gridItem, dashboard_uuid) => {
   const { id, uuid, ...exportedGridItem } = gridItem;
   exportedGridItem.metadata_string = JSON.parse(
-    exportedGridItem.metadata_string
+    exportedGridItem.metadata_string,
   );
   const gridItemArgs = JSON.parse(exportedGridItem.args_string);
   exportedGridItem.args_string = gridItemArgs;
@@ -125,7 +126,7 @@ export const handleGridItemExport = async (gridItem, dashboard_uuid) => {
         const apiResponse = await loadLayerJSONs(
           mapLayer,
           dashboard_uuid,
-          true
+          true,
         );
         if (!apiResponse.success) {
           return apiResponse;
@@ -145,7 +146,7 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
 
   if (
     !requiredGridItemKeys.every((key) =>
-      Object.prototype.hasOwnProperty.call(importedGridItem, key)
+      Object.prototype.hasOwnProperty.call(importedGridItem, key),
     )
   ) {
     return {
@@ -177,7 +178,7 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
         ) {
           const apiResponse = await saveLayerJSON({
             stringJSON: JSON.stringify(
-              mapLayer.configuration.props.source.geojson
+              mapLayer.configuration.props.source.geojson,
             ),
             csrf,
             check_crs: true,
@@ -210,7 +211,7 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
   }
   importedGridItem.args_string = JSON.stringify(importedGridItem.args_string);
   importedGridItem.metadata_string = JSON.stringify(
-    importedGridItem.metadata_string
+    importedGridItem.metadata_string,
   );
 
   return {
@@ -219,15 +220,14 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
   };
 };
 
-const DashboardItem = ({
-  gridItemSource,
-  gridItemI,
-  gridItemArgsString,
-  gridItemMetadataString,
-  gridItemIndex,
-  gridItemUUID,
-  shouldLoad,
-}) => {
+const DashboardItem = () => {
+  const {
+    gridItemSource,
+    gridItemI,
+    gridItemArgsString,
+    gridItemMetadataString,
+    gridItemIndex,
+  } = useContext(GridItemContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");
@@ -235,24 +235,24 @@ const DashboardItem = ({
   const [gridItemWarning, setGridItemWarning] = useState("");
   const [showGridItemWarning, setShowGridItemWarning] = useState(false);
   const [gridItemStyling, setGridItemStyling] = useState(
-    JSON.parse(gridItemMetadataString)
+    JSON.parse(gridItemMetadataString),
   );
   const { getActiveTab, updateTab } = useContext(TabContext);
   const { variableInputValues, setVariableInputValues } = useContext(
-    VariableInputsContext
+    VariableInputsContext,
   );
   const { setInDataViewerMode } = useContext(DataViewerModeContext);
   const { visualizations } = useContext(AppContext);
   const { uuid } = useContext(LayoutContext);
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const [attribution, setAttribution] = useState(
-    findVisualizationBySource(visualizations, gridItemSource)?.attribution
+    findVisualizationBySource(visualizations, gridItemSource)?.attribution,
   );
   const [showAttribution, setShowAttribution] = useState(false);
 
   useEffect(() => {
     setAttribution(
-      findVisualizationBySource(visualizations, gridItemSource)?.attribution
+      findVisualizationBySource(visualizations, gridItemSource)?.attribution,
     );
     // eslint-disable-next-line
   }, [gridItemSource]);
@@ -438,21 +438,10 @@ const DashboardItem = ({
             setShowAlert={setGridItemWarning}
             alertMessage={gridItemWarning}
           />
-          <BaseVisualization
-            key={gridItemI}
-            source={gridItemSource}
-            argsString={gridItemArgsString}
-            metadataString={gridItemMetadataString}
-            uuid={gridItemUUID}
-            shouldLoad={shouldLoad}
-          />
+          <BaseVisualization key={gridItemI} />
         </StyledContainer>
         {showDataViewerModal && (
           <DataViewerModal
-            gridItemIndex={gridItemIndex}
-            source={gridItemSource}
-            argsString={gridItemArgsString}
-            metadataString={gridItemMetadataString}
             showModal={showDataViewerModal}
             handleModalClose={hideDataViewerModal}
             setGridItemMessage={setGridItemMessage}

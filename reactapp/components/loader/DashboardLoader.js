@@ -37,6 +37,7 @@ const DashboardLoader = ({
   const [isLoaded, setIsLoaded] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [variableInputValues, setVariableInputValues] = useState({});
+  const [variableInputDateFormats, setVariableInputDateFormats] = useState({});
   const [tabs, setTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
   const [notes, setNotes] = useState([]);
@@ -78,45 +79,70 @@ const DashboardLoader = ({
 
   const updateVariableInputValuesWithGridItems = useCallback(
     (updatedTabs) => {
-      const updatedVariableInputValues = JSON.parse(
-        JSON.stringify(variableInputValues)
-      );
+      let updatedVariableInputValues = {};
+      let updatedVariableInputDateFormats = {};
+      // update to use any date range values as well
+      // when a griditem is deleted, I want to remove its variable inputs as well
+
       for (let tab of updatedTabs) {
         for (let gridItem of tab.gridItems) {
           const args = JSON.parse(gridItem.args_string);
 
           if (gridItem.source === "Variable Input") {
-            if (!(args.variable_name in variableInputValues)) {
-              let initialValue = args.initial_value;
-              if (
-                args.variable_options_source === "checkbox" &&
-                args.initial_value === null
-              ) {
-                initialValue = false;
+            let initialValue =
+              variableInputValues[args.variable_name] || args.initial_value;
+            if (
+              args.variable_options_source === "checkbox" &&
+              args.initial_value === null
+            ) {
+              initialValue = false;
+            }
+
+            let dateFormat;
+            if (args.variable_options_source.includes("date")) {
+              dateFormat =
+                args?.["variable_options_source.metadata"]?.format || "";
+            } else if (args.variable_options_source === "slider") {
+              dateFormat =
+                args["variable_options_source.metadata"].outputFormat;
+            }
+
+            updatedVariableInputValues[args.variable_name] = initialValue;
+            if (dateFormat) {
+              updatedVariableInputDateFormats[args.variable_name] = dateFormat;
+            }
+
+            if (typeof initialValue === "object" && initialValue !== null) {
+              for (let [key, value] of Object.entries(initialValue)) {
+                updatedVariableInputValues[key] = value;
+                if (dateFormat) {
+                  updatedVariableInputDateFormats[key] = dateFormat;
+                }
               }
-              updatedVariableInputValues[args.variable_name] = initialValue;
             }
           }
         }
       }
       setVariableInputValues(updatedVariableInputValues);
+      console.log(updatedVariableInputDateFormats);
+      setVariableInputDateFormats(updatedVariableInputDateFormats);
     },
-    [variableInputValues]
+    [variableInputValues],
   );
 
   const updateTab = useCallback(
     (tabId, updatedProperties) => {
       setTabs((prevTabs) =>
         prevTabs.map((tab) =>
-          tab.id === tabId ? { ...tab, ...updatedProperties } : tab
-        )
+          tab.id === tabId ? { ...tab, ...updatedProperties } : tab,
+        ),
       );
       if ("gridItems" in updatedProperties) {
         updateVariableInputValuesWithGridItems([updatedProperties]);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tabs, activeTabId, variableInputValues]
+    [tabs, activeTabId, variableInputValues],
   );
 
   const resetTabs = useCallback(() => {
@@ -133,7 +159,7 @@ const DashboardLoader = ({
         const updatedDashboard = apiResponse.updated_dashboard;
         if ("tabs" in newProperties) {
           const originalActiveTabIndex = tabs.findIndex(
-            (tab) => tab.id === activeTabId
+            (tab) => tab.id === activeTabId,
           );
           setTabs(updatedDashboard.tabs);
           originalTabs.current = updatedDashboard.tabs;
@@ -142,7 +168,7 @@ const DashboardLoader = ({
       }
       return apiResponse;
     },
-    [updateDashboard, id, tabs, activeTabId]
+    [updateDashboard, id, tabs, activeTabId],
   );
 
   const addTab = useCallback(() => {
@@ -165,7 +191,7 @@ const DashboardLoader = ({
         setActiveTabId(newTabs[0].id);
       }
     },
-    [tabs, activeTabId]
+    [tabs, activeTabId],
   );
 
   const reorderTabs = useCallback(
@@ -173,17 +199,17 @@ const DashboardLoader = ({
       setTabs(newOrder);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tabs]
+    [tabs],
   );
 
   const getActiveTab = useCallback(
     () => tabs.find((tab) => tab.id === activeTabId),
-    [tabs, activeTabId]
+    [tabs, activeTabId],
   );
 
   const getTab = useCallback(
     (tabId) => tabs.find((tab) => tab.id === tabId),
-    [tabs]
+    [tabs],
   );
 
   // Always call hooks in the same order
@@ -191,9 +217,11 @@ const DashboardLoader = ({
     () => ({
       variableInputValues,
       setVariableInputValues,
+      variableInputDateFormats,
     }),
-    [variableInputValues, setVariableInputValues]
+    [variableInputValues, setVariableInputValues, variableInputDateFormats],
   );
+
   const tabContextValue = useMemo(
     () => ({
       tabs,
@@ -218,7 +246,7 @@ const DashboardLoader = ({
       getActiveTab,
       getTab,
       setActiveTabId,
-    ]
+    ],
   );
   const layoutContextValue = useMemo(
     () => ({
@@ -248,19 +276,19 @@ const DashboardLoader = ({
       unrestrictedPlacement,
       description,
       owner,
-    ]
+    ],
   );
   const editingContextValue = useMemo(
     () => ({ isEditing, setIsEditing }),
-    [isEditing, setIsEditing]
+    [isEditing, setIsEditing],
   );
   const disabledEditingMovementContextValue = useMemo(
     () => ({ disabledEditingMovement, setDisabledEditingMovement }),
-    [disabledEditingMovement, setDisabledEditingMovement]
+    [disabledEditingMovement, setDisabledEditingMovement],
   );
   const dataViewerModeContextValue = useMemo(
     () => ({ inDataViewerMode, setInDataViewerMode }),
-    [inDataViewerMode, setInDataViewerMode]
+    [inDataViewerMode, setInDataViewerMode],
   );
 
   if (loadError) {
@@ -314,7 +342,7 @@ DashboardLoader.propTypes = {
       username: PropTypes.string,
       group: PropTypes.string,
       permission: PropTypes.string.isRequired,
-    })
+    }),
   ),
   owner: PropTypes.string,
 };

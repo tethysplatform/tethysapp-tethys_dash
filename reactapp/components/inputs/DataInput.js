@@ -92,6 +92,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
       value = {};
     }
 
+    // fix the example to not show in visualization pan
     return (
       <>
         {type === "date-range" ? (

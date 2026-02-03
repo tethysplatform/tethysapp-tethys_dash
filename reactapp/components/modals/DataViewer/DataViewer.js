@@ -10,6 +10,7 @@ import {
   VariableInputsContext,
   AppContext,
   TabContext,
+  GridItemContext,
 } from "components/contexts/Contexts";
 import { useAppTourContext } from "components/contexts/AppTourContext";
 import CustomAlert from "components/dashboard/CustomAlert";
@@ -139,28 +140,30 @@ export function updateVariableInputs(
 }
 
 function DataViewerModal({
-  gridItemIndex,
-  source,
-  argsString,
-  metadataString,
   showModal,
   handleModalClose,
   setGridItemMessage,
   setShowGridItemMessage,
 }) {
+  const {
+    gridItemSource,
+    gridItemArgsString,
+    gridItemMetadataString,
+    gridItemIndex,
+  } = useContext(GridItemContext);
   const { visualizations } = useContext(AppContext);
   const { getActiveTab, updateTab } = useContext(TabContext);
   // --- Initialization logic for visualization states ---
   let initialSelectedVizTypeOption = findVisualizationBySource(
     visualizations,
-    source,
+    gridItemSource,
   );
   let initialVizArguments = [];
   let initialVizInputsValues = {};
   let initialVariableInputValue = null;
   if (initialSelectedVizTypeOption) {
-    const existingArgs = JSON.parse(argsString);
-    if (source === "Variable Input") {
+    const existingArgs = JSON.parse(gridItemArgsString);
+    if (gridItemSource === "Variable Input") {
       initialVariableInputValue = existingArgs.initial_value;
     }
     for (let arg in initialSelectedVizTypeOption.args) {
@@ -198,7 +201,7 @@ function DataViewerModal({
   const { setAppTourStep, activeAppTour } = useAppTourContext();
   const { getMessageForRequest } = useContext(WebsocketContext);
 
-  const gridMetadata = JSON.parse(metadataString);
+  const gridMetadata = JSON.parse(gridItemMetadataString);
   const visualizationRef = useRef();
   const [settings, setSettings] = useState(gridMetadata);
   const [tabKey, setTabKey] = useState("visualization");
@@ -212,17 +215,19 @@ function DataViewerModal({
       let newVariableInputNames = {};
       let oldVariableInputNames = {};
       if (selectedVizTypeOption.source === "Variable Input") {
-        newVariableInputNames = getAllVariableInputNames(vizInputsValues);
-        oldVariableInputNames = getAllVariableInputNames(
-          JSON.parse(argsString),
+        newVariableInputNames = Object.values(
+          getAllVariableInputNames(vizInputsValues),
+        );
+        oldVariableInputNames = Object.values(
+          getAllVariableInputNames(JSON.parse(gridItemArgsString)),
         );
 
         var variableInputSource = vizInputsValues.variable_options_source;
 
-        for (const variableInputName of Object.values(newVariableInputNames)) {
+        for (const variableInputName of newVariableInputNames) {
           if (
             variableInputName in variableInputValues &&
-            !(variableInputName in oldVariableInputNames)
+            !oldVariableInputNames.includes(variableInputName)
           ) {
             setAlertMessage(
               variableInputName + " is already in use for a variable name",
@@ -264,7 +269,7 @@ function DataViewerModal({
 
         if (selectedVizTypeOption.source === "Variable Input") {
           updatedGridItems = updateVariableInputs(
-            JSON.parse(argsString),
+            JSON.parse(gridItemArgsString),
             JSON.parse(updatedGridItems[gridItemIndex].args_string),
             updatedGridItems,
             variableInputValues,
@@ -418,10 +423,6 @@ function DataViewerModal({
 }
 
 DataViewerModal.propTypes = {
-  gridItemIndex: PropTypes.number,
-  source: PropTypes.string,
-  argsString: PropTypes.string,
-  metadataString: PropTypes.string,
   setGridItemMessage: PropTypes.func,
   setShowGridItemMessage: PropTypes.func,
   showModal: PropTypes.bool,

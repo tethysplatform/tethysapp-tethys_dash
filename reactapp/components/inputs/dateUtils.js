@@ -66,7 +66,9 @@ export const parseDateMath = ({ value, dateFormat }) => {
  * Checks if a value is a variable expression like ${...}
  */
 export function checkForVariable(val) {
-  return typeof val === "string" && /\$\{[^}]+\}/.test(val);
+  if (typeof val !== "string") return null;
+  const match = val.match(/\$\{([^}]+)\}/);
+  return match ? match[1] : null;
 }
 
 /**
