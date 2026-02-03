@@ -104,22 +104,27 @@ describe("parseDateMath", () => {
 describe("checkForVariable", () => {
   it("detects variable expressions", () => {
     // eslint-disable-next-line
-    expect(checkForVariable("${variable}")).toBe(true);
+    expect(checkForVariable("${variable}")).toBe("variable");
     // eslint-disable-next-line
-    expect(checkForVariable("prefix_${variable}_suffix")).toBe(true);
+    expect(checkForVariable("prefix_${variable}_suffix")).toBe("variable");
+    // eslint-disable-next-line
+    expect(checkForVariable("${multiple}_${variable}_suffix")).toBe([
+      "multiple",
+      "variable",
+    ]);
   });
 
   it("returns false for non-variable strings", () => {
-    expect(checkForVariable("just a string")).toBe(false);
-    expect(checkForVariable("12345")).toBe(false);
-    expect(checkForVariable("now-1D")).toBe(false);
+    expect(checkForVariable("just a string")).toBe(null);
+    expect(checkForVariable("12345")).toBe(null);
+    expect(checkForVariable("now-1D")).toBe(null);
   });
 
   it("returns false for non-string inputs", () => {
-    expect(checkForVariable(123)).toBe(false);
-    expect(checkForVariable(null)).toBe(false);
-    expect(checkForVariable(undefined)).toBe(false);
-    expect(checkForVariable({})).toBe(false);
+    expect(checkForVariable(123)).toBe(null);
+    expect(checkForVariable(null)).toBe(null);
+    expect(checkForVariable(undefined)).toBe(null);
+    expect(checkForVariable({})).toBe(null);
   });
 });
 

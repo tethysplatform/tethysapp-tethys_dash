@@ -31,6 +31,7 @@ import { Map } from "ol";
 import * as utilities from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
+import { GridItemContext } from "components/contexts/Contexts";
 
 jest.mock("uuid", () => ({
   v4: () => 12345678,
@@ -103,13 +104,17 @@ it("Initializes a Base Item with an empty div", async () => {
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={""}
-          argsString={"{}"}
-          metadataString={"{}"}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: "",
+            gridItemArgsString: "{}",
+            gridItemMetadataString: "{}",
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -141,13 +146,17 @@ it("Initializes a Base Item with an empty div and updates it with an image and p
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedApiImageBase.source}
-          argsString={mockedApiImageBase.args_string}
-          metadataString={mockedApiImageBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedApiImageBase.source,
+            gridItemArgsString: mockedApiImageBase.args_string,
+            gridItemMetadataString: mockedApiImageBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -188,12 +197,17 @@ it("Creates an Base Item with a Custom Image but does not load", async () => {
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedCustomImageBase.source}
-          argsString={mockedCustomImageBase.args_string}
-          metadataString={mockedCustomImageBase.metadata_string}
-          shouldLoad={false}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedCustomImageBase.source,
+            gridItemArgsString: mockedCustomImageBase.args_string,
+            gridItemMetadataString: mockedCustomImageBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: false,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -208,13 +222,17 @@ it("Creates an Base Item with a Custom Image", async () => {
   const { rerender } = render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedCustomImageBase.source}
-          argsString={mockedCustomImageBase.args_string}
-          metadataString={mockedCustomImageBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedCustomImageBase.source,
+            gridItemArgsString: mockedCustomImageBase.args_string,
+            gridItemMetadataString: mockedCustomImageBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -230,13 +248,17 @@ it("Creates an Base Item with a Custom Image", async () => {
   rerender(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedCustomImageBase.source}
-          argsString={mockedCustomImageBase.args_string}
-          metadataString={mockedCustomImageBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedCustomImageBase.source,
+            gridItemArgsString: mockedCustomImageBase.args_string,
+            gridItemMetadataString: mockedCustomImageBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -253,13 +275,17 @@ it("Creates an Base Item with a Custom Image", async () => {
   rerender(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedCustomImageBase.source}
-          argsString={mockedCustomImageBase.args_string}
-          metadataString={mockedCustomImageBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedCustomImageBase.source,
+            gridItemArgsString: mockedCustomImageBase.args_string,
+            gridItemMetadataString: mockedCustomImageBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -271,13 +297,17 @@ it("Creates an Base Item with a Text Box", async () => {
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedTextBase.source}
-          argsString={mockedTextBase.args_string}
-          metadataString={mockedTextBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedTextBase.source,
+            gridItemArgsString: mockedTextBase.args_string,
+            gridItemMetadataString: mockedTextBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -293,13 +323,17 @@ it("Creates an Base Item with a Map", async () => {
     createLoadedComponent({
       children: (
         <div>
-          <BaseVisualization
-            source={mockedMapBase.source}
-            argsString={mockedMapBase.args_string}
-            metadataString={mockedMapBase.metadata_string}
-            uuid={"12345678"}
-            shouldLoad={true}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: mockedMapBase.source,
+              gridItemArgsString: mockedMapBase.args_string,
+              gridItemMetadataString: mockedMapBase.metadata_string,
+              gridItemUUID: "12345678",
+              shouldLoad: true,
+            }}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
         </div>
       ),
     }),
@@ -350,13 +384,17 @@ it("Creates an Base Item with a Live Chat", async () => {
     createLoadedComponent({
       children: (
         <div>
-          <BaseVisualization
-            source={mockedLiveChatBase.source}
-            argsString={mockedLiveChatBase.args_string}
-            metadataString={mockedLiveChatBase.metadata_string}
-            uuid={"12345678"}
-            shouldLoad={true}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: mockedLiveChatBase.source,
+              gridItemArgsString: mockedLiveChatBase.args_string,
+              gridItemMetadataString: mockedLiveChatBase.metadata_string,
+              gridItemUUID: "12345678",
+              shouldLoad: true,
+            }}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
         </div>
       ),
     }),
@@ -376,13 +414,17 @@ it("Creates an Base Item with a variable input text box", async () => {
     createLoadedComponent({
       children: (
         <>
-          <BaseVisualization
-            source={mockedTextVariable.source}
-            argsString={mockedTextVariable.args_string}
-            metadataString={mockedTextVariable.metadata_string}
-            uuid={"12345678"}
-            shouldLoad={true}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: mockedTextVariable.source,
+              gridItemArgsString: mockedTextVariable.args_string,
+              gridItemMetadataString: mockedTextVariable.metadata_string,
+              gridItemUUID: "12345678",
+              shouldLoad: true,
+            }}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
           <InputVariablePComponent />
         </>
       ),
@@ -439,13 +481,17 @@ it("Creates an Base Item with an image obtained from the api, 1 min refresh rate
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={apiImageBase.source}
-          argsString={apiImageBase.args_string}
-          metadataString={apiImageBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: apiImageBase.source,
+            gridItemArgsString: apiImageBase.args_string,
+            gridItemMetadataString: apiImageBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -503,13 +549,17 @@ it("Creates an Base Item with an image obtained from the api, no refresh when ed
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={apiImageBase.source}
-          argsString={apiImageBase.args_string}
-          metadataString={apiImageBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: apiImageBase.source,
+            gridItemArgsString: apiImageBase.args_string,
+            gridItemMetadataString: apiImageBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
       options: { inEditing: true },
     }),
@@ -557,13 +607,17 @@ it("Creates an Base Item with a plot obtained from the api", async () => {
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedPlotBase.source}
-          argsString={mockedPlotBase.args_string}
-          metadataString={mockedPlotBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedPlotBase.source,
+            gridItemArgsString: mockedPlotBase.args_string,
+            gridItemMetadataString: mockedPlotBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -597,13 +651,17 @@ it("Creates an Base Item with a custom module obtained from the api", async () =
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedTableBase.source}
-          argsString={mockedTableBase.args_string}
-          metadataString={mockedTableBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedTableBase.source,
+            gridItemArgsString: mockedTableBase.args_string,
+            gridItemMetadataString: mockedTableBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -637,13 +695,17 @@ it("Creates an Base Item with a table obtained from the api", async () => {
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedTableBase.source}
-          argsString={mockedTableBase.args_string}
-          metadataString={mockedTableBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedTableBase.source,
+            gridItemArgsString: mockedTableBase.args_string,
+            gridItemMetadataString: mockedTableBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -677,13 +739,17 @@ it("Creates an Base Item with a card obtained from the api", async () => {
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedCardBase.source}
-          argsString={mockedCardBase.args_string}
-          metadataString={mockedCardBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedCardBase.source,
+            gridItemArgsString: mockedCardBase.args_string,
+            gridItemMetadataString: mockedCardBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
     }),
   );
@@ -717,13 +783,17 @@ it("Gives the user an error message if an unknown viz type is obtained from the 
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedUnknownBase.source}
-          argsString={mockedUnknownBase.args_string}
-          metadataString={mockedUnknownBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedUnknownBase.source,
+            gridItemArgsString: mockedUnknownBase.args_string,
+            gridItemMetadataString: mockedUnknownBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
       options: {
         visualizations: [
@@ -776,13 +846,17 @@ it("Gives the user an error message if the api couldn't retrieve data", async ()
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedUnknownBase.source}
-          argsString={mockedUnknownBase.args_string}
-          metadataString={mockedUnknownBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedUnknownBase.source,
+            gridItemArgsString: mockedUnknownBase.args_string,
+            gridItemMetadataString: mockedUnknownBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
       options: {
         visualizations: [
@@ -863,24 +937,32 @@ it("Base - update text variable input", async () => {
     createLoadedComponent({
       children: (
         <>
-          <BaseVisualization
-            source={mockedDashboard.tabs[0].gridItems[0].source}
-            argsString={mockedDashboard.tabs[0].gridItems[0].args_string}
-            metadataString={
-              mockedDashboard.tabs[0].gridItems[0].metadata_string
-            }
-            uuid={"12345678"}
-            shouldLoad={true}
-          />
-          <BaseVisualization
-            source={mockedDashboard.tabs[0].gridItems[1].source}
-            argsString={mockedDashboard.tabs[0].gridItems[1].args_string}
-            metadataString={
-              mockedDashboard.tabs[0].gridItems[1].metadata_string
-            }
-            uuid={"12345678"}
-            shouldLoad={true}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: mockedDashboard.tabs[0].gridItems[0].source,
+              gridItemArgsString:
+                mockedDashboard.tabs[0].gridItems[0].args_string,
+              gridItemMetadataString:
+                mockedDashboard.tabs[0].gridItems[0].metadata_string,
+              gridItemUUID: "12345678",
+              shouldLoad: true,
+            }}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: mockedDashboard.tabs[0].gridItems[1].source,
+              gridItemArgsString:
+                mockedDashboard.tabs[0].gridItems[1].args_string,
+              gridItemMetadataString:
+                mockedDashboard.tabs[0].gridItems[1].metadata_string,
+              gridItemUUID: "12345678",
+              shouldLoad: true,
+            }}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
         </>
       ),
       options: { dashboards, initialDashboard: mockedDashboard },
@@ -997,24 +1079,32 @@ it("Base - update date variable input", async () => {
     createLoadedComponent({
       children: (
         <>
-          <BaseVisualization
-            source={mockedDashboard.tabs[0].gridItems[0].source}
-            argsString={mockedDashboard.tabs[0].gridItems[0].args_string}
-            metadataString={
-              mockedDashboard.tabs[0].gridItems[0].metadata_string
-            }
-            uuid={"12345678"}
-            shouldLoad={true}
-          />
-          <BaseVisualization
-            source={mockedDashboard.tabs[0].gridItems[1].source}
-            argsString={mockedDashboard.tabs[0].gridItems[1].args_string}
-            metadataString={
-              mockedDashboard.tabs[0].gridItems[1].metadata_string
-            }
-            uuid={"12345678"}
-            shouldLoad={true}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: mockedDashboard.tabs[0].gridItems[0].source,
+              gridItemArgsString:
+                mockedDashboard.tabs[0].gridItems[0].args_string,
+              gridItemMetadataString:
+                mockedDashboard.tabs[0].gridItems[0].metadata_string,
+              gridItemUUID: "12345678",
+              shouldLoad: true,
+            }}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: mockedDashboard.tabs[0].gridItems[1].source,
+              gridItemArgsString:
+                mockedDashboard.tabs[0].gridItems[1].args_string,
+              gridItemMetadataString:
+                mockedDashboard.tabs[0].gridItems[1].metadata_string,
+              gridItemUUID: "12345678",
+              shouldLoad: true,
+            }}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
         </>
       ),
       options: {
@@ -1293,24 +1383,32 @@ it("Base - initial relative date variable input", async () => {
     createLoadedComponent({
       children: (
         <>
-          <BaseVisualization
-            source={mockedDashboard.tabs[0].gridItems[0].source}
-            argsString={mockedDashboard.tabs[0].gridItems[0].args_string}
-            metadataString={
-              mockedDashboard.tabs[0].gridItems[0].metadata_string
-            }
-            uuid={"12345678"}
-            shouldLoad={true}
-          />
-          <BaseVisualization
-            source={mockedDashboard.tabs[0].gridItems[1].source}
-            argsString={mockedDashboard.tabs[0].gridItems[1].args_string}
-            metadataString={
-              mockedDashboard.tabs[0].gridItems[1].metadata_string
-            }
-            uuid={"12345678"}
-            shouldLoad={true}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: mockedDashboard.tabs[0].gridItems[0].source,
+              gridItemArgsString:
+                mockedDashboard.tabs[0].gridItems[0].args_string,
+              gridItemMetadataString:
+                mockedDashboard.tabs[0].gridItems[0].metadata_string,
+              gridItemUUID: "12345678",
+              shouldLoad: true,
+            }}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: mockedDashboard.tabs[0].gridItems[1].source,
+              gridItemArgsString:
+                mockedDashboard.tabs[0].gridItems[1].args_string,
+              gridItemMetadataString:
+                mockedDashboard.tabs[0].gridItems[1].metadata_string,
+              gridItemUUID: "12345678",
+              shouldLoad: true,
+            }}
+          >
+            <BaseVisualization />
+          </GridItemContext.Provider>
         </>
       ),
       options: {
@@ -1461,13 +1559,17 @@ it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine meta
   render(
     createLoadedComponent({
       children: (
-        <BaseVisualization
-          source={mockedPlotBase.source}
-          argsString={mockedPlotBase.args_string}
-          metadataString={mockedPlotBase.metadata_string}
-          uuid={"12345678"}
-          shouldLoad={true}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: mockedPlotBase.source,
+            gridItemArgsString: mockedPlotBase.args_string,
+            gridItemMetadataString: mockedPlotBase.metadata_string,
+            gridItemUUID: "12345678",
+            shouldLoad: true,
+          }}
+        >
+          <BaseVisualization />
+        </GridItemContext.Provider>
       ),
       options: {
         visualizations: [

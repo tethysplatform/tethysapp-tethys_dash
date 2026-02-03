@@ -221,13 +221,8 @@ export const handleGridItemImport = async (gridItem, csrf, dashboard_uuid) => {
 };
 
 const DashboardItem = () => {
-  const {
-    gridItemSource,
-    gridItemI,
-    gridItemArgsString,
-    gridItemMetadataString,
-    gridItemIndex,
-  } = useContext(GridItemContext);
+  const { gridItemSource, gridItemI, gridItemMetadataString, gridItemIndex } =
+    useContext(GridItemContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [showDataViewerModal, setShowDataViewerModal] = useState(false);
   const [gridItemMessage, setGridItemMessage] = useState("");

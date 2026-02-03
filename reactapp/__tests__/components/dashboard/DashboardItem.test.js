@@ -27,6 +27,7 @@ import {
   exampleStyle,
 } from "__tests__/utilities/constants";
 import * as utils from "components/visualizations/utilities";
+import { GridItemContext } from "components/contexts/Contexts";
 
 // eslint-disable-next-line
 jest.mock("components/modals/DataViewer/VisualizationPane", () => () => (
@@ -91,13 +92,17 @@ test("Dashboard Item not editing", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <EditingPComponent />
         </>
       ),
@@ -132,13 +137,17 @@ test("Dashboard Item editing, no custom borders/css", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <EditingPComponent />
         </>
       ),
@@ -186,13 +195,17 @@ test("Dashboard Item editing, custom borders/css", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <EditingPComponent />
         </>
       ),
@@ -242,13 +255,17 @@ test("Dashboard Item delete grid item", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <TabsPComponent />
           <ContextLayoutPComponent />
           <EditingPComponent />
@@ -291,13 +308,17 @@ test("Dashboard Item delete grid item cancel", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <TabsPComponent />
           <ContextLayoutPComponent />
           <EditingPComponent />
@@ -354,13 +375,17 @@ test("Dashboard Item edit item", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <ContextLayoutPComponent />
           <EditingPComponent />
           <DataViewerPComponent />
@@ -450,13 +475,17 @@ test("Dashboard Item copy item", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={2}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <TabsPComponent />
           <ContextLayoutPComponent />
           <EditingPComponent />
@@ -577,13 +606,17 @@ test("Dashboard Item copy item variable input", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={2}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <ContextLayoutPComponent />
           <TabsPComponent />
           <EditingPComponent />
@@ -709,13 +742,17 @@ test("Dashboard Item copy item variable input already exists", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <ContextLayoutPComponent />
           <TabsPComponent />
           <EditingPComponent />
@@ -826,13 +863,17 @@ test("Dashboard Item order options disabled for single grid item", async () => {
   render(
     createLoadedComponent({
       children: (
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={0}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 0,
+          }}
+        >
+          <DashboardItem />
+        </GridItemContext.Provider>
       ),
       options: {
         dashboards: updatedMockedDashboards,
@@ -948,13 +989,17 @@ test("Dashboard Item order forward", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={1}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 1,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <TabsPComponent />
           <ContextLayoutPComponent />
         </>
@@ -1101,13 +1146,17 @@ test("Dashboard Item order backward", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={2}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 2,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <TabsPComponent />
           <ContextLayoutPComponent />
         </>
@@ -1188,13 +1237,17 @@ test("Dashboard Item export", async () => {
   render(
     createLoadedComponent({
       children: (
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={0}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 0,
+          }}
+        >
+          <DashboardItem />
+        </GridItemContext.Provider>
       ),
       options: {
         dashboards: updatedMockedDashboards,
@@ -1248,13 +1301,17 @@ test("Dashboard Item export fail", async () => {
   render(
     createLoadedComponent({
       children: (
-        <DashboardItem
-          gridItemSource={gridItem.source}
-          gridItemI={gridItem.i}
-          gridItemArgsString={gridItem.args_string}
-          gridItemMetadataString={gridItem.metadata_string}
-          gridItemIndex={0}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 0,
+          }}
+        >
+          <DashboardItem />
+        </GridItemContext.Provider>
       ),
       options: {
         dashboards: updatedMockedDashboards,
@@ -1323,13 +1380,17 @@ test("Dashboard attribution and show", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <EditingPComponent />
         </>
       ),
@@ -1399,13 +1460,17 @@ test("Dashboard attribution www link and show", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <EditingPComponent />
         </>
       ),
@@ -1471,13 +1536,17 @@ test("Dashboard attribution https link and show", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <EditingPComponent />
         </>
       ),
@@ -1544,13 +1613,17 @@ test("Dashboard attribution and not show", async () => {
     createLoadedComponent({
       children: (
         <>
-          <DashboardItem
-            gridItemSource={gridItem.source}
-            gridItemI={gridItem.i}
-            gridItemArgsString={gridItem.args_string}
-            gridItemMetadataString={gridItem.metadata_string}
-            gridItemIndex={0}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemSource: gridItem.source,
+              gridItemI: gridItem.i,
+              gridItemMetadataString: gridItem.metadata_string,
+              gridItemArgsString: gridItem.args_string,
+              gridItemIndex: 0,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
           <EditingPComponent />
         </>
       ),

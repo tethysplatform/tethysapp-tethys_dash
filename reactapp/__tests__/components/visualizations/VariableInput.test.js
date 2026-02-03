@@ -22,6 +22,7 @@ import createLoadedComponent, {
 import { getOrdinal } from "__tests__/utilities/constants";
 import { format } from "date-fns";
 import { dateHourFormat } from "components/inputs/dateUtils";
+import { GridItemContext } from "components/contexts/Contexts";
 
 const advanceTimers = async (ms) => {
   await act(async () => {
@@ -255,13 +256,17 @@ it("Creates a Slider Input for a Variable Input", async () => {
     createLoadedComponent({
       children: (
         <>
-          <VariableInput
-            variable_name={varInputArgs.variable_name}
-            initial_value={varInputArgs.initial_value}
-            variable_options_source={varInputArgs.variable_options_source}
-            metadata={varInputArgs["variable_options_source.metadata"]}
-            onChange={handleChange}
-          />
+          <GridItemContext.Provider
+            value={{ gridItemArgsString: varInputArgs.args_string }}
+          >
+            <VariableInput
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
+              metadata={varInputArgs["variable_options_source.metadata"]}
+              onChange={handleChange}
+            />
+          </GridItemContext.Provider>
           <InputVariablePComponent />
         </>
       ),
@@ -303,12 +308,16 @@ it("Creates a Slider Input for a Variable Input, missing metadata", async () => 
     createLoadedComponent({
       children: (
         <>
-          <VariableInput
-            variable_name={varInputArgs.variable_name}
-            initial_value={varInputArgs.initial_value}
-            variable_options_source={varInputArgs.variable_options_source}
-            onChange={handleChange}
-          />
+          <GridItemContext.Provider
+            value={{ gridItemArgsString: varInputArgs.args_string }}
+          >
+            <VariableInput
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
+              onChange={handleChange}
+            />
+          </GridItemContext.Provider>
           <InputVariablePComponent />
         </>
       ),
@@ -327,12 +336,16 @@ it("renders slider-missing-metadata when no initial value or range", async () =>
     createLoadedComponent({
       children: (
         <>
-          <VariableInput
-            variable_name="Test Slider"
-            variable_options_source="slider"
-            metadata={{}}
-            onChange={jest.fn()}
-          />
+          <GridItemContext.Provider
+            value={{ gridItemArgsString: JSON.stringify({}) }}
+          >
+            <VariableInput
+              variable_name="Test Slider"
+              variable_options_source="slider"
+              metadata={{}}
+              onChange={jest.fn()}
+            />
+          </GridItemContext.Provider>
         </>
       ),
     }),
@@ -353,13 +366,17 @@ it("Creates a Slider Input for a Variable Input, missing metadata key", async ()
     createLoadedComponent({
       children: (
         <>
-          <VariableInput
-            variable_name={varInputArgs.variable_name}
-            initial_value={varInputArgs.initial_value}
-            variable_options_source={varInputArgs.variable_options_source}
-            metadata={varInputArgs["variable_options_source.metadata"]}
-            onChange={handleChange}
-          />
+          <GridItemContext.Provider
+            value={{ gridItemArgsString: varInputArgs.args_string }}
+          >
+            <VariableInput
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
+              metadata={varInputArgs["variable_options_source.metadata"]}
+              onChange={handleChange}
+            />
+          </GridItemContext.Provider>
           <InputVariablePComponent />
         </>
       ),
@@ -386,13 +403,17 @@ it("Create a Slider Input with speedOptions", async () => {
     createLoadedComponent({
       children: (
         <>
-          <VariableInput
-            variable_name={varInputArgs.variable_name}
-            initial_value={varInputArgs.initial_value}
-            variable_options_source={varInputArgs.variable_options_source}
-            metadata={varInputArgs["variable_options_source.metadata"]}
-            onChange={handleChange}
-          />
+          <GridItemContext.Provider
+            value={{ gridItemArgsString: varInputArgs.args_string }}
+          >
+            <VariableInput
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
+              metadata={varInputArgs["variable_options_source.metadata"]}
+              onChange={handleChange}
+            />
+          </GridItemContext.Provider>
           <InputVariablePComponent />
         </>
       ),

@@ -77,7 +77,7 @@ function formatNumber(n, template) {
 
 function formatDateValue(date, format) {
   try {
-    return formatDate(date, format);
+    return formatDate(parseDateMath({ value: date }), format);
   } catch (err) {
     console.error("Date formatting error:", err.message);
     return date.toString();
@@ -209,10 +209,14 @@ export const calculateSliderValues = ({
 
     // Absolute dates (including converted relative dates)
     if (!minDate) {
-      minDate = parseDateMath({ value: min, dateFormat: rawMinDateFormat });
+      minDate =
+        parseDateMath({ value: min, dateFormat: rawMinDateFormat }) ||
+        new Date();
     }
     if (!maxDate) {
-      maxDate = parseDateMath({ value: max, dateFormat: rawMaxDateFormat });
+      maxDate =
+        parseDateMath({ value: max, dateFormat: rawMaxDateFormat }) ||
+        new Date();
     }
     const arr = [];
     const diff = diffDeltas[unit](maxDate, minDate);
@@ -302,6 +306,7 @@ const Slider = ({
   let rawMinDateFormat;
   let rawMaxDateFormat;
 
+  // how would this logic work if there were multiple variable inputs?
   if (rawMinVar) {
     rawMinDateFormat = variableInputDateFormats[rawMinVar];
   }

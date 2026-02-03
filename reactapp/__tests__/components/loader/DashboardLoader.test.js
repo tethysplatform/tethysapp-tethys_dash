@@ -33,7 +33,7 @@ const TestingComponent = ({
 }) => {
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
-    DisabledEditingMovementContext
+    DisabledEditingMovementContext,
   );
   const { resetGridItems, saveLayoutContext } = useContext(LayoutContext);
   const { updateTab } = useContext(TabContext);
@@ -80,10 +80,10 @@ test("DashboardLoader", async () => {
           ctx.delay(500),
           ctx.status(200),
           ctx.json({ success: true, dashboard: userDashboard }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -91,7 +91,7 @@ test("DashboardLoader", async () => {
       value={{ updateDashboard: mockUpdateDashboard }}
     >
       <DashboardLoader>Hello World!</DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByText("Loading Dashboard...")).toBeInTheDocument();
@@ -108,10 +108,10 @@ test("DashboardLoader 500 error", async () => {
           ctx.delay(500),
           ctx.status(500),
           ctx.json({ error: "Internal Server Error" }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -119,14 +119,14 @@ test("DashboardLoader 500 error", async () => {
       value={{ updateDashboard: mockUpdateDashboard }}
     >
       <DashboardLoader>Hello World!</DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByText("Loading Dashboard...")).toBeInTheDocument();
   expect(
     await screen.findByText(
-      "The dashboard failed to load. Please try again or contact admins."
-    )
+      "The dashboard failed to load. Please try again or contact admins.",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -140,10 +140,10 @@ test("DashboardLoader API error", async () => {
           ctx.delay(500),
           ctx.status(200),
           ctx.json({ success: false }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -151,14 +151,14 @@ test("DashboardLoader API error", async () => {
       value={{ updateDashboard: mockUpdateDashboard }}
     >
       <DashboardLoader>Hello World!</DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByText("Loading Dashboard...")).toBeInTheDocument();
   expect(
     await screen.findByText(
-      "The dashboard failed to load. Please try again or contact admins."
-    )
+      "The dashboard failed to load. Please try again or contact admins.",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -172,12 +172,12 @@ test("DashboardLoader edit and disable movement when not editing", async () => {
       <DashboardLoader>
         <TestingComponent />
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByTestId("editing")).toHaveTextContent("not editing");
   expect(screen.getByTestId("disabledMovement")).toHaveTextContent(
-    "allowed movement"
+    "allowed movement",
   );
 
   const editButton = screen.getByTestId("editButton");
@@ -185,7 +185,7 @@ test("DashboardLoader edit and disable movement when not editing", async () => {
 
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(screen.getByTestId("disabledMovement")).toHaveTextContent(
-    "allowed movement"
+    "allowed movement",
   );
 
   const movementButton = screen.getByTestId("movementButton");
@@ -193,14 +193,14 @@ test("DashboardLoader edit and disable movement when not editing", async () => {
 
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(await screen.findByTestId("disabledMovement")).toHaveTextContent(
-    "disabled movement"
+    "disabled movement",
   );
 
   await userEvent.click(editButton);
 
   expect(await screen.findByTestId("editing")).toHaveTextContent("editing");
   expect(await screen.findByTestId("disabledMovement")).toHaveTextContent(
-    "allowed movement"
+    "allowed movement",
   );
 });
 
@@ -216,15 +216,15 @@ test("DashboardLoader updateGridItems and then reset", async () => {
       <DashboardLoader {...userDashboard}>
         <TestingComponent TabID={1} updatedTabProperties={{ gridItems: [] }} />
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   let { tabs, ...dashboardContextProperties } = userDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   const updatedTabButton = await screen.findByTestId("updatedTabButton");
@@ -232,23 +232,23 @@ test("DashboardLoader updateGridItems and then reset", async () => {
 
   ({ tabs, ...dashboardContextProperties } = updatedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   const resetGridItemsButton = await screen.findByTestId(
-    "resetGridItemsButton"
+    "resetGridItemsButton",
   );
   await userEvent.click(resetGridItemsButton);
 
   ({ tabs, ...dashboardContextProperties } = updatedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 });
 
@@ -259,7 +259,7 @@ test("DashboardLoader updateGridItems existing variable input", async () => {
   mockedDashboard.tabs[0].gridItems = [mockedTextVariable];
 
   const updatedTextVariable = JSON.parse(
-    JSON.stringify(mockedCheckboxVariable)
+    JSON.stringify(mockedCheckboxVariable),
   );
   updatedTextVariable.args_string = JSON.stringify({
     initial_value: "New initial value",
@@ -275,10 +275,10 @@ test("DashboardLoader updateGridItems existing variable input", async () => {
         return res(
           ctx.status(200),
           ctx.json({ success: true, dashboard: mockedDashboard }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -291,21 +291,21 @@ test("DashboardLoader updateGridItems existing variable input", async () => {
           updatedTabProperties={{ gridItems: [updatedTextVariable] }}
         />
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable": "",
-    })
+    }),
   );
 
   let { tabs, ...dashboardContextProperties } = mockedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   const updatedTabButton = await screen.findByTestId("updatedTabButton");
@@ -313,17 +313,17 @@ test("DashboardLoader updateGridItems existing variable input", async () => {
 
   ({ tabs, ...dashboardContextProperties } = updatedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   // Doesn't change input variables so that the existing variable input keeps the same value from before and not rerender everything in the page
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable": "",
-    })
+    }),
   );
 });
 
@@ -342,19 +342,19 @@ test("DashboardLoader updateGridItems add variable input", async () => {
           updatedTabProperties={{ gridItems: [mockedTextVariable] }}
         />
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 
   let { tabs, ...dashboardContextProperties } = userDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   const updatedTabButton = await screen.findByTestId("updatedTabButton");
@@ -362,16 +362,16 @@ test("DashboardLoader updateGridItems add variable input", async () => {
 
   ({ tabs, ...dashboardContextProperties } = updatedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable": "",
-    })
+    }),
   );
 });
 
@@ -380,7 +380,7 @@ test("DashboardLoader updateGridItems add checkbox variable input", async () => 
   const updatedDashboard = JSON.parse(JSON.stringify(userDashboard));
 
   const updatedTextVariable = JSON.parse(
-    JSON.stringify(mockedCheckboxVariable)
+    JSON.stringify(mockedCheckboxVariable),
   );
   updatedTextVariable.args_string = JSON.stringify({
     initial_value: null,
@@ -399,19 +399,19 @@ test("DashboardLoader updateGridItems add checkbox variable input", async () => 
           updatedTabProperties={{ gridItems: [updatedTextVariable] }}
         />
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 
   let { tabs, ...dashboardContextProperties } = userDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   const updatedTabButton = await screen.findByTestId("updatedTabButton");
@@ -419,16 +419,16 @@ test("DashboardLoader updateGridItems add checkbox variable input", async () => 
 
   ({ tabs, ...dashboardContextProperties } = updatedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable": false,
-    })
+    }),
   );
 });
 
@@ -457,11 +457,11 @@ test("DashboardLoader save layout", async () => {
           />
         </DashboardLoader>
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   const saveLayoutContextButton = await screen.findByTestId(
-    "saveLayoutContextButton"
+    "saveLayoutContextButton",
   );
   await userEvent.click(saveLayoutContextButton);
 
@@ -493,11 +493,11 @@ test("DashboardLoader save layout with griditems", async () => {
           />
         </DashboardLoader>
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   const saveLayoutContextButton = await screen.findByTestId(
-    "saveLayoutContextButton"
+    "saveLayoutContextButton",
   );
   await userEvent.click(saveLayoutContextButton);
 
@@ -508,11 +508,11 @@ test("DashboardLoader save layout with griditems", async () => {
 
   const { tabs, ...dashboardContextProperties } = updatedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
 
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 });
 
@@ -535,11 +535,11 @@ test("DashboardLoader save layout failed", async () => {
           />
         </DashboardLoader>
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   const saveLayoutContextButton = await screen.findByTestId(
-    "saveLayoutContextButton"
+    "saveLayoutContextButton",
   );
   await userEvent.click(saveLayoutContextButton);
 
@@ -568,7 +568,7 @@ test("DashboardLoader addTab", async () => {
           )}
         </TabContext.Consumer>
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByTestId("tabs-length")).toHaveTextContent("1");
@@ -603,13 +603,13 @@ test("DashboardLoader updateTab name", async () => {
           )}
         </TabContext.Consumer>
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByTestId("tabs-length")).toHaveTextContent("1");
   expect(await screen.findByTestId("active-tab-id")).toHaveTextContent("1");
   expect(await screen.findByTestId("active-tab-name")).toHaveTextContent(
-    "Tab 1"
+    "Tab 1",
   );
 
   const updateTabButton = screen.getByTestId("updateTabButton");
@@ -618,7 +618,7 @@ test("DashboardLoader updateTab name", async () => {
   expect(await screen.findByTestId("tabs-length")).toHaveTextContent("1");
   expect(await screen.findByTestId("active-tab-id")).toHaveTextContent("1");
   expect(await screen.findByTestId("active-tab-name")).toHaveTextContent(
-    "Updated Tab"
+    "Updated Tab",
   );
 });
 
@@ -639,10 +639,10 @@ test("DashboardLoader updateTab gridItems", async () => {
           ctx.delay(500),
           ctx.status(200),
           ctx.json({ success: true, dashboard: twoTabsDashboard }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -667,18 +667,18 @@ test("DashboardLoader updateTab gridItems", async () => {
           )}
         </TabContext.Consumer>
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByTestId("active-tab-grid-items")).toHaveTextContent(
-    JSON.stringify(twoTabsDashboard.tabs[0].gridItems)
+    JSON.stringify(twoTabsDashboard.tabs[0].gridItems),
   );
 
   const updateTabButton = screen.getByTestId("updateTabButton");
   await userEvent.click(updateTabButton);
 
   expect(await screen.findByTestId("active-tab-grid-items")).toHaveTextContent(
-    JSON.stringify([])
+    JSON.stringify([]),
   );
 });
 
@@ -699,10 +699,10 @@ test("DashboardLoader deleteTab active", async () => {
           ctx.delay(500),
           ctx.status(200),
           ctx.json({ success: true, dashboard: twoTabsDashboard }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -727,12 +727,12 @@ test("DashboardLoader deleteTab active", async () => {
           )}
         </TabContext.Consumer>
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByTestId("active-tab-id")).toHaveTextContent("1");
   expect(await screen.findByTestId("active-tab-name")).toHaveTextContent(
-    "Tab 1"
+    "Tab 1",
   );
   expect(await screen.findByTestId("tab1-name")).toHaveTextContent("Tab 1");
   expect(await screen.findByTestId("tab2-name")).toHaveTextContent("Tab 2");
@@ -741,7 +741,7 @@ test("DashboardLoader deleteTab active", async () => {
   await userEvent.click(deleteTabButton);
   expect(await screen.findByTestId("active-tab-id")).toHaveTextContent("2");
   expect(await screen.findByTestId("active-tab-name")).toHaveTextContent(
-    "Tab 2"
+    "Tab 2",
   );
 });
 
@@ -762,10 +762,10 @@ test("DashboardLoader deleteTab nonactive", async () => {
           ctx.delay(500),
           ctx.status(200),
           ctx.json({ success: true, dashboard: twoTabsDashboard }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -790,12 +790,12 @@ test("DashboardLoader deleteTab nonactive", async () => {
           )}
         </TabContext.Consumer>
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByTestId("active-tab-id")).toHaveTextContent("1");
   expect(await screen.findByTestId("active-tab-name")).toHaveTextContent(
-    "Tab 1"
+    "Tab 1",
   );
   expect(await screen.findByTestId("tab1-name")).toHaveTextContent("Tab 1");
   expect(await screen.findByTestId("tab2-name")).toHaveTextContent("Tab 2");
@@ -804,7 +804,7 @@ test("DashboardLoader deleteTab nonactive", async () => {
   await userEvent.click(deleteTabButton);
   expect(await screen.findByTestId("active-tab-id")).toHaveTextContent("1");
   expect(await screen.findByTestId("active-tab-name")).toHaveTextContent(
-    "Tab 1"
+    "Tab 1",
   );
 });
 
@@ -825,10 +825,10 @@ test("DashboardLoader reorderTabs and resetTabs", async () => {
           ctx.delay(500),
           ctx.status(200),
           ctx.json({ success: true, dashboard: twoTabsDashboard }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -853,24 +853,24 @@ test("DashboardLoader reorderTabs and resetTabs", async () => {
           )}
         </TabContext.Consumer>
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByTestId("first-tab-name")).toHaveTextContent(
-    "Tab 1"
+    "Tab 1",
   );
 
   const reorderTabsButton = screen.getByTestId("reorderTabsButton");
   await userEvent.click(reorderTabsButton);
   expect(await screen.findByTestId("first-tab-name")).toHaveTextContent(
-    "Tab 2"
+    "Tab 2",
   );
 
   const resetTabsButton = screen.getByTestId("resetTabsButton");
   await userEvent.click(resetTabsButton);
 
   expect(await screen.findByTestId("first-tab-name")).toHaveTextContent(
-    "Tab 1"
+    "Tab 1",
   );
 });
 
@@ -891,10 +891,10 @@ test("DashboardLoader getActiveTab and getTab", async () => {
           ctx.delay(500),
           ctx.status(200),
           ctx.json({ success: true, dashboard: twoTabsDashboard }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -919,12 +919,12 @@ test("DashboardLoader getActiveTab and getTab", async () => {
           )}
         </TabContext.Consumer>
       </DashboardLoader>
-    </AvailableDashboardsContext.Provider>
+    </AvailableDashboardsContext.Provider>,
   );
 
   expect(await screen.findByTestId("active-tab-id")).toHaveTextContent("1");
   expect(await screen.findByTestId("active-tab-name")).toHaveTextContent(
-    "Tab 1"
+    "Tab 1",
   );
   expect(await screen.findByTestId("tab1-name")).toHaveTextContent("Tab 1");
   expect(await screen.findByTestId("tab2-name")).toHaveTextContent("Tab 2");
@@ -933,7 +933,7 @@ test("DashboardLoader getActiveTab and getTab", async () => {
   await userEvent.click(setActiveTab2Button);
   expect(await screen.findByTestId("active-tab-id")).toHaveTextContent("2");
   expect(await screen.findByTestId("active-tab-name")).toHaveTextContent(
-    "Tab 2"
+    "Tab 2",
   );
 });
 

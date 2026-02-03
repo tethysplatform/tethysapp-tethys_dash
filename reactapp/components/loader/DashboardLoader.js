@@ -90,7 +90,9 @@ const DashboardLoader = ({
 
           if (gridItem.source === "Variable Input") {
             let initialValue =
-              variableInputValues[args.variable_name] || args.initial_value;
+              variableInputValues[args.variable_name] === undefined
+                ? args.initial_value
+                : variableInputValues[args.variable_name];
             if (
               args.variable_options_source === "checkbox" &&
               args.initial_value === null
@@ -124,7 +126,6 @@ const DashboardLoader = ({
         }
       }
       setVariableInputValues(updatedVariableInputValues);
-      console.log(updatedVariableInputDateFormats);
       setVariableInputDateFormats(updatedVariableInputDateFormats);
     },
     [variableInputValues],

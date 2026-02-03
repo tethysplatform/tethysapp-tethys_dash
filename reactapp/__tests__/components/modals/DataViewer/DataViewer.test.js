@@ -21,7 +21,7 @@ import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
 import selectEvent from "react-select-event";
-import { TabContext } from "components/contexts/Contexts";
+import { GridItemContext, TabContext } from "components/contexts/Contexts";
 
 jest.mock("uuid", () => ({
   v4: () => 12345678,
@@ -59,17 +59,22 @@ const TestingComponent = ({
   }, [tabs]);
 
   return (
-    <DataViewerModal
-      gridItemIndex={gridItemIndex}
-      source={gridItem.source}
-      argsString={gridItem.args_string}
-      metadataString={gridItem.metadata_string}
-      gridItemI={gridItem.i}
-      showModal={true}
-      handleModalClose={mockHandleModalClose}
-      setGridItemMessage={mockSetGridItemMessage}
-      setShowGridItemMessage={mockSetShowGridItemMessage}
-    />
+    <GridItemContext.Provider
+      value={{
+        gridItemSource: gridItem.source,
+        gridItemI: gridItem.i,
+        gridItemMetadataString: gridItem.metadata_string,
+        gridItemArgsString: gridItem.args_string,
+        gridItemIndex,
+      }}
+    >
+      <DataViewerModal
+        showModal={true}
+        handleModalClose={mockHandleModalClose}
+        setGridItemMessage={mockSetGridItemMessage}
+        setShowGridItemMessage={mockSetShowGridItemMessage}
+      />
+    </GridItemContext.Provider>
   );
 };
 
@@ -277,17 +282,27 @@ test("Dashboard Viewer Modal Existing Text", async () => {
   render(
     createLoadedComponent({
       children: (
-        <DataViewerModal
-          gridItemIndex={0}
-          source={gridItem.source}
-          argsString={gridItem.args_string}
-          metadataString={gridItem.metadata_string}
-          gridItemI={gridItem.i}
-          showModal={true}
-          handleModalClose={mockhandleModalClose}
-          setGridItemMessage={mocksetGridItemMessage}
-          setShowGridItemMessage={mocksetShowGridItemMessage}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 0,
+          }}
+        >
+          <DataViewerModal
+            gridItemIndex={0}
+            source={gridItem.source}
+            argsString={gridItem.args_string}
+            metadataString={gridItem.metadata_string}
+            gridItemI={gridItem.i}
+            showModal={true}
+            handleModalClose={mockhandleModalClose}
+            setGridItemMessage={mocksetGridItemMessage}
+            setShowGridItemMessage={mocksetShowGridItemMessage}
+          />
+        </GridItemContext.Provider>
       ),
       options: { initialDashboard: userDashboard },
     }),
@@ -702,17 +717,22 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
   render(
     createLoadedComponent({
       children: (
-        <DataViewerModal
-          gridItemIndex={1}
-          source={gridItem.source}
-          argsString={gridItem.args_string}
-          metadataString={gridItem.metadata_string}
-          gridItemI={gridItem.i}
-          showModal={true}
-          handleModalClose={mockhandleModalClose}
-          setGridItemMessage={mocksetGridItemMessage}
-          setShowGridItemMessage={mocksetShowGridItemMessage}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 1,
+          }}
+        >
+          <DataViewerModal
+            showModal={true}
+            handleModalClose={mockhandleModalClose}
+            setGridItemMessage={mocksetGridItemMessage}
+            setShowGridItemMessage={mocksetShowGridItemMessage}
+          />
+        </GridItemContext.Provider>
       ),
       options: {
         initialDashboard: userDashboard,
@@ -832,16 +852,22 @@ test("Dashboard Viewer Modal Text Options", async () => {
   render(
     createLoadedComponent({
       children: (
-        <DataViewerModal
-          gridItemIndex={1}
-          source={gridItem.source}
-          argsString={gridItem.args_string}
-          metadataString={gridItem.metadata_string}
-          showModal={true}
-          handleModalClose={mockhandleModalClose}
-          setGridItemMessage={mocksetGridItemMessage}
-          setShowGridItemMessage={mocksetShowGridItemMessage}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 1,
+          }}
+        >
+          <DataViewerModal
+            showModal={true}
+            handleModalClose={mockhandleModalClose}
+            setGridItemMessage={mocksetGridItemMessage}
+            setShowGridItemMessage={mocksetShowGridItemMessage}
+          />
+        </GridItemContext.Provider>
       ),
       options: {
         initialDashboard: userDashboard,
