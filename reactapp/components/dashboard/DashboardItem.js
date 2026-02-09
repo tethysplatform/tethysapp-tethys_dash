@@ -62,10 +62,8 @@ const StyledDiv = styled.div`
 `;
 
 const InfoIconWrapper = styled.div`
-  position: absolute;
-  top: 0.5rem;
-  left: 0.5rem;
-  z-index: 10;
+  padding-top: 0.5rem;
+  padding-left: 0.5rem;
   display: flex;
   align-items: center;
 `;
@@ -397,23 +395,24 @@ const DashboardItem = () => {
         className="no-caret"
       >
         {gridItemStyling?.attribution !== false && attribution && (
-          <InfoIconWrapper
-            onMouseEnter={() => setShowAttribution(true)}
-            onMouseLeave={() => setShowAttribution(false)}
-            aria-label="attribution-info-icon"
-          >
-            <BsInfoCircle
-              size={22}
-              color="#007bff"
-              style={{ cursor: "pointer" }}
-            />
-            <AttributionTooltip
-              show={showAttribution}
-              aria-label="attribution-tooltip"
+          <InfoIconWrapper aria-label="attribution-info-icon">
+            <div
+              style={{ display: "inline-block" }}
+              onMouseEnter={() => setShowAttribution(true)}
               onMouseLeave={() => setShowAttribution(false)}
             >
-              {renderAttributionWithLinks(attribution)}
-            </AttributionTooltip>
+              <BsInfoCircle
+                size={22}
+                color="#007bff"
+                style={{ cursor: "pointer" }}
+              />
+              <AttributionTooltip
+                show={showAttribution}
+                aria-label="attribution-tooltip"
+              >
+                {renderAttributionWithLinks(attribution)}
+              </AttributionTooltip>
+            </div>
           </InfoIconWrapper>
         )}
         <StyledContainer

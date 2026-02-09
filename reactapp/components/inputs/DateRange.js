@@ -47,20 +47,24 @@ export const DateRange = ({
   return (
     <div {...divProps}>
       <div style={{ display: "flex", gap: "1rem" }}>
-        <DatePicker
-          label={startDateVariable}
-          value={startDate}
-          onChange={onStartDateChange}
-          dateFormat={metadata?.format}
-          {...props}
-        />
-        <DatePicker
-          label={endDateVariable}
-          value={endDate}
-          onChange={onEndDateChange}
-          dateFormat={metadata?.format}
-          {...props}
-        />
+        <div style={{ flex: 1 }}>
+          <DatePicker
+            label={startDateVariable}
+            value={startDate}
+            onChange={onStartDateChange}
+            dateFormat={metadata?.format}
+            {...props}
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <DatePicker
+            label={endDateVariable}
+            value={endDate}
+            onChange={onEndDateChange}
+            dateFormat={metadata?.format}
+            {...props}
+          />
+        </div>
       </div>
     </div>
   );
