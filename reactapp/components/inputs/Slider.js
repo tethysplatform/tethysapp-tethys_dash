@@ -306,7 +306,6 @@ const Slider = ({
   let rawMinDateFormat;
   let rawMaxDateFormat;
 
-  // how would this logic work if there were multiple variable inputs?
   if (rawMinVar) {
     rawMinDateFormat = variableInputDateFormats[rawMinVar];
   }

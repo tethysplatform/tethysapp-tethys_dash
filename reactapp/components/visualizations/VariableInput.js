@@ -6,7 +6,6 @@ import {
   AppContext,
   VariableInputsContext,
   DataViewerModeContext,
-  GridItemContext,
 } from "components/contexts/Contexts";
 import {
   nonDropDownVariableInputTypes,

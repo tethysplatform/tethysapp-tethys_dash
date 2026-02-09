@@ -1673,7 +1673,9 @@ describe("Slider Component", () => {
           value={{
             gridItemArgsString: JSON.stringify({
               "variable_options_source.metadata": {
+                // eslint-disable-next-line no-template-curly-in-string
                 min: "${minDate}",
+                // eslint-disable-next-line no-template-curly-in-string
                 max: "${maxDate}",
               },
             }),
@@ -1719,7 +1721,9 @@ describe("Slider Component", () => {
           value={{
             gridItemArgsString: JSON.stringify({
               "variable_options_source.metadata": {
+                // eslint-disable-next-line no-template-curly-in-string
                 min: "${minDate}",
+                // eslint-disable-next-line no-template-curly-in-string
                 max: "${maxDate}",
               },
             }),

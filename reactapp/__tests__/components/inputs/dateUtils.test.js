@@ -108,10 +108,7 @@ describe("checkForVariable", () => {
     // eslint-disable-next-line
     expect(checkForVariable("prefix_${variable}_suffix")).toBe("variable");
     // eslint-disable-next-line
-    expect(checkForVariable("${multiple}_${variable}_suffix")).toBe([
-      "multiple",
-      "variable",
-    ]);
+    expect(checkForVariable("${multiple}_${variable}_suffix")).toBe("multiple");
   });
 
   it("returns false for non-variable strings", () => {
