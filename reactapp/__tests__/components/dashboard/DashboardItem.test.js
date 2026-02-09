@@ -1404,30 +1404,37 @@ test("Dashboard attribution and show", async () => {
   const dashboardGridItem = await screen.findByLabelText("gridItemDiv");
   expect(dashboardGridItem).toBeInTheDocument();
 
+  // The icon wrapper is now a div with aria-label
   const attributionIcon = await screen.findByLabelText("attribution-info-icon");
   expect(attributionIcon).toBeInTheDocument();
 
-  const tooltip = screen.getByLabelText("attribution-tooltip");
+  // Tooltip is rendered but hidden initially
+  let tooltip = screen.getByLabelText("attribution-tooltip");
   expect(tooltip).not.toBeVisible();
 
-  fireEvent.mouseEnter(attributionIcon);
-
+  // Mouse enter the icon's child div (the inline-block wrapper)
+  // eslint-disable-next-line testing-library/no-node-access
+  const iconHoverDiv = attributionIcon.querySelector("div");
+  fireEvent.mouseEnter(iconHoverDiv);
+  tooltip = screen.getByLabelText("attribution-tooltip");
   expect(tooltip).toBeVisible();
 
-  fireEvent.mouseLeave(attributionIcon);
-
+  // Mouse leave the icon's child div
+  fireEvent.mouseLeave(iconHoverDiv);
+  tooltip = screen.getByLabelText("attribution-tooltip");
   expect(tooltip).not.toBeVisible();
 
-  fireEvent.mouseEnter(attributionIcon);
-
+  // Mouse enter again
+  fireEvent.mouseEnter(iconHoverDiv);
+  tooltip = screen.getByLabelText("attribution-tooltip");
   expect(tooltip).toBeVisible();
 
+  // Mouse enter the tooltip itself
   fireEvent.mouseEnter(tooltip);
-
   expect(tooltip).toBeVisible();
 
+  // Mouse leave the tooltip
   fireEvent.mouseLeave(tooltip);
-
   expect(tooltip).not.toBeVisible();
 });
 
@@ -1487,24 +1494,24 @@ test("Dashboard attribution www link and show", async () => {
   const attributionIcon = await screen.findByLabelText("attribution-info-icon");
   expect(attributionIcon).toBeInTheDocument();
 
-  const tooltip = screen.getByLabelText("attribution-tooltip");
+  let tooltip = screen.getByLabelText("attribution-tooltip");
   expect(tooltip).not.toBeVisible();
 
-  fireEvent.mouseEnter(attributionIcon);
-
-  // Tooltip should now be visible
-  const tooltipAfter = await screen.findByLabelText("attribution-tooltip");
-  expect(tooltipAfter).toBeVisible();
+  // eslint-disable-next-line testing-library/no-node-access
+  const iconHoverDiv = attributionIcon.querySelector("div");
+  fireEvent.mouseEnter(iconHoverDiv);
+  tooltip = await screen.findByLabelText("attribution-tooltip");
+  expect(tooltip).toBeVisible();
 
   // Check that the attribution text contains a link with the correct URL and text
-  const link = within(tooltipAfter).getByRole("link", {
+  const link = within(tooltip).getByRole("link", {
     name: "www.example.com",
   });
   expect(link).toBeInTheDocument();
   expect(link).toHaveAttribute("href", "http://www.example.com");
 
   // Optionally, check that the rest of the text is present
-  expect(tooltipAfter).toHaveTextContent("Some Attribution Text");
+  expect(tooltip).toHaveTextContent("Some Attribution Text");
 });
 
 test("Dashboard attribution https link and show", async () => {
@@ -1563,24 +1570,24 @@ test("Dashboard attribution https link and show", async () => {
   const attributionIcon = await screen.findByLabelText("attribution-info-icon");
   expect(attributionIcon).toBeInTheDocument();
 
-  const tooltip = screen.getByLabelText("attribution-tooltip");
+  let tooltip = screen.getByLabelText("attribution-tooltip");
   expect(tooltip).not.toBeVisible();
 
-  fireEvent.mouseEnter(attributionIcon);
-
-  // Tooltip should now be visible
-  const tooltipAfter = await screen.findByLabelText("attribution-tooltip");
-  expect(tooltipAfter).toBeVisible();
+  // eslint-disable-next-line testing-library/no-node-access
+  const iconHoverDiv = attributionIcon.querySelector("div");
+  fireEvent.mouseEnter(iconHoverDiv);
+  tooltip = await screen.findByLabelText("attribution-tooltip");
+  expect(tooltip).toBeVisible();
 
   // Check that the attribution text contains a link with the correct URL and text
-  const link = within(tooltipAfter).getByRole("link", {
+  const link = within(tooltip).getByRole("link", {
     name: "https://example.com",
   });
   expect(link).toBeInTheDocument();
   expect(link).toHaveAttribute("href", "https://example.com");
 
   // Optionally, check that the rest of the text is present
-  expect(tooltipAfter).toHaveTextContent("Some Attribution Text");
+  expect(tooltip).toHaveTextContent("Some Attribution Text");
 });
 
 test("Dashboard attribution and not show", async () => {
