@@ -1654,6 +1654,97 @@ describe("Slider Component", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/speed select/i)).not.toBeInTheDocument();
   });
+
+  it("renders with unique date formats in variableInputsContext for variable inputs", () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T 00:00:00.000";
+    const max = "2025-01-05 WW 00";
+
+    render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {
+            minDate: "yyyy-MM-dd'T' HH:mm:ss.SSS",
+            maxDate: "yyyy-MM-dd 'WW' HH",
+          },
+        }}
+      >
+        <GridItemContext.Provider
+          value={{
+            gridItemArgsString: JSON.stringify({
+              "variable_options_source.metadata": {
+                min: "${minDate}",
+                max: "${maxDate}",
+              },
+            }),
+          }}
+        >
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="MM/dd/yyyy"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    const minLabel = screen.getByText("01/01/2025", { selector: "strong" });
+    expect(minLabel).toBeInTheDocument();
+    const maxLabel = screen.getByText("01/05/2025", { selector: "strong" });
+    expect(maxLabel).toBeInTheDocument();
+    expect(handleChange).toHaveBeenCalledWith("01/01/2025");
+  });
+
+  it("renders with bad date formats", () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T 00:00:00.000";
+    const max = "2025-01-05 WW 00";
+
+    render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {
+            minDate: "",
+            maxDate: "",
+          },
+        }}
+      >
+        <GridItemContext.Provider
+          value={{
+            gridItemArgsString: JSON.stringify({
+              "variable_options_source.metadata": {
+                min: "${minDate}",
+                max: "${maxDate}",
+              },
+            }),
+          }}
+        >
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="MM/dd/yyyy"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    const today = format(new Date(), "MM/dd/yyyy");
+    const labels = screen.getAllByText(today, { selector: "strong" });
+    expect(labels.length).toBe(2);
+    expect(handleChange).toHaveBeenCalledWith(today);
+  });
 });
 
 test("calculateSliderValues returns correct values", () => {

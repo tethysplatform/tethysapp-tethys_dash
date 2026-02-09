@@ -222,6 +222,22 @@ function DataViewerModal({
           getAllVariableInputNames(JSON.parse(gridItemArgsString)),
         );
 
+        // Check for duplicate variable names in newVariableInputNames
+        const nameCounts = {};
+        for (const name of newVariableInputNames) {
+          nameCounts[name] = (nameCounts[name] || 0) + 1;
+        }
+        const duplicates = Object.entries(nameCounts)
+          .filter(([_, count]) => count > 1)
+          .map(([name, _]) => name);
+        if (duplicates.length > 0) {
+          setAlertMessage(
+            `Duplicate variable name(s) found: ${duplicates.join(", ")}`,
+          );
+          setShowAlert(true);
+          return;
+        }
+
         var variableInputSource = vizInputsValues.variable_options_source;
 
         for (const variableInputName of newVariableInputNames) {

@@ -89,37 +89,40 @@ const DashboardLoader = ({
           const args = JSON.parse(gridItem.args_string);
 
           if (gridItem.source === "Variable Input") {
-            let initialValue =
-              variableInputValues[args.variable_name] === undefined
-                ? args.initial_value
-                : variableInputValues[args.variable_name];
-            if (
-              args.variable_options_source === "checkbox" &&
-              args.initial_value === null
-            ) {
-              initialValue = false;
+            const allInitialValues = {
+              [args.variable_name]: args.initial_value,
+            };
+            if (args.initial_value && typeof args.initial_value === "object") {
+              for (let [key, value] of Object.entries(args.initial_value)) {
+                allInitialValues[key] = value;
+              }
             }
 
-            let dateFormat;
-            if (args.variable_options_source.includes("date")) {
-              dateFormat =
-                args?.["variable_options_source.metadata"]?.format || "";
-            } else if (args.variable_options_source === "slider") {
-              dateFormat =
-                args["variable_options_source.metadata"].outputFormat;
-            }
+            for (let [key, value] of Object.entries(allInitialValues)) {
+              let initialValue =
+                variableInputValues[key] === undefined
+                  ? value
+                  : variableInputValues[key];
 
-            updatedVariableInputValues[args.variable_name] = initialValue;
-            if (dateFormat) {
-              updatedVariableInputDateFormats[args.variable_name] = dateFormat;
-            }
+              if (
+                args.variable_options_source === "checkbox" &&
+                initialValue === null
+              ) {
+                initialValue = false;
+              }
 
-            if (typeof initialValue === "object" && initialValue !== null) {
-              for (let [key, value] of Object.entries(initialValue)) {
-                updatedVariableInputValues[key] = value;
-                if (dateFormat) {
-                  updatedVariableInputDateFormats[key] = dateFormat;
-                }
+              let dateFormat;
+              if (args.variable_options_source.includes("date")) {
+                dateFormat =
+                  args?.["variable_options_source.metadata"]?.format || "";
+              } else if (args.variable_options_source === "slider") {
+                dateFormat =
+                  args["variable_options_source.metadata"].outputFormat;
+              }
+
+              updatedVariableInputValues[key] = initialValue;
+              if (dateFormat) {
+                updatedVariableInputDateFormats[key] = dateFormat;
               }
             }
           }

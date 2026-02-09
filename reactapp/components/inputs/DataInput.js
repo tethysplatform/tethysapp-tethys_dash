@@ -111,7 +111,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
               <b>Example Date Output</b>:
             </label>{" "}
             <span>
-              {parseDate(value.startDate || value, inputProps?.format, true)}
+              {parseDate(value?.startDate || value, inputProps?.format, true)}
             </span>
           </div>
         )}

@@ -968,6 +968,60 @@ test("Dashboard Viewer multi variable date range", async () => {
   });
 });
 
+test("Dashboard Viewer multi variable date range fails if duplicated variable names", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  mockedDashboard.tabs[0].gridItems[0] = mockedDateRangeVariable;
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  gridItem.args_string = JSON.stringify({
+    variable_name: "Test Variable",
+    variable_options_source: "date-range",
+    "variable_options_source.metadata": {
+      format: "MM/dd/yyyy'T 'HH:mm",
+      startDateVariable: "Start Date",
+      endDateVariable: "Start Date",
+    },
+    initial_value: {
+      "Start Date": "01/14/2026 12:00 AM",
+      "End Date": "01/16/2026 12:00 AM",
+    },
+  });
+  const mockHandleModalClose = jest.fn();
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+  const mockUpdateTab = jest.fn();
+
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <>
+        <TestingComponent
+          gridItem={gridItem}
+          mockHandleModalClose={mockHandleModalClose}
+          mockSetGridItemMessage={mockSetGridItemMessage}
+          mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+          onTabUpdate={mockUpdateTab}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: { initialDashboard: mockedDashboard },
+  });
+
+  render(LoadedComponent);
+
+  expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
+  expect(await screen.findByText("Visualization")).toBeInTheDocument();
+  expect(await screen.findByText("Settings")).toBeInTheDocument();
+
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button",
+  );
+  fireEvent.click(dataviewerSaveButton);
+
+  expect(
+    await screen.findByText("Duplicate variable name(s) found: Start Date"),
+  ).toBeInTheDocument();
+});
+
 describe("getAllVariableInputNames", () => {
   test("should return variable inputs from args", () => {
     const args = {

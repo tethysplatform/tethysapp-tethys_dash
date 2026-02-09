@@ -1,11 +1,12 @@
 import DashboardLoader from "components/loader/DashboardLoader";
-import { screen, render } from "@testing-library/react";
+import { screen, render, waitFor } from "@testing-library/react";
 import { useContext } from "react";
 import { AvailableDashboardsContext } from "components/contexts/Contexts";
 import {
   userDashboard,
   mockedTextVariable,
   mockedCheckboxVariable,
+  mockedDateRangeVariable,
 } from "__tests__/utilities/constants";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
@@ -324,6 +325,75 @@ test("DashboardLoader updateGridItems existing variable input", async () => {
     JSON.stringify({
       "Test Variable": "",
     }),
+  );
+});
+
+test("DashboardLoader updateGridItems existing date range variable input", async () => {
+  const mockUpdateDashboard = jest.fn();
+  const updatedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  mockedDashboard.tabs[0].gridItems = [mockedTextVariable];
+  updatedDashboard.tabs[0].gridItems = [mockedDateRangeVariable];
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({ success: true, dashboard: mockedDashboard }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  render(
+    <AvailableDashboardsContext.Provider
+      value={{ updateDashboard: mockUpdateDashboard }}
+    >
+      <DashboardLoader {...mockedDashboard}>
+        <TestingComponent
+          TabID={1}
+          updatedTabProperties={{ gridItems: [mockedDateRangeVariable] }}
+        />
+      </DashboardLoader>
+    </AvailableDashboardsContext.Provider>,
+  );
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({
+      "Test Variable": "",
+    }),
+  );
+
+  let { tabs, ...dashboardContextProperties } = mockedDashboard;
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
+  );
+
+  const updatedTabButton = await screen.findByTestId("updatedTabButton");
+  await userEvent.click(updatedTabButton);
+
+  ({ tabs, ...dashboardContextProperties } = updatedDashboard);
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
+  );
+
+  await waitFor(() =>
+    expect(screen.getByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({
+        "Test Variable": "", //because it is using a previous value
+        "Start Date": "01/14/2026T00:00",
+        "End Date": "01/16/2026T00:00",
+      }),
+    ),
   );
 });
 
