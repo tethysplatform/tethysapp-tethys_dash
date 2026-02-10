@@ -14,6 +14,7 @@ import {
   layerConfigImageWMS,
   layerConfigVectorTile,
   layerConfigArcGISFeatureService,
+  layerConfigPMTilesVector
 } from "__tests__/utilities/constants";
 import {
   Style,
@@ -75,6 +76,15 @@ test("ArcGIS Feature Service Instance", async () => {
 
   const cachedLayerInstance = await moduleLoader(copiedConfig);
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
+});
+
+test("PMTiles Vector Layer Instance", async () => {
+  const layerInstance = await moduleLoader(layerConfigPMTilesVector.configuration);
+  expect(layerInstance instanceof VectorTileLayer).toBe(true);
+  const cachedLayerInstance = await moduleLoader(
+    layerConfigVectorTile.configuration,
+  );
+  expect(cachedLayerInstance instanceof VectorTileLayer).toBe(true);
 });
 
 test("Non Constructor Error", async () => {

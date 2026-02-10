@@ -1129,6 +1129,10 @@ test("queryLayerFeatures ImageWMS Bad Request", async () => {
   global.fetch.mockRestore?.();
 });
 
+test("queryLayerFeatures PMTiles Vector", async () => {
+  
+});
+
 test("queryLayerFeatures SourceType Not Configured", async () => {
   const layerConfig = {
     configuration: {

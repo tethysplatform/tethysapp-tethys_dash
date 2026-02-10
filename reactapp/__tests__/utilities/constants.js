@@ -1396,6 +1396,22 @@ export const layerConfigWebGLTile = {
   },
 };
 
+export const layerConfigPMTilesVector = {
+  configuration: {
+    type: "VectorTileLayer",
+    props: {
+      name: "PMTiles Vector Layer",
+      source: {
+        type: "PMTiles Vector",
+        props: {
+          url: "https://communityhydrofabric.s3.us-east-1.amazonaws.com/map/nexus.pmtiles",
+        },
+      },
+      zIndex: 1,
+    },
+  },
+}
+
 export const exampleStyle = {
   version: 8,
   sprite:
