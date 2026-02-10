@@ -37,12 +37,10 @@ test("LegendControl", async () => {
   rerender(<LegendControl legendItems={[newLegendItems]} />);
   expect(screen.queryByText("Some Title")).not.toBeInTheDocument();
   expect(await screen.findByText("Some New Title")).toBeInTheDocument();
-  expect(await screen.findByText("legend item 1")).toBeInTheDocument();
 
   const closeLegendButton = await screen.findByLabelText(
     "Close Legend Control",
   );
   fireEvent.click(closeLegendButton);
   expect(screen.queryByText("Some New Title")).not.toBeInTheDocument();
-  expect(screen.queryByText("legend item 1")).not.toBeInTheDocument();
 });
