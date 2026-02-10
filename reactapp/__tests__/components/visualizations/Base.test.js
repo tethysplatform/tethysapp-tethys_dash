@@ -1039,7 +1039,7 @@ it("Base - update date variable input", async () => {
     }),
   };
   const dateHourVariable = JSON.parse(JSON.stringify(mockedDateHourVariable));
-  const initialDate = "01/01/2025 12:00 AM"
+  const initialDate = "01/01/2025 12:00 AM";
   dateHourVariable.args_string = JSON.stringify({
     initial_value: initialDate,
     variable_name: "Test Variable",
@@ -1251,7 +1251,10 @@ it("Base - update date variable input", async () => {
       }),
     );
   });
-  expectLastGetVisualizationCallDate(spyGetVisualization, expectedVariableDateString);
+  expectLastGetVisualizationCallDate(
+    spyGetVisualization,
+    expectedVariableDateString,
+  );
 
   // Clear calls again to test no additional calls when clicking refresh without value change
   spyGetVisualization.mockClear();
@@ -1305,7 +1308,10 @@ it("Base - update date variable input", async () => {
       }),
     );
   });
-  expectLastGetVisualizationCallDate(spyGetVisualization, expectedVariableDateString);
+  expectLastGetVisualizationCallDate(
+    spyGetVisualization,
+    expectedVariableDateString,
+  );
 
   spyGetVisualization.mockRestore();
   // Restore original Date
@@ -1450,11 +1456,6 @@ it("Base - initial relative date variable input", async () => {
   const refreshButton = await screen.findByLabelText("Refresh variable input");
   const input = await screen.findByRole("textbox");
 
-  // check getVisualization call with date
-  let expectedDateString = formatDate(
-    mockDate,
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
-  );
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -1502,10 +1503,6 @@ it("Base - initial relative date variable input", async () => {
   const callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
   expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
 
-  expectedDateString = formatDate(
-    addDays(mockDate, -1),
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
-  );
   const expectedVariableDateString = formatDate(
     addDays(mockDate, -1),
     "MM/dd/yyyy h:mm a",
@@ -1532,7 +1529,10 @@ it("Base - initial relative date variable input", async () => {
       }),
     );
   });
-  expectLastGetVisualizationCallDate(spyGetVisualization, expectedVariableDateString);
+  expectLastGetVisualizationCallDate(
+    spyGetVisualization,
+    expectedVariableDateString,
+  );
 
   spyGetVisualization.mockRestore();
   // Restore original Date

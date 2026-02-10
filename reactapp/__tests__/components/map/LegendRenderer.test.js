@@ -456,6 +456,57 @@ test("LegendRenderer; empty styleJSON", async () => {
   expect(items).toHaveLength(0);
 });
 
+test("LegendRenderer; styleJSON only default point", async () => {
+  const legend = {
+    styleJSON: {
+      rules: [],
+      default: {
+        point: {
+          shape: "star",
+        },
+      },
+    },
+    title: "test",
+  };
+  render(<LegendRenderer legend={legend} />);
+
+  expect(screen.getByText("test")).toBeInTheDocument();
+  const list = screen.queryByRole("list");
+  expect(list).not.toBeInTheDocument();
+
+  expect(screen.queryByText("Default")).not.toBeInTheDocument();
+  const svgElements = await screen.findByLabelText(
+    "rgba(255, 255, 255, 0.4)-star",
+  );
+  expect(svgElements).toBeInTheDocument();
+});
+
+test("LegendRenderer; styleJSON only default point icon", async () => {
+  const legend = {
+    styleJSON: {
+      rules: [],
+      default: {
+        point: {
+          shape: "icon",
+          iconUrl: "http://example.com/icon.png",
+        },
+      },
+    },
+    title: "test",
+  };
+  render(<LegendRenderer legend={legend} />);
+
+  expect(screen.getByText("test")).toBeInTheDocument();
+  const list = screen.queryByRole("list");
+  expect(list).not.toBeInTheDocument();
+
+  expect(screen.queryByText("Default")).not.toBeInTheDocument();
+
+  const defaultIcon = await screen.findByLabelText("icon-point");
+  expect(defaultIcon).toBeInTheDocument();
+  expect(defaultIcon).toHaveAttribute("src", "http://example.com/icon.png");
+});
+
 test("LegendRenderer; styleJSON legend linestrings", async () => {
   const legend = {
     styleJSON: {
