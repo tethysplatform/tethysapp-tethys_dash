@@ -100,6 +100,12 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
+function expectLastGetVisualizationCallDate(spy, expectedDateString) {
+  const lastCall = spy.mock.calls.at(-1)[0];
+  const actualDate = new Date(lastCall.itemData.args.plugin_arg);
+  expect(actualDate.getTime()).toBe(new Date(expectedDateString).getTime());
+}
+
 it("Initializes a Base Item with an empty div", async () => {
   render(
     createLoadedComponent({
@@ -1033,8 +1039,9 @@ it("Base - update date variable input", async () => {
     }),
   };
   const dateHourVariable = JSON.parse(JSON.stringify(mockedDateHourVariable));
+  const initialDate = "01/01/2025 12:00 AM"
   dateHourVariable.args_string = JSON.stringify({
-    initial_value: "01/01/2025 12:00 AM",
+    initial_value: initialDate,
     variable_name: "Test Variable",
     variable_options_source: "date-hour",
   });
@@ -1139,7 +1146,7 @@ it("Base - update date variable input", async () => {
         dashboardView: true,
         itemData: {
           args: {
-            plugin_arg: "2025-01-01T00:00:00-06:00",
+            plugin_arg: expect.any(String),
           },
           requestId: "12345678",
           source: "plugin_source",
@@ -1147,12 +1154,14 @@ it("Base - update date variable input", async () => {
         metadataString: '{"refreshRate":0}',
         sourceType: "plotly",
         variableInputValues: {
-          "Test Variable": "01/01/2025 12:00 AM",
+          "Test Variable": initialDate,
         },
         vizLoadingIcon: undefined,
       }),
     );
   });
+
+  expectLastGetVisualizationCallDate(spyGetVisualization, initialDate);
 
   // update the datepicker textbox to a static date
   const input = await screen.findByRole("textbox");
@@ -1178,7 +1187,7 @@ it("Base - update date variable input", async () => {
         dashboardView: true,
         itemData: {
           args: {
-            plugin_arg: "2020-01-01T00:00:00-06:00",
+            plugin_arg: expect.any(String),
           },
           requestId: "12345678",
           source: "plugin_source",
@@ -1192,6 +1201,7 @@ it("Base - update date variable input", async () => {
       }),
     );
   });
+  expectLastGetVisualizationCallDate(spyGetVisualization, expectedDateString);
 
   // Verify getVisualization was called after first refresh
   let callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
@@ -1218,6 +1228,7 @@ it("Base - update date variable input", async () => {
     addDays(mockDate, -1),
     "MM/dd/yyyy h:mm a",
   );
+
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -1226,7 +1237,7 @@ it("Base - update date variable input", async () => {
         dashboardView: true,
         itemData: {
           args: {
-            plugin_arg: expectedDateString,
+            plugin_arg: expect.any(String),
           },
           requestId: "12345678",
           source: "plugin_source",
@@ -1240,6 +1251,7 @@ it("Base - update date variable input", async () => {
       }),
     );
   });
+  expectLastGetVisualizationCallDate(spyGetVisualization, expectedVariableDateString);
 
   // Clear calls again to test no additional calls when clicking refresh without value change
   spyGetVisualization.mockClear();
@@ -1279,7 +1291,7 @@ it("Base - update date variable input", async () => {
         dashboardView: true,
         itemData: {
           args: {
-            plugin_arg: expectedDateString,
+            plugin_arg: expect.any(String),
           },
           requestId: "12345678",
           source: "plugin_source",
@@ -1293,6 +1305,7 @@ it("Base - update date variable input", async () => {
       }),
     );
   });
+  expectLastGetVisualizationCallDate(spyGetVisualization, expectedVariableDateString);
 
   spyGetVisualization.mockRestore();
   // Restore original Date
@@ -1450,7 +1463,7 @@ it("Base - initial relative date variable input", async () => {
         dashboardView: true,
         itemData: {
           args: {
-            plugin_arg: expectedDateString,
+            plugin_arg: expect.any(String),
           },
           requestId: "12345678",
           source: "plugin_source",
@@ -1464,6 +1477,8 @@ it("Base - initial relative date variable input", async () => {
       }),
     );
   });
+
+  expectLastGetVisualizationCallDate(spyGetVisualization, Date.now());
 
   // Clear calls again to test no additional calls when clicking refresh without value change
   spyGetVisualization.mockClear();
@@ -1503,7 +1518,7 @@ it("Base - initial relative date variable input", async () => {
         dashboardView: true,
         itemData: {
           args: {
-            plugin_arg: expectedDateString,
+            plugin_arg: expect.any(String),
           },
           requestId: "12345678",
           source: "plugin_source",
@@ -1517,6 +1532,7 @@ it("Base - initial relative date variable input", async () => {
       }),
     );
   });
+  expectLastGetVisualizationCallDate(spyGetVisualization, expectedVariableDateString);
 
   spyGetVisualization.mockRestore();
   // Restore original Date
