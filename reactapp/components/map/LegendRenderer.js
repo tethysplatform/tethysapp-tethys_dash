@@ -48,13 +48,17 @@ const LegendWrapper = styled.div`
   align-items: flex-start;
 `;
 
-const LegendTitle = styled.h3`
-  margin-bottom: 0.5rem;
+const LegendTitle = styled.span`
+  margin-top: 0.5rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 `;
 
 const LegendList = styled.ul`
   list-style: none;
-  padding-left: 0;
+  padding-left: 1.5em;
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -70,9 +74,9 @@ const LegendItem = styled.li`
 
 const LegendImage = styled.img`
   && {
-    width: 85% !important;
+    width: 56.67% !important; /* 2/3 of 85% */
     border: 1px solid #ccc;
-    margin-bottom: 6px;
+    margin-bottom: 4px; /* scale margin as well */
   }
 `;
 
@@ -161,7 +165,7 @@ export const LegendSymbol = ({
           x2={hatchSpacing}
           y2="0"
           stroke={color}
-          strokeWidth="2"
+          strokeWidth="1.33"
         />
       );
     } else if (hatchDirection === "vertical") {
@@ -172,7 +176,7 @@ export const LegendSymbol = ({
           x2="0"
           y2={hatchSpacing}
           stroke={color}
-          strokeWidth="2"
+          strokeWidth="1.33"
         />
       );
     } else if (hatchDirection === "cross") {
@@ -184,7 +188,7 @@ export const LegendSymbol = ({
             x2={hatchSpacing}
             y2="0"
             stroke={color}
-            strokeWidth="2"
+            strokeWidth="1.33"
           />
           <line
             x1="0"
@@ -192,7 +196,7 @@ export const LegendSymbol = ({
             x2="0"
             y2={hatchSpacing}
             stroke={color}
-            strokeWidth="2"
+            strokeWidth="1.33"
           />
         </>
       );
@@ -205,7 +209,7 @@ export const LegendSymbol = ({
           x2="0"
           y2={hatchSpacing}
           stroke={color}
-          strokeWidth="2"
+          strokeWidth="1.33"
         />
       );
     }
@@ -213,8 +217,8 @@ export const LegendSymbol = ({
     if (hatchDirection === "diagonal") patternTransform = "rotate(45)";
     return (
       <svg
-        width="24"
-        height="24"
+        width="16"
+        height="16"
         viewBox="0 0 24 24"
         aria-label="polygon-hatch"
         style={{
@@ -238,12 +242,12 @@ export const LegendSymbol = ({
         <rect
           x="2"
           y="2"
-          width="20"
-          height="20"
+          width="13.33"
+          height="13.33"
           fill={`url(#hatch)`}
           stroke={stroke || "#222"}
-          strokeWidth="2"
-          rx="2"
+          strokeWidth="1.33"
+          rx="1.33"
         />
       </svg>
     );
@@ -252,8 +256,8 @@ export const LegendSymbol = ({
     // SVG with dot pattern
     return (
       <svg
-        width="24"
-        height="24"
+        width="16"
+        height="16"
         viewBox="0 0 24 24"
         aria-label="polygon-dot"
         style={{
@@ -273,7 +277,7 @@ export const LegendSymbol = ({
             <circle
               cx={effectiveDotSpacing / 2}
               cy={effectiveDotSpacing / 2}
-              r={effectiveDotRadius}
+              r={effectiveDotRadius * (2 / 3)}
               fill={color}
             />
           </pattern>
@@ -281,12 +285,12 @@ export const LegendSymbol = ({
         <rect
           x="2"
           y="2"
-          width="20"
-          height="20"
+          width="13.33"
+          height="13.33"
           fill={`url(#dot)`}
           stroke={stroke || "#222"}
-          strokeWidth="2"
-          rx="2"
+          strokeWidth="1.33"
+          rx="1.33"
         />
       </svg>
     );
@@ -303,8 +307,8 @@ export const LegendSymbol = ({
     }
     return (
       <svg
-        width="32"
-        height="12"
+        width="21.33"
+        height="8"
         viewBox="0 0 32 12"
         aria-label="linestring"
         style={{ display: "block" }}
@@ -313,10 +317,10 @@ export const LegendSymbol = ({
         <line
           x1="2"
           y1="6"
-          x2="30"
+          x2="20"
           y2="6"
           stroke={stroke || color}
-          strokeWidth={strokeWidth}
+          strokeWidth={strokeWidth * (2 / 3)}
           strokeDasharray={dashArray}
           strokeLinecap="round"
         />
@@ -332,7 +336,8 @@ export const LegendSymbol = ({
     <SymbolComponent
       aria-label={label}
       color={color}
-      style={stroke ? { stroke: stroke, strokeWidth: 2 } : {}}
+      size={16}
+      style={stroke ? { stroke: stroke, strokeWidth: 1.33 } : {}}
       {...rest}
     />
   );
@@ -433,13 +438,35 @@ function LegendRenderer({ legend }) {
 
   // 🟢 Custom legend (array of items)
   if (legend.items) {
+    // If only one item, show symbol next to title, no label
+    if (legend.items.length === 1) {
+      const item = legend.items[0];
+      return (
+        <LegendWrapper>
+          <LegendTitle>
+            <LegendSymbol
+              symbol={item.symbol}
+              color={item.color}
+              stroke={item.stroke}
+              style={{ marginRight: 4 }}
+            />
+            {legend.title}
+          </LegendTitle>
+        </LegendWrapper>
+      );
+    }
+    // Otherwise, normal list
     return (
       <LegendWrapper>
         {legend.title && <LegendTitle>{legend.title}</LegendTitle>}
         <LegendList>
           {legend.items.map((item, index) => (
             <LegendItem key={index}>
-              <LegendSymbol symbol={item.symbol} color={item.color} />
+              <LegendSymbol
+                symbol={item.symbol}
+                color={item.color}
+                stroke={item.stroke}
+              />
               <span>{item.label}</span>
             </LegendItem>
           ))}
@@ -481,7 +508,7 @@ function LegendRenderer({ legend }) {
         const dotSpacing = defaultStyles[geom].dotSpacing;
         const dotRadius = defaultStyles[geom].dotRadius;
         items.push({
-          label: `${geom.charAt(0).toUpperCase() + geom.slice(1)} (Default)`,
+          label: geom, // temp, will adjust below
           symbol: shape,
           color: fillColor,
           stroke: strokeColor,
@@ -532,36 +559,86 @@ function LegendRenderer({ legend }) {
         strokeWidth,
       });
     }
+
+    // If only one style (single default or single rule), show symbol next to title, no label
+    if (items.length === 1) {
+      const item = items[0];
+      return (
+        <LegendWrapper>
+          <LegendTitle>
+            {item.iconUrl ? (
+              <img
+                aria-label={`icon-${item.label}`}
+                src={item.iconUrl}
+                alt="icon"
+                style={{ width: 16, height: 16, marginRight: 4 }}
+              />
+            ) : (
+              <LegendSymbol
+                symbol={item.symbol}
+                color={item.color}
+                stroke={item.stroke}
+                polygonFillType={item.polygonFillType}
+                hatchSpacing={item.hatchSpacing}
+                hatchDirection={item.hatchDirection}
+                dotSpacing={item.dotSpacing}
+                dotRadius={item.dotRadius}
+                strokeDash={item.strokeDash}
+                strokeWidth={item.strokeWidth}
+                style={{ marginRight: 4 }}
+              />
+            )}
+            {legend.title}
+          </LegendTitle>
+        </LegendWrapper>
+      );
+    }
+
+    // If multiple styles but only a single default, use label 'Default' for that item
+    const defaultCount = Object.keys(defaultStyles).filter(
+      (g) => defaultStyles[g],
+    ).length;
+    const hasRules = rules.length > 0;
+    let showDefaultLabel = false;
+    if (items.length > 1 && defaultCount === 1 && hasRules) {
+      showDefaultLabel = true;
+    }
+
     return (
       <LegendWrapper>
         {legend.title && <LegendTitle>{legend.title}</LegendTitle>}
         <LegendList>
-          {items.map((item, idx) => (
-            <LegendItem key={idx}>
-              {item.iconUrl ? (
-                <img
-                  aria-label={`icon-${item.label}`}
-                  src={item.iconUrl}
-                  alt="icon"
-                  style={{ width: 24, height: 24, marginRight: 6 }}
-                />
-              ) : (
-                <LegendSymbol
-                  symbol={item.symbol}
-                  color={item.color}
-                  stroke={item.stroke}
-                  polygonFillType={item.polygonFillType}
-                  hatchSpacing={item.hatchSpacing}
-                  hatchDirection={item.hatchDirection}
-                  dotSpacing={item.dotSpacing}
-                  dotRadius={item.dotRadius}
-                  strokeDash={item.strokeDash}
-                  strokeWidth={item.strokeWidth}
-                />
-              )}
-              <span>{item.label}</span>
-            </LegendItem>
-          ))}
+          {items.map((item, idx) => {
+            // If only one default and multiple styles, label as 'Default'
+            let label = item.label;
+            if (showDefaultLabel && idx === 0) label = "Default";
+            return (
+              <LegendItem key={idx}>
+                {item.iconUrl ? (
+                  <img
+                    aria-label={`icon-${label}`}
+                    src={item.iconUrl}
+                    alt="icon"
+                    style={{ width: 16, height: 16, marginRight: 4 }}
+                  />
+                ) : (
+                  <LegendSymbol
+                    symbol={item.symbol}
+                    color={item.color}
+                    stroke={item.stroke}
+                    polygonFillType={item.polygonFillType}
+                    hatchSpacing={item.hatchSpacing}
+                    hatchDirection={item.hatchDirection}
+                    dotSpacing={item.dotSpacing}
+                    dotRadius={item.dotRadius}
+                    strokeDash={item.strokeDash}
+                    strokeWidth={item.strokeWidth}
+                  />
+                )}
+                <span>{label}</span>
+              </LegendItem>
+            );
+          })}
         </LegendList>
       </LegendWrapper>
     );

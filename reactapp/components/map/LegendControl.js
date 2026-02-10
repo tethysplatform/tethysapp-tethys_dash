@@ -55,6 +55,7 @@ const LegendControl = ({ legendItems }) => {
           <LegendControlContainer
             $isexpanded={isexpanded}
             aria-label="Legend Control"
+            className="legend-control"
           >
             {isexpanded ? (
               <>
@@ -71,6 +72,7 @@ const LegendControl = ({ legendItems }) => {
                     width: "100%",
                   }}
                   aria-label="Legend Items"
+                  className="legend-items-container"
                 >
                   {legendItems.map((legendGroup, groupIndex) => (
                     <LegendRenderer key={groupIndex} legend={legendGroup} />
