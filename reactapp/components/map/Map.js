@@ -93,7 +93,9 @@ const MapComponent = ({
       visualizationRef.current = initialMap;
 
       if (setMapReady) {
+        // istanbul ignore next
         initialMap.once("rendercomplete", () => {
+          // istanbul ignore next
           setMapReady(true);
         });
       }

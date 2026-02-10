@@ -8,6 +8,7 @@ import { fromLonLat } from "ol/proj";
 import createLoadedComponent, {
   InputVariablePComponent,
 } from "__tests__/utilities/customRender";
+import { VariableInputsContext } from "components/contexts/Contexts";
 
 test("Draw Interactions no options and no render", async () => {
   const mockMap = {
@@ -19,42 +20,45 @@ test("Draw Interactions no options and no render", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  let LoadedComponent = createLoadedComponent({
-    children: (
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <DrawInteractions
         mapDrawing={{}}
         visualizationRef={visualizationRef}
         drawing={drawing}
       />
-    ),
-  });
-  const { rerender } = render(LoadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   expect(screen.queryByTitle("Stop Drawing")).not.toBeInTheDocument();
 
-  LoadedComponent = createLoadedComponent({
-    children: (
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <DrawInteractions
         mapDrawing={{ options: [] }}
         visualizationRef={visualizationRef}
         drawing={drawing}
       />
-    ),
-  });
-  rerender(LoadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   expect(screen.queryByTitle("Stop Drawing")).not.toBeInTheDocument();
 
-  LoadedComponent = createLoadedComponent({
-    children: (
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <DrawInteractions
         mapDrawing={{ options: ["Point"] }}
         visualizationRef={visualizationRef}
         drawing={drawing}
       />
-    ),
-  });
-  rerender(LoadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   expect(await screen.findByTitle("Stop Drawing")).toBeInTheDocument();
 });
@@ -72,16 +76,17 @@ test("Draw Interactions click draw and then deselect", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  const LoadedComponent = createLoadedComponent({
-    children: (
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <DrawInteractions
         mapDrawing={mapDrawing}
         visualizationRef={visualizationRef}
         drawing={drawing}
       />
-    ),
-  });
-  render(LoadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   // Click the "Draw Point" button to trigger interaction setup
   const drawButton = await screen.findByTitle("Draw Rectangle");
@@ -108,16 +113,17 @@ test("Draw Interactions click draw and then stop", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  const LoadedComponent = createLoadedComponent({
-    children: (
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <DrawInteractions
         mapDrawing={mapDrawing}
         visualizationRef={visualizationRef}
         drawing={drawing}
       />
-    ),
-  });
-  render(LoadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   // Click the "Draw Point" button to trigger interaction setup
   const drawButton = await screen.findByTitle("Draw Point");
@@ -146,16 +152,17 @@ test("Draw Interactions clear features", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  const LoadedComponent = createLoadedComponent({
-    children: (
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <DrawInteractions
         mapDrawing={mapDrawing}
         visualizationRef={visualizationRef}
         drawing={drawing}
       />
-    ),
-  });
-  render(LoadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   // Click the "Draw Point" button to trigger interaction setup
   fireEvent.click(await screen.findByTitle("Draw Point"));
@@ -169,7 +176,7 @@ test("Draw Interactions clear features", async () => {
 test("Draw Interactions drawend", async () => {
   const sourceRemoveFeature = jest.spyOn(
     VectorSource.prototype,
-    "removeFeature"
+    "removeFeature",
   );
 
   const addedInteractions = [];
@@ -187,17 +194,19 @@ test("Draw Interactions drawend", async () => {
   const mapDrawing = { options: ["Point"], limit: 1 };
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
+  const mockSetVariableInputValues = jest.fn();
 
-  const LoadedComponent = createLoadedComponent({
-    children: (
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: mockSetVariableInputValues }}
+    >
       <DrawInteractions
         mapDrawing={mapDrawing}
         visualizationRef={visualizationRef}
         drawing={drawing}
       />
-    ),
-  });
-  render(LoadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   // Click the "Draw Point" button to trigger interaction setup
   fireEvent.click(await screen.findByTitle("Draw Point"));
@@ -244,6 +253,7 @@ test("Draw Interactions drawend", async () => {
 
   expect(sourceRemoveFeature).toHaveBeenCalledWith(feature);
   expect(vectorSource.getFeatures().length).toBe(1);
+  expect(mockSetVariableInputValues).toHaveBeenCalledTimes(0);
 });
 
 test("Draw Interactions drawend update variables", async () => {
@@ -265,20 +275,19 @@ test("Draw Interactions drawend update variables", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
   const target = { getMap: jest.fn(() => mockMap) };
+  const mockSetVariableInputValues = jest.fn();
 
-  const LoadedComponent = createLoadedComponent({
-    children: (
-      <>
-        <DrawInteractions
-          mapDrawing={mapDrawing}
-          visualizationRef={visualizationRef}
-          drawing={drawing}
-        />
-        <InputVariablePComponent />
-      </>
-    ),
-  });
-  render(LoadedComponent);
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: mockSetVariableInputValues }}
+    >
+      <DrawInteractions
+        mapDrawing={mapDrawing}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    </VariableInputsContext.Provider>,
+  );
 
   // Click the "Draw Point" button to trigger interaction setup
   fireEvent.click(await screen.findByTitle("Draw Point"));
@@ -301,19 +310,22 @@ test("Draw Interactions drawend update variables", async () => {
     });
   });
 
-  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({
-      test: {
-        projection: 3857,
-        geometries: [
-          {
-            type: "Point",
-            coordinates: [-13703429.316651978, 6325919.274572156],
-          },
-        ],
-      },
-    })
-  );
+  expect(mockSetVariableInputValues).toHaveBeenCalledTimes(1);
+  // Get the function passed to setVariableInputValues
+  const updaterFn = mockSetVariableInputValues.mock.calls[0][0];
+  const result = updaterFn({}); // simulate previousVariableInputValues = {}
+
+  expect(result).toEqual({
+    test: {
+      projection: 3857,
+      geometries: [
+        {
+          type: "Point",
+          coordinates: [-13703429.316651978, 6325919.274572156],
+        },
+      ],
+    },
+  });
 });
 
 test("Draw Interactions drawend multiple features update variables", async () => {
@@ -338,20 +350,19 @@ test("Draw Interactions drawend multiple features update variables", async () =>
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
   const target = { getMap: jest.fn(() => mockMap) };
+  const mockSetVariableInputValues = jest.fn();
 
-  const LoadedComponent = createLoadedComponent({
-    children: (
-      <>
-        <DrawInteractions
-          mapDrawing={mapDrawing}
-          visualizationRef={visualizationRef}
-          drawing={drawing}
-        />
-        <InputVariablePComponent />
-      </>
-    ),
-  });
-  render(LoadedComponent);
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: mockSetVariableInputValues }}
+    >
+      <DrawInteractions
+        mapDrawing={mapDrawing}
+        visualizationRef={visualizationRef}
+        drawing={drawing}
+      />
+    </VariableInputsContext.Provider>,
+  );
 
   // Click the "Draw Point" button to trigger interaction setup
   fireEvent.click(await screen.findByTitle("Draw Point"));
@@ -381,23 +392,26 @@ test("Draw Interactions drawend multiple features update variables", async () =>
     });
   });
 
-  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({
-      test: {
-        projection: 3857,
-        geometries: [
-          {
-            type: "Point",
-            coordinates: [-13703429.316651978, 6325919.274572156],
-          },
-          {
-            type: "Point",
-            coordinates: [-13703429.316651978, 6446275.841017158],
-          },
-        ],
-      },
-    })
-  );
+  expect(mockSetVariableInputValues).toHaveBeenCalledTimes(1);
+  // Get the function passed to setVariableInputValues
+  const updaterFn = mockSetVariableInputValues.mock.calls[0][0];
+  const result = updaterFn({}); // simulate previousVariableInputValues = {}
+
+  expect(result).toEqual({
+    test: {
+      projection: 3857,
+      geometries: [
+        {
+          type: "Point",
+          coordinates: [-13703429.316651978, 6325919.274572156],
+        },
+        {
+          type: "Point",
+          coordinates: [-13703429.316651978, 6446275.841017158],
+        },
+      ],
+    },
+  });
 });
 
 test("Draw Interactions drawend no limit", async () => {
@@ -414,16 +428,17 @@ test("Draw Interactions drawend no limit", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  const LoadedComponent = createLoadedComponent({
-    children: (
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <DrawInteractions
         mapDrawing={mapDrawing}
         visualizationRef={visualizationRef}
         drawing={drawing}
       />
-    ),
-  });
-  render(LoadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   // Click the "Draw Point" button to trigger interaction setup
   fireEvent.click(await screen.findByTitle("Draw Point"));
@@ -442,7 +457,7 @@ test("Draw Interactions drawend no limit", async () => {
 test("Draw Interactions update limit and remove existing", async () => {
   const sourceRemoveFeature = jest.spyOn(
     VectorSource.prototype,
-    "removeFeature"
+    "removeFeature",
   );
 
   const addedInteractions = [];
@@ -461,16 +476,17 @@ test("Draw Interactions update limit and remove existing", async () => {
   const visualizationRef = { current: mockMap };
   const drawing = { current: false };
 
-  const LoadedComponent = createLoadedComponent({
-    children: (
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <DrawInteractions
         mapDrawing={mapDrawing}
         visualizationRef={visualizationRef}
         drawing={drawing}
       />
-    ),
-  });
-  const { rerender } = render(LoadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   // Click the "Draw Point" button to trigger interaction setup
   fireEvent.click(await screen.findByTitle("Draw Point"));
@@ -496,16 +512,17 @@ test("Draw Interactions update limit and remove existing", async () => {
   expect(vectorSource.getFeatures().length).toBe(2);
 
   const newMapDrawing = { options: ["Point"], limit: 1 };
-  const NewLoadedComponent = createLoadedComponent({
-    children: (
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <DrawInteractions
         mapDrawing={newMapDrawing}
         visualizationRef={visualizationRef}
         drawing={drawing}
       />
-    ),
-  });
-  rerender(NewLoadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   expect(sourceRemoveFeature).toHaveBeenCalledWith(feature);
   expect(vectorSource.getFeatures().length).toBe(1);

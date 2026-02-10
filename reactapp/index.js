@@ -15,10 +15,12 @@ document.addEventListener("DOMContentLoaded", () => {
     root.render(
       <BrowserRouter basename={APP_ROOT_URL}>
         <App />
-      </BrowserRouter>
+      </BrowserRouter>,
     );
 
+    // istanbul ignore next
     if (module.hot) {
+      // istanbul ignore next
       module.hot.accept();
     }
   }

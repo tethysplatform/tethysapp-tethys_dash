@@ -133,7 +133,7 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
           source.getFeatures().forEach((existingFeature) => {
             const existingFeaturegeometry = existingFeature.getGeometry();
             const existingFeatureGeojson = JSON.parse(
-              new GeoJSON().writeGeometry(existingFeaturegeometry)
+              new GeoJSON().writeGeometry(existingFeaturegeometry),
             );
             geometries.push(existingFeatureGeojson);
           });
