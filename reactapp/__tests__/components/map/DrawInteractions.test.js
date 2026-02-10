@@ -5,9 +5,6 @@ import VectorSource from "ol/source/Vector";
 import Feature from "ol/Feature";
 import Point from "ol/geom/Point";
 import { fromLonLat } from "ol/proj";
-import createLoadedComponent, {
-  InputVariablePComponent,
-} from "__tests__/utilities/customRender";
 import { VariableInputsContext } from "components/contexts/Contexts";
 
 test("Draw Interactions no options and no render", async () => {

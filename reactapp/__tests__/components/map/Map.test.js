@@ -6,10 +6,10 @@ import MapContextProvider, {
   useMapContext,
 } from "components/contexts/MapContext";
 import { Map } from "ol";
-import createLoadedComponent, {
-  InputVariablePComponent,
-} from "__tests__/utilities/customRender";
 import { exampleStyle } from "__tests__/utilities/constants";
+import { VariableInputsContext } from "components/contexts/Contexts";
+import * as olMapboxStyle from "ol-mapbox-style";
+import WebGLTileLayer from "ol/layer/WebGLTile";
 
 global.ResizeObserver = require("resize-observer-polyfill");
 
@@ -58,15 +58,15 @@ const TestingComponent = ({ mapProps }) => {
 };
 
 test("Default Map", async () => {
-  const loadedComponent = createLoadedComponent({
-    children: (
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent />
       </MapContextProvider>
-    ),
-  });
-
-  render(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   const mapDiv = await screen.findByLabelText("Map Div");
   expect(mapDiv).toBeInTheDocument();
@@ -89,15 +89,15 @@ test("Default Map", async () => {
 });
 
 test("Default Map with layer control and legend", async () => {
-  const loadedComponent = createLoadedComponent({
-    children: (
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent mapProps={{ layerControl: true, legend: [] }} />
       </MapContextProvider>
-    ),
-  });
-
-  render(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   expect(screen.queryByLabelText("Map Legend")).not.toBeInTheDocument();
   expect(
@@ -106,8 +106,10 @@ test("Default Map with layer control and legend", async () => {
 });
 
 test("Custom Map Config and View Config", async () => {
-  let loadedComponent = createLoadedComponent({
-    children: (
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent
           mapProps={{
@@ -116,10 +118,8 @@ test("Custom Map Config and View Config", async () => {
           }}
         />
       </MapContextProvider>
-    ),
-  });
-
-  const { rerender } = render(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   const mapDiv = await screen.findByLabelText("Map Div");
   expect(mapDiv).toBeInTheDocument();
@@ -133,8 +133,10 @@ test("Custom Map Config and View Config", async () => {
     }),
   );
 
-  loadedComponent = createLoadedComponent({
-    children: (
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent
           mapProps={{
@@ -143,10 +145,8 @@ test("Custom Map Config and View Config", async () => {
           }}
         />
       </MapContextProvider>
-    ),
-  });
-
-  rerender(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({
@@ -155,7 +155,20 @@ test("Custom Map Config and View Config", async () => {
     }),
   );
 
-  rerender(loadedComponent); // Rerendering with same props to test stability
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: { extent: "-10686671.12, 4721671.57, 8" },
+          }}
+        />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
 
   expect(await screen.findByTestId("map-view")).toHaveTextContent(
     JSON.stringify({
@@ -166,8 +179,10 @@ test("Custom Map Config and View Config", async () => {
 });
 
 test("Custom bounding old map extent string", async () => {
-  const loadedComponent = createLoadedComponent({
-    children: (
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent
           mapProps={{
@@ -176,10 +191,8 @@ test("Custom bounding old map extent string", async () => {
           }}
         />
       </MapContextProvider>
-    ),
-  });
-
-  render(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   const mapDiv = await screen.findByLabelText("Map Div");
   expect(mapDiv).toBeInTheDocument();
@@ -192,8 +205,10 @@ test("Custom bounding old map extent string", async () => {
 });
 
 test("Custom bounding box map extent", async () => {
-  const loadedComponent = createLoadedComponent({
-    children: (
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent
           mapProps={{
@@ -202,10 +217,8 @@ test("Custom bounding box map extent", async () => {
           }}
         />
       </MapContextProvider>
-    ),
-  });
-
-  render(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   const mapDiv = await screen.findByLabelText("Map Div");
   expect(mapDiv).toBeInTheDocument();
@@ -218,8 +231,11 @@ test("Custom bounding box map extent", async () => {
 });
 
 test("Custom bounding box map extent with variable", async () => {
-  const loadedComponent = createLoadedComponent({
-    children: (
+  const mockSetVariableInputValues = jest.fn();
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: mockSetVariableInputValues }}
+    >
       <MapContextProvider>
         <TestingComponent
           mapProps={{
@@ -228,12 +244,9 @@ test("Custom bounding box map extent with variable", async () => {
             onMapMove: true,
           }}
         />
-        <InputVariablePComponent />
       </MapContextProvider>
-    ),
-  });
-
-  render(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   const mapDiv = await screen.findByLabelText("Map Div");
   expect(mapDiv).toBeInTheDocument();
@@ -246,27 +259,67 @@ test("Custom bounding box map extent with variable", async () => {
     );
   });
 
-  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({
-      test: {
-        projection: "EPSG:3857",
-        geometries: [
-          {
-            type: "Polygon",
-            coordinates: [
-              [
-                [10, 20],
-                [10, 40],
-                [30, 40],
-                [30, 20],
-                [10, 20],
-              ],
+  let updaterFn = mockSetVariableInputValues.mock.calls[0][0];
+  let result = updaterFn({}); // simulate previousVariableInputValues = {}
+
+  expect(result).toEqual({
+    test: {
+      projection: "EPSG:3857",
+      geometries: [
+        {
+          type: "Polygon",
+          coordinates: [
+            [
+              [10, 20],
+              [10, 40],
+              [30, 40],
+              [30, 20],
+              [10, 20],
             ],
-          },
-        ],
-      },
-    }),
+          ],
+        },
+      ],
+    },
+  });
+
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: mockSetVariableInputValues }}
+    >
+      <MapContextProvider>
+        <TestingComponent
+          mapProps={{
+            mapConfig: { style: { width: "50%" } },
+            mapExtent: { extent: "20, 20, 30, 40", variable: "test" },
+            onMapMove: true,
+          }}
+        />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
   );
+
+  updaterFn = mockSetVariableInputValues.mock.calls[1][0];
+  result = updaterFn({}); // simulate previousVariableInputValues = {}
+
+  expect(result).toEqual({
+    test: {
+      projection: "EPSG:3857",
+      geometries: [
+        {
+          type: "Polygon",
+          coordinates: [
+            [
+              [15, 20],
+              [15, 40],
+              [35, 40],
+              [35, 20],
+              [15, 20],
+            ],
+          ],
+        },
+      ],
+    },
+  });
 });
 
 test("Map Layers and Updated Layers", async () => {
@@ -301,15 +354,15 @@ test("Map Layers and Updated Layers", async () => {
     },
   ];
 
-  const loadedComponent = createLoadedComponent({
-    children: (
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent mapProps={{ layers }} />
       </MapContextProvider>
-    ),
-  });
-
-  const { rerender } = render(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
@@ -368,20 +421,35 @@ test("Map Layers and Updated Layers", async () => {
       layerVisibility: true,
     },
   ];
-  let newLoadedComponent = createLoadedComponent({
-    children: (
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent mapProps={{ layers: newLayers }} />
       </MapContextProvider>
-    ),
-  });
-
-  rerender(newLoadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   await waitFor(() => {
     expect(addLayerSpy.mock.calls.length).toBe(3);
   });
   expect(removeLayerSpy.mock.calls.length).toBe(1);
+
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers: null }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(3);
+  });
+  expect(removeLayerSpy.mock.calls.length).toBe(3);
 });
 
 test("Map Layers  default invisible layer", async () => {
@@ -416,15 +484,15 @@ test("Map Layers  default invisible layer", async () => {
     },
   ];
 
-  const loadedComponent = createLoadedComponent({
-    children: (
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent mapProps={{ layers }} />
       </MapContextProvider>
-    ),
-  });
-
-  render(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
 
@@ -472,15 +540,15 @@ test("Bad Map Layers", async () => {
     },
   ];
 
-  let loadedComponent = createLoadedComponent({
-    children: (
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent mapProps={{ layers }} />
       </MapContextProvider>
-    ),
-  });
-
-  const { rerender } = render(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   const warningMessage = await screen.findByText(
     'Failed to load the "Base Layer, Image Layer" layer(s)',
@@ -508,15 +576,15 @@ test("Bad Map Layers", async () => {
     },
   ];
 
-  loadedComponent = createLoadedComponent({
-    children: (
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent mapProps={{ layers: updatedLayers }} />
       </MapContextProvider>
-    ),
-  });
-
-  rerender(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   await waitFor(() => {
     expect(addLayerSpy.mock.calls.length).toBe(1);
@@ -542,15 +610,15 @@ test("Bad Map Layers", async () => {
     },
   ];
 
-  loadedComponent = createLoadedComponent({
-    children: (
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
       <MapContextProvider>
         <TestingComponent mapProps={{ layers: updatedLayers }} />
       </MapContextProvider>
-    ),
-  });
-
-  rerender(loadedComponent);
+    </VariableInputsContext.Provider>,
+  );
 
   await waitFor(() => {
     expect(addLayerSpy.mock.calls.length).toBe(2);
@@ -565,7 +633,7 @@ test("Bad Map Layers", async () => {
   );
 });
 
-test("Map Layer Styles", async () => {
+test("Map Layer JSON Style Function", async () => {
   const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
   const layers = [
     {
@@ -585,13 +653,13 @@ test("Map Layer Styles", async () => {
   ];
 
   render(
-    createLoadedComponent({
-      children: (
-        <MapContextProvider>
-          <TestingComponent mapProps={{ layers }} />
-        </MapContextProvider>
-      ),
-    }),
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
   );
 
   expect(await screen.findByText("Map Ready")).toBeInTheDocument();
@@ -603,6 +671,94 @@ test("Map Layer Styles", async () => {
   expect(addLayerSpy.mock.calls[0][0].values_.name).toBe(
     "World Light Gray Base",
   );
+});
+
+test("Map Layer mapbox style crs error message, dont do JSON style function", async () => {
+  // Mock applyStyle for this test only
+  const applyStyleMock = jest
+    .spyOn(olMapboxStyle, "applyStyle")
+    .mockImplementation(() => {
+      throw new TypeError(
+        "Cannot read properties of undefined (reading 'crs')",
+      );
+    });
+  const setStyleSpy = jest.spyOn(WebGLTileLayer.prototype, "setStyle");
+
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const layers = [
+    {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "Image Tile",
+          props: {
+            url: "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+          },
+        },
+        name: "World Light Gray Base",
+        zIndex: 0,
+      },
+      style: {},
+    },
+  ];
+
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  const layer = addLayerSpy.mock.calls[0][0];
+  expect(layer.values_.name).toBe("World Light Gray Base");
+  expect(setStyleSpy).toHaveBeenCalledTimes(1); // only once with mapbox applyStyle
+
+  applyStyleMock.mockRestore(); // Clean up after test
+});
+
+test("Map Layer createJsonStyleFunction returns null, style not set", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const layers = [
+    {
+      type: "ImageLayer",
+      props: {
+        name: "esri",
+        source: {
+          type: "ESRI Image and Map Service",
+          props: {
+            url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+          },
+        },
+        zIndex: 1,
+      },
+      style: {},
+    },
+  ];
+
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  const layer = addLayerSpy.mock.calls[0][0];
+  expect(layer.values_.name).toBe("esri");
+  // setStyle should not be called because the layer has no setStyle function
 });
 
 TestingComponent.propTypes = {
