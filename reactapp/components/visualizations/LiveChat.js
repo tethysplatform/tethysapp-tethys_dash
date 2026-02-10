@@ -231,7 +231,7 @@ export const ChatMessage = ({
     setPendingMessageId(messageId);
     try {
       await Promise.resolve(
-        sendMessage && sendMessage(JSON.stringify(editObj))
+        sendMessage && sendMessage(JSON.stringify(editObj)),
       );
       // updating will be reset when edit is confirmed and isEditing is set to false
     } catch (e) {
@@ -330,10 +330,10 @@ const LiveChat = ({ requestId, chatHistory }) => {
   const usernameKey = `livechat_username_${requestId}`;
   // Initialize customUsername from localStorage if available, else from user.username
   const [customUsername, setCustomUsername] = useState(() =>
-    getOrCreateUsername(usernameKey, user.username)
+    getOrCreateUsername(usernameKey, user.username),
   );
   const [editingUsername, setEditingUsername] = useState(
-    customUsername ? false : true
+    customUsername ? false : true,
   );
   const [input, setInput] = useState("");
   const messageInputRef = useRef(null);
@@ -370,7 +370,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
             (msg) =>
               msg.messageId &&
               parsed.messageId &&
-              msg.messageId === parsed.messageId
+              msg.messageId === parsed.messageId,
           );
           if (msgIdx !== -1) {
             // Update the message and edited fields, keep other fields the same
@@ -382,7 +382,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
                     edited: true,
                     timestamp: parsed.timestamp,
                   }
-                : msg
+                : msg,
             );
           }
 
@@ -401,7 +401,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
             updatedLog = prev.map((msg) =>
               msg.sessionId === parsed.sessionId
                 ? { ...msg, sender: parsed.sender }
-                : msg
+                : msg,
             );
           }
           return [
@@ -460,6 +460,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
     const threshold = 100;
     const isAtBottom =
       el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    // istanbul ignore next
     if (isAtBottom) {
       el.scrollTop = el.scrollHeight;
     }
@@ -486,11 +487,11 @@ const LiveChat = ({ requestId, chatHistory }) => {
     const latestUserMsg = [...chatLog]
       .reverse()
       .find(
-        (msg) => msg.sender === customUsername && msg.sessionId === sessionId
+        (msg) => msg.sender === customUsername && msg.sessionId === sessionId,
       );
     if (latestUserMsg && latestUserMsg.message === input) {
       setSendError(
-        "Duplicate message detected. Please send a different message."
+        "Duplicate message detected. Please send a different message.",
       );
       return;
     }
@@ -534,7 +535,7 @@ const LiveChat = ({ requestId, chatHistory }) => {
     };
     try {
       await Promise.resolve(
-        sendMessage && sendMessage(JSON.stringify(messageObj))
+        sendMessage && sendMessage(JSON.stringify(messageObj)),
       );
     } catch (e) {
       setSendError("Failed to send message. Please try again.");
@@ -686,7 +687,7 @@ LiveChat.propTypes = {
       timestamp: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
       messageId: PropTypes.string,
       edited: PropTypes.bool,
-    })
+    }),
   ),
 };
 

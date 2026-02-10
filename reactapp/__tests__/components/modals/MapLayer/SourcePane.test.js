@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import SourcePane from "components/modals/MapLayer/SourcePane";
+import SourcePane, {
+  generatePropertiesArrayWithValues,
+} from "components/modals/MapLayer/SourcePane";
 import selectEvent from "react-select-event";
 import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
 import { LayoutContext } from "components/contexts/Contexts";
+import { sourcePropertiesOptions } from "components/map/utilities";
 
 const exampleGeoJSON = {
   type: "FeatureCollection",
@@ -443,6 +446,195 @@ test("SourcePane Updating Existing VectorTiles", async () => {
     "An comma separated list of URL templates. Must include {x}, {y} or {-y}, and {z} placeholders. A {?-?} template pattern, for example subdomain{a-f}.domain.com, may be used instead of defining each one separately in the urls option.",
   );
   expect(urlsInput.value).toBe("some_url,some_other_url");
+});
+
+describe("generatePropertiesArrayWithValues", () => {
+  test("generates properties array empty values", () => {
+    const sourceProperties = {
+      required: {},
+      optional: {},
+    };
+    const existingPropertyValues = {};
+
+    const { properties, placeholders, types } =
+      generatePropertiesArrayWithValues(
+        sourceProperties,
+        existingPropertyValues,
+      );
+
+    expect(properties).toEqual([]);
+    expect(placeholders).toEqual([]);
+    expect(types).toEqual([]);
+  });
+
+  test("generates properties array from bad properties", () => {
+    const sourceProperties = {
+      optional: {},
+    };
+    const existingPropertyValues = {};
+
+    const { properties, placeholders, types } =
+      generatePropertiesArrayWithValues(
+        sourceProperties,
+        existingPropertyValues,
+      );
+
+    expect(properties).toEqual([]);
+    expect(placeholders).toEqual([]);
+    expect(types).toEqual([]);
+  });
+
+  test("generates properties array from undefined existingPropertyValues", () => {
+    const sourceProperties =
+      sourcePropertiesOptions["ESRI Image and Map Service"];
+    const existingPropertyValues = undefined;
+
+    const { properties, placeholders, types } =
+      generatePropertiesArrayWithValues(
+        sourceProperties,
+        existingPropertyValues,
+      );
+
+    expect(properties).toEqual([
+      {
+        property: "*url",
+        value: "",
+      },
+      {
+        property: "attributions",
+        value: "",
+      },
+      {
+        property: "params - LAYERS",
+        value: "",
+      },
+      {
+        property: "params - TIME",
+        value: "",
+      },
+      {
+        property: "params - LAYERDEFS",
+        value: "",
+      },
+      {
+        property: "params - mosaicRule",
+        value: "",
+      },
+      {
+        property: "projection",
+        value: "",
+      },
+    ]);
+    expect(placeholders).toEqual([
+      {
+        value: "ArcGIS Rest service URL",
+      },
+      {
+        value: "Attributions",
+      },
+      {
+        value: "[show|hide|include|exclude]:layerId1,layerId2",
+      },
+      {
+        value: "<startTime>, <endTime> or <timeInstant>",
+      },
+      {
+        value: "Allows you to filter the features of individual layers",
+      },
+      {
+        value: "Specifies how image service should handle mosaics",
+      },
+      {
+        value: "EPSG:<Code>",
+      },
+    ]);
+    expect(types).toEqual([
+      "text",
+      "text",
+      "text",
+      "text",
+      "text",
+      "text",
+      "text",
+    ]);
+  });
+
+  test("generates properties array from existingPropertyValues", () => {
+    const sourceProperties =
+      sourcePropertiesOptions["ESRI Image and Map Service"];
+    const existingPropertyValues = {
+      url: "some_url",
+    };
+
+    const { properties, placeholders, types } =
+      generatePropertiesArrayWithValues(
+        sourceProperties,
+        existingPropertyValues,
+      );
+
+    expect(properties).toEqual([
+      {
+        property: "*url",
+        value: "some_url",
+      },
+      {
+        property: "attributions",
+        value: "",
+      },
+      {
+        property: "params - LAYERS",
+        value: "",
+      },
+      {
+        property: "params - TIME",
+        value: "",
+      },
+      {
+        property: "params - LAYERDEFS",
+        value: "",
+      },
+      {
+        property: "params - mosaicRule",
+        value: "",
+      },
+      {
+        property: "projection",
+        value: "",
+      },
+    ]);
+    expect(placeholders).toEqual([
+      {
+        value: "ArcGIS Rest service URL",
+      },
+      {
+        value: "Attributions",
+      },
+      {
+        value: "[show|hide|include|exclude]:layerId1,layerId2",
+      },
+      {
+        value: "<startTime>, <endTime> or <timeInstant>",
+      },
+      {
+        value: "Allows you to filter the features of individual layers",
+      },
+      {
+        value: "Specifies how image service should handle mosaics",
+      },
+      {
+        value: "EPSG:<Code>",
+      },
+    ]);
+    expect(types).toEqual([
+      "text",
+      "text",
+      "text",
+      "text",
+      "text",
+      "text",
+      "text",
+    ]);
+  });
 });
 
 TestingComponent.propTypes = {

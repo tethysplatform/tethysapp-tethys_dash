@@ -21,7 +21,7 @@ const StyledTextInput = styled.textarea`
 `;
 
 // loop through the properties of a source type and extract potential settings and placeholders, setting new values from existing values if applicable
-const generatePropertiesArrayWithValues = (
+export const generatePropertiesArrayWithValues = (
   sourceProperties,
   existingPropertyValues,
 ) => {

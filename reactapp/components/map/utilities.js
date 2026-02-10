@@ -128,7 +128,7 @@ export const sourcePropertiesOptions = {
   },
   "PMTiles Vector": {
     required: {
-      url: {"placeholder": "PMTiles Vector URL"},
+      url: { placeholder: "PMTiles Vector URL" },
     },
     optional: {
       attributions: {
@@ -136,22 +136,22 @@ export const sourcePropertiesOptions = {
       },
       tileSize: {
         placeholder: "Tile Size (e.g., 256, 512)",
-      }
-    }
+      },
+    },
   },
   "PMTiles Raster": {
     required: {
-      url: {"placeholder": "PMTiles Raster URL"},
+      url: { placeholder: "PMTiles Raster URL" },
     },
     optional: {
       attributions: {
-        placeholder: "Attributions", 
+        placeholder: "Attributions",
       },
       tileSize: {
         placeholder: "Tile Size (e.g., 256, 512)",
-      }
-    }
-  }
+      },
+    },
+  },
 };
 
 export const layerPropertiesOptions = {
@@ -342,7 +342,7 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         coordinate,
         LayerName,
       );
-    } else if (sourceType == "PMTiles Vector") {
+    } else if (sourceType === "PMTiles Vector") {
       features = getVectorTileLayerFeatures(map, pixel, LayerName);
     } else {
       throw Error(`${sourceType} is not currently configured to be queried`);
