@@ -977,6 +977,33 @@ export const mockedSliderVariable = {
   }),
 };
 
+export const mockedDateRangeVariable = {
+  id: 1,
+  uuid: "some-uuid-1",
+  i: "1",
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Variable Input",
+  args_string: JSON.stringify({
+    variable_name: "Test Variable",
+    variable_options_source: "date-range",
+    "variable_options_source.metadata": {
+      format: "MM/dd/yyyy'T'HH:mm",
+      startDateVariable: "Start Date",
+      endDateVariable: "End Date",
+    },
+    initial_value: {
+      "Start Date": "01/14/2026T00:00",
+      "End Date": "01/16/2026T00:00",
+    },
+  }),
+  metadata_string: JSON.stringify({
+    refreshRate: 0,
+  }),
+};
+
 export const mockedCSVUploaderVariable = {
   id: 1,
   uuid: "some-uuid-1",

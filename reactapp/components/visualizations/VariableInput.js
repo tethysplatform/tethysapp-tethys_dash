@@ -34,6 +34,7 @@ const ButtonDiv = styled.div`
 const FlexDiv = styled.div`
   display: flex;
   width: 100%;
+  align-items: flex-end;
 `;
 
 const VariableInput = ({
@@ -67,10 +68,16 @@ const VariableInput = ({
   const updateVariableInputs = useCallback(
     (new_value) => {
       if (new_value || new_value === false || new_value === 0) {
-        setVariableInputValues((prevVariableInputValues) => ({
-          ...prevVariableInputValues,
-          [variable_name]: new_value,
-        }));
+        setVariableInputValues((prevVariableInputValues) => {
+          let newVariableValues = { [variable_name]: new_value };
+          if (typeof new_value === "object") {
+            newVariableValues = { ...newVariableValues, ...new_value };
+          }
+          return {
+            ...prevVariableInputValues,
+            ...newVariableValues,
+          };
+        });
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -260,12 +267,19 @@ const VariableInput = ({
   } else {
     return (
       <StyledDiv>
-        <label>
-          <b>{label}</b>:
-        </label>
+        {type !== "date-range" && (
+          <label>
+            <b>{label}</b>:
+          </label>
+        )}
         <FlexDiv>
           <InputDiv>
-            <DataInput type={type} value={value} onChange={handleInputChange} />
+            <DataInput
+              type={type}
+              value={value}
+              onChange={handleInputChange}
+              inputProps={updatedMetadata}
+            />
           </InputDiv>
           <ButtonDiv>
             <TooltipButton

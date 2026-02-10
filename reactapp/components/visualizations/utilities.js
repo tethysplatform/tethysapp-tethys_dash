@@ -1,6 +1,6 @@
 import appAPI from "services/api/app";
 import { spaceAndCapitalize } from "components/modals/utilities";
-import { parseDateMath } from "components/inputs/DatePicker";
+import { parseDateMath } from "components/inputs/dateUtils";
 
 export function checkForEmptyVariableInputs({
   metadataString,
@@ -16,7 +16,7 @@ export function checkForEmptyVariableInputs({
       if (!variableInputValues[dependentVariableInput]) {
         warnings.push(
           metadata.customMessaging?.[dependentVariableInput] ??
-            `${dependentVariableInput} variable is empty`
+            `${dependentVariableInput} variable is empty`,
         );
       }
     }
@@ -121,7 +121,7 @@ export async function getVisualization({
     if (dashboardView) {
       responseData = updateObjectWithVariableInputs(
         responseData,
-        variableInputValues
+        variableInputValues,
       );
     }
 
@@ -232,12 +232,12 @@ export function updateObjectWithVariableInputs(args, variableInputs, argTypes) {
       (_, key) =>
         typeof variableInputs[key] === "object"
           ? JSON.stringify(variableInputs[key])
-          : (variableInputs[key] ?? "")
+          : (variableInputs[key] ?? ""),
     );
 
     if (typeof args[gridItemsArg] !== "string") {
       updatedValuesWithVariableInputs = JSON.parse(
-        updatedValuesWithVariableInputs
+        updatedValuesWithVariableInputs,
       );
     }
     args[gridItemsArg] = updatedValuesWithVariableInputs;
@@ -257,8 +257,17 @@ export const nonDropDownVariableInputTypes = [
   "text",
   "number",
   "checkbox",
-  "date",
-  "date-hour",
+  { label: "date", value: "date", sub_args: { metadata: "date-format" } },
+  {
+    label: "date-hour (deprecated, use date instead)",
+    value: "date-hour",
+    sub_args: { metadata: "date-format" },
+  },
+  {
+    label: "date-range",
+    value: "date-range",
+    sub_args: { metadata: "custom-DateRangeMetadata" },
+  },
   {
     value: "slider",
     label: "slider",
@@ -369,7 +378,7 @@ export function getBaseMapLayer(baseMapURL) {
 
   const baseMapURLSplit = baseMapURL.split("/");
   const baseMapName = spaceAndCapitalize(
-    baseMapURLSplit[baseMapURLSplit.length - 2]
+    baseMapURLSplit[baseMapURLSplit.length - 2],
   );
   const layer_dict = {
     type: "WebGLTile",
@@ -391,7 +400,7 @@ export function getBaseMapLayer(baseMapURL) {
 export function findSelectOptionByValue(
   data,
   searchValue,
-  searchKey = "value"
+  searchKey = "value",
 ) {
   for (const element of data) {
     if (element[searchKey] === searchValue || element === searchValue) {
@@ -402,7 +411,7 @@ export function findSelectOptionByValue(
       const found = findSelectOptionByValue(
         element.options,
         searchValue,
-        searchKey
+        searchKey,
       ); // Recursively search in options
       if (found) {
         return found; // Return the matching element from nested options

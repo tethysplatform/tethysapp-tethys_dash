@@ -28,7 +28,7 @@ describe("DataInput Component", () => {
             onChange={mockOnChange}
           />
         ),
-      })
+      }),
     );
 
     const dropdown = await screen.findByLabelText("Test Dropdown Input");
@@ -65,7 +65,7 @@ describe("DataInput Component", () => {
         options: {
           inDataViewerMode: true,
         },
-      })
+      }),
     );
 
     const dropdown = await screen.findByLabelText("Test Dropdown Input");
@@ -103,7 +103,7 @@ describe("DataInput Component", () => {
           inDataViewerMode: true,
           initialDashboard: dashboards.dashboards[0],
         },
-      })
+      }),
     );
 
     const dropdown = await screen.findByLabelText("Test Dropdown Input");
@@ -120,6 +120,32 @@ describe("DataInput Component", () => {
     expect(screen.getByText("Test Variable")).toBeInTheDocument();
   });
 
+  test("renders date-format input and handles change", async () => {
+    render(
+      createLoadedComponent({
+        children: (
+          <DataInput
+            type={"date-format"}
+            value={{ format: "MM/dd/yyyy" }}
+            onChange={mockOnChange}
+          />
+        ),
+      }),
+    );
+
+    const dateFormatInput = await screen.findByLabelText("Output Format Input");
+
+    // Verify date format input rendering
+    expect(dateFormatInput).toBeInTheDocument();
+    expect(dateFormatInput).toHaveValue("MM/dd/yyyy");
+
+    // Simulate a change
+    fireEvent.change(dateFormatInput, { target: { value: "yyyy-MM-dd" } });
+
+    // Ensure onChange is triggered with the correct value
+    expect(mockOnChange).toHaveBeenCalledWith({ format: "yyyy-MM-dd" });
+  });
+
   test("renders checkbox and handles change", async () => {
     render(
       createLoadedComponent({
@@ -131,7 +157,7 @@ describe("DataInput Component", () => {
             onChange={mockOnChange}
           />
         ),
-      })
+      }),
     );
 
     const checkbox = await screen.findByLabelText("Test Checkbox Input");
@@ -163,7 +189,7 @@ describe("DataInput Component", () => {
             onChange={mockOnChange}
           />
         ),
-      })
+      }),
     );
 
     const option1 = await screen.findByLabelText("Option 1");
@@ -196,7 +222,7 @@ describe("DataInput Component", () => {
             />
           </form>
         ),
-      })
+      }),
     );
 
     const textInput = await screen.findByLabelText("Test Text Input");
@@ -228,7 +254,7 @@ test("renders multiinput", async () => {
           onChange={mockOnChange}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Test Multi Input")).toBeInTheDocument();
@@ -252,7 +278,7 @@ test("renders inputtable", async () => {
           onChange={mockOnChange}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Test Input Table")).toBeInTheDocument();
@@ -291,7 +317,7 @@ test("renders date", async () => {
           onChange={mockOnChange}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
@@ -313,7 +339,7 @@ test("renders date-hour", async () => {
           onChange={mockOnChange}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
@@ -327,6 +353,51 @@ test("renders date-hour", async () => {
   });
 
   expect(mockOnChange).toHaveBeenCalledWith(expectedDateString);
+});
+
+test("renders date-range", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataInput
+          label="Test Date Range"
+          type="date-range"
+          value={{ startDate: "", endDate: "" }}
+          inputProps={{
+            format: "MM/dd/yyyy",
+            startDateVariable: "Start Var",
+            endDateVariable: "End Var",
+          }}
+          onChange={mockOnChange}
+        />
+      ),
+    }),
+  );
+
+  expect(await screen.findByText("Start Var")).toBeInTheDocument();
+  expect(await screen.findByText("End Var")).toBeInTheDocument();
+});
+
+test("renders date-range with string value", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    createLoadedComponent({
+      children: (
+        <DataInput
+          label="Test Date Range"
+          type="date-range"
+          value={""}
+          onChange={mockOnChange}
+        />
+      ),
+    }),
+  );
+
+  expect(await screen.findByText("Start Date")).toBeInTheDocument();
+  expect(await screen.findByText("End Date")).toBeInTheDocument();
 });
 
 test("renders custom-AddMapLayer", async () => {
@@ -344,7 +415,7 @@ test("renders custom-AddMapLayer", async () => {
           inputProps={{ setShowingSubModal }}
         />
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("Test Add Map Layer")).toBeInTheDocument();

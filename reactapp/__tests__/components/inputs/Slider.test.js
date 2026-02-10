@@ -10,6 +10,10 @@ import {
 import { spyElementPrototypes } from "rc-util/lib/test/domHook";
 import Slider, { calculateSliderValues } from "components/inputs/Slider";
 import { format, addDays, addHours } from "date-fns";
+import {
+  GridItemContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
 
 // Helper to advance timers in a controlled way
 const advanceTimers = async (ms) => {
@@ -41,21 +45,28 @@ describe("Slider Component", () => {
     jest.useRealTimers();
   });
 
+  // create a test where the slider uses the format from a dependency variable input
+
   it("renders with label and initial value (number mode)", async () => {
     const handleChange = jest.fn();
 
     const { rerender } = render(
-      <Slider
-        label="Test Slider"
-        step={1}
-        min={0}
-        max={10}
-        initialValue={5}
-        outputFormat="{{n:3}}F"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Test Slider"
+            step={1}
+            min={0}
+            max={10}
+            initialValue={5}
+            outputFormat="{{n:3}}F"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     expect(screen.getByText(/Test Slider/i)).toBeInTheDocument();
@@ -68,17 +79,22 @@ describe("Slider Component", () => {
     });
 
     rerender(
-      <Slider
-        label="Test Slider"
-        step={1}
-        min={0}
-        max={10}
-        initialValue={7}
-        outputFormat="{{n:3}}F"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Test Slider"
+            step={1}
+            min={0}
+            max={10}
+            initialValue={7}
+            outputFormat="{{n:3}}F"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     expect(screen.getByText("007F")).toBeInTheDocument();
@@ -87,18 +103,23 @@ describe("Slider Component", () => {
     });
 
     rerender(
-      <Slider
-        label="Test Slider"
-        step={1}
-        min={0}
-        max={10}
-        initialRange={7}
-        rangeMode={true}
-        outputFormat="{{n:3}}F"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Test Slider"
+            step={1}
+            min={0}
+            max={10}
+            initialRange={7}
+            rangeMode={true}
+            outputFormat="{{n:3}}F"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     expect(screen.getByText("000F - 010F")).toBeInTheDocument();
@@ -111,17 +132,22 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     const { rerender } = render(
-      <Slider
-        label="Test Slider"
-        step={1}
-        min={0}
-        max={10}
-        initialValue={5}
-        outputFormat="{{n:3}}F"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Test Slider"
+            step={1}
+            min={0}
+            max={10}
+            initialValue={5}
+            outputFormat="{{n:3}}F"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     expect(screen.getByText(/Test Slider/i)).toBeInTheDocument();
@@ -134,18 +160,23 @@ describe("Slider Component", () => {
     });
 
     rerender(
-      <Slider
-        label="Test Slider"
-        step={1}
-        min={0}
-        max={10}
-        initialRange={[2, 8]}
-        rangeMode={true}
-        outputFormat="{{n:3}}F"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Test Slider"
+            step={1}
+            min={0}
+            max={10}
+            initialRange={[2, 8]}
+            rangeMode={true}
+            outputFormat="{{n:3}}F"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
@@ -156,18 +187,23 @@ describe("Slider Component", () => {
     });
 
     rerender(
-      <Slider
-        label="Test Slider"
-        step={1}
-        min={0}
-        max={10}
-        initialRange={5}
-        rangeMode={true}
-        outputFormat="{{n:3}}F"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Test Slider"
+            step={1}
+            min={0}
+            max={10}
+            initialRange={5}
+            rangeMode={true}
+            outputFormat="{{n:3}}F"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     expect(screen.getByLabelText("Display Value")).toHaveTextContent(
@@ -178,17 +214,22 @@ describe("Slider Component", () => {
     });
 
     rerender(
-      <Slider
-        label="Test Slider"
-        step={1}
-        min={0}
-        max={10}
-        initialRange={5}
-        outputFormat="{{n:3}}F"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Test Slider"
+            step={1}
+            min={0}
+            max={10}
+            initialRange={5}
+            outputFormat="{{n:3}}F"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("000F");
@@ -201,16 +242,21 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     const { container } = render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialValue={0}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialValue={0}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
@@ -228,16 +274,21 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialValue={5}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialValue={5}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const firstStep = screen.getByLabelText("go to first");
@@ -253,17 +304,22 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialRange={[5, 8]}
-        rangeMode={true}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialRange={[5, 8]}
+            rangeMode={true}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const firstStep = screen.getByLabelText("go to first");
@@ -279,16 +335,21 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialValue={5}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialValue={5}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const previousStep = screen.getByLabelText("previous step");
@@ -304,17 +365,22 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialRange={[5, 8]}
-        rangeMode={true}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialRange={[5, 8]}
+            rangeMode={true}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const previousStep = screen.getByLabelText("previous step");
@@ -330,16 +396,21 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialValue={5}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialValue={5}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -355,17 +426,22 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialRange={[5, 8]}
-        rangeMode={true}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialRange={[5, 8]}
+            rangeMode={true}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -381,16 +457,21 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialValue={5}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialValue={5}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const lastStep = screen.getByLabelText("go to last");
@@ -406,17 +487,22 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialRange={[5, 8]}
-        rangeMode={true}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialRange={[5, 8]}
+            rangeMode={true}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const lastStep = screen.getByLabelText("go to last");
@@ -434,17 +520,22 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialValue={"2025-01-03T00:00:00.000"}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"2025-01-03T00:00:00.000"}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const firstStep = screen.getByLabelText("go to first");
@@ -464,18 +555,26 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialRange={["2025-01-03T00:00:00.000", "2025-01-04T00:00:00.000"]}
-        rangeMode={true}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialRange={[
+              "2025-01-03T00:00:00.000",
+              "2025-01-04T00:00:00.000",
+            ]}
+            rangeMode={true}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const firstStep = screen.getByLabelText("go to first");
@@ -495,17 +594,22 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialValue={"2025-01-03T00:00:00"}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"2025-01-03T00:00:00"}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const previousStep = screen.getByLabelText("previous step");
@@ -525,18 +629,23 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialRange={["2025-01-03T00:00:00", "2025-01-04T00:00:00"]}
-        rangeMode={true}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialRange={["2025-01-03T00:00:00", "2025-01-04T00:00:00"]}
+            rangeMode={true}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const previousStep = screen.getByLabelText("previous step");
@@ -556,17 +665,22 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialValue={"2025-01-03T00:00:00"}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"2025-01-03T00:00:00"}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -586,17 +700,22 @@ describe("Slider Component", () => {
     const max = "now";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialValue={"now-5D"}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"now-5D"}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -629,17 +748,22 @@ describe("Slider Component", () => {
     const max = "now";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialValue={"now-12H"}
-        outputFormat="yyyy-MM-dd HH"
-        dataType="Date"
-        dateTimeDelta="Hours"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"now-12H"}
+            outputFormat="yyyy-MM-dd HH"
+            dataType="Date"
+            dateTimeDelta="Hours"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -672,18 +796,23 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialRange={["2025-01-03T00:00:00", "2025-01-04T00:00:00"]}
-        rangeMode={true}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialRange={["2025-01-03T00:00:00", "2025-01-04T00:00:00"]}
+            rangeMode={true}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const nextStep = screen.getByLabelText("next step");
@@ -703,17 +832,22 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialValue={"2025-01-03T00:00:00.000"}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"2025-01-03T00:00:00.000"}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const lastStep = screen.getByLabelText("go to last");
@@ -733,18 +867,26 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialRange={["2025-01-03T00:00:00.000", "2025-01-04T00:00:00.000"]}
-        rangeMode={true}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialRange={[
+              "2025-01-03T00:00:00.000",
+              "2025-01-04T00:00:00.000",
+            ]}
+            rangeMode={true}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const lastStep = screen.getByLabelText("go to last");
@@ -764,17 +906,22 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     const { container } = render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialValue={min}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
@@ -796,19 +943,24 @@ describe("Slider Component", () => {
     const initialRange = ["2025-01-08T00:00:00", "2025-01-09T00:00:00"];
 
     const { container } = render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        speeds={[{ label: "Fast", value: 100 }]}
-        rangeMode={true}
-        initialRange={initialRange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            speeds={[{ label: "Fast", value: 100 }]}
+            rangeMode={true}
+            initialRange={initialRange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
@@ -831,18 +983,23 @@ describe("Slider Component", () => {
     const initialRange = [7, 9];
 
     const { container } = render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        speeds={[{ label: "Fast", value: 100 }]}
-        rangeMode={true}
-        initialRange={initialRange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            speeds={[{ label: "Fast", value: 100 }]}
+            rangeMode={true}
+            initialRange={initialRange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
@@ -860,17 +1017,22 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={4}
-        initialValue={3}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        speeds={[{ label: "Fast", value: 100 }]}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={4}
+            initialValue={3}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            speeds={[{ label: "Fast", value: 100 }]}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const playBtn = screen.getByRole("button", { name: /play/i });
@@ -893,18 +1055,23 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialValue={"2025-01-04T00:00:00"}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        speeds={[{ label: "Fast", value: 100 }]}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={"2025-01-04T00:00:00"}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            speeds={[{ label: "Fast", value: 100 }]}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const playBtn = screen.getByRole("button", { name: /play/i });
@@ -927,16 +1094,21 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialValue={min}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const minLabel = screen.getByText("2025-01-01", { selector: "strong" });
@@ -952,16 +1124,21 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialValue={min}
-        outputFormat="YY"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="YY"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const minLabel = screen.getByLabelText("Min Value");
@@ -984,19 +1161,24 @@ describe("Slider Component", () => {
     const initialRange = ["2025-01-08T00:00:00", "2025-01-09T00:00:00"];
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-        speeds={[{ label: "Fast", value: 100 }]}
-        rangeMode={true}
-        initialRange={initialRange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+            speeds={[{ label: "Fast", value: 100 }]}
+            rangeMode={true}
+            initialRange={initialRange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /play/i }));
@@ -1028,18 +1210,23 @@ describe("Slider Component", () => {
     const initialRange = [7, 9];
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        speeds={[{ label: "Fast", value: 100 }]}
-        rangeMode={true}
-        initialRange={initialRange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            speeds={[{ label: "Fast", value: 100 }]}
+            rangeMode={true}
+            initialRange={initialRange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /play/i }));
@@ -1067,18 +1254,23 @@ describe("Slider Component", () => {
     const initialRange = [8, 8];
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        speeds={[{ label: "Fast", value: 100 }]}
-        rangeMode={true}
-        initialRange={initialRange}
-        debounceDelay={0}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            speeds={[{ label: "Fast", value: 100 }]}
+            rangeMode={true}
+            initialRange={initialRange}
+            debounceDelay={0}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /play/i }));
@@ -1103,16 +1295,21 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={2}
-        initialValue={0}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        speeds={[{ label: "Fast", value: 100 }]}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={2}
+            initialValue={0}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            speeds={[{ label: "Fast", value: 100 }]}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /play/i }));
@@ -1125,15 +1322,20 @@ describe("Slider Component", () => {
 
   it("changes speed when select updated", () => {
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialValue={0}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={() => {}}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialValue={0}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={() => {}}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const select = screen.getByLabelText(/speed select/i);
@@ -1147,16 +1349,21 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <Slider
-        step={1}
-        min={min}
-        max={max}
-        initialValue={""}
-        outputFormat="yyyy-MM-dd"
-        dataType="Date"
-        dateTimeDelta="Days"
-        onChange={handleChange}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={""}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const minLabel = screen.getByLabelText("Min Value");
@@ -1175,15 +1382,20 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        label="Test Slider"
-        step={1}
-        min={0}
-        max={10}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Test Slider"
+            step={1}
+            min={0}
+            max={10}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const minLabel = screen.getByLabelText("Min Value");
@@ -1201,16 +1413,21 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <Slider
-        label="Test Slider"
-        step={1}
-        min={0}
-        max={10}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-        rangeMode={true}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Test Slider"
+            step={1}
+            min={0}
+            max={10}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            rangeMode={true}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     const minLabel = screen.getByLabelText("Min Value");
@@ -1228,17 +1445,22 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     const { rerender } = render(
-      <Slider
-        label="Test Slider"
-        step={1}
-        min={0}
-        max={10}
-        rangeMode={true}
-        initialRange={[5, 6]}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Test Slider"
+            step={1}
+            min={0}
+            max={10}
+            rangeMode={true}
+            initialRange={[5, 6]}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     expect(handleChange).toHaveBeenCalledWith("5,6");
@@ -1247,17 +1469,22 @@ describe("Slider Component", () => {
 
     // Rerender with the same relevant props but change a non-relevant prop (label)
     rerender(
-      <Slider
-        label="Updated Test Slider" // Only label changed, which doesn't affect index
-        step={1}
-        min={0}
-        max={10}
-        rangeMode={true}
-        initialRange={[5, 6]}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={handleChange}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Updated Test Slider" // Only label changed, which doesn't affect index
+            step={1}
+            min={0}
+            max={10}
+            rangeMode={true}
+            initialRange={[5, 6]}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     // The index should not have been updated, so no onChange should be called
@@ -1266,17 +1493,22 @@ describe("Slider Component", () => {
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("5");
 
     rerender(
-      <Slider
-        label="Updated Test Slider"
-        step={1}
-        min={0}
-        max={10}
-        rangeMode={true}
-        initialRange={[5, 6]}
-        outputFormat="{{n:2}}" // Different format but same value display for this case
-        dataType="Number"
-        onChange={handleChange}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            label="Updated Test Slider"
+            step={1}
+            min={0}
+            max={10}
+            rangeMode={true}
+            initialRange={[5, 6]}
+            outputFormat="{{n:2}}" // Different format but same value display for this case
+            dataType="Number"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     // Still no onChange calls should have happened due to index updates
@@ -1285,22 +1517,27 @@ describe("Slider Component", () => {
 
   it("testing speeds prop", () => {
     const { rerender } = render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialValue={0}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={() => {}}
-        speeds={[
-          { label: "Extra Slow", value: 2000 },
-          { label: "Slow", value: 1000 },
-          { label: "Medium", value: 500 },
-          { label: "Fast", value: 250 },
-          { label: "Extra Fast", value: 100 },
-        ]}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialValue={0}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={() => {}}
+            speeds={[
+              { label: "Extra Slow", value: 2000 },
+              { label: "Slow", value: 1000 },
+              { label: "Medium", value: 500 },
+              { label: "Fast", value: 250 },
+              { label: "Extra Fast", value: 100 },
+            ]}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     let select = screen.getByLabelText(/speed select/i);
@@ -1320,30 +1557,40 @@ describe("Slider Component", () => {
     expect(screen.getByText("Extra Slow").selected).toBe(true);
 
     rerender(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialValue={0}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={() => {}}
-        speeds={[]}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialValue={0}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={() => {}}
+            speeds={[]}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     expect(screen.queryByLabelText(/speed select/i)).not.toBeInTheDocument();
 
     rerender(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialValue={0}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={() => {}}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialValue={0}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={() => {}}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     select = screen.getByLabelText(/speed select/i);
@@ -1361,16 +1608,21 @@ describe("Slider Component", () => {
 
   it("dont show speed selector when only one speed is provided", () => {
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialValue={0}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={() => {}}
-        speeds={[{ label: "Only Speed", value: 500 }]}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialValue={0}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={() => {}}
+            speeds={[{ label: "Only Speed", value: 500 }]}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
     );
 
     expect(screen.getByRole("button", { name: /play/i })).toBeInTheDocument();
@@ -1379,22 +1631,123 @@ describe("Slider Component", () => {
 
   it("dont show play button when no speeds are provided", () => {
     render(
-      <Slider
-        step={1}
-        min={0}
-        max={10}
-        initialValue={0}
-        outputFormat="{{n}}"
-        dataType="Number"
-        onChange={() => {}}
-        speeds={[]}
-      />,
+      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            step={1}
+            min={0}
+            max={10}
+            initialValue={0}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={() => {}}
+            speeds={[]}
+          />
+          ,
+        </GridItemContext.Provider>
+        ,
+      </VariableInputsContext.Provider>,
     );
 
     expect(
       screen.queryByRole("button", { name: /play/i }),
     ).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/speed select/i)).not.toBeInTheDocument();
+  });
+
+  it("renders with unique date formats in variableInputsContext for variable inputs", () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T 00:00:00.000";
+    const max = "2025-01-05 WW 00";
+
+    render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {
+            minDate: "yyyy-MM-dd'T' HH:mm:ss.SSS",
+            maxDate: "yyyy-MM-dd 'WW' HH",
+          },
+        }}
+      >
+        <GridItemContext.Provider
+          value={{
+            gridItemArgsString: JSON.stringify({
+              "variable_options_source.metadata": {
+                // eslint-disable-next-line no-template-curly-in-string
+                min: "${minDate}",
+                // eslint-disable-next-line no-template-curly-in-string
+                max: "${maxDate}",
+              },
+            }),
+          }}
+        >
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="MM/dd/yyyy"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    const minLabel = screen.getByText("01/01/2025", { selector: "strong" });
+    expect(minLabel).toBeInTheDocument();
+    const maxLabel = screen.getByText("01/05/2025", { selector: "strong" });
+    expect(maxLabel).toBeInTheDocument();
+    expect(handleChange).toHaveBeenCalledWith("01/01/2025");
+  });
+
+  it("renders with bad date formats", () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T 00:00:00.000";
+    const max = "2025-01-05 WW 00";
+
+    render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {
+            minDate: "",
+            maxDate: "",
+          },
+        }}
+      >
+        <GridItemContext.Provider
+          value={{
+            gridItemArgsString: JSON.stringify({
+              "variable_options_source.metadata": {
+                // eslint-disable-next-line no-template-curly-in-string
+                min: "${minDate}",
+                // eslint-disable-next-line no-template-curly-in-string
+                max: "${maxDate}",
+              },
+            }),
+          }}
+        >
+          <Slider
+            step={1}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="MM/dd/yyyy"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    const today = format(new Date(), "MM/dd/yyyy");
+    const labels = screen.getAllByText(today, { selector: "strong" });
+    expect(labels.length).toBe(2);
+    expect(handleChange).toHaveBeenCalledWith(today);
   });
 });
 

@@ -1,5 +1,6 @@
+import Proptypes from "prop-types";
 import userEvent from "@testing-library/user-event";
-import { act } from "react";
+import { act, useEffect, useContext } from "react";
 import {
   render,
   screen,
@@ -7,13 +8,20 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import DataViewerModal from "components/modals/DataViewer/DataViewer";
-import { mockedDashboards, userDashboard } from "__tests__/utilities/constants";
+import DataViewerModal, {
+  getAllVariableInputNames,
+  updateVariableInputs,
+} from "components/modals/DataViewer/DataViewer";
+import {
+  mockedDashboards,
+  userDashboard,
+  mockedDateRangeVariable,
+} from "__tests__/utilities/constants";
 import createLoadedComponent, {
   InputVariablePComponent,
-  TabsPComponent,
 } from "__tests__/utilities/customRender";
 import selectEvent from "react-select-event";
+import { GridItemContext, TabContext } from "components/contexts/Contexts";
 
 jest.mock("uuid", () => ({
   v4: () => 12345678,
@@ -35,30 +43,62 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
+const TestingComponent = ({
+  gridItem,
+  gridItemIndex = 0,
+  mockHandleModalClose,
+  mockSetGridItemMessage,
+  mockSetShowGridItemMessage,
+  onTabUpdate,
+}) => {
+  const { tabs } = useContext(TabContext);
+
+  useEffect(() => {
+    onTabUpdate(tabs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs]);
+
+  return (
+    <GridItemContext.Provider
+      value={{
+        gridItemSource: gridItem.source,
+        gridItemI: gridItem.i,
+        gridItemMetadataString: gridItem.metadata_string,
+        gridItemArgsString: gridItem.args_string,
+        gridItemIndex,
+      }}
+    >
+      <DataViewerModal
+        showModal={true}
+        handleModalClose={mockHandleModalClose}
+        setGridItemMessage={mockSetGridItemMessage}
+        setShowGridItemMessage={mockSetShowGridItemMessage}
+      />
+    </GridItemContext.Provider>
+  );
+};
+
 test("Dashboard Viewer Modal Custom Image", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.tabs[0].gridItems[0];
-  const mockhandleModalClose = jest.fn();
-  const mocksetGridItemMessage = jest.fn();
-  const mocksetShowGridItemMessage = jest.fn();
+  const mockHandleModalClose = jest.fn();
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+  const mockUpdateTab = jest.fn();
 
   render(
     createLoadedComponent({
       children: (
-        <DataViewerModal
-          gridItemIndex={0}
-          source={gridItem.source}
-          argsString={gridItem.args_string}
-          metadataString={gridItem.metadata_string}
-          gridItemI={gridItem.i}
-          showModal={true}
-          handleModalClose={mockhandleModalClose}
-          setGridItemMessage={mocksetGridItemMessage}
-          setShowGridItemMessage={mocksetShowGridItemMessage}
+        <TestingComponent
+          gridItem={gridItem}
+          mockHandleModalClose={mockHandleModalClose}
+          mockSetGridItemMessage={mockSetGridItemMessage}
+          mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+          onTabUpdate={mockUpdateTab}
         />
       ),
       options: { initialDashboard: userDashboard },
-    })
+    }),
   );
 
   expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
@@ -66,22 +106,22 @@ test("Dashboard Viewer Modal Custom Image", async () => {
   expect(await screen.findByText("Settings")).toBeInTheDocument();
 
   const dataviewerSaveButton = await screen.findByLabelText(
-    "dataviewer-save-button"
+    "dataviewer-save-button",
   );
   fireEvent.click(dataviewerSaveButton);
   expect(
-    await screen.findByText("A visualization must be chosen before saving")
+    await screen.findByText("A visualization must be chosen before saving"),
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "Custom Image Visualization Card"
+    "Custom Image Visualization Card",
   );
   fireEvent.click(visualizationOption);
 
@@ -90,40 +130,60 @@ test("Dashboard Viewer Modal Custom Image", async () => {
 
   fireEvent.click(dataviewerSaveButton);
   expect(
-    await screen.findByText("All arguments must be filled out before saving")
+    await screen.findByText("All arguments must be filled out before saving"),
   ).toBeInTheDocument();
 
   fireEvent.change(imageSourceInput, { target: { value: "some_png" } });
   fireEvent.click(dataviewerSaveButton);
 
-  expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
-  expect(mocksetShowGridItemMessage).toHaveBeenCalledTimes(1);
+  expect(mockUpdateTab).toHaveBeenLastCalledWith([
+    {
+      gridItems: [
+        {
+          id: 1,
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          uuid: "some-uuid-1",
+          source: "Custom Image",
+          args_string: JSON.stringify({
+            image_source: "some_png",
+          }),
+          metadata_string: JSON.stringify({}),
+        },
+      ],
+      id: 1,
+      name: "Tab 1",
+    },
+  ]);
+
+  expect(mockHandleModalClose).toHaveBeenCalledTimes(1);
+  expect(mockSetShowGridItemMessage).toHaveBeenCalledTimes(1);
 });
 
 test("Dashboard Viewer Modal Text", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.tabs[0].gridItems[0];
-  const mockhandleModalClose = jest.fn();
-  const mocksetGridItemMessage = jest.fn();
-  const mocksetShowGridItemMessage = jest.fn();
+  const mockHandleModalClose = jest.fn();
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+  const mockUpdateTab = jest.fn();
 
   render(
     createLoadedComponent({
       children: (
-        <DataViewerModal
-          gridItemIndex={0}
-          source={gridItem.source}
-          argsString={gridItem.args_string}
-          metadataString={gridItem.metadata_string}
-          gridItemI={gridItem.i}
-          showModal={true}
-          handleModalClose={mockhandleModalClose}
-          setGridItemMessage={mocksetGridItemMessage}
-          setShowGridItemMessage={mocksetShowGridItemMessage}
+        <TestingComponent
+          gridItem={gridItem}
+          mockHandleModalClose={mockHandleModalClose}
+          mockSetGridItemMessage={mockSetGridItemMessage}
+          mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+          onTabUpdate={mockUpdateTab}
         />
       ),
       options: { initialDashboard: userDashboard },
-    })
+    }),
   );
 
   expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
@@ -131,22 +191,22 @@ test("Dashboard Viewer Modal Text", async () => {
   expect(await screen.findByText("Settings")).toBeInTheDocument();
 
   const dataviewerSaveButton = await screen.findByLabelText(
-    "dataviewer-save-button"
+    "dataviewer-save-button",
   );
   fireEvent.click(dataviewerSaveButton);
   expect(
-    await screen.findByText("A visualization must be chosen before saving")
+    await screen.findByText("A visualization must be chosen before saving"),
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "Text Visualization Card"
+    "Text Visualization Card",
   );
   fireEvent.click(visualizationOption);
 
@@ -155,7 +215,7 @@ test("Dashboard Viewer Modal Text", async () => {
 
   fireEvent.click(dataviewerSaveButton);
   expect(
-    await screen.findByText("All arguments must be filled out before saving")
+    await screen.findByText("All arguments must be filled out before saving"),
   ).toBeInTheDocument();
 
   // eslint-disable-next-line
@@ -170,8 +230,30 @@ test("Dashboard Viewer Modal Text", async () => {
 
   fireEvent.click(dataviewerSaveButton);
 
-  expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
-  expect(mocksetShowGridItemMessage).toHaveBeenCalledTimes(1);
+  expect(mockUpdateTab).toHaveBeenLastCalledWith([
+    {
+      gridItems: [
+        {
+          id: 1,
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          uuid: "some-uuid-1",
+          source: "Text",
+          args_string: JSON.stringify({
+            text: "<p>Hello world!</p>",
+          }),
+          metadata_string: JSON.stringify({}),
+        },
+      ],
+      id: 1,
+      name: "Tab 1",
+    },
+  ]);
+  expect(mockHandleModalClose).toHaveBeenCalledTimes(1);
+  expect(mockSetShowGridItemMessage).toHaveBeenCalledTimes(1);
 });
 
 test("Dashboard Viewer Modal Existing Text", async () => {
@@ -200,20 +282,30 @@ test("Dashboard Viewer Modal Existing Text", async () => {
   render(
     createLoadedComponent({
       children: (
-        <DataViewerModal
-          gridItemIndex={0}
-          source={gridItem.source}
-          argsString={gridItem.args_string}
-          metadataString={gridItem.metadata_string}
-          gridItemI={gridItem.i}
-          showModal={true}
-          handleModalClose={mockhandleModalClose}
-          setGridItemMessage={mocksetGridItemMessage}
-          setShowGridItemMessage={mocksetShowGridItemMessage}
-        />
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 0,
+          }}
+        >
+          <DataViewerModal
+            gridItemIndex={0}
+            source={gridItem.source}
+            argsString={gridItem.args_string}
+            metadataString={gridItem.metadata_string}
+            gridItemI={gridItem.i}
+            showModal={true}
+            handleModalClose={mockhandleModalClose}
+            setGridItemMessage={mocksetGridItemMessage}
+            setShowGridItemMessage={mocksetShowGridItemMessage}
+          />
+        </GridItemContext.Provider>
       ),
       options: { initialDashboard: userDashboard },
-    })
+    }),
   );
 
   expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
@@ -226,27 +318,24 @@ test("Dashboard Viewer Modal Existing Text", async () => {
 test("Dashboard Viewer Modal Variable Input", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.tabs[0].gridItems[0];
-  const mockhandleModalClose = jest.fn();
-  const mocksetGridItemMessage = jest.fn();
-  const mocksetShowGridItemMessage = jest.fn();
+  const mockHandleModalClose = jest.fn();
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+  const mockUpdateTab = jest.fn();
 
   render(
     createLoadedComponent({
       children: (
-        <DataViewerModal
-          gridItemIndex={0}
-          source={gridItem.source}
-          argsString={gridItem.args_string}
-          metadataString={gridItem.metadata_string}
-          gridItemI={gridItem.i}
-          showModal={true}
-          handleModalClose={mockhandleModalClose}
-          setGridItemMessage={mocksetGridItemMessage}
-          setShowGridItemMessage={mocksetShowGridItemMessage}
+        <TestingComponent
+          gridItem={gridItem}
+          mockHandleModalClose={mockHandleModalClose}
+          mockSetGridItemMessage={mockSetGridItemMessage}
+          mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+          onTabUpdate={mockUpdateTab}
         />
       ),
       options: { initialDashboard: userDashboard },
-    })
+    }),
   );
 
   expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
@@ -254,35 +343,35 @@ test("Dashboard Viewer Modal Variable Input", async () => {
   expect(await screen.findByText("Settings")).toBeInTheDocument();
 
   const dataviewerSaveButton = await screen.findByLabelText(
-    "dataviewer-save-button"
+    "dataviewer-save-button",
   );
   fireEvent.click(dataviewerSaveButton);
   expect(
-    await screen.findByText("A visualization must be chosen before saving")
+    await screen.findByText("A visualization must be chosen before saving"),
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "Variable Input Visualization Card"
+    "Variable Input Visualization Card",
   );
   fireEvent.click(visualizationOption);
 
   expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
-    await screen.findByText("Variable Options Source")
+    await screen.findByText("Variable Options Source"),
   ).toBeInTheDocument();
 
   const variableNameInput = screen.getByLabelText("Variable Name Input");
   fireEvent.change(variableNameInput, { target: { value: "Test Variable" } });
 
   const variableOptionsSourceSelect = screen.getByLabelText(
-    "Variable Options Source Input"
+    "Variable Options Source Input",
   );
   await userEvent.click(variableOptionsSourceSelect);
   const textOption = await screen.findByText("text");
@@ -290,15 +379,39 @@ test("Dashboard Viewer Modal Variable Input", async () => {
 
   fireEvent.click(dataviewerSaveButton);
   expect(
-    await screen.findByText("Initial value must be selected in the dropdown")
+    await screen.findByText("Initial value must be selected in the dropdown"),
   ).toBeInTheDocument();
 
   const testVariableInput = await screen.findByLabelText("undefined Input");
   fireEvent.change(testVariableInput, { target: { value: "Some Value" } });
 
   fireEvent.click(dataviewerSaveButton);
-  expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
-  expect(mocksetShowGridItemMessage).toHaveBeenCalledTimes(1);
+  expect(mockUpdateTab).toHaveBeenLastCalledWith([
+    {
+      gridItems: [
+        {
+          id: 1,
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          uuid: "some-uuid-1",
+          source: "Variable Input",
+          args_string: JSON.stringify({
+            variable_name: "Test Variable",
+            variable_options_source: "text",
+            initial_value: "Some Value",
+          }),
+          metadata_string: JSON.stringify({}),
+        },
+      ],
+      id: 1,
+      name: "Tab 1",
+    },
+  ]);
+  expect(mockHandleModalClose).toHaveBeenCalledTimes(1);
+  expect(mockSetShowGridItemMessage).toHaveBeenCalledTimes(1);
 });
 
 test("Dashboard Viewer Modal Variable Input already exists", async () => {
@@ -335,30 +448,27 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
     },
   ];
   const gridItem = mockedDashboard.tabs[0].gridItems[0];
-  const mockhandleModalClose = jest.fn();
-  const mocksetGridItemMessage = jest.fn();
-  const mocksetShowGridItemMessage = jest.fn();
+  const mockHandleModalClose = jest.fn();
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+  const mockUpdateTab = jest.fn();
 
   render(
     createLoadedComponent({
       children: (
-        <DataViewerModal
-          gridItemIndex={0}
-          source={gridItem.source}
-          argsString={gridItem.args_string}
-          metadataString={gridItem.metadata_string}
-          gridItemI={gridItem.i}
-          showModal={true}
-          handleModalClose={mockhandleModalClose}
-          setGridItemMessage={mocksetGridItemMessage}
-          setShowGridItemMessage={mocksetShowGridItemMessage}
+        <TestingComponent
+          gridItem={gridItem}
+          mockHandleModalClose={mockHandleModalClose}
+          mockSetGridItemMessage={mockSetGridItemMessage}
+          mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+          onTabUpdate={mockUpdateTab}
         />
       ),
       options: {
         initialDashboard: mockedDashboard,
         dashboards: updatedMockedDashboards,
       },
-    })
+    }),
   );
 
   expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
@@ -366,35 +476,35 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   expect(await screen.findByText("Settings")).toBeInTheDocument();
 
   const dataviewerSaveButton = await screen.findByLabelText(
-    "dataviewer-save-button"
+    "dataviewer-save-button",
   );
   fireEvent.click(dataviewerSaveButton);
   expect(
-    await screen.findByText("A visualization must be chosen before saving")
+    await screen.findByText("A visualization must be chosen before saving"),
   ).toBeInTheDocument();
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "Variable Input Visualization Card"
+    "Variable Input Visualization Card",
   );
   fireEvent.click(visualizationOption);
 
   expect(await screen.findByText("Variable Name")).toBeInTheDocument();
   expect(
-    await screen.findByText("Variable Options Source")
+    await screen.findByText("Variable Options Source"),
   ).toBeInTheDocument();
 
   const variableNameInput = screen.getByLabelText("Variable Name Input");
   fireEvent.change(variableNameInput, { target: { value: "Test Variable" } });
 
   const variableOptionsSourceSelect = screen.getByLabelText(
-    "Variable Options Source Input"
+    "Variable Options Source Input",
   );
   await userEvent.click(variableOptionsSourceSelect);
   const textOption = await screen.findByText("text");
@@ -403,8 +513,8 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   fireEvent.click(dataviewerSaveButton);
   expect(
     await screen.findByText(
-      "Test Variable is already in use for a variable name"
-    )
+      "Test Variable is already in use for a variable name",
+    ),
   ).toBeInTheDocument();
   fireEvent.change(variableNameInput, { target: { value: "Test Variable 2" } });
 
@@ -413,79 +523,114 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
   expect(testVariableInput.value).toBe("Some Value");
 
   fireEvent.click(dataviewerSaveButton);
-  expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
-  expect(mocksetShowGridItemMessage).toHaveBeenCalledTimes(1);
+  expect(mockUpdateTab).toHaveBeenLastCalledWith([
+    {
+      gridItems: [
+        {
+          i: "1",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "Variable Input",
+          args_string: JSON.stringify({
+            variable_name: "Test Variable 2",
+            variable_options_source: "text",
+            initial_value: "Some Value",
+          }),
+          metadata_string: JSON.stringify({}),
+        },
+        {
+          i: "2",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "Variable Input",
+          args_string: JSON.stringify({
+            variable_name: "Test Variable",
+            variable_options_source: "text",
+            initial_value: "some value",
+          }),
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
+      id: 1,
+      name: "Tab 1",
+    },
+  ]);
+  expect(mockHandleModalClose).toHaveBeenCalledTimes(1);
+  expect(mockSetShowGridItemMessage).toHaveBeenCalledTimes(1);
 });
 
 test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
   const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
   const mockedDashboard = updatedMockedDashboards.dashboards[0];
-  mockedDashboard.tabs[0].gridItems = [
-    {
-      i: "1",
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "",
-      args_string: "{}",
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
-    },
-    {
-      i: "2",
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "Variable Input",
-      args_string: JSON.stringify({
-        variable_name: "Test Variable",
-        variable_options_source: "text",
-        initial_value: "some value",
-      }),
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
-    },
-    {
-      i: "3",
-      x: 0,
-      y: 0,
-      w: 20,
-      h: 20,
-      source: "",
-      args_string: JSON.stringify({
-        some_arg: true,
-        // eslint-disable-next-line
-        some_arg2: "${Test Variable}",
-        some_arg3: "some value",
-      }),
-      metadata_string: JSON.stringify({
-        refreshRate: 0,
-      }),
-    },
-  ];
+  const gridItem1 = {
+    i: "1",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "",
+    args_string: "{}",
+    metadata_string: JSON.stringify({
+      refreshRate: 0,
+    }),
+  };
+  const gridItem2 = {
+    i: "2",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "Variable Input",
+    args_string: JSON.stringify({
+      variable_name: "Test Variable",
+      variable_options_source: "text",
+      initial_value: "some value",
+    }),
+    metadata_string: JSON.stringify({
+      refreshRate: 0,
+    }),
+  };
+  const gridItem3 = {
+    i: "3",
+    x: 0,
+    y: 0,
+    w: 20,
+    h: 20,
+    source: "",
+    args_string: JSON.stringify({
+      some_arg: true,
+      // eslint-disable-next-line
+      some_arg2: "${Test Variable}",
+      some_arg3: "some value",
+    }),
+    metadata_string: JSON.stringify({
+      refreshRate: 0,
+    }),
+  };
+  mockedDashboard.tabs[0].gridItems = [gridItem1, gridItem2, gridItem3];
   const gridItem = mockedDashboard.tabs[0].gridItems[1];
-  const mockhandleModalClose = jest.fn();
-  const mocksetGridItemMessage = jest.fn();
-  const mocksetShowGridItemMessage = jest.fn();
+  const mockHandleModalClose = jest.fn();
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+  const mockUpdateTab = jest.fn();
 
   render(
     createLoadedComponent({
       children: (
         <>
-          <DataViewerModal
+          <TestingComponent
+            gridItem={gridItem}
             gridItemIndex={1}
-            source={gridItem.source}
-            argsString={gridItem.args_string}
-            metadataString={gridItem.metadata_string}
-            gridItemI={gridItem.i}
-            showModal={true}
-            handleModalClose={mockhandleModalClose}
-            setGridItemMessage={mocksetGridItemMessage}
-            setShowGridItemMessage={mocksetShowGridItemMessage}
+            mockHandleModalClose={mockHandleModalClose}
+            mockSetGridItemMessage={mockSetGridItemMessage}
+            mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+            onTabUpdate={mockUpdateTab}
           />
           <InputVariablePComponent />
         </>
@@ -495,14 +640,14 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
         dashboards: updatedMockedDashboards,
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   await waitFor(async () => {
     expect(await screen.findByTestId("input-variables")).toHaveTextContent(
       JSON.stringify({
         "Test Variable": "some value",
-      })
+      }),
     );
   });
 
@@ -510,17 +655,56 @@ test("Dashboard Viewer Modal Update Existing Variable Input", async () => {
   fireEvent.change(variableNameInput, { target: { value: "Test Variable 2" } });
 
   const dataviewerSaveButton = await screen.findByLabelText(
-    "dataviewer-save-button"
+    "dataviewer-save-button",
   );
   fireEvent.click(dataviewerSaveButton);
+  expect(mockUpdateTab).toHaveBeenLastCalledWith([
+    {
+      gridItems: [
+        gridItem1,
+        {
+          args_string: JSON.stringify({
+            variable_name: "Test Variable 2",
+            variable_options_source: "text",
+            initial_value: "some value",
+          }),
+          h: 20,
+          i: "2",
+          metadata_string: '{"refreshRate":0}',
+          source: "Variable Input",
+          w: 20,
+          x: 0,
+          y: 0,
+        },
+        {
+          i: "3",
+          x: 0,
+          y: 0,
+          w: 20,
+          h: 20,
+          source: "",
+          args_string: JSON.stringify({
+            some_arg: true,
+            // eslint-disable-next-line
+            some_arg2: "${Test Variable 2}",
+            some_arg3: "some value",
+          }),
+          metadata_string: JSON.stringify({
+            refreshRate: 0,
+          }),
+        },
+      ],
+      id: 1,
+      name: "Tab 1",
+    },
+  ]);
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
-      "Test Variable": "some value",
       "Test Variable 2": "some value",
-    })
+    }),
   );
-  expect(mockhandleModalClose).toHaveBeenCalledTimes(1);
-  expect(mocksetShowGridItemMessage).toHaveBeenCalledTimes(1);
+  expect(mockHandleModalClose).toHaveBeenCalledTimes(1);
+  expect(mockSetShowGridItemMessage).toHaveBeenCalledTimes(1);
 });
 
 test("Dashboard Viewer Modal Switch tabs", async () => {
@@ -533,26 +717,28 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
   render(
     createLoadedComponent({
       children: (
-        <>
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 1,
+          }}
+        >
           <DataViewerModal
-            gridItemIndex={1}
-            source={gridItem.source}
-            argsString={gridItem.args_string}
-            metadataString={gridItem.metadata_string}
-            gridItemI={gridItem.i}
             showModal={true}
             handleModalClose={mockhandleModalClose}
             setGridItemMessage={mocksetGridItemMessage}
             setShowGridItemMessage={mocksetShowGridItemMessage}
           />
-          <InputVariablePComponent />
-        </>
+        </GridItemContext.Provider>
       ),
       options: {
         initialDashboard: userDashboard,
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
@@ -572,48 +758,44 @@ test("Dashboard Viewer Modal Switch tabs", async () => {
 test("Dashboard Viewer Modal Map False layer control", async () => {
   const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
   const gridItem = mockedDashboard.tabs[0].gridItems[0];
-  const mockhandleModalClose = jest.fn();
-  const mocksetGridItemMessage = jest.fn();
-  const mocksetShowGridItemMessage = jest.fn();
+  const mockHandleModalClose = jest.fn();
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+  const mockUpdateTab = jest.fn();
 
   render(
     createLoadedComponent({
       children: (
         <>
-          <DataViewerModal
-            gridItemIndex={0}
-            source={gridItem.source}
-            argsString={gridItem.args_string}
-            metadataString={gridItem.metadata_string}
-            gridItemI={gridItem.i}
-            showModal={true}
-            handleModalClose={mockhandleModalClose}
-            setGridItemMessage={mocksetGridItemMessage}
-            setShowGridItemMessage={mocksetShowGridItemMessage}
+          <TestingComponent
+            gridItem={gridItem}
+            mockHandleModalClose={mockHandleModalClose}
+            mockSetGridItemMessage={mockSetGridItemMessage}
+            mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+            onTabUpdate={mockUpdateTab}
           />
-          <TabsPComponent />
         </>
       ),
       options: { initialDashboard: userDashboard },
-    })
+    }),
   );
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "Map Visualization Card"
+    "Map Visualization Card",
   );
   fireEvent.click(visualizationOption);
 
   const visualizationTabContent =
     await screen.findByLabelText("visualizationTab");
   const comboboxes = await within(visualizationTabContent).findAllByRole(
-    "combobox"
+    "combobox",
   );
   const baseMapDropdown = comboboxes[1];
   await selectEvent.openMenu(baseMapDropdown);
@@ -628,28 +810,36 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
   fireEvent.click(showLayersOption[1]);
 
   const dataviewerSaveButton = await screen.findByLabelText(
-    "dataviewer-save-button"
+    "dataviewer-save-button",
   );
   fireEvent.click(dataviewerSaveButton);
-
-  const updatedDashboard = JSON.parse(JSON.stringify(userDashboard));
-  updatedDashboard.tabs[0].gridItems[0].source = "Map";
-  updatedDashboard.tabs[0].gridItems[0].args_string = JSON.stringify({
-    baseMap:
-      "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
-    layerControl: false,
-    layers: [],
-    map_extent: { extent: "-10686671.12,4721671.57,4.5" },
-    mapDrawing: {},
-  });
-  updatedDashboard.tabs[0].gridItems[0].metadata_string = "{}";
-
-  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({
-      tabs: updatedDashboard.tabs,
-      activeTabId: updatedDashboard.tabs[0].id,
-    })
-  );
+  expect(mockUpdateTab).toHaveBeenLastCalledWith([
+    {
+      gridItems: [
+        {
+          args_string: JSON.stringify({
+            baseMap:
+              "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+            layerControl: false,
+            layers: [],
+            map_extent: { extent: "-10686671.12,4721671.57,4.5" },
+            mapDrawing: {},
+          }),
+          h: 20,
+          i: "1",
+          id: 1,
+          metadata_string: "{}",
+          source: "Map",
+          uuid: "some-uuid-1",
+          w: 20,
+          x: 0,
+          y: 0,
+        },
+      ],
+      id: 1,
+      name: "Tab 1",
+    },
+  ]);
 });
 
 test("Dashboard Viewer Modal Text Options", async () => {
@@ -662,36 +852,39 @@ test("Dashboard Viewer Modal Text Options", async () => {
   render(
     createLoadedComponent({
       children: (
-        <>
+        <GridItemContext.Provider
+          value={{
+            gridItemSource: gridItem.source,
+            gridItemI: gridItem.i,
+            gridItemMetadataString: gridItem.metadata_string,
+            gridItemArgsString: gridItem.args_string,
+            gridItemIndex: 1,
+          }}
+        >
           <DataViewerModal
-            gridItemIndex={1}
-            source={gridItem.source}
-            argsString={gridItem.args_string}
-            metadataString={gridItem.metadata_string}
             showModal={true}
             handleModalClose={mockhandleModalClose}
             setGridItemMessage={mocksetGridItemMessage}
             setShowGridItemMessage={mocksetShowGridItemMessage}
           />
-          <InputVariablePComponent />
-        </>
+        </GridItemContext.Provider>
       ),
       options: {
         initialDashboard: userDashboard,
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const visualizationTypeSelect = await screen.findByLabelText(
-    "Search Visualization Type Button"
+    "Search Visualization Type Button",
   );
   await userEvent.click(visualizationTypeSelect);
   const groupOption = await screen.findByText("Default");
   fireEvent.click(groupOption);
 
   const visualizationOption = await screen.findByLabelText(
-    "Text Visualization Card"
+    "Text Visualization Card",
   );
   fireEvent.click(visualizationOption);
 
@@ -706,3 +899,317 @@ test("Dashboard Viewer Modal Text Options", async () => {
   });
   expect(await screen.findByText("Hello world!")).toBeInTheDocument();
 });
+
+test("Dashboard Viewer multi variable date range", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  mockedDashboard.tabs[0].gridItems[0] = mockedDateRangeVariable;
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  const mockHandleModalClose = jest.fn();
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+  const mockUpdateTab = jest.fn();
+
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <>
+        <TestingComponent
+          gridItem={gridItem}
+          mockHandleModalClose={mockHandleModalClose}
+          mockSetGridItemMessage={mockSetGridItemMessage}
+          mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+          onTabUpdate={mockUpdateTab}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: { initialDashboard: mockedDashboard },
+  });
+
+  const { rerender } = render(LoadedComponent);
+
+  expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
+  expect(await screen.findByText("Visualization")).toBeInTheDocument();
+  expect(await screen.findByText("Settings")).toBeInTheDocument();
+
+  const startDateVariableInput = await screen.findByLabelText(
+    "Start Date Variable Name Input",
+  );
+  const endDateVariableInput = await screen.findByLabelText(
+    "End Date Variable Name Input",
+  );
+  expect(startDateVariableInput.value).toBe("Start Date");
+  expect(endDateVariableInput.value).toBe("End Date");
+
+  rerender(LoadedComponent);
+
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button",
+  );
+  fireEvent.click(dataviewerSaveButton);
+  expect(mockUpdateTab).toHaveBeenCalledWith([
+    {
+      gridItems: [mockedDateRangeVariable],
+      id: 1,
+      name: "Tab 1",
+    },
+  ]);
+
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({
+        "Test Variable": {
+          "Start Date": "01/14/2026T00:00",
+          "End Date": "01/16/2026T00:00",
+        },
+        "Start Date": "01/14/2026T00:00",
+        "End Date": "01/16/2026T00:00",
+      }),
+    );
+  });
+});
+
+test("Dashboard Viewer multi variable date range fails if duplicated variable names", async () => {
+  const mockedDashboard = JSON.parse(JSON.stringify(userDashboard));
+  mockedDashboard.tabs[0].gridItems[0] = mockedDateRangeVariable;
+  const gridItem = mockedDashboard.tabs[0].gridItems[0];
+  gridItem.args_string = JSON.stringify({
+    variable_name: "Test Variable",
+    variable_options_source: "date-range",
+    "variable_options_source.metadata": {
+      format: "MM/dd/yyyy'T 'HH:mm",
+      startDateVariable: "Start Date",
+      endDateVariable: "Start Date",
+    },
+    initial_value: {
+      "Start Date": "01/14/2026 12:00 AM",
+      "End Date": "01/16/2026 12:00 AM",
+    },
+  });
+  const mockHandleModalClose = jest.fn();
+  const mockSetGridItemMessage = jest.fn();
+  const mockSetShowGridItemMessage = jest.fn();
+  const mockUpdateTab = jest.fn();
+
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <>
+        <TestingComponent
+          gridItem={gridItem}
+          mockHandleModalClose={mockHandleModalClose}
+          mockSetGridItemMessage={mockSetGridItemMessage}
+          mockSetShowGridItemMessage={mockSetShowGridItemMessage}
+          onTabUpdate={mockUpdateTab}
+        />
+        <InputVariablePComponent />
+      </>
+    ),
+    options: { initialDashboard: mockedDashboard },
+  });
+
+  render(LoadedComponent);
+
+  expect(await screen.findByText("Edit Visualization")).toBeInTheDocument();
+  expect(await screen.findByText("Visualization")).toBeInTheDocument();
+  expect(await screen.findByText("Settings")).toBeInTheDocument();
+
+  const dataviewerSaveButton = await screen.findByLabelText(
+    "dataviewer-save-button",
+  );
+  fireEvent.click(dataviewerSaveButton);
+
+  expect(
+    await screen.findByText("Duplicate variable name(s) found: Start Date"),
+  ).toBeInTheDocument();
+});
+
+describe("getAllVariableInputNames", () => {
+  test("should return variable inputs from args", () => {
+    const args = {
+      variable_name: "Test Variable",
+      variable_options_source: "text",
+      initial_value: "Some Value",
+    };
+    const result = getAllVariableInputNames(args);
+    expect(result).toEqual({
+      default: "Test Variable",
+    });
+  });
+
+  test("should return variable inputs from date-range args", () => {
+    const args = {
+      variable_name: "Date Range Variable",
+      variable_options_source: "date-range",
+      "variable_options_source.metadata": {
+        format: "MM/dd/yyyy'T 'HH:mm",
+        startDateVariable: "Start Dats",
+        endDateVariable: "End Date",
+      },
+      initial_value: {
+        "Start Dats": "01/06/2026 12:00 AM",
+        "End Date": "01/24/2026 12:00 AM",
+      },
+    };
+    const result = getAllVariableInputNames(args);
+    expect(result).toEqual({
+      default: "Date Range Variable",
+      startDateVariable: "Start Dats",
+      endDateVariable: "End Date",
+    });
+  });
+
+  test("should return empty object for non-variable input args", () => {
+    const args = {
+      text: "Some text",
+      font_size: 12,
+    };
+    const result = getAllVariableInputNames(args);
+    expect(result).toEqual({});
+  });
+});
+
+describe("updateVariableInputs", () => {
+  test("should update variable inputs in args", () => {
+    const oldArgs = {
+      variable_name: "Date Range Variable",
+      variable_options_source: "date-range",
+      "variable_options_source.metadata": {
+        format: "MM/dd/yyyy'T 'HH:mm",
+        startDateVariable: "Start Dats",
+        endDateVariable: "End Date",
+      },
+      initial_value: {
+        "Start Dats": "02/06/2026 12:00 AM",
+        "End Date": "01/24/2026 12:00 AM",
+      },
+    };
+
+    const newArgs = {
+      variable_name: "Date Range",
+      variable_options_source: "date-range",
+      "variable_options_source.metadata": {
+        format: "MM/dd/yyyy'T 'HH:mm",
+        startDateVariable: "Start Date",
+        endDateVariable: "End Date",
+      },
+      initial_value: {
+        "Start Date": "01/06/2026 12:00 AM",
+        "End Date": "01/24/2026 12:00 AM",
+      },
+    };
+
+    const gridItems = [
+      {
+        args_string: JSON.stringify(newArgs),
+        h: 5,
+        i: "1",
+        source: "Variable Input",
+        metadata_string: "{}",
+        w: 32,
+        x: 48,
+        y: 1,
+        id: 1125,
+        uuid: "a4e09050-11ab-402d-b0b7-5c4d353c0296",
+      },
+      {
+        // eslint-disable-next-line
+        args_string: '{"text": "<p>${Date Range Variable}</p>"}',
+        h: 20,
+        i: "2",
+        source: "Text",
+        metadata_string: "{}",
+        w: 20,
+        x: 50,
+        y: 9,
+        id: 1145,
+        uuid: "6526184d-e7a8-41d4-be3c-a728fad2fbed",
+      },
+      {
+        // eslint-disable-next-line
+        args_string: '{"text": "<p>${Start Dats}</p>"}',
+        h: 40,
+        i: "3",
+        source: "Text",
+        metadata_string: "{}",
+        w: 46,
+        x: 0,
+        y: 0,
+        id: 1130,
+        uuid: "05edafb9-c2a7-4743-a73b-840d8704f096",
+      },
+    ];
+
+    const variableInputValues = {
+      "some other variable": "some unchanged value",
+      "Start Dats": "01/06/2026 12:00 AM",
+      "End Date": "01/24/2026 12:00 AM",
+    };
+    const mockSetVariableInputValue = jest.fn();
+
+    const result = updateVariableInputs(
+      oldArgs,
+      newArgs,
+      gridItems,
+      variableInputValues,
+      mockSetVariableInputValue,
+    );
+
+    expect(mockSetVariableInputValue).toHaveBeenCalledWith({
+      "some other variable": "some unchanged value",
+      "Date Range": {
+        "End Date": "01/24/2026 12:00 AM",
+        "Start Date": "01/06/2026 12:00 AM",
+      },
+      "End Date": "01/24/2026 12:00 AM",
+      "Start Date": "01/06/2026 12:00 AM",
+    });
+    expect(result).toEqual([
+      {
+        args_string: JSON.stringify(newArgs),
+        h: 5,
+        i: "1",
+        id: 1125,
+        metadata_string: "{}",
+        source: "Variable Input",
+        uuid: "a4e09050-11ab-402d-b0b7-5c4d353c0296",
+        w: 32,
+        x: 48,
+        y: 1,
+      },
+      {
+        // eslint-disable-next-line
+        args_string: '{"text":"<p>${Date Range}</p>"}',
+        h: 20,
+        i: "2",
+        id: 1145,
+        metadata_string: "{}",
+        source: "Text",
+        uuid: "6526184d-e7a8-41d4-be3c-a728fad2fbed",
+        w: 20,
+        x: 50,
+        y: 9,
+      },
+      {
+        // eslint-disable-next-line
+        args_string: '{"text":"<p>${Start Date}</p>"}',
+        h: 40,
+        i: "3",
+        id: 1130,
+        metadata_string: "{}",
+        source: "Text",
+        uuid: "05edafb9-c2a7-4743-a73b-840d8704f096",
+        w: 46,
+        x: 0,
+        y: 0,
+      },
+    ]);
+  });
+});
+
+TestingComponent.propTypes = {
+  gridItem: Proptypes.object.isRequired,
+  gridItemIndex: Proptypes.number,
+  mockHandleModalClose: Proptypes.func.isRequired,
+  mockSetGridItemMessage: Proptypes.func.isRequired,
+  mockSetShowGridItemMessage: Proptypes.func.isRequired,
+  onTabUpdate: Proptypes.func.isRequired,
+};
