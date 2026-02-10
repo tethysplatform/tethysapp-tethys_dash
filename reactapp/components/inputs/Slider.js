@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, memo } from "react";
+import { useState, useEffect, useRef, useMemo, memo, useContext } from "react";
 import { Button, Form, Row, Col } from "react-bootstrap";
 import PropTypes from "prop-types";
 import SliderLib from "rc-slider";
@@ -20,8 +20,13 @@ import {
   differenceInYears,
   format as formatDate,
 } from "date-fns";
-import { parseDateMath } from "components/inputs/DatePicker";
+import { parseDateMath } from "components/inputs/dateUtils";
 import { valuesEqual } from "components/modals/utilities";
+import {
+  GridItemContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
+import { checkForVariable } from "components/inputs/dateUtils";
 
 export const timeDeltas = {
   Seconds: addSeconds,
@@ -70,12 +75,9 @@ function formatNumber(n, template) {
   });
 }
 
-function formatDateValue(date, template) {
+function formatDateValue(date, format) {
   try {
-    return formatDate(
-      parseDateMath({ value: date, type: "date-hour" }),
-      template,
-    );
+    return formatDate(parseDateMath({ value: date }), format);
   } catch (err) {
     console.error("Date formatting error:", err.message);
     return date.toString();
@@ -88,7 +90,15 @@ const formatValue = (val, outputFormat, isDateType) => {
     : formatNumber(val, outputFormat);
 };
 
-export const calculateSliderValues = ({ min, max, step, unit, dataType }) => {
+export const calculateSliderValues = ({
+  min,
+  max,
+  step,
+  unit,
+  dataType,
+  rawMinDateFormat,
+  rawMaxDateFormat,
+}) => {
   // Helper to ensure max is always included
   const ensureMaxIncluded = (arr, max, eqFn = (a, b) => a === b) => {
     if (arr.length === 0 || !eqFn(arr[arr.length - 1], max)) arr.push(max);
@@ -182,26 +192,32 @@ export const calculateSliderValues = ({ min, max, step, unit, dataType }) => {
     }
 
     // Convert any relative dates to absolute dates for uniform processing
-    let processedMin = min;
-    let processedMax = max;
+    let minDate;
+    let maxDate;
 
     if (isRelative(min)) {
       const now = new Date();
       const offset = parseRel(min, unit);
-      const minDate = timeDeltas[unit](now, offset);
-      processedMin = toLocalISOString(minDate).replace(/\.\d+$/, "");
+      minDate = timeDeltas[unit](now, offset);
     }
 
     if (isRelative(max)) {
       const now = new Date();
       const offset = parseRel(max, unit);
-      const maxDate = timeDeltas[unit](now, offset);
-      processedMax = toLocalISOString(maxDate).replace(/\.\d+$/, "");
+      maxDate = timeDeltas[unit](now, offset);
     }
 
     // Absolute dates (including converted relative dates)
-    const minDate = new Date(processedMin);
-    const maxDate = new Date(processedMax);
+    if (!minDate) {
+      minDate =
+        parseDateMath({ value: min, dateFormat: rawMinDateFormat }) ||
+        new Date();
+    }
+    if (!maxDate) {
+      maxDate =
+        parseDateMath({ value: max, dateFormat: rawMaxDateFormat }) ||
+        new Date();
+    }
     const arr = [];
     const diff = diffDeltas[unit](maxDate, minDate);
     let steps = Math.floor(diff / step);
@@ -277,11 +293,40 @@ const Slider = ({
     { label: "Fast", value: 200 },
   ],
 }) => {
+  const { gridItemArgsString } = useContext(GridItemContext);
+  const { variableInputDateFormats } = useContext(VariableInputsContext);
+  const rawMetadata =
+    JSON.parse(gridItemArgsString || "{}")?.[
+      "variable_options_source.metadata"
+    ] || {};
+  const rawMin = rawMetadata?.min;
+  const rawMax = rawMetadata?.max;
+  const rawMinVar = checkForVariable(rawMin);
+  const rawMaxVar = checkForVariable(rawMax);
+  let rawMinDateFormat;
+  let rawMaxDateFormat;
+
+  if (rawMinVar) {
+    rawMinDateFormat = variableInputDateFormats[rawMinVar];
+  }
+  if (rawMaxVar) {
+    rawMaxDateFormat = variableInputDateFormats[rawMaxVar];
+  }
+
   const isDateType = dataType === "Date";
   const unit = dateTimeDelta;
   const values = useMemo(
-    () => calculateSliderValues({ min, max, step, unit, dataType }),
-    [min, max, step, unit, dataType],
+    () =>
+      calculateSliderValues({
+        min,
+        max,
+        step,
+        unit,
+        dataType,
+        rawMinDateFormat,
+        rawMaxDateFormat,
+      }),
+    [min, max, step, unit, dataType, rawMinDateFormat, rawMaxDateFormat],
   );
 
   // Track index/indices

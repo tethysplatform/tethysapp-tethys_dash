@@ -12,6 +12,9 @@ import InputTable from "components/inputs/InputTable";
 import NormalInput from "components/inputs/NormalInput";
 import CheckboxInput from "components/inputs/CheckboxInput";
 import DatePicker from "components/inputs/DatePicker";
+import DateFormat from "components/inputs/DateFormat";
+import DateRange from "components/inputs/DateRange";
+import { parseDate } from "components/inputs/dateUtils";
 import * as customInputs from "components/inputs/Custom";
 
 const StyledDiv = styled.div`
@@ -77,15 +80,42 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
         inputProps={inputProps}
       />
     );
-  } else if (type === "date" || type === "date-hour") {
+  } else if (type === "date-format") {
     return (
-      <DatePicker
-        label={label}
-        onChange={onChange}
-        value={value}
-        inputProps={inputProps}
-        type={type}
+      <DateFormat
+        onChange={(newValue) => onChange({ format: newValue })}
+        value={value?.format}
       />
+    );
+  } else if (type.includes("date")) {
+    if (typeof value === "string" && type === "date-range") {
+      value = {};
+    }
+
+    // fix the example to not show in visualization pan
+    return (
+      <>
+        {type === "date-range" ? (
+          <DateRange values={value} onChange={onChange} metadata={inputProps} />
+        ) : (
+          <DatePicker
+            label={label}
+            onChange={onChange}
+            value={value}
+            dateFormat={inputProps?.format}
+          />
+        )}
+        {inDataViewerMode && (
+          <div style={{ marginTop: "1rem" }}>
+            <label>
+              <b>Example Date Output</b>:
+            </label>{" "}
+            <span>
+              {parseDate(value?.startDate || value, inputProps?.format, true)}
+            </span>
+          </div>
+        )}
+      </>
     );
   } else if (type === "radio") {
     return (

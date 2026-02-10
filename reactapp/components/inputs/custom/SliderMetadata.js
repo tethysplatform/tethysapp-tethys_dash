@@ -5,6 +5,7 @@ import styled from "styled-components";
 import NormalInput from "components/inputs/NormalInput";
 import DataSelect from "components/inputs/DataSelect";
 import DatePicker from "components/inputs/DatePicker";
+import DateFormat from "components/inputs/DateFormat";
 import { timeDeltas, calculateSliderValues } from "components/inputs/Slider";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
@@ -309,14 +310,12 @@ const SliderMetadata = ({ onChange, values }) => {
           <DatePicker
             label="Minimum"
             value={min}
-            type="date-hour"
             onChange={onMinChange}
             divProps={{ style: { marginTop: "1rem" } }}
           />
           <DatePicker
             label="Maximum"
             value={max}
-            type="date-hour"
             onChange={onMaxChange}
             divProps={{ style: { marginTop: "1rem" } }}
           />
@@ -388,12 +387,9 @@ const SliderMetadata = ({ onChange, values }) => {
               divProps={{ style: { marginTop: "1rem" } }}
             />
           )}
-          <NormalInput
-            label="Output Format"
+          <DateFormat
             value={outputFormat}
-            type="text"
-            onChange={(e) => setOutputFormat(e.target.value)}
-            placeholder="date-fns format tokens; e.g., MM/dd/yyyy, MM/dd/yyyy'T'HH:mm"
+            onChange={setOutputFormat}
             divProps={{ style: { marginTop: "1rem" } }}
           />
         </>

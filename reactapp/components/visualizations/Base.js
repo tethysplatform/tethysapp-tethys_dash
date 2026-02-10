@@ -18,6 +18,7 @@ import {
   AppContext,
   EditingContext,
   VariableInputsContext,
+  GridItemContext,
 } from "components/contexts/Contexts";
 import { valuesEqual } from "components/modals/utilities";
 import styled from "styled-components";
@@ -292,13 +293,14 @@ const filterNonRelativeDateArgs = (args, variableInputs, types) => {
   return filtered;
 };
 
-const BaseVisualization = ({
-  source,
-  argsString,
-  metadataString,
-  uuid,
-  shouldLoad,
-}) => {
+const BaseVisualization = () => {
+  const {
+    gridItemSource,
+    gridItemArgsString,
+    gridItemMetadataString,
+    gridItemUUID,
+    shouldLoad,
+  } = useContext(GridItemContext);
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
   const { visualizations } = useContext(AppContext);
@@ -306,20 +308,19 @@ const BaseVisualization = ({
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemMetadataWithVariableInputs = useRef(0);
   const customMessages = useRef({});
-  const gridItemSource = useRef(0);
   const [refreshCount, setRefreshCount] = useState(0);
   const { isEditing } = useContext(EditingContext);
   const dashboardVizRef = useRef();
   const { getMessageForRequest } = useContext(WebsocketContext);
-  const requestId = useRef(uuid);
+  const requestId = useRef(gridItemUUID);
   // Ref to track if we've already loaded for this source with empty args
   const loadedEmptyArgsForSource = useRef({});
 
   useEffect(() => {
-    const args = JSON.parse(argsString);
-    if (source === "") {
+    const args = JSON.parse(gridItemArgsString);
+    if (gridItemSource === "") {
       setVizType("unknown");
-    } else if (source === "Variable Input") {
+    } else if (gridItemSource === "Variable Input") {
       setVizType("variableInput");
       setVizData({
         variable_name: args.variable_name,
@@ -331,22 +332,22 @@ const BaseVisualization = ({
       setVariableDependentVisualizations({});
     }
     // eslint-disable-next-line
-  }, [source, argsString, metadataString]);
+  }, [gridItemSource, gridItemArgsString, gridItemMetadataString]);
 
   useEffect(() => {
-    if (!["", "Variable Input"].includes(source)) {
+    if (!["", "Variable Input"].includes(gridItemSource)) {
       setVariableDependentVisualizations({});
     }
     // eslint-disable-next-line
   }, [variableInputValues, shouldLoad]);
 
   useEffect(() => {
-    const gridMetadata = JSON.parse(metadataString);
+    const gridMetadata = JSON.parse(gridItemMetadataString);
     const refreshRate = gridMetadata.refreshRate;
     if (
       refreshRate &&
       refreshRate > 0 &&
-      !["", "Text", "Variable Input"].includes(source)
+      !["", "Text", "Variable Input"].includes(gridItemSource)
     ) {
       const interval = setInterval(
         () => {
@@ -360,21 +361,21 @@ const BaseVisualization = ({
       return () => clearInterval(interval);
     }
     // eslint-disable-next-line
-  }, [metadataString, isEditing]);
+  }, [gridItemMetadataString, isEditing]);
 
   async function setVariableDependentVisualizations({ refresh }) {
-    const originalArgs = JSON.parse(argsString);
-    const args = JSON.parse(argsString);
-    const gridMetadata = JSON.parse(metadataString);
+    const originalArgs = JSON.parse(gridItemArgsString);
+    const args = JSON.parse(gridItemArgsString);
+    const gridMetadata = JSON.parse(gridItemMetadataString);
     const visualization = findSelectOptionByValue(
       visualizations,
-      source,
+      gridItemSource,
       "source",
     );
     const sourceType = visualization?.type;
     const argTypes = visualization?.args;
 
-    const itemData = { source: source, args: args };
+    const itemData = { source: gridItemSource, args: args };
     const updatedGridItemArgs = convertDates(
       updateObjectWithVariableInputs(args, variableInputValues, argTypes),
     );
@@ -393,8 +394,9 @@ const BaseVisualization = ({
     );
 
     // Only allow the empty args load to run once per source unless refresh is true
-    const isEmptyArgs = source && Object.keys(args).length === 0;
-    const alreadyLoadedEmptyArgs = loadedEmptyArgsForSource.current[source];
+    const isEmptyArgs = gridItemSource && Object.keys(args).length === 0;
+    const alreadyLoadedEmptyArgs =
+      loadedEmptyArgsForSource.current[gridItemSource];
 
     if (
       (refresh ||
@@ -409,12 +411,11 @@ const BaseVisualization = ({
       shouldLoad
     ) {
       if (isEmptyArgs) {
-        loadedEmptyArgsForSource.current[source] = true;
+        loadedEmptyArgsForSource.current[gridItemSource] = true;
       }
       itemData.args = updatedGridItemArgs;
       itemData.requestId = requestId.current;
       gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
-      gridItemSource.current = source;
       customMessages.current = customMessaging;
 
       await getVisualization({
@@ -422,13 +423,13 @@ const BaseVisualization = ({
         setVizData,
         sourceType,
         itemData,
-        argsString,
-        metadataString,
+        argsString: gridItemArgsString,
+        metadataString: gridItemMetadataString,
         variableInputValues,
         dashboardView: true,
         vizLoadingIcon: findSelectOptionByValue(
           visualizations,
-          source,
+          gridItemSource,
           "source",
         )?.loading_icon,
       });
@@ -444,7 +445,7 @@ const BaseVisualization = ({
 
       const sourceType = findSelectOptionByValue(
         visualizations,
-        source,
+        gridItemSource,
         "source",
       )?.type;
 
@@ -478,14 +479,6 @@ const BaseVisualization = ({
       progressMessage={getMessageForRequest(requestId.current)}
     />
   );
-};
-
-BaseVisualization.propTypes = {
-  source: PropTypes.string,
-  argsString: PropTypes.string,
-  metadataString: PropTypes.string,
-  uuid: PropTypes.string,
-  shouldLoad: PropTypes.bool,
 };
 
 Visualization.propTypes = {

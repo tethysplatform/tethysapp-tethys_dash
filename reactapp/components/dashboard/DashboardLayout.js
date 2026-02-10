@@ -5,6 +5,7 @@ import {
   EditingContext,
   DisabledEditingMovementContext,
   TabContext,
+  GridItemContext,
 } from "components/contexts/Contexts";
 import DashboardItem from "components/dashboard/DashboardItem";
 import PropTypes from "prop-types";
@@ -22,7 +23,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
   const { updateTab } = useContext(TabContext);
   const { isEditing } = useContext(EditingContext);
   const { disabledEditingMovement } = useContext(
-    DisabledEditingMovementContext
+    DisabledEditingMovementContext,
   );
 
   const gridItemsUpdated = useRef();
@@ -40,7 +41,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
         isDraggable: isEditing && !disabledEditingMovement,
         isResizable: isEditing && !disabledEditingMovement,
       })),
-    [gridItems, isEditing, disabledEditingMovement]
+    [gridItems, isEditing, disabledEditingMovement],
   );
 
   // Memoize parsed grid items array at the top level
@@ -49,7 +50,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       gridItems.map((item) => ({
         ...item,
       })),
-    [gridItems]
+    [gridItems],
   );
 
   function updateLayout(newLayout) {
@@ -98,7 +99,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
         }
       }
     },
-    []
+    [],
   );
 
   return (
@@ -118,15 +119,20 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
     >
       {parsedGridItems.map((item, index) => (
         <div key={item.i}>
-          <DashboardItem
-            gridItemSource={item.source}
-            gridItemI={item.i}
-            gridItemArgsString={item.args_string}
-            gridItemMetadataString={item.metadata_string}
-            gridItemIndex={index}
-            gridItemUUID={item.uuid}
-            shouldLoad={shouldLoad}
-          />
+          <GridItemContext.Provider
+            value={{
+              gridItemId: item.id,
+              gridItemSource: item.source,
+              gridItemI: item.i,
+              gridItemArgsString: item.args_string,
+              gridItemMetadataString: item.metadata_string,
+              gridItemIndex: index,
+              gridItemUUID: item.uuid,
+              shouldLoad: shouldLoad,
+            }}
+          >
+            <DashboardItem />
+          </GridItemContext.Provider>
         </div>
       ))}
     </ReactGridLayout>
@@ -144,7 +150,7 @@ DashboardLayout.propTypes = {
       source: PropTypes.string.isRequired,
       args_string: PropTypes.string.isRequired,
       metadata_string: PropTypes.string.isRequired,
-    })
+    }),
   ).isRequired,
   shouldLoad: PropTypes.bool.isRequired,
 };
