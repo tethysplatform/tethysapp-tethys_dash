@@ -200,48 +200,6 @@ export const Visualization = memo(
   },
 );
 
-export function toLocalISO(d) {
-  const pad = (n) => String(n).padStart(2, "0");
-  return (
-    d.getFullYear() +
-    "-" +
-    pad(d.getMonth() + 1) +
-    "-" +
-    pad(d.getDate()) +
-    "T" +
-    pad(d.getHours()) +
-    ":" +
-    pad(d.getMinutes()) +
-    ":" +
-    pad(d.getSeconds()) +
-    (d.getTimezoneOffset() > 0 ? "-" : "+") +
-    pad(Math.abs(d.getTimezoneOffset() / 60)) +
-    ":" +
-    pad(Math.abs(d.getTimezoneOffset() % 60))
-  );
-}
-
-// Helper function to convert Date objects to UTC strings recursively
-const convertDates = (obj) => {
-  if (obj instanceof Date) {
-    return toLocalISO(obj);
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(convertDates);
-  }
-
-  if (obj !== null && typeof obj === "object") {
-    const converted = {};
-    for (const [key, value] of Object.entries(obj)) {
-      converted[key] = convertDates(value);
-    }
-    return converted;
-  }
-
-  return obj;
-};
-
 // Helper function to compare only the keys that exist in filteredOriginalArgs
 export const compareFilteredArgs = (
   currentArgs,
@@ -374,12 +332,10 @@ const BaseVisualization = () => {
     const sourceType = visualization?.type;
 
     const itemData = { source: gridItemSource, args: args };
-    const updatedGridItemArgs = convertDates(
-      updateObjectWithVariableInputs(
-        args,
-        variableInputValues,
-        variableInputDateFormats,
-      ),
+    const updatedGridItemArgs = updateObjectWithVariableInputs(
+      args,
+      variableInputValues,
+      variableInputDateFormats,
     );
 
     const updatedGridItemMetadata = updateObjectWithVariableInputs(
@@ -434,6 +390,7 @@ const BaseVisualization = () => {
           gridItemSource,
           "source",
         )?.loading_icon,
+        variableInputDateFormats,
       });
     }
 

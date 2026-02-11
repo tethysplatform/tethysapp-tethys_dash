@@ -29,7 +29,7 @@ target_metadata = None
 
 def get_db_url():
     db_user = "postgres"
-    db_pass = os.environ.get("POSTGRES_PASSWORD", "mysecretpassword")
+    db_pass = os.environ.get("POSTGRES_PASSWORD", "pass")
     db_host = os.environ.get("TETHYS_DB_HOST", "localhost")
     db_name = os.environ.get("TETHYSDASH_DB_NAME", "tethysdash_primary_db")
     db_port = os.environ.get("TETHYS_DB_PORT", 5432)

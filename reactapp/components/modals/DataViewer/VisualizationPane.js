@@ -352,6 +352,7 @@ function VisualizationPane({
         metadataString: JSON.stringify(settings),
         variableInputValues,
         vizLoadingIcon: true,
+        variableInputDateFormats,
       });
     }
   }

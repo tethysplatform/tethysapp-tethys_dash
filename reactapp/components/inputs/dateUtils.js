@@ -3,6 +3,48 @@ import { format, parse } from "date-fns";
 // Formats for date and date-hour
 export const dateHourFormat = "MM/dd/yyyy h:mm aa";
 
+export function toLocalISO(d) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return (
+    d.getFullYear() +
+    "-" +
+    pad(d.getMonth() + 1) +
+    "-" +
+    pad(d.getDate()) +
+    "T" +
+    pad(d.getHours()) +
+    ":" +
+    pad(d.getMinutes()) +
+    ":" +
+    pad(d.getSeconds()) +
+    (d.getTimezoneOffset() > 0 ? "-" : "+") +
+    pad(Math.abs(d.getTimezoneOffset() / 60)) +
+    ":" +
+    pad(Math.abs(d.getTimezoneOffset() % 60))
+  );
+}
+
+// Helper function to convert Date objects to UTC strings recursively
+export const convertDatesToLocalISO = (obj) => {
+  if (obj instanceof Date) {
+    return toLocalISO(obj);
+  }
+
+  if (Array.isArray(obj)) {
+    return obj.map(convertDatesToLocalISO);
+  }
+
+  if (obj !== null && typeof obj === "object") {
+    const converted = {};
+    for (const [key, value] of Object.entries(obj)) {
+      converted[key] = convertDatesToLocalISO(value);
+    }
+    return converted;
+  }
+
+  return obj;
+};
+
 /**
  * Parses a date string, supporting relative expressions like 'now', 'now-1D', etc.
  * Returns a Date object or null if invalid.
