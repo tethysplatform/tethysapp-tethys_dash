@@ -107,7 +107,10 @@ class DashboardTab(Base):
     # Relationships
     dashboard = relationship("Dashboard", back_populates="tabs")
     grid_items = relationship(
-        "GridItem", back_populates="tab", cascade="all, delete-orphan"
+        "GridItem",
+        back_populates="tab",
+        cascade="all, delete-orphan",
+        order_by="GridItem.order",
     )
 
 
