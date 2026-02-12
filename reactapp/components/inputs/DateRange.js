@@ -1,6 +1,27 @@
 import PropTypes from "prop-types";
 import { useEffect, useRef } from "react";
 import DatePicker from "components/inputs/DatePicker";
+import styled from "styled-components";
+
+const FlexWrap = styled.div`
+  display: flex;
+  flex-direction: row;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+
+  @container (max-width: 300px) {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+`;
+const Container = styled.div`
+  container-type: inline-size;
+`;
+
+const FlexItem = styled.div`
+  flex: 1;
+`;
 
 export const DateRange = ({
   values,
@@ -45,9 +66,9 @@ export const DateRange = ({
   };
 
   return (
-    <div {...divProps}>
-      <div style={{ display: "flex", gap: "1rem" }}>
-        <div style={{ flex: 1 }}>
+    <Container {...divProps}>
+      <FlexWrap>
+        <FlexItem>
           <DatePicker
             label={startDateVariable}
             value={startDate}
@@ -55,8 +76,8 @@ export const DateRange = ({
             dateFormat={metadata?.format}
             {...props}
           />
-        </div>
-        <div style={{ flex: 1 }}>
+        </FlexItem>
+        <FlexItem>
           <DatePicker
             label={endDateVariable}
             value={endDate}
@@ -64,9 +85,9 @@ export const DateRange = ({
             dateFormat={metadata?.format}
             {...props}
           />
-        </div>
-      </div>
-    </div>
+        </FlexItem>
+      </FlexWrap>
+    </Container>
   );
 };
 

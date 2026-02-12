@@ -27,6 +27,22 @@ import {
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import { checkForVariable } from "components/inputs/dateUtils";
+import {
+  FaPlay,
+  FaStop,
+  FaFastForward,
+  FaForward,
+  FaFastBackward,
+  FaBackward,
+} from "react-icons/fa";
+import styled from "styled-components";
+
+const CenteredButtonSpan = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+`;
 
 export const timeDeltas = {
   Seconds: addSeconds,
@@ -523,20 +539,26 @@ const Slider = ({
                 {!playing ? (
                   <Button
                     variant="primary"
+                    size="sm"
                     onClick={() => setPlaying(true)}
                     title="Play"
                     aria-label="play"
                   >
-                    ▶️
+                    <CenteredButtonSpan>
+                      <FaPlay />
+                    </CenteredButtonSpan>
                   </Button>
                 ) : (
                   <Button
                     variant="danger"
+                    size="sm"
                     onClick={() => setPlaying(false)}
                     title="Stop"
                     aria-label="stop"
                   >
-                    ⏹️
+                    <CenteredButtonSpan>
+                      <FaStop />
+                    </CenteredButtonSpan>
                   </Button>
                 )}
                 {/* Speed selector dropdown only if more than one speed */}
@@ -570,7 +592,9 @@ const Slider = ({
               aria-label="go to first"
               disabled={playing}
             >
-              ⏮️
+              <CenteredButtonSpan>
+                <FaFastBackward />
+              </CenteredButtonSpan>
             </Button>
             <Button
               variant="primary"
@@ -579,7 +603,9 @@ const Slider = ({
               aria-label="previous step"
               disabled={playing}
             >
-              ⏪
+              <CenteredButtonSpan>
+                <FaBackward />
+              </CenteredButtonSpan>
             </Button>
           </Col>
 
@@ -635,7 +661,9 @@ const Slider = ({
               aria-label="next step"
               disabled={playing}
             >
-              ⏩
+              <CenteredButtonSpan>
+                <FaForward />
+              </CenteredButtonSpan>
             </Button>
             <Button
               variant="primary"
@@ -644,7 +672,9 @@ const Slider = ({
               aria-label="go to last"
               disabled={playing}
             >
-              ⏭️
+              <CenteredButtonSpan>
+                <FaFastForward />
+              </CenteredButtonSpan>
             </Button>
           </Col>
         </Row>
