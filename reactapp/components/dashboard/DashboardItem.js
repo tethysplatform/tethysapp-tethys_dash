@@ -62,8 +62,9 @@ const StyledDiv = styled.div`
 `;
 
 const InfoIconWrapper = styled.div`
-  padding-top: 0.5rem;
-  padding-left: 0.5rem;
+  position: absolute;
+  top: 0.5rem;
+  left: 0.5rem;
   display: flex;
   align-items: center;
 `;
@@ -75,15 +76,14 @@ const AttributionTooltip = styled.div`
   position: absolute;
   top: 0.5rem;
   left: 0.5rem;
-  background: rgba(255, 255, 255, 0.97);
-  color: #222;
+  background: rgba(0, 0, 0, 0.97);
+  color: #ffffffff;
   border: 1px solid #ccc;
   border-radius: 6px;
   padding: 0.75rem 1.5rem 0.75rem 1rem;
   font-size: 0.95em;
   max-width: 25vw;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
-  z-index: 100;
   scrollbar-gutter: stable both-edges;
 `;
 
@@ -394,27 +394,6 @@ const DashboardItem = () => {
         aria-label="gridItemDiv"
         className="no-caret"
       >
-        {gridItemStyling?.attribution !== false && attribution && (
-          <InfoIconWrapper aria-label="attribution-info-icon">
-            <div
-              style={{ display: "inline-block" }}
-              onMouseEnter={() => setShowAttribution(true)}
-              onMouseLeave={() => setShowAttribution(false)}
-            >
-              <BsInfoCircle
-                size={22}
-                color="#007bff"
-                style={{ cursor: "pointer" }}
-              />
-              <AttributionTooltip
-                show={showAttribution}
-                aria-label="attribution-tooltip"
-              >
-                {renderAttributionWithLinks(attribution)}
-              </AttributionTooltip>
-            </div>
-          </InfoIconWrapper>
-        )}
         <StyledContainer
           fluid
           className="h-100 gridVisualization"
@@ -434,6 +413,26 @@ const DashboardItem = () => {
           />
           <BaseVisualization key={gridItemI} />
         </StyledContainer>
+        {gridItemStyling?.attribution !== false && attribution && (
+          <InfoIconWrapper
+            onMouseEnter={() => setShowAttribution(true)}
+            onMouseLeave={() => setShowAttribution(false)}
+            aria-label="attribution-info-icon"
+          >
+            <BsInfoCircle
+              size={22}
+              color="#007bff"
+              style={{ cursor: "pointer" }}
+            />
+            <AttributionTooltip
+              show={showAttribution}
+              aria-label="attribution-tooltip"
+              onMouseLeave={() => setShowAttribution(false)}
+            >
+              {renderAttributionWithLinks(attribution)}
+            </AttributionTooltip>
+          </InfoIconWrapper>
+        )}
         {showDataViewerModal && (
           <DataViewerModal
             showModal={showDataViewerModal}

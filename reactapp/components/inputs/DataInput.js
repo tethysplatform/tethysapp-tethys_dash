@@ -87,7 +87,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
         value={value?.format}
       />
     );
-  } else if (type.includes("date")) {
+  } else if (typeof type === "string" && type.includes("date")) {
     if (typeof value === "string" && type === "date-range") {
       value = {};
     }
