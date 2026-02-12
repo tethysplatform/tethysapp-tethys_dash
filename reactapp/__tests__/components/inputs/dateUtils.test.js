@@ -4,6 +4,8 @@ import {
   checkForVariable,
   isRelativeInput,
   parseDate,
+  toLocalISO,
+  convertDatesToLocalISO,
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
 
@@ -175,5 +177,95 @@ describe("parseDate", () => {
   it("returns null for null date", () => {
     const result = parseDate("", dateHourFormat, true);
     expect(result).toBeNull();
+  });
+});
+
+describe("toLocalISO function", () => {
+  it("should format date with correct timezone offset signs - covers line 174", () => {
+    // Test the specific logic on line 174: (d.getTimezoneOffset() > 0 ? "-" : "+")
+
+    // Create a base date for testing
+    const baseDate = new Date("2025-01-15T12:00:00");
+
+    // Store original getTimezoneOffset method
+    const originalGetTimezoneOffset = baseDate.getTimezoneOffset;
+
+    try {
+      // Test Case 1: Positive offset (timezone behind UTC) - should use "-"
+      // This tests the first part of the ternary: d.getTimezoneOffset() > 0 ? "-"
+      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(360); // UTC-6 (360 minutes behind)
+      const resultBehindUTC = toLocalISO(baseDate);
+      expect(resultBehindUTC).toMatch(/.*-06:00$/); // Should end with -06:00
+
+      // Test Case 2: Negative offset (timezone ahead of UTC) - should use "+"
+      // This tests the second part of the ternary: : "+"
+      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(-120); // UTC+2 (120 minutes ahead, so negative)
+      const resultAheadUTC = toLocalISO(baseDate);
+      expect(resultAheadUTC).toMatch(/.*\+02:00$/); // Should end with +02:00
+
+      // Test Case 3: Zero offset (exactly UTC) - should use "+"
+      // This tests the edge case where getTimezoneOffset() === 0, so the condition is false
+      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(0); // UTC±0
+      const resultUTC = toLocalISO(baseDate);
+      expect(resultUTC).toMatch(/.*\+00:00$/); // Should end with +00:00
+
+      // Test Case 4: Large positive offset - should use "-"
+      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(720); // UTC-12
+      const resultLargeBehind = toLocalISO(baseDate);
+      expect(resultLargeBehind).toMatch(/.*-12:00$/); // Should end with -12:00
+
+      // Test Case 5: Large negative offset - should use "+"
+      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(-720); // UTC+12
+      const resultLargeAhead = toLocalISO(baseDate);
+      expect(resultLargeAhead).toMatch(/.*\+12:00$/); // Should end with +12:00
+
+      // Verify the complete format structure
+      const completeResult = toLocalISO(baseDate);
+      expect(completeResult).toMatch(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/,
+      );
+    } finally {
+      // Always restore the original method
+      baseDate.getTimezoneOffset = originalGetTimezoneOffset;
+    }
+  });
+});
+
+describe("convertDatesToLocalISO function", () => {
+  it("should convert Date objects to local ISO strings", () => {
+    const date1 = new Date("2025-01-15T12:00:00");
+    const date2 = new Date("2025-02-20T15:30:45");
+    const input = {
+      dateField1: date1,
+      nested: {
+        dateField2: date2,
+      },
+      nonDateField: "test",
+    };
+
+    const result = convertDatesToLocalISO(input);
+
+    expect(result.dateField1).toBe(toLocalISO(date1));
+    expect(result.nested.dateField2).toBe(toLocalISO(date2));
+    expect(result.nonDateField).toBe("test"); // Non-date fields should remain unchanged
+  });
+
+  it("should handle arrays of Date objects", () => {
+    const date1 = new Date("2025-01-15T12:00:00");
+    const date2 = new Date("2025-02-20T15:30:45");
+    const input = [date1, date2, "not a date"];
+
+    const result = convertDatesToLocalISO(input);
+
+    expect(result[0]).toBe(toLocalISO(date1));
+    expect(result[1]).toBe(toLocalISO(date2));
+    expect(result[2]).toBe("not a date"); // Non-date fields should remain unchanged
+  });
+
+  it("should return non-object, non-array values unchanged", () => {
+    expect(convertDatesToLocalISO("just a string")).toBe("just a string");
+    expect(convertDatesToLocalISO(123)).toBe(123);
+    expect(convertDatesToLocalISO(null)).toBe(null);
+    expect(convertDatesToLocalISO(undefined)).toBe(undefined);
   });
 });

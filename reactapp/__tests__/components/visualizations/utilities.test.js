@@ -10,7 +10,7 @@ import {
 } from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
-import { addDays } from "date-fns";
+import { format } from "date-fns";
 
 jest.mock("components/visualizations/Map", () => {
   const MockMapVisualization = () => <div>Map Mock</div>;
@@ -655,7 +655,7 @@ test("updateObjectWithVariableInputs", async () => {
   };
   const variableInputs = { "Some Variable": "Test" };
 
-  const result = updateObjectWithVariableInputs(
+  let result = updateObjectWithVariableInputs(
     JSON.parse(JSON.stringify(args)),
     variableInputs,
   );
@@ -685,10 +685,14 @@ test("updateObjectWithVariableInputs", async () => {
   const date_args = {
     // eslint-disable-next-line
     a_date: "${Some Variable}",
-    // eslint-disable-next-line
-    another_date: "now",
+    text_arg: "now",
   };
-  const dateVariableInputs = { "Some Variable": "now-1D" };
+  const dateVariableInputs = {
+    "Some Variable": "now",
+  };
+  const variableInputDateFormats = {
+    "Some Variable": "yyyy-MM-dd'T'HH:mm:ss'Z'",
+  };
 
   // Mock Date to ensure consistent timing
   const fixedDate = new Date("2023-01-01T12:00:00Z");
@@ -700,13 +704,15 @@ test("updateObjectWithVariableInputs", async () => {
     const dateResult = updateObjectWithVariableInputs(
       JSON.parse(JSON.stringify(date_args)),
       dateVariableInputs,
-      {
-        "Some Variable": "yyyy-MM-dd'T'HH:mm:ss'Z'",
-      },
+      variableInputDateFormats,
+    );
+    const expectedADate = format(
+      fixedDate,
+      variableInputDateFormats["Some Variable"],
     );
     expect(dateResult).toStrictEqual({
-      a_date: addDays(fixedDate, -1),
-      another_date: fixedDate,
+      a_date: expectedADate,
+      text_arg: "now",
     });
   } finally {
     // Restore original Date

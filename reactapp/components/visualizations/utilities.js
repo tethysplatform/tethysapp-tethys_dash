@@ -2,10 +2,7 @@ import appAPI from "services/api/app";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import {
   parseDateMath,
-  checkForVariable,
-  isRelativeInput,
   convertDatesToLocalISO,
-  dateHourFormat,
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
 
@@ -242,14 +239,14 @@ export function updateObjectWithVariableInputs(
   returnDatesAsLocalISO = false,
 ) {
   const argsCopy = JSON.parse(JSON.stringify(args));
-  const variableInputsCopy = JSON.parse(JSON.stringify(variableInputs || {}));
+  const variableInputsCopy = JSON.parse(JSON.stringify(variableInputs));
 
   if (variableInputDateFormats) {
     for (let [variableInputKey, variableInputValue] of Object.entries(
-      variableInputs || {},
+      variableInputs,
     )) {
       const dateFormat = variableInputDateFormats[variableInputKey];
-      if (dateFormat || isRelativeInput(variableInputValue)) {
+      if (dateFormat) {
         const updatedValue = parseDateMath({
           value: variableInputValue,
           dateFormat: dateFormat,
@@ -260,7 +257,7 @@ export function updateObjectWithVariableInputs(
         } else {
           variableInputsCopy[variableInputKey] = format(
             updatedValue,
-            dateFormat || dateHourFormat,
+            dateFormat,
           );
         }
       }

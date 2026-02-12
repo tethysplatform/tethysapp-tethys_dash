@@ -21,7 +21,6 @@ import {
   mockedLiveChatBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization, {
-  toLocalISO,
   compareFilteredArgs,
 } from "components/visualizations/Base";
 import createLoadedComponent, {
@@ -1360,6 +1359,9 @@ it("Base - initial relative date variable input", async () => {
     initial_value: "now",
     variable_name: "Test Variable",
     variable_options_source: "date-hour",
+    "variable_options_source.metadata": {
+      format: "MM/dd/yyyy h:mm aa",
+    },
   });
 
   const mockedDashboard = {
@@ -1475,6 +1477,9 @@ it("Base - initial relative date variable input", async () => {
           "Test Variable": "now",
         },
         vizLoadingIcon: undefined,
+        variableInputDateFormats: {
+          "Test Variable": "MM/dd/yyyy h:mm aa",
+        },
       }),
     );
   });
@@ -1616,57 +1621,6 @@ it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine meta
     dash: "dashdot",
   });
   spyAddVerticalLine.mockRestore();
-});
-
-describe("toLocalISO function", () => {
-  it("should format date with correct timezone offset signs - covers line 174", () => {
-    // Test the specific logic on line 174: (d.getTimezoneOffset() > 0 ? "-" : "+")
-
-    // Create a base date for testing
-    const baseDate = new Date("2025-01-15T12:00:00");
-
-    // Store original getTimezoneOffset method
-    const originalGetTimezoneOffset = baseDate.getTimezoneOffset;
-
-    try {
-      // Test Case 1: Positive offset (timezone behind UTC) - should use "-"
-      // This tests the first part of the ternary: d.getTimezoneOffset() > 0 ? "-"
-      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(360); // UTC-6 (360 minutes behind)
-      const resultBehindUTC = toLocalISO(baseDate);
-      expect(resultBehindUTC).toMatch(/.*-06:00$/); // Should end with -06:00
-
-      // Test Case 2: Negative offset (timezone ahead of UTC) - should use "+"
-      // This tests the second part of the ternary: : "+"
-      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(-120); // UTC+2 (120 minutes ahead, so negative)
-      const resultAheadUTC = toLocalISO(baseDate);
-      expect(resultAheadUTC).toMatch(/.*\+02:00$/); // Should end with +02:00
-
-      // Test Case 3: Zero offset (exactly UTC) - should use "+"
-      // This tests the edge case where getTimezoneOffset() === 0, so the condition is false
-      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(0); // UTC±0
-      const resultUTC = toLocalISO(baseDate);
-      expect(resultUTC).toMatch(/.*\+00:00$/); // Should end with +00:00
-
-      // Test Case 4: Large positive offset - should use "-"
-      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(720); // UTC-12
-      const resultLargeBehind = toLocalISO(baseDate);
-      expect(resultLargeBehind).toMatch(/.*-12:00$/); // Should end with -12:00
-
-      // Test Case 5: Large negative offset - should use "+"
-      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(-720); // UTC+12
-      const resultLargeAhead = toLocalISO(baseDate);
-      expect(resultLargeAhead).toMatch(/.*\+12:00$/); // Should end with +12:00
-
-      // Verify the complete format structure
-      const completeResult = toLocalISO(baseDate);
-      expect(completeResult).toMatch(
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/,
-      );
-    } finally {
-      // Always restore the original method
-      baseDate.getTimezoneOffset = originalGetTimezoneOffset;
-    }
-  });
 });
 
 describe("compareFilteredArgs function", () => {
