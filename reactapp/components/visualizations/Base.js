@@ -112,6 +112,7 @@ export const Visualization = memo(
           <VariableInput
             variable_name={vizData.variable_name}
             initial_value={vizData.initial_value}
+            show_label={vizData.show_label}
             variable_options_source={vizData.variable_options_source}
             metadata={vizData.metadata}
             onChange={vizData.onChange ?? (() => {})}
@@ -282,6 +283,7 @@ const BaseVisualization = () => {
       setVizData({
         variable_name: args.variable_name,
         initial_value: args.initial_value,
+        show_label: args.show_label,
         variable_options_source: args.variable_options_source,
         metadata: args["variable_options_source.metadata"],
       });

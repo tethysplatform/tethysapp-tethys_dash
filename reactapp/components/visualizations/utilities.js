@@ -196,6 +196,7 @@ export async function getVisualization({
       setVizData({
         variable_name: responseData.variable_name,
         initial_value: responseData.initial_value,
+        show_label: responseData.show_label,
         variable_options_source: responseData.variable_options_source,
         metadata: responseData.metadata,
       });
