@@ -44,6 +44,20 @@ const CenteredButtonSpan = styled.span`
   height: 100%;
 `;
 
+const ButtonCol = styled(Col)`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const FlexDiv = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
 export const timeDeltas = {
   Seconds: addSeconds,
   Minutes: addMinutes,
@@ -530,13 +544,59 @@ const Slider = ({
         </Form.Label>
       )}
       <Form>
-        {/* Top controls - Play button and Speed selector */}
-        <Row className="align-items-center mb-2">
-          <Col className="d-flex justify-content-center gap-2">
-            {showPlayControls && (
-              <>
-                {/* Play/Stop button */}
-                {!playing ? (
+        {/* Controls row: all buttons and speed above slider */}
+        <Row className="align-items-center mb-2 justify-content-center">
+          <ButtonCol>
+            <FlexDiv>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={goToFirst}
+                title="Go to first"
+                aria-label="go to first"
+                disabled={playing}
+              >
+                <CenteredButtonSpan>
+                  <FaFastBackward />
+                </CenteredButtonSpan>
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={goBackStep}
+                title="Previous step"
+                aria-label="previous step"
+                disabled={playing}
+              >
+                <CenteredButtonSpan>
+                  <FaBackward />
+                </CenteredButtonSpan>
+              </Button>
+            </FlexDiv>
+            <FlexDiv>
+              {showSpeedDropdown && (
+                <>
+                  <Form.Label className="mb-0 ms-2">
+                    <b>Speed:</b>
+                  </Form.Label>
+                  <Form.Select
+                    value={speed}
+                    onChange={(e) => setSpeed(Number(e.target.value))}
+                    disabled={playing}
+                    aria-label="Speed select"
+                    style={{ width: "auto", minWidth: "80px" }}
+                    size="sm"
+                  >
+                    {speeds.map(({ label, value }) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </Form.Select>
+                </>
+              )}
+              {showPlayControls &&
+                (!playing ? (
                   <Button
                     variant="primary"
                     size="sm"
@@ -560,61 +620,40 @@ const Slider = ({
                       <FaStop />
                     </CenteredButtonSpan>
                   </Button>
-                )}
-                {/* Speed selector dropdown only if more than one speed */}
-                {showSpeedDropdown && (
-                  <Form.Select
-                    value={speed}
-                    onChange={(e) => setSpeed(Number(e.target.value))}
-                    disabled={playing}
-                    aria-label="Speed select"
-                    style={{ width: "auto", minWidth: "80px" }}
-                  >
-                    {speeds.map(({ label, value }) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </Form.Select>
-                )}
-              </>
-            )}
-          </Col>
+                ))}
+            </FlexDiv>
+            <FlexDiv>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={goForwardStep}
+                title="Next step"
+                aria-label="next step"
+                disabled={playing}
+              >
+                <CenteredButtonSpan>
+                  <FaForward />
+                </CenteredButtonSpan>
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={goToLast}
+                title="Go to last"
+                aria-label="go to last"
+                disabled={playing}
+              >
+                <CenteredButtonSpan>
+                  <FaFastForward />
+                </CenteredButtonSpan>
+              </Button>
+            </FlexDiv>
+          </ButtonCol>
         </Row>
-
         <Row className="align-items-center">
-          {/* Left controls - First and Previous */}
-          <Col xs="auto" className="d-flex gap-1">
-            <Button
-              variant="primary"
-              onClick={goToFirst}
-              title="Go to first"
-              aria-label="go to first"
-              disabled={playing}
-            >
-              <CenteredButtonSpan>
-                <FaFastBackward />
-              </CenteredButtonSpan>
-            </Button>
-            <Button
-              variant="primary"
-              onClick={goBackStep}
-              title="Previous step"
-              aria-label="previous step"
-              disabled={playing}
-            >
-              <CenteredButtonSpan>
-                <FaBackward />
-              </CenteredButtonSpan>
-            </Button>
-          </Col>
-
-          {/* Start value */}
           <Col xs="auto" className="text-center" aria-label="Min Value">
             <strong>{formatValue(values[0], outputFormat, isDateType)}</strong>
           </Col>
-
-          {/* Slider */}
           <Col>
             <SliderLib
               range={rangeMode}
@@ -637,45 +676,18 @@ const Slider = ({
                 },
               }}
             />
-            <div
-              aria-label="Display Value"
-              className="text-center fw-bold mt-2"
-            >
-              {displayValue}
-            </div>
           </Col>
-
-          {/* End value */}
           <Col xs="auto" className="text-center" aria-label="Max Value">
             <strong>
               {formatValue(values[values.length - 1], outputFormat, isDateType)}
             </strong>
           </Col>
-
-          {/* Right controls - Next and Last */}
-          <Col xs="auto" className="d-flex gap-1">
-            <Button
-              variant="primary"
-              onClick={goForwardStep}
-              title="Next step"
-              aria-label="next step"
-              disabled={playing}
-            >
-              <CenteredButtonSpan>
-                <FaForward />
-              </CenteredButtonSpan>
-            </Button>
-            <Button
-              variant="primary"
-              onClick={goToLast}
-              title="Go to last"
-              aria-label="go to last"
-              disabled={playing}
-            >
-              <CenteredButtonSpan>
-                <FaFastForward />
-              </CenteredButtonSpan>
-            </Button>
+        </Row>
+        <Row className="align-items-center">
+          <Col>
+            <div aria-label="Display Value" className="text-center fw-bold">
+              {displayValue}
+            </div>
           </Col>
         </Row>
       </Form>

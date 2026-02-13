@@ -1542,6 +1542,7 @@ describe("Slider Component", () => {
 
     let select = screen.getByLabelText(/speed select/i);
     expect(select).toBeInTheDocument();
+    expect(screen.getByText("Speed:")).toBeInTheDocument();
     // eslint-disable-next-line testing-library/no-node-access
     expect(select.children.length).toBe(5);
     // eslint-disable-next-line testing-library/no-node-access

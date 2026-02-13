@@ -308,6 +308,7 @@ VariableInput.propTypes = {
     PropTypes.bool,
     PropTypes.number,
   ]),
+  show_label: PropTypes.bool,
   variable_name: PropTypes.string,
   variable_options_source: PropTypes.oneOfType([
     PropTypes.string,
