@@ -87,10 +87,10 @@ test("AppLoader", async () => {
           ctx.json({
             visualizations: availableVisualizations,
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -98,7 +98,7 @@ test("AppLoader", async () => {
       <Loader>
         <TestingComponent />
       </Loader>
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
 
   expect(await screen.findByTestId("tethysApp")).toHaveTextContent(
@@ -117,7 +117,7 @@ test("AppLoader", async () => {
         support_email: "env_support@tethys.org",
         support_github: "https://github.com/tethysplatform/tethysdash",
       },
-    })
+    }),
   );
 
   expect(await screen.findByTestId("user")).toHaveTextContent(
@@ -128,11 +128,11 @@ test("AppLoader", async () => {
       email: "jsmith@tethys.org",
       isAuthenticated: true,
       isStaff: true,
-    })
+    }),
   );
 
   expect(await screen.findByTestId("csrf")).toHaveTextContent(
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 
   expect(await screen.findByTestId("routes")).toHaveTextContent(
@@ -141,7 +141,7 @@ test("AppLoader", async () => {
       "dashboard-not-found",
       "route-user-uuid",
       "route-public-uuid",
-    ])
+    ]),
   );
 
   expect(await screen.findByTestId("visualizations")).toHaveTextContent(
@@ -205,6 +205,7 @@ test("AppLoader", async () => {
             type: "variableInput",
             args: {
               variable_name: "text",
+              show_label: "checkbox",
               variable_options_source: [
                 ...nonDropDownVariableInputTypes,
                 {
@@ -240,7 +241,7 @@ test("AppLoader", async () => {
           },
         ],
       },
-    ])
+    ]),
   );
 
   expect(await screen.findByTestId("mapLayerTemplates")).toHaveTextContent(
@@ -254,7 +255,7 @@ test("AppLoader", async () => {
         tags: [],
         description: "",
       },
-    ])
+    ]),
   );
 
   expect(await screen.findByTestId("visualizationArgs")).toHaveTextContent(
@@ -269,15 +270,15 @@ test("AppLoader", async () => {
         value: "Other: plugin_label_checkbox - Plugin Arg",
         argOptions: "checkbox",
       },
-    ])
+    ]),
   );
 
   expect(await screen.findByTestId("availableDashboards")).toHaveTextContent(
-    JSON.stringify(mockedDashboards.dashboards)
+    JSON.stringify(mockedDashboards.dashboards),
   );
 
   expect(await screen.findByTestId("permissionGroups")).toHaveTextContent(
-    JSON.stringify(mockedDashboards.permission_groups)
+    JSON.stringify(mockedDashboards.permission_groups),
   );
 });
 
@@ -287,9 +288,9 @@ test("AppLoader, load session error", async () => {
       return res(
         ctx.status(500),
         ctx.json({ error: "Internal Server Error" }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
 
   render(
@@ -299,11 +300,11 @@ test("AppLoader, load session error", async () => {
           <TestingComponent />
         </Loader>
       </ModalPriorityProvider>
-    </ErrorBoundary>
+    </ErrorBoundary>,
   );
 
   expect(
-    await screen.findByText("AxiosError: Request failed with status code 500")
+    await screen.findByText("AxiosError: Request failed with status code 500"),
   ).toBeInTheDocument();
 });
 
@@ -315,10 +316,10 @@ test("AppLoader, load visualization error", async () => {
         return res(
           ctx.status(500),
           ctx.json({ error: "Internal Server Error" }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -328,11 +329,11 @@ test("AppLoader, load visualization error", async () => {
           <TestingComponent />
         </Loader>
       </ModalPriorityProvider>
-    </ErrorBoundary>
+    </ErrorBoundary>,
   );
 
   expect(
-    await screen.findByText("AxiosError: Request failed with status code 500")
+    await screen.findByText("AxiosError: Request failed with status code 500"),
   ).toBeInTheDocument();
 });
 
@@ -387,9 +388,9 @@ test("AppLoader, support info from dashboards.support_info", async () => {
           ctx.json({
             visualizations: availableVisualizations,
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
+      },
     ),
     rest.get(
       "http://api.test/apps/tethysdash/dashboards/list/",
@@ -397,10 +398,10 @@ test("AppLoader, support info from dashboards.support_info", async () => {
         return res(
           ctx.status(200),
           ctx.json(dashboardsWithSupportInfo),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   // Render and check support info override
@@ -409,7 +410,7 @@ test("AppLoader, support info from dashboards.support_info", async () => {
       <Loader>
         <TestingComponent />
       </Loader>
-    </ModalPriorityProvider>
+    </ModalPriorityProvider>,
   );
 
   expect(await screen.findByTestId("tethysApp")).toHaveTextContent(
@@ -428,6 +429,6 @@ test("AppLoader, support info from dashboards.support_info", async () => {
         support_email: "override@tethys.org",
         support_github: "https://github.com/override/tethysdash",
       },
-    })
+    }),
   );
 });

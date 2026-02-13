@@ -324,7 +324,7 @@ test("Visualization Pane Variable Input", async () => {
   const groupOption = await screen.findByText("Default");
   fireEvent.click(groupOption);
 
-  const visualizationOption = await screen.findByLabelText(
+  let visualizationOption = await screen.findByLabelText(
     "Variable Input Visualization Card",
   );
   fireEvent.click(visualizationOption);
@@ -362,6 +362,7 @@ test("Visualization Pane Variable Input", async () => {
       initial_value: "",
       variable_name: "Test Variable",
       variable_options_source: "text",
+      show_label: true,
     },
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
@@ -378,6 +379,7 @@ test("Visualization Pane Variable Input", async () => {
       initial_value: "0",
       variable_name: "Test Variable",
       variable_options_source: "number",
+      show_label: true,
     },
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
@@ -390,6 +392,7 @@ test("Visualization Pane Variable Input", async () => {
       metadata: undefined,
       variable_name: "Test Variable",
       variable_options_source: "number",
+      show_label: true,
     }),
   );
 
@@ -403,6 +406,7 @@ test("Visualization Pane Variable Input", async () => {
       initial_value: null,
       variable_name: "Test Variable",
       variable_options_source: "checkbox",
+      show_label: true,
     },
   });
   expect(mockSetGridItemMessage).toHaveBeenLastCalledWith(
@@ -415,6 +419,23 @@ test("Visualization Pane Variable Input", async () => {
       metadata: undefined,
       variable_name: "Test Variable",
       variable_options_source: "checkbox",
+      show_label: true,
+    }),
+  );
+
+  const comboboxes = await screen.findAllByRole("combobox");
+  const showLabelSelect = comboboxes[1];
+  await userEvent.click(showLabelSelect);
+  visualizationOption = await screen.findByRole("option", { name: "False" });
+  fireEvent.click(visualizationOption);
+
+  expect(mockSetVizData).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      initial_value: null,
+      metadata: undefined,
+      variable_name: "Test Variable",
+      variable_options_source: "checkbox",
+      show_label: false,
     }),
   );
 });
@@ -653,7 +674,7 @@ test("Visualization Pane Other Type Checkbox", async () => {
 
   const pluginArgSelect = screen.getByLabelText("Plugin Arg Input");
   await userEvent.click(pluginArgSelect);
-  const trueOption = await screen.findByText("True");
+  const trueOption = await screen.findByRole("option", { name: "True" });
   await userEvent.click(trueOption);
 
   expect(mockSetVizType).toHaveBeenLastCalledWith("vizWarning");
@@ -1565,7 +1586,7 @@ test("Visualization Pane Subs Args", async () => {
   comboboxes = await screen.findAllByRole("combobox");
   const subArg1AADropdown = comboboxes[3];
   await userEvent.click(subArg1AADropdown);
-  const trueOption = await screen.findByText("True");
+  const trueOption = await screen.findByRole("option", { name: "True" });
   fireEvent.click(trueOption);
 
   comboboxes = await screen.findAllByRole("combobox");

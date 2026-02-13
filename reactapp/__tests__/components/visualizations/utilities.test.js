@@ -540,6 +540,7 @@ test("getVisualization variable input", async () => {
               variable_name: "some variable_name",
               initial_value: "some initial_value",
               variable_options_source: "some variable_options_source",
+              show_label: true,
             },
             viz_type: "variable_input",
           }),
@@ -569,6 +570,7 @@ test("getVisualization variable input", async () => {
     variable_name: "some variable_name",
     initial_value: "some initial_value",
     variable_options_source: "some variable_options_source",
+    show_label: true,
     metadata: undefined,
   });
 });
