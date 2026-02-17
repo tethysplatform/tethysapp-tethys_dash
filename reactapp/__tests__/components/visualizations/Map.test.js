@@ -1425,6 +1425,75 @@ test("Map click attribute variables Null values", async () => {
   );
 });
 
+test("Map click attribute variables match field name and alias", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { alias1: "value1", field2: "value2", field3: "value3" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Layer1",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+  // Simulate dashboard variable config
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+      attributeVariables: {
+        Layer1: { field1: "Var1", alias2: "Var2", field3: "Var3" },
+      },
+      attributeAliases: { Layer1: { field1: "alias1", field2: "alias2" } },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+  });
+  // Both variable inputs should be updated
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ Var1: "value1", Var2: "value2", Var3: "value3" }),
+    );
+  });
+  // Both values should be visible in popup
+  expect(await screen.findByText("alias1")).toBeInTheDocument();
+  expect(await screen.findByText("value1")).toBeInTheDocument();
+  expect(await screen.findByText("alias2")).toBeInTheDocument();
+  expect(await screen.findByText("value2")).toBeInTheDocument();
+  expect(await screen.findByText("field3")).toBeInTheDocument();
+  expect(await screen.findByText("value3")).toBeInTheDocument();
+});
+
 test("Map click query error", async () => {
   mockedQueryLayerFeatures.mockRejectedValue("some error");
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);

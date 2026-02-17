@@ -406,17 +406,30 @@ const MapVisualization = ({
     if (layerName && mapAttributeVariables[layerName]) {
       let updatedVariableInputs = {};
       for (const layerAttributeOrAlias in mapAttributeVariables[layerName]) {
-        const layerAttributeAlias = mapAttributeAliasesRef.current[layerName]
-          ? mapAttributeAliasesRef.current[layerName][layerAttributeOrAlias] ||
-            layerAttributeOrAlias
-          : layerAttributeOrAlias;
+        // Try to derive both the alias and the original field name from attributeAliases
+        let layerAttribute = layerAttributeOrAlias;
+        let layerAttributeAlias = layerAttributeOrAlias;
+        const aliasMap = mapAttributeAliasesRef.current[layerName] || {};
+        // If the aliasMap has a mapping for this key, set alias and try to find the original
+        if (aliasMap[layerAttributeOrAlias]) {
+          layerAttributeAlias = aliasMap[layerAttributeOrAlias];
+        } else {
+          // Try to find if this is an alias value (reverse lookup)
+          const originalKey = Object.keys(aliasMap).find(
+            (k) => aliasMap[k] === layerAttributeOrAlias,
+          );
+          if (originalKey) {
+            layerAttribute = originalKey;
+            layerAttributeAlias = layerAttributeOrAlias;
+          }
+        }
 
         const variableInputName =
           mapAttributeVariables[layerName][layerAttributeOrAlias];
 
         const featureValue =
-          selectedFeature.attributes[layerAttributeAlias] ||
-          selectedFeature.attributes[layerAttributeOrAlias];
+          selectedFeature.attributes[layerAttribute] ||
+          selectedFeature.attributes[layerAttributeAlias];
 
         if (featureValue && featureValue !== "Null") {
           updatedVariableInputs[variableInputName] = featureValue;
