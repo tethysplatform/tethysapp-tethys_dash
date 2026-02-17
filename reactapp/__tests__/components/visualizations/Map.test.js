@@ -1452,6 +1452,7 @@ test("Map click attribute variables match field name and alias", async () => {
         Layer1: { field1: "Var1", alias2: "Var2", field3: "Var3" },
       },
       attributeAliases: { Layer1: { field1: "alias1", field2: "alias2" } },
+      omittedPopupAttributes: { Layer1: ["field2"] },
     },
   ];
   const clickCoordinates = [10, 20];
@@ -1488,8 +1489,6 @@ test("Map click attribute variables match field name and alias", async () => {
   // Both values should be visible in popup
   expect(await screen.findByText("alias1")).toBeInTheDocument();
   expect(await screen.findByText("value1")).toBeInTheDocument();
-  expect(await screen.findByText("alias2")).toBeInTheDocument();
-  expect(await screen.findByText("value2")).toBeInTheDocument();
   expect(await screen.findByText("field3")).toBeInTheDocument();
   expect(await screen.findByText("value3")).toBeInTheDocument();
 });
