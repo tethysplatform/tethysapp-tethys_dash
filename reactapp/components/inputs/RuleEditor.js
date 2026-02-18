@@ -303,7 +303,7 @@ function StyleOptionControl({
   };
   if (keyName === "polygonFillType") {
     return (
-      <StyleContainer gap={8} key={keyName}>
+      <StyleContainer $gap={8} key={keyName}>
         {handleRemoveStyle && (
           <XButton
             type="button"
@@ -403,7 +403,7 @@ function StyleOptionControl({
   }
   if (keyName === "shape") {
     return (
-      <StyleContainer gap={8} key={keyName}>
+      <StyleContainer $gap={8} key={keyName}>
         {handleRemoveStyle && (
           <XButton
             type="button"
@@ -444,7 +444,7 @@ function StyleOptionControl({
   }
   if (keyName === "fill" || keyName === "stroke") {
     return (
-      <StyleContainer key={keyName} gap={4}>
+      <StyleContainer key={keyName} $gap={4}>
         {handleRemoveStyle && (
           <XButton
             type="button"
@@ -466,7 +466,7 @@ function StyleOptionControl({
   }
   if (keyName === "strokeDash") {
     return (
-      <StyleContainer key={keyName} gap={4}>
+      <StyleContainer key={keyName} $gap={4}>
         {handleRemoveStyle && (
           <XButton
             type="button"
@@ -496,7 +496,7 @@ function StyleOptionControl({
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (str) => str.toUpperCase());
   return (
-    <StyleContainer key={keyName} gap={4}>
+    <StyleContainer key={keyName} $gap={4}>
       {handleRemoveStyle && (
         <XButton
           type="button"

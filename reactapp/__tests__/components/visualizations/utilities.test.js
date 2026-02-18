@@ -680,7 +680,7 @@ test("updateObjectWithVariableInputs", async () => {
     { "Some Variable": { some: "value" } },
   );
   expect(jsonResult).toStrictEqual({
-    location: '{"some":"value"}',
+    location: { some: "value" },
     text: 'Here is some text with the a variable {"some":"value"}',
   });
 

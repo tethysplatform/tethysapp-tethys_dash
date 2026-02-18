@@ -196,7 +196,7 @@ const ColorOverlay = ({ target, show, setShow, editor, type }) => {
                       : ""
                 }
               >
-                <ColorCircle bgColor={color} />
+                <ColorCircle $bgColor={color} />
               </ColorCircleButton>
             ))}
           </ColorGrid>

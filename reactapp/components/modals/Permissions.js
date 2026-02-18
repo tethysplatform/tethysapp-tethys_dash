@@ -240,10 +240,10 @@ function PermissionsModal({
           <StyledTable bordered hover>
             <thead>
               <tr>
-                <TableHeader maxWidth="40%" width="40%">
+                <TableHeader $maxWidth="40%" $width="40%">
                   Username/Group
                 </TableHeader>
-                <TableHeader width="20%">Type</TableHeader>
+                <TableHeader $width="20%">Type</TableHeader>
                 <TableHeader>Permission Level</TableHeader>
               </tr>
             </thead>
@@ -256,7 +256,7 @@ function PermissionsModal({
                       : `user-${perm.username}-${idx}`
                   }
                 >
-                  <TableCell maxWidth="40%" width="40%">
+                  <TableCell $maxWidth="40%" $width="40%">
                     <UsernameContainer>
                       {perm.group
                         ? `${perm.group}${
@@ -275,10 +275,10 @@ function PermissionsModal({
                           : perm.username}
                     </UsernameContainer>
                   </TableCell>
-                  <TableCell width="20%">
+                  <TableCell $width="20%">
                     {perm.group ? "Group" : "User"}
                   </TableCell>
-                  <TableCell flex gap="8px">
+                  <TableCell $flex $gap="8px">
                     {perm.username === owner ? (
                       <span>Owner</span>
                     ) : userPermission === "admin" &&

@@ -28,7 +28,7 @@ function getBorderStyle(borderConfig) {
   const sides = ["top", "bottom", "left", "right"];
   const filteredSides = sides.filter(
     (side) =>
-      borderConfig[side]?.style && borderConfig[side].style.value !== "none"
+      borderConfig[side]?.style && borderConfig[side].style.value !== "none",
   );
 
   const hasAll = "all" in borderConfig;
@@ -69,22 +69,22 @@ function getShadowBox(borderSettings) {
     const boxShadows = [];
     if ("border-right" in borderSettings) {
       boxShadows.push(
-        `4px 0 8px ${borderSettings["border-right"].split(" ")[2]}`
+        `4px 0 8px ${borderSettings["border-right"].split(" ")[2]}`,
       );
     }
     if ("border-left" in borderSettings) {
       boxShadows.push(
-        `-4px 0 8px ${borderSettings["border-left"].split(" ")[2]}`
+        `-4px 0 8px ${borderSettings["border-left"].split(" ")[2]}`,
       );
     }
     if ("border-bottom" in borderSettings) {
       boxShadows.push(
-        `0 4px 8px ${borderSettings["border-bottom"].split(" ")[2]}`
+        `0 4px 8px ${borderSettings["border-bottom"].split(" ")[2]}`,
       );
     }
     if ("border-top" in borderSettings) {
       boxShadows.push(
-        `0 -4px 8px ${borderSettings["border-top"].split(" ")[2]}`
+        `0 -4px 8px ${borderSettings["border-top"].split(" ")[2]}`,
       );
     }
     return boxShadows.join(",");
@@ -95,7 +95,7 @@ function getShadowBox(borderSettings) {
 
 function getValidMessaging(obj) {
   return Object.fromEntries(
-    Object.entries(obj).filter(([_, value]) => value.trim() !== "")
+    Object.entries(obj).filter(([_, value]) => value.trim() !== ""),
   );
 }
 
@@ -114,9 +114,9 @@ function SettingsPane({
     }
   };
 
-  const onBoxShadowChange = (e) => {
+  const onBoxShadowChange = (checked) => {
     setSettings((prev) => {
-      if (e.target.checked) {
+      if (checked) {
         return {
           ...prev,
           boxShadow: getShadowBox(prev.border ?? {}),
@@ -128,8 +128,7 @@ function SettingsPane({
     });
   };
 
-  const onAttributionChange = (e) => {
-    const checked = e.target.checked;
+  const onAttributionChange = (checked) => {
     setSettings((prev) => {
       if (checked) {
         const { attribution, ...rest } = prev;
@@ -171,9 +170,7 @@ function SettingsPane({
     });
   };
 
-  const onEnforceAspectRatioChange = (e) => {
-    const checked = e.target.checked;
-
+  const onEnforceAspectRatioChange = (checked) => {
     if (
       checked &&
       visualizationRef.current?.naturalWidth &&

@@ -252,7 +252,7 @@ const DashboardTabs = () => {
       className="dashboard-tabs"
       activeKey={activeTabId}
       onSelect={handleTabSelect}
-      shouldHideTabBar={shouldHideTabBar}
+      $shouldHideTabBar={shouldHideTabBar}
     >
       {tabs.map((tab) => (
         <Tab eventKey={tab.id} title={renderTabTitle(tab)} key={tab.id}>

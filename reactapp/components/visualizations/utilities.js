@@ -277,7 +277,7 @@ export function updateObjectWithVariableInputs(
     let updatedValuesWithVariableInputs;
     if (exactVarMatch) {
       const key = exactVarMatch[1];
-      updatedValuesWithVariableInputs = variableInputsCopy[key];
+      updatedValuesWithVariableInputs = variableInputsCopy[key] || "";
     } else {
       updatedValuesWithVariableInputs = value.replace(
         /\$\{([^}]+)\}/g,
