@@ -272,13 +272,21 @@ export function updateObjectWithVariableInputs(
       value = JSON.stringify(value);
     }
 
-    let updatedValuesWithVariableInputs = value.replace(
-      /\$\{([^}]+)\}/g,
-      (_, key) =>
-        typeof variableInputsCopy[key] === "object"
-          ? JSON.stringify(variableInputsCopy[key])
-          : (variableInputsCopy[key] ?? ""),
-    );
+    // If value is exactly a variable input, preserve its type
+    const exactVarMatch = value.match(/^\$\{([^}]+)\}$/);
+    let updatedValuesWithVariableInputs;
+    if (exactVarMatch) {
+      const key = exactVarMatch[1];
+      updatedValuesWithVariableInputs = variableInputsCopy[key];
+    } else {
+      updatedValuesWithVariableInputs = value.replace(
+        /\$\{([^}]+)\}/g,
+        (_, key) =>
+          typeof variableInputsCopy[key] === "object"
+            ? JSON.stringify(variableInputsCopy[key])
+            : (variableInputsCopy[key] ?? ""),
+      );
+    }
 
     if (typeof argsCopy[gridItemsArg] !== "string") {
       updatedValuesWithVariableInputs = JSON.parse(

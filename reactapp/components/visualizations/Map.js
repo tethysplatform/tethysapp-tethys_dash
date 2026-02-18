@@ -607,7 +607,12 @@ MapVisualization.propTypes = {
 };
 
 Popup.propTypes = {
-  layerAttributes: PropTypes.shape({ map: PropTypes.any }),
+  layerAttributes: PropTypes.arrayOf(
+    PropTypes.shape({
+      layerName: PropTypes.string,
+      attributes: PropTypes.object,
+    }),
+  ),
   onSwipe: PropTypes.func, // function to call on swipe event
   omittedPopupAttributes: PropTypes.object,
   aliases: PropTypes.object,

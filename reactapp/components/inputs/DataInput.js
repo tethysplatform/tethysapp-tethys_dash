@@ -74,7 +74,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
     return (
       <CheckboxInput
         label={label}
-        onChange={(e) => onChange(e.target.checked)}
+        onChange={onChange}
         value={value}
         type={type}
         inputProps={inputProps}

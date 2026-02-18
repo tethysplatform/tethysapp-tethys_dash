@@ -19,10 +19,10 @@ const SubmenuWrapper = styled.div`
 `;
 
 const Submenu = styled.div`
-  display: ${({ isVisible }) => (isVisible ? "block" : "none")};
+  display: ${({ $isVisible }) => ($isVisible ? "block" : "none")};
   position: absolute;
   top: 0;
-  ${({ position }) => (position === "left" ? "right: 100%;" : "left: 100%;")}
+  ${({ $position }) => ($position === "left" ? "right: 100%;" : "left: 100%;")}
   background: white;
   border: 1px solid #ddd;
   box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.2);
@@ -118,8 +118,8 @@ const DashboardItemDropdown = ({
             <Submenu
               className="submenu"
               aria-label="Context Menu Submenu"
-              position={submenuPosition}
-              isVisible={submenuVisible}
+              $position={submenuPosition}
+              $isVisible={submenuVisible}
               ref={submenuRef}
               onMouseEnter={onSubMenuMouseEnter}
               onMouseLeave={onSubMenuMouseLeave}

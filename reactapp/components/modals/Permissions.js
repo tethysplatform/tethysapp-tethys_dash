@@ -58,17 +58,17 @@ const StyledTable = styled(Table)`
 `;
 
 const TableHeader = styled.th`
-  max-width: ${(props) => props.maxWidth || "auto"};
-  width: ${(props) => props.width || "auto"};
+  max-width: ${(props) => props.$maxWidth || "auto"};
+  width: ${(props) => props.$width || "auto"};
   text-align: center;
 `;
 
 const TableCell = styled.td`
-  max-width: ${(props) => props.maxWidth || "auto"};
-  width: ${(props) => props.width || "auto"};
-  display: ${(props) => (props.flex ? "flex" : "table-cell")};
-  align-items: ${(props) => (props.flex ? "center" : "inherit")};
-  gap: ${(props) => props.gap || "0"};
+  max-width: ${(props) => props.$maxWidth || "auto"};
+  width: ${(props) => props.$width || "auto"};
+  display: ${(props) => (props.$flex ? "flex" : "table-cell")};
+  align-items: ${(props) => (props.$flex ? "center" : "inherit")};
+  gap: ${(props) => props.$gap || "0"};
 `;
 
 const UsernameContainer = styled.div`
@@ -132,7 +132,7 @@ function PermissionsModal({
       dashboardPermissions.some((perm) =>
         type === "user"
           ? perm.username === nameInput.trim()
-          : perm.group === nameInput.trim()
+          : perm.group === nameInput.trim(),
       )
     ) {
       setErrorMessage(`This ${type} is already in the list.`);
@@ -150,7 +150,7 @@ function PermissionsModal({
 
   const handlePermissionChange = (index, newPermission) => {
     const updated = dashboardPermissions.map((perm, i) =>
-      i === index ? { ...perm, permission: newPermission } : perm
+      i === index ? { ...perm, permission: newPermission } : perm,
     );
     setDashboardPermissions(updated);
   };
@@ -169,7 +169,7 @@ function PermissionsModal({
     } else {
       setErrorMessage(
         apiResponse["message"] ??
-          "Failed to update dashboard settings. Check server logs."
+          "Failed to update dashboard settings. Check server logs.",
       );
     }
   };
@@ -264,8 +264,8 @@ function PermissionsModal({
                               (g) =>
                                 g.name === perm.group &&
                                 g.members.some(
-                                  (m) => m.username === user.username
-                                )
+                                  (m) => m.username === user.username,
+                                ),
                             )
                               ? " (you)"
                               : ""
@@ -302,7 +302,7 @@ function PermissionsModal({
                           size="sm"
                           onClick={() => {
                             setDashboardPermissions(
-                              dashboardPermissions.filter((_, i) => i !== idx)
+                              dashboardPermissions.filter((_, i) => i !== idx),
                             );
                           }}
                           aria-label={`Delete permission for ${perm.username ? perm.username + " user" : perm.group + " group"}`}
@@ -387,7 +387,7 @@ PermissionsModal.propTypes = {
       username: PropTypes.string,
       group: PropTypes.string,
       permission: PropTypes.oneOf(["admin", "editor", "viewer"]).isRequired,
-    })
+    }),
   ).isRequired,
   id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
   owner: PropTypes.string.isRequired,

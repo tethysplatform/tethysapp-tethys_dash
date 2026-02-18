@@ -19,6 +19,10 @@ const CheckboxInput = ({
   inputProps,
   divProps,
 }) => {
+  const changeHandler = (e) => {
+    onChange(e.target.checked);
+  };
+
   return (
     <div {...divProps}>
       {label && (
@@ -31,7 +35,7 @@ const CheckboxInput = ({
         type={type}
         id={label.replace(" ", "_")}
         checked={value}
-        onChange={onChange}
+        onChange={changeHandler}
         {...inputProps}
       />
     </div>

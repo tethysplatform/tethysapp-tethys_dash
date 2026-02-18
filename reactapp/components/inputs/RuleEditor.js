@@ -41,7 +41,7 @@ const FullWidthContainer = styled.div`
 
 const StyleContainer = styled.div`
   display: flex;
-  gap: ${(props) => (props.gap ? props.gap : 16)}px;
+  gap: ${(props) => (props.$gap ? props.$gap : 16)}px;
   align-items: center;
   margin-top: 8px;
   flex-wrap: wrap;

@@ -72,7 +72,7 @@ const InfoIconWrapper = styled.div`
 const AttributionTooltip = styled.div`
   max-height: 50vh;
   overflow-y: auto;
-  display: ${(props) => (props.show ? "block" : "none")};
+  display: ${(props) => (props.$show ? "block" : "none")};
   position: absolute;
   top: 0.5rem;
   left: 0.5rem;
@@ -425,7 +425,7 @@ const DashboardItem = () => {
               style={{ cursor: "pointer" }}
             />
             <AttributionTooltip
-              show={showAttribution}
+              $show={showAttribution}
               aria-label="attribution-tooltip"
               onMouseLeave={() => setShowAttribution(false)}
             >

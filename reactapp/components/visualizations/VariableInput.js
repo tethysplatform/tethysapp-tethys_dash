@@ -307,6 +307,8 @@ VariableInput.propTypes = {
     PropTypes.string,
     PropTypes.bool,
     PropTypes.number,
+    PropTypes.object,
+    PropTypes.array,
   ]),
   show_label: PropTypes.bool,
   variable_name: PropTypes.string,

@@ -35,7 +35,7 @@ const SpacedDiv = styled.div`
   width: 100%;
   align-items: center;
   justify-content: space-between;
-  padding-bottom: ${(props) => (props?.bottomPadding ? "1rem" : 0)};
+  padding-bottom: ${(props) => (props?.$bottomPadding ? "1rem" : 0)};
 `;
 
 const HoverDiv = styled.div`
@@ -56,7 +56,7 @@ const MapLayerTemplate = ({
   const removeMapLayer = (mapLayerName) => {
     // Get all map layers except the given mapLayerName
     const updatedMapLayers = mapLayers.filter(
-      (t) => t.configuration.props.name !== mapLayerName
+      (t) => t.configuration.props.name !== mapLayerName,
     );
 
     // Update tracked mapLayers for custom input
@@ -69,7 +69,7 @@ const MapLayerTemplate = ({
   const editMapLayer = (mapLayerName) => {
     // Get the map layer with the given mapLayerName
     const existingMapLayer = mapLayers.find(
-      (t) => t.configuration.props.name === mapLayerName
+      (t) => t.configuration.props.name === mapLayerName,
     );
     const attributeVariables = existingMapLayer.attributeVariables ?? {};
     const attributeAliases = existingMapLayer.attributeAliases ?? {};
@@ -78,8 +78,8 @@ const MapLayerTemplate = ({
     const queryableLayer = existingMapLayer.queryable === false ? false : true;
     const layerProps = Object.fromEntries(
       Object.entries(existingMapLayer.configuration.props).filter(
-        ([key]) => key !== "source"
-      )
+        ([key]) => key !== "source",
+      ),
     );
     layerProps.layerVisibility = existingMapLayer.configuration.layerVisibility;
 
@@ -174,7 +174,7 @@ export const AddMapLayer = ({
     if (existingLayerOriginalName.current) {
       // Get the map layer with the original name before it was edited
       const originalMapLayer = updatedMapLayers.find(
-        (t) => t.configuration.props.name === existingLayerOriginalName.current
+        (t) => t.configuration.props.name === existingLayerOriginalName.current,
       );
 
       // Find the index of the original map layer in the mapLayer array
@@ -182,7 +182,7 @@ export const AddMapLayer = ({
 
       // Get all the map layers except for the original map layer that was edited
       updatedMapLayers = updatedMapLayers.filter(
-        (t) => t.configuration.props.name !== existingLayerOriginalName.current
+        (t) => t.configuration.props.name !== existingLayerOriginalName.current,
       );
 
       // Add the newly created map layer in the same index as the original
@@ -229,7 +229,7 @@ export const AddMapLayer = ({
 
   return (
     <>
-      <SpacedDiv bottomPadding={true}>
+      <SpacedDiv $bottomPadding={true}>
         <b>{label && label}</b>
         <Button
           variant="info"

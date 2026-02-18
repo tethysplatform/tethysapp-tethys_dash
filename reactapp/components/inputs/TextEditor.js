@@ -114,7 +114,7 @@ const ColorCircle = styled.div`
   box-sizing: border-box;
   margin: 0;
 
-  background-color: ${(props) => props.bgColor};
+  background-color: ${(props) => props.$bgColor};
 `;
 
 const ButtonBar = styled.div`
@@ -500,7 +500,7 @@ const TextEditor = ({ textValue, onChange }) => {
         const html = editor.getHTML();
         onChange(html);
       },
-      [onChange]
+      [onChange],
     ),
     editorProps: {
       attributes: {
