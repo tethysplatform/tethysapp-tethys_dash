@@ -1,13 +1,23 @@
 import PropTypes from "prop-types";
-import { useContext, useEffect } from "react";
+import { useContext, useEffect, useRef } from "react";
 import DatePicker from "components/inputs/DatePicker";
-import { addVerticalLine } from "components/visualizations/BasePlot";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import { getDependentVariableInputs } from "components/visualizations/utilities";
 import { checkForVariable } from "components/inputs/dateUtils";
+import ColorPickerPopover from "components/inputs/ColorPickerPopOver";
+import NormalInput from "components/inputs/NormalInput";
+import styled from "styled-components";
+import DataSelect from "components/inputs/DataSelect";
+
+const FlexDiv = styled.div`
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+`;
 
 const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
   const { variableInputValues } = useContext(VariableInputsContext);
+  const containerRef = useRef();
 
   const verticalLineMode = settings?.plotlyVerticalLine?.mode || "off";
   const verticalLineValue = settings?.plotlyVerticalLine?.value || "";
@@ -17,34 +27,8 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
       : "#ff0000";
   const verticalLineWidth = settings?.plotlyVerticalLine?.width || 2;
   const verticalLineDash = settings?.plotlyVerticalLine?.dash || "solid";
-
-  // Update vertical line when variable input values change or when mode is on
-  useEffect(() => {
-    if (verticalLineMode === "on" && verticalLineValue) {
-      let resolvedValue = verticalLineValue;
-
-      if (checkForVariable(verticalLineValue)) {
-        const dependentVars = getDependentVariableInputs(verticalLineValue);
-        resolvedValue = variableInputValues[dependentVars[0]];
-
-        if (!resolvedValue) return;
-      }
-
-      addVerticalLine(visualizationRef, resolvedValue, {
-        color: verticalLineColor,
-        width: verticalLineWidth,
-        dash: verticalLineDash,
-      });
-    }
-  }, [
-    variableInputValues,
-    verticalLineMode,
-    verticalLineValue,
-    verticalLineColor,
-    verticalLineWidth,
-    verticalLineDash,
-    visualizationRef,
-  ]);
+  const verticalLineStep = settings?.plotlyVerticalLine?.step || "minute";
+  const verticalLineEditable = settings?.plotlyVerticalLine?.editable ?? false;
 
   const handleVerticalLineModeChange = (mode) => {
     if (mode === "off") {
@@ -62,6 +46,8 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
           color: prev?.plotlyVerticalLine?.color || "#ff0000", //red
           width: prev?.plotlyVerticalLine?.width || 2,
           dash: prev?.plotlyVerticalLine?.dash || "solid",
+          step: prev?.plotlyVerticalLine?.step || "minute",
+          editable: prev?.plotlyVerticalLine?.editable ?? false,
         },
       }));
     }
@@ -83,11 +69,6 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
 
       if (!resolvedValue) return;
     }
-    addVerticalLine(visualizationRef, resolvedValue, {
-      color: verticalLineColor,
-      width: verticalLineWidth,
-      dash: verticalLineDash,
-    });
   };
 
   const handleVerticalLineColorChange = (color) => {
@@ -121,7 +102,7 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
   };
 
   return (
-    <div>
+    <div ref={containerRef}>
       <div className="mb-3">
         <label className="form-label fw-bold">Vertical Line</label>
 
@@ -168,56 +149,44 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
             </div>
 
             {/* Styling Options */}
-            <div className="row">
-              <div className="col-md-4 mb-2">
-                <label className="form-label" htmlFor="verticalLineColor">
-                  Color
-                </label>
-                <input
-                  id="verticalLineColor"
-                  type="color"
-                  className="form-control form-control-color"
-                  value={verticalLineColor}
-                  onChange={(e) =>
-                    handleVerticalLineColorChange(e.target.value)
-                  }
+            <FlexDiv>
+              <div>
+                <ColorPickerPopover
+                  label="Color"
+                  color={verticalLineColor}
+                  onChange={handleVerticalLineColorChange}
+                  containerRef={containerRef}
                 />
               </div>
-
-              <div className="col-md-4 mb-2">
-                <label className="form-label" htmlFor="verticalLineWidth">
-                  Width
-                </label>
-                <input
-                  id="verticalLineWidth"
-                  type="number"
-                  className="form-control"
-                  min="1"
-                  max="10"
-                  value={verticalLineWidth}
+              <div>
+                <NormalInput
+                  label="Width"
                   onChange={(e) =>
                     handleVerticalLineWidthChange(e.target.value)
                   }
+                  value={verticalLineWidth}
+                  type="number"
+                  ariaLabel="Vertical Line Width"
+                  min="1"
+                  max="10"
                 />
               </div>
-
-              <div className="col-md-4 mb-2">
-                <label className="form-label" htmlFor="verticalLineDash">
-                  Line Style
-                </label>
-                <select
-                  id="verticalLineDash"
-                  className="form-select"
+              <div>
+                <DataSelect
+                  label="Line Style"
                   value={verticalLineDash}
-                  onChange={(e) => handleVerticalLineDashChange(e.target.value)}
-                >
-                  <option value="solid">Solid</option>
-                  <option value="dash">Dashed</option>
-                  <option value="dot">Dotted</option>
-                  <option value="dashdot">Dash-Dot</option>
-                </select>
+                  onChange={handleVerticalLineDashChange}
+                  options={[
+                    { value: "solid", label: "Solid" },
+                    { value: "dash", label: "Dashed" },
+                    { value: "dot", label: "Dotted" },
+                    { value: "dashdot", label: "Dash-Dot" },
+                  ]}
+                  ariaLabel="Vertical Line Style"
+                  creatable={false}
+                />
               </div>
-            </div>
+            </FlexDiv>
           </div>
         )}
       </div>

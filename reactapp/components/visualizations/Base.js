@@ -65,7 +65,14 @@ const CenteredContainer = styled.div`
 `;
 
 export const Visualization = memo(
-  ({ vizRef, vizType, vizData, progressMessage, dataviewerViz }) => {
+  ({
+    vizRef,
+    vizType,
+    vizData,
+    vizMetadata,
+    progressMessage,
+    dataviewerViz,
+  }) => {
     if (progressMessage && vizType === "loader") {
       const msgObj = JSON.parse(progressMessage);
       const { message, step, totalSteps } = msgObj;
@@ -138,6 +145,7 @@ export const Visualization = memo(
             layout={vizData.layout}
             config={vizData.config}
             visualizationRef={vizRef}
+            metadata={vizMetadata}
           />
         );
       case "card":
@@ -259,6 +267,7 @@ const BaseVisualization = () => {
   } = useContext(GridItemContext);
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
+  const [vizMetadata, setVizMetadata] = useState({});
   const { visualizations } = useContext(AppContext);
   const { variableInputValues, variableInputDateFormats } = useContext(
     VariableInputsContext,
@@ -403,32 +412,7 @@ const BaseVisualization = () => {
       )
     ) {
       gridItemMetadataWithVariableInputs.current = updatedGridItemMetadata;
-
-      const sourceType = findSelectOptionByValue(
-        visualizations,
-        gridItemSource,
-        "source",
-      )?.type;
-
-      if (
-        sourceType === "plotly" &&
-        updatedGridItemMetadata?.plotlyVerticalLine
-      ) {
-        let verticalLineValue =
-          updatedGridItemMetadata?.plotlyVerticalLine?.value;
-        const verticalLineColor =
-          updatedGridItemMetadata?.plotlyVerticalLine?.color;
-        const verticalLineWidth =
-          updatedGridItemMetadata?.plotlyVerticalLine?.width;
-        const verticalLineDash =
-          updatedGridItemMetadata?.plotlyVerticalLine?.dash;
-
-        addVerticalLine(dashboardVizRef, verticalLineValue, {
-          color: verticalLineColor,
-          width: verticalLineWidth,
-          dash: verticalLineDash,
-        });
-      }
+      setVizMetadata(updatedGridItemMetadata);
     }
   }
 
@@ -437,6 +421,7 @@ const BaseVisualization = () => {
       vizRef={dashboardVizRef}
       vizType={vizType}
       vizData={vizData}
+      vizMetadata={vizMetadata}
       progressMessage={getMessageForRequest(requestId.current)}
     />
   );
@@ -451,6 +436,7 @@ Visualization.propTypes = {
   vizData: PropTypes.object, // contains information for the various visualization args
   dataviewerViz: PropTypes.bool, // determines if the visualization is in the dataviewer
   progressMessage: PropTypes.string, // stringified object that contains message, step, and totalSteps
+  vizMetadata: PropTypes.object, // contains metadata for the visualization
 };
 
 // Custom comparison function for BaseVisualization
@@ -461,7 +447,8 @@ const areBasePropsEqual = (prevProps, nextProps) => {
     valuesEqual(prevProps.argsString, nextProps.argsString) &&
     valuesEqual(prevProps.metadataString, nextProps.metadataString) &&
     valuesEqual(prevProps.shouldLoad, nextProps.shouldLoad) &&
-    valuesEqual(prevProps.uuid, nextProps.uuid)
+    valuesEqual(prevProps.uuid, nextProps.uuid) &&
+    valuesEqual(prevProps.vizMetadata, nextProps.vizMetadata)
   );
 };
 
