@@ -8,12 +8,20 @@ import ColorPickerPopover from "components/inputs/ColorPickerPopOver";
 import NormalInput from "components/inputs/NormalInput";
 import styled from "styled-components";
 import DataSelect from "components/inputs/DataSelect";
+import { findSelectOptionByValue } from "components/visualizations/utilities";
 
 const FlexDiv = styled.div`
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
 `;
+
+const lineDashOptions = [
+  { value: "solid", label: "Solid" },
+  { value: "dash", label: "Dashed" },
+  { value: "dot", label: "Dotted" },
+  { value: "dashdot", label: "Dash-Dot" },
+];
 
 const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
   const { variableInputValues } = useContext(VariableInputsContext);
@@ -91,12 +99,12 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
     }));
   };
 
-  const handleVerticalLineDashChange = (dash) => {
+  const handleVerticalLineDashChange = (dashOption) => {
     setSettings((prev) => ({
       ...prev,
       plotlyVerticalLine: {
         ...prev?.plotlyVerticalLine,
-        dash: dash,
+        dash: dashOption.value,
       },
     }));
   };
@@ -174,14 +182,12 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
               <div>
                 <DataSelect
                   label="Line Style"
-                  value={verticalLineDash}
+                  value={findSelectOptionByValue(
+                    lineDashOptions,
+                    verticalLineDash,
+                  )}
                   onChange={handleVerticalLineDashChange}
-                  options={[
-                    { value: "solid", label: "Solid" },
-                    { value: "dash", label: "Dashed" },
-                    { value: "dot", label: "Dotted" },
-                    { value: "dashdot", label: "Dash-Dot" },
-                  ]}
+                  options={lineDashOptions}
                   ariaLabel="Vertical Line Style"
                   creatable={false}
                 />

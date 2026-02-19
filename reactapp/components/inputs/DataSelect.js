@@ -9,7 +9,6 @@ const StyledDiv = styled.div`
 
 const DataSelect = ({
   label,
-  value,
   selectedOption,
   onChange,
   options,
@@ -21,24 +20,6 @@ const DataSelect = ({
   if (label) {
     id = label.toLowerCase().replace(" ", "");
   }
-
-  // Support both value (string) and selectedOption (object) props for flexibility
-  // If value is provided, map it to the corresponding option object
-  const optionValue =
-    selectedOption ||
-    (typeof value !== "undefined"
-      ? options.find((opt) => opt.value === value) || null
-      : null);
-
-  // Always call onChange with just the value (string)
-  const handleChange = (option) => {
-    if (option && option.value !== undefined) {
-      onChange(option.value);
-    } else {
-      onChange("");
-    }
-  };
-
   return (
     <StyledDiv {...divProps}>
       {label && (
@@ -50,8 +31,8 @@ const DataSelect = ({
         <CreatableSelect
           formatCreateLabel={(userInput) => `Use "${userInput}"`}
           options={options}
-          value={optionValue}
-          onChange={handleChange}
+          value={selectedOption}
+          onChange={onChange}
           aria-label={id}
           inputID={id}
           styles={{
@@ -69,8 +50,8 @@ const DataSelect = ({
       ) : (
         <Select
           options={options}
-          value={optionValue}
-          onChange={handleChange}
+          value={selectedOption}
+          onChange={onChange}
           inputID={id}
           aria-label={id}
           styles={{
@@ -91,11 +72,10 @@ const DataSelect = ({
 };
 
 DataSelect.propTypes = {
-  onChange: PropTypes.func.isRequired,
+  onChange: PropTypes.func,
   label: PropTypes.string,
-  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
   selectedOption: PropTypes.object,
-  options: PropTypes.array.isRequired,
+  options: PropTypes.array,
   creatable: PropTypes.bool,
   divProps: PropTypes.object,
 };

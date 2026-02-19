@@ -21,7 +21,10 @@ import Tabs from "react-bootstrap/Tabs";
 import TextEditor from "components/inputs/TextEditor";
 import { Visualization } from "components/visualizations/Base";
 import MapContextProvider from "components/contexts/MapContext";
-import { findVisualizationBySource } from "components/visualizations/utilities";
+import {
+  findVisualizationBySource,
+  updateObjectWithVariableInputs,
+} from "components/visualizations/utilities";
 import { v4 as uuidv4 } from "uuid";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import "components/modals/wideModal.css";
@@ -186,9 +189,8 @@ function DataViewerModal({
   const [vizInputsValues, setVizInputsValues] = useState(
     initialVizInputsValues,
   );
-  const [variableInputValue, setVariableInputValue] = useState(
-    initialVariableInputValue,
-  );
+  const [variableInputValue, setVariableInputValue, variableInputDateFormats] =
+    useState(initialVariableInputValue);
   const [vizMetadata, setVizMetadata] = useState(null);
   const [vizType, setVizType] = useState("unknown");
   const [vizData, setVizData] = useState({});
@@ -402,6 +404,11 @@ function DataViewerModal({
                     vizType={vizType}
                     vizData={vizData}
                     dataviewerViz={true}
+                    vizMetadata={updateObjectWithVariableInputs(
+                      settings,
+                      variableInputValues,
+                      variableInputDateFormats,
+                    )}
                     progressMessage={getMessageForRequest(requestId.current)}
                   />
                 )}
