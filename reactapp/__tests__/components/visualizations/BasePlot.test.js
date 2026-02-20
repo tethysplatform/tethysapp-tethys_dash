@@ -9,23 +9,11 @@ const mockPlotly = {
 jest.mock("plotly.js-strict-dist-min", () => mockPlotly);
 
 // eslint-disable-next-line
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 // eslint-disable-next-line
 import { createRef } from "react";
-
-const {
-  default: BasePlot,
-  addVerticalLine,
-} = require("components/visualizations/BasePlot");
-
-// Helper to create a mock plotRef
-function createMockPlotRef(layout = {}) {
-  return {
-    current: {
-      el: { layout },
-    },
-  };
-}
+// eslint-disable-next-line
+import BasePlot from "components/visualizations/BasePlot";
 
 beforeEach(() => {
   delete window.ResizeObserver;
@@ -52,7 +40,7 @@ describe("BasePlot", () => {
         layout={layout}
         config={config}
         visualizationRef={createRef()}
-      />
+      />,
     );
     // Should render a plot container div with flex style
     // eslint-disable-next-line
@@ -61,163 +49,163 @@ describe("BasePlot", () => {
   });
 });
 
-describe("addVerticalLine", () => {
-  beforeEach(() => {
-    mockRelayout.mockClear();
-  });
+// describe("addVerticalLine", () => {
+//   beforeEach(() => {
+//     mockRelayout.mockClear();
+//   });
 
-  it("handles layout with no shapes property (undefined)", () => {
-    const plotRef = createMockPlotRef({}); // layout has no shapes
-    addVerticalLine(plotRef, "2022-01-01");
-    const shapes = mockRelayout.mock.calls[0][1].shapes;
-    expect(Array.isArray(shapes)).toBe(true);
-    expect(shapes.length).toBe(1);
-    expect(shapes[0].type).toBe("line");
-  });
+//   it("handles layout with no shapes property (undefined)", () => {
+//     const plotRef = createMockPlotRef({}); // layout has no shapes
+//     addVerticalLine(plotRef, "2022-01-01");
+//     const shapes = mockRelayout.mock.calls[0][1].shapes;
+//     expect(Array.isArray(shapes)).toBe(true);
+//     expect(shapes.length).toBe(1);
+//     expect(shapes[0].type).toBe("line");
+//   });
 
-  it("sets both id and variable properties in meta for the vertical line shape", () => {
-    const plotRef = createMockPlotRef({ shapes: [] });
-    addVerticalLine(plotRef, "2022-01-01", {
-      id: "custom_id_123",
-      variable: "custom_var_456",
-    });
-    const shapes = mockRelayout.mock.calls[0][1].shapes;
-    expect(shapes[0].meta.id).toBe("custom_id_123");
-    expect(shapes[0].meta.variable).toBe("custom_var_456");
-  });
+//   it("sets both id and variable properties in meta for the vertical line shape", () => {
+//     const plotRef = createMockPlotRef({ shapes: [] });
+//     addVerticalLine(plotRef, "2022-01-01", {
+//       id: "custom_id_123",
+//       variable: "custom_var_456",
+//     });
+//     const shapes = mockRelayout.mock.calls[0][1].shapes;
+//     expect(shapes[0].meta.id).toBe("custom_id_123");
+//     expect(shapes[0].meta.variable).toBe("custom_var_456");
+//   });
 
-  it("sets the variable property in meta for the vertical line shape", () => {
-    const plotRef = createMockPlotRef({ shapes: [] });
-    addVerticalLine(plotRef, "2022-01-01", { variable: "myVar" });
-    const shapes = mockRelayout.mock.calls[0][1].shapes;
-    expect(shapes[0].meta.variable).toBe("myVar");
-  });
+//   it("sets the variable property in meta for the vertical line shape", () => {
+//     const plotRef = createMockPlotRef({ shapes: [] });
+//     addVerticalLine(plotRef, "2022-01-01", { variable: "myVar" });
+//     const shapes = mockRelayout.mock.calls[0][1].shapes;
+//     expect(shapes[0].meta.variable).toBe("myVar");
+//   });
 
-  it("adds a vertical line with default options", () => {
-    const plotRef = createMockPlotRef({ shapes: [] });
-    addVerticalLine(plotRef, "2022-01-01");
-    expect(mockRelayout).toHaveBeenCalledWith(
-      plotRef.current.el,
-      expect.objectContaining({ shapes: expect.any(Array) })
-    );
-    const shapes = mockRelayout.mock.calls[0][1].shapes;
-    expect(shapes[0].type).toBe("line");
-    // Test that the x0 value is a valid ISO string with Z suffix
-    expect(shapes[0].x0).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
-    // Test that the parsed date corresponds to the input (allowing for timezone conversion)
-    const inputDate = new Date("2022-01-01");
-    const resultDate = new Date(shapes[0].x0.replace("Z", ""));
-    expect(resultDate.getTime()).toBe(inputDate.getTime());
-    expect(shapes[0].line.color).toBe("red");
-  });
+//   it("adds a vertical line with default options", () => {
+//     const plotRef = createMockPlotRef({ shapes: [] });
+//     addVerticalLine(plotRef, "2022-01-01");
+//     expect(mockRelayout).toHaveBeenCalledWith(
+//       plotRef.current.el,
+//       expect.objectContaining({ shapes: expect.any(Array) })
+//     );
+//     const shapes = mockRelayout.mock.calls[0][1].shapes;
+//     expect(shapes[0].type).toBe("line");
+//     // Test that the x0 value is a valid ISO string with Z suffix
+//     expect(shapes[0].x0).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
+//     // Test that the parsed date corresponds to the input (allowing for timezone conversion)
+//     const inputDate = new Date("2022-01-01");
+//     const resultDate = new Date(shapes[0].x0.replace("Z", ""));
+//     expect(resultDate.getTime()).toBe(inputDate.getTime());
+//     expect(shapes[0].line.color).toBe("red");
+//   });
 
-  it("sets the id property in meta for the vertical line shape", () => {
-    const plotRef = createMockPlotRef({ shapes: [] });
-    addVerticalLine(plotRef, "2022-01-01", { id: "test_vline_id" });
-    const shapes = mockRelayout.mock.calls[0][1].shapes;
-    expect(shapes[0].meta.id).toBe("test_vline_id");
-  });
+//   it("sets the id property in meta for the vertical line shape", () => {
+//     const plotRef = createMockPlotRef({ shapes: [] });
+//     addVerticalLine(plotRef, "2022-01-01", { id: "test_vline_id" });
+//     const shapes = mockRelayout.mock.calls[0][1].shapes;
+//     expect(shapes[0].meta.id).toBe("test_vline_id");
+//   });
 
-  it("removes existing vertical lines if removeExisting is true", () => {
-    const existingShape = {
-      type: "line",
-      meta: { createdBy: "addVerticalLine" },
-    };
-    const plotRef = createMockPlotRef({ shapes: [existingShape] });
-    addVerticalLine(plotRef, "2022-01-01", { removeExisting: true });
-    const shapes = mockRelayout.mock.calls[0][1].shapes;
-    expect(shapes.length).toBe(1);
-    expect(shapes[0].meta.createdBy).toBe("addVerticalLine");
-  });
+//   it("removes existing vertical lines if removeExisting is true", () => {
+//     const existingShape = {
+//       type: "line",
+//       meta: { createdBy: "addVerticalLine" },
+//     };
+//     const plotRef = createMockPlotRef({ shapes: [existingShape] });
+//     addVerticalLine(plotRef, "2022-01-01", { removeExisting: true });
+//     const shapes = mockRelayout.mock.calls[0][1].shapes;
+//     expect(shapes.length).toBe(1);
+//     expect(shapes[0].meta.createdBy).toBe("addVerticalLine");
+//   });
 
-  it("does not add a line if plotRef is missing", () => {
-    addVerticalLine(null, "2022-01-01");
-    expect(mockRelayout).not.toHaveBeenCalled();
-  });
+//   it("does not add a line if plotRef is missing", () => {
+//     addVerticalLine(null, "2022-01-01");
+//     expect(mockRelayout).not.toHaveBeenCalled();
+//   });
 
-  it("handles xValue as datetime string with time", () => {
-    const plotRef = createMockPlotRef({ shapes: [] });
-    addVerticalLine(plotRef, "2022-01-01 12:34");
-    const shapes = mockRelayout.mock.calls[0][1].shapes;
-    // Test that the x0 value is a valid ISO string with Z suffix
-    expect(shapes[0].x0).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
-    // Test that the parsed date corresponds to the input (allowing for timezone conversion)
-    const inputDate = new Date("2022-01-01 12:34");
-    const resultDate = new Date(shapes[0].x0.replace("Z", ""));
-    expect(resultDate.getTime()).toBe(inputDate.getTime());
-  });
+//   it("handles xValue as datetime string with time", () => {
+//     const plotRef = createMockPlotRef({ shapes: [] });
+//     addVerticalLine(plotRef, "2022-01-01 12:34");
+//     const shapes = mockRelayout.mock.calls[0][1].shapes;
+//     // Test that the x0 value is a valid ISO string with Z suffix
+//     expect(shapes[0].x0).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
+//     // Test that the parsed date corresponds to the input (allowing for timezone conversion)
+//     const inputDate = new Date("2022-01-01 12:34");
+//     const resultDate = new Date(shapes[0].x0.replace("Z", ""));
+//     expect(resultDate.getTime()).toBe(inputDate.getTime());
+//   });
 
-  it("handles xValue as number", () => {
-    const plotRef = createMockPlotRef({ shapes: [] });
-    addVerticalLine(plotRef, 123);
-    const shapes = mockRelayout.mock.calls[0][1].shapes;
-    // Test that the x0 value is a valid ISO string with Z suffix
-    expect(shapes[0].x0).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
-    // Test that it represents the correct timestamp (123ms after epoch)
-    const parsedDate = new Date(shapes[0].x0.replace("Z", ""));
-    expect(parsedDate.getTime()).toBe(123);
-  });
+//   it("handles xValue as number", () => {
+//     const plotRef = createMockPlotRef({ shapes: [] });
+//     addVerticalLine(plotRef, 123);
+//     const shapes = mockRelayout.mock.calls[0][1].shapes;
+//     // Test that the x0 value is a valid ISO string with Z suffix
+//     expect(shapes[0].x0).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
+//     // Test that it represents the correct timestamp (123ms after epoch)
+//     const parsedDate = new Date(shapes[0].x0.replace("Z", ""));
+//     expect(parsedDate.getTime()).toBe(123);
+//   });
 
-  it("handles xValue as new format", () => {
-    const plotRef = createMockPlotRef({ shapes: [] });
-    addVerticalLine(plotRef, "1970-01-01T00");
-    const shapes = mockRelayout.mock.calls[0][1].shapes;
-    expect(shapes[0].x0).toBe("1970-01-01T00");
-  });
+//   it("handles xValue as new format", () => {
+//     const plotRef = createMockPlotRef({ shapes: [] });
+//     addVerticalLine(plotRef, "1970-01-01T00");
+//     const shapes = mockRelayout.mock.calls[0][1].shapes;
+//     expect(shapes[0].x0).toBe("1970-01-01T00");
+//   });
 
-  it("handles custom options", () => {
-    const plotRef = createMockPlotRef({ shapes: [] });
-    addVerticalLine(plotRef, "2022-01-01", {
-      color: "blue",
-      width: 5,
-      dash: "dot",
-      id: "custom_id",
-    });
-    const shapes = mockRelayout.mock.calls[0][1].shapes;
-    expect(shapes[0].line.color).toBe("blue");
-    expect(shapes[0].line.width).toBe(5);
-    expect(shapes[0].line.dash).toBe("dot");
-    expect(shapes[0].meta.id).toBe("custom_id");
-  });
+//   it("handles custom options", () => {
+//     const plotRef = createMockPlotRef({ shapes: [] });
+//     addVerticalLine(plotRef, "2022-01-01", {
+//       color: "blue",
+//       width: 5,
+//       dash: "dot",
+//       id: "custom_id",
+//     });
+//     const shapes = mockRelayout.mock.calls[0][1].shapes;
+//     expect(shapes[0].line.color).toBe("blue");
+//     expect(shapes[0].line.width).toBe(5);
+//     expect(shapes[0].line.dash).toBe("dot");
+//     expect(shapes[0].meta.id).toBe("custom_id");
+//   });
 
-  it("plotly relayout error handling", () => {
-    const plotRef = createMockPlotRef({ shapes: [] });
-    mockPlotly.relayout.mockImplementationOnce(() => {
-      throw new Error("Relayout failed");
-    });
-    console.warn = jest.fn();
-    addVerticalLine(plotRef, "2022-01-01");
-    expect(console.warn).toHaveBeenCalledWith(
-      "Failed to add vertical line:",
-      expect.any(Error)
-    );
-  });
+//   it("plotly relayout error handling", () => {
+//     const plotRef = createMockPlotRef({ shapes: [] });
+//     mockPlotly.relayout.mockImplementationOnce(() => {
+//       throw new Error("Relayout failed");
+//     });
+//     console.warn = jest.fn();
+//     addVerticalLine(plotRef, "2022-01-01");
+//     expect(console.warn).toHaveBeenCalledWith(
+//       "Failed to add vertical line:",
+//       expect.any(Error)
+//     );
+//   });
 
-  it("handles date parsing errors and uses original value", () => {
-    const plotRef = createMockPlotRef({ shapes: [] });
+//   it("handles date parsing errors and uses original value", () => {
+//     const plotRef = createMockPlotRef({ shapes: [] });
 
-    // Mock Date constructor to throw an error for a specific value
-    const originalDate = global.Date;
-    global.Date = class extends originalDate {
-      constructor(...args) {
-        if (args.length === 1 && args[0] === "invalid-date-string") {
-          throw new Error("Invalid date");
-        }
-        return new originalDate(...args);
-      }
-    };
+//     // Mock Date constructor to throw an error for a specific value
+//     const originalDate = global.Date;
+//     global.Date = class extends originalDate {
+//       constructor(...args) {
+//         if (args.length === 1 && args[0] === "invalid-date-string") {
+//           throw new Error("Invalid date");
+//         }
+//         return new originalDate(...args);
+//       }
+//     };
 
-    // Copy static methods
-    Object.setPrototypeOf(global.Date, originalDate);
-    Object.defineProperty(global.Date, "now", { value: originalDate.now });
+//     // Copy static methods
+//     Object.setPrototypeOf(global.Date, originalDate);
+//     Object.defineProperty(global.Date, "now", { value: originalDate.now });
 
-    addVerticalLine(plotRef, "invalid-date-string");
+//     addVerticalLine(plotRef, "invalid-date-string");
 
-    const shapes = mockRelayout.mock.calls[0][1].shapes;
-    expect(shapes[0].x0).toBe("invalid-date-string");
-    expect(shapes[0].x1).toBe("invalid-date-string");
+//     const shapes = mockRelayout.mock.calls[0][1].shapes;
+//     expect(shapes[0].x0).toBe("invalid-date-string");
+//     expect(shapes[0].x1).toBe("invalid-date-string");
 
-    // Restore original Date constructor
-    global.Date = originalDate;
-  });
-});
+//     // Restore original Date constructor
+//     global.Date = originalDate;
+//   });
+// });

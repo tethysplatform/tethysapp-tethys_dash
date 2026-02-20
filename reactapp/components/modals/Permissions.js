@@ -111,10 +111,6 @@ function PermissionsModal({
     { label: "Private", value: false },
   ];
 
-  function onPublicChange(e) {
-    setPublicStatus(e.target.value === "true");
-  }
-
   const handleModalClose = () => {
     setShowModal(false);
     setErrorMessage(null);
@@ -327,7 +323,7 @@ function PermissionsModal({
             label={"Public Status"}
             selectedRadio={publicStatus}
             radioOptions={publicStatusOptions}
-            onChange={onPublicChange}
+            onChange={setPublicStatus}
           />
         )}
         <label>

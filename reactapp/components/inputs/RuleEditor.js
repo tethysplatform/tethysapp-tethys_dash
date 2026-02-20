@@ -42,7 +42,7 @@ const FullWidthContainer = styled.div`
 const StyleContainer = styled.div`
   display: flex;
   gap: ${(props) => (props.$gap ? props.$gap : 16)}px;
-  align-items: center;
+  align-items: ${(props) => (props.$align ? props.$align : "center")};
   margin-top: 8px;
   flex-wrap: wrap;
   width: 100%;
@@ -460,6 +460,7 @@ function StyleOptionControl({
           color={value || (keyName === "fill" ? defaultFill : defaultStroke)}
           onChange={(color) => styleValueChange(keyName, color)}
           containerRef={containerRef}
+          divProps={defaultSection && { style: { "flex-direction": "column" } }}
         />
       </StyleContainer>
     );
@@ -608,7 +609,7 @@ const DefaultStyleSection = ({ rule, onChange, containerRef, sectionName }) => (
     >
       {spaceAndCapitalize(sectionName)}
     </div>
-    <StyleContainer>
+    <StyleContainer $align="flex-start">
       {geomStyleOptions[sectionName].map((optKey) => (
         <div key={optKey} style={{ display: "flex", alignItems: "center" }}>
           <StyleOptionControl

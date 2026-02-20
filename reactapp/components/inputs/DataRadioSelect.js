@@ -3,8 +3,11 @@ import styled from "styled-components";
 import Form from "react-bootstrap/Form";
 
 const StyledDiv = styled.div`
-  padding-bottom: 1rem;
-  width: 100%;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 1rem;
 `;
 
 const DataRadioSelect = ({
@@ -12,34 +15,34 @@ const DataRadioSelect = ({
   selectedRadio,
   radioOptions,
   onChange,
-  blockedRadio,
+  divProps,
+  labelProps,
 }) => {
   let RadioButtons = [];
   const groupName = label?.replace(" ", "-") ?? "radios";
   for (let i = 0; i < radioOptions.length; i++) {
     RadioButtons.push(
       <Form.Check
-        inline={blockedRadio ? false : true}
         key={i}
         label={radioOptions[i]["label"]}
         aria-label={radioOptions[i]["label"]}
         name={groupName}
         type="radio"
-        onChange={onChange}
+        onChange={() => onChange(radioOptions[i]["value"])}
         value={radioOptions[i]["value"]}
         checked={selectedRadio === radioOptions[i]["value"]}
-      />
+        style={{ marginBottom: 0 }}
+      />,
     );
   }
 
   return (
-    <StyledDiv>
+    <StyledDiv {...divProps}>
       {label && (
-        <>
+        <span {...labelProps}>
           <b>{label}</b>:
-        </>
+        </span>
       )}
-      <br />
       {RadioButtons}
     </StyledDiv>
   );
@@ -50,7 +53,8 @@ DataRadioSelect.propTypes = {
   onChange: PropTypes.func,
   selectedRadio: PropTypes.oneOfType([PropTypes.bool, PropTypes.string]),
   radioOptions: PropTypes.array,
-  blockedRadio: PropTypes.bool,
+  divProps: PropTypes.object,
+  labelProps: PropTypes.object,
 };
 
 export default DataRadioSelect;

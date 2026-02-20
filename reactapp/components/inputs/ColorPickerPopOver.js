@@ -5,6 +5,12 @@ import Overlay from "react-bootstrap/Overlay";
 import Popover from "react-bootstrap/Popover";
 import styled from "styled-components";
 
+const FlexDiv = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+`;
+
 const ColorSwatch = styled.div`
   width: 24px;
   height: 24px;
@@ -20,12 +26,18 @@ const StyledPopoverBody = styled(Popover.Body)`
   overflow-y: auto;
 `;
 
-const ColorPickerPopover = ({ label, color, onChange, containerRef }) => {
+const ColorPickerPopover = ({
+  label,
+  color,
+  onChange,
+  containerRef,
+  divProps,
+}) => {
   const divTarget = useRef(null);
   const [showColorPopover, setShowColorPopover] = useState(false);
 
   return (
-    <>
+    <FlexDiv {...divProps}>
       <span style={{ fontWeight: 500 }}>
         <b>{label}</b>:
       </span>
@@ -54,7 +66,7 @@ const ColorPickerPopover = ({ label, color, onChange, containerRef }) => {
           </StyledPopoverBody>
         </Popover>
       </Overlay>
-    </>
+    </FlexDiv>
   );
 };
 
@@ -63,6 +75,7 @@ ColorPickerPopover.propTypes = {
   color: PropTypes.string,
   onChange: PropTypes.func.isRequired,
   containerRef: PropTypes.object.isRequired,
+  divProps: PropTypes.object,
 };
 
 export default ColorPickerPopover;

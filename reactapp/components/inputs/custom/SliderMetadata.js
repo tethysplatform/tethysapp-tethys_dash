@@ -214,7 +214,7 @@ const SliderMetadata = ({ onChange, values }) => {
           { value: true, label: "Range" },
         ]}
         selectedRadio={rangeMode}
-        onChange={(e) => setRangeMode(e.target.value === "true")}
+        onChange={setRangeMode}
       />
       <DataSelect
         label="Data Type"

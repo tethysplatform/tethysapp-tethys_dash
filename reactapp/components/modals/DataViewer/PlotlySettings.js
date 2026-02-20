@@ -1,19 +1,30 @@
 import PropTypes from "prop-types";
-import { useContext, useEffect, useRef } from "react";
+import { useContext, useRef } from "react";
 import DatePicker from "components/inputs/DatePicker";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import { getDependentVariableInputs } from "components/visualizations/utilities";
 import { checkForVariable } from "components/inputs/dateUtils";
 import ColorPickerPopover from "components/inputs/ColorPickerPopOver";
 import NormalInput from "components/inputs/NormalInput";
+import DataRadioSelect from "components/inputs/DataRadioSelect";
+import CheckboxInput from "components/inputs/CheckboxInput";
 import styled from "styled-components";
 import DataSelect from "components/inputs/DataSelect";
 import { findSelectOptionByValue } from "components/visualizations/utilities";
 
 const FlexDiv = styled.div`
   display: flex;
-  gap: 1rem;
+  column-gap: 1rem;
   flex-wrap: wrap;
+`;
+
+const IndentedDiv = styled.div`
+  margin-left: 1rem;
+  padding-left: 1rem;
+`;
+
+const PaddedDiv = styled.div`
+  padding-bottom: 0.5rem;
 `;
 
 const lineDashOptions = [
@@ -21,6 +32,15 @@ const lineDashOptions = [
   { value: "dash", label: "Dashed" },
   { value: "dot", label: "Dotted" },
   { value: "dashdot", label: "Dash-Dot" },
+];
+
+const snapOptions = [
+  { value: "minute", label: "Minute" },
+  { value: "hour", label: "Hour" },
+  { value: "day", label: "Day" },
+  { value: "week", label: "Week" },
+  { value: "month", label: "Month" },
+  { value: "year", label: "Year" },
 ];
 
 const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
@@ -38,6 +58,36 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
   const verticalLineStep = settings?.plotlyVerticalLine?.step || "minute";
   const verticalLineEditable = settings?.plotlyVerticalLine?.editable ?? false;
 
+  const handleVerticalLineEditableChange = (checked) => {
+    setSettings((prev) => {
+      const { plotlyVerticalLine } = prev;
+      const { editable, step, ...lineSettings } = plotlyVerticalLine;
+      if (!checked) {
+        return {
+          ...prev,
+          plotlyVerticalLine: {
+            ...lineSettings,
+          },
+        };
+      }
+
+      return {
+        ...prev,
+        plotlyVerticalLine: { ...lineSettings, editable: true },
+      };
+    });
+  };
+
+  const handleVerticalLineStepChange = (stepOption) => {
+    setSettings((prev) => ({
+      ...prev,
+      plotlyVerticalLine: {
+        ...prev?.plotlyVerticalLine,
+        step: stepOption.value,
+      },
+    }));
+  };
+
   const handleVerticalLineModeChange = (mode) => {
     if (mode === "off") {
       setSettings((prev) => {
@@ -54,8 +104,6 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
           color: prev?.plotlyVerticalLine?.color || "#ff0000", //red
           width: prev?.plotlyVerticalLine?.width || 2,
           dash: prev?.plotlyVerticalLine?.dash || "solid",
-          step: prev?.plotlyVerticalLine?.step || "minute",
-          editable: prev?.plotlyVerticalLine?.editable ?? false,
         },
       }));
     }
@@ -111,52 +159,28 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
 
   return (
     <div ref={containerRef}>
-      <div className="mb-3">
-        <label className="form-label fw-bold">Vertical Line</label>
-
-        {/* Radio buttons for mode selection */}
-        <div className="mb-2">
-          <div className="form-check">
-            <input
-              className="form-check-input"
-              type="radio"
-              name="verticalLineMode"
-              id="verticalLineOff"
-              checked={verticalLineMode === "off"}
-              onChange={() => handleVerticalLineModeChange("off")}
-            />
-            <label className="form-check-label" htmlFor="verticalLineOff">
-              Off
-            </label>
-          </div>
-
-          <div className="form-check">
-            <input
-              className="form-check-input"
-              type="radio"
-              name="verticalLineMode"
-              id="verticalLineOn"
-              checked={verticalLineMode === "on"}
-              onChange={() => handleVerticalLineModeChange("on")}
-            />
-            <label className="form-check-label" htmlFor="verticalLineOn">
-              On
-            </label>
-          </div>
-        </div>
-
-        {/* Conditional inputs when vertical line is on */}
+      <FlexDiv>
+        <b>Vertical Line:</b>
+        <DataRadioSelect
+          radioOptions={[
+            { value: "off", label: "Off" },
+            { value: "on", label: "On" },
+          ]}
+          selectedRadio={verticalLineMode}
+          onChange={handleVerticalLineModeChange}
+          divProps={{ style: { width: "auto", paddingBottom: 0 } }}
+        />
+      </FlexDiv>
+      <IndentedDiv>
         {verticalLineMode === "on" && (
-          <div className="mt-2">
-            <div className="mb-3">
+          <div>
+            <PaddedDiv>
               <DatePicker
                 label="Date/Time"
                 value={verticalLineValue}
                 onChange={(e) => handleVerticalLineValueChange(e)}
               />
-            </div>
-
-            {/* Styling Options */}
+            </PaddedDiv>
             <FlexDiv>
               <div>
                 <ColorPickerPopover
@@ -164,11 +188,13 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
                   color={verticalLineColor}
                   onChange={handleVerticalLineColorChange}
                   containerRef={containerRef}
+                  divProps={{ style: { flexDirection: "column" } }}
                 />
               </div>
               <div>
                 <NormalInput
                   label="Width"
+                  labelProps={{ style: { marginBottom: 0 } }}
                   onChange={(e) =>
                     handleVerticalLineWidthChange(e.target.value)
                   }
@@ -192,10 +218,33 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
                   creatable={false}
                 />
               </div>
+              <div>
+                <CheckboxInput
+                  label="Draggable"
+                  value={verticalLineEditable}
+                  onChange={handleVerticalLineEditableChange}
+                  divProps={{ style: { flexDirection: "column" } }}
+                />
+              </div>
+              {verticalLineEditable && (
+                <div>
+                  <DataSelect
+                    label="Snap to"
+                    value={findSelectOptionByValue(
+                      snapOptions,
+                      verticalLineStep,
+                    )}
+                    onChange={handleVerticalLineStepChange}
+                    options={snapOptions}
+                    ariaLabel="Vertical Line Snap To"
+                    creatable={false}
+                  />
+                </div>
+              )}
             </FlexDiv>
           </div>
         )}
-      </div>
+      </IndentedDiv>
     </div>
   );
 };

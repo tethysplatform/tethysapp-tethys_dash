@@ -124,9 +124,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
         aria-label={label + " Input"}
         selectedRadio={value}
         radioOptions={valueOptions}
-        onChange={(e) => {
-          onChange(e.target.value);
-        }}
+        onChange={onChange}
         {...inputProps}
       />
     );

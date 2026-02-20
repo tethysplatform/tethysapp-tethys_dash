@@ -79,7 +79,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
   const [selectedUnrestrictedPlacement, setSelectedUnrestrictedPlacement] =
     useState(unrestrictedPlacement);
   const { deleteDashboard, copyDashboard } = useContext(
-    AvailableDashboardsContext
+    AvailableDashboardsContext,
   );
   const { user } = useContext(AppContext);
   const [localNotes, setLocalNotes] = useState(notes);
@@ -92,10 +92,6 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     { label: "On", value: true },
     { label: "Off", value: false },
   ];
-
-  function onUnrestrictedPlacementChange(e) {
-    setSelectedUnrestrictedPlacement(e.target.value === "true");
-  }
 
   const handleClose = () => {
     setShowCanvas(false);
@@ -116,7 +112,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
       } else {
         setErrorMessage(
           response["message"] ??
-            "Failed to update dashboard settings. Check server logs."
+            "Failed to update dashboard settings. Check server logs.",
         );
       }
     });
@@ -127,7 +123,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
     setErrorMessage("");
     if (
       await confirm(
-        "Are you sure you want to delete the " + name + " dashboard?"
+        "Are you sure you want to delete the " + name + " dashboard?",
       )
     ) {
       deleteDashboard(id).then((response) => {
@@ -225,7 +221,7 @@ function DashboardEditorCanvas({ showCanvas, setShowCanvas }) {
                 label={"Unrestricted Grid Item Placement"}
                 selectedRadio={selectedUnrestrictedPlacement}
                 radioOptions={unrestrictedPlacementOptions}
-                onChange={onUnrestrictedPlacementChange}
+                onChange={setSelectedUnrestrictedPlacement}
               />
               <TextEditorDiv>
                 <b>Notes</b>:<br></br>

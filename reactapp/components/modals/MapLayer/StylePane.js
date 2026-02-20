@@ -15,6 +15,7 @@ const EditorModeRow = styled.div`
   align-items: center;
   gap: 16px;
   margin-bottom: 12px;
+  justify-content: space-between;
 `;
 
 const StyledTextInput = styled.textarea`
@@ -143,11 +144,10 @@ const StylePane = ({
     setStyle(e.target.value);
   }
 
-  function handleStyleSourceChange(e) {
-    const source = e.target.value;
-    setStyleSource(source);
+  function handleStyleSourceChange(newSource) {
+    setStyleSource(newSource);
 
-    if (source === "custom") {
+    if (newSource === "custom") {
       setStyle("{}");
     } else {
       setStyle("");
@@ -187,7 +187,8 @@ const StylePane = ({
                 { value: "json", label: "JSON Editor" },
                 { value: "rules", label: "Rule-based Editor" },
               ]}
-              onChange={(e) => setStyleMode(e.target.value)}
+              onChange={setStyleMode}
+              divProps={{ style: { "margin-bottom": 0 } }}
             />
             {styleMode === "rules" && (
               <Button

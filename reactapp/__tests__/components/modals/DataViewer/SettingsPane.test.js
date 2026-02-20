@@ -43,13 +43,13 @@ test("Settings Pane", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   expect(
     await screen.findByText(
-      "Visualization must be loaded to change additional settings."
-    )
+      "Visualization must be loaded to change additional settings.",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -66,18 +66,18 @@ test("Settings Pane with visualizationRef Element", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const refreshRateInput = await screen.findByLabelText(
-    "Refresh Rate (Minutes) Input"
+    "Refresh Rate (Minutes) Input",
   );
   expect(refreshRateInput).toBeInTheDocument();
   fireEvent.change(refreshRateInput, { target: { value: -2 } });
   expect(refreshRateInput.value).toBe("0");
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 
   fireEvent.change(refreshRateInput, { target: { value: 2 } });
@@ -88,7 +88,7 @@ test("Settings Pane with visualizationRef Element", async () => {
   expect(await screen.findByTestId("settings")).toHaveTextContent(
     JSON.stringify({
       refreshRate: 2,
-    })
+    }),
   );
 });
 
@@ -108,17 +108,17 @@ test("Settings Pane with visualizationRef Image Element with current settings", 
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const refreshRateInput = await screen.findByLabelText(
-    "Refresh Rate (Minutes) Input"
+    "Refresh Rate (Minutes) Input",
   );
   expect(refreshRateInput).toBeInTheDocument();
   expect(refreshRateInput.value).toBe("5");
 
   const enforceAspectRationInput = screen.getByLabelText(
-    "Enforce Aspect Ratio Input"
+    "Enforce Aspect Ratio Input",
   );
   expect(enforceAspectRationInput).toBeInTheDocument();
   expect(enforceAspectRationInput).toBeChecked();
@@ -133,7 +133,7 @@ test("Settings Pane with visualizationRef Image Element with current settings", 
       refreshRate: 5,
       aspectRatio: 0.5,
       enforceAspectRatio: true,
-    })
+    }),
   );
 });
 
@@ -150,16 +150,16 @@ test("Settings Pane with visualizationRef Image Element but no natural width", a
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const enforceAspectRationInput = screen.queryByLabelText(
-    "Enforce Aspect Ratio Input"
+    "Enforce Aspect Ratio Input",
   );
   expect(enforceAspectRationInput).not.toBeInTheDocument();
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 });
 
@@ -170,11 +170,11 @@ test("Settings configure border", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 
   const leftBorderButton = await screen.findByLabelText("left Border Button");
@@ -212,7 +212,7 @@ test("Settings configure border", async () => {
   expect(await screen.findByTestId("settings")).toHaveTextContent(
     JSON.stringify({
       border: { border: `${defaultBorderWidth}px solid ${defaultBorderColor}` },
-    })
+    }),
   );
 
   // left border button will update existing
@@ -231,7 +231,7 @@ test("Settings configure border", async () => {
         "border-left": "1px dashed black",
         "border-right": "1px solid black",
       },
-    })
+    }),
   );
 });
 
@@ -246,13 +246,13 @@ test("Settings with border", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
     JSON.stringify({
       border: { border: "4px solid #ff6161" },
-    })
+    }),
   );
 
   const leftBorderButton = await screen.findByLabelText("left Border Button");
@@ -271,28 +271,28 @@ test("Settings with border", async () => {
   // eslint-disable-next-line
   expect(leftBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#ff6161"
+    "#ff6161",
   );
   // eslint-disable-next-line
   expect(topBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#ff6161"
+    "#ff6161",
   );
   // eslint-disable-next-line
   expect(rightBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#ff6161"
+    "#ff6161",
   );
   // eslint-disable-next-line
   expect(bottomBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#ff6161"
+    "#ff6161",
   );
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
     JSON.stringify({
       border: { border: "4px solid #ff6161" },
-    })
+    }),
   );
 
   // all border button will affect all sides
@@ -314,13 +314,13 @@ test("Settings with border", async () => {
   expect(await screen.findByTestId("settings")).toHaveTextContent(
     JSON.stringify({
       border: { border: "20px dashed #0000ff" },
-    })
+    }),
   );
 
   await userEvent.click(removeBordersButton);
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 });
 
@@ -340,7 +340,7 @@ test("Settings with top and bottom border", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const leftBorderButton = await screen.findByLabelText("left Border Button");
@@ -357,14 +357,14 @@ test("Settings with top and bottom border", async () => {
   // eslint-disable-next-line
   expect(topBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#7fc066"
+    "#7fc066",
   );
   // eslint-disable-next-line
   expect(rightBorderButton.querySelector("svg")).not.toHaveAttribute("color");
   // eslint-disable-next-line
   expect(bottomBorderButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#ff6161"
+    "#ff6161",
   );
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
@@ -373,7 +373,7 @@ test("Settings with top and bottom border", async () => {
         "border-top": "2px solid #7fc066",
         "border-bottom": "4px solid #ff6161",
       },
-    })
+    }),
   );
 });
 
@@ -386,23 +386,23 @@ test("Settings with backgroundColor", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
     JSON.stringify({
       backgroundColor: "#ff6161",
-    })
+    }),
   );
 
   const backgroundColorButton = await screen.findByLabelText(
-    "Background Color Selector"
+    "Background Color Selector",
   );
   expect(backgroundColorButton).toBeInTheDocument();
   // eslint-disable-next-line
   expect(backgroundColorButton.querySelector("svg")).toHaveAttribute(
     "color",
-    "#ff6161"
+    "#ff6161",
   );
 
   await userEvent.click(backgroundColorButton);
@@ -417,7 +417,7 @@ test("Settings with backgroundColor", async () => {
     expect(await screen.findByTestId("settings")).toHaveTextContent(
       JSON.stringify({
         backgroundColor: "#0000ff",
-      })
+      }),
     );
   });
 
@@ -427,7 +427,7 @@ test("Settings with backgroundColor", async () => {
   await userEvent.tab();
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 });
 
@@ -438,11 +438,11 @@ test("Settings with box shadow", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const boxShadowCheckbox = await screen.findByLabelText(
-    "Use Box Shadow Styling Input"
+    "Use Box Shadow Styling Input",
   );
   expect(boxShadowCheckbox).toBeInTheDocument();
 
@@ -451,13 +451,13 @@ test("Settings with box shadow", async () => {
   expect(await screen.findByTestId("settings")).toHaveTextContent(
     JSON.stringify({
       boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
-    })
+    }),
   );
 
   await userEvent.click(boxShadowCheckbox);
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 });
 
@@ -472,11 +472,11 @@ test("Settings with box shadow and border", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const boxShadowCheckbox = await screen.findByLabelText(
-    "Use Box Shadow Styling Input"
+    "Use Box Shadow Styling Input",
   );
   expect(boxShadowCheckbox).toBeInTheDocument();
 
@@ -486,7 +486,7 @@ test("Settings with box shadow and border", async () => {
     JSON.stringify({
       border: { border: "4px solid #ff6161" },
       boxShadow: "0 4px 8px #ff6161",
-    })
+    }),
   );
 
   await userEvent.click(boxShadowCheckbox);
@@ -494,7 +494,7 @@ test("Settings with box shadow and border", async () => {
   expect(await screen.findByTestId("settings")).toHaveTextContent(
     JSON.stringify({
       border: { border: "4px solid #ff6161" },
-    })
+    }),
   );
 });
 
@@ -514,11 +514,11 @@ test("Settings with box shadow and top and bottom border", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const boxShadowCheckbox = await screen.findByLabelText(
-    "Use Box Shadow Styling Input"
+    "Use Box Shadow Styling Input",
   );
   expect(boxShadowCheckbox).toBeInTheDocument();
 
@@ -531,7 +531,7 @@ test("Settings with box shadow and top and bottom border", async () => {
         "border-bottom": "4px solid #ff6161",
       },
       boxShadow: "0 4px 8px #ff6161,0 -4px 8px #7fc066",
-    })
+    }),
   );
 });
 
@@ -551,11 +551,11 @@ test("Settings with box shadow and left and right border", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const boxShadowCheckbox = await screen.findByLabelText(
-    "Use Box Shadow Styling Input"
+    "Use Box Shadow Styling Input",
   );
   expect(boxShadowCheckbox).toBeInTheDocument();
 
@@ -568,7 +568,7 @@ test("Settings with box shadow and left and right border", async () => {
         "border-right": "4px solid #ff6161",
       },
       boxShadow: "4px 0 8px #ff6161,-4px 0 8px #7fc066",
-    })
+    }),
   );
 });
 
@@ -588,13 +588,13 @@ test("Settings with box shadow and change border", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const leftBorderButton = await screen.findByLabelText("left Border Button");
   expect(leftBorderButton).toBeInTheDocument();
   const boxShadowCheckbox = await screen.findByLabelText(
-    "Use Box Shadow Styling Input"
+    "Use Box Shadow Styling Input",
   );
   expect(boxShadowCheckbox).toBeInTheDocument();
 
@@ -607,7 +607,7 @@ test("Settings with box shadow and change border", async () => {
         "border-right": "4px solid #ff6161",
       },
       boxShadow: "4px 0 8px #ff6161,-4px 0 8px #7fc066",
-    })
+    }),
   );
 
   await userEvent.click(leftBorderButton);
@@ -626,7 +626,7 @@ test("Settings with box shadow and change border", async () => {
           "border-right": "4px solid #ff6161",
         },
         boxShadow: "4px 0 8px #ff6161,-4px 0 8px #FF0000",
-      })
+      }),
     );
   });
 });
@@ -638,11 +638,11 @@ test("Settings with attribution", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const attributionCheckbox = await screen.findByLabelText(
-    "Show Attribution Input"
+    "Show Attribution Input",
   );
   expect(attributionCheckbox).toBeInTheDocument();
   expect(attributionCheckbox.checked).toBe(true);
@@ -650,14 +650,14 @@ test("Settings with attribution", async () => {
   await userEvent.click(attributionCheckbox);
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({ attribution: false })
+    JSON.stringify({ attribution: false }),
   );
   expect(attributionCheckbox.checked).toBe(false);
 
   await userEvent.click(attributionCheckbox);
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
   expect(attributionCheckbox.checked).toBe(true);
 });
@@ -669,22 +669,22 @@ test("Settings with existing attribution", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   const attributionCheckbox = await screen.findByLabelText(
-    "Show Attribution Input"
+    "Show Attribution Input",
   );
   expect(attributionCheckbox).toBeInTheDocument();
   expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({ attribution: false })
+    JSON.stringify({ attribution: false }),
   );
   expect(attributionCheckbox.checked).toBe(false);
 
   await userEvent.click(attributionCheckbox);
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
   expect(attributionCheckbox.checked).toBe(true);
 });
@@ -702,13 +702,13 @@ test("Settings with custom messaging", async () => {
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
     JSON.stringify({
       customMessaging: { error: "some custom error message" },
-    })
+    }),
   );
 
   const errorMessageInput = screen.getByLabelText("error Custom Message Input");
@@ -722,7 +722,7 @@ test("Settings with custom messaging", async () => {
   expect(await screen.findByTestId("settings")).toHaveTextContent(
     JSON.stringify({
       customMessaging: { error: "a new custom message" },
-    })
+    }),
   );
 
   fireEvent.change(errorMessageInput, {
@@ -730,7 +730,7 @@ test("Settings with custom messaging", async () => {
   });
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
-    JSON.stringify({})
+    JSON.stringify({}),
   );
 });
 
@@ -745,18 +745,18 @@ test("SettingsPane renders PlotlySettings when visualizationRef.current.el.class
       options: {
         inDataViewerMode: true,
       },
-    })
+    }),
   );
   // Check for a PlotlySettings-specific element or behavior
   // For example, if PlotlySettings renders a known label or input
   // Here, we check for the absence of the warning alert
   expect(
     screen.queryByText(
-      "Visualization must be loaded to change additional settings."
-    )
+      "Visualization must be loaded to change additional settings.",
+    ),
   ).not.toBeInTheDocument();
 
-  expect(await screen.findByText("Vertical Line")).toBeInTheDocument();
+  expect(await screen.findByText(/Vertical Line/i)).toBeInTheDocument();
 });
 
 TestingComponent.propTypes = {

@@ -23,7 +23,6 @@ import {
 import { valuesEqual } from "components/modals/utilities";
 import styled from "styled-components";
 import Spinner from "react-bootstrap/Spinner";
-import { addVerticalLine } from "components/visualizations/BasePlot";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import ProgressBar from "react-bootstrap/ProgressBar";
 import LiveChat from "components/visualizations/LiveChat";
