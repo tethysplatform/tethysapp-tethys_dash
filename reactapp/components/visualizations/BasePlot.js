@@ -80,7 +80,7 @@ export const createVerticalLine = (xValue, options = {}) => {
     dash = "solid",
     id = `vline_${Date.now()}`,
     variable = null,
-    editable = true,
+    editable = false,
   } = options;
 
   let x;
@@ -164,12 +164,14 @@ const BasePlot = ({
 
   const handleRelayout = useCallback(
     (eventData) => {
-      // shiftVerticalLine(eventData);
+      shiftVerticalLine(eventData);
     },
     [visualizationRef, verticalLineEditable, verticalLineStep],
   );
 
   const shiftVerticalLine = (eventData) => {
+    // TODO: alot of potential to clean this. eventData always matches the shape properties
+
     // Only proceed if shapes were edited
     if (!eventData || !verticalLineEditable) return;
 
@@ -180,7 +182,7 @@ const BasePlot = ({
     // Snap x0/x1 if changed
     Object.keys(eventData).forEach((key) => {
       const xMatch = key.match(/^shapes\[(\d+)\]\.(x0|x1)$/);
-      if (xMatch && verticalLineStep) {
+      if (xMatch) {
         const shapeIdx = parseInt(xMatch[1], 10);
         const shape = plotElement.layout?.shapes?.[shapeIdx];
         if (shape) {
@@ -200,6 +202,7 @@ const BasePlot = ({
           }
         }
       }
+
       // Snap y0/y1 to 0/1 as before
       const yMatch = key.match(/^shapes\[(\d+)\]\.(y0|y1)$/);
       if (yMatch) {

@@ -1,13 +1,3 @@
-const mockRelayout = jest.fn();
-const mockPlotly = {
-  relayout: mockRelayout,
-  purge: jest.fn(),
-  newPlot: jest.fn(),
-  react: jest.fn(),
-  resize: jest.fn(),
-};
-jest.mock("plotly.js-strict-dist-min", () => mockPlotly);
-
 // eslint-disable-next-line
 import { render } from "@testing-library/react";
 // eslint-disable-next-line
