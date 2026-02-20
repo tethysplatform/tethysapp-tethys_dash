@@ -86,24 +86,47 @@ const DashboardLoader = ({
 
       for (let tab of updatedTabs) {
         for (let gridItem of tab.gridItems) {
+          let allInitialValues = {};
           const args = JSON.parse(gridItem.args_string);
 
           if (gridItem.source === "Variable Input") {
-            const allInitialValues = {
-              [args.variable_name]: args.initial_value,
-            };
-            if (args.initial_value && typeof args.initial_value === "object") {
-              for (let [key, value] of Object.entries(args.initial_value)) {
-                allInitialValues[key] = value;
-              }
+            if (!(args.variable_name in allInitialValues)) {
+              allInitialValues[args.variable_name] = args.initial_value;
             }
 
-            for (let [key, value] of Object.entries(allInitialValues)) {
-              let initialValue =
-                variableInputValues[key] === undefined
-                  ? value
-                  : variableInputValues[key];
+            if (args.initial_value && typeof args.initial_value === "object") {
+              for (let [key, value] of Object.entries(args.initial_value)) {
+                if (!(key in allInitialValues)) {
+                  allInitialValues[key] = value;
+                }
+              }
+            }
+          }
 
+          if (gridItem.source === "Map") {
+            const mapLayers = JSON.parse(gridItem.args_string).layers || [];
+            for (let layer of mapLayers) {
+              const layerVariableInputs = layer.attributeVariables || {};
+              for (let layerAttributes of Object.values(layerVariableInputs)) {
+                for (let attributeVariableInput of Object.values(
+                  layerAttributes,
+                )) {
+                  if (!(attributeVariableInput in allInitialValues)) {
+                    allInitialValues[attributeVariableInput] = null;
+                  }
+                }
+              }
+            }
+          }
+
+          for (let [key, value] of Object.entries(allInitialValues)) {
+            let initialValue =
+              variableInputValues[key] === undefined
+                ? value
+                : variableInputValues[key];
+
+            let dateFormat;
+            if (gridItem.source === "Variable Input") {
               if (
                 args.variable_options_source === "checkbox" &&
                 initialValue === null
@@ -111,7 +134,6 @@ const DashboardLoader = ({
                 initialValue = false;
               }
 
-              let dateFormat;
               if (args.variable_options_source.includes("date")) {
                 dateFormat =
                   args?.["variable_options_source.metadata"]?.format || "";
@@ -119,11 +141,11 @@ const DashboardLoader = ({
                 dateFormat =
                   args["variable_options_source.metadata"].outputFormat;
               }
+            }
 
-              updatedVariableInputValues[key] = initialValue;
-              if (dateFormat) {
-                updatedVariableInputDateFormats[key] = dateFormat;
-              }
+            updatedVariableInputValues[key] = initialValue;
+            if (dateFormat) {
+              updatedVariableInputDateFormats[key] = dateFormat;
             }
           }
         }
@@ -154,7 +176,7 @@ const DashboardLoader = ({
     setActiveTabId(originalTabs.current[0].id);
     updateVariableInputValuesWithGridItems(originalTabs.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [originalTabs]);
+  }, [originalTabs, variableInputValues]);
 
   const saveLayoutContext = useCallback(
     async (newProperties) => {

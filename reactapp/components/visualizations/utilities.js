@@ -15,7 +15,7 @@ export function checkForEmptyVariableInputs({
   const dependentVariableInputs = getDependentVariableInputs(argsString);
   let warnings = [];
 
-  if (!dependentVariableInputs.every((key) => key in variableInputValues)) {
+  if (!dependentVariableInputs.every((key) => variableInputValues[key])) {
     for (const dependentVariableInput of dependentVariableInputs) {
       if (!variableInputValues[dependentVariableInput]) {
         warnings.push(
