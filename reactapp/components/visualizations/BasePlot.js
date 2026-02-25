@@ -185,21 +185,26 @@ const BasePlot = ({
       if (xMatch) {
         const shapeIdx = parseInt(xMatch[1], 10);
         const shape = plotElement.layout?.shapes?.[shapeIdx];
-        if (shape) {
-          let newX = eventData[`shapes[${shapeIdx}].x0`];
-          if (newX === undefined) newX = eventData[`shapes[${shapeIdx}].x1`];
-          // If newX is a number between 0 and 1, treat as normalized and convert to date
-          if (typeof newX === "number" && newX >= 0 && newX <= 1) {
-            // Get x2 axis range
-            const x2range = plotElement.layout?.xaxis2?.range;
-            newX = normalizedToDate(newX, x2range);
+        let newX = eventData[`shapes[${shapeIdx}].x0`];
+        if (newX === undefined) newX = eventData[`shapes[${shapeIdx}].x1`];
+
+        if (typeof newX === "number") {
+          if (newX < 0) newX = 0;
+          if (newX > 1) newX = 1;
+          const x2range = plotElement.layout?.xaxis2?.range;
+          const normalizedDate = normalizedToDate(newX, x2range);
+
+          if (newX === 0 || newX === 1) {
+            newX = convertDatesToLocalISO(normalizedDate);
+          } else {
+            newX = snapDate(normalizedDate, verticalLineStep);
           }
-          const snapped = snapDate(newX, verticalLineStep);
-          // Only update if snapped value differs from current
-          if (shape.x0 !== snapped || shape.x1 !== snapped) {
-            updates[`shapes[${shapeIdx}].x0`] = snapped;
-            updates[`shapes[${shapeIdx}].x1`] = snapped;
-          }
+        }
+
+        // Only update if snapped value differs from current
+        if (shape.x0 !== newX || shape.x1 !== newX) {
+          updates[`shapes[${shapeIdx}].x0`] = newX;
+          updates[`shapes[${shapeIdx}].x1`] = newX;
         }
       }
 
@@ -208,10 +213,8 @@ const BasePlot = ({
       if (yMatch) {
         const shapeIdx = parseInt(yMatch[1], 10);
         const shape = plotElement.layout?.shapes?.[shapeIdx];
-        if (shape && shape.yref === "paper") {
-          if (shape.y0 !== 0) updates[`shapes[${shapeIdx}].y0`] = 0;
-          if (shape.y1 !== 1) updates[`shapes[${shapeIdx}].y1`] = 1;
-        }
+        if (shape.y0 !== 0) updates[`shapes[${shapeIdx}].y0`] = 0;
+        if (shape.y1 !== 1) updates[`shapes[${shapeIdx}].y1`] = 1;
       }
     });
     if (Object.keys(updates).length > 0) {
