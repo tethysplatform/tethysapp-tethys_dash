@@ -2,9 +2,16 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import createPlotlyComponent from "react-plotly.js/factory";
 import { useResizeDetector } from "react-resize-detector";
-import { useEffect, useCallback, memo, useContext } from "react";
-import { convertDatesToLocalISO } from "components/inputs/dateUtils";
-import { VariableInputsContext } from "components/contexts/Contexts";
+import { useEffect, useCallback, memo, useContext, useRef } from "react";
+import {
+  checkForVariable,
+  convertDatesToLocalISO,
+} from "components/inputs/dateUtils";
+import {
+  VariableInputsContext,
+  GridItemContext,
+  DataViewerModeContext,
+} from "components/contexts/Contexts";
 
 const Plotly = require("plotly.js-strict-dist-min");
 const Plot = createPlotlyComponent(Plotly);
@@ -14,6 +21,18 @@ const StyledPlot = styled(Plot)`
   height: 100%;
   padding: 0;
 `;
+
+// Convert paper-normalized x to axis-relative x using domain
+const paperToAxisNormalized = (xPaper, domain) => {
+  if (!Array.isArray(domain) || domain.length !== 2) return xPaper;
+  const [d0, d1] = domain;
+  if (d1 === d0) return xPaper;
+  // Clamp to domain
+  let x = (xPaper - d0) / (d1 - d0);
+  if (x < 0) x = 0;
+  if (x > 1) x = 1;
+  return x;
+};
 
 // Convert normalized (0-1) x to date using x2 axis range
 const normalizedToDate = (xNorm, x2range) => {
@@ -71,6 +90,19 @@ const snapDate = (date, step) => {
     }
   }
   return convertDatesToLocalISO(snappedDate);
+};
+
+const formatToDate = (value, x2range, verticalLineStep) => {
+  if (value < 0) value = 0;
+  if (value > 1) value = 1;
+  const normalizedDate = normalizedToDate(value, x2range);
+  if (value === 0 || value === 1) {
+    value = convertDatesToLocalISO(normalizedDate);
+  } else {
+    value = snapDate(normalizedDate, verticalLineStep);
+  }
+
+  return value;
 };
 
 export const createVerticalLine = (xValue, options = {}) => {
@@ -138,8 +170,9 @@ const BasePlot = ({
     refreshMode: "debounce",
     refreshRate: 100,
   });
-
-  // const { setVariableInputValues } = useContext(VariableInputsContext);
+  const { gridItemMetadataString } = useContext(GridItemContext);
+  const { setVariableInputValues } = useContext(VariableInputsContext);
+  const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { plotlyVerticalLine = {} } = metadata;
   const {
     editable: verticalLineEditable,
@@ -147,6 +180,9 @@ const BasePlot = ({
     mode: verticalLineMode,
     value: verticalLineValue,
   } = plotlyVerticalLine;
+
+  // Ref to track the original vertical line shape
+  const verticalLineOriginalRef = useRef(null);
 
   // Build the vertical line shape from metadata
   const verticalLineShape =
@@ -162,6 +198,16 @@ const BasePlot = ({
     ...(verticalLineShape ? [verticalLineShape] : []),
   ];
 
+  // Update the ref whenever the vertical line shape changes
+  useEffect(() => {
+    if (verticalLineShape) {
+      verticalLineOriginalRef.current = {
+        x0: verticalLineShape.x0,
+        x1: verticalLineShape.x1,
+      };
+    }
+  }, [verticalLineShape]);
+
   const handleRelayout = useCallback(
     (eventData) => {
       shiftVerticalLine(eventData);
@@ -170,55 +216,94 @@ const BasePlot = ({
   );
 
   const shiftVerticalLine = (eventData) => {
-    // TODO: alot of potential to clean this. eventData always matches the shape properties
+    console.log("Relayout event data:", eventData);
 
     // Only proceed if shapes were edited
     if (!eventData || !verticalLineEditable) return;
 
     const plotElement = visualizationRef?.current?.el;
     if (!plotElement) return;
+    const verticalLineIdx = plotElement.layout?.shapes?.findIndex(
+      (s) => s.meta?.createdBy === "addVerticalLine",
+    );
+
+    // if eventData is not numbers then no need to update shift because it already happened
+    const varticalLineUpdates = Object.entries(eventData).filter(
+      ([key, value]) =>
+        (key === `shapes[${verticalLineIdx}].x0` ||
+          key === `shapes[${verticalLineIdx}].x1`) &&
+        typeof value === "number",
+    );
+    if (varticalLineUpdates.length === 0) return;
+
+    const verticalLineShape = plotElement.layout?.shapes?.find(
+      (s) => s.meta?.createdBy === "addVerticalLine",
+    );
+
+    // Compare with original to see which changed, normalizing both sides
+    const orig = verticalLineOriginalRef.current;
+
+    const xaxis2 = plotElement.layout?.xaxis2;
+    const x2range = xaxis2?.range;
+    const x2domain = xaxis2?.domain;
+
+    // Convert paper-normalized x0/x1 to axis-relative
+    let x0Norm =
+      typeof verticalLineShape.x0 === "number"
+        ? paperToAxisNormalized(verticalLineShape.x0, x2domain)
+        : verticalLineShape.x0;
+    let x1Norm =
+      typeof verticalLineShape.x1 === "number"
+        ? paperToAxisNormalized(verticalLineShape.x1, x2domain)
+        : verticalLineShape.x1;
+
+    const newX0Value = formatToDate(x0Norm, x2range, verticalLineStep);
+    const newX1Value = formatToDate(x1Norm, x2range, verticalLineStep);
+
+    let xValue = newX0Value;
+    if (orig) {
+      // Compute the difference between new and original for both x0 and x1
+      const diff0 = Math.abs(
+        new Date(orig.x0).getTime() - new Date(newX0Value).getTime(),
+      );
+      const diff1 = Math.abs(
+        new Date(orig.x1).getTime() - new Date(newX1Value).getTime(),
+      );
+
+      if (diff1 > diff0) {
+        xValue = newX1Value;
+      }
+    }
 
     const updates = {};
-    // Snap x0/x1 if changed
-    Object.keys(eventData).forEach((key) => {
-      const xMatch = key.match(/^shapes\[(\d+)\]\.(x0|x1)$/);
-      if (xMatch) {
-        const shapeIdx = parseInt(xMatch[1], 10);
-        const shape = plotElement.layout?.shapes?.[shapeIdx];
-        let newX = eventData[`shapes[${shapeIdx}].x0`];
-        if (newX === undefined) newX = eventData[`shapes[${shapeIdx}].x1`];
+    updates[`shapes[${verticalLineIdx}].x0`] = xValue;
+    updates[`shapes[${verticalLineIdx}].x1`] = xValue;
 
-        if (typeof newX === "number") {
-          if (newX < 0) newX = 0;
-          if (newX > 1) newX = 1;
-          const x2range = plotElement.layout?.xaxis2?.range;
-          const normalizedDate = normalizedToDate(newX, x2range);
+    if (verticalLineShape.y0 !== 0)
+      updates[`shapes[${verticalLineIdx}].y0`] = 0;
+    if (verticalLineShape.y1 !== 1)
+      updates[`shapes[${verticalLineIdx}].y1`] = 1;
 
-          if (newX === 0 || newX === 1) {
-            newX = convertDatesToLocalISO(normalizedDate);
-          } else {
-            newX = snapDate(normalizedDate, verticalLineStep);
-          }
-        }
+    if (!inDataViewerMode) {
+      const rawVerticalLineValue = JSON.parse(gridItemMetadataString)
+        .plotlyVerticalLine.value;
+      const rawVerticalLineVar = checkForVariable(rawVerticalLineValue);
 
-        // Only update if snapped value differs from current
-        if (shape.x0 !== newX || shape.x1 !== newX) {
-          updates[`shapes[${shapeIdx}].x0`] = newX;
-          updates[`shapes[${shapeIdx}].x1`] = newX;
-        }
-      }
+      // if (rawVerticalLineVar) {
+      //   const updatedX = updates["shapes[0].x0"] || updates["shapes[0].x1"];
+      //   setVariableInputValues((prev) => ({
+      //     ...prev,
+      //     [rawVerticalLineVar]: updatedX,
+      //   }));
+      //   return; // Skip relayout since variable update will trigger it
+      // }
+    }
 
-      // Snap y0/y1 to 0/1 as before
-      const yMatch = key.match(/^shapes\[(\d+)\]\.(y0|y1)$/);
-      if (yMatch) {
-        const shapeIdx = parseInt(yMatch[1], 10);
-        const shape = plotElement.layout?.shapes?.[shapeIdx];
-        if (shape.y0 !== 0) updates[`shapes[${shapeIdx}].y0`] = 0;
-        if (shape.y1 !== 1) updates[`shapes[${shapeIdx}].y1`] = 1;
-      }
-    });
-    if (Object.keys(updates).length > 0) {
-      Plotly.relayout(plotElement, updates);
+    Plotly.relayout(plotElement, updates);
+    // Update the ref to the new values
+    if (verticalLineOriginalRef.current) {
+      verticalLineOriginalRef.current.x0 = xValue;
+      verticalLineOriginalRef.current.x1 = xValue;
     }
   };
 
