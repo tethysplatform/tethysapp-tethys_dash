@@ -2,7 +2,14 @@ import PropTypes from "prop-types";
 import styled from "styled-components";
 import createPlotlyComponent from "react-plotly.js/factory";
 import { useResizeDetector } from "react-resize-detector";
-import { useEffect, useCallback, memo, useContext, useRef } from "react";
+import {
+  useEffect,
+  useCallback,
+  memo,
+  useContext,
+  useRef,
+  useState,
+} from "react";
 import {
   checkForVariable,
   convertDatesToLocalISO,
@@ -12,6 +19,7 @@ import {
   GridItemContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
+import { format } from "date-fns";
 
 const Plotly = require("plotly.js-strict-dist-min");
 const Plot = createPlotlyComponent(Plotly);
@@ -171,7 +179,9 @@ const BasePlot = ({
     refreshRate: 100,
   });
   const { gridItemMetadataString } = useContext(GridItemContext);
-  const { setVariableInputValues } = useContext(VariableInputsContext);
+  const { setVariableInputValues, variableInputDateFormats } = useContext(
+    VariableInputsContext,
+  );
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { plotlyVerticalLine = {} } = metadata;
   const {
@@ -180,33 +190,51 @@ const BasePlot = ({
     mode: verticalLineMode,
     value: verticalLineValue,
   } = plotlyVerticalLine;
+  const [plotLayout, setPlotLayout] = useState({
+    ...layout,
+    ...{
+      width: width,
+      height: height,
+    },
+  });
 
   // Ref to track the original vertical line shape
   const verticalLineOriginalRef = useRef(null);
 
-  // Build the vertical line shape from metadata
-  const verticalLineShape =
-    verticalLineMode === "on" && verticalLineValue
-      ? createVerticalLine(verticalLineValue, plotlyVerticalLine)
-      : null;
-
-  // Remove any previous vertical lines created by this logic
-  const shapes = [
-    ...(layout.shapes || []).filter(
-      (s) => s.meta?.createdBy !== "addVerticalLine",
-    ),
-    ...(verticalLineShape ? [verticalLineShape] : []),
-  ];
-
-  // Update the ref whenever the vertical line shape changes
   useEffect(() => {
-    if (verticalLineShape) {
+    const plotElement = visualizationRef?.current?.el;
+    if (!plotElement) return;
+
+    if (!plotElement.layout) return;
+
+    // remove current vertical line shape if it exists to prevent duplicates
+    let currentShapes = plotElement.layout?.shapes || [];
+    currentShapes = currentShapes.filter(
+      (s) => s.meta?.createdBy !== "addVerticalLine",
+    );
+
+    if (verticalLineMode === "on" && verticalLineValue) {
+      const verticalLineShape = createVerticalLine(
+        verticalLineValue,
+        plotlyVerticalLine,
+      );
+      currentShapes.push(verticalLineShape);
       verticalLineOriginalRef.current = {
         x0: verticalLineShape.x0,
         x1: verticalLineShape.x1,
       };
     }
-  }, [verticalLineShape]);
+
+    setPlotLayout((prevLayout) => ({
+      ...prevLayout,
+      ...layout,
+      ...{
+        width: width,
+        height: height,
+      },
+      shapes: currentShapes,
+    }));
+  }, [width, height, layout, plotlyVerticalLine]);
 
   const handleRelayout = useCallback(
     (eventData) => {
@@ -284,27 +312,28 @@ const BasePlot = ({
     if (verticalLineShape.y1 !== 1)
       updates[`shapes[${verticalLineIdx}].y1`] = 1;
 
-    if (!inDataViewerMode) {
-      const rawVerticalLineValue = JSON.parse(gridItemMetadataString)
-        .plotlyVerticalLine.value;
-      const rawVerticalLineVar = checkForVariable(rawVerticalLineValue);
-
-      // if (rawVerticalLineVar) {
-      //   const updatedX = updates["shapes[0].x0"] || updates["shapes[0].x1"];
-      //   setVariableInputValues((prev) => ({
-      //     ...prev,
-      //     [rawVerticalLineVar]: updatedX,
-      //   }));
-      //   return; // Skip relayout since variable update will trigger it
-      // }
-    }
-
-    Plotly.relayout(plotElement, updates);
     // Update the ref to the new values
     if (verticalLineOriginalRef.current) {
       verticalLineOriginalRef.current.x0 = xValue;
       verticalLineOriginalRef.current.x1 = xValue;
     }
+
+    if (!inDataViewerMode) {
+      const rawVerticalLineValue = JSON.parse(gridItemMetadataString)
+        .plotlyVerticalLine.value;
+      const rawVerticalLineVar = checkForVariable(rawVerticalLineValue);
+
+      if (rawVerticalLineVar) {
+        const dateFormat = variableInputDateFormats[rawVerticalLineVar];
+        setVariableInputValues((prev) => ({
+          ...prev,
+          [rawVerticalLineVar]: format(new Date(xValue), dateFormat),
+        }));
+        return; // Skip relayout since variable update will trigger it
+      }
+    }
+
+    Plotly.relayout(plotElement, updates);
   };
 
   return (
@@ -312,14 +341,7 @@ const BasePlot = ({
       <StyledPlot
         ref={visualizationRef}
         data={data}
-        layout={{
-          ...layout,
-          ...{
-            width: width,
-            height: height,
-          },
-          shapes: shapes,
-        }}
+        layout={plotLayout}
         config={config}
         onRelayout={handleRelayout}
       />
