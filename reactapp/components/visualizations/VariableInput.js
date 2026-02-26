@@ -219,6 +219,7 @@ const VariableInput = ({
     return (
       <StyledDiv>
         <Slider
+          variable_name={variable_name}
           label={show_label ? label : ""}
           step={updatedMetadata.step}
           min={updatedMetadata.min}
