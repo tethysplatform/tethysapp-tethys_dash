@@ -514,6 +514,7 @@ describe("BasePlot shiftVerticalLine", () => {
       verticalLineStep: "minute",
       inDataViewerMode: false,
       gridItemMetadataString: JSON.stringify({
+        // eslint-disable-next-line
         plotlyVerticalLine: { value: "${Test Var}" },
       }),
       variableInputDateFormats: { "Test Var": "MM/dd/yyyy" },
@@ -567,6 +568,7 @@ describe("BasePlot shiftVerticalLine", () => {
       verticalLineStep: "minute",
       inDataViewerMode: true,
       gridItemMetadataString: JSON.stringify({
+        // eslint-disable-next-line
         plotlyVerticalLine: { value: "${Test Var}" },
       }),
       variableInputDateFormats: { "Test Var": "MM/dd/yyyy" },

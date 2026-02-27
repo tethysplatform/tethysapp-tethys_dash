@@ -346,6 +346,7 @@ const BasePlot = ({
       },
       shapes: currentShapes,
     }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height, layout, plotlyVerticalLine]);
 
   const handleRelayout = useCallback(
@@ -362,6 +363,7 @@ const BasePlot = ({
         setVariableInputValues,
       });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [visualizationRef, verticalLineEditable, verticalLineStep],
   );
 

@@ -762,6 +762,7 @@ const Slider = ({
 };
 
 Slider.propTypes = {
+  variable_name: PropTypes.string.isRequired,
   label: PropTypes.string,
   step: PropTypes.number.isRequired,
   min: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
