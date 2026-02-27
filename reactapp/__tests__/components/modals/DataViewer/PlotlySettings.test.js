@@ -34,7 +34,6 @@ describe("PlotlySettings", () => {
     },
   };
   const variableInputValues = { depVar: "2025-10-24T12:00" };
-  const visualizationRef = { current: {} };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -44,11 +43,7 @@ describe("PlotlySettings", () => {
     return render(
       <VariableInputsContext.Provider value={{ variableInputValues }}>
         <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-          <PlotlySettings
-            settings={settings}
-            setSettings={mockSetSettings}
-            visualizationRef={visualizationRef}
-          />
+          <PlotlySettings settings={settings} setSettings={mockSetSettings} />
         </DataViewerModeContext.Provider>
       </VariableInputsContext.Provider>,
     );
@@ -228,6 +223,131 @@ describe("PlotlySettings", () => {
       plotlyVerticalLine: {
         dash: "dash",
         value: "",
+      },
+    });
+  });
+
+  it("calls setSettings on editable change", async () => {
+    const settings = {
+      plotlyVerticalLine: { ...defaultSettings.plotlyVerticalLine, mode: "on" },
+    };
+    renderWithContext(settings);
+
+    const editableCheckbox = screen.getByLabelText(/Draggable/);
+    fireEvent.click(editableCheckbox);
+
+    const updateFn = mockSetSettings.mock.calls[0][0];
+    const prevState = {
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+      },
+    };
+    const newState = updateFn(prevState);
+
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+        editable: true,
+      },
+    });
+  });
+
+  it("calls setSettings on editable change, uncheck", async () => {
+    const settings = {
+      plotlyVerticalLine: {
+        ...defaultSettings.plotlyVerticalLine,
+        mode: "on",
+        editable: true,
+      },
+    };
+    renderWithContext(settings);
+
+    const editableCheckbox = screen.getByLabelText(/Draggable/);
+    fireEvent.click(editableCheckbox);
+
+    const updateFn = mockSetSettings.mock.calls[0][0];
+    const prevState = {
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+        editable: true,
+      },
+    };
+    const newState = updateFn(prevState);
+
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+      },
+    });
+  });
+
+  it("calls setSettings on snap to data change", async () => {
+    const settings = {
+      plotlyVerticalLine: {
+        ...defaultSettings.plotlyVerticalLine,
+        mode: "on",
+        editable: true,
+      },
+    };
+    renderWithContext(settings);
+
+    const snapToDataDropdown = screen.getByLabelText(/snapto/);
+    await selectEvent.select(snapToDataDropdown, "Day");
+
+    const updateFn = mockSetSettings.mock.calls[0][0];
+    const prevState = {
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+        editable: true,
+      },
+    };
+    const newState = updateFn(prevState);
+
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+        editable: true,
+        step: "day",
+      },
+    });
+  });
+
+  it("calls setSettings on line value change", async () => {
+    const settings = {
+      plotlyVerticalLine: { ...defaultSettings.plotlyVerticalLine, mode: "on" },
+    };
+    renderWithContext(settings);
+
+    const datePickerInput = screen.getByLabelText("Date/Time");
+    fireEvent.change(datePickerInput, {
+      target: { value: "2025-10-24T12:00" },
+    });
+
+    const updateFn = mockSetSettings.mock.calls[0][0];
+    const prevState = { plotlyVerticalLine: { value: "" } };
+    const newState = updateFn(prevState);
+
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "10/24/2025 12:00 PM",
       },
     });
   });

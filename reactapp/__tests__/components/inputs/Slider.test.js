@@ -1860,6 +1860,136 @@ describe("Slider Component", () => {
     expect(labels.length).toBe(2);
     expect(handleChange).toHaveBeenCalledWith(today);
   });
+
+  it("renders a raw number value when variable input doesnt have a valid index", () => {
+    const handleChange = jest.fn();
+    const min = 0;
+    const max = 10;
+
+    const { rerender } = render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": "" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={2}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="{{n}}"
+            dataType="Number"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    const minLabel = screen.getByText("0", {
+      selector: "strong",
+    });
+    expect(minLabel).toBeInTheDocument();
+    const maxLabel = screen.getByText("10", {
+      selector: "strong",
+    });
+    expect(maxLabel).toBeInTheDocument();
+    expect(handleChange).toHaveBeenCalledWith("0");
+
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": 3 },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={2}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="{{n}}"
+            dataType="Number"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+    expect(screen.getByText("3 (custom)")).toBeInTheDocument();
+  });
+
+  it("renders a raw date value when variable input doesnt have a valid index", async () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T00:00:00.000";
+    const max = "2025-01-05T00:00:00.000";
+
+    const { rerender } = render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": "" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={2}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    const minLabel = screen.getByText("2025-01-01", {
+      selector: "strong",
+    });
+    expect(minLabel).toBeInTheDocument();
+    const maxLabel = screen.getByText("2025-01-05", {
+      selector: "strong",
+    });
+    expect(maxLabel).toBeInTheDocument();
+    expect(handleChange).toHaveBeenCalledWith("2025-01-01");
+
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": "2025-01-02" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={2}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+    expect(await screen.findByText("2025-01-02 (custom)")).toBeInTheDocument();
+  });
 });
 
 test("calculateSliderValues returns correct values", () => {

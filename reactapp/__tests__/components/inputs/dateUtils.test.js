@@ -101,6 +101,14 @@ describe("parseDateMath", () => {
     const result = parseDateMath({ value: "now+1Q" });
     expect(format(result, dateHourFormat)).toBe(format(today, dateHourFormat));
   });
+
+  it("parses day", () => {
+    const result = parseDateMath({
+      value: "2025-01-02",
+      dateFormat: "yyyy-MM-dd",
+    });
+    expect(format(result, "yyyy-MM-dd")).toBe("2025-01-02");
+  });
 });
 
 describe("checkForVariable", () => {

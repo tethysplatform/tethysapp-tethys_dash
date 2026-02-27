@@ -1,9 +1,6 @@
 import PropTypes from "prop-types";
-import { useContext, useRef } from "react";
+import { useRef } from "react";
 import DatePicker from "components/inputs/DatePicker";
-import { VariableInputsContext } from "components/contexts/Contexts";
-import { getDependentVariableInputs } from "components/visualizations/utilities";
-import { checkForVariable } from "components/inputs/dateUtils";
 import ColorPickerPopover from "components/inputs/ColorPickerPopOver";
 import NormalInput from "components/inputs/NormalInput";
 import DataRadioSelect from "components/inputs/DataRadioSelect";
@@ -43,8 +40,7 @@ const snapOptions = [
   { value: "year", label: "Year" },
 ];
 
-const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
-  const { variableInputValues } = useContext(VariableInputsContext);
+const PlotlySettings = ({ settings, setSettings }) => {
   const containerRef = useRef();
 
   const verticalLineMode = settings?.plotlyVerticalLine?.mode || "off";
@@ -117,14 +113,6 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
         value: value,
       },
     }));
-
-    let resolvedValue = value;
-    if (checkForVariable(value)) {
-      const dependentVars = getDependentVariableInputs(value);
-      resolvedValue = variableInputValues[dependentVars[0]];
-
-      if (!resolvedValue) return;
-    }
   };
 
   const handleVerticalLineColorChange = (color) => {
@@ -178,7 +166,7 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
               <DatePicker
                 label="Date/Time"
                 value={verticalLineValue}
-                onChange={(e) => handleVerticalLineValueChange(e)}
+                onChange={handleVerticalLineValueChange}
               />
             </PaddedDiv>
             <FlexDiv>
@@ -236,7 +224,6 @@ const PlotlySettings = ({ settings, setSettings, visualizationRef }) => {
                     )}
                     onChange={handleVerticalLineStepChange}
                     options={snapOptions}
-                    ariaLabel="Vertical Line Snap To"
                     creatable={false}
                   />
                 </div>

@@ -107,7 +107,10 @@ function formatNumber(n, template) {
 
 function formatDateValue(date, format) {
   try {
-    return formatDate(parseDateMath({ value: date }), format);
+    return formatDate(
+      parseDateMath({ value: date, dateFormat: format }),
+      format,
+    );
   } catch (err) {
     console.error("Date formatting error:", err.message);
     return date.toString();
