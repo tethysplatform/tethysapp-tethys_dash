@@ -13,6 +13,7 @@ import {
 import {
   checkForVariable,
   convertDatesToLocalISO,
+  parseDateMath,
 } from "components/inputs/dateUtils";
 import {
   VariableInputsContext,
@@ -31,7 +32,7 @@ const StyledPlot = styled(Plot)`
 `;
 
 // Convert paper-normalized x to axis-relative x using domain
-const paperToAxisNormalized = (xPaper, domain) => {
+export const paperToAxisNormalized = (xPaper, domain) => {
   if (!Array.isArray(domain) || domain.length !== 2) return xPaper;
   const [d0, d1] = domain;
   if (d1 === d0) return xPaper;
@@ -43,7 +44,7 @@ const paperToAxisNormalized = (xPaper, domain) => {
 };
 
 // Convert normalized (0-1) x to date using x2 axis range
-const normalizedToDate = (xNorm, x2range) => {
+export const normalizedToDate = (xNorm, x2range) => {
   if (!Array.isArray(x2range) || x2range.length !== 2) return xNorm;
   const [start, end] = x2range;
   const startDate = new Date(start);
@@ -55,7 +56,7 @@ const normalizedToDate = (xNorm, x2range) => {
 };
 
 // Helper to snap a date to the nearest step
-const snapDate = (date, step) => {
+export const snapDate = (date, step) => {
   const d = new Date(date);
   if (isNaN(d)) return date;
 
@@ -67,16 +68,36 @@ const snapDate = (date, step) => {
     const ms = 60 * 60 * 1000;
     snappedDate = new Date(Math.round(d.getTime() / ms) * ms);
   } else if (step === "day") {
-    const ms = 24 * 60 * 60 * 1000;
-    snappedDate = new Date(Math.round(d.getTime() / ms) * ms);
+    const hour = d.getHours();
+    if (hour >= 12) {
+      // If it's afternoon, snap to next day
+      const nextDay = new Date(d);
+      nextDay.setDate(d.getDate() + 1);
+      nextDay.setHours(0, 0, 0, 0);
+      snappedDate = nextDay;
+    } else {
+      // Otherwise snap to current day
+      const startOfDay = new Date(d);
+      startOfDay.setHours(0, 0, 0, 0);
+      snappedDate = startOfDay;
+    }
   } else if (step === "week") {
     // Snap to nearest Sunday (start of week)
     const day = d.getDay();
-    const startOfWeek = new Date(d);
-    startOfWeek.setDate(d.getDate() - day);
-    startOfWeek.setHours(0, 0, 0, 0);
-    const ms = 7 * 24 * 60 * 60 * 1000;
-    snappedDate = new Date(Math.round(startOfWeek.getTime() / ms) * ms);
+    const hour = d.getHours();
+    if (day >= 3 || (day === 3 && hour >= 12)) {
+      // If it's Thursday afternoon or later, snap to next week
+      const nextWeek = new Date(d);
+      nextWeek.setDate(d.getDate() + (7 - day));
+      nextWeek.setHours(0, 0, 0, 0);
+      snappedDate = nextWeek;
+    } else {
+      // Otherwise snap to current week
+      const startOfWeek = new Date(d);
+      startOfWeek.setDate(d.getDate() - day);
+      startOfWeek.setHours(0, 0, 0, 0);
+      snappedDate = startOfWeek;
+    }
   } else if (step === "month") {
     // Snap to nearest 1st of the month
     const year = d.getFullYear();
@@ -100,7 +121,7 @@ const snapDate = (date, step) => {
   return convertDatesToLocalISO(snappedDate);
 };
 
-const formatToDate = (value, x2range, verticalLineStep) => {
+export const formatToDate = (value, x2range, verticalLineStep) => {
   if (value < 0) value = 0;
   if (value > 1) value = 1;
   const normalizedDate = normalizedToDate(value, x2range);
@@ -126,27 +147,22 @@ export const createVerticalLine = (xValue, options = {}) => {
   let x;
 
   // Try to parse any date string while preserving local time
-  try {
-    const d = new Date(xValue);
-    if (!isNaN(d)) {
-      // Extract local time components to avoid timezone conversion
-      // Use the local date/time values directly without timezone adjustment
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, "0");
-      const day = String(d.getDate()).padStart(2, "0");
-      const hours = String(d.getHours()).padStart(2, "0");
-      const minutes = String(d.getMinutes()).padStart(2, "0");
-      const seconds = String(d.getSeconds()).padStart(2, "0");
-      const milliseconds = String(d.getMilliseconds()).padStart(3, "0");
+  const d = parseDateMath({ value: xValue });
+  if (d) {
+    // Extract local time components to avoid timezone conversion
+    // Use the local date/time values directly without timezone adjustment
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    const seconds = String(d.getSeconds()).padStart(2, "0");
+    const milliseconds = String(d.getMilliseconds()).padStart(3, "0");
 
-      // Construct ISO string using local time components
-      x = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}Z`;
-    } else {
-      // If not a valid date, use the original value
-      x = xValue;
-    }
-  } catch (error) {
-    // If parsing fails, use the original value
+    // Construct ISO string using local time components
+    x = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}Z`;
+  } else {
+    // If not a valid date, use the original value
     x = xValue;
   }
 
@@ -165,6 +181,102 @@ export const createVerticalLine = (xValue, options = {}) => {
   };
 
   return newShape;
+};
+
+export const shiftVerticalLine = ({
+  eventData,
+  verticalLineEditable,
+  plotElement,
+  originalVerticalLine,
+  verticalLineStep,
+  inDataViewerMode,
+  gridItemMetadataString,
+  variableInputDateFormats,
+  setVariableInputValues,
+}) => {
+  // Only proceed if shapes were edited
+  if (!eventData || !verticalLineEditable) return;
+
+  const verticalLineIdx = plotElement.layout?.shapes?.findIndex(
+    (s) => s.meta?.createdBy === "addVerticalLine",
+  );
+
+  // if eventData is not numbers then no need to update shift because it already happened
+  const varticalLineUpdates = Object.entries(eventData).filter(
+    ([key, value]) =>
+      (key === `shapes[${verticalLineIdx}].x0` ||
+        key === `shapes[${verticalLineIdx}].x1`) &&
+      typeof value === "number",
+  );
+  if (varticalLineUpdates.length === 0) return;
+
+  const verticalLineShape = plotElement.layout?.shapes?.find(
+    (s) => s.meta?.createdBy === "addVerticalLine",
+  );
+
+  const xaxis2 = plotElement.layout?.xaxis2;
+  const x2range = xaxis2?.range;
+  const x2domain = xaxis2?.domain;
+
+  // Convert paper-normalized x0/x1 to axis-relative
+  let x0Norm =
+    typeof verticalLineShape.x0 === "number"
+      ? paperToAxisNormalized(verticalLineShape.x0, x2domain)
+      : verticalLineShape.x0;
+  let x1Norm =
+    typeof verticalLineShape.x1 === "number"
+      ? paperToAxisNormalized(verticalLineShape.x1, x2domain)
+      : verticalLineShape.x1;
+
+  const newX0Value = formatToDate(x0Norm, x2range, verticalLineStep);
+  const newX1Value = formatToDate(x1Norm, x2range, verticalLineStep);
+
+  let xValue = newX0Value;
+  if (originalVerticalLine) {
+    // Compute the difference between new and original for both x0 and x1
+    const diff0 = Math.abs(
+      new Date(originalVerticalLine.x0).getTime() -
+        new Date(newX0Value).getTime(),
+    );
+    const diff1 = Math.abs(
+      new Date(originalVerticalLine.x1).getTime() -
+        new Date(newX1Value).getTime(),
+    );
+
+    if (diff1 > diff0) {
+      xValue = newX1Value;
+    }
+  }
+
+  const updates = {};
+  updates[`shapes[${verticalLineIdx}].x0`] = xValue;
+  updates[`shapes[${verticalLineIdx}].x1`] = xValue;
+
+  if (verticalLineShape.y0 !== 0) updates[`shapes[${verticalLineIdx}].y0`] = 0;
+  if (verticalLineShape.y1 !== 1) updates[`shapes[${verticalLineIdx}].y1`] = 1;
+
+  // Update the ref to the new values
+  if (originalVerticalLine) {
+    originalVerticalLine.x0 = xValue;
+    originalVerticalLine.x1 = xValue;
+  }
+
+  if (!inDataViewerMode) {
+    const rawVerticalLineValue = JSON.parse(gridItemMetadataString)
+      .plotlyVerticalLine.value;
+    const rawVerticalLineVar = checkForVariable(rawVerticalLineValue);
+
+    if (rawVerticalLineVar) {
+      const dateFormat = variableInputDateFormats[rawVerticalLineVar];
+      setVariableInputValues((prev) => ({
+        ...prev,
+        [rawVerticalLineVar]: format(new Date(xValue), dateFormat),
+      }));
+      return; // Skip relayout since variable update will trigger it
+    }
+  }
+
+  Plotly.relayout(plotElement, updates);
 };
 
 const BasePlot = ({
@@ -238,103 +350,20 @@ const BasePlot = ({
 
   const handleRelayout = useCallback(
     (eventData) => {
-      shiftVerticalLine(eventData);
+      shiftVerticalLine({
+        eventData,
+        verticalLineEditable,
+        plotElement: visualizationRef?.current?.el,
+        originalVerticalLine: verticalLineOriginalRef.current,
+        verticalLineStep,
+        inDataViewerMode,
+        gridItemMetadataString,
+        variableInputDateFormats,
+        setVariableInputValues,
+      });
     },
     [visualizationRef, verticalLineEditable, verticalLineStep],
   );
-
-  const shiftVerticalLine = (eventData) => {
-    console.log("Relayout event data:", eventData);
-
-    // Only proceed if shapes were edited
-    if (!eventData || !verticalLineEditable) return;
-
-    const plotElement = visualizationRef?.current?.el;
-    if (!plotElement) return;
-    const verticalLineIdx = plotElement.layout?.shapes?.findIndex(
-      (s) => s.meta?.createdBy === "addVerticalLine",
-    );
-
-    // if eventData is not numbers then no need to update shift because it already happened
-    const varticalLineUpdates = Object.entries(eventData).filter(
-      ([key, value]) =>
-        (key === `shapes[${verticalLineIdx}].x0` ||
-          key === `shapes[${verticalLineIdx}].x1`) &&
-        typeof value === "number",
-    );
-    if (varticalLineUpdates.length === 0) return;
-
-    const verticalLineShape = plotElement.layout?.shapes?.find(
-      (s) => s.meta?.createdBy === "addVerticalLine",
-    );
-
-    // Compare with original to see which changed, normalizing both sides
-    const orig = verticalLineOriginalRef.current;
-
-    const xaxis2 = plotElement.layout?.xaxis2;
-    const x2range = xaxis2?.range;
-    const x2domain = xaxis2?.domain;
-
-    // Convert paper-normalized x0/x1 to axis-relative
-    let x0Norm =
-      typeof verticalLineShape.x0 === "number"
-        ? paperToAxisNormalized(verticalLineShape.x0, x2domain)
-        : verticalLineShape.x0;
-    let x1Norm =
-      typeof verticalLineShape.x1 === "number"
-        ? paperToAxisNormalized(verticalLineShape.x1, x2domain)
-        : verticalLineShape.x1;
-
-    const newX0Value = formatToDate(x0Norm, x2range, verticalLineStep);
-    const newX1Value = formatToDate(x1Norm, x2range, verticalLineStep);
-
-    let xValue = newX0Value;
-    if (orig) {
-      // Compute the difference between new and original for both x0 and x1
-      const diff0 = Math.abs(
-        new Date(orig.x0).getTime() - new Date(newX0Value).getTime(),
-      );
-      const diff1 = Math.abs(
-        new Date(orig.x1).getTime() - new Date(newX1Value).getTime(),
-      );
-
-      if (diff1 > diff0) {
-        xValue = newX1Value;
-      }
-    }
-
-    const updates = {};
-    updates[`shapes[${verticalLineIdx}].x0`] = xValue;
-    updates[`shapes[${verticalLineIdx}].x1`] = xValue;
-
-    if (verticalLineShape.y0 !== 0)
-      updates[`shapes[${verticalLineIdx}].y0`] = 0;
-    if (verticalLineShape.y1 !== 1)
-      updates[`shapes[${verticalLineIdx}].y1`] = 1;
-
-    // Update the ref to the new values
-    if (verticalLineOriginalRef.current) {
-      verticalLineOriginalRef.current.x0 = xValue;
-      verticalLineOriginalRef.current.x1 = xValue;
-    }
-
-    if (!inDataViewerMode) {
-      const rawVerticalLineValue = JSON.parse(gridItemMetadataString)
-        .plotlyVerticalLine.value;
-      const rawVerticalLineVar = checkForVariable(rawVerticalLineValue);
-
-      if (rawVerticalLineVar) {
-        const dateFormat = variableInputDateFormats[rawVerticalLineVar];
-        setVariableInputValues((prev) => ({
-          ...prev,
-          [rawVerticalLineVar]: format(new Date(xValue), dateFormat),
-        }));
-        return; // Skip relayout since variable update will trigger it
-      }
-    }
-
-    Plotly.relayout(plotElement, updates);
-  };
 
   return (
     <div ref={ref} style={{ display: "flex", height: "100%" }}>
