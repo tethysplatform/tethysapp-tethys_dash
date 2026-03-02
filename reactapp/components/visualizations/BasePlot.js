@@ -43,10 +43,10 @@ export const paperToAxisNormalized = (xPaper, domain) => {
   return x;
 };
 
-// Convert normalized (0-1) x to date using x2 axis range
-export const normalizedToDate = (xNorm, x2range) => {
-  if (!Array.isArray(x2range) || x2range.length !== 2) return xNorm;
-  const [start, end] = x2range;
+// Convert normalized (0-1) x to date using x axis range
+export const normalizedToDate = (xNorm, xrange) => {
+  if (!Array.isArray(xrange) || xrange.length !== 2) return xNorm;
+  const [start, end] = xrange;
   const startDate = new Date(start);
   const endDate = new Date(end);
   if (isNaN(startDate) || isNaN(endDate)) return xNorm;
@@ -121,10 +121,10 @@ export const snapDate = (date, step) => {
   return convertDatesToLocalISO(snappedDate);
 };
 
-export const formatToDate = (value, x2range, verticalLineStep) => {
+export const formatToDate = (value, xrange, verticalLineStep) => {
   if (value < 0) value = 0;
   if (value > 1) value = 1;
-  const normalizedDate = normalizedToDate(value, x2range);
+  const normalizedDate = normalizedToDate(value, xrange);
   if (value === 0 || value === 1) {
     value = convertDatesToLocalISO(normalizedDate);
   } else {
@@ -134,7 +134,12 @@ export const formatToDate = (value, x2range, verticalLineStep) => {
   return value;
 };
 
-export const createVerticalLine = (xValue, options = {}) => {
+export const createVerticalLine = ({
+  xValue,
+  plotElement,
+  returnOutOfRange = false,
+  options = {},
+}) => {
   const {
     color = "red",
     width = 2,
@@ -144,34 +149,63 @@ export const createVerticalLine = (xValue, options = {}) => {
     editable = false,
   } = options;
 
-  let x;
+  let xPaper;
 
-  // Try to parse any date string while preserving local time
-  const d = parseDateMath({ value: xValue });
-  if (d) {
-    // Extract local time components to avoid timezone conversion
-    // Use the local date/time values directly without timezone adjustment
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    const hours = String(d.getHours()).padStart(2, "0");
-    const minutes = String(d.getMinutes()).padStart(2, "0");
-    const seconds = String(d.getSeconds()).padStart(2, "0");
-    const milliseconds = String(d.getMilliseconds()).padStart(3, "0");
+  let xaxis = plotElement.layout?.xaxis;
+  let axisNum = "";
+  if (xaxis.matches) {
+    // If we're in a subplot, find the correct xaxis
+    const match = xaxis.matches.match(/x(\d*)/);
+    axisNum = match && match[1] ? match[1] : "";
+    xaxis = plotElement.layout[`xaxis${axisNum}`] || xaxis;
+  }
 
-    // Construct ISO string using local time components
-    x = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${milliseconds}Z`;
+  // Always use paper values (0-1) for x0/x1
+  // If xValue is a date or string, convert to normalized paper value using xaxis range/domain
+  const xrange = xaxis?.range;
+  const xdomain = xaxis?.domain || [0, 1];
+
+  if (
+    Array.isArray(xrange) &&
+    Array.isArray(xdomain) &&
+    xrange.length === 2 &&
+    xdomain.length === 2
+  ) {
+    let dateObj = parseDateMath({ value: xValue });
+    if (dateObj instanceof Date && !isNaN(dateObj)) {
+      // Convert date to ms between range
+      const start = new Date(xrange[0]).getTime();
+      const end = new Date(xrange[1]).getTime();
+      const val = dateObj.getTime();
+      // Normalize to 0-1 in axis space
+      let xNorm = (val - start) / (end - start);
+
+      if (!returnOutOfRange) {
+        if (xNorm < 0) xNorm = 0;
+        if (xNorm > 1) xNorm = 1;
+      }
+
+      // Convert to paper value using domain
+      xPaper = xdomain[0] + (xdomain[1] - xdomain[0]) * xNorm;
+    } else if (typeof xValue === "number") {
+      // If already a normalized value, map to paper
+      xPaper = xdomain[0] + (xdomain[1] - xdomain[0]) * xValue;
+    } else {
+      // fallback: use 0.5 (center)
+      xPaper = 0.5;
+    }
   } else {
-    // If not a valid date, use the original value
-    x = xValue;
+    // fallback: use 0.5 (center)
+    xPaper = 0.5;
   }
 
   const newShape = {
     editable: editable,
+    visible: xPaper < 0 || xPaper > 1 ? false : true, // Hide if out of range
     type: "line",
-    x0: x,
-    x1: x,
-    xref: "x2",
+    x0: xPaper,
+    x1: xPaper,
+    xref: "paper",
     y0: 0,
     y1: 1,
     yref: "paper",
@@ -183,7 +217,7 @@ export const createVerticalLine = (xValue, options = {}) => {
   return newShape;
 };
 
-export const shiftVerticalLine = ({
+export const handleEventData = ({
   eventData,
   verticalLineEditable,
   plotElement,
@@ -194,89 +228,122 @@ export const shiftVerticalLine = ({
   variableInputDateFormats,
   setVariableInputValues,
 }) => {
-  // Only proceed if shapes were edited
-  if (!eventData || !verticalLineEditable) return;
-
   const verticalLineIdx = plotElement.layout?.shapes?.findIndex(
     (s) => s.meta?.createdBy === "addVerticalLine",
   );
 
-  // if eventData is not numbers then no need to update shift because it already happened
+  if (verticalLineIdx === -1) return; // No vertical line to
+
+  let xaxis = plotElement.layout?.xaxis;
+  if (xaxis.matches) {
+    // If we're in a subplot, find the correct xaxis
+    const match = xaxis.matches.match(/x(\d*)/);
+    const axisNum = match && match[1] ? match[1] : "";
+    xaxis = plotElement.layout[`xaxis${axisNum}`] || xaxis;
+  }
+  const xrange = xaxis?.range;
+  const xdomain = xaxis?.domain || [0, 1];
+
   const varticalLineUpdates = Object.entries(eventData).filter(
     ([key, value]) =>
       (key === `shapes[${verticalLineIdx}].x0` ||
         key === `shapes[${verticalLineIdx}].x1`) &&
-      typeof value === "number",
-  );
-  if (varticalLineUpdates.length === 0) return;
-
-  const verticalLineShape = plotElement.layout?.shapes?.find(
-    (s) => s.meta?.createdBy === "addVerticalLine",
+      typeof value === "number" &&
+      originalVerticalLine &&
+      value !== originalVerticalLine.x,
   );
 
-  const xaxis2 = plotElement.layout?.xaxis2;
-  const x2range = xaxis2?.range;
-  const x2domain = xaxis2?.domain;
-
-  // Convert paper-normalized x0/x1 to axis-relative
-  let x0Norm =
-    typeof verticalLineShape.x0 === "number"
-      ? paperToAxisNormalized(verticalLineShape.x0, x2domain)
-      : verticalLineShape.x0;
-  let x1Norm =
-    typeof verticalLineShape.x1 === "number"
-      ? paperToAxisNormalized(verticalLineShape.x1, x2domain)
-      : verticalLineShape.x1;
-
-  const newX0Value = formatToDate(x0Norm, x2range, verticalLineStep);
-  const newX1Value = formatToDate(x1Norm, x2range, verticalLineStep);
-
-  let xValue = newX0Value;
-  if (originalVerticalLine) {
-    // Compute the difference between new and original for both x0 and x1
-    const diff0 = Math.abs(
-      new Date(originalVerticalLine.x0).getTime() -
-        new Date(newX0Value).getTime(),
-    );
-    const diff1 = Math.abs(
-      new Date(originalVerticalLine.x1).getTime() -
-        new Date(newX1Value).getTime(),
+  // If the vertical line was updated, we need to snap it to the nearest step and update the layout
+  if (varticalLineUpdates.length > 0) {
+    const verticalLineShape = plotElement.layout?.shapes?.find(
+      (s) => s.meta?.createdBy === "addVerticalLine",
     );
 
-    if (diff1 > diff0) {
-      xValue = newX1Value;
+    let x0Paper = verticalLineShape.x0;
+    let x1Paper = verticalLineShape.x1;
+
+    // Convert paper value to axis-normalized (0-1)
+    let x0Norm = paperToAxisNormalized(x0Paper, xdomain);
+    let x1Norm = paperToAxisNormalized(x1Paper, xdomain);
+
+    let xValue = x0Paper;
+    let xDate = x0Norm;
+    if (originalVerticalLine) {
+      // Compute the difference between new and original for both x0 and x1
+      const diff0 = Math.abs(originalVerticalLine.x - x0Paper);
+      const diff1 = Math.abs(originalVerticalLine.x - x1Paper);
+
+      if (diff1 > diff0) {
+        xValue = x1Paper;
+        xDate = x1Norm;
+      }
     }
-  }
 
-  const updates = {};
-  updates[`shapes[${verticalLineIdx}].x0`] = xValue;
-  updates[`shapes[${verticalLineIdx}].x1`] = xValue;
+    // snap paper coordintate to date
+    xDate = formatToDate(xDate, xrange, verticalLineStep);
+    // convert snapped date back to paper coordinate for display
+    xValue = createVerticalLine({ xValue: xDate, plotElement }).x0;
 
-  if (verticalLineShape.y0 !== 0) updates[`shapes[${verticalLineIdx}].y0`] = 0;
-  if (verticalLineShape.y1 !== 1) updates[`shapes[${verticalLineIdx}].y1`] = 1;
+    // Always update the shape in paper coordinates
+    const updates = {};
+    updates[`shapes[${verticalLineIdx}].x0`] = xValue;
+    updates[`shapes[${verticalLineIdx}].x1`] = xValue;
 
-  // Update the ref to the new values
-  if (originalVerticalLine) {
-    originalVerticalLine.x0 = xValue;
-    originalVerticalLine.x1 = xValue;
-  }
+    if (verticalLineShape.y0 !== 0)
+      updates[`shapes[${verticalLineIdx}].y0`] = 0;
+    if (verticalLineShape.y1 !== 1)
+      updates[`shapes[${verticalLineIdx}].y1`] = 1;
 
-  if (!inDataViewerMode) {
-    const rawVerticalLineValue = JSON.parse(gridItemMetadataString)
-      .plotlyVerticalLine.value;
-    const rawVerticalLineVar = checkForVariable(rawVerticalLineValue);
-
-    if (rawVerticalLineVar) {
-      const dateFormat = variableInputDateFormats[rawVerticalLineVar];
-      setVariableInputValues((prev) => ({
-        ...prev,
-        [rawVerticalLineVar]: format(new Date(xValue), dateFormat),
-      }));
-      return; // Skip relayout since variable update will trigger it
+    // Update the ref to the new values (paper coordinates)
+    if (originalVerticalLine) {
+      originalVerticalLine.x = xValue;
+      originalVerticalLine.date = xDate;
     }
+
+    if (!inDataViewerMode) {
+      const rawVerticalLineValue = JSON.parse(gridItemMetadataString)
+        .plotlyVerticalLine.value;
+      const rawVerticalLineVar = checkForVariable(rawVerticalLineValue);
+
+      if (rawVerticalLineVar) {
+        const dateFormat = variableInputDateFormats[rawVerticalLineVar];
+        setVariableInputValues((prev) => ({
+          ...prev,
+          [rawVerticalLineVar]: format(new Date(xDate), dateFormat),
+        }));
+        return; // Skip relayout since variable update will trigger it
+      }
+    }
+
+    Plotly.relayout(plotElement, updates);
+    return;
   }
 
-  Plotly.relayout(plotElement, updates);
+  // if the range was updated by zooming/panning, we may need to adjust the vertical line to stay in the correct place
+  const rangeUpdates = Object.keys(eventData).filter((key) =>
+    key.includes(".range"),
+  );
+
+  if (rangeUpdates.length > 0) {
+    let xValue = createVerticalLine({
+      xValue: originalVerticalLine.date,
+      plotElement,
+      returnOutOfRange: true,
+    }).x0;
+
+    // Always update the shape in paper coordinates
+    const updates = {};
+    if (xValue < 0 || xValue > 1) {
+      updates[`shapes[${verticalLineIdx}].visible`] = false;
+    } else {
+      updates[`shapes[${verticalLineIdx}].visible`] = true;
+      updates[`shapes[${verticalLineIdx}].x0`] = xValue;
+      updates[`shapes[${verticalLineIdx}].x1`] = xValue;
+    }
+
+    Plotly.relayout(plotElement, updates);
+    return;
+  }
 };
 
 const BasePlot = ({
@@ -326,14 +393,16 @@ const BasePlot = ({
     );
 
     if (verticalLineMode === "on" && verticalLineValue) {
-      const verticalLineShape = createVerticalLine(
-        verticalLineValue,
-        plotlyVerticalLine,
-      );
+      const verticalLineShape = createVerticalLine({
+        xValue: verticalLineValue,
+        plotElement,
+        options: plotlyVerticalLine,
+        returnOutOfRange: true,
+      });
       currentShapes.push(verticalLineShape);
       verticalLineOriginalRef.current = {
-        x0: verticalLineShape.x0,
-        x1: verticalLineShape.x1,
+        x: verticalLineShape.x0,
+        date: verticalLineValue,
       };
     }
 
@@ -351,7 +420,7 @@ const BasePlot = ({
 
   const handleRelayout = useCallback(
     (eventData) => {
-      shiftVerticalLine({
+      handleEventData({
         eventData,
         verticalLineEditable,
         plotElement: visualizationRef?.current?.el,
