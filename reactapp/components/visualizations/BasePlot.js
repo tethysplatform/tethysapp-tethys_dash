@@ -85,7 +85,7 @@ export const snapDate = (date, step) => {
     // Snap to nearest Sunday (start of week)
     const day = d.getDay();
     const hour = d.getHours();
-    if (day >= 3 || (day === 3 && hour >= 12)) {
+    if (day > 3 || (day === 3 && hour >= 12)) {
       // If it's Thursday afternoon or later, snap to next week
       const nextWeek = new Date(d);
       nextWeek.setDate(d.getDate() + (7 - day));
@@ -117,6 +117,11 @@ export const snapDate = (date, step) => {
     } else {
       snappedDate = new Date(year + 1, 0, 1);
     }
+  } else {
+    // If no valid step provided, return original date
+    console.warn(
+      `Invalid step "${step}" for snapping date. Returning original date.`,
+    );
   }
   return convertDatesToLocalISO(snappedDate);
 };
@@ -132,6 +137,20 @@ export const formatToDate = (value, xrange, verticalLineStep) => {
   }
 
   return value;
+};
+
+const getMainAxisRangeDomain = (plotElement) => {
+  let xaxis = plotElement.layout.xaxis;
+  if (xaxis.matches) {
+    // If we're in a subplot, find the correct xaxis
+    const match = xaxis.matches.match(/x(\d*)/);
+    const axisNum = match && match[1] ? match[1] : "";
+    xaxis = plotElement.layout[`xaxis${axisNum}`] || xaxis;
+  }
+  const xrange = xaxis?.range;
+  const xdomain = xaxis?.domain || [0, 1];
+
+  return { xrange, xdomain };
 };
 
 export const createVerticalLine = ({
@@ -151,19 +170,7 @@ export const createVerticalLine = ({
 
   let xPaper;
 
-  let xaxis = plotElement.layout?.xaxis;
-  let axisNum = "";
-  if (xaxis.matches) {
-    // If we're in a subplot, find the correct xaxis
-    const match = xaxis.matches.match(/x(\d*)/);
-    axisNum = match && match[1] ? match[1] : "";
-    xaxis = plotElement.layout[`xaxis${axisNum}`] || xaxis;
-  }
-
-  // Always use paper values (0-1) for x0/x1
-  // If xValue is a date or string, convert to normalized paper value using xaxis range/domain
-  const xrange = xaxis?.range;
-  const xdomain = xaxis?.domain || [0, 1];
+  const { xrange, xdomain } = getMainAxisRangeDomain(plotElement);
 
   if (
     Array.isArray(xrange) &&
@@ -219,7 +226,6 @@ export const createVerticalLine = ({
 
 export const handleEventData = ({
   eventData,
-  verticalLineEditable,
   plotElement,
   originalVerticalLine,
   verticalLineStep,
@@ -234,15 +240,7 @@ export const handleEventData = ({
 
   if (verticalLineIdx === -1) return; // No vertical line to
 
-  let xaxis = plotElement.layout?.xaxis;
-  if (xaxis.matches) {
-    // If we're in a subplot, find the correct xaxis
-    const match = xaxis.matches.match(/x(\d*)/);
-    const axisNum = match && match[1] ? match[1] : "";
-    xaxis = plotElement.layout[`xaxis${axisNum}`] || xaxis;
-  }
-  const xrange = xaxis?.range;
-  const xdomain = xaxis?.domain || [0, 1];
+  const { xrange, xdomain } = getMainAxisRangeDomain(plotElement);
 
   const varticalLineUpdates = Object.entries(eventData).filter(
     ([key, value]) =>
@@ -268,15 +266,14 @@ export const handleEventData = ({
 
     let xValue = x0Paper;
     let xDate = x0Norm;
-    if (originalVerticalLine) {
-      // Compute the difference between new and original for both x0 and x1
-      const diff0 = Math.abs(originalVerticalLine.x - x0Paper);
-      const diff1 = Math.abs(originalVerticalLine.x - x1Paper);
 
-      if (diff1 > diff0) {
-        xValue = x1Paper;
-        xDate = x1Norm;
-      }
+    // Compute the difference between new and original for both x0 and x1
+    const diff0 = Math.abs(originalVerticalLine.x - x0Paper);
+    const diff1 = Math.abs(originalVerticalLine.x - x1Paper);
+
+    if (diff1 > diff0) {
+      xValue = x1Paper;
+      xDate = x1Norm;
     }
 
     // snap paper coordintate to date
@@ -295,10 +292,8 @@ export const handleEventData = ({
       updates[`shapes[${verticalLineIdx}].y1`] = 1;
 
     // Update the ref to the new values (paper coordinates)
-    if (originalVerticalLine) {
-      originalVerticalLine.x = xValue;
-      originalVerticalLine.date = xDate;
-    }
+    originalVerticalLine.x = xValue;
+    originalVerticalLine.date = xDate;
 
     if (!inDataViewerMode) {
       const rawVerticalLineValue = JSON.parse(gridItemMetadataString)
@@ -339,6 +334,8 @@ export const handleEventData = ({
       updates[`shapes[${verticalLineIdx}].visible`] = true;
       updates[`shapes[${verticalLineIdx}].x0`] = xValue;
       updates[`shapes[${verticalLineIdx}].x1`] = xValue;
+
+      originalVerticalLine.x = xValue;
     }
 
     Plotly.relayout(plotElement, updates);
@@ -364,7 +361,6 @@ const BasePlot = ({
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { plotlyVerticalLine = {} } = metadata;
   const {
-    editable: verticalLineEditable,
     step: verticalLineStep,
     mode: verticalLineMode,
     value: verticalLineValue,
@@ -422,7 +418,6 @@ const BasePlot = ({
     (eventData) => {
       handleEventData({
         eventData,
-        verticalLineEditable,
         plotElement: visualizationRef?.current?.el,
         originalVerticalLine: verticalLineOriginalRef.current,
         verticalLineStep,
@@ -433,7 +428,7 @@ const BasePlot = ({
       });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visualizationRef, verticalLineEditable, verticalLineStep],
+    [visualizationRef, verticalLineStep],
   );
 
   return (

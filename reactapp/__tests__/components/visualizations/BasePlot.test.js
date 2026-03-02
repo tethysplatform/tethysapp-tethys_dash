@@ -2,19 +2,17 @@ import { render } from "@testing-library/react";
 import { createRef } from "react";
 import BasePlot, {
   createVerticalLine,
+  formatToDate,
+  snapDate,
+  normalizedToDate,
+  paperToAxisNormalized,
+  handleEventData,
 } from "components/visualizations/BasePlot";
 import {
   VariableInputsContext,
   GridItemContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
-import {
-  formatToDate,
-  snapDate,
-  normalizedToDate,
-  paperToAxisNormalized,
-  shiftVerticalLine,
-} from "components/visualizations/BasePlot";
 import { convertDatesToLocalISO } from "components/inputs/dateUtils";
 
 jest.mock("plotly.js-strict-dist-min", () => {
@@ -155,9 +153,21 @@ describe("BasePlot utility functions", () => {
         new Date("2020-01-05T00:00:00.000"),
       );
 
-      const d2 = new Date("2020-01-09T12:00:00.000");
+      const d2 = new Date("2020-01-08T10:00:00.000");
       const snapped2 = snapDate(d2, "week");
       expect(new Date(snapped2)).toStrictEqual(
+        new Date("2020-01-05T00:00:00.000"),
+      );
+
+      const d3 = new Date("2020-01-08T12:00:00.000");
+      const snapped3 = snapDate(d3, "week");
+      expect(new Date(snapped3)).toStrictEqual(
+        new Date("2020-01-12T00:00:00.000"),
+      );
+
+      const d4 = new Date("2020-01-10T00:00:00.000");
+      const snapped4 = snapDate(d4, "week");
+      expect(new Date(snapped4)).toStrictEqual(
         new Date("2020-01-12T00:00:00.000"),
       );
     });
@@ -186,6 +196,12 @@ describe("BasePlot utility functions", () => {
       expect(new Date(snapped2)).toStrictEqual(
         new Date("2021-01-01T00:00:00.000"),
       );
+    });
+
+    it("returns original date for bad step", () => {
+      const d = new Date("2020-01-01T00:01:29.000");
+      const snapped = snapDate(d, "invalid-step");
+      expect(new Date(snapped)).toStrictEqual(d);
     });
 
     it("returns original value for invalid date", () => {
@@ -225,70 +241,269 @@ describe("BasePlot utility functions", () => {
 
 describe("BasePlot vertical line", () => {
   it("creates a vertical line shape with correct metadata", () => {
-    const shape = createVerticalLine("2022-01-01", {
-      id: "vline1",
-      variable: "var1",
+    const shape = createVerticalLine({
+      xValue: "2022-01-01",
+      plotElement: {
+        layout: {
+          xaxis: {
+            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
+            domain: [0, 1],
+          },
+        },
+      },
+      options: {
+        id: "vline1",
+        variable: "var1",
+      },
     });
     expect(shape.type).toBe("line");
     expect(shape.meta.id).toBe("vline1");
     expect(shape.meta.variable).toBe("var1");
-    expect(shape.x0).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
-    expect(shape.x1).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z/);
+    expect(shape.x0).toBe(0);
+    expect(shape.x1).toBe(0);
+    expect(shape.line.color).toBe("red");
+  });
+
+  it("creates a vertical line, axis match is nonexistent", () => {
+    const shape = createVerticalLine({
+      xValue: "2022-01-01",
+      plotElement: {
+        layout: {
+          xaxis: {
+            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
+            domain: [0, 1],
+            matches: "x3",
+          },
+        },
+      },
+      options: {
+        id: "vline1",
+        variable: "var1",
+      },
+    });
+    expect(shape.type).toBe("line");
+    expect(shape.meta.id).toBe("vline1");
+    expect(shape.meta.variable).toBe("var1");
+    expect(shape.x0).toBe(0);
+    expect(shape.x1).toBe(0);
+    expect(shape.line.color).toBe("red");
+  });
+
+  it("creates a vertical line, axis bad match format", () => {
+    const shape = createVerticalLine({
+      xValue: "2022-01-01",
+      plotElement: {
+        layout: {
+          xaxis: {
+            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
+            domain: [0, 1],
+            matches: "some axis 3",
+          },
+        },
+      },
+      options: {
+        id: "vline1",
+        variable: "var1",
+      },
+    });
+    expect(shape.type).toBe("line");
+    expect(shape.meta.id).toBe("vline1");
+    expect(shape.meta.variable).toBe("var1");
+    expect(shape.x0).toBe(0);
+    expect(shape.x1).toBe(0);
+    expect(shape.line.color).toBe("red");
+  });
+
+  it("creates a vertical line shape with correct metadata, shared axis", () => {
+    const shape = createVerticalLine({
+      xValue: "2022-01-01",
+      plotElement: {
+        layout: {
+          xaxis: {
+            matches: "x2",
+          },
+          xaxis2: {
+            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
+            domain: [0, 1],
+          },
+        },
+      },
+      options: {
+        id: "vline1",
+        variable: "var1",
+      },
+    });
+    expect(shape.type).toBe("line");
+    expect(shape.meta.id).toBe("vline1");
+    expect(shape.meta.variable).toBe("var1");
+    expect(shape.x0).toBe(0);
+    expect(shape.x1).toBe(0);
     expect(shape.line.color).toBe("red");
   });
 
   it("creates a vertical line with custom color, width, dash", () => {
-    const shape = createVerticalLine("2022-01-01", {
-      color: "blue",
-      width: 5,
-      dash: "dot",
+    const shape = createVerticalLine({
+      xValue: "2022-01-01T12:00:00.000Z",
+      plotElement: {
+        layout: {
+          xaxis: {
+            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
+            domain: [0, 1],
+          },
+        },
+      },
+      options: {
+        color: "blue",
+        width: 5,
+        dash: "dot",
+      },
     });
     expect(shape.line.color).toBe("blue");
     expect(shape.line.width).toBe(5);
     expect(shape.line.dash).toBe("dot");
+    expect(shape.x0).toBe(0.5);
+    expect(shape.x1).toBe(0.5);
   });
 
-  it("handles xValue as number and parses to ISO string", () => {
-    const shape = createVerticalLine(123);
+  it("handles xValue as number", () => {
+    const shape = createVerticalLine({
+      xValue: 123,
+      plotElement: {
+        layout: {
+          xaxis: {
+            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
+            domain: [0, 1],
+          },
+        },
+      },
+    });
     expect(shape.x0).toBe(123);
     expect(shape.x1).toBe(123);
   });
 
-  it("handles xValue as invalid date and uses original value", () => {
-    const shape = createVerticalLine("invalid-date-string");
-    expect(shape.x0).toBe("invalid-date-string");
-    expect(shape.x1).toBe("invalid-date-string");
+  it("handles bad range in plot", () => {
+    const shape = createVerticalLine({
+      xValue: 123,
+      plotElement: {
+        layout: {
+          xaxis: {},
+        },
+      },
+    });
+    expect(shape.x0).toBe(0.5);
+    expect(shape.x1).toBe(0.5);
+  });
+
+  it("handles xValue as invalid date and return 0.5", () => {
+    const shape = createVerticalLine({
+      xValue: "invalid-date-string",
+      plotElement: {
+        layout: {
+          xaxis: {
+            range: ["2022-01-01T00:00:00.000Z", "2022-01-02T00:00:00.000Z"],
+            domain: [0, 1],
+          },
+        },
+      },
+    });
+    expect(shape.x0).toBe(0.5);
+    expect(shape.x1).toBe(0.5);
+  });
+
+  it("handles out of range values, max", () => {
+    const shape = createVerticalLine({
+      xValue: "2022-01-03T00:00:00.000",
+      plotElement: {
+        layout: {
+          xaxis: {
+            range: ["2022-01-01T00:00:00.000", "2022-01-02T00:00:00.000"],
+            domain: [0, 1],
+          },
+        },
+      },
+      options: {
+        id: "vline1",
+        variable: "var1",
+      },
+    });
+    expect(shape.type).toBe("line");
+    expect(shape.meta.id).toBe("vline1");
+    expect(shape.meta.variable).toBe("var1");
+    expect(shape.x0).toBe(1);
+    expect(shape.x1).toBe(1);
+    expect(shape.line.color).toBe("red");
+  });
+
+  it("handles out of range values, min", () => {
+    const shape = createVerticalLine({
+      xValue: "2021-12-31T00:00:00.000",
+      plotElement: {
+        layout: {
+          xaxis: {
+            range: ["2022-01-01T00:00:00.000", "2022-01-02T00:00:00.000"],
+            domain: [0, 1],
+          },
+        },
+      },
+      options: {
+        id: "vline1",
+        variable: "var1",
+      },
+    });
+    expect(shape.type).toBe("line");
+    expect(shape.meta.id).toBe("vline1");
+    expect(shape.meta.variable).toBe("var1");
+    expect(shape.x0).toBe(0);
+    expect(shape.x1).toBe(0);
+    expect(shape.line.color).toBe("red");
+  });
+
+  it("handles out of range values, returnOutOfRange is true", () => {
+    const shape = createVerticalLine({
+      xValue: "2022-01-03T00:00:00.000",
+      plotElement: {
+        layout: {
+          xaxis: {
+            range: ["2022-01-01T00:00:00.000", "2022-01-02T00:00:00.000"],
+            domain: [0, 1],
+          },
+        },
+      },
+      options: {
+        id: "vline1",
+        variable: "var1",
+      },
+      returnOutOfRange: true,
+    });
+    expect(shape.type).toBe("line");
+    expect(shape.meta.id).toBe("vline1");
+    expect(shape.meta.variable).toBe("var1");
+    expect(shape.x0).toBe(2);
+    expect(shape.x1).toBe(2);
+    expect(shape.line.color).toBe("red");
   });
 });
 
-describe("BasePlot shiftVerticalLine", () => {
-  it("does not shift if eventData is null", () => {
+describe("BasePlot handleEventData line shift", () => {
+  it("no custom vertical line present", () => {
     const mockSetVariableInputValues = jest.fn();
-    shiftVerticalLine({
-      eventData: null,
-      verticalLineEditable: false,
-      plotElement: {},
-      originalVerticalLine: undefined,
-      verticalLineStep: "minute",
-      inDataViewerMode: false,
-      gridItemMetadataString: "{}",
-      variableInputDateFormats: {},
-      setVariableInputValues: mockSetVariableInputValues,
-    });
-    expect(mockSetVariableInputValues).not.toHaveBeenCalled();
-  });
-
-  it("does not shift if verticalLineEditable is false", () => {
-    const mockSetVariableInputValues = jest.fn();
-    shiftVerticalLine({
+    handleEventData({
       eventData: {
         "shapes[0].x0": 0.49816614420062694,
         "shapes[0].x1": 0.49816614420062694,
         "shapes[0].y0": 0,
         "shapes[0].y1": 1,
       },
-      verticalLineEditable: false,
-      plotElement: {},
+      verticalLineEditable: true,
+      plotElement: {
+        layout: {
+          shapes: [{ meta: { createdBy: "plotly" } }],
+          xaxis: {
+            range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
+            domain: [0, 1],
+          },
+        },
+      },
       originalVerticalLine: undefined,
       verticalLineStep: "minute",
       inDataViewerMode: false,
@@ -297,11 +512,12 @@ describe("BasePlot shiftVerticalLine", () => {
       setVariableInputValues: mockSetVariableInputValues,
     });
     expect(mockSetVariableInputValues).not.toHaveBeenCalled();
+    expect(global.mockRelayout).not.toHaveBeenCalled();
   });
 
   it("no vertical line updates", () => {
     const mockSetVariableInputValues = jest.fn();
-    shiftVerticalLine({
+    handleEventData({
       eventData: {
         "shapes[1].x0": 0.49816614420062694,
         "shapes[1].x1": 0.49816614420062694,
@@ -315,6 +531,10 @@ describe("BasePlot shiftVerticalLine", () => {
             { meta: { createdBy: "addVerticalLine" } },
             { meta: { createdBy: "plotly" } },
           ],
+          xaxis: {
+            range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
+            domain: [0, 1],
+          },
         },
       },
       originalVerticalLine: undefined,
@@ -325,6 +545,7 @@ describe("BasePlot shiftVerticalLine", () => {
       setVariableInputValues: mockSetVariableInputValues,
     });
     expect(mockSetVariableInputValues).not.toHaveBeenCalled();
+    expect(global.mockRelayout).not.toHaveBeenCalled();
   });
 
   it("vertical line updates - line shifted", () => {
@@ -333,14 +554,15 @@ describe("BasePlot shiftVerticalLine", () => {
       layout: {
         shapes: [
           {
-            x0: 0.49816614420062694,
-            x1: 0.49816614420062694,
+            x0: 0.256,
+            x1: 0.256,
             y0: 0.25,
             y1: 0.75,
             meta: { createdBy: "addVerticalLine" },
           },
           { meta: { createdBy: "plotly" } },
         ],
+        xaxis: { matches: "x2" },
         xaxis2: {
           range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
           domain: [0, 1],
@@ -348,16 +570,16 @@ describe("BasePlot shiftVerticalLine", () => {
       },
     };
 
-    shiftVerticalLine({
+    handleEventData({
       eventData: {
-        "shapes[0].x0": 0.49816614420062694,
-        "shapes[0].x1": 0.49816614420062694,
+        "shapes[0].x0": 0.256,
+        "shapes[0].x1": 0.256,
         "shapes[0].y0": 0.25,
         "shapes[0].y1": 0.75,
       },
       verticalLineEditable: true,
       plotElement: plotElement,
-      originalVerticalLine: undefined,
+      originalVerticalLine: {},
       verticalLineStep: "minute",
       inDataViewerMode: false,
       gridItemMetadataString: JSON.stringify({
@@ -368,9 +590,10 @@ describe("BasePlot shiftVerticalLine", () => {
     });
     expect(mockSetVariableInputValues).not.toHaveBeenCalled();
     expect(global.mockRelayout).toHaveBeenCalled();
+    // snaps to the minute and therefore updates to 0.25, and y0/y1 are updated to 0 and 1 respectively since the line was shifted, not resized
     expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
-      "shapes[0].x0": convertDatesToLocalISO(new Date("2020-01-01T00:30:00")),
-      "shapes[0].x1": convertDatesToLocalISO(new Date("2020-01-01T00:30:00")),
+      "shapes[0].x0": 0.25,
+      "shapes[0].x1": 0.25,
       "shapes[0].y0": 0,
       "shapes[0].y1": 1,
     });
@@ -390,14 +613,14 @@ describe("BasePlot shiftVerticalLine", () => {
           },
           { meta: { createdBy: "plotly" } },
         ],
-        xaxis2: {
+        xaxis: {
           range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
           domain: [0, 1],
         },
       },
     };
 
-    shiftVerticalLine({
+    handleEventData({
       eventData: {
         "shapes[0].x0": 0.25,
         "shapes[0].x1": 0.5,
@@ -407,10 +630,8 @@ describe("BasePlot shiftVerticalLine", () => {
       verticalLineEditable: true,
       plotElement: plotElement,
       originalVerticalLine: {
-        x0: "2020-01-01T00:30:00",
-        x1: "2020-01-01T00:30:00",
-        y0: 0,
-        y1: 1,
+        x: 0.5,
+        date: "2020-01-01T00:30:00.000",
       },
       verticalLineStep: "minute",
       inDataViewerMode: false,
@@ -423,8 +644,8 @@ describe("BasePlot shiftVerticalLine", () => {
     expect(mockSetVariableInputValues).not.toHaveBeenCalled();
     expect(global.mockRelayout).toHaveBeenCalled();
     expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
-      "shapes[0].x0": convertDatesToLocalISO(new Date("2020-01-01T00:15:00")),
-      "shapes[0].x1": convertDatesToLocalISO(new Date("2020-01-01T00:15:00")),
+      "shapes[0].x0": 0.25,
+      "shapes[0].x1": 0.25,
     });
   });
 
@@ -442,14 +663,14 @@ describe("BasePlot shiftVerticalLine", () => {
           },
           { meta: { createdBy: "plotly" } },
         ],
-        xaxis2: {
+        xaxis: {
           range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
           domain: [0, 1],
         },
       },
     };
 
-    shiftVerticalLine({
+    handleEventData({
       eventData: {
         "shapes[0].x0": 0.5,
         "shapes[0].x1": 0.25,
@@ -459,10 +680,8 @@ describe("BasePlot shiftVerticalLine", () => {
       verticalLineEditable: true,
       plotElement: plotElement,
       originalVerticalLine: {
-        x0: "2020-01-01T00:30:00",
-        x1: "2020-01-01T00:30:00",
-        y0: 0,
-        y1: 1,
+        x: 0.5,
+        date: "2020-01-01T00:30:00.000",
       },
       verticalLineStep: "minute",
       inDataViewerMode: false,
@@ -475,8 +694,8 @@ describe("BasePlot shiftVerticalLine", () => {
     expect(mockSetVariableInputValues).not.toHaveBeenCalled();
     expect(global.mockRelayout).toHaveBeenCalled();
     expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
-      "shapes[0].x0": convertDatesToLocalISO(new Date("2020-01-01T00:15:00")),
-      "shapes[0].x1": convertDatesToLocalISO(new Date("2020-01-01T00:15:00")),
+      "shapes[0].x0": 0.25,
+      "shapes[0].x1": 0.25,
     });
   });
 
@@ -494,14 +713,14 @@ describe("BasePlot shiftVerticalLine", () => {
           },
           { meta: { createdBy: "plotly" } },
         ],
-        xaxis2: {
+        xaxis: {
           range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
           domain: [0, 1],
         },
       },
     };
 
-    shiftVerticalLine({
+    handleEventData({
       eventData: {
         "shapes[0].x0": 0.49816614420062694,
         "shapes[0].x1": 0.49816614420062694,
@@ -510,7 +729,7 @@ describe("BasePlot shiftVerticalLine", () => {
       },
       verticalLineEditable: true,
       plotElement: plotElement,
-      originalVerticalLine: undefined,
+      originalVerticalLine: {},
       verticalLineStep: "minute",
       inDataViewerMode: false,
       gridItemMetadataString: JSON.stringify({
@@ -548,14 +767,14 @@ describe("BasePlot shiftVerticalLine", () => {
           },
           { meta: { createdBy: "plotly" } },
         ],
-        xaxis2: {
+        xaxis: {
           range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
           domain: [0, 1],
         },
       },
     };
 
-    shiftVerticalLine({
+    handleEventData({
       eventData: {
         "shapes[0].x0": 0.49816614420062694,
         "shapes[0].x1": 0.49816614420062694,
@@ -564,7 +783,7 @@ describe("BasePlot shiftVerticalLine", () => {
       },
       verticalLineEditable: true,
       plotElement: plotElement,
-      originalVerticalLine: undefined,
+      originalVerticalLine: {},
       verticalLineStep: "minute",
       inDataViewerMode: true,
       gridItemMetadataString: JSON.stringify({
@@ -578,10 +797,112 @@ describe("BasePlot shiftVerticalLine", () => {
     expect(mockSetVariableInputValues).not.toHaveBeenCalled();
     expect(global.mockRelayout).toHaveBeenCalled();
     expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
-      "shapes[0].x0": convertDatesToLocalISO(new Date("2020-01-01T00:30:00")),
-      "shapes[0].x1": convertDatesToLocalISO(new Date("2020-01-01T00:30:00")),
+      "shapes[0].x0": 0.5,
+      "shapes[0].x1": 0.5,
       "shapes[0].y0": 0,
       "shapes[0].y1": 1,
+    });
+  });
+});
+
+describe("BasePlot handleEventData range update", () => {
+  it("range updates - line in range", () => {
+    const mockSetVariableInputValues = jest.fn();
+    const plotElement = {
+      layout: {
+        shapes: [
+          {
+            x0: 0.5,
+            x1: 0.5,
+            y0: 0.25,
+            y1: 0.75,
+            meta: { createdBy: "addVerticalLine" },
+          },
+          { meta: { createdBy: "plotly" } },
+        ],
+        xaxis: {
+          matches: "x2",
+        },
+        xaxis2: {
+          range: ["2020-01-01T00:00:00.000", "2020-01-01T01:00:00.000"],
+          domain: [0, 1],
+        },
+      },
+    };
+
+    handleEventData({
+      eventData: {
+        "xaxis.range[0]": "2020-01-01T00:00:00.000",
+        "xaxis.range[1]": "2020-01-01T01:00:00.000",
+      },
+      verticalLineEditable: true,
+      plotElement: plotElement,
+      originalVerticalLine: { date: "2020-01-01T00:15:00.000" },
+      verticalLineStep: "minute",
+      inDataViewerMode: false,
+      gridItemMetadataString: JSON.stringify({
+        plotlyVerticalLine: { value: "2022-01-01T00:00:00.000" },
+      }),
+      variableInputDateFormats: {},
+      setVariableInputValues: mockSetVariableInputValues,
+    });
+
+    expect(mockSetVariableInputValues).not.toHaveBeenCalled();
+    expect(global.mockRelayout).toHaveBeenCalled();
+    // snaps to the minute and therefore updates to 0.25, and y0/y1 are updated to 0 and 1 respectively since the line was shifted, not resized
+    expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
+      "shapes[0].visible": true,
+      "shapes[0].x0": 0.25,
+      "shapes[0].x1": 0.25,
+    });
+  });
+
+  it("range updates - line out of range", () => {
+    const mockSetVariableInputValues = jest.fn();
+    const plotElement = {
+      layout: {
+        shapes: [
+          {
+            x0: 0.5,
+            x1: 0.5,
+            y0: 0.25,
+            y1: 0.75,
+            meta: { createdBy: "addVerticalLine" },
+          },
+          { meta: { createdBy: "plotly" } },
+        ],
+        xaxis: {
+          matches: "x2",
+        },
+        xaxis2: {
+          range: ["2020-01-01T00:00:00.000", "2020-01-01T00:10:00.000"],
+          domain: [0, 1],
+        },
+      },
+    };
+
+    handleEventData({
+      eventData: {
+        "xaxis.range[0]": "2020-01-01T00:00:00.000",
+        "xaxis.range[1]": "2020-01-01T00:10:00.000",
+      },
+      verticalLineEditable: true,
+      plotElement: plotElement,
+      originalVerticalLine: { date: "2020-01-01T00:15:00.000" },
+      verticalLineStep: "minute",
+      inDataViewerMode: false,
+      gridItemMetadataString: JSON.stringify({
+        plotlyVerticalLine: { value: "2022-01-01T00:00:00.000" },
+      }),
+      variableInputDateFormats: {},
+      setVariableInputValues: mockSetVariableInputValues,
+    });
+
+    expect(mockSetVariableInputValues).not.toHaveBeenCalled();
+    expect(global.mockRelayout).toHaveBeenCalled();
+    // snaps to the minute and therefore updates to 0.25, and y0/y1 are updated to 0 and 1 respectively since the line was shifted, not resized
+    expect(global.mockRelayout).toHaveBeenCalledWith(plotElement, {
+      "shapes[0].visible": false,
     });
   });
 });
