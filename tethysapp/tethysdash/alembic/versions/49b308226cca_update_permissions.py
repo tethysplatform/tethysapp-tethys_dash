@@ -20,30 +20,56 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    dialect = bind.dialect.name
+    if dialect == "sqlite":
+        # Step 1: Add group_id column, keep group column
+        with op.batch_alter_table("dashboard_permissions") as batch_op:
+            batch_op.add_column(
+                sa.Column(
+                    "group_id",
+                    sa.Integer(),
+                    nullable=True,
+                )
+            )
+        # Step 2: Run UPDATE to populate group_id
+        op.execute(
+            """
+            UPDATE dashboard_permissions SET group_id = (
+                SELECT id FROM permission_groups WHERE dashboard_permissions."group" = permission_groups.name
+            )
+            """
+        )
+        # Step 3: Drop group column and add FK constraint
+        with op.batch_alter_table("dashboard_permissions") as batch_op:
+            batch_op.drop_column("group")
+            batch_op.create_foreign_key(
+                "fk_dashboard_permissions_group_id_permission_groups",
+                "permission_groups",
+                ["group_id"],
+                ["id"],
+                ondelete="CASCADE",
+            )
+    else:
+        op.add_column(
+            "dashboard_permissions",
+            sa.Column(
+                "group_id",
+                sa.Integer(),
+                sa.ForeignKey("permission_groups.id", ondelete="CASCADE"),
+                nullable=True,
+            ),
+        )
+        op.execute(
+            """
+            UPDATE dashboard_permissions dp
+            SET group_id = pg.id
+            FROM permission_groups pg
+            WHERE dp."group" = pg.name
+            """
+        )
+        op.drop_column("dashboard_permissions", "group")
 
-    # DASHBOARD PERMISSIONS TABLE
-    op.add_column(
-        "dashboard_permissions",
-        sa.Column(
-            "group_id",
-            sa.Integer(),
-            sa.ForeignKey("permission_groups.id", ondelete="CASCADE"),
-            nullable=True,
-        ),
-    )
-
-    op.execute(
-        """
-        UPDATE dashboard_permissions dp
-        SET group_id = pg.id
-        FROM permission_groups pg
-        WHERE dp."group" = pg.name
-        """
-    )
-
-    op.drop_column("dashboard_permissions", "group")
-
-    # VISUALIZATION PERMISSIONS TABLE
     op.create_table(
         "visualization_permissions",
         sa.Column("id", sa.Integer(), primary_key=True),

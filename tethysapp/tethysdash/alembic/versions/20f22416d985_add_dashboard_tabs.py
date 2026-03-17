@@ -34,13 +34,19 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
-    # Add tab_id column to griditems table
-    op.add_column("griditems", sa.Column("tab_id", sa.Integer(), nullable=True))
-
-    # Add foreign key constraint from griditems.tab_id to dashboard_tabs.id
-    op.create_foreign_key(
-        "fk_griditems_tab_id", "griditems", "dashboard_tabs", ["tab_id"], ["id"]
-    )
+    bind = op.get_bind()
+    dialect = bind.dialect.name
+    if dialect == "sqlite":
+        with op.batch_alter_table("griditems") as batch_op:
+            batch_op.add_column(sa.Column("tab_id", sa.Integer(), nullable=True))
+            batch_op.create_foreign_key(
+                "fk_griditems_tab_id", "dashboard_tabs", ["tab_id"], ["id"]
+            )
+    else:
+        op.add_column("griditems", sa.Column("tab_id", sa.Integer(), nullable=True))
+        op.create_foreign_key(
+            "fk_griditems_tab_id", "griditems", "dashboard_tabs", ["tab_id"], ["id"]
+        )
 
     # default "Main" tab for all existing dashboards and associate existing grid items
     connection = op.get_bind()

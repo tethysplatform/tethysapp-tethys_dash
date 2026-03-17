@@ -19,29 +19,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    import sqlalchemy as sa
-
+    # Ensure griditems.uuid is unique and not null
     bind = op.get_bind()
     dialect = bind.dialect.name
-    if dialect == "sqlite":
-        with op.batch_alter_table("griditems") as batch_op:
-            batch_op.create_unique_constraint("uq_griditems_uuid", ["uuid"])
-        op.execute(
-            """
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp DATETIME NOT NULL,
-                request_id VARCHAR NOT NULL,
-                session_id VARCHAR NOT NULL,
-                message_id VARCHAR NOT NULL,
-                sender VARCHAR NOT NULL,
-                message VARCHAR NOT NULL,
-                edited BOOLEAN NOT NULL DEFAULT 0
-            );
-            """
-        )
-    else:
-        op.create_unique_constraint("uq_griditems_uuid", "griditems", ["uuid"])
+    op.create_unique_constraint("uq_griditems_uuid", "griditems", ["uuid"])
+    if dialect == "postgresql":
         op.execute(
             """
             CREATE TABLE IF NOT EXISTS messages (
@@ -57,17 +39,28 @@ def upgrade() -> None:
             ) PARTITION BY RANGE (timestamp);
             """
         )
+    else:
+        op.execute(
+            """
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME NOT NULL,
+                request_id VARCHAR NOT NULL,
+                session_id VARCHAR NOT NULL,
+                message_id VARCHAR NOT NULL,
+                sender VARCHAR NOT NULL,
+                message VARCHAR NOT NULL,
+                edited BOOLEAN NOT NULL DEFAULT 0
+            );
+            """
+        )
 
 
 def downgrade() -> None:
-    import sqlalchemy as sa
-
     bind = op.get_bind()
     dialect = bind.dialect.name
-    if dialect == "sqlite":
-        op.execute("DROP TABLE IF EXISTS messages;")
-        with op.batch_alter_table("griditems") as batch_op:
-            batch_op.drop_constraint("uq_griditems_uuid", type_="unique")
-    else:
+    if dialect == "postgresql":
         op.execute("DROP TABLE IF EXISTS messages CASCADE;")
-        op.drop_constraint("uq_griditems_uuid", "griditems", type_="unique")
+    else:
+        op.execute("DROP TABLE IF EXISTS messages;")
+    op.drop_constraint("uq_griditems_uuid", "griditems", type_="unique")

@@ -20,7 +20,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Add columns with correct types
+    bind = op.get_bind()
+    dialect = bind.dialect.name
     op.add_column(
         "dashboards", sa.Column("unrestricted_placement", sa.Boolean(), nullable=True)
     )
@@ -28,7 +29,6 @@ def upgrade() -> None:
 
     op.add_column("griditems", sa.Column("order", sa.Integer(), nullable=True))
 
-    # Populate 'order' using row_number() grouped by dashboard_id
     op.execute(
         """
         WITH numbered AS (
@@ -39,11 +39,14 @@ def upgrade() -> None:
         SET "order" = numbered.rn
         FROM numbered
         WHERE griditems.id = numbered.id
-    """
+        """
     )
 
-    # Make 'order' column non-nullable
-    op.alter_column("griditems", "order", nullable=False)
+    if dialect == "sqlite":
+        with op.batch_alter_table("griditems") as batch_op:
+            batch_op.alter_column("order", nullable=False)
+    else:
+        op.alter_column("griditems", "order", nullable=False)
 
 
 def downgrade() -> None:

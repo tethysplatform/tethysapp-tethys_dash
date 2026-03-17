@@ -28,6 +28,48 @@ tethys install -d
 4. Create Persistence Store (if not done already) (update connection string as needed)
 
 ```
+## Command Line Interface (CLI)
+
+After installing tethysdash, you can use the CLI tool:
+
+```
+
+tethysdash
+
+```
+
+This will run the CLI entry point defined in the package. You can add arguments as needed:
+
+```
+
+tethysdash <arguments>
+
+```
+
+For example:
+
+```
+
+tethysdash --help
+
+```
+
+### Setup Command
+
+To run Tethys portal and database setup commands, use:
+
+```
+
+tethysdash setup
+
+```
+
+This will execute:
+
+- `tethys gen portal_config`
+- `tethys db configure`
+
+You must have the `tethys` CLI available in your environment.
 tethys services create persistent -n primary_db -c postgres:mysecretpassword@localhost:5432
 ```
 
@@ -64,8 +106,6 @@ pip install -e .
 ## Development
 
 The webpack dev server is configured to proxy the Tethys development server (see `webpack.config.js`). The app endpoint will be handled by the webpack development server and all other endpoints will be handled by the Tethys (Django) development server. As such, you will need to start both in separate terminals.
-
-
 
 1. Install the node and dependencies
 

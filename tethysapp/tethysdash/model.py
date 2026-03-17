@@ -15,7 +15,6 @@ from sqlalchemy import (
     Boolean,
     ForeignKey,
     UniqueConstraint,
-    Enum,
 )
 from sqlalchemy.orm import relationship
 import json
@@ -28,14 +27,13 @@ import base64
 from alembic.config import Config
 from alembic import command, script
 from sqlalchemy.exc import ProgrammingError, OperationalError
+from sqlalchemy import CheckConstraint
 from pathlib import Path
 import subprocess
 from tethysapp.tethysdash.utilities import sanitize_html
 from django.contrib.auth import get_user_model
 import shutil
 import filecmp
-import sqlalchemy
-from datetime import timedelta
 from uuid import uuid4
 
 Base = declarative_base()
@@ -161,20 +159,6 @@ class GridItem(Base):
     tab = relationship("DashboardTab", back_populates="grid_items")
 
 
-class DashboardPermissionLevel(enum.Enum):
-    """Enumeration of dashboard permission levels.
-
-    Defines the three levels of access that can be granted for dashboards:
-    - admin: Full control including editing, deleting, and managing permissions
-    - editor: Can edit dashboard content but cannot manage permissions or delete
-    - viewer: Read-only access to view the dashboard
-    """
-
-    admin = "admin"
-    editor = "editor"
-    viewer = "viewer"
-
-
 class DashboardPermission(Base):
     """
     SQLAlchemy model for dashboard access permissions.
@@ -188,7 +172,7 @@ class DashboardPermission(Base):
         dashboard_id (int): Foreign key to the dashboard
         username (str): Username for user-specific permissions (nullable)
         group_id (int): Foreign key to permission group (nullable)
-        permission (DashboardPermissionLevel): Permission level enum
+        permission (str): Permission level as a string
         dashboard (relationship): Reference to the dashboard
         group (relationship): Reference to the permission group
     """
@@ -201,11 +185,18 @@ class DashboardPermission(Base):
     group_id = Column(
         Integer, ForeignKey("permission_groups.id", ondelete="CASCADE"), nullable=True
     )
-    permission = Column(Enum(DashboardPermissionLevel), nullable=False)
+    permission = Column(
+        String,
+        nullable=False,
+    )
 
     __table_args__ = (
         UniqueConstraint("dashboard_id", "username", name="_dashboard_user_perm"),
         UniqueConstraint("dashboard_id", "group_id", name="_dashboard_group_perm"),
+        CheckConstraint(
+            "permission IN ('admin', 'editor', 'viewer')",
+            name="ck_dashboard_permission_level",
+        ),
     )
 
     dashboard = relationship("Dashboard", back_populates="permissions")
@@ -311,9 +302,19 @@ class PermissionGroupUser(Base):
         ForeignKey("permission_groups.id", ondelete="CASCADE"),
         nullable=False,
     )
-    permission = Column(Enum(GroupPermissionLevel), nullable=False)
+    permission = Column(
+        String,
+        nullable=False,
+    )
 
     group = relationship("PermissionGroup", back_populates="members")
+
+    __table_args__ = (
+        CheckConstraint(
+            "permission IN ('admin', 'editor', 'viewer')",
+            name="ck_dashboard_permission_level",
+        ),
+    )
 
 
 class Message(Base):
@@ -406,7 +407,7 @@ def add_new_dashboard(
         owner_permission = DashboardPermission(
             dashboard_id=new_dashboard_id,
             username=owner.username,
-            permission=DashboardPermissionLevel.admin,
+            permission="admin",
         )
         session.add(owner_permission)
         session.commit()
@@ -695,7 +696,7 @@ def copy_named_dashboard(user, id, new_name, dashboard_uuid):
         admin_permission = DashboardPermission(
             dashboard_id=new_dashboard.id,
             username=user.username,
-            permission=DashboardPermissionLevel.admin,
+            permission="admin",
         )
         session.add(admin_permission)
         new_dashboard.permissions = [admin_permission]
@@ -736,7 +737,7 @@ def delete_named_dashboard(user, id):
         user_permission = get_dashboard_user_permission(session, db_dashboard, user)
 
         # Check if user has admin permission
-        if user_permission != DashboardPermissionLevel.admin:
+        if user_permission != "admin":
             raise Exception(
                 "User does not have admin permission to delete the dashboard."
             )
@@ -785,10 +786,7 @@ def update_named_dashboard(user, id, dashboard_updates):
         user_permission = get_dashboard_user_permission(session, db_dashboard, user)
 
         # Check if user has editor or admin permission
-        if (
-            user_permission != DashboardPermissionLevel.editor
-            and user_permission != DashboardPermissionLevel.admin
-        ):
+        if user_permission != "editor" and user_permission != "admin":
             raise Exception(
                 "User does not have admin or editor permissions to update the dashboard."  # noqa: E501
             )
@@ -798,7 +796,7 @@ def update_named_dashboard(user, id, dashboard_updates):
 
         if db_name != db_dashboard.name:
             # Check if user has admin permission
-            if user_permission != DashboardPermissionLevel.admin:
+            if user_permission != "admin":
                 raise Exception(
                     "User does not have admin permission to change the name of the dashboard."  # noqa: E501
                 )
@@ -812,7 +810,7 @@ def update_named_dashboard(user, id, dashboard_updates):
 
         if db_public != db_dashboard.public:
             # Check if user has admin permission
-            if user_permission != DashboardPermissionLevel.admin:
+            if user_permission != "admin":
                 raise Exception(
                     "User does not have admin permission to change the public status of the dashboard."  # noqa: E501
                 )
@@ -966,8 +964,7 @@ def get_dashboard_user_permission(session, dashboard, user):
         user: User object to check permissions for
 
     Returns:
-        DashboardPermissionLevel or None: Highest permission level found,
-                                         or None if no permission exists
+        str or None: Highest permission level found or None if no permission exists
     """
 
     # Get all group ids the user belongs to
@@ -988,12 +985,12 @@ def get_dashboard_user_permission(session, dashboard, user):
             perms.append(p.permission)
 
     # Determine highest permission
-    if DashboardPermissionLevel.admin in perms:
-        return DashboardPermissionLevel.admin
-    elif DashboardPermissionLevel.editor in perms:
-        return DashboardPermissionLevel.editor
-    elif DashboardPermissionLevel.viewer in perms:
-        return DashboardPermissionLevel.viewer
+    if "admin" in perms:
+        return "admin"
+    elif "editor" in perms:
+        return "editor"
+    elif "viewer" in perms:
+        return "viewer"
     else:
         return None
 
@@ -1229,7 +1226,7 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
 
     # Check if user has admin permission
     user_permission = get_dashboard_user_permission(session, db_dashboard, user)
-    if user_permission != DashboardPermissionLevel.admin:
+    if user_permission != "admin":
         raise Exception(
             "User does not have admin permission to change the permissions of the dashboard."  # noqa: E501
         )
@@ -1289,13 +1286,13 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
 
         if username in existing_user_perms:
             perm_obj = existing_user_perms[username]
-            if perm_obj.permission.value != perm_level:
-                perm_obj.permission = DashboardPermissionLevel(perm_level)
+            if perm_obj.permission != perm_level:
+                perm_obj.permission = perm_level
         else:
             new_perm = DashboardPermission(
                 dashboard_id=db_dashboard.id,
                 username=username,
-                permission=DashboardPermissionLevel(perm_level),
+                permission=perm_level,
             )
             session.add(new_perm)
 
@@ -1304,14 +1301,14 @@ def update_dashboard_permissions(session, db_dashboard, user, updated_permission
 
         if group_name in existing_group_perms:
             perm_obj = existing_group_perms[group_name]
-            if perm_obj.permission.value != perm_level:
-                perm_obj.permission = DashboardPermissionLevel(perm_level)
+            if perm_obj.permission != perm_level:
+                perm_obj.permission = perm_level
         else:
             group = session.query(PermissionGroup).filter_by(name=group_name).first()
             new_perm = DashboardPermission(
                 dashboard_id=db_dashboard.id,
                 group_id=group.id,
-                permission=DashboardPermissionLevel(perm_level),
+                permission=perm_level,
             )
             session.add(new_perm)
 
@@ -1615,7 +1612,7 @@ def parse_group_permissions(user, group):
               - user_permission: User's permission level in the group
     """
     members = [
-        {"username": member.username, "permission": member.permission.value}
+        {"username": member.username, "permission": member.permission}
         for member in group.members
     ]
     user_permission = next(
@@ -1667,8 +1664,6 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
             )
         # Find the user's permission level for this dashboard
         user_permission = get_dashboard_user_permission(session, dashboard, user)
-        if user_permission:
-            user_permission = user_permission.value
 
         permissions_list = []
         for perm in dashboard.permissions:
@@ -1676,14 +1671,14 @@ def parse_db_dashboard(session, dashboards, user, dashboard_view):
                 permissions_list.append(
                     {
                         "username": perm.username,
-                        "permission": perm.permission.value,
+                        "permission": perm.permission,
                     }
                 )
             elif perm.group_id:
                 permissions_list.append(
                     {
                         "group": perm.group.name,
-                        "permission": perm.permission.value,
+                        "permission": perm.permission,
                     }
                 )
 
@@ -1829,8 +1824,8 @@ def clean_up_jsons(user):
                 & (
                     DashboardPermission.permission.in_(
                         [
-                            DashboardPermissionLevel.admin,
-                            DashboardPermissionLevel.editor,
+                            "admin",
+                            "editor",
                         ]
                     )
                 )
@@ -1855,8 +1850,8 @@ def clean_up_jsons(user):
                 & (
                     DashboardPermission.permission.in_(
                         [
-                            DashboardPermissionLevel.admin,
-                            DashboardPermissionLevel.editor,
+                            "admin",
+                            "editor",
                         ]
                     )
                 )
@@ -1965,47 +1960,6 @@ def check_for_liveChat(grid_item_uuid):
         return False
     finally:
         session.close()
-
-
-def get_partition_name(ts):
-    return f"messages_{ts.strftime('%Y_%m_%d')}"
-
-
-def create_partition_for_date(connection, ts):
-    partition_name = get_partition_name(ts)
-    start = ts.replace(hour=0, minute=0, second=0, microsecond=0)
-    end = start + timedelta(days=1)
-    sql = f"""
-        CREATE TABLE IF NOT EXISTS {partition_name} PARTITION OF messages
-        FOR VALUES FROM ('{start.isoformat()}') TO ('{end.isoformat()}');
-    """
-    print(f"Creating partition: {partition_name} for {start.date()} to {end.date()}")
-    connection.execute(sqlalchemy.text(sql))
-
-
-def create_message_partitions_for_rolling_window(days_past=7, days_future=7):
-    """
-    Create partitions for the Message table for a rolling window
-    (past 7 days and next 7 days). Intended to be called by a weekly cron job or
-    with `tethys syncstores tethysdash`.
-
-    Args:
-        days_past (int): Number of days in the past to create partitions for
-        days_future (int): Number of days in the future to create partitions for
-    """
-    print(
-        f"Creating message partitions for rolling window: past {days_past} days, future {days_future} days"  # noqa: E501
-    )
-    engine = App.get_persistent_store_database("primary_db", as_sessionmaker=False)
-    connection = engine.connect()
-    try:
-        today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        for offset in range(-days_past, days_future + 1):
-            day = today + timedelta(days=offset)
-            print(f"Ensuring partition exists for: {day.date()}")
-            create_partition_for_date(connection, day)
-    finally:
-        connection.close()
 
 
 def cleanup_old_jsons():
@@ -2137,6 +2091,7 @@ def init_primary_db(engine, first_time):
     alembic_directory = str(tethysdash_directory / "alembic")
     alembic_cfg = Config(tethysdash_directory / "alembic.ini")
     alembic_cfg.set_main_option("script_location", alembic_directory)
+    alembic_cfg.set_main_option("sqlalchemy.url", str(engine.url))
     script_directory = script.ScriptDirectory.from_config(alembic_cfg)
 
     command.ensure_version(alembic_cfg)
@@ -2169,5 +2124,3 @@ def init_primary_db(engine, first_time):
                     raise  # Unknown error — don't skip
 
     cleanup_old_jsons()
-
-    create_message_partitions_for_rolling_window()

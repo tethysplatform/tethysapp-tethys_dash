@@ -21,6 +21,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade():
+    bind = op.get_bind()
+    dialect = bind.dialect.name
+    if dialect == "postgresql":
+        access_groups_col = sa.Column(
+            "access_groups", postgresql.ARRAY(sa.String()), nullable=True
+        )
+    else:
+        # For SQLite and others, use a string to store serialized array
+        access_groups_col = sa.Column("access_groups", sa.String(), nullable=True)
+
     op.create_table(
         "dashboards",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -28,7 +38,7 @@ def upgrade():
         sa.Column("name", sa.String(), nullable=True),
         sa.Column("notes", sa.String(), nullable=True),
         sa.Column("owner", sa.String(), nullable=True),
-        sa.Column("access_groups", postgresql.ARRAY(sa.String()), nullable=True),
+        access_groups_col,
     )
 
     op.create_table(
