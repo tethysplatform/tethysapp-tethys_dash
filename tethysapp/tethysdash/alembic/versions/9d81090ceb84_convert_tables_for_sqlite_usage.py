@@ -11,7 +11,6 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = "9d81090ceb84"
 down_revision: Union[str, None] = "78188f76ffa0"
@@ -36,24 +35,6 @@ def upgrade() -> None:
         batch_op.create_check_constraint(
             "ck_group_permission_level", "permission IN ('admin', 'member')"
         )
-
-    # TODO: If we had a messages table with partitioning, we would need to remove the partitioning here and convert it to a regular table for SQLite compatibility
-    # if dialect == "postgresql":
-    #     # Remove partitioning from Message table
-    #     op.execute(
-    #         """
-    #         CREATE TABLE IF NOT EXISTS messages (
-    #             id INTEGER PRIMARY KEY AUTOINCREMENT,
-    #             timestamp DATETIME NOT NULL,
-    #             request_id VARCHAR NOT NULL,
-    #             session_id VARCHAR NOT NULL,
-    #             message_id VARCHAR NOT NULL,
-    #             sender VARCHAR NOT NULL,
-    #             message VARCHAR NOT NULL,
-    #             edited BOOLEAN NOT NULL DEFAULT 0
-    #         );
-    #         """
-    #     )
 
 
 def downgrade() -> None:

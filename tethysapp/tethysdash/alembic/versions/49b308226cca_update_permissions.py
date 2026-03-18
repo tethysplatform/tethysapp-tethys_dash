@@ -11,7 +11,6 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = "49b308226cca"
 down_revision: Union[str, None] = "064c8e70a8a6"
@@ -33,13 +32,11 @@ def upgrade() -> None:
                 )
             )
         # Step 2: Run UPDATE to populate group_id
-        op.execute(
-            """
+        op.execute("""
             UPDATE dashboard_permissions SET group_id = (
                 SELECT id FROM permission_groups WHERE dashboard_permissions."group" = permission_groups.name
             )
-            """
-        )
+            """)
         # Step 3: Drop group column and add FK constraint
         with op.batch_alter_table("dashboard_permissions") as batch_op:
             batch_op.drop_column("group")
@@ -60,14 +57,12 @@ def upgrade() -> None:
                 nullable=True,
             ),
         )
-        op.execute(
-            """
+        op.execute("""
             UPDATE dashboard_permissions dp
             SET group_id = pg.id
             FROM permission_groups pg
             WHERE dp."group" = pg.name
-            """
-        )
+            """)
         op.drop_column("dashboard_permissions", "group")
 
     op.create_table(
@@ -95,13 +90,11 @@ def downgrade() -> None:
         sa.Column("group", sa.String(), nullable=True),
     )
 
-    op.execute(
-        """
+    op.execute("""
         UPDATE dashboard_permissions dp
         SET "group" = pg.name
         FROM permission_groups pg
         WHERE dp.group_id = pg.id
-        """
-    )
+        """)
 
     op.drop_column("dashboard_permissions", "group_id")

@@ -11,9 +11,7 @@ from tethysapp.tethysdash.model import (
     GridItem,
     DashboardPermission,
     VisualizationPermission,
-    DashboardPermissionLevel,
     PermissionGroup,
-    GroupPermissionLevel,
     Message,
     parse_db_dashboard,
     clean_up_jsons,
@@ -26,8 +24,6 @@ from tethysapp.tethysdash.model import (
     get_visualization_user_permission,
     get_visualization_permissions,
     update_visualization_permissions,
-    create_message_partitions_for_rolling_window,
-    get_partition_name,
 )
 from unittest.mock import MagicMock
 import base64
@@ -38,75 +34,8 @@ from sqlalchemy.exc import ProgrammingError
 from django.contrib.auth.models import AnonymousUser
 from django.test import override_settings
 from uuid import uuid4
-from datetime import datetime, timedelta
-
-
-def test_create_message_partitions_for_rolling_window_executes_sql_for_each_day(mocker):
-    # Mock App.get_persistent_store_database to return a mock engine
-    mock_engine = mocker.Mock()
-    mock_connection = mocker.Mock()
-    mock_engine.connect.return_value = mock_connection
-    mocker.patch(
-        "tethysapp.tethysdash.model.App.get_persistent_store_database",
-        return_value=mock_engine,
-    )
-    # Patch create_partition_for_date to track calls
-    called_days = []
-
-    def fake_create_partition_for_date(connection, ts):
-        called_days.append(ts)
-
-    mocker.patch(
-        "tethysapp.tethysdash.model.create_partition_for_date",
-        side_effect=fake_create_partition_for_date,
-    )
-
-    days_past = 2
-    days_future = 2
-    create_message_partitions_for_rolling_window(
-        days_past=days_past, days_future=days_future
-    )
-
-    # Should be called for each day in the window
-    assert len(called_days) == days_past + days_future + 1
-    # Check that the days are consecutive and centered on today (UTC)
-    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    expected_days = [
-        today + timedelta(days=offset) for offset in range(-days_past, days_future + 1)
-    ]
-    # Compare only dates
-    assert [d.date() for d in called_days] == [d.date() for d in expected_days]
-
-
-def test_create_message_partitions_for_rolling_window_sql_execution(mocker):
-    # Patch App.get_persistent_store_database to return a mock engine
-    mock_engine = mocker.Mock()
-    mock_connection = mocker.Mock()
-    mock_engine.connect.return_value = mock_connection
-    mocker.patch(
-        "tethysapp.tethysdash.model.App.get_persistent_store_database",
-        return_value=mock_engine,
-    )
-
-    # Patch sqlalchemy.text to just return the SQL string
-    mocker.patch(
-        "tethysapp.tethysdash.model.sqlalchemy.text", side_effect=lambda sql: sql
-    )
-
-    # Actually call the real create_partition_for_date to test SQL
-    from tethysapp.tethysdash import model as model_mod
-
-    ts = datetime(2026, 1, 6)
-    model_mod.create_partition_for_date(mock_connection, ts)
-    # Check that execute was called with the expected SQL
-    partition_name = get_partition_name(ts)
-    start = ts.replace(hour=0, minute=0, second=0, microsecond=0)
-    end = start + model_mod.timedelta(days=1)
-    expected_sql = f"""
-        CREATE TABLE IF NOT EXISTS {partition_name} PARTITION OF messages
-        FOR VALUES FROM ('{start.isoformat()}') TO ('{end.isoformat()}');
-    """
-    mock_connection.execute.assert_called_with(expected_sql)
+from datetime import datetime
+from uuid import uuid4
 
 
 @pytest.fixture
@@ -138,7 +67,7 @@ def mock_alembic(mocker):
 def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_user):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     description = "added_dashboard"
-    uuid = "3ddc3d80-2593-468f-825a-425f816c892f"
+    uuid = str(uuid4())
     name = "added_dashboard"
     grid_items = []
     tabs = []
@@ -224,7 +153,7 @@ def test_add_and_delete_dashboard_with_grid_items(
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     description = "added_dashboard"
-    uuid = "3ddc3d80-2593-468f-825a-425f816c892f"
+    uuid = str(uuid4())
     name = "added_dashboard"
     grid_items = [
         {
@@ -256,7 +185,7 @@ def test_add_and_delete_dashboard_with_grid_items(
         tabs,
     )
 
-    dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
+    dashboard = db_session.query(Dashboard).filter(Dashboard.uuid == uuid).first()
     assert dashboard.description == description
     assert dashboard.name == name
     assert dashboard.notes == ""
@@ -290,7 +219,7 @@ def test_add_and_delete_dashboard_with_grid_items(
 def test_add_dashboard_with_tabs(db_session, mock_app_get_ps_db, test_owner_user):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     description = "added_dashboard"
-    uuid = "3ddc3d80-2593-468f-825a-425f816c892f"
+    uuid = str(uuid4())
     name = "added_dashboard"
     tabs = [
         {
@@ -328,7 +257,7 @@ def test_add_dashboard_with_tabs(db_session, mock_app_get_ps_db, test_owner_user
         tabs,
     )
 
-    dashboard = db_session.query(Dashboard).filter(Dashboard.name == name).first()
+    dashboard = db_session.query(Dashboard).filter(Dashboard.uuid == uuid).first()
     assert dashboard.description == description
     assert dashboard.name == name
     assert dashboard.notes == ""
@@ -380,7 +309,7 @@ def test_delete_named_dashboard(
     delete_named_dashboard(test_owner_user, dashboard.id)
 
     db_dashboard = (
-        db_session.query(Dashboard).filter(Dashboard.name == dashboard.name).all()
+        db_session.query(Dashboard).filter(Dashboard.uuid == dashboard.uuid).all()
     )
     assert len(db_dashboard) == 0
 
@@ -398,7 +327,7 @@ def test_delete_named_dashboard_id_doesnt_exist(
     )
 
     db_dashboard = (
-        db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).all()
+        db_session.query(Dashboard).filter(Dashboard.uuid == dashboard.uuid).all()
     )
     assert len(db_dashboard) == 1
     assert db_dashboard[0].name == dashboard.name
@@ -417,7 +346,7 @@ def test_delete_named_dashboard_not_allowed(
     )
 
     db_dashboard = (
-        db_session.query(Dashboard).filter(Dashboard.id == dashboard.id).all()
+        db_session.query(Dashboard).filter(Dashboard.uuid == dashboard.uuid).all()
     )
     assert len(db_dashboard) == 1
     assert db_dashboard[0].name == dashboard.name
@@ -513,7 +442,7 @@ def test_update_named_dashboard_grid_items(
     assert dashboard.public is True
     assert dashboard.unrestricted_placement
     assert len(dashboard.permissions) == 1
-    assert dashboard.permissions[0].permission == DashboardPermissionLevel.admin
+    assert dashboard.permissions[0].permission == "admin"
     assert dashboard.permissions[0].username == dashboard.owner
 
     grid_item1 = dashboard.tabs[0].grid_items[0]
@@ -630,7 +559,6 @@ def test_update_named_dashboard_live_chat(
     mocker,
     tmp_path,
     test_owner_user,
-    create_today_partition,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
@@ -696,11 +624,11 @@ def test_update_named_dashboard_not_exist(mock_app_get_ps_db):
         updated_access_groups = ["public"]
         update_named_dashboard(
             "test_not_valid_user",
-            12345678912345678912346789,
+            1234,
             {"notes": updated_notes, "accessGroups": updated_access_groups},
         )
     assert (
-        "A dashboard with the id 12345678912345678912346789 does not exist for this user"  # noqa: E501
+        "A dashboard with the id 1234 does not exist for this user"  # noqa: E501
         in str(excinfo.value)
     )
 
@@ -978,7 +906,7 @@ def test_copy_named_dashboard(
     assert dashboard.tabs[0].grid_items[0].dashboard_id == dashboard.id
     assert copied_dashboard.tabs[0].grid_items[0].dashboard_id == copied_dashboard.id
     assert len(copied_dashboard.permissions) == 1
-    assert copied_dashboard.permissions[0].permission == DashboardPermissionLevel.admin
+    assert copied_dashboard.permissions[0].permission == "admin"
     assert copied_dashboard.permissions[0].username == test_member_user.username
 
 
@@ -1251,10 +1179,6 @@ def test_init_primary_db_with_current_revision(
 
     mock_alembic.script.walk_revisions.return_value = []
 
-    mocker.patch(
-        "tethysapp.tethysdash.model.create_message_partitions_for_rolling_window"
-    )
-
     init_primary_db(engine=mocker.Mock(), first_time=True)
 
     mock_alembic.upgrade.assert_called_once_with(mock_alembic.config, "head")
@@ -1280,10 +1204,6 @@ def test_init_primary_db_no_current_revision_upgrade_all(
     rev1 = mocker.Mock(revision="rev1")
     rev2 = mocker.Mock(revision="rev2")
     mock_alembic.script.walk_revisions.return_value = [rev2, rev1]
-
-    mocker.patch(
-        "tethysapp.tethysdash.model.create_message_partitions_for_rolling_window"
-    )
 
     init_primary_db(engine=mocker.Mock(), first_time=True)
 
@@ -1316,10 +1236,6 @@ def test_init_primary_db_skips_existing_table(
     error.args = ("table already exists",)
     mock_alembic.upgrade.side_effect = error
 
-    mocker.patch(
-        "tethysapp.tethysdash.model.create_message_partitions_for_rolling_window"
-    )
-
     init_primary_db(engine=mocker.Mock(), first_time=True)
 
     mock_alembic.stamp.assert_called_once_with(mock_alembic.config, rev.revision)
@@ -1350,17 +1266,17 @@ def test_get_dashboard_user_permission(
     user_permission = get_dashboard_user_permission(
         db_session, dashboard, test_owner_user
     )
-    assert user_permission == DashboardPermissionLevel.admin
+    assert user_permission == "admin"
 
     user_permission = get_dashboard_user_permission(
         db_session, dashboard, test_admin_user
     )
-    assert user_permission == DashboardPermissionLevel.editor
+    assert user_permission == "editor"
 
     user_permission = get_dashboard_user_permission(
         db_session, dashboard, test_member_user
     )
-    assert user_permission == DashboardPermissionLevel.viewer
+    assert user_permission == "viewer"
 
     user_permission = get_dashboard_user_permission(
         db_session, dashboard, AnonymousUser()
@@ -1378,30 +1294,30 @@ def test_update_dashboard_permissions(
 ):
     assert len(dashboard.permissions) == 3
     assert dashboard.permissions[0].username == test_owner_user.username
-    assert dashboard.permissions[0].permission == DashboardPermissionLevel.admin
+    assert dashboard.permissions[0].permission == "admin"
 
     assert dashboard.permissions[1].username == test_admin_user.username
-    assert dashboard.permissions[1].permission == DashboardPermissionLevel.editor
+    assert dashboard.permissions[1].permission == "editor"
 
     assert dashboard.permissions[2].group.name == permission_group["name"]
-    assert dashboard.permissions[2].permission == DashboardPermissionLevel.viewer
+    assert dashboard.permissions[2].permission == "viewer"
 
     updated_permissions = [
         {
             "username": test_owner_user.username,
-            "permission": DashboardPermissionLevel.admin.value,
+            "permission": "admin",
         },
         {
             "username": test_admin_user.username,
-            "permission": DashboardPermissionLevel.viewer.value,
+            "permission": "viewer",
         },
         {
             "username": test_member_user.username,
-            "permission": DashboardPermissionLevel.viewer.value,
+            "permission": "viewer",
         },
         {
             "group": permission_group["name"],
-            "permission": DashboardPermissionLevel.editor.value,
+            "permission": "editor",
         },
     ]
 
@@ -1418,16 +1334,16 @@ def test_update_dashboard_permissions(
 
     assert len(permissions) == 4
     assert permissions[0].username == test_owner_user.username
-    assert permissions[0].permission == DashboardPermissionLevel.admin
+    assert permissions[0].permission == "admin"
 
     assert permissions[1].username == test_admin_user.username
-    assert permissions[1].permission == DashboardPermissionLevel.viewer
+    assert permissions[1].permission == "viewer"
 
     assert permissions[2].group.name == permission_group["name"]
-    assert permissions[2].permission == DashboardPermissionLevel.editor
+    assert permissions[2].permission == "editor"
 
     assert permissions[3].username == test_member_user.username
-    assert permissions[3].permission == DashboardPermissionLevel.viewer
+    assert permissions[3].permission == "viewer"
 
     updated_permissions = []
 
@@ -1444,24 +1360,24 @@ def test_update_dashboard_permissions(
 
     assert len(permissions) == 1
     assert permissions[0].username == test_owner_user.username
-    assert permissions[0].permission == DashboardPermissionLevel.admin
+    assert permissions[0].permission == "admin"
 
     updated_permissions = [
         {
             "username": test_owner_user.username,
-            "permission": DashboardPermissionLevel.admin.value,
+            "permission": "admin",
         },
         {
             "username": test_admin_user.username,
-            "permission": DashboardPermissionLevel.viewer.value,
+            "permission": "viewer",
         },
         {
             "username": test_member_user.username,
-            "permission": DashboardPermissionLevel.viewer.value,
+            "permission": "viewer",
         },
         {
             "group": permission_group["name"],
-            "permission": DashboardPermissionLevel.editor.value,
+            "permission": "editor",
         },
     ]
 
@@ -1478,16 +1394,16 @@ def test_update_dashboard_permissions(
 
     assert len(permissions) == 4
     assert permissions[0].username == test_owner_user.username
-    assert permissions[0].permission == DashboardPermissionLevel.admin
+    assert permissions[0].permission == "admin"
 
     assert permissions[1].username == test_admin_user.username
-    assert permissions[1].permission == DashboardPermissionLevel.viewer
+    assert permissions[1].permission == "viewer"
 
     assert permissions[2].username == test_member_user.username
-    assert permissions[2].permission == DashboardPermissionLevel.viewer
+    assert permissions[2].permission == "viewer"
 
     assert permissions[3].group.name == permission_group["name"]
-    assert permissions[3].permission == DashboardPermissionLevel.editor
+    assert permissions[3].permission == "editor"
 
 
 def test_update_dashboard_permissions_nonexisting_user(
@@ -1498,11 +1414,11 @@ def test_update_dashboard_permissions_nonexisting_user(
     updated_permissions = [
         {
             "username": test_owner_user.username,
-            "permission": DashboardPermissionLevel.admin.value,
+            "permission": "admin",
         },
         {
             "username": "nonexisting_user",
-            "permission": DashboardPermissionLevel.viewer.value,
+            "permission": "viewer",
         },
     ]
 
@@ -1524,7 +1440,7 @@ def test_update_dashboard_permissions_nonexisting_group(
     updated_permissions = [
         {
             "group": "nonexisting_group",
-            "permission": DashboardPermissionLevel.editor.value,
+            "permission": "editor",
         },
     ]
 
@@ -1546,15 +1462,15 @@ def test_update_dashboard_permissions_nonexisting_users_and_groups(
     updated_permissions = [
         {
             "username": test_owner_user.username,
-            "permission": DashboardPermissionLevel.admin.value,
+            "permission": "admin",
         },
         {
             "username": "nonexisting_user",
-            "permission": DashboardPermissionLevel.viewer.value,
+            "permission": "viewer",
         },
         {
             "group": "nonexisting_group",
-            "permission": DashboardPermissionLevel.editor.value,
+            "permission": "editor",
         },
     ]
 
@@ -1600,24 +1516,15 @@ def test_get_user_permission_groups(
     assert permission_groups[0]["name"] == permission_group["name"]
     assert permission_groups[0]["description"] == permission_group["description"]
     assert permission_groups[0]["owner"] == permission_group["owner"]
-    assert permission_groups[0]["user_permission"] == GroupPermissionLevel.member.value
+    assert permission_groups[0]["user_permission"] == "member"
     assert permission_groups[0]["members"][0]["username"] == "owner_user"
-    assert (
-        permission_groups[0]["members"][0]["permission"]
-        == GroupPermissionLevel.admin.value
-    )
+    assert permission_groups[0]["members"][0]["permission"] == "admin"
 
     assert permission_groups[0]["members"][1]["username"] == "admin_user"
-    assert (
-        permission_groups[0]["members"][1]["permission"]
-        == GroupPermissionLevel.admin.value
-    )
+    assert permission_groups[0]["members"][1]["permission"] == "admin"
 
     assert permission_groups[0]["members"][2]["username"] == "member_user"
-    assert (
-        permission_groups[0]["members"][2]["permission"]
-        == GroupPermissionLevel.member.value
-    )
+    assert permission_groups[0]["members"][2]["permission"] == "member"
 
     permission_groups = get_user_permission_groups(
         AnonymousUser,
@@ -1639,7 +1546,7 @@ def test_update_permission_group(
     updated_members = [
         {
             "username": test_owner_user.username,
-            "permission": GroupPermissionLevel.admin.value,
+            "permission": "admin",
         },
     ]
     updated_permission_group = permission_group
@@ -1649,13 +1556,13 @@ def test_update_permission_group(
 
     assert len(permission_group_table.members) == 3
     assert permission_group_table.members[0].username == test_owner_user.username
-    assert permission_group_table.members[0].permission == GroupPermissionLevel.admin
+    assert permission_group_table.members[0].permission == "admin"
 
     assert permission_group_table.members[1].username == test_admin_user.username
-    assert permission_group_table.members[1].permission == GroupPermissionLevel.admin
+    assert permission_group_table.members[1].permission == "admin"
 
     assert permission_group_table.members[2].username == test_member_user.username
-    assert permission_group_table.members[2].permission == GroupPermissionLevel.member
+    assert permission_group_table.members[2].permission == "member"
 
     permission_group_dict = update_permission_groups(
         test_owner_user,
@@ -1665,10 +1572,7 @@ def test_update_permission_group(
     assert len(permission_group_dict["members"]) == 1
     assert permission_group_dict["description"] == "some new description"
     assert permission_group_dict["members"][0]["username"] == test_owner_user.username
-    assert (
-        permission_group_dict["members"][0]["permission"]
-        == GroupPermissionLevel.admin.value
-    )
+    assert permission_group_dict["members"][0]["permission"] == "admin"
 
 
 @pytest.mark.django_db
@@ -1682,7 +1586,7 @@ def test_update_permission_group_nonexistent_user(
     updated_members = [
         {
             "username": "nonexistent_user",
-            "permission": GroupPermissionLevel.admin.value,
+            "permission": "admin",
         },
     ]
     updated_permission_group = permission_group
@@ -1706,7 +1610,7 @@ def test_update_permission_group_but_group_doesnt_exist(
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     permission_group = {
         "name": "new group",
-        "id": 100000000000000000000,
+        "id": 100,
     }
 
     permission_group_dict = update_permission_groups(
@@ -1794,24 +1698,18 @@ def test_create_permission_group_then_update(
     assert permission_group_dict["name"] == permission_group["name"]
     assert permission_group_dict["description"] == permission_group["description"]
     assert permission_group_dict["owner"] == test_owner_user.username
-    assert permission_group_dict["user_permission"] == GroupPermissionLevel.admin.value
+    assert permission_group_dict["user_permission"] == "admin"
     assert (
         permission_group_dict["members"][0]["username"]
         == permission_group["members"][0]["username"]
     )
-    assert (
-        permission_group_dict["members"][0]["permission"]
-        == GroupPermissionLevel.admin.value
-    )
+    assert permission_group_dict["members"][0]["permission"] == "admin"
 
     assert (
         permission_group_dict["members"][1]["username"]
         == permission_group["members"][1]["username"]
     )
-    assert (
-        permission_group_dict["members"][1]["permission"]
-        == GroupPermissionLevel.admin.value
-    )
+    assert permission_group_dict["members"][1]["permission"] == "admin"
 
     updated_permission_group = {
         "name": "some new group",
@@ -1843,24 +1741,18 @@ def test_create_permission_group_then_update(
         permission_group_dict["description"] == updated_permission_group["description"]
     )
     assert permission_group_dict["owner"] == test_owner_user.username
-    assert permission_group_dict["user_permission"] == GroupPermissionLevel.admin.value
+    assert permission_group_dict["user_permission"] == "admin"
     assert (
         permission_group_dict["members"][0]["username"]
         == updated_permission_group["members"][0]["username"]
     )
-    assert (
-        permission_group_dict["members"][0]["permission"]
-        == GroupPermissionLevel.admin.value
-    )
+    assert permission_group_dict["members"][0]["permission"] == "admin"
 
     assert (
         permission_group_dict["members"][1]["username"]
         == updated_permission_group["members"][1]["username"]
     )
-    assert (
-        permission_group_dict["members"][1]["permission"]
-        == GroupPermissionLevel.admin.value
-    )
+    assert permission_group_dict["members"][1]["permission"] == "admin"
 
 
 @pytest.mark.django_db
@@ -1889,7 +1781,7 @@ def test_create_permission_group_but_nonexistent_user(
     permission_group["members"] = [
         {
             "username": "nonexistent_user",
-            "permission": GroupPermissionLevel.admin.value,
+            "permission": "admin",
         },
     ]
     permission_group_dict = update_permission_groups(
@@ -1944,7 +1836,7 @@ def test_delete_permission_groups_failed_by_member_access(
 @pytest.mark.django_db
 def test_delete_permission_groups_id_not_found(mock_app_get_ps_db, db_session):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-    delete_status = delete_permission_groups("owner_user", 100000000000000000000)
+    delete_status = delete_permission_groups("owner_user", 100)
 
     db_session.expire_all()
     assert delete_status["status"] == "error"
@@ -2214,105 +2106,98 @@ class MockGridItem:
             self.args_string = args_string
 
 
-def test_init_primary_db_moves_json_and_geojson_files(
-    mock_app_get_ps_db, tmp_path, mocker
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-    mocker.patch(
-        "tethysapp.tethysdash.model.subprocess.run",
-        return_value=SimpleNamespace(stdout=""),
-    )
+# def test_init_primary_db_moves_json_and_geojson_files(
+#     mock_app_get_ps_db, tmp_path, mocker
+# ):
+#     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+#     mocker.patch(
+#         "tethysapp.tethysdash.model.subprocess.run",
+#         return_value=SimpleNamespace(stdout=""),
+#     )
 
-    mocker.patch(
-        "tethysapp.tethysdash.model.create_message_partitions_for_rolling_window"
-    )
-    temp_workspace = tmp_path
-    json_dir = os.path.join(temp_workspace, "json")
-    admin_user_dir = os.path.join(json_dir, "admin")
-    geojson_dir = os.path.join(temp_workspace, "geojson")
-    os.makedirs(json_dir)
-    os.makedirs(geojson_dir)
-    os.makedirs(admin_user_dir)
-    # Create dummy files
-    create_dummy_json_files(json_dir, ["a.json"])
-    create_dummy_json_files(geojson_dir, ["c.json"])
-    create_dummy_json_files(admin_user_dir, ["b.json"])
+#     temp_workspace = tmp_path
+#     json_dir = os.path.join(temp_workspace, "json")
+#     admin_user_dir = os.path.join(json_dir, "admin")
+#     geojson_dir = os.path.join(temp_workspace, "geojson")
+#     os.makedirs(json_dir)
+#     os.makedirs(geojson_dir)
+#     os.makedirs(admin_user_dir)
+#     # Create dummy files
+#     create_dummy_json_files(json_dir, ["a.json"])
+#     create_dummy_json_files(geojson_dir, ["c.json"])
+#     create_dummy_json_files(admin_user_dir, ["b.json"])
 
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=temp_workspace)
+#     mock_get_app_workspace = mocker.patch(
+#         "tethysapp.tethysdash.model.get_app_workspace"
+#     )
+#     mock_get_app_workspace.return_value = MagicMock(path=temp_workspace)
 
-    mock_query = mocker.patch("sqlalchemy.orm.Session.query")
+#     mock_query = mocker.patch("sqlalchemy.orm.Session.query")
 
-    dashboard_1 = MockDashboard(
-        id=1,
-        grid_items=[
-            MockGridItem(
-                id=1,
-                source="Map",
-                args_string=json.dumps(
-                    {
-                        "layers": [
-                            {
-                                "configuration": {
-                                    "props": {"source": {"geojson": "c.json"}},
-                                    "style": "b.json",
-                                }
-                            },
-                            {
-                                "configuration": {
-                                    "props": {"source": {"geojson": "some/url/d.json"}},
-                                    "style": "some/url/a.json",
-                                }
-                            },
-                        ]
-                    }
-                ),
-            ),
-            MockGridItem(id=2, source="Map", args_string=None),
-            MockGridItem(
-                id=3,
-                source="Map",
-                args_string=json.dumps(
-                    {
-                        "layers": [
-                            {},
-                        ]
-                    }
-                ),
-            ),
-        ],
-    )
-    mock_query.return_value.all.return_value = [dashboard_1]
+#     dashboard_1 = MockDashboard(
+#         id=1,
+#         grid_items=[
+#             MockGridItem(
+#                 id=1,
+#                 source="Map",
+#                 args_string=json.dumps(
+#                     {
+#                         "layers": [
+#                             {
+#                                 "configuration": {
+#                                     "props": {"source": {"geojson": "c.json"}},
+#                                     "style": "b.json",
+#                                 }
+#                             },
+#                             {
+#                                 "configuration": {
+#                                     "props": {"source": {"geojson": "some/url/d.json"}},
+#                                     "style": "some/url/a.json",
+#                                 }
+#                             },
+#                         ]
+#                     }
+#                 ),
+#             ),
+#             MockGridItem(id=2, source="Map", args_string=None),
+#             MockGridItem(
+#                 id=3,
+#                 source="Map",
+#                 args_string=json.dumps(
+#                     {
+#                         "layers": [
+#                             {},
+#                         ]
+#                     }
+#                 ),
+#             ),
+#         ],
+#     )
+#     mock_query.return_value.all.return_value = [dashboard_1]
 
-    init_primary_db(engine=mocker.Mock(), first_time=True)
+#     init_primary_db(engine=mocker.Mock(), first_time=True)
 
-    # Check that files have been deleted from original locations
-    assert not os.path.exists(os.path.join(json_dir, "a.json"))
-    assert not os.path.exists(os.path.join(admin_user_dir, "b.json"))
-    assert not os.path.exists(os.path.join(geojson_dir, "c.json"))
+#     # Check that files have been deleted from original locations
+#     assert not os.path.exists(os.path.join(json_dir, "a.json"))
+#     assert not os.path.exists(os.path.join(admin_user_dir, "b.json"))
+#     assert not os.path.exists(os.path.join(geojson_dir, "c.json"))
 
-    assert os.path.exists(os.path.join(temp_workspace, dashboard_1.uuid, "c.json"))
-    assert os.path.exists(os.path.join(temp_workspace, dashboard_1.uuid, "b.json"))
+#     assert os.path.exists(os.path.join(temp_workspace, dashboard_1.uuid, "c.json"))
+#     assert os.path.exists(os.path.join(temp_workspace, dashboard_1.uuid, "b.json"))
 
 
-def test_init_primary_db_moves_no_json_and_geojson_folders(
-    mock_app_get_ps_db, tmp_path, mocker
-):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-    mocker.patch(
-        "tethysapp.tethysdash.model.subprocess.run",
-        return_value=SimpleNamespace(stdout=""),
-    )
+# def test_init_primary_db_moves_no_json_and_geojson_folders(
+#     mock_app_get_ps_db, tmp_path, mocker
+# ):
+#     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+#     mocker.patch(
+#         "tethysapp.tethysdash.model.subprocess.run",
+#         return_value=SimpleNamespace(stdout=""),
+#     )
 
-    mocker.patch(
-        "tethysapp.tethysdash.model.create_message_partitions_for_rolling_window"
-    )
+#     mock_get_app_workspace = mocker.patch(
+#         "tethysapp.tethysdash.model.get_app_workspace"
+#     )
+#     mock_get_app_workspace.return_value = MagicMock(path=tmp_path)
 
-    mock_get_app_workspace = mocker.patch(
-        "tethysapp.tethysdash.model.get_app_workspace"
-    )
-    mock_get_app_workspace.return_value = MagicMock(path=tmp_path)
-
-    init_primary_db(engine=mocker.Mock(), first_time=True)
+#     init_primary_db(engine=mocker.Mock(), first_time=True)

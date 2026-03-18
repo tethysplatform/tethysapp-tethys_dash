@@ -5,7 +5,6 @@ including dashboards, grid items, permissions, and permission groups.
 It also provides functions for creating, updating, and managing these entities.
 """
 
-import enum
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import (
     Column,
@@ -235,18 +234,6 @@ class VisualizationPermission(Base):
     group = relationship("PermissionGroup")
 
 
-class GroupPermissionLevel(enum.Enum):
-    """Enumeration of permission group membership levels.
-
-    Defines the levels of access within a permission group:
-    - admin: Can manage group membership and permissions
-    - member: Basic membership in the group
-    """
-
-    admin = "admin"
-    member = "member"
-
-
 class PermissionGroup(Base):
     """
     SQLAlchemy model for permission groups.
@@ -289,7 +276,7 @@ class PermissionGroupUser(Base):
         id (int): Primary key identifier
         username (str): Username of the group member
         group_id (int): Foreign key to the permission group
-        permission (GroupPermissionLevel): User's permission level in the group
+        permission (str): User's permission level in the group
         group (relationship): Reference to the permission group
     """
 
@@ -311,15 +298,15 @@ class PermissionGroupUser(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "permission IN ('admin', 'editor', 'viewer')",
-            name="ck_dashboard_permission_level",
+            "permission IN ('admin', 'member')",
+            name="ck_group_permission_level",
         ),
     )
 
 
 class Message(Base):
     """
-    SQLAlchemy model for chat messages (partitioned by day).
+    SQLAlchemy model for chat messages.
 
     Attributes:
         id (int): Primary key identifier
@@ -331,7 +318,6 @@ class Message(Base):
     """
 
     __tablename__ = "messages"
-    __table_args__ = {"postgresql_partition_by": "RANGE (timestamp)"}
 
     id = Column(Integer, primary_key=True)
     timestamp = Column(DateTime, nullable=False, index=True)
@@ -1463,7 +1449,7 @@ def update_permission_groups(user, group_data):
                     .filter(
                         PermissionGroupUser.group_id == group.id,
                         PermissionGroupUser.username == user.username,
-                        PermissionGroupUser.permission == GroupPermissionLevel.admin,
+                        PermissionGroupUser.permission == "admin",
                     )
                     .first()
                 )
@@ -1528,7 +1514,7 @@ def add_permission_group_members(session, group, members):
             PermissionGroupUser(
                 username=db_user.username,
                 group_id=group.id,
-                permission=GroupPermissionLevel[member["permission"]],
+                permission=member["permission"],
             )
         )
     session.commit()
@@ -1571,7 +1557,7 @@ def delete_permission_groups(user, permission_group_id):
                 .filter(
                     PermissionGroupUser.group_id == group.id,
                     PermissionGroupUser.username == user.username,
-                    PermissionGroupUser.permission == GroupPermissionLevel.admin,
+                    PermissionGroupUser.permission == "admin",
                 )
                 .first()
             )
@@ -2070,7 +2056,7 @@ def cleanup_old_jsons():
         session.close()
 
 
-def init_primary_db(engine, first_time):
+def init_primary_db(engine, first_time, clean=True):
     """
     Initialize and upgrade the primary database schema.
 
@@ -2123,4 +2109,5 @@ def init_primary_db(engine, first_time):
                 else:
                     raise  # Unknown error — don't skip
 
-    cleanup_old_jsons()
+    if clean:
+        cleanup_old_jsons()

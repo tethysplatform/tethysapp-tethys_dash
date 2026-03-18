@@ -11,7 +11,6 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = "115022bfef13"
 down_revision: Union[str, None] = "663c69fd7709"
@@ -29,8 +28,7 @@ def upgrade() -> None:
 
     op.add_column("griditems", sa.Column("order", sa.Integer(), nullable=True))
 
-    op.execute(
-        """
+    op.execute("""
         WITH numbered AS (
             SELECT id, ROW_NUMBER() OVER (PARTITION BY dashboard_id ORDER BY id) AS rn
             FROM griditems
@@ -39,8 +37,7 @@ def upgrade() -> None:
         SET "order" = numbered.rn
         FROM numbered
         WHERE griditems.id = numbered.id
-        """
-    )
+        """)
 
     if dialect == "sqlite":
         with op.batch_alter_table("griditems") as batch_op:

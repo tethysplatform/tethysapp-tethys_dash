@@ -10,7 +10,6 @@ from typing import Sequence, Union
 
 from alembic import op
 
-
 # revision identifiers, used by Alembic.
 revision: str = "c12ae6fbc947"
 down_revision: Union[str, None] = "5ffcfd93e61f"
@@ -26,8 +25,7 @@ def upgrade() -> None:
     if dialect == "sqlite":
         with op.batch_alter_table("griditems") as batch_op:
             batch_op.create_unique_constraint("uq_griditems_uuid", ["uuid"])
-        op.execute(
-            """
+        op.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp DATETIME NOT NULL,
@@ -38,12 +36,10 @@ def upgrade() -> None:
                 message VARCHAR NOT NULL,
                 edited BOOLEAN NOT NULL DEFAULT 0
             );
-            """
-        )
+            """)
     else:
         op.create_unique_constraint("uq_griditems_uuid", "griditems", ["uuid"])
-        op.execute(
-            """
+        op.execute("""
             CREATE TABLE IF NOT EXISTS messages (
                 id SERIAL,
                 timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
@@ -55,8 +51,7 @@ def upgrade() -> None:
                 edited BOOLEAN NOT NULL DEFAULT FALSE,
                 PRIMARY KEY (id, timestamp)
             ) PARTITION BY RANGE (timestamp);
-            """
-        )
+            """)
 
 
 def downgrade() -> None:
