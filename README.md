@@ -17,7 +17,7 @@ This app was created using an experimental Tethys + React app scaffold. It uses 
     pip install tethysdash
 ```
 
-::note
+[!NOTE]
 If Tethys is not installed, Tethys can be installed optionally with
 
 ```
