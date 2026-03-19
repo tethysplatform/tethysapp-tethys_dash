@@ -17,12 +17,12 @@ This app was created using an experimental Tethys + React app scaffold. It uses 
     pip install tethysdash
 ```
 
-[!NOTE]  
-If Tethys is not installed, Tethys can be installed optionally with
-
-```
-    pip install tethysdash[tethys]
-```
+> [!IMPORTANT]  
+> If Tethys is not installed, Tethys can be installed optionally with
+>
+> ```
+>     pip install tethysdash[tethys]
+> ```
 
 3. Setup Tethys and TethysDash Databases and Services
 
