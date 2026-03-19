@@ -1402,7 +1402,7 @@ def test_create_permission_group(
     response_json = response.json()
     permission_group["id"] = response_json["updated_permission_group"]["id"]
     permission_group["owner"] = test_admin_user.username
-    print(response_json['updated_permission_group'])
+    print(response_json["updated_permission_group"])
     print(permission_group)
     assert response_json == {
         "updated_permission_group": permission_group,
@@ -2303,9 +2303,7 @@ async def test_visualization_consumer_receive_failed_db_save(
 @pytest.mark.django_db
 def test_visualization_permissions_error(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mocker.patch(
-        "tethysapp.tethysdash.controllers.get_restricted_visualizations"
-    )
+    mocker.patch("tethysapp.tethysdash.controllers.get_restricted_visualizations")
     mock_get_visualization_permissions = mocker.patch(
         "tethysapp.tethysdash.controllers.get_visualization_permissions"
     )

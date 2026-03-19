@@ -18,8 +18,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    import sqlalchemy as sa
-
     bind = op.get_bind()
     dialect = bind.dialect.name
     if dialect == "sqlite":
@@ -39,24 +37,12 @@ def upgrade() -> None:
             """)
     else:
         op.create_unique_constraint("uq_griditems_uuid", "griditems", ["uuid"])
-        op.execute("""
-            CREATE TABLE IF NOT EXISTS messages (
-                id SERIAL,
-                timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL,
-                request_id VARCHAR NOT NULL REFERENCES griditems(uuid) ON DELETE CASCADE,
-                session_id VARCHAR NOT NULL,
-                message_id VARCHAR NOT NULL,
-                sender VARCHAR NOT NULL,
-                message VARCHAR NOT NULL,
-                edited BOOLEAN NOT NULL DEFAULT FALSE,
-                PRIMARY KEY (id, timestamp)
-            ) PARTITION BY RANGE (timestamp);
-            """)
+        op.execute(
+            "CREATE TABLE IF NOT EXISTS messages (id SERIAL, timestamp TIMESTAMP WITHOUT TIME ZONE NOT NULL, request_id VARCHAR NOT NULL REFERENCES griditems(uuid) ON DELETE CASCADE, session_id VARCHAR NOT NULL, message_id VARCHAR NOT NULL, sender VARCHAR NOT NULL, message VARCHAR NOT NULL, edited BOOLEAN NOT NULL DEFAULT FALSE, PRIMARY KEY (id, timestamp)) PARTITION BY RANGE (timestamp);"  # noqa:E501
+        )
 
 
 def downgrade() -> None:
-    import sqlalchemy as sa
-
     bind = op.get_bind()
     dialect = bind.dialect.name
     if dialect == "sqlite":

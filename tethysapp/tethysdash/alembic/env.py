@@ -97,7 +97,7 @@ def run_migrations_online() -> None:
 
 if not config.get_main_option("sqlalchemy.url"):
     raise RuntimeError(
-        "Database URL not found in Alembic configuration. Run migrations with `tethys syncstores tethysdash` to set up the correct url."
+        "Database URL not found in Alembic configuration. Run migrations with `tethys syncstores tethysdash` to set up the correct url."  # noqa: E501
     )
 
 if context.is_offline_mode():

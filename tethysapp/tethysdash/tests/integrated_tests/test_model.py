@@ -25,7 +25,7 @@ from tethysapp.tethysdash.model import (
     get_visualization_permissions,
     update_visualization_permissions,
 )
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 import base64
 import os
 from pathlib import Path
@@ -35,7 +35,6 @@ from django.contrib.auth.models import AnonymousUser
 from django.test import override_settings
 from uuid import uuid4
 from datetime import datetime
-from uuid import uuid4
 
 
 @pytest.fixture
@@ -45,7 +44,7 @@ def mock_alembic(mocker):
     mock_script = mocker.Mock()
     mock_revision = mocker.Mock(revision="1234")
 
-    mocker.patch("tethysapp.tethysdash.model.Config", return_value=mock_cfg)
+    mocker.patch("tethysapp.tethysdash.model.config", return_value=mock_cfg)
     mocker.patch("tethysapp.tethysdash.model.command.ensure_version")
     mock_upgrade = mocker.patch("tethysapp.tethysdash.model.command.upgrade")
     mock_stamp = mocker.patch("tethysapp.tethysdash.model.command.stamp")
@@ -1162,13 +1161,16 @@ def test_clean_up_jsons_no_existing_dashboard_folder(
 
 
 @pytest.mark.django_db
-def test_init_primary_db_with_current_revision(
-    mock_app_get_ps_db, mocker, mock_alembic, tmp_path
-):
+def test_init_primary_db_with_current_revision(mock_app_get_ps_db, mocker, tmp_path):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout="abcd1234 some message"),
+    )
+    mock_cfg = mocker.patch("tethysapp.tethysdash.model.config")
+    mock_command = mocker.patch("tethysapp.tethysdash.model.command")
+    mock_script = mocker.patch(
+        "tethysapp.tethysdash.model.script",
     )
 
     workspace_path = tmp_path
@@ -1177,22 +1179,27 @@ def test_init_primary_db_with_current_revision(
     )
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
-    mock_alembic.script.walk_revisions.return_value = []
+    mock_script.walk_revisions.return_value = []
 
     init_primary_db(engine=mocker.Mock(), first_time=True)
 
-    mock_alembic.upgrade.assert_called_once_with(mock_alembic.config, "head")
-    mock_alembic.stamp.assert_not_called()
+    mock_command.upgrade.assert_called_once_with(mock_cfg.Config(), "head")
+    mock_command.stamp.assert_not_called()
 
 
 @pytest.mark.django_db
 def test_init_primary_db_no_current_revision_upgrade_all(
-    mock_app_get_ps_db, mocker, mock_alembic, tmp_path
+    mock_app_get_ps_db, mocker, tmp_path
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
+    )
+    mock_cfg = mocker.patch("tethysapp.tethysdash.model.config")
+    mock_command = mocker.patch("tethysapp.tethysdash.model.command")
+    mock_script = mocker.patch(
+        "tethysapp.tethysdash.model.script",
     )
 
     workspace_path = tmp_path
@@ -1203,24 +1210,27 @@ def test_init_primary_db_no_current_revision_upgrade_all(
 
     rev1 = mocker.Mock(revision="rev1")
     rev2 = mocker.Mock(revision="rev2")
-    mock_alembic.script.walk_revisions.return_value = [rev2, rev1]
+    mock_script.ScriptDirectory.from_config().walk_revisions.return_value = [rev2, rev1]
 
     init_primary_db(engine=mocker.Mock(), first_time=True)
 
-    assert mock_alembic.upgrade.call_count == 2
-    mock_alembic.upgrade.assert_any_call(mock_alembic.config, "rev1")
-    mock_alembic.upgrade.assert_any_call(mock_alembic.config, "rev2")
-    mock_alembic.stamp.assert_not_called()
+    assert mock_command.upgrade.call_count == 2
+    mock_command.upgrade.assert_any_call(mock_cfg.Config(), "rev1")
+    mock_command.upgrade.assert_any_call(mock_cfg.Config(), "rev2")
+    mock_command.stamp.assert_not_called()
 
 
 @pytest.mark.django_db
-def test_init_primary_db_skips_existing_table(
-    mock_app_get_ps_db, mocker, mock_alembic, tmp_path
-):
+def test_init_primary_db_skips_existing_table(mock_app_get_ps_db, mocker, tmp_path):
     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
+    )
+    mock_cfg = mocker.patch("tethysapp.tethysdash.model.config")
+    mock_command = mocker.patch("tethysapp.tethysdash.model.command")
+    mock_script = mocker.patch(
+        "tethysapp.tethysdash.model.script",
     )
 
     workspace_path = tmp_path
@@ -1229,16 +1239,16 @@ def test_init_primary_db_skips_existing_table(
     )
     mock_get_app_workspace.return_value = MagicMock(path=workspace_path)
 
-    rev = mock_alembic.revision
-    mock_alembic.script.walk_revisions.return_value = [rev]
+    rev = mock_script.revision
+    mock_script.ScriptDirectory.from_config().walk_revisions.return_value = [rev]
 
     error = ProgrammingError("select 1", {}, Exception("relation already exists"))
     error.args = ("table already exists",)
-    mock_alembic.upgrade.side_effect = error
+    mock_command.upgrade.side_effect = error
 
     init_primary_db(engine=mocker.Mock(), first_time=True)
 
-    mock_alembic.stamp.assert_called_once_with(mock_alembic.config, rev.revision)
+    mock_command.stamp.assert_called_once_with(mock_cfg.Config(), rev.revision)
 
 
 def test_init_primary_db_raises_unexpected_error(mocker, mock_alembic):
@@ -2106,98 +2116,113 @@ class MockGridItem:
             self.args_string = args_string
 
 
-# def test_init_primary_db_moves_json_and_geojson_files(
-#     mock_app_get_ps_db, tmp_path, mocker
-# ):
-#     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-#     mocker.patch(
-#         "tethysapp.tethysdash.model.subprocess.run",
-#         return_value=SimpleNamespace(stdout=""),
-#     )
+def test_init_primary_db_moves_json_and_geojson_files(
+    mock_app_get_ps_db, tmp_path, mocker
+):
+    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout=""),
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout="r1 "),
+    )
 
-#     temp_workspace = tmp_path
-#     json_dir = os.path.join(temp_workspace, "json")
-#     admin_user_dir = os.path.join(json_dir, "admin")
-#     geojson_dir = os.path.join(temp_workspace, "geojson")
-#     os.makedirs(json_dir)
-#     os.makedirs(geojson_dir)
-#     os.makedirs(admin_user_dir)
-#     # Create dummy files
-#     create_dummy_json_files(json_dir, ["a.json"])
-#     create_dummy_json_files(geojson_dir, ["c.json"])
-#     create_dummy_json_files(admin_user_dir, ["b.json"])
+    mock_cfg = mocker.patch("tethysapp.tethysdash.model.config")
+    mock_command = mocker.patch("tethysapp.tethysdash.model.command")
+    mock_script = mocker.patch(
+        "tethysapp.tethysdash.model.script",
+    )
+    mock_script.ScriptDirectory.from_config.return_value = mocker.Mock(revision="1234")
+    mock_engine = mocker.Mock()
 
-#     mock_get_app_workspace = mocker.patch(
-#         "tethysapp.tethysdash.model.get_app_workspace"
-#     )
-#     mock_get_app_workspace.return_value = MagicMock(path=temp_workspace)
+    temp_workspace = tmp_path
+    json_dir = os.path.join(temp_workspace, "json")
+    admin_user_dir = os.path.join(json_dir, "admin")
+    geojson_dir = os.path.join(temp_workspace, "geojson")
+    os.makedirs(json_dir)
+    os.makedirs(geojson_dir)
+    os.makedirs(admin_user_dir)
+    # Create dummy files
+    create_dummy_json_files(json_dir, ["a.json"])
+    create_dummy_json_files(geojson_dir, ["c.json"])
+    create_dummy_json_files(admin_user_dir, ["b.json"])
 
-#     mock_query = mocker.patch("sqlalchemy.orm.Session.query")
+    mock_get_app_workspace = mocker.patch(
+        "tethysapp.tethysdash.model.get_app_workspace"
+    )
+    mock_get_app_workspace.return_value = MagicMock(path=temp_workspace)
 
-#     dashboard_1 = MockDashboard(
-#         id=1,
-#         grid_items=[
-#             MockGridItem(
-#                 id=1,
-#                 source="Map",
-#                 args_string=json.dumps(
-#                     {
-#                         "layers": [
-#                             {
-#                                 "configuration": {
-#                                     "props": {"source": {"geojson": "c.json"}},
-#                                     "style": "b.json",
-#                                 }
-#                             },
-#                             {
-#                                 "configuration": {
-#                                     "props": {"source": {"geojson": "some/url/d.json"}},
-#                                     "style": "some/url/a.json",
-#                                 }
-#                             },
-#                         ]
-#                     }
-#                 ),
-#             ),
-#             MockGridItem(id=2, source="Map", args_string=None),
-#             MockGridItem(
-#                 id=3,
-#                 source="Map",
-#                 args_string=json.dumps(
-#                     {
-#                         "layers": [
-#                             {},
-#                         ]
-#                     }
-#                 ),
-#             ),
-#         ],
-#     )
-#     mock_query.return_value.all.return_value = [dashboard_1]
+    mock_query = mocker.patch("sqlalchemy.orm.Session.query")
 
-#     init_primary_db(engine=mocker.Mock(), first_time=True)
+    dashboard_1 = MockDashboard(
+        id=1,
+        grid_items=[
+            MockGridItem(
+                id=1,
+                source="Map",
+                args_string=json.dumps(
+                    {
+                        "layers": [
+                            {
+                                "configuration": {
+                                    "props": {"source": {"geojson": "c.json"}},
+                                    "style": "b.json",
+                                }
+                            },
+                            {
+                                "configuration": {
+                                    "props": {"source": {"geojson": "some/url/d.json"}},
+                                    "style": "some/url/a.json",
+                                }
+                            },
+                        ]
+                    }
+                ),
+            ),
+            MockGridItem(id=2, source="Map", args_string=None),
+            MockGridItem(
+                id=3,
+                source="Map",
+                args_string=json.dumps(
+                    {
+                        "layers": [
+                            {},
+                        ]
+                    }
+                ),
+            ),
+        ],
+    )
+    mock_query.return_value.all.return_value = [dashboard_1]
 
-#     # Check that files have been deleted from original locations
-#     assert not os.path.exists(os.path.join(json_dir, "a.json"))
-#     assert not os.path.exists(os.path.join(admin_user_dir, "b.json"))
-#     assert not os.path.exists(os.path.join(geojson_dir, "c.json"))
+    init_primary_db(engine=mock_engine, first_time=True)
 
-#     assert os.path.exists(os.path.join(temp_workspace, dashboard_1.uuid, "c.json"))
-#     assert os.path.exists(os.path.join(temp_workspace, dashboard_1.uuid, "b.json"))
+    # Check that files have been deleted from original locations
+    assert not os.path.exists(os.path.join(json_dir, "a.json"))
+    assert not os.path.exists(os.path.join(admin_user_dir, "b.json"))
+    assert not os.path.exists(os.path.join(geojson_dir, "c.json"))
 
+    assert os.path.exists(os.path.join(temp_workspace, dashboard_1.uuid, "c.json"))
+    assert os.path.exists(os.path.join(temp_workspace, dashboard_1.uuid, "b.json"))
 
-# def test_init_primary_db_moves_no_json_and_geojson_folders(
-#     mock_app_get_ps_db, tmp_path, mocker
-# ):
-#     mock_app_get_ps_db("tethysapp.tethysdash.model.App")
-#     mocker.patch(
-#         "tethysapp.tethysdash.model.subprocess.run",
-#         return_value=SimpleNamespace(stdout=""),
-#     )
+    # Get the directory of the current test file
+    test_file_dir = Path(__file__).resolve().parent
 
-#     mock_get_app_workspace = mocker.patch(
-#         "tethysapp.tethysdash.model.get_app_workspace"
-#     )
-#     mock_get_app_workspace.return_value = MagicMock(path=tmp_path)
+    # If you want the app directory (one level up from the test file)
+    app_dir = test_file_dir.parent.parent
 
-#     init_primary_db(engine=mocker.Mock(), first_time=True)
+    # Alembic directory relative to app_dir
+    alembic_dir = app_dir / "alembic"
+
+    mock_cfg.Config.assert_called_once()
+    set_main_option_calls = [
+        call("script_location", str(alembic_dir)),
+        call("sqlalchemy.url", str(mock_engine.url)),
+    ]
+
+    mock_cfg.Config().set_main_option.assert_has_calls(
+        set_main_option_calls, any_order=True
+    )
+    mock_command.ensure_version.assert_called_once()

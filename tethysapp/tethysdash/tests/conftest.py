@@ -18,19 +18,48 @@ from tethysapp.tethysdash.model import (
 )
 from django.contrib.auth import get_user_model
 import os
+from pathlib import Path
+import psycopg2
+from sqlalchemy.engine.url import make_url
 
 
 @pytest.fixture(scope="session")
 def db_url():
     db_settings = settings.DATABASES["default"]
-    url = f"sqlite:////home/tethys/tethysdash/testing_db.sqlite"
-    return url
+    if db_settings["ENGINE"] == "django.db.backends.sqlite3":
+        parent_dir = Path(__file__).parent
+        return f"sqlite:///{parent_dir}/testing_db.sqlite"
+    else:
+        return f"postgresql+psycopg2://{db_settings['USER']}:{db_settings['PASSWORD']}@{db_settings['HOST']}:{db_settings['PORT']}/tethysdash_test_db"  # noqa: E501
 
 
 @pytest.fixture(scope="session")
 def db_engine_and_migrate(db_url):
     """Create a SQLAlchemy engine and run migrations once."""
-    engine = create_engine(db_url, connect_args={"check_same_thread": False})
+    if db_url.startswith("sqlite:///"):
+        engine = create_engine(db_url, connect_args={"check_same_thread": False})
+    else:
+        url = make_url(db_url)
+        db_name = url.database
+
+        # Try to create the test db if it doesn't exist
+        try:
+            conn = psycopg2.connect(
+                dbname="postgres",
+                user=url.username,
+                password=url.password,
+                host=url.host,
+                port=url.port,
+            )
+            conn.autocommit = True
+            cur = conn.cursor()
+            cur.execute(f"CREATE DATABASE {db_name}")
+            cur.close()
+            conn.close()
+        except psycopg2.errors.DuplicateDatabase:
+            pass  # Database already exists
+        engine = create_engine(db_url)
+
     init_primary_db(engine, first_time=True, clean=False)
     yield engine
     engine.dispose()
@@ -40,6 +69,25 @@ def db_engine_and_migrate(db_url):
 
         if os.path.exists(db_path):
             os.remove(db_path)
+    else:
+        # Drop the PostgreSQL database after tests
+        url = make_url(db_url)
+        db_name = url.database
+        try:
+            conn = psycopg2.connect(
+                dbname="postgres",
+                user=url.username,
+                password=url.password,
+                host=url.host,
+                port=url.port,
+            )
+            conn.autocommit = True
+            cur = conn.cursor()
+            cur.execute(f"DROP DATABASE IF EXISTS {db_name}")
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Error dropping database {db_name}: {e}")
 
 
 @pytest.fixture(scope="function")
@@ -74,15 +122,20 @@ def db_session(session_maker):
 
 
 @pytest.fixture(autouse=True)
-def truncate_tables(db_session):
+def truncate_tables(db_session, db_url):
     meta = Dashboard.metadata
 
-    # Disable foreign key checks for SQLite
-    db_session.execute(text("PRAGMA foreign_keys=OFF"))
-    for table in reversed(meta.sorted_tables):
-        db_session.execute(table.delete())
-    db_session.commit()
-    db_session.execute(text("PRAGMA foreign_keys=ON"))
+    if db_url.startswith("sqlite:///"):
+        db_session.execute(text("PRAGMA foreign_keys=OFF"))
+        for table in reversed(meta.sorted_tables):
+            db_session.execute(table.delete())
+        db_session.commit()
+        db_session.execute(text("PRAGMA foreign_keys=ON"))
+    else:
+        # For PostgreSQL, truncate all tables and restart identity (reset autoincrement)
+        table_names = ", ".join([f'"{table.name}"' for table in meta.sorted_tables])
+        db_session.execute(text(f"TRUNCATE {table_names} RESTART IDENTITY CASCADE"))
+        db_session.commit()
 
 
 @pytest.fixture(scope="function")

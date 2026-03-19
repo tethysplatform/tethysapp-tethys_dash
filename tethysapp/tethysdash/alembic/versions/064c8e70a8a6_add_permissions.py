@@ -98,7 +98,7 @@ def downgrade() -> None:
             "UPDATE dashboards SET access_groups = ARRAY['public'] WHERE public = TRUE"
         )
         op.execute(
-            "UPDATE dashboards SET access_groups = ARRAY[]::varchar[] WHERE public = FALSE"
+            "UPDATE dashboards SET access_groups = ARRAY[]::varchar[] WHERE public = FALSE"  # noqa: E501
         )
         op.drop_column("dashboards", "public")
         op.drop_table("dashboard_permissions")

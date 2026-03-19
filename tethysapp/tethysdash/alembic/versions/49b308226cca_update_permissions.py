@@ -32,11 +32,9 @@ def upgrade() -> None:
                 )
             )
         # Step 2: Run UPDATE to populate group_id
-        op.execute("""
-            UPDATE dashboard_permissions SET group_id = (
-                SELECT id FROM permission_groups WHERE dashboard_permissions."group" = permission_groups.name
-            )
-            """)
+        op.execute(
+            'UPDATE dashboard_permissions SET group_id = (SELECT id FROM permission_groups WHERE dashboard_permissions."group" = permission_groups.name)'  # noqa:E501
+        )
         # Step 3: Drop group column and add FK constraint
         with op.batch_alter_table("dashboard_permissions") as batch_op:
             batch_op.drop_column("group")

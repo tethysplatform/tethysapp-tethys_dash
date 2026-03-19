@@ -23,8 +23,7 @@ from datetime import datetime, timezone
 from django.conf import settings
 from tethys_sdk.paths import get_app_media, get_app_workspace
 import base64
-from alembic.config import Config
-from alembic import command, script
+from alembic import command, script, config
 from sqlalchemy.exc import ProgrammingError, OperationalError
 from sqlalchemy import CheckConstraint
 from pathlib import Path
@@ -2075,7 +2074,7 @@ def init_primary_db(engine, first_time, clean=True):
     # Load Alembic configuration
     tethysdash_directory = Path(__file__).resolve().parent
     alembic_directory = str(tethysdash_directory / "alembic")
-    alembic_cfg = Config(tethysdash_directory / "alembic.ini")
+    alembic_cfg = config.Config(tethysdash_directory / "alembic.ini")
     alembic_cfg.set_main_option("script_location", alembic_directory)
     alembic_cfg.set_main_option("sqlalchemy.url", str(engine.url))
     script_directory = script.ScriptDirectory.from_config(alembic_cfg)
