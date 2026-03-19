@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tethysdash"
-version = "0.17.6.2"
+version = "0.17.7"
 description = "A Tethys App for no code/low code web application development app"
 authors = [{ name = "Corey Krewson", email = "ckrewson@aquaveo.com" }]
 license-files = ["LICENSE"]
@@ -29,6 +29,7 @@ dependencies = [
     "alembic==1.14.0",
     "xmltodict==0.14.2",
     "psycopg2-binary==2.9.11",
+    "geoalchemy2==0.18.4"
 ]
 classifiers = [
      "Environment :: Web Environment",

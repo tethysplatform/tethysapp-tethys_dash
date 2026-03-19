@@ -30,10 +30,8 @@ def upgrade() -> None:
     connection = op.get_bind()
     results = connection.execute(
         sa.select(
-            [
-                t_griditems.c.id,
-                t_griditems.c.refresh_rate,
-            ]
+            t_griditems.c.id,
+            t_griditems.c.refresh_rate,
         )
     ).fetchall()
 
@@ -62,10 +60,8 @@ def downgrade() -> None:
     connection = op.get_bind()
     results = connection.execute(
         sa.select(
-            [
-                t_griditems.c.id,
-                t_griditems.c.metadata_string,
-            ]
+            t_griditems.c.id,
+            t_griditems.c.metadata_string,
         )
     ).fetchall()
 

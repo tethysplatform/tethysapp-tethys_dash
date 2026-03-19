@@ -19,6 +19,8 @@ launch.json
 cache
 coverage
 data
+build
+dist
 
 
 tethysapp/tethysdash/public/images/plugins/*
