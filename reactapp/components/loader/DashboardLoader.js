@@ -137,7 +137,10 @@ const DashboardLoader = ({
               if (args.variable_options_source.includes("date")) {
                 dateFormat =
                   args?.["variable_options_source.metadata"]?.format || "";
-              } else if (args.variable_options_source === "slider") {
+              } else if (
+                args.variable_options_source === "slider" &&
+                args["variable_options_source.metadata"]?.dataType !== "Number"
+              ) {
                 dateFormat =
                   args["variable_options_source.metadata"].outputFormat;
               }
