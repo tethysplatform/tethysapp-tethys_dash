@@ -1,6 +1,7 @@
 import { moduleMap } from "components/map/moduleMap";
 import { Vector as VectorSource } from "ol/source.js";
 import MVT from "ol/format/MVT.js";
+import KML from "ol/format/KML.js";
 import GeoJSON from "ol/format/GeoJSON.js";
 import EsriJSON from "ol/format/EsriJSON";
 import { tile as tileStrategy } from "ol/loadingstrategy.js";
@@ -54,6 +55,9 @@ const moduleLoader = async (config, mapProjection) => {
         if (type === "Vector Tile") {
           resolvedProps.format = new MVT();
         }
+        if (type === "KML") {
+          resolvedProps.format = new KML();
+        }
         return new moduleCache[type](resolvedProps);
       }
     }
@@ -63,7 +67,10 @@ const moduleLoader = async (config, mapProjection) => {
     // Handle both default exports and named exports
     let ModuleConstructor = module.default;
     if (!ModuleConstructor) {
-      ModuleConstructor = type === "PMTiles Vector" ? module.PMTilesVectorSource : module.PMTilesRasterSource;
+      ModuleConstructor =
+        type === "PMTiles Vector"
+          ? module.PMTilesVectorSource
+          : module.PMTilesRasterSource;
     }
 
     if (typeof ModuleConstructor !== "function") {
@@ -75,6 +82,9 @@ const moduleLoader = async (config, mapProjection) => {
     const resolvedProps = await resolveProps(props, mapProjection);
     if (type === "Vector Tile") {
       resolvedProps.format = new MVT();
+    }
+    if (type === "KML") {
+      resolvedProps.format = new KML();
     }
 
     if (type === "GeoJSON") {
@@ -167,6 +177,7 @@ const getModuleImporter = (type) => {
     WMS: "ol/source/ImageWMS.js",
     Raster: "ol/source/Raster.js",
     GeoJSON: "ol/format/GeoJSON.js",
+    KML: "ol/source/Vector.js",
     Style: "ol/style/Style.js",
     Stroke: "ol/style/Stroke.js",
     Fill: "ol/style/Fill.js",

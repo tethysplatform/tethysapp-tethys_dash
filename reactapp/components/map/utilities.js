@@ -70,6 +70,21 @@ export const sourcePropertiesOptions = {
       },
     },
   },
+  KML: {
+    required: {
+      url: {
+        placeholder: "KML URL",
+      },
+    },
+    optional: {
+      attributions: {
+        placeholder: "Attributions",
+      },
+      projection: {
+        placeholder: "EPSG:<Code>",
+      },
+    },
+  },
   "Image Tile": {
     required: {
       url: {

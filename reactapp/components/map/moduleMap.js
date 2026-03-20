@@ -11,6 +11,7 @@ export const moduleMap = {
   "ol/source/ImageWMS.js": () => import("ol/source/ImageWMS.js"),
   "ol/source/Raster.js": () => import("ol/source/Raster.js"),
   "ol/format/GeoJSON.js": () => import("ol/format/GeoJSON.js"),
+  "ol/format/KML.js": () => import("ol/format/KML.js"),
   "ol/style/Style.js": () => import("ol/style/Style.js"),
   "ol/style/Stroke.js": () => import("ol/style/Stroke.js"),
   "ol/style/Fill.js": () => import("ol/style/Fill.js"),
