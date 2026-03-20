@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tethysdash"
-version = "0.17.7"
+version = "0.18.0"
 description = "A Tethys App for no code/low code web application development app"
 authors = [{ name = "Corey Krewson", email = "ckrewson@aquaveo.com" }]
 license-files = ["LICENSE"]
@@ -29,7 +29,8 @@ dependencies = [
     "alembic==1.14.0",
     "xmltodict==0.14.2",
     "psycopg2-binary==2.9.11",
-    "geoalchemy2==0.18.4"
+    "geoalchemy2==0.18.4",
+    "tethys-platform>=4.5.0"
 ]
 classifiers = [
      "Environment :: Web Environment",
@@ -74,9 +75,6 @@ local_scheme = "no-local-version"
 # Optional: for compatibility with pytest if you run tests with `pytest`
 [tool.pytest.ini_options]
 django_find_project = false
-
-[project.optional-dependencies]
-tethys = ["tethys-platform>=4.4.3"]
 
 [project.urls]
 homepage = "https://tethysdashdocs.readthedocs.io/en/latest/"

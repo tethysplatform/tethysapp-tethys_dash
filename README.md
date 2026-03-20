@@ -17,13 +17,6 @@ This app was created using an experimental Tethys + React app scaffold. It uses 
     pip install tethysdash
 ```
 
-> [!IMPORTANT]  
-> If Tethys is not installed, Tethys can be installed optionally with
->
-> ```
->     pip install tethysdash[tethys]
-> ```
-
 3. Setup Tethys and TethysDash Databases and Services
 
 ```
@@ -40,10 +33,11 @@ This app was created using an experimental Tethys + React app scaffold. It uses 
 
 You need to install both the Tethys dependencies and the node dependencies:
 
-1. Open Terminal and activate tethys env
+1. If creating a new python environment, create and activate it
 
 ```
-conda activate tethys
+    python3 -m venv test_env
+    source test_env/bin/activate
 ```
 
 2. Clone the Repo
@@ -56,79 +50,22 @@ git clone https://github.com/tethysplatform/tethysapp-tethys_dash
 
 ```
 cd tethysapp-tethys_dash/
-tethys install -d
+pip install -e .
 ```
 
-4. Create Persistence Store (if not done already) (update connection string as needed)
+4. Setup Tethys and TethysDash Databases and Services
 
 ```
-## Command Line Interface (CLI)
-
-After installing tethysdash, you can use the CLI tool:
-
+    tethysdash setup
 ```
 
-tethysdash
+5. Start Tethys Portal
 
 ```
-
-This will run the CLI entry point defined in the package. You can add arguments as needed:
-
+    tethysdash start
 ```
 
-tethysdash <arguments>
-
-```
-
-For example:
-
-```
-
-tethysdash --help
-
-```
-
-### Setup Command
-
-To run Tethys portal and database setup commands, use:
-
-```
-
-tethysdash setup
-
-```
-
-This will execute:
-
-- `tethys gen portal_config`
-- `tethys db configure`
-
-You must have the `tethys` CLI available in your environment.
-tethys services create persistent -n primary_db -c postgres:mysecretpassword@localhost:5432
-```
-
-5. Connect Persistence Store to TethysDash
-
-```
-tethys link persistent:primary_db tethysdash:ps_database:primary_db
-```
-
-6. Setup Environment Variables (not necessary unless connection values are different)
-
-```
-export POSTGRES_PASSWORD=mysecretpassword
-export TETHYS_DB_HOST=localhost
-export TETHYSDASH_DB_NAME=tethysdash_primary_db
-export TETHYS_DB_PORT=5432
-```
-
-7. Setup TethysDash DB Tables
-
-```
-tethys syncstores tethysdash
-```
-
-8. Install Plugin Examples (not necessary but recommended)
+6. Install Plugin Examples (not necessary but recommended)
 
 ```
 cd ..
@@ -144,7 +81,7 @@ The webpack dev server is configured to proxy the Tethys development server (see
 1. Install the node and dependencies
 
 ```
-cd tethysapp-tethysdash
+cd tethysapp-tethys_dash/
 npm install --dev
 ```
 
