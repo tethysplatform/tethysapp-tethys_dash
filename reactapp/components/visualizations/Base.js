@@ -72,7 +72,6 @@ export const Visualization = memo(
     progressMessage,
     dataviewerViz,
   }) => {
-    console.log("[Visualization] render", { vizType, vizData, vizMetadata, progressMessage });
     if (progressMessage && vizType === "loader") {
       const msgObj = JSON.parse(progressMessage);
       const { message, step, totalSteps } = msgObj;
