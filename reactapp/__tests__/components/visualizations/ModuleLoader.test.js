@@ -280,6 +280,23 @@ describe("ModuleLoader", () => {
       expect(screen.getByTestId("loading-animation")).toBeInTheDocument();
     });
 
+    test("renders error message when remote fails to load", async () => {
+      loadComponent.mockReturnValue(() =>
+        Promise.reject(new Error("network failure"))
+      );
+
+      const Wrapper = createContextWrapper();
+      render(
+        <Wrapper>
+          <ModuleLoader {...defaultProps} />
+        </Wrapper>
+      );
+
+      expect(
+        await screen.findByText(`Failed to load remote: ${defaultProps.url}`)
+      ).toBeInTheDocument();
+    });
+
     test("renders nothing when url is null (component stays null)", () => {
       const Wrapper = createContextWrapper();
       const { container } = render(
