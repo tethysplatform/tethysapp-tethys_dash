@@ -114,7 +114,7 @@ const ColorCircle = styled.div`
   box-sizing: border-box;
   margin: 0;
 
-  background-color: ${(props) => props.bgColor};
+  background-color: ${(props) => props.$bgColor};
 `;
 
 const ButtonBar = styled.div`
@@ -196,7 +196,7 @@ const ColorOverlay = ({ target, show, setShow, editor, type }) => {
                       : ""
                 }
               >
-                <ColorCircle bgColor={color} />
+                <ColorCircle $bgColor={color} />
               </ColorCircleButton>
             ))}
           </ColorGrid>
@@ -500,7 +500,7 @@ const TextEditor = ({ textValue, onChange }) => {
         const html = editor.getHTML();
         onChange(html);
       },
-      [onChange]
+      [onChange],
     ),
     editorProps: {
       attributes: {

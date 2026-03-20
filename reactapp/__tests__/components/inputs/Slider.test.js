@@ -51,9 +51,12 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     const { rerender } = render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
+            variable_name="Test Slider"
             label="Test Slider"
             step={1}
             min={0}
@@ -79,9 +82,12 @@ describe("Slider Component", () => {
     });
 
     rerender(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
+            variable_name="Test Slider"
             label="Test Slider"
             step={1}
             min={0}
@@ -103,9 +109,12 @@ describe("Slider Component", () => {
     });
 
     rerender(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
+            variable_name="Test Slider"
             label="Test Slider"
             step={1}
             min={0}
@@ -132,9 +141,12 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     const { rerender } = render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
+            variable_name="Test Slider"
             label="Test Slider"
             step={1}
             min={0}
@@ -160,9 +172,12 @@ describe("Slider Component", () => {
     });
 
     rerender(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
+            variable_name="Test Slider"
             label="Test Slider"
             step={1}
             min={0}
@@ -187,9 +202,12 @@ describe("Slider Component", () => {
     });
 
     rerender(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
+            variable_name="Test Slider"
             label="Test Slider"
             step={1}
             min={0}
@@ -214,9 +232,12 @@ describe("Slider Component", () => {
     });
 
     rerender(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
+            variable_name="Test Slider"
             label="Test Slider"
             step={1}
             min={0}
@@ -242,7 +263,9 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     const { container } = render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -274,7 +297,9 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -304,7 +329,9 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -335,7 +362,9 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -365,7 +394,9 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -396,7 +427,9 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -426,7 +459,9 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -457,7 +492,9 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -487,7 +524,9 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -520,7 +559,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -555,7 +596,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -594,7 +637,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -629,7 +674,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -665,7 +712,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -700,7 +749,9 @@ describe("Slider Component", () => {
     const max = "now";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -748,7 +799,9 @@ describe("Slider Component", () => {
     const max = "now";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -796,7 +849,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -832,7 +887,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -867,7 +924,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -906,7 +965,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     const { container } = render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -943,7 +1004,9 @@ describe("Slider Component", () => {
     const initialRange = ["2025-01-08T00:00:00", "2025-01-09T00:00:00"];
 
     const { container } = render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -983,7 +1046,9 @@ describe("Slider Component", () => {
     const initialRange = [7, 9];
 
     const { container } = render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1017,7 +1082,9 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1055,7 +1122,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1094,7 +1163,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1124,7 +1195,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1161,7 +1234,9 @@ describe("Slider Component", () => {
     const initialRange = ["2025-01-08T00:00:00", "2025-01-09T00:00:00"];
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1210,7 +1285,9 @@ describe("Slider Component", () => {
     const initialRange = [7, 9];
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1254,7 +1331,9 @@ describe("Slider Component", () => {
     const initialRange = [8, 8];
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1295,7 +1374,9 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1322,7 +1403,9 @@ describe("Slider Component", () => {
 
   it("changes speed when select updated", () => {
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1349,7 +1432,9 @@ describe("Slider Component", () => {
     const max = "2025-01-05T00:00:00.000";
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1382,9 +1467,12 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
+            variable_name="Test Slider"
             label="Test Slider"
             step={1}
             min={0}
@@ -1413,9 +1501,12 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
+            variable_name="Test Slider"
             label="Test Slider"
             step={1}
             min={0}
@@ -1445,9 +1536,12 @@ describe("Slider Component", () => {
     const handleChange = jest.fn();
 
     const { rerender } = render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
+            variable_name="Test Slider"
             label="Test Slider"
             step={1}
             min={0}
@@ -1469,7 +1563,9 @@ describe("Slider Component", () => {
 
     // Rerender with the same relevant props but change a non-relevant prop (label)
     rerender(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             label="Updated Test Slider" // Only label changed, which doesn't affect index
@@ -1493,7 +1589,9 @@ describe("Slider Component", () => {
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("5");
 
     rerender(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             label="Updated Test Slider"
@@ -1517,7 +1615,9 @@ describe("Slider Component", () => {
 
   it("testing speeds prop", () => {
     const { rerender } = render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1542,6 +1642,7 @@ describe("Slider Component", () => {
 
     let select = screen.getByLabelText(/speed select/i);
     expect(select).toBeInTheDocument();
+    expect(screen.getByText("Speed:")).toBeInTheDocument();
     // eslint-disable-next-line testing-library/no-node-access
     expect(select.children.length).toBe(5);
     // eslint-disable-next-line testing-library/no-node-access
@@ -1557,7 +1658,9 @@ describe("Slider Component", () => {
     expect(screen.getByText("Extra Slow").selected).toBe(true);
 
     rerender(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1577,7 +1680,9 @@ describe("Slider Component", () => {
     expect(screen.queryByLabelText(/speed select/i)).not.toBeInTheDocument();
 
     rerender(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1608,7 +1713,9 @@ describe("Slider Component", () => {
 
   it("dont show speed selector when only one speed is provided", () => {
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1631,7 +1738,9 @@ describe("Slider Component", () => {
 
   it("dont show play button when no speeds are provided", () => {
     render(
-      <VariableInputsContext.Provider value={{ variableInputDateFormats: {} }}>
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
         <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
           <Slider
             step={1}
@@ -1667,6 +1776,7 @@ describe("Slider Component", () => {
             minDate: "yyyy-MM-dd'T' HH:mm:ss.SSS",
             maxDate: "yyyy-MM-dd 'WW' HH",
           },
+          variableInputValues: { minDate: min, maxDate: max },
         }}
       >
         <GridItemContext.Provider
@@ -1715,6 +1825,7 @@ describe("Slider Component", () => {
             minDate: "",
             maxDate: "",
           },
+          variableInputValues: { minDate: min, maxDate: max },
         }}
       >
         <GridItemContext.Provider
@@ -1748,6 +1859,136 @@ describe("Slider Component", () => {
     const labels = screen.getAllByText(today, { selector: "strong" });
     expect(labels.length).toBe(2);
     expect(handleChange).toHaveBeenCalledWith(today);
+  });
+
+  it("renders a raw number value when variable input doesnt have a valid index", () => {
+    const handleChange = jest.fn();
+    const min = 0;
+    const max = 10;
+
+    const { rerender } = render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": "" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={2}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="{{n}}"
+            dataType="Number"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    const minLabel = screen.getByText("0", {
+      selector: "strong",
+    });
+    expect(minLabel).toBeInTheDocument();
+    const maxLabel = screen.getByText("10", {
+      selector: "strong",
+    });
+    expect(maxLabel).toBeInTheDocument();
+    expect(handleChange).toHaveBeenCalledWith("0");
+
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": 3 },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={2}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="{{n}}"
+            dataType="Number"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+    expect(screen.getByText("3 (custom)")).toBeInTheDocument();
+  });
+
+  it("renders a raw date value when variable input doesnt have a valid index", async () => {
+    const handleChange = jest.fn();
+    const min = "2025-01-01T00:00:00.000";
+    const max = "2025-01-05T00:00:00.000";
+
+    const { rerender } = render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": "" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={2}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    const minLabel = screen.getByText("2025-01-01", {
+      selector: "strong",
+    });
+    expect(minLabel).toBeInTheDocument();
+    const maxLabel = screen.getByText("2025-01-05", {
+      selector: "strong",
+    });
+    expect(maxLabel).toBeInTheDocument();
+    expect(handleChange).toHaveBeenCalledWith("2025-01-01");
+
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": "2025-01-02" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={2}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="yyyy-MM-dd"
+            dataType="Date"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+    expect(await screen.findByText("2025-01-02 (custom)")).toBeInTheDocument();
   });
 });
 

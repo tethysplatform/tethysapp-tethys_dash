@@ -205,7 +205,7 @@ const DashboardCard = ({
     setErrorMessage("");
     if (
       await confirm(
-        "Are you sure you want to delete the " + name + " dashboard?"
+        "Are you sure you want to delete the " + name + " dashboard?",
       )
     ) {
       deleteDashboard(id).then((response) => {
@@ -415,7 +415,7 @@ const DashboardCard = ({
                     e,
                     "description",
                     setDesc,
-                    setIsEditingDescription
+                    setIsEditingDescription,
                   )
                 }
                 aria-label="Description Input"
@@ -512,7 +512,7 @@ DashboardCard.propTypes = {
       username: PropTypes.string,
       group: PropTypes.string,
       permission: PropTypes.oneOf(["admin", "editor", "viewer"]).isRequired,
-    })
+    }),
   ).isRequired,
   owner: PropTypes.string.isRequired,
 };

@@ -14,7 +14,7 @@ test("getInitialInputValue", async () => {
   expect(inputValue).toBe("");
 
   inputValue = getInitialInputValue("checkbox");
-  expect(inputValue).toBe(false);
+  expect(inputValue).toBe(true);
 
   inputValue = getInitialInputValue([{}]);
   expect(inputValue).toBe(null);
@@ -76,7 +76,7 @@ test("valuesEqual", async () => {
       location: "BEE",
       start_time: addHours(new Date(), 1),
       end_time: addHours(new Date(), 1),
-    }
+    },
   );
   expect(equal).toBe(false);
 });

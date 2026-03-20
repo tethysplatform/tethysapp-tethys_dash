@@ -102,7 +102,23 @@ const StyledContent = styled.div`
   margin-top: 1rem;
 `;
 
-export const Popup = ({ layerAttributes, onSwipe }) => {
+export const Popup = ({
+  layerAttributes,
+  onSwipe,
+  omittedPopupAttributes,
+  aliases,
+}) => {
+  const filteredLayerAttributes = layerAttributes.map((feature) => {
+    const omittedFields = omittedPopupAttributes[feature.layerName] || [];
+    const aliasMap = aliases[feature.layerName] || {};
+    const filteredAttributes = Object.fromEntries(
+      Object.entries(feature.attributes)
+        .filter(([key]) => !omittedFields.includes(key))
+        .map(([key, value]) => [aliasMap[key] || key, value]),
+    );
+    return { ...feature, attributes: filteredAttributes };
+  });
+
   return (
     <StyledSwiper
       modules={[Pagination, Navigation]}
@@ -112,7 +128,7 @@ export const Popup = ({ layerAttributes, onSwipe }) => {
       simulateTouch={false}
       onSlideChange={onSwipe}
     >
-      {layerAttributes.map((selectedFeature, index) => (
+      {filteredLayerAttributes.map((selectedFeature, index) => (
         <MarginSwiperSlide key={index}>
           <PopupDiv>
             <div>
@@ -199,6 +215,8 @@ const MapVisualization = ({
   const currentLayers = useRef([]);
   const currentBaseMap = useRef();
   const mapAttributeVariablesRef = useRef({});
+  const mapOmittedPopupAttributesRef = useRef({});
+  const mapAttributeAliasesRef = useRef({});
   const { setVariableInputValues } = useContext(VariableInputsContext);
   const { inDataViewerMode } = useContext(DataViewerModeContext);
   const { uuid } = useContext(LayoutContext);
@@ -277,7 +295,12 @@ const MapVisualization = ({
           </StyledCloser>
           <StyledContent aria-label="Map Popup Content" id="popup-content">
             {popupContent ? (
-              <Popup layerAttributes={popupContent} onSwipe={onSwipe} />
+              <Popup
+                layerAttributes={popupContent}
+                onSwipe={onSwipe}
+                omittedPopupAttributes={mapOmittedPopupAttributesRef.current}
+                aliases={mapAttributeAliasesRef.current}
+              />
             ) : (
               <CenteredP>No Attributes Found</CenteredP>
             )}
@@ -290,26 +313,7 @@ const MapVisualization = ({
         const selectedFeature = popupContent[0];
         addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
 
-        // Also update variable inputs for the first feature
-        const layerName = selectedFeature.layerName;
-        const mapAttributeVariables = mapAttributeVariablesRef.current;
-        if (layerName && mapAttributeVariables[layerName]) {
-          let updatedVariableInputs = {};
-          for (const layerAlias in mapAttributeVariables[layerName]) {
-            const variableInputName =
-              mapAttributeVariables[layerName][layerAlias];
-            const featureValue = selectedFeature.attributes[layerAlias];
-            if (featureValue && featureValue !== "Null") {
-              updatedVariableInputs[variableInputName] = featureValue;
-            }
-          }
-          if (Object.keys(updatedVariableInputs).length > 0) {
-            setVariableInputValues((previousVariableInputValues) => ({
-              ...previousVariableInputValues,
-              ...updatedVariableInputs,
-            }));
-          }
-        }
+        updateVariableInputsForFeature(selectedFeature);
       }
     }
     // eslint-disable-next-line
@@ -394,13 +398,42 @@ const MapVisualization = ({
     addHighlightFeatures(highlightLayer.current, selectedFeature.geometry);
 
     // Use your variable mapping logic here
+    updateVariableInputsForFeature(selectedFeature);
+  };
+
+  const updateVariableInputsForFeature = (selectedFeature) => {
     const layerName = selectedFeature.layerName;
     const mapAttributeVariables = mapAttributeVariablesRef.current;
+
+    // for mapped variable inputs, get the selected feature values and set the variable inputs accordingly
     if (layerName && mapAttributeVariables[layerName]) {
       let updatedVariableInputs = {};
-      for (const layerAlias in mapAttributeVariables[layerName]) {
-        const variableInputName = mapAttributeVariables[layerName][layerAlias];
-        const featureValue = selectedFeature.attributes[layerAlias];
+      for (const layerAttributeOrAlias in mapAttributeVariables[layerName]) {
+        // Try to derive both the alias and the original field name from attributeAliases
+        let layerAttribute = layerAttributeOrAlias;
+        let layerAttributeAlias = layerAttributeOrAlias;
+        const aliasMap = mapAttributeAliasesRef.current[layerName] || {};
+        // If the aliasMap has a mapping for this key, set alias and try to find the original
+        if (aliasMap[layerAttributeOrAlias]) {
+          layerAttributeAlias = aliasMap[layerAttributeOrAlias];
+        } else {
+          // Try to find if this is an alias value (reverse lookup)
+          const originalKey = Object.keys(aliasMap).find(
+            (k) => aliasMap[k] === layerAttributeOrAlias,
+          );
+          if (originalKey) {
+            layerAttribute = originalKey;
+            layerAttributeAlias = layerAttributeOrAlias;
+          }
+        }
+
+        const variableInputName =
+          mapAttributeVariables[layerName][layerAttributeOrAlias];
+
+        const featureValue =
+          selectedFeature.attributes[layerAttribute] ||
+          selectedFeature.attributes[layerAttributeAlias];
+
         if (featureValue && featureValue !== "Null") {
           updatedVariableInputs[variableInputName] = featureValue;
         }
@@ -455,6 +488,7 @@ const MapVisualization = ({
       }
       return combined;
     }, {});
+    mapAttributeAliasesRef.current = mapAttributeAliases;
 
     // reduce the layer attributes variables values into a simplified object of layer names and then values
     const mapAttributeVariables = queryableLayers.reduce(
@@ -486,39 +520,17 @@ const MapVisualization = ({
       },
       {},
     );
+    mapOmittedPopupAttributesRef.current = mapOmittedPopupAttributes;
 
     // query the layers
-    const queryCalls = queryableLayers.map((layer) =>
-      queryLayerFeatures(layer, map, coordinate, pixel)
-        .then((layerFeatures) => {
-          // [{attributes: {key: value}, geometry: {x: "", y: ""}, layerName: ""}]
-          // if valid features were selected then continue
-          if (
-            layerFeatures &&
-            Array.isArray(layerFeatures) &&
-            layerFeatures.length > 0
-          ) {
-            for (const layerFeature of layerFeatures) {
-              const layerName = layerFeature.layerName;
-              const aliasMap = mapAttributeAliases[layerName] || {};
-              const omittedFields = mapOmittedPopupAttributes[layerName] || [];
-
-              const newLayerAttributes = Object.fromEntries(
-                Object.entries(layerFeature.attributes)
-                  .filter(([key]) => !omittedFields.includes(key))
-                  .map(([key, value]) => [aliasMap[key] || key, value]),
-              );
-
-              layerFeature.attributes = newLayerAttributes;
-            }
-          }
-
-          return layerFeatures;
-        })
-        .catch((error) => {
-          console.error("Error:", error);
-        }),
-    );
+    const queryCalls = queryableLayers.map(async (layer) => {
+      try {
+        return await queryLayerFeatures(layer, map, coordinate, pixel);
+      } catch (error) {
+        // Optionally log error: console.error(error);
+        return [];
+      }
+    });
     const queryLayerFeaturesResults = await Promise.all(queryCalls);
 
     // Remove spinner overlay once queries are done
@@ -528,27 +540,39 @@ const MapVisualization = ({
     }
     setIsProcessing(false);
 
-    const nonEmptyLayers = queryLayerFeaturesResults.filter(
-      (arr) =>
-        (arr && Array.isArray(arr) && arr.length > 0) || arr === "zoomed",
-    );
-    const nonEmptyLayerAttributes = nonEmptyLayers
-      .flat()
-      .filter(
-        (item) => item !== "zoomed" && Object.keys(item.attributes).length > 0,
-      );
+    // If any result contains an object with a 'zoomed' property, suppress popup
+    const hasZoomed = queryLayerFeaturesResults.some((arr) => arr === "zoomed");
 
-    let popupContent = null;
-    let popupCoordinate;
-    if (nonEmptyLayers.length === 0) {
-      popupCoordinate = coordinate;
-    } else if (nonEmptyLayerAttributes.length === 0) {
-      popupCoordinate = undefined;
-    } else {
-      popupContent = nonEmptyLayerAttributes;
-      popupCoordinate = coordinate;
+    let newPopupContent = null;
+    let popupCoordinate = undefined;
+
+    if (!hasZoomed) {
+      const nonEmptyLayers = queryLayerFeaturesResults
+        .filter((arr) => arr && Array.isArray(arr) && arr.length > 0)
+        .flat();
+      const nonEmptyLayerAttributes = nonEmptyLayers.filter((item) => {
+        if (!item.attributes || Object.keys(item.attributes).length === 0) {
+          return false;
+        }
+        const omittedFields =
+          mapOmittedPopupAttributesRef.current[item.layerName] || [];
+        // Check if there is at least one attribute not omitted
+        return Object.keys(item.attributes).some(
+          (key) => !omittedFields.includes(key),
+        );
+      });
+
+      newPopupContent = nonEmptyLayers;
+      // no features found at the location, show "No Attributes Found" in the popup
+      if (nonEmptyLayers.length === 0) {
+        popupCoordinate = coordinate;
+        newPopupContent = null;
+        // if any valid attributes, show them in popup and set the coordinate to the first feature with attributes
+      } else if (nonEmptyLayerAttributes.length > 0) {
+        popupCoordinate = coordinate;
+      }
     }
-    setPopupContent(popupContent);
+    setPopupContent(newPopupContent);
     popupOverlayRef.current?.setPosition(popupCoordinate);
   };
 
@@ -588,8 +612,15 @@ MapVisualization.propTypes = {
 };
 
 Popup.propTypes = {
-  layerAttributes: PropTypes.shape({ map: PropTypes.any }),
+  layerAttributes: PropTypes.arrayOf(
+    PropTypes.shape({
+      layerName: PropTypes.string,
+      attributes: PropTypes.object,
+    }),
+  ),
   onSwipe: PropTypes.func, // function to call on swipe event
+  omittedPopupAttributes: PropTypes.object,
+  aliases: PropTypes.object,
 };
 
 export default memo(MapVisualization);

@@ -1,6 +1,10 @@
 import appAPI from "services/api/app";
 import { spaceAndCapitalize } from "components/modals/utilities";
-import { parseDateMath } from "components/inputs/dateUtils";
+import {
+  parseDateMath,
+  convertDatesToLocalISO,
+} from "components/inputs/dateUtils";
+import { format } from "date-fns";
 
 export function checkForEmptyVariableInputs({
   metadataString,
@@ -11,7 +15,7 @@ export function checkForEmptyVariableInputs({
   const dependentVariableInputs = getDependentVariableInputs(argsString);
   let warnings = [];
 
-  if (!dependentVariableInputs.every((key) => key in variableInputValues)) {
+  if (!dependentVariableInputs.every((key) => variableInputValues[key])) {
     for (const dependentVariableInput of dependentVariableInputs) {
       if (!variableInputValues[dependentVariableInput]) {
         warnings.push(
@@ -65,6 +69,7 @@ export async function getVisualization({
   variableInputValues,
   dashboardView,
   vizLoadingIcon = true,
+  variableInputDateFormats = {},
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -110,6 +115,13 @@ export async function getVisualization({
   if (vizLoadingIcon && sourceType !== "map") {
     setVizType("loader");
   }
+
+  itemData.args = updateObjectWithVariableInputs(
+    JSON.parse(argsString),
+    variableInputValues,
+    variableInputDateFormats,
+    true,
+  );
 
   const apiResponse = await appAPI.getVisualizationData(itemData);
   if (apiResponse.success === true) {
@@ -184,6 +196,7 @@ export async function getVisualization({
       setVizData({
         variable_name: responseData.variable_name,
         initial_value: responseData.initial_value,
+        show_label: responseData.show_label,
         variable_options_source: responseData.variable_options_source,
         metadata: responseData.metadata,
       });
@@ -220,37 +233,70 @@ export function getGridItem(gridItems, gridItemI) {
   return result;
 }
 
-export function updateObjectWithVariableInputs(args, variableInputs, argTypes) {
-  for (let gridItemsArg in args) {
-    let value = args[gridItemsArg];
+export function updateObjectWithVariableInputs(
+  args,
+  variableInputs,
+  variableInputDateFormats,
+  returnDatesAsLocalISO = false,
+) {
+  const argsCopy = JSON.parse(JSON.stringify(args));
+  const variableInputsCopy = JSON.parse(JSON.stringify(variableInputs));
 
-    if (typeof value !== "string") {
-      value = JSON.stringify(value);
-    }
-    let updatedValuesWithVariableInputs = value.replace(
-      /\$\{([^}]+)\}/g,
-      (_, key) =>
-        typeof variableInputs[key] === "object"
-          ? JSON.stringify(variableInputs[key])
-          : (variableInputs[key] ?? ""),
-    );
-
-    if (typeof args[gridItemsArg] !== "string") {
-      updatedValuesWithVariableInputs = JSON.parse(
-        updatedValuesWithVariableInputs,
-      );
-    }
-    args[gridItemsArg] = updatedValuesWithVariableInputs;
-
-    if (argTypes) {
-      const argType = argTypes[gridItemsArg];
-      if (argType === "date" || argType === "date-hour") {
-        args[gridItemsArg] = parseDateMath({ value: args[gridItemsArg] });
+  if (variableInputDateFormats) {
+    for (let [variableInputKey, variableInputValue] of Object.entries(
+      variableInputs,
+    )) {
+      const dateFormat = variableInputDateFormats[variableInputKey];
+      if (dateFormat) {
+        const updatedValue = parseDateMath({
+          value: variableInputValue,
+          dateFormat: dateFormat,
+        });
+        if (returnDatesAsLocalISO) {
+          variableInputsCopy[variableInputKey] =
+            convertDatesToLocalISO(updatedValue);
+        } else {
+          variableInputsCopy[variableInputKey] = format(
+            updatedValue,
+            dateFormat,
+          );
+        }
       }
     }
   }
 
-  return args;
+  for (let gridItemsArg in argsCopy) {
+    let value = argsCopy[gridItemsArg];
+
+    if (typeof value !== "string") {
+      value = JSON.stringify(value);
+    }
+
+    // If value is exactly a variable input, preserve its type
+    const exactVarMatch = value.match(/^\$\{([^}]+)\}$/);
+    let updatedValuesWithVariableInputs;
+    if (exactVarMatch) {
+      const key = exactVarMatch[1];
+      updatedValuesWithVariableInputs = variableInputsCopy[key] || "";
+    } else {
+      updatedValuesWithVariableInputs = value.replace(
+        /\$\{([^}]+)\}/g,
+        (_, key) =>
+          typeof variableInputsCopy[key] === "object"
+            ? JSON.stringify(variableInputsCopy[key])
+            : (variableInputsCopy[key] ?? ""),
+      );
+    }
+
+    if (typeof argsCopy[gridItemsArg] !== "string") {
+      updatedValuesWithVariableInputs = JSON.parse(
+        updatedValuesWithVariableInputs,
+      );
+    }
+    argsCopy[gridItemsArg] = updatedValuesWithVariableInputs;
+  }
+
+  return argsCopy;
 }
 
 export const nonDropDownVariableInputTypes = [

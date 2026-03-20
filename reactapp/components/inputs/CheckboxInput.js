@@ -2,13 +2,11 @@ import Form from "react-bootstrap/Form";
 import PropTypes from "prop-types";
 import styled from "styled-components";
 
-const InlineLabel = styled.label`
-  display: inline;
-`;
-
-const InlineFormCheck = styled(Form.Check)`
-  display: inline;
-  margin-left: 0.5rem;
+const FlexDiv = styled.div`
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
 `;
 
 const CheckboxInput = ({
@@ -19,22 +17,26 @@ const CheckboxInput = ({
   inputProps,
   divProps,
 }) => {
+  const changeHandler = (e) => {
+    onChange(e.target.checked);
+  };
+
   return (
-    <div {...divProps}>
+    <FlexDiv {...divProps}>
       {label && (
-        <InlineLabel className="no-caret">
+        <label className="no-caret">
           <b>{label}</b>:
-        </InlineLabel>
+        </label>
       )}
-      <InlineFormCheck
+      <Form.Check
         aria-label={label + " Input"}
         type={type}
         id={label.replace(" ", "_")}
         checked={value}
-        onChange={onChange}
+        onChange={changeHandler}
         {...inputProps}
       />
-    </div>
+    </FlexDiv>
   );
 };
 

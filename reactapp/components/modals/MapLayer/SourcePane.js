@@ -237,8 +237,7 @@ const SourcePane = ({
     }));
   }
 
-  function handleGeoJSONSourceChange(e) {
-    const source = e.target.value;
+  function handleGeoJSONSourceChange(source) {
     setGeoJSONSource(source);
 
     let newGeoJSON;

@@ -35,7 +35,7 @@ test("Dashboard Layout resize and update layout", async () => {
         initialDashboard: userDashboard,
         inEditing: true,
       },
-    })
+    }),
   );
   expect(await screen.findByText("Rendered Item")).toBeInTheDocument();
 
@@ -65,10 +65,10 @@ test("Dashboard Layout resize and update layout", async () => {
   ];
   let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 });
 
@@ -121,7 +121,7 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
         dashboards: dashboards,
         inEditing: true,
       },
-    })
+    }),
   );
   expect(await screen.findByText("Rendered Item")).toBeInTheDocument();
 
@@ -165,10 +165,10 @@ test("Dashboard Layout resize and enforce aspect ratio but no aspect ratio", asy
 
   let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 });
 
@@ -224,7 +224,7 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
         dashboards: dashboards,
         inEditing: true,
       },
-    })
+    }),
   );
 
   expect(await screen.findByText("Rendered Item")).toBeInTheDocument();
@@ -272,10 +272,10 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
 
   let { tabs, ...dashboardContextProperties } = expectedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 
   fireEvent.mouseDown(resizeSpan, { clientX: 0, clientY: 0 });
@@ -316,9 +316,9 @@ test("Dashboard Layout resize and enforce aspect ratio", async () => {
 
   ({ tabs, ...dashboardContextProperties } = expectedDashboard);
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
-    JSON.stringify({ ...dashboardContextProperties, editable: true })
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
-    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id })
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
 });

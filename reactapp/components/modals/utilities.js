@@ -3,7 +3,7 @@ export function getInitialInputValue(value) {
   if (value === "text") {
     inputValue = "";
   } else if (value === "checkbox") {
-    inputValue = false;
+    inputValue = true;
   } else if (value === "multiinput" || value === "custom-AddMapLayer") {
     inputValue = [];
   } else if (value === "custom-MapDrawing") {

@@ -673,7 +673,7 @@ test("Map click", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          onMapClick={true}
+          onMapClick={jest.fn()}
           clickCoordinates={clickCoordinates}
           mapProps={{
             mapConfig: {},
@@ -744,7 +744,7 @@ test("Map click", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          onMapClick={true}
+          onMapClick={jest.fn()}
           clickCoordinates={newClickCoordinates}
           mapProps={{
             mapConfig: {},
@@ -829,7 +829,7 @@ test("Map click with aliases", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          onMapClick={true}
+          onMapClick={jest.fn()}
           clickCoordinates={clickCoordinates}
           mapProps={{
             mapConfig: {},
@@ -921,7 +921,7 @@ test("Map click no queryable layer", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          onMapClick={true}
+          onMapClick={jest.fn()}
           clickCoordinates={clickCoordinates}
           mapProps={{
             mapConfig: {},
@@ -955,7 +955,7 @@ test("Map click no queryable layer", async () => {
   ).toBe("NWC");
 });
 
-test("Map click no attributes found", async () => {
+test("Map click no features found", async () => {
   mockedQueryLayerFeatures.mockResolvedValue([]);
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
   const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
@@ -981,7 +981,67 @@ test("Map click no attributes found", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          onMapClick={true}
+          onMapClick={jest.fn()}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  expect(popSetPosition).toHaveBeenLastCalledWith(clickCoordinates);
+
+  await waitFor(async () => {
+    expect(await screen.findByText("No Attributes Found")).toBeInTheDocument();
+  });
+
+  const popupCloser = await screen.findByLabelText("Popup Closer");
+  fireEvent.click(popupCloser);
+  expect(popSetPosition).toHaveBeenLastCalledWith(undefined);
+});
+
+test("Map click no attributes found", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: {},
+      geometry: { x: 10, y: 10 },
+      layerName: "Some Layer",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: {
+              url: "some_url",
+            },
+          },
+        },
+      },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
           clickCoordinates={clickCoordinates}
           mapProps={{
             mapConfig: {},
@@ -1042,7 +1102,7 @@ test("Map click all attributes omitted", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          onMapClick={true}
+          onMapClick={jest.fn()}
           clickCoordinates={clickCoordinates}
           mapProps={{
             mapConfig: {},
@@ -1117,7 +1177,7 @@ test("Map click attribute variables update text variable input then swipe and up
     children: (
       <MapContextProvider>
         <TestingComponent
-          onMapClick={true}
+          onMapClick={jest.fn()}
           clickCoordinates={clickCoordinates}
           mapProps={{
             mapConfig: {},
@@ -1242,7 +1302,7 @@ test("Map click attribute variables update dropdown variable input", async () =>
     children: (
       <MapContextProvider>
         <TestingComponent
-          onMapClick={true}
+          onMapClick={jest.fn()}
           clickCoordinates={clickCoordinates}
           mapProps={{
             mapConfig: {},
@@ -1328,7 +1388,7 @@ test("Map click attribute variables Null values", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          onMapClick={true}
+          onMapClick={jest.fn()}
           clickCoordinates={clickCoordinates}
           mapProps={{
             mapConfig: {},
@@ -1365,6 +1425,74 @@ test("Map click attribute variables Null values", async () => {
   );
 });
 
+test("Map click attribute variables match field name and alias", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue([
+    {
+      attributes: { alias1: "value1", field2: "value2", field3: "value3" },
+      geometry: { x: 10, y: 10 },
+      layerName: "Layer1",
+    },
+  ]);
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+  // Simulate dashboard variable config
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: { url: "some_url" },
+          },
+        },
+      },
+      attributeVariables: {
+        Layer1: { field1: "Var1", alias2: "Var2", field3: "Var3" },
+      },
+      attributeAliases: { Layer1: { field1: "alias1", field2: "alias2" } },
+      omittedPopupAttributes: { Layer1: ["field2"] },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenCalledWith(clickCoordinates);
+  });
+  // Both variable inputs should be updated
+  await waitFor(async () => {
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ Var1: "value1", Var2: "value2", Var3: "value3" }),
+    );
+  });
+  // Both values should be visible in popup
+  expect(await screen.findByText("alias1")).toBeInTheDocument();
+  expect(await screen.findByText("value1")).toBeInTheDocument();
+  expect(await screen.findByText("field3")).toBeInTheDocument();
+  expect(await screen.findByText("value3")).toBeInTheDocument();
+});
+
 test("Map click query error", async () => {
   mockedQueryLayerFeatures.mockRejectedValue("some error");
   jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
@@ -1391,7 +1519,7 @@ test("Map click query error", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          onMapClick={true}
+          onMapClick={jest.fn()}
           clickCoordinates={clickCoordinates}
           mapProps={{
             mapConfig: {},
@@ -1441,7 +1569,7 @@ test("Map click not happen in dataviewer mode", async () => {
     children: (
       <MapContextProvider>
         <TestingComponent
-          onMapClick={true}
+          onMapClick={jest.fn()}
           clickCoordinates={clickCoordinates}
           mapProps={{
             mapConfig: {},
@@ -1478,6 +1606,56 @@ test("Map click not happen in dataviewer mode", async () => {
     addLayerSpy.mock.calls[0][0].getSource() instanceof ImageArcGISRest,
   ).toBe(true);
   expect(popSetPosition).toHaveBeenCalledTimes(0);
+});
+
+test("Map click layer zoomed query result", async () => {
+  mockedQueryLayerFeatures.mockResolvedValue("zoomed");
+  jest.spyOn(Overlay.prototype, "getRect").mockReturnValue([0, 0, 10, 10]);
+  const popSetPosition = jest.spyOn(Overlay.prototype, "setPosition");
+
+  const layers = [
+    {
+      configuration: {
+        type: "ImageLayer",
+        props: {
+          name: "NWC",
+          source: {
+            type: "ESRI Image and Map Service",
+            props: {
+              url: "some_url",
+            },
+          },
+        },
+      },
+      omittedPopupAttributes: { "Some Layer": ["field1"] },
+    },
+  ];
+  const clickCoordinates = [10, 20];
+  const LoadedComponent = createLoadedComponent({
+    children: (
+      <MapContextProvider>
+        <TestingComponent
+          onMapClick={jest.fn()}
+          clickCoordinates={clickCoordinates}
+          mapProps={{
+            mapConfig: {},
+            viewConfig: {},
+            layers,
+            baseMap: null,
+            layerControl: false,
+          }}
+        />
+      </MapContextProvider>
+    ),
+  });
+  render(LoadedComponent);
+
+  expect(await screen.findByLabelText("Map Div")).toBeInTheDocument();
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(popSetPosition).toHaveBeenLastCalledWith(undefined);
+  });
 });
 
 test("Map info div in dataviewer mode with pontermove", async () => {
@@ -1769,7 +1947,14 @@ describe("Popup component", () => {
   ];
 
   it("renders all features and fields", () => {
-    render(<Popup layerAttributes={features} onSwipe={jest.fn()} />);
+    render(
+      <Popup
+        layerAttributes={features}
+        onSwipe={jest.fn()}
+        omittedPopupAttributes={{}}
+        aliases={{}}
+      />,
+    );
     expect(screen.getByText("Layer 1")).toBeInTheDocument();
     expect(screen.getByText("Layer 2")).toBeInTheDocument();
     expect(screen.getByText("field1")).toBeInTheDocument();
@@ -1779,7 +1964,14 @@ describe("Popup component", () => {
   });
 
   it("renders URLs as links with protocol", () => {
-    render(<Popup layerAttributes={features} onSwipe={jest.fn()} />);
+    render(
+      <Popup
+        layerAttributes={features}
+        onSwipe={jest.fn()}
+        omittedPopupAttributes={{}}
+        aliases={{}}
+      />,
+    );
     const httpsLink = screen.getByText("https://example.com");
     // eslint-disable-next-line testing-library/no-node-access
     expect(httpsLink.closest("a")).toHaveAttribute(
@@ -1796,7 +1988,14 @@ describe("Popup component", () => {
 
   it("calls onSwipe when slide changes", () => {
     const onSwipe = jest.fn();
-    render(<Popup layerAttributes={features} onSwipe={onSwipe} />);
+    render(
+      <Popup
+        layerAttributes={features}
+        onSwipe={onSwipe}
+        omittedPopupAttributes={{}}
+        aliases={{}}
+      />,
+    );
     // Simulate swipe by firing Swiper's slide change event
     // Swiper's event is not easily triggered, so we call onSwipe directly
     onSwipe();
@@ -1805,21 +2004,42 @@ describe("Popup component", () => {
 
   it("renders empty attributes gracefully", () => {
     const emptyFeature = [{ layerName: "Empty", attributes: {} }];
-    render(<Popup layerAttributes={emptyFeature} onSwipe={jest.fn()} />);
+    render(
+      <Popup
+        layerAttributes={emptyFeature}
+        onSwipe={jest.fn()}
+        omittedPopupAttributes={{}}
+        aliases={{}}
+      />,
+    );
     expect(screen.getByText("Empty")).toBeInTheDocument();
     expect(screen.getByRole("row")).not.toBeNull();
   });
 
   it("renders with only one feature", () => {
     const singleFeature = [{ layerName: "Single", attributes: { foo: "bar" } }];
-    render(<Popup layerAttributes={singleFeature} onSwipe={jest.fn()} />);
+    render(
+      <Popup
+        layerAttributes={singleFeature}
+        onSwipe={jest.fn()}
+        omittedPopupAttributes={{}}
+        aliases={{}}
+      />,
+    );
     expect(screen.getByText("Single")).toBeInTheDocument();
     expect(screen.getByText("foo")).toBeInTheDocument();
     expect(screen.getByText("bar")).toBeInTheDocument();
   });
 
   it("renders with no features", () => {
-    render(<Popup layerAttributes={[]} onSwipe={jest.fn()} />);
+    render(
+      <Popup
+        layerAttributes={[]}
+        onSwipe={jest.fn()}
+        omittedPopupAttributes={{}}
+        aliases={{}}
+      />,
+    );
     // Should not throw, but nothing rendered
     expect(screen.queryByText(/:/)).not.toBeInTheDocument();
   });
@@ -1833,5 +2053,5 @@ TestingComponent.propTypes = {
   onMapClick: PropTypes.func,
   onMapPointerMove: PropTypes.bool,
   onMapZoom: PropTypes.bool,
-  clickCoordinates: PropTypes.arrayOf(PropTypes.string),
+  clickCoordinates: PropTypes.arrayOf(PropTypes.number),
 };

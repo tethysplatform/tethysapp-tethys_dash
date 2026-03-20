@@ -74,7 +74,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
     return (
       <CheckboxInput
         label={label}
-        onChange={(e) => onChange(e.target.checked)}
+        onChange={onChange}
         value={value}
         type={type}
         inputProps={inputProps}
@@ -87,7 +87,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
         value={value?.format}
       />
     );
-  } else if (type.includes("date")) {
+  } else if (typeof type === "string" && type.includes("date")) {
     if (typeof value === "string" && type === "date-range") {
       value = {};
     }
@@ -124,9 +124,7 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
         aria-label={label + " Input"}
         selectedRadio={value}
         radioOptions={valueOptions}
-        onChange={(e) => {
-          onChange(e.target.value);
-        }}
+        onChange={onChange}
         {...inputProps}
       />
     );

@@ -26,7 +26,7 @@
   width: 85% !important;
 }
 
-.semiWideModalDialog img:not(.layer-control-symbol) {
+.semiWideModalDialog img:not(.legend-items-container img) {
   width: auto !important;
   height: auto !important;
   max-width: 100% !important;

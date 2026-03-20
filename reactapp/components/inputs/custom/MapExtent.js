@@ -197,8 +197,15 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
             aria-label={"Map Extent Input"}
             selectedRadio={extentMode}
             radioOptions={valueOptions}
-            onChange={(e) => setExtentMode(e.target.value)}
-            blockedRadio={true}
+            onChange={setExtentMode}
+            divProps={{
+              style: {
+                "margin-bottom": 0,
+                gap: 0,
+                "align-items": "normal",
+                "flex-direction": "column",
+              },
+            }}
           />
           {extentMode === "customExtent" && (
             <InputRow>

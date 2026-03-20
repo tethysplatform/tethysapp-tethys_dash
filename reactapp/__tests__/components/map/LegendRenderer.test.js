@@ -56,7 +56,7 @@ test("LegendRenderer; custom legend with no items", async () => {
   expect(items).toHaveLength(0);
 });
 
-test("LegendRenderer; custom legend with items", async () => {
+test("LegendRenderer; custom legend with 1 item", async () => {
   render(
     <LegendRenderer
       legend={{
@@ -67,15 +67,38 @@ test("LegendRenderer; custom legend with items", async () => {
       }}
     />,
   );
+
+  expect(screen.getByText("Some Title")).toBeInTheDocument();
+  expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  const symbol1 = screen.getByLabelText("green-square");
+  expect(symbol1).toBeInTheDocument();
+});
+
+test("LegendRenderer; custom legend with multiple items", async () => {
+  render(
+    <LegendRenderer
+      legend={{
+        title: "Some Title",
+        items: [
+          { symbol: "square", color: "green", label: "some legend item" },
+          { symbol: "circle", color: "blue", label: "some legend item 2" },
+        ],
+      }}
+    />,
+  );
   const list = screen.getByRole("list"); // <ul>
   expect(list).toBeInTheDocument();
 
   const items = screen.queryAllByRole("listitem"); // <li>
-  expect(items).toHaveLength(1);
+  expect(items).toHaveLength(2);
 
   expect(screen.getByText("Some Title")).toBeInTheDocument();
   expect(screen.getByText("some legend item")).toBeInTheDocument();
-  expect(screen.getByLabelText("green-square")).toBeInTheDocument();
+  expect(screen.getByText("some legend item 2")).toBeInTheDocument();
+  const symbol1 = screen.getByLabelText("green-square");
+  expect(symbol1).toBeInTheDocument();
+  const symbol2 = screen.getByLabelText("blue-circle");
+  expect(symbol2).toBeInTheDocument();
 });
 
 test("LegendRenderer; ESRI and no url", async () => {
@@ -433,6 +456,57 @@ test("LegendRenderer; empty styleJSON", async () => {
   expect(items).toHaveLength(0);
 });
 
+test("LegendRenderer; styleJSON only default point", async () => {
+  const legend = {
+    styleJSON: {
+      rules: [],
+      default: {
+        point: {
+          shape: "star",
+        },
+      },
+    },
+    title: "test",
+  };
+  render(<LegendRenderer legend={legend} />);
+
+  expect(screen.getByText("test")).toBeInTheDocument();
+  const list = screen.queryByRole("list");
+  expect(list).not.toBeInTheDocument();
+
+  expect(screen.queryByText("Default")).not.toBeInTheDocument();
+  const svgElements = await screen.findByLabelText(
+    "rgba(255, 255, 255, 0.4)-star",
+  );
+  expect(svgElements).toBeInTheDocument();
+});
+
+test("LegendRenderer; styleJSON only default point icon", async () => {
+  const legend = {
+    styleJSON: {
+      rules: [],
+      default: {
+        point: {
+          shape: "icon",
+          iconUrl: "http://example.com/icon.png",
+        },
+      },
+    },
+    title: "test",
+  };
+  render(<LegendRenderer legend={legend} />);
+
+  expect(screen.getByText("test")).toBeInTheDocument();
+  const list = screen.queryByRole("list");
+  expect(list).not.toBeInTheDocument();
+
+  expect(screen.queryByText("Default")).not.toBeInTheDocument();
+
+  const defaultIcon = await screen.findByLabelText("icon-point");
+  expect(defaultIcon).toBeInTheDocument();
+  expect(defaultIcon).toHaveAttribute("src", "http://example.com/icon.png");
+});
+
 test("LegendRenderer; styleJSON legend linestrings", async () => {
   const legend = {
     styleJSON: {
@@ -463,7 +537,7 @@ test("LegendRenderer; styleJSON legend linestrings", async () => {
   const items = screen.queryAllByRole("listitem"); // <li>
   expect(items).toHaveLength(2); //default and rule
 
-  expect(screen.getByText("Linestring (Default)")).toBeInTheDocument();
+  expect(screen.getByText("Default")).toBeInTheDocument();
   expect(screen.getByText("Linestring: id = test-line")).toBeInTheDocument();
   const svgElements = await screen.findAllByLabelText("linestring");
   expect(svgElements).toHaveLength(2);
@@ -473,10 +547,10 @@ test("LegendRenderer; styleJSON legend linestrings", async () => {
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("x1", "2");
   expect(lineElement).toHaveAttribute("y1", "6");
-  expect(lineElement).toHaveAttribute("x2", "30");
+  expect(lineElement).toHaveAttribute("x2", "20");
   expect(lineElement).toHaveAttribute("y2", "6");
   expect(lineElement).toHaveAttribute("stroke", "#3399CC");
-  expect(lineElement).toHaveAttribute("stroke-width", "2.5");
+  expect(lineElement).toHaveAttribute("stroke-width", "1.6666666666666665");
   expect(lineElement).toHaveAttribute("stroke-linecap", "round");
   expect(lineElement).toHaveAttribute("stroke-dasharray", "8 4 2 4 2 4");
 
@@ -485,10 +559,10 @@ test("LegendRenderer; styleJSON legend linestrings", async () => {
   expect(lineElementRule).toBeInTheDocument();
   expect(lineElementRule).toHaveAttribute("x1", "2");
   expect(lineElementRule).toHaveAttribute("y1", "6");
-  expect(lineElementRule).toHaveAttribute("x2", "30");
+  expect(lineElementRule).toHaveAttribute("x2", "20");
   expect(lineElementRule).toHaveAttribute("y2", "6");
   expect(lineElementRule).toHaveAttribute("stroke", "#f50000");
-  expect(lineElementRule).toHaveAttribute("stroke-width", "2.5");
+  expect(lineElementRule).toHaveAttribute("stroke-width", "1.6666666666666665");
   expect(lineElementRule).toHaveAttribute("stroke-linecap", "round");
   expect(lineElementRule).toHaveAttribute("stroke-dasharray", "8 4 2 4 2 4");
 });
@@ -523,7 +597,7 @@ test("LegendRenderer; styleJSON legend polygon", async () => {
   const items = screen.queryAllByRole("listitem"); // <li>
   expect(items).toHaveLength(2); //default and rule
 
-  expect(screen.getByText("Polygon (Default)")).toBeInTheDocument();
+  expect(screen.getByText("Default")).toBeInTheDocument();
   expect(screen.getByText("Polygon: id = test-line")).toBeInTheDocument();
 
   const defaultSVGElement = await screen.findByLabelText(
@@ -532,14 +606,14 @@ test("LegendRenderer; styleJSON legend polygon", async () => {
   expect(defaultSVGElement).toBeInTheDocument();
   expect(defaultSVGElement).toHaveAttribute(
     "style",
-    "color: rgba(255, 255, 255, 0.4); stroke: #3399CC; stroke-width: 2;",
+    expect.stringContaining("color: rgba(255, 255, 255, 0.4);"),
   );
 
   const rule1SVGElement = await screen.findByLabelText("#f50000-square");
   expect(rule1SVGElement).toBeInTheDocument();
   expect(rule1SVGElement).toHaveAttribute(
     "style",
-    "color: rgb(245, 0, 0); stroke: #3399CC; stroke-width: 2;",
+    expect.stringContaining("color: rgb(245, 0, 0);"),
   );
 });
 
@@ -589,7 +663,7 @@ test("LegendRenderer; styleJSON legend points and missing some keys", async () =
   const items = screen.queryAllByRole("listitem"); // <li>
   expect(items).toHaveLength(4); //default and 2 rule
 
-  expect(screen.getByText("Point (Default)")).toBeInTheDocument();
+  expect(screen.getByText("Default")).toBeInTheDocument();
   expect(screen.getByText("Point (Rule)")).toBeInTheDocument();
   expect(screen.getByText("Point: id = test-point-2")).toBeInTheDocument();
   expect(screen.getByText("Custom Point Rule")).toBeInTheDocument();
@@ -598,7 +672,7 @@ test("LegendRenderer; styleJSON legend points and missing some keys", async () =
   expect(defaultSVGElement).toBeInTheDocument();
   expect(defaultSVGElement).toHaveAttribute(
     "style",
-    "color: black; stroke: #3399CC; stroke-width: 2;",
+    expect.stringContaining("color: black;"),
   );
   // eslint-disable-next-line testing-library/no-node-access
   const lineElement = defaultSVGElement.querySelector("circle");
@@ -611,7 +685,7 @@ test("LegendRenderer; styleJSON legend points and missing some keys", async () =
   expect(rule1SVGElement).toBeInTheDocument();
   expect(rule1SVGElement).toHaveAttribute(
     "style",
-    "color: black; stroke: #f50000; stroke-width: 2;",
+    expect.stringContaining("stroke: #f50000;"),
   );
 
   const rule2Icon = await screen.findByLabelText(
@@ -624,7 +698,7 @@ test("LegendRenderer; styleJSON legend points and missing some keys", async () =
   expect(rule3SVGElement).toBeInTheDocument();
   expect(rule3SVGElement).toHaveAttribute(
     "style",
-    "color: black; stroke: #3399CC; stroke-width: 2;",
+    "color: black; stroke: #3399CC; stroke-width: 1.33;",
   );
 });
 
@@ -661,18 +735,20 @@ test("LegendRenderer; styleJSON default icon shape", async () => {
   const items = screen.queryAllByRole("listitem"); // <li>
   expect(items).toHaveLength(2); //default and 2 rule
 
-  expect(screen.getByText("Point (Default)")).toBeInTheDocument();
+  expect(screen.getByText("Default")).toBeInTheDocument();
   expect(screen.getByText("Point: id = test-point-2")).toBeInTheDocument();
 
-  const defaultIcon = await screen.findByLabelText("icon-Point (Default)");
+  const defaultIcon = await screen.findByLabelText("icon-Default");
   expect(defaultIcon).toBeInTheDocument();
   expect(defaultIcon).toHaveAttribute("src", "http://example.com/icon.png");
+  expect(defaultIcon).toHaveStyle({ width: "16px", height: "16px" });
 
   const ruleIcon = await screen.findByLabelText(
     "icon-Point: id = test-point-2",
   );
   expect(ruleIcon).toBeInTheDocument();
   expect(ruleIcon).toHaveAttribute("src", "http://example.com/icon2.png");
+  expect(ruleIcon).toHaveStyle({ width: "16px", height: "16px" });
 });
 
 test("LegendRenderer; styleJSON default icon shape missing url", async () => {
@@ -706,7 +782,7 @@ test("LegendRenderer; styleJSON default icon shape missing url", async () => {
   const items = screen.queryAllByRole("listitem"); // <li>
   expect(items).toHaveLength(2); //default and 2 rule
 
-  expect(screen.getByText("Point (Default)")).toBeInTheDocument();
+  expect(screen.getByText("Default")).toBeInTheDocument();
   expect(screen.getByText("Point: id = test-point-2")).toBeInTheDocument();
 
   const SVGElements = await screen.findAllByLabelText("black-circle");
@@ -715,7 +791,7 @@ test("LegendRenderer; styleJSON default icon shape missing url", async () => {
   expect(defaultSVGElement).toBeInTheDocument();
   expect(defaultSVGElement).toHaveAttribute(
     "style",
-    "color: black; stroke: #3399CC; stroke-width: 2;",
+    "color: black; stroke: #3399CC; stroke-width: 1.33;",
   );
   // eslint-disable-next-line testing-library/no-node-access
   let lineElement = defaultSVGElement.querySelector("circle");
@@ -728,7 +804,7 @@ test("LegendRenderer; styleJSON default icon shape missing url", async () => {
   expect(ruleSVGElement).toBeInTheDocument();
   expect(ruleSVGElement).toHaveAttribute(
     "style",
-    "color: black; stroke: #3399CC; stroke-width: 2;",
+    "color: black; stroke: #3399CC; stroke-width: 1.33;",
   );
   // eslint-disable-next-line testing-library/no-node-access
   lineElement = ruleSVGElement.querySelector("circle");
@@ -769,13 +845,13 @@ test("LegendRenderer; styleJSON legend bad geom", async () => {
   const items = screen.queryAllByRole("listitem"); // <li>
   expect(items).toHaveLength(2); //default and 1 rule
 
-  expect(screen.getByText("Point (Default)")).toBeInTheDocument();
+  expect(screen.getByText("Default")).toBeInTheDocument();
   expect(screen.getByText("Bad-geom: id = test-point")).toBeInTheDocument();
   const defaultSVGElement = await screen.findByLabelText("black-circle");
   expect(defaultSVGElement).toBeInTheDocument();
   expect(defaultSVGElement).toHaveAttribute(
     "style",
-    `color: black; stroke: ${defaultStroke}; stroke-width: 2;`,
+    `color: black; stroke: ${defaultStroke}; stroke-width: 1.33;`,
   );
   // eslint-disable-next-line testing-library/no-node-access
   const lineElement = defaultSVGElement.querySelector("circle");
@@ -790,7 +866,7 @@ test("LegendRenderer; styleJSON legend bad geom", async () => {
   expect(rule1SVGElement).toBeInTheDocument();
   expect(rule1SVGElement).toHaveAttribute(
     "style",
-    "color: rgba(255, 255, 255, 0.4); stroke: #f50000; stroke-width: 2;",
+    "color: rgba(255, 255, 255, 0.4); stroke: #f50000; stroke-width: 1.33;",
   );
 });
 
@@ -896,7 +972,8 @@ test("LegendSymbol", async () => {
 test("LegendSymbol; bad symbol", async () => {
   render(<LegendSymbol symbol={"sfsdfsdf"} color={"green"} />);
 
-  expect(await screen.findByLabelText("green-circle")).toBeInTheDocument();
+  const symbol = await screen.findByLabelText("green-circle");
+  expect(symbol).toBeInTheDocument();
 });
 
 test("LegendSymbol, polygon hatch diagonal pattern", async () => {
@@ -912,6 +989,8 @@ test("LegendSymbol, polygon hatch diagonal pattern", async () => {
 
   const svgElement = await screen.findByLabelText("polygon-hatch");
   expect(svgElement).toBeInTheDocument();
+  expect(svgElement).toHaveAttribute("width", "16");
+  expect(svgElement).toHaveAttribute("height", "16");
 
   // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
@@ -930,7 +1009,7 @@ test("LegendSymbol, polygon hatch diagonal pattern", async () => {
   expect(lineElement).toHaveAttribute("x2", "0");
   expect(lineElement).toHaveAttribute("y2", "10");
   expect(lineElement).toHaveAttribute("stroke", "red");
-  expect(lineElement).toHaveAttribute("stroke-width", "2");
+  expect(lineElement).toHaveAttribute("stroke-width", "1.33");
 });
 
 test("LegendSymbol, polygon hatch horizontal pattern", async () => {
@@ -946,6 +1025,8 @@ test("LegendSymbol, polygon hatch horizontal pattern", async () => {
 
   const svgElement = await screen.findByLabelText("polygon-hatch");
   expect(svgElement).toBeInTheDocument();
+  expect(svgElement).toHaveAttribute("width", "16");
+  expect(svgElement).toHaveAttribute("height", "16");
 
   // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
@@ -964,7 +1045,7 @@ test("LegendSymbol, polygon hatch horizontal pattern", async () => {
   expect(lineElement).toHaveAttribute("x2", "10");
   expect(lineElement).toHaveAttribute("y2", "0");
   expect(lineElement).toHaveAttribute("stroke", "red");
-  expect(lineElement).toHaveAttribute("stroke-width", "2");
+  expect(lineElement).toHaveAttribute("stroke-width", "1.33");
 });
 
 test("LegendSymbol, polygon hatch vertical pattern", async () => {
@@ -980,6 +1061,8 @@ test("LegendSymbol, polygon hatch vertical pattern", async () => {
 
   const svgElement = await screen.findByLabelText("polygon-hatch");
   expect(svgElement).toBeInTheDocument();
+  expect(svgElement).toHaveAttribute("width", "16");
+  expect(svgElement).toHaveAttribute("height", "16");
 
   // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
@@ -998,7 +1081,7 @@ test("LegendSymbol, polygon hatch vertical pattern", async () => {
   expect(lineElement).toHaveAttribute("x2", "0");
   expect(lineElement).toHaveAttribute("y2", "10");
   expect(lineElement).toHaveAttribute("stroke", "red");
-  expect(lineElement).toHaveAttribute("stroke-width", "2");
+  expect(lineElement).toHaveAttribute("stroke-width", "1.33");
 });
 
 test("LegendSymbol, polygon hatch cross pattern", async () => {
@@ -1014,6 +1097,8 @@ test("LegendSymbol, polygon hatch cross pattern", async () => {
 
   const svgElement = await screen.findByLabelText("polygon-hatch");
   expect(svgElement).toBeInTheDocument();
+  expect(svgElement).toHaveAttribute("width", "16");
+  expect(svgElement).toHaveAttribute("height", "16");
 
   // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
@@ -1032,7 +1117,7 @@ test("LegendSymbol, polygon hatch cross pattern", async () => {
   expect(lineElement1).toHaveAttribute("x2", "10");
   expect(lineElement1).toHaveAttribute("y2", "0");
   expect(lineElement1).toHaveAttribute("stroke", "red");
-  expect(lineElement1).toHaveAttribute("stroke-width", "2");
+  expect(lineElement1).toHaveAttribute("stroke-width", "1.33");
 
   // eslint-disable-next-line testing-library/no-node-access
   const lineElement2 = patternElement.querySelectorAll("line")[1];
@@ -1042,7 +1127,7 @@ test("LegendSymbol, polygon hatch cross pattern", async () => {
   expect(lineElement2).toHaveAttribute("x2", "0");
   expect(lineElement2).toHaveAttribute("y2", "10");
   expect(lineElement2).toHaveAttribute("stroke", "red");
-  expect(lineElement2).toHaveAttribute("stroke-width", "2");
+  expect(lineElement2).toHaveAttribute("stroke-width", "1.33");
 });
 
 test("LegendSymbol, polygon hatch default (diagonal) pattern", async () => {
@@ -1057,6 +1142,8 @@ test("LegendSymbol, polygon hatch default (diagonal) pattern", async () => {
 
   const svgElement = await screen.findByLabelText("polygon-hatch");
   expect(svgElement).toBeInTheDocument();
+  expect(svgElement).toHaveAttribute("width", "16");
+  expect(svgElement).toHaveAttribute("height", "16");
 
   // eslint-disable-next-line testing-library/no-node-access
   const patternElement = svgElement.querySelector("pattern");
@@ -1075,7 +1162,7 @@ test("LegendSymbol, polygon hatch default (diagonal) pattern", async () => {
   expect(lineElement).toHaveAttribute("x2", "0");
   expect(lineElement).toHaveAttribute("y2", "10");
   expect(lineElement).toHaveAttribute("stroke", "red");
-  expect(lineElement).toHaveAttribute("stroke-width", "2");
+  expect(lineElement).toHaveAttribute("stroke-width", "1.33");
 });
 
 test("LegendSymbol, polygon dot fill", async () => {
@@ -1105,7 +1192,7 @@ test("LegendSymbol, polygon dot fill", async () => {
   expect(circleElement).toBeInTheDocument();
   expect(circleElement).toHaveAttribute("cx", "8");
   expect(circleElement).toHaveAttribute("cy", "8");
-  expect(circleElement).toHaveAttribute("r", "5");
+  expect(circleElement).toHaveAttribute("r", "3.333333333333333");
   expect(circleElement).toHaveAttribute("fill", "blue");
 });
 
@@ -1136,7 +1223,7 @@ test("LegendSymbol, polygon dot fill and bad spacing", async () => {
   expect(circleElement).toBeInTheDocument();
   expect(circleElement).toHaveAttribute("cx", "4");
   expect(circleElement).toHaveAttribute("cy", "4");
-  expect(circleElement).toHaveAttribute("r", "2");
+  expect(circleElement).toHaveAttribute("r", "1.3333333333333333");
   expect(circleElement).toHaveAttribute("fill", "blue");
 });
 
@@ -1151,10 +1238,10 @@ test("LegendSymbol, linestring", async () => {
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("x1", "2");
   expect(lineElement).toHaveAttribute("y1", "6");
-  expect(lineElement).toHaveAttribute("x2", "30");
+  expect(lineElement).toHaveAttribute("x2", "20");
   expect(lineElement).toHaveAttribute("y2", "6");
   expect(lineElement).toHaveAttribute("stroke", "blue");
-  expect(lineElement).toHaveAttribute("stroke-width", "4");
+  expect(lineElement).toHaveAttribute("stroke-width", "2.6666666666666665");
   expect(lineElement).toHaveAttribute("stroke-linecap", "round");
   expect(lineElement).not.toHaveAttribute("stroke-dasharray");
 });
@@ -1170,10 +1257,10 @@ test("LegendSymbol, linestring with strokeDash", async () => {
   expect(lineElement).toBeInTheDocument();
   expect(lineElement).toHaveAttribute("x1", "2");
   expect(lineElement).toHaveAttribute("y1", "6");
-  expect(lineElement).toHaveAttribute("x2", "30");
+  expect(lineElement).toHaveAttribute("x2", "20");
   expect(lineElement).toHaveAttribute("y2", "6");
   expect(lineElement).toHaveAttribute("stroke", "blue");
-  expect(lineElement).toHaveAttribute("stroke-width", "4");
+  expect(lineElement).toHaveAttribute("stroke-width", "2.6666666666666665");
   expect(lineElement).toHaveAttribute("stroke-linecap", "round");
   expect(lineElement).toHaveAttribute("stroke-dasharray", "5 5");
 });

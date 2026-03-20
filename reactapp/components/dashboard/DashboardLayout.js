@@ -109,7 +109,8 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       layout={layout}
       rowHeight={rowHeight}
       cols={colCount}
-      onLayoutChange={(newLayout) => updateLayout(newLayout)}
+      onDragStop={(newLayout) => updateLayout(newLayout)}
+      onResizeStop={(newLayout) => updateLayout(newLayout)}
       isDraggable={false}
       isResizable={false}
       draggableCancel=".dropdown-toggle,.modal-dialog,.alert,.dropdown-item,.modebar-btn.modal-footer,.color-picker-popover"

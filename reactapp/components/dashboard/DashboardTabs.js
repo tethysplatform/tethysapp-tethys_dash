@@ -14,9 +14,9 @@ const EditableTabTitle = styled.div`
   min-width: 0;
   width: 100%;
   justify-content: center;
-  opacity: ${(props) => (props.isDragging ? 0.5 : 1)};
+  opacity: ${(props) => (props.$isDragging ? 0.5 : 1)};
   background-color: ${(props) =>
-    props.isDropTarget ? "rgba(0, 123, 255, 0.1)" : "transparent"};
+    props.$isDropTarget ? "rgba(0, 123, 255, 0.1)" : "transparent"};
   border-radius: 4px;
   transition: background-color 0.2s ease;
 `;
@@ -41,7 +41,7 @@ const TabTitleInput = styled.input`
 `;
 
 const TabTitleText = styled.span`
-  cursor: ${(props) => (props.isActive ? "pointer" : "default")};
+  cursor: ${(props) => (props.$isActive ? "pointer" : "default")};
   min-width: 0;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -50,7 +50,7 @@ const TabTitleText = styled.span`
 
   &:hover {
     background-color: ${(props) =>
-      props.isActive ? "rgba(0, 123, 255, 0.1)" : "transparent"};
+      props.$isActive ? "rgba(0, 123, 255, 0.1)" : "transparent"};
     border-radius: 2px;
   }
 `;
@@ -71,7 +71,7 @@ const DeleteButton = styled.button`
 `;
 
 const StyledTabs = styled(Tabs)`
-  display: ${(props) => (props.shouldHideTabBar ? "none" : "flex")};
+  display: ${(props) => (props.$shouldHideTabBar ? "none" : "flex")};
 
   .nav-item {
     flex: 1;
@@ -207,8 +207,8 @@ const DashboardTabs = () => {
     return (
       <EditableTabTitle
         draggable={isEditing}
-        isDragging={isDragging}
-        isDropTarget={isDropTarget}
+        $isDragging={isDragging}
+        $isDropTarget={isDropTarget}
         onDragStart={(e) => handleDragStart(e, tab.id)}
         onDragOver={(e) => handleDragOver(e, tab.id)}
         onDragLeave={handleDragLeave}
@@ -227,7 +227,7 @@ const DashboardTabs = () => {
           />
         ) : (
           <TabTitleText
-            isActive={tab.id === activeTabId}
+            $isActive={tab.id === activeTabId}
             aria-label={`tab-title-${tab.id}`}
             onClick={() => handleTabNameClick(tab.id)}
           >
@@ -252,7 +252,7 @@ const DashboardTabs = () => {
       className="dashboard-tabs"
       activeKey={activeTabId}
       onSelect={handleTabSelect}
-      shouldHideTabBar={shouldHideTabBar}
+      $shouldHideTabBar={shouldHideTabBar}
     >
       {tabs.map((tab) => (
         <Tab eventKey={tab.id} title={renderTabTitle(tab)} key={tab.id}>

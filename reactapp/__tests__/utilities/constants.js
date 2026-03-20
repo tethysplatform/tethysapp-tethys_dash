@@ -1036,6 +1036,9 @@ export const mockedDateVariable = {
     initial_value: "",
     variable_name: "Test Variable",
     variable_options_source: "date",
+    "variable_options_source.metadata": {
+      format: "MM/dd/yyyy",
+    },
   }),
   metadata_string: JSON.stringify({
     refreshRate: 0,
@@ -1055,6 +1058,9 @@ export const mockedDateHourVariable = {
     initial_value: "",
     variable_name: "Test Variable",
     variable_options_source: "date-hour",
+    "variable_options_source.metadata": {
+      format: "MM/dd/yyyy h:mm aa",
+    },
   }),
   metadata_string: JSON.stringify({
     refreshRate: 0,

@@ -59,7 +59,7 @@ test("LandingPageHeader, staff user", async () => {
           <LandingPageHeader />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByLabelText("appExitButton")).toBeInTheDocument();
@@ -79,7 +79,7 @@ test("LandingPageHeader, non staff user", async () => {
       options: {
         user: { username: "jsmith", isAuthenticated: true, isStaff: false },
       },
-    })
+    }),
   );
 
   expect(await screen.findByLabelText("appExitButton")).toBeInTheDocument();
@@ -100,11 +100,11 @@ test("LandingPageHeader, no user", async () => {
       options: {
         user: { username: null, isAuthenticated: true, isStaff: false },
       },
-    })
+    }),
   );
 
   const proceedWithoutSigningInButton = await screen.findByText(
-    "Proceed Without Signing in"
+    "Proceed Without Signing in",
   );
   await userEvent.click(proceedWithoutSigningInButton);
 
@@ -113,7 +113,7 @@ test("LandingPageHeader, no user", async () => {
   expect(screen.queryByLabelText("appSettingButton")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
   expect(
-    screen.queryByLabelText("importDashboardButton")
+    screen.queryByLabelText("importDashboardButton"),
   ).not.toBeInTheDocument();
 });
 
@@ -133,20 +133,20 @@ test("LandingPageHeader, signin", async () => {
       options: {
         user: { username: null, isAuthenticated: true, isStaff: false },
       },
-    })
+    }),
   );
 
   const proceedWithoutSigningInButton = await screen.findByText(
-    "Proceed Without Signing in"
+    "Proceed Without Signing in",
   );
   await userEvent.click(proceedWithoutSigningInButton);
 
   const dashboardLoginButton = await screen.findByLabelText(
-    "dashboardLoginButton"
+    "dashboardLoginButton",
   );
   await userEvent.click(dashboardLoginButton);
   expect(window.location.assign).toHaveBeenCalledWith(
-    "http://api.test/accounts/login?next=undefined"
+    "http://api.test/accounts/login?next=undefined",
   );
 });
 
@@ -190,15 +190,15 @@ test("LandingPageHeader, import dashboard with grid_items", async () => {
       options: {
         user: { username: "jsmith", isAuthenticated: true, isStaff: true },
       },
-    })
+    }),
   );
 
   const importDashboardButton = await screen.findByLabelText(
-    "importDashboardButton"
+    "importDashboardButton",
   );
   await userEvent.click(importDashboardButton);
   expect(
-    await screen.findByLabelText("Dashboard Import Modal")
+    await screen.findByLabelText("Dashboard Import Modal"),
   ).toBeInTheDocument();
 
   const file = new File([JSON.stringify(importedDashboard)], "test-file.json", {
@@ -213,7 +213,7 @@ test("LandingPageHeader, import dashboard with grid_items", async () => {
 
   expect(mockAddDashboard).toHaveBeenCalledWith(
     importedDashboard,
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });
 
@@ -251,15 +251,15 @@ test("LandingPageHeader, import dashboard with tabs", async () => {
       options: {
         user: { username: "jsmith", isAuthenticated: true, isStaff: true },
       },
-    })
+    }),
   );
 
   const importDashboardButton = await screen.findByLabelText(
-    "importDashboardButton"
+    "importDashboardButton",
   );
   await userEvent.click(importDashboardButton);
   expect(
-    await screen.findByLabelText("Dashboard Import Modal")
+    await screen.findByLabelText("Dashboard Import Modal"),
   ).toBeInTheDocument();
 
   const file = new File([JSON.stringify(importedDashboard)], "test-file.json", {
@@ -274,7 +274,7 @@ test("LandingPageHeader, import dashboard with tabs", async () => {
 
   expect(mockAddDashboard).toHaveBeenCalledWith(
     importedDashboard,
-    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+    "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
   );
 });
 
@@ -291,7 +291,7 @@ test("LandingPageHeader, show info", async () => {
       options: {
         user: { username: "jsmith", isAuthenticated: true, isStaff: true },
       },
-    })
+    }),
   );
 
   const appInfoButton = await screen.findByLabelText("appInfoButton");
@@ -310,11 +310,11 @@ test("LandingPageHeader, public user and not show info", async () => {
       options: {
         user: { username: null, isAuthenticated: true, isStaff: false },
       },
-    })
+    }),
   );
 
   const proceedWithoutSigningInButton = await screen.findByText(
-    "Proceed Without Signing in"
+    "Proceed Without Signing in",
   );
   await userEvent.click(proceedWithoutSigningInButton);
 
@@ -322,11 +322,11 @@ test("LandingPageHeader, public user and not show info", async () => {
   expect(screen.getByText("Available Dashboards")).toBeInTheDocument();
   expect(screen.queryByLabelText("appSettingButton")).not.toBeInTheDocument();
   expect(
-    screen.queryByLabelText("importDashboardButton")
+    screen.queryByLabelText("importDashboardButton"),
   ).not.toBeInTheDocument();
   expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
   expect(
-    screen.getByRole("button", { name: "dashboardLoginButton" })
+    screen.getByRole("button", { name: "dashboardLoginButton" }),
   ).toBeInTheDocument();
   expect(screen.getByLabelText("appExitButton")).toBeInTheDocument();
 });
@@ -341,7 +341,7 @@ test("LandingPageHeader, permission group modal", async () => {
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   const manageGroupsButton = await screen.findByLabelText("manageGroupsButton");
@@ -359,15 +359,15 @@ test("LandingPageHeader, manage visualization permissions", async () => {
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   const manageVisualizationPermissionsButton = await screen.findByLabelText(
-    "manageVisualizationPermissionsButton"
+    "manageVisualizationPermissionsButton",
   );
   await userEvent.click(manageVisualizationPermissionsButton);
   expect(
-    await screen.findByText("Manage Visualization Permissions")
+    await screen.findByText("Manage Visualization Permissions"),
   ).toBeInTheDocument();
 });
 
@@ -379,10 +379,10 @@ test("LandingPageHeader, no manage visualization permission", async () => {
         return res(
           ctx.status(200),
           ctx.json({ success: true, permissions: [] }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -394,11 +394,11 @@ test("LandingPageHeader, no manage visualization permission", async () => {
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    screen.queryByLabelText("manageVisualizationPermissionsButton")
+    screen.queryByLabelText("manageVisualizationPermissionsButton"),
   ).not.toBeInTheDocument();
 });
 
@@ -408,7 +408,7 @@ test("LandingPageHeader Sign In shows first and then AppInfo after continue", as
       return res(
         ctx.status(401),
         ctx.json({ error: "Internal Server Error" }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
     }),
     rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
@@ -419,9 +419,9 @@ test("LandingPageHeader Sign In shows first and then AppInfo after continue", as
           EXPIRE_AFTER: 10,
           WARN_AFTER: 3,
         }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
 
   render(
@@ -431,13 +431,13 @@ test("LandingPageHeader Sign In shows first and then AppInfo after continue", as
           <LandingPageHeader />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
     await screen.findByText(
-      "You are not signed in. Sign in to create and update dashboards."
-    )
+      "You are not signed in. Sign in to create and update dashboards.",
+    ),
   ).toBeInTheDocument();
 
   expect(screen.queryByText("TethysDash Landing Page")).not.toBeInTheDocument();
@@ -448,13 +448,13 @@ test("LandingPageHeader Sign In shows first and then AppInfo after continue", as
   fireEvent.click(continueButton);
 
   expect(
-    await screen.findByText("TethysDash Landing Page")
+    await screen.findByText("TethysDash Landing Page"),
   ).toBeInTheDocument();
 
   expect(
     screen.queryByText(
-      "You are not signed in. Sign in to create and update dashboards."
-    )
+      "You are not signed in. Sign in to create and update dashboards.",
+    ),
   ).not.toBeInTheDocument();
 });
 
@@ -468,9 +468,9 @@ test("LandingPageHeader AppInfo disappears on idle and reappears on still signed
           EXPIRE_AFTER: 10,
           WARN_AFTER: 3,
         }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
 
   render(
@@ -480,11 +480,11 @@ test("LandingPageHeader AppInfo disappears on idle and reappears on still signed
           <LandingPageHeader />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByText("TethysDash Landing Page")
+    await screen.findByText("TethysDash Landing Page"),
   ).toBeInTheDocument();
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 
@@ -501,7 +501,7 @@ test("LandingPageHeader AppInfo disappears on idle and reappears on still signed
   await userEvent.click(staySignedInButton);
 
   expect(
-    await screen.findByText("TethysDash Landing Page")
+    await screen.findByText("TethysDash Landing Page"),
   ).toBeInTheDocument();
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 });
@@ -516,16 +516,16 @@ test("DashboardHeader, user and editable", async () => {
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByLabelText("dashboardExitButton")
+    await screen.findByLabelText("dashboardExitButton"),
   ).toBeInTheDocument();
   expect(screen.getByLabelText("editButton")).toBeInTheDocument();
   expect(screen.getByLabelText("appInfoButton")).toBeInTheDocument();
   expect(
-    screen.queryByLabelText("dashboardLoginButton")
+    screen.queryByLabelText("dashboardLoginButton"),
   ).not.toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
 });
@@ -543,16 +543,16 @@ test("DashboardHeader, user and not editable", async () => {
       options: {
         initialDashboard: publicDashboard,
       },
-    })
+    }),
   );
 
   expect(
-    await screen.findByLabelText("dashboardExitButton")
+    await screen.findByLabelText("dashboardExitButton"),
   ).toBeInTheDocument();
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
   expect(
-    screen.queryByLabelText("dashboardLoginButton")
+    screen.queryByLabelText("dashboardLoginButton"),
   ).not.toBeInTheDocument();
   expect(screen.getByLabelText("dashboardSettingButton")).toBeInTheDocument();
 });
@@ -570,16 +570,16 @@ test("DashboardHeader, no user", async () => {
       options: {
         user: { username: null, isAuthenticated: true, isStaff: false },
       },
-    })
+    }),
   );
 
   const proceedWithoutSigningInButton = await screen.findByText(
-    "Proceed Without Signing in"
+    "Proceed Without Signing in",
   );
   await userEvent.click(proceedWithoutSigningInButton);
 
   expect(
-    await screen.findByLabelText("dashboardExitButton")
+    await screen.findByLabelText("dashboardExitButton"),
   ).toBeInTheDocument();
   expect(screen.queryByLabelText("editButton")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
@@ -600,7 +600,7 @@ test("DashboardHeader, show info", async () => {
       options: {
         user: { isAuthenticated: true, isStaff: false },
       },
-    })
+    }),
   );
 
   const appInfoButton = await screen.findByLabelText("appInfoButton");
@@ -678,18 +678,18 @@ test("DashboardHeader, import gridItem", async () => {
         user: { isAuthenticated: true, isStaff: false },
         dashboards: updatedMockedDashboards,
       },
-    })
+    }),
   );
 
   const editButton = await screen.findByLabelText("editButton");
   await userEvent.click(editButton);
 
   const importDashboardItemButton = await screen.findByLabelText(
-    "importDashboardItemButton"
+    "importDashboardItemButton",
   );
   await userEvent.click(importDashboardItemButton);
   expect(
-    await screen.findByLabelText("Dashboard Import Modal")
+    await screen.findByLabelText("Dashboard Import Modal"),
   ).toBeInTheDocument();
 
   const file = new File(
@@ -716,7 +716,7 @@ test("DashboardHeader, import gridItem", async () => {
     "test-file.json",
     {
       type: "text/plain",
-    }
+    },
   );
   const fileInput = screen.getByTestId("file-input");
   fireEvent.change(fileInput, { target: { files: [file] } });
@@ -758,7 +758,7 @@ test("DashboardHeader, import gridItem", async () => {
                 uuid: "some-uuid-1",
                 i: "1",
                 x: 0,
-                y: 20,
+                y: 0,
                 w: 20,
                 h: 20,
                 source: "",
@@ -773,7 +773,7 @@ test("DashboardHeader, import gridItem", async () => {
           },
         ],
       },
-      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy"
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
     );
   });
 });
@@ -794,20 +794,20 @@ test("DashboardHeader, signin", async () => {
       options: {
         user: { username: null, isAuthenticated: true, isStaff: false },
       },
-    })
+    }),
   );
 
   const proceedWithoutSigningInButton = await screen.findByText(
-    "Proceed Without Signing in"
+    "Proceed Without Signing in",
   );
   await userEvent.click(proceedWithoutSigningInButton);
 
   const dashboardLoginButton = await screen.findByLabelText(
-    "dashboardLoginButton"
+    "dashboardLoginButton",
   );
   await userEvent.click(dashboardLoginButton);
   expect(window.location.assign).toHaveBeenCalledWith(
-    "http://api.test/accounts/login?next=undefined"
+    "http://api.test/accounts/login?next=undefined",
   );
 });
 
@@ -828,18 +828,18 @@ test("DashboardHeader, not editable, no show info", async () => {
         },
         initialDashboard: publicDashboard,
       },
-    })
+    }),
   );
 
   expect(
-    await screen.findByLabelText("dashboardExitButton")
+    await screen.findByLabelText("dashboardExitButton"),
   ).toBeInTheDocument();
   expect(
-    await screen.findByLabelText("dashboardSettingButton")
+    await screen.findByLabelText("dashboardSettingButton"),
   ).toBeInTheDocument();
   expect(screen.queryByLabelText("appInfoButton")).not.toBeInTheDocument();
   expect(
-    screen.queryByLabelText("importDashboardButton")
+    screen.queryByLabelText("importDashboardButton"),
   ).not.toBeInTheDocument();
 });
 
@@ -857,11 +857,11 @@ test("DashboardHeader, show settings", async () => {
       options: {
         user: { isAuthenticated: true, isStaff: false },
       },
-    })
+    }),
   );
 
   const dashboardSettingButton = await screen.findByLabelText(
-    "dashboardSettingButton"
+    "dashboardSettingButton",
   );
   await userEvent.click(dashboardSettingButton);
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
@@ -889,11 +889,11 @@ test("DashboardHeader, show settings in App Tour", async () => {
       options: {
         user: { isAuthenticated: true, isStaff: false },
       },
-    })
+    }),
   );
 
   const dashboardSettingButton = await screen.findByLabelText(
-    "dashboardSettingButton"
+    "dashboardSettingButton",
   );
   await userEvent.click(dashboardSettingButton);
   expect(await screen.findByText("Dashboard Settings")).toBeInTheDocument();
@@ -914,11 +914,11 @@ test("DashboardHeader, editable, lock movement", async () => {
           <DisabledMovementPComponent />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByLabelText("dashboardExitButton")
+    await screen.findByLabelText("dashboardExitButton"),
   ).toBeInTheDocument();
 
   const editButton = await screen.findByLabelText("editButton");
@@ -930,18 +930,18 @@ test("DashboardHeader, editable, lock movement", async () => {
   await userEvent.click(editButton);
 
   const disableMovementButton = await screen.findByLabelText(
-    "Disable Movement Button"
+    "Disable Movement Button",
   );
   expect(disableMovementButton).toBeInTheDocument();
 
   expect(await screen.findByTestId("disabledMovement")).toHaveTextContent(
-    "allowed movement"
+    "allowed movement",
   );
 
   await userEvent.click(disableMovementButton);
 
   expect(await screen.findByTestId("disabledMovement")).toHaveTextContent(
-    "disabled movement"
+    "disabled movement",
   );
 });
 
@@ -959,11 +959,11 @@ test("DashboardHeader, not editable and return to landing page", async () => {
         </MemoryRouter>
       ),
       options: { initialDashboard: publicDashboard },
-    })
+    }),
   );
 
   const dashboardExitButton = await screen.findByLabelText(
-    "dashboardExitButton"
+    "dashboardExitButton",
   );
   expect(dashboardExitButton).toBeInTheDocument();
   expect(await screen.findByText(publicDashboard.name)).toBeInTheDocument();
@@ -994,7 +994,7 @@ test("DashboardHeader, editable, edit in app tour", async () => {
           </AppTourContext.Provider>
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   const editButton = await screen.findByLabelText("editButton");
@@ -1016,11 +1016,11 @@ test("DashboardHeader, editable, edit and cancel", async () => {
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByLabelText("dashboardExitButton")
+    await screen.findByLabelText("dashboardExitButton"),
   ).toBeInTheDocument();
 
   const editButton = await screen.findByLabelText("editButton");
@@ -1109,10 +1109,10 @@ test("DashboardHeader, editable, edit, save and error with unrestricted movement
           ctx.json({
             success: false,
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -1127,11 +1127,11 @@ test("DashboardHeader, editable, edit, save and error with unrestricted movement
         </MemoryRouter>
       ),
       options: { dashboards: updatedMockedDashboards },
-    })
+    }),
   );
 
   expect(
-    await screen.findByLabelText("dashboardExitButton")
+    await screen.findByLabelText("dashboardExitButton"),
   ).toBeInTheDocument();
 
   const editButton = await screen.findByLabelText("editButton");
@@ -1155,8 +1155,8 @@ test("DashboardHeader, editable, edit, save and error with unrestricted movement
 
   expect(
     await screen.findByText(
-      "Failed to save changes. Check server logs for more information."
-    )
+      "Failed to save changes. Check server logs for more information.",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -1174,7 +1174,7 @@ test("staticBasePath construction without prefix", async () => {
           <LandingPageHeader />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   await screen.findByLabelText("manageVisualizationPermissionsButton");
@@ -1182,7 +1182,7 @@ test("staticBasePath construction without prefix", async () => {
 
   // Should be /static/tethysdash/images/visualization_settings.png (no prefix)
   expect(img.src).toContain(
-    "/static/tethysdash/images/visualization_settings.png"
+    "/static/tethysdash/images/visualization_settings.png",
   );
 
   // Restore original environment variable
@@ -1203,7 +1203,7 @@ test("staticBasePath construction with prefix", async () => {
           <LandingPageHeader />
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   await screen.findByLabelText("manageVisualizationPermissionsButton");
@@ -1261,7 +1261,7 @@ test("DashboardHeader, editable, edit, save and error", async () => {
             source: "",
             w: 20,
             x: 0,
-            y: 20,
+            y: 0,
             id: 1,
             uuid: "some-uuid-1",
           },
@@ -1283,10 +1283,10 @@ test("DashboardHeader, editable, edit, save and error", async () => {
           ctx.json({
             success: false,
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -1300,11 +1300,11 @@ test("DashboardHeader, editable, edit, save and error", async () => {
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
-    await screen.findByLabelText("dashboardExitButton")
+    await screen.findByLabelText("dashboardExitButton"),
   ).toBeInTheDocument();
 
   const editButton = await screen.findByLabelText("editButton");
@@ -1328,8 +1328,8 @@ test("DashboardHeader, editable, edit, save and error", async () => {
 
   expect(
     await screen.findByText(
-      "Failed to save changes. Check server logs for more information."
-    )
+      "Failed to save changes. Check server logs for more information.",
+    ),
   ).toBeInTheDocument();
 });
 
@@ -1404,7 +1404,7 @@ test("DashboardHeader, editable, edit and save", async () => {
           {
             i: "1",
             x: 0,
-            y: 20,
+            y: 0,
             w: 20,
             h: 20,
             source: "",
@@ -1418,7 +1418,7 @@ test("DashboardHeader, editable, edit and save", async () => {
           {
             i: "3",
             x: 0,
-            y: 40,
+            y: 0,
             w: 20,
             h: 20,
             source: "",
@@ -1432,7 +1432,7 @@ test("DashboardHeader, editable, edit and save", async () => {
           {
             i: "2",
             x: 0,
-            y: 60,
+            y: 0,
             w: 20,
             h: 20,
             source: "",
@@ -1523,10 +1523,10 @@ test("DashboardHeader, editable, edit and save", async () => {
               ],
             },
           }),
-          ctx.set("Content-Type", "application/json")
+          ctx.set("Content-Type", "application/json"),
         );
-      }
-    )
+      },
+    ),
   );
 
   render(
@@ -1540,11 +1540,11 @@ test("DashboardHeader, editable, edit and save", async () => {
         </MemoryRouter>
       ),
       options: { dashboards: updatedMockedDashboards },
-    })
+    }),
   );
 
   expect(
-    await screen.findByLabelText("dashboardExitButton")
+    await screen.findByLabelText("dashboardExitButton"),
   ).toBeInTheDocument();
 
   const editButton = await screen.findByLabelText("editButton");
@@ -1579,7 +1579,7 @@ test("DashboardHeader Sign In shows first and then AppInfo after continue", asyn
       return res(
         ctx.status(401),
         ctx.json({ error: "Internal Server Error" }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
     }),
     rest.get("http://api.test/apps/tethysdash/ping/", (req, res, ctx) => {
@@ -1590,9 +1590,9 @@ test("DashboardHeader Sign In shows first and then AppInfo after continue", asyn
           EXPIRE_AFTER: 10,
           WARN_AFTER: 3,
         }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
 
   render(
@@ -1604,13 +1604,13 @@ test("DashboardHeader Sign In shows first and then AppInfo after continue", asyn
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(
     await screen.findByText(
-      "You are not signed in. Sign in to create and update dashboards."
-    )
+      "You are not signed in. Sign in to create and update dashboards.",
+    ),
   ).toBeInTheDocument();
 
   expect(screen.queryByText("TethysDash Dashboards")).not.toBeInTheDocument();
@@ -1624,8 +1624,8 @@ test("DashboardHeader Sign In shows first and then AppInfo after continue", asyn
 
   expect(
     screen.queryByText(
-      "You are not signed in. Sign in to create and update dashboards."
-    )
+      "You are not signed in. Sign in to create and update dashboards.",
+    ),
   ).not.toBeInTheDocument();
 });
 
@@ -1639,9 +1639,9 @@ test("DashboardHeader AppInfo disappears on idle and reappears on still signed i
           EXPIRE_AFTER: 10,
           WARN_AFTER: 3,
         }),
-        ctx.set("Content-Type", "application/json")
+        ctx.set("Content-Type", "application/json"),
       );
-    })
+    }),
   );
 
   render(
@@ -1653,7 +1653,7 @@ test("DashboardHeader AppInfo disappears on idle and reappears on still signed i
           </LayoutAlertContextProvider>
         </MemoryRouter>
       ),
-    })
+    }),
   );
 
   expect(await screen.findByText("TethysDash Dashboards")).toBeInTheDocument();

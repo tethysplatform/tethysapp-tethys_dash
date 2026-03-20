@@ -21,7 +21,12 @@ const AppTourContextProvider = ({ children }) => {
 };
 
 AppTourContextProvider.propTypes = {
-  children: PropTypes.arrayOf(PropTypes.object),
+  children: PropTypes.oneOfType([
+    PropTypes.arrayOf(PropTypes.node),
+    PropTypes.node,
+    PropTypes.element,
+    PropTypes.object,
+  ]),
 };
 
 export default AppTourContextProvider;

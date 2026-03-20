@@ -298,6 +298,61 @@ it("Creates a Slider Input for a Variable Input", async () => {
   jest.useRealTimers();
 });
 
+it("Creates a Slider Input for a Variable Input Without Label", async () => {
+  jest.useFakeTimers();
+
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedSliderVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedSliderVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{ gridItemArgsString: varInputArgs.args_string }}
+          >
+            <VariableInput
+              variable_name={varInputArgs.variable_name}
+              show_label={false}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
+              metadata={varInputArgs["variable_options_source.metadata"]}
+              onChange={handleChange}
+            />
+          </GridItemContext.Provider>
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+  const playBtn = await screen.findByRole("button", { name: /play/i });
+
+  expect(screen.queryByText("Test Variable")).not.toBeInTheDocument();
+
+  fireEvent.click(playBtn);
+
+  expect(handleChange).toHaveBeenLastCalledWith("50");
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "50" }),
+  );
+
+  await advanceTimers(1500);
+
+  await waitFor(() => {
+    expect(handleChange).toHaveBeenLastCalledWith("51");
+  });
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "51" }),
+  );
+
+  jest.useRealTimers();
+});
+
 it("Creates a Slider Input for a Variable Input, missing metadata", async () => {
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.tabs[0].gridItems = [mockedSliderVariable];
@@ -661,6 +716,55 @@ it("Creates a Dropdown Input for a Variable Input", async () => {
   );
 
   const variableInput = await screen.findByLabelText("Test Variable Input");
+  expect(variableInput).toBeInTheDocument();
+  await select(
+    variableInput,
+    "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
+  );
+
+  expect(
+    screen.getByText(
+      "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
+    ),
+  ).toBeInTheDocument();
+  expect(handleChange).toHaveBeenCalledWith({
+    label: "CREC1 - SMITH RIVER - JEDEDIAH SMITH SP NEAR CRESCENT CITY",
+    value: "CREC1",
+  });
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "CREC1" }),
+  );
+});
+
+it("Creates a Dropdown Input for a Variable Input Without Label", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedDropdownVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedDropdownVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            show_label={false}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: {
+        dashboards: { dashboards: [dashboard] },
+        visualizations: mockedDropdownVisualization,
+      },
+    }),
+  );
+
+  const variableInput = await screen.findByRole("combobox");
   expect(variableInput).toBeInTheDocument();
   await select(
     variableInput,

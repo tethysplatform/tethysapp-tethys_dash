@@ -1,17 +1,27 @@
 // No need to import React for test file
-import { render, fireEvent, screen } from "@testing-library/react";
+import { render, fireEvent, screen, waitFor } from "@testing-library/react";
 import PlotlySettings from "components/modals/DataViewer/PlotlySettings";
 import {
   VariableInputsContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
+import selectEvent from "react-select-event";
 
 const mockSetSettings = jest.fn();
-const mockAddVerticalLine = jest.fn();
 
-jest.mock("components/visualizations/BasePlot", () => ({
-  addVerticalLine: (...args) => mockAddVerticalLine(...args),
-}));
+beforeEach(() => {
+  delete window.ResizeObserver;
+  window.ResizeObserver = jest.fn().mockImplementation(() => ({
+    observe: jest.fn(),
+    unobserve: jest.fn(),
+    disconnect: jest.fn(),
+  }));
+});
+
+afterEach(() => {
+  window.ResizeObserver = ResizeObserver;
+  jest.restoreAllMocks();
+});
 
 describe("PlotlySettings", () => {
   const defaultSettings = {
@@ -24,7 +34,6 @@ describe("PlotlySettings", () => {
     },
   };
   const variableInputValues = { depVar: "2025-10-24T12:00" };
-  const visualizationRef = { current: {} };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -34,13 +43,9 @@ describe("PlotlySettings", () => {
     return render(
       <VariableInputsContext.Provider value={{ variableInputValues }}>
         <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
-          <PlotlySettings
-            settings={settings}
-            setSettings={mockSetSettings}
-            visualizationRef={visualizationRef}
-          />
+          <PlotlySettings settings={settings} setSettings={mockSetSettings} />
         </DataViewerModeContext.Provider>
-      </VariableInputsContext.Provider>
+      </VariableInputsContext.Provider>,
     );
   }
 
@@ -56,8 +61,6 @@ describe("PlotlySettings", () => {
       plotlyVerticalLine: { value: "${dep}", mode: "on" },
     };
     renderWithContext(settings);
-
-    expect(mockAddVerticalLine).toHaveBeenCalledTimes(0);
   });
 
   it("switches to 'on' mode and shows inputs", () => {
@@ -88,7 +91,7 @@ describe("PlotlySettings", () => {
     expect(screen.queryByText("Date/Time")).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Color/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Width/)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Line Style/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("linestyle")).not.toBeInTheDocument();
   });
 
   it("shows default values and on selected then switch to off", () => {
@@ -100,9 +103,7 @@ describe("PlotlySettings", () => {
     expect(screen.getByText("Date/Time")).toBeInTheDocument();
     expect(screen.getByLabelText(/Color/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Width/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Line Style/)).toBeInTheDocument();
-
-    expect(mockAddVerticalLine).toHaveBeenCalledTimes(0);
+    expect(screen.getByLabelText("linestyle")).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText(/Off/));
 
@@ -129,29 +130,26 @@ describe("PlotlySettings", () => {
     expect(screen.getByText("Date/Time")).toBeInTheDocument();
     expect(screen.getByLabelText(/Color/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Width/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Line Style/)).toBeInTheDocument();
-
-    expect(mockAddVerticalLine).toHaveBeenCalledWith(
-      visualizationRef,
-      "2025-10-24T12:00",
-      {
-        color: defaultSettings.plotlyVerticalLine.color,
-        width: defaultSettings.plotlyVerticalLine.width,
-        dash: defaultSettings.plotlyVerticalLine.dash,
-      }
-    );
+    expect(screen.getByLabelText("linestyle")).toBeInTheDocument();
   });
 
-  it("calls setSettings on color change", () => {
+  it("calls setSettings on color change", async () => {
     const settings = {
       plotlyVerticalLine: { ...defaultSettings.plotlyVerticalLine, mode: "on" },
     };
     renderWithContext(settings);
 
-    fireEvent.change(screen.getByLabelText(/Color/), {
-      target: { value: "#00ff00" },
-    });
+    const colorPopoverSwatch = screen.getByLabelText(
+      "Color color popover square",
+    );
+    fireEvent.click(colorPopoverSwatch);
 
+    const newColor = screen.getByRole("textbox", { name: "HEX" });
+    fireEvent.change(newColor, { target: { value: "#2aff00" } });
+
+    await waitFor(() => {
+      expect(mockSetSettings).toHaveBeenCalled();
+    });
     const updateFn = mockSetSettings.mock.calls[0][0];
     const prevState = { plotlyVerticalLine: { value: "" } };
     const newState = updateFn(prevState);
@@ -159,7 +157,7 @@ describe("PlotlySettings", () => {
     expect(newState).toEqual({
       plotlyVerticalLine: {
         value: "",
-        color: "#00ff00",
+        color: "#2aff00",
       },
     });
   });
@@ -208,15 +206,14 @@ describe("PlotlySettings", () => {
     });
   });
 
-  it("calls setSettings on dash change", () => {
+  it("calls setSettings on dash change", async () => {
     const settings = {
       plotlyVerticalLine: { ...defaultSettings.plotlyVerticalLine, mode: "on" },
     };
     renderWithContext(settings);
 
-    fireEvent.change(screen.getByRole("combobox"), {
-      target: { value: "dash" },
-    });
+    const lineStyleSelect = screen.getByLabelText("linestyle");
+    await selectEvent.select(lineStyleSelect, "Dashed");
 
     const updateFn = mockSetSettings.mock.calls[0][0];
     const prevState = { plotlyVerticalLine: { value: "" } };
@@ -230,111 +227,128 @@ describe("PlotlySettings", () => {
     });
   });
 
-  it("calls setSettings and addVerticalLine on value change", () => {
+  it("calls setSettings on editable change", async () => {
     const settings = {
       plotlyVerticalLine: { ...defaultSettings.plotlyVerticalLine, mode: "on" },
     };
     renderWithContext(settings);
 
-    fireEvent.change(screen.getByRole("textbox"), {
+    const editableCheckbox = screen.getByLabelText(/Draggable/);
+    fireEvent.click(editableCheckbox);
+
+    const updateFn = mockSetSettings.mock.calls[0][0];
+    const prevState = {
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+      },
+    };
+    const newState = updateFn(prevState);
+
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+        editable: true,
+      },
+    });
+  });
+
+  it("calls setSettings on editable change, uncheck", async () => {
+    const settings = {
+      plotlyVerticalLine: {
+        ...defaultSettings.plotlyVerticalLine,
+        mode: "on",
+        editable: true,
+      },
+    };
+    renderWithContext(settings);
+
+    const editableCheckbox = screen.getByLabelText(/Draggable/);
+    fireEvent.click(editableCheckbox);
+
+    const updateFn = mockSetSettings.mock.calls[0][0];
+    const prevState = {
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+        editable: true,
+      },
+    };
+    const newState = updateFn(prevState);
+
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+      },
+    });
+  });
+
+  it("calls setSettings on snap to data change", async () => {
+    const settings = {
+      plotlyVerticalLine: {
+        ...defaultSettings.plotlyVerticalLine,
+        mode: "on",
+        editable: true,
+      },
+    };
+    renderWithContext(settings);
+
+    const snapToDataDropdown = screen.getByLabelText(/snapto/);
+    await selectEvent.select(snapToDataDropdown, "Day");
+
+    const updateFn = mockSetSettings.mock.calls[0][0];
+    const prevState = {
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+        editable: true,
+      },
+    };
+    const newState = updateFn(prevState);
+
+    expect(newState).toEqual({
+      plotlyVerticalLine: {
+        value: "",
+        color: "#ff0000",
+        width: 2,
+        dash: "solid",
+        editable: true,
+        step: "day",
+      },
+    });
+  });
+
+  it("calls setSettings on line value change", async () => {
+    const settings = {
+      plotlyVerticalLine: { ...defaultSettings.plotlyVerticalLine, mode: "on" },
+    };
+    renderWithContext(settings);
+
+    const datePickerInput = screen.getByLabelText("Date/Time");
+    fireEvent.change(datePickerInput, {
       target: { value: "2025-10-24T12:00" },
     });
 
     const updateFn = mockSetSettings.mock.calls[0][0];
     const prevState = { plotlyVerticalLine: { value: "" } };
     const newState = updateFn(prevState);
+
     expect(newState).toEqual({
       plotlyVerticalLine: {
         value: "10/24/2025 12:00 PM",
       },
     });
-
-    expect(mockAddVerticalLine).toHaveBeenCalledWith(
-      visualizationRef,
-      "10/24/2025 12:00 PM",
-      {
-        color: defaultSettings.plotlyVerticalLine.color,
-        width: defaultSettings.plotlyVerticalLine.width,
-        dash: defaultSettings.plotlyVerticalLine.dash,
-      }
-    );
-  });
-
-  it("calls setSettings and addVerticalLine on variable value change", () => {
-    const settings = {
-      plotlyVerticalLine: { ...defaultSettings.plotlyVerticalLine, mode: "on" },
-    };
-    renderWithContext(settings);
-
-    fireEvent.change(screen.getByRole("textbox"), {
-      // eslint-disable-next-line
-      target: { value: "${depVar}" },
-    });
-
-    const updateFn = mockSetSettings.mock.calls[0][0];
-    const prevState = { plotlyVerticalLine: { value: "" } };
-    const newState = updateFn(prevState);
-    expect(newState).toEqual({
-      plotlyVerticalLine: {
-        // eslint-disable-next-line
-        value: "${depVar}",
-      },
-    });
-
-    expect(mockAddVerticalLine).toHaveBeenCalledWith(
-      visualizationRef,
-      variableInputValues["depVar"],
-      {
-        color: defaultSettings.plotlyVerticalLine.color,
-        width: defaultSettings.plotlyVerticalLine.width,
-        dash: defaultSettings.plotlyVerticalLine.dash,
-      }
-    );
-  });
-
-  it("calls setSettings and addVerticalLine on variable value change, doesnt resolve", () => {
-    const settings = {
-      plotlyVerticalLine: { ...defaultSettings.plotlyVerticalLine, mode: "on" },
-    };
-    renderWithContext(settings);
-
-    fireEvent.change(screen.getByRole("textbox"), {
-      // eslint-disable-next-line
-      target: { value: "${dep}" },
-    });
-
-    const updateFn = mockSetSettings.mock.calls[0][0];
-    const prevState = { plotlyVerticalLine: { value: "" } };
-    const newState = updateFn(prevState);
-    expect(newState).toEqual({
-      plotlyVerticalLine: {
-        // eslint-disable-next-line
-        value: "${dep}",
-      },
-    });
-
-    expect(mockAddVerticalLine).toHaveBeenCalledTimes(0);
-  });
-
-  it("resolves variable value and calls addVerticalLine", () => {
-    const settings = {
-      plotlyVerticalLine: {
-        ...defaultSettings.plotlyVerticalLine,
-        mode: "on",
-        // eslint-disable-next-line
-        value: "${depVar}",
-      },
-    };
-    renderWithContext(settings);
-
-    expect(mockAddVerticalLine).toHaveBeenCalledWith(
-      visualizationRef,
-      variableInputValues["depVar"],
-      {
-        color: defaultSettings.plotlyVerticalLine.color,
-        width: defaultSettings.plotlyVerticalLine.width,
-        dash: defaultSettings.plotlyVerticalLine.dash,
-      }
-    );
   });
 });

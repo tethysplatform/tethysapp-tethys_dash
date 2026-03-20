@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tethysapp-tethysdash"
-version = "0.16.7"
+version = "0.17.7"
 description = "A Tethys App for no code/low code web application development app"
 authors = [{ name = "Corey Krewson", email = "ckrewson@aquaveo.com" }]
 license = { text = "MIT" }
@@ -25,7 +25,8 @@ dependencies = [
     "intake==2.0.7",
     "djangorestframework",
     "alembic==1.14.0",
-    "xmltodict==0.14.2"
+    "xmltodict==0.14.2",
+    "psycopg2-binary==2.9.11",
 ]
 classifiers = [
      "Environment :: Web Environment",

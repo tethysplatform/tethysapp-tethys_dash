@@ -50,7 +50,7 @@ function setupRoutes(dashboards) {
         path={`/dashboard/${dashboard.uuid}`}
         element={<DashboardView {...dashboard} />}
         key={`route-${dashboard.uuid}`}
-      />
+      />,
     );
   }
   const allRoutes = [...baseRoutes, ...dashboardRoutes];
@@ -141,10 +141,10 @@ function Loader({ children }) {
 
       for (const visualizationGroup of visualizations.visualizations) {
         const nonMapLayerItems = visualizationGroup.options.filter(
-          (opt) => opt.type !== "map_layer"
+          (opt) => opt.type !== "map_layer",
         );
         const mapLayerItems = visualizationGroup.options.filter(
-          (opt) => opt.type === "map_layer"
+          (opt) => opt.type === "map_layer",
         );
 
         // Collect map_layer items into flat array
@@ -235,6 +235,7 @@ function Loader({ children }) {
             type: "variableInput",
             args: {
               variable_name: "text",
+              show_label: "checkbox",
               variable_options_source: [
                 ...nonDropDownVariableInputTypes,
                 ...[
@@ -297,7 +298,7 @@ function Loader({ children }) {
       // let the user input a new name
       const apiResponse = await appAPI.copyDashboard(
         { id, newName: `${name} - Copy` },
-        appContext.csrf
+        appContext.csrf,
       );
       if (apiResponse.success) {
         const newDashboard = apiResponse.new_dashboard;
@@ -305,14 +306,14 @@ function Loader({ children }) {
       }
       return apiResponse;
     },
-    [appContext, availableDashboards]
+    [appContext, availableDashboards],
   );
 
   const addDashboard = useCallback(
     async (dashboardContext) => {
       const apiResponse = await appAPI.addDashboard(
         dashboardContext,
-        appContext.csrf
+        appContext.csrf,
       );
       if (apiResponse.success) {
         const newDashboard = apiResponse.new_dashboard;
@@ -320,7 +321,7 @@ function Loader({ children }) {
       }
       return apiResponse;
     },
-    [appContext, availableDashboards]
+    [appContext, availableDashboards],
   );
 
   const deleteDashboard = useCallback(
@@ -331,7 +332,7 @@ function Loader({ children }) {
       }
       return apiResponse;
     },
-    [appContext, availableDashboards]
+    [appContext, availableDashboards],
   );
 
   const importDashboard = useCallback(
@@ -348,7 +349,7 @@ function Loader({ children }) {
             await handleGridItemImport(
               gridItem,
               appContext.csrf,
-              dashboardContext.uuid
+              dashboardContext.uuid,
             );
           if (success) {
             updatedGridItems.push(importedGridItem);
@@ -368,7 +369,7 @@ function Loader({ children }) {
               await handleGridItemImport(
                 gridItem,
                 appContext.csrf,
-                dashboardContext.uuid
+                dashboardContext.uuid,
               );
             if (success) {
               updatedGridItems.push(importedGridItem);
@@ -384,7 +385,7 @@ function Loader({ children }) {
       const apiResponse = await addDashboard(dashboardContext);
       return apiResponse;
     },
-    [appContext, addDashboard]
+    [appContext, addDashboard],
   );
 
   const exportDashboard = useCallback(
@@ -419,40 +420,40 @@ function Loader({ children }) {
       return apiResponse;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [appContext]
+    [appContext],
   );
 
   const updateDashboard = useCallback(
     async ({ id, newProperties }) => {
       const apiResponse = await appAPI.updateDashboard(
         { ...newProperties, id },
-        appContext.csrf
+        appContext.csrf,
       );
       if (apiResponse.success) {
         const updatedDashboard = apiResponse.updated_dashboard;
         setAvailableDashboards(
           availableDashboards.map((d) =>
-            d.id === updatedDashboard.id ? updatedDashboard : d
-          )
+            d.id === updatedDashboard.id ? updatedDashboard : d,
+          ),
         );
       }
       return apiResponse;
     },
-    [appContext, availableDashboards]
+    [appContext, availableDashboards],
   );
 
   const updatePermissionGroup = useCallback(
     async (updatedPermissionGroup) => {
       const apiResponse = await appAPI.updatePermissionGroup(
         updatedPermissionGroup,
-        appContext.csrf
+        appContext.csrf,
       );
       if (apiResponse.success) {
         const responsePermissionGroup = apiResponse.updated_permission_group;
         setPermissionGroups((existingPermissionGroups) => {
           if (updatedPermissionGroup.id) {
             return existingPermissionGroups.map((g) =>
-              g.id === responsePermissionGroup.id ? responsePermissionGroup : g
+              g.id === responsePermissionGroup.id ? responsePermissionGroup : g,
             );
           } else {
             return [...existingPermissionGroups, responsePermissionGroup];
@@ -461,23 +462,23 @@ function Loader({ children }) {
       }
       return apiResponse;
     },
-    [appContext]
+    [appContext],
   );
 
   const deletePermissionGroup = useCallback(
     async (id) => {
       const apiResponse = await appAPI.deletePermissionGroup(
         { id },
-        appContext.csrf
+        appContext.csrf,
       );
       if (apiResponse.success) {
         setPermissionGroups((existingPermissionGroups) =>
-          existingPermissionGroups.filter((g) => g.id !== id)
+          existingPermissionGroups.filter((g) => g.id !== id),
         );
       }
       return apiResponse;
     },
-    [appContext]
+    [appContext],
   );
 
   // Always call hooks in the same order
@@ -488,7 +489,7 @@ function Loader({ children }) {
       updatePermissionGroup,
       deletePermissionGroup,
     }),
-    [permissionGroups, updatePermissionGroup, deletePermissionGroup]
+    [permissionGroups, updatePermissionGroup, deletePermissionGroup],
   );
   const availableDashboardsContextValue = useMemo(
     () => ({
@@ -510,7 +511,7 @@ function Loader({ children }) {
       exportDashboard,
       importDashboard,
       setAvailableDashboards,
-    ]
+    ],
   );
 
   if (error) {

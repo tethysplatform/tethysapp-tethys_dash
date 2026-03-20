@@ -23,10 +23,10 @@ import {
 import { valuesEqual } from "components/modals/utilities";
 import styled from "styled-components";
 import Spinner from "react-bootstrap/Spinner";
-import { addVerticalLine } from "components/visualizations/BasePlot";
 import { WebsocketContext } from "components/contexts/WebSocketContext";
 import ProgressBar from "react-bootstrap/ProgressBar";
 import LiveChat from "components/visualizations/LiveChat";
+import { isRelativeInput } from "components/inputs/dateUtils";
 
 const StyledSpinner = styled(Spinner)`
   margin: auto;
@@ -64,7 +64,14 @@ const CenteredContainer = styled.div`
 `;
 
 export const Visualization = memo(
-  ({ vizRef, vizType, vizData, progressMessage, dataviewerViz }) => {
+  ({
+    vizRef,
+    vizType,
+    vizData,
+    vizMetadata,
+    progressMessage,
+    dataviewerViz,
+  }) => {
     if (progressMessage && vizType === "loader") {
       const msgObj = JSON.parse(progressMessage);
       const { message, step, totalSteps } = msgObj;
@@ -111,6 +118,7 @@ export const Visualization = memo(
           <VariableInput
             variable_name={vizData.variable_name}
             initial_value={vizData.initial_value}
+            show_label={vizData.show_label}
             variable_options_source={vizData.variable_options_source}
             metadata={vizData.metadata}
             onChange={vizData.onChange ?? (() => {})}
@@ -136,6 +144,7 @@ export const Visualization = memo(
             layout={vizData.layout}
             config={vizData.config}
             visualizationRef={vizRef}
+            metadata={vizMetadata}
           />
         );
       case "card":
@@ -199,53 +208,6 @@ export const Visualization = memo(
   },
 );
 
-// Helper function to check if a value is a relative date
-const isRelativeDate = (val) => {
-  return typeof val === "string" && /^now([+-]\d+[YMWDHmS])*$/.test(val);
-};
-
-export function toLocalISO(d) {
-  const pad = (n) => String(n).padStart(2, "0");
-  return (
-    d.getFullYear() +
-    "-" +
-    pad(d.getMonth() + 1) +
-    "-" +
-    pad(d.getDate()) +
-    "T" +
-    pad(d.getHours()) +
-    ":" +
-    pad(d.getMinutes()) +
-    ":" +
-    pad(d.getSeconds()) +
-    (d.getTimezoneOffset() > 0 ? "-" : "+") +
-    pad(Math.abs(d.getTimezoneOffset() / 60)) +
-    ":" +
-    pad(Math.abs(d.getTimezoneOffset() % 60))
-  );
-}
-
-// Helper function to convert Date objects to UTC strings recursively
-const convertDates = (obj) => {
-  if (obj instanceof Date) {
-    return toLocalISO(obj);
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.map(convertDates);
-  }
-
-  if (obj !== null && typeof obj === "object") {
-    const converted = {};
-    for (const [key, value] of Object.entries(obj)) {
-      converted[key] = convertDates(value);
-    }
-    return converted;
-  }
-
-  return obj;
-};
-
 // Helper function to compare only the keys that exist in filteredOriginalArgs
 export const compareFilteredArgs = (
   currentArgs,
@@ -268,20 +230,21 @@ export const compareFilteredArgs = (
 };
 
 // Filter function to exclude date/date-hour types and relative dates
-const filterNonRelativeDateArgs = (args, variableInputs, types) => {
+const filterNonRelativeDateArgs = (
+  args,
+  variableInputs,
+  variableInputDateFormats,
+) => {
   const filtered = {};
   for (const [key, value] of Object.entries(args)) {
-    const argType = types?.[key];
+    const dateFormat = variableInputDateFormats?.[key];
     const dependentVariableInputs = getDependentVariableInputs(value);
 
     let validFilter = true;
     for (const input of dependentVariableInputs) {
       // Skip if the argument type is date or date-hour and the value is a relative date
       const variableInput = variableInputs?.[input];
-      if (
-        (argType === "date" || argType === "date-hour") &&
-        isRelativeDate(variableInput)
-      ) {
+      if (dateFormat || isRelativeInput(variableInput)) {
         validFilter = false;
       }
     }
@@ -303,8 +266,11 @@ const BaseVisualization = () => {
   } = useContext(GridItemContext);
   const [vizType, setVizType] = useState("loader");
   const [vizData, setVizData] = useState({});
+  const [vizMetadata, setVizMetadata] = useState({});
   const { visualizations } = useContext(AppContext);
-  const { variableInputValues } = useContext(VariableInputsContext);
+  const { variableInputValues, variableInputDateFormats } = useContext(
+    VariableInputsContext,
+  );
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemMetadataWithVariableInputs = useRef(0);
   const customMessages = useRef({});
@@ -325,6 +291,7 @@ const BaseVisualization = () => {
       setVizData({
         variable_name: args.variable_name,
         initial_value: args.initial_value,
+        show_label: args.show_label,
         variable_options_source: args.variable_options_source,
         metadata: args["variable_options_source.metadata"],
       });
@@ -373,24 +340,25 @@ const BaseVisualization = () => {
       "source",
     );
     const sourceType = visualization?.type;
-    const argTypes = visualization?.args;
 
     const itemData = { source: gridItemSource, args: args };
-    const updatedGridItemArgs = convertDates(
-      updateObjectWithVariableInputs(args, variableInputValues, argTypes),
+    const updatedGridItemArgs = updateObjectWithVariableInputs(
+      args,
+      variableInputValues,
+      variableInputDateFormats,
     );
 
     const updatedGridItemMetadata = updateObjectWithVariableInputs(
       gridMetadata,
       variableInputValues,
-      argTypes,
+      variableInputDateFormats,
     );
     const customMessaging = gridMetadata.customMessaging;
 
     const filteredOriginalArgs = filterNonRelativeDateArgs(
       originalArgs,
       variableInputValues,
-      argTypes,
+      variableInputDateFormats,
     );
 
     // Only allow the empty args load to run once per source unless refresh is true
@@ -432,6 +400,7 @@ const BaseVisualization = () => {
           gridItemSource,
           "source",
         )?.loading_icon,
+        variableInputDateFormats,
       });
     }
 
@@ -442,32 +411,7 @@ const BaseVisualization = () => {
       )
     ) {
       gridItemMetadataWithVariableInputs.current = updatedGridItemMetadata;
-
-      const sourceType = findSelectOptionByValue(
-        visualizations,
-        gridItemSource,
-        "source",
-      )?.type;
-
-      if (
-        sourceType === "plotly" &&
-        updatedGridItemMetadata?.plotlyVerticalLine
-      ) {
-        let verticalLineValue =
-          updatedGridItemMetadata?.plotlyVerticalLine?.value;
-        const verticalLineColor =
-          updatedGridItemMetadata?.plotlyVerticalLine?.color;
-        const verticalLineWidth =
-          updatedGridItemMetadata?.plotlyVerticalLine?.width;
-        const verticalLineDash =
-          updatedGridItemMetadata?.plotlyVerticalLine?.dash;
-
-        addVerticalLine(dashboardVizRef, verticalLineValue, {
-          color: verticalLineColor,
-          width: verticalLineWidth,
-          dash: verticalLineDash,
-        });
-      }
+      setVizMetadata(updatedGridItemMetadata);
     }
   }
 
@@ -476,6 +420,7 @@ const BaseVisualization = () => {
       vizRef={dashboardVizRef}
       vizType={vizType}
       vizData={vizData}
+      vizMetadata={vizMetadata}
       progressMessage={getMessageForRequest(requestId.current)}
     />
   );
@@ -490,6 +435,7 @@ Visualization.propTypes = {
   vizData: PropTypes.object, // contains information for the various visualization args
   dataviewerViz: PropTypes.bool, // determines if the visualization is in the dataviewer
   progressMessage: PropTypes.string, // stringified object that contains message, step, and totalSteps
+  vizMetadata: PropTypes.object, // contains metadata for the visualization
 };
 
 // Custom comparison function for BaseVisualization
@@ -500,7 +446,8 @@ const areBasePropsEqual = (prevProps, nextProps) => {
     valuesEqual(prevProps.argsString, nextProps.argsString) &&
     valuesEqual(prevProps.metadataString, nextProps.metadataString) &&
     valuesEqual(prevProps.shouldLoad, nextProps.shouldLoad) &&
-    valuesEqual(prevProps.uuid, nextProps.uuid)
+    valuesEqual(prevProps.uuid, nextProps.uuid) &&
+    valuesEqual(prevProps.vizMetadata, nextProps.vizMetadata)
   );
 };
 

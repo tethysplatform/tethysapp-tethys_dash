@@ -40,6 +40,7 @@ const FlexDiv = styled.div`
 const VariableInput = ({
   variable_name,
   initial_value,
+  show_label = true,
   variable_options_source,
   metadata,
   onChange,
@@ -188,7 +189,7 @@ const VariableInput = ({
     return (
       <StyledDiv>
         <DataInput
-          label={label}
+          label={show_label ? label : ""}
           type={type}
           value={value}
           onChange={handleInputChange}
@@ -218,7 +219,8 @@ const VariableInput = ({
     return (
       <StyledDiv>
         <Slider
-          label={label}
+          variable_name={variable_name}
+          label={show_label ? label : ""}
           step={updatedMetadata.step}
           min={updatedMetadata.min}
           max={updatedMetadata.max}
@@ -258,16 +260,18 @@ const VariableInput = ({
     }
     return (
       <StyledDiv>
-        <label>
-          <b>{label}</b>:
-        </label>
+        {show_label && (
+          <label>
+            <b>{label}</b>:
+          </label>
+        )}
         <CSVUploader headers={metadata.headers} onChange={handleInputChange} />
       </StyledDiv>
     );
   } else {
     return (
       <StyledDiv>
-        {type !== "date-range" && (
+        {type !== "date-range" && show_label && (
           <label>
             <b>{label}</b>:
           </label>
@@ -304,7 +308,10 @@ VariableInput.propTypes = {
     PropTypes.string,
     PropTypes.bool,
     PropTypes.number,
+    PropTypes.object,
+    PropTypes.array,
   ]),
+  show_label: PropTypes.bool,
   variable_name: PropTypes.string,
   variable_options_source: PropTypes.oneOfType([
     PropTypes.string,
@@ -345,6 +352,7 @@ const arePropsEqual = (prevProps, nextProps) => {
   // Only check the props that actually affect VariableInput rendering
   const relevantKeys = [
     "variable_name",
+    "show_label",
     "initial_value",
     "variable_options_source",
     "metadata",

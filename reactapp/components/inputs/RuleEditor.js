@@ -41,8 +41,8 @@ const FullWidthContainer = styled.div`
 
 const StyleContainer = styled.div`
   display: flex;
-  gap: ${(props) => (props.gap ? props.gap : 16)}px;
-  align-items: center;
+  gap: ${(props) => (props.$gap ? props.$gap : 16)}px;
+  align-items: ${(props) => (props.$align ? props.$align : "center")};
   margin-top: 8px;
   flex-wrap: wrap;
   width: 100%;
@@ -303,7 +303,7 @@ function StyleOptionControl({
   };
   if (keyName === "polygonFillType") {
     return (
-      <StyleContainer gap={8} key={keyName}>
+      <StyleContainer $gap={8} key={keyName}>
         {handleRemoveStyle && (
           <XButton
             type="button"
@@ -403,7 +403,7 @@ function StyleOptionControl({
   }
   if (keyName === "shape") {
     return (
-      <StyleContainer gap={8} key={keyName}>
+      <StyleContainer $gap={8} key={keyName}>
         {handleRemoveStyle && (
           <XButton
             type="button"
@@ -444,7 +444,7 @@ function StyleOptionControl({
   }
   if (keyName === "fill" || keyName === "stroke") {
     return (
-      <StyleContainer key={keyName} gap={4}>
+      <StyleContainer key={keyName} $gap={4}>
         {handleRemoveStyle && (
           <XButton
             type="button"
@@ -460,13 +460,14 @@ function StyleOptionControl({
           color={value || (keyName === "fill" ? defaultFill : defaultStroke)}
           onChange={(color) => styleValueChange(keyName, color)}
           containerRef={containerRef}
+          divProps={defaultSection && { style: { "flex-direction": "column" } }}
         />
       </StyleContainer>
     );
   }
   if (keyName === "strokeDash") {
     return (
-      <StyleContainer key={keyName} gap={4}>
+      <StyleContainer key={keyName} $gap={4}>
         {handleRemoveStyle && (
           <XButton
             type="button"
@@ -496,7 +497,7 @@ function StyleOptionControl({
     .replace(/([A-Z])/g, " $1")
     .replace(/^./, (str) => str.toUpperCase());
   return (
-    <StyleContainer key={keyName} gap={4}>
+    <StyleContainer key={keyName} $gap={4}>
       {handleRemoveStyle && (
         <XButton
           type="button"
@@ -608,7 +609,7 @@ const DefaultStyleSection = ({ rule, onChange, containerRef, sectionName }) => (
     >
       {spaceAndCapitalize(sectionName)}
     </div>
-    <StyleContainer>
+    <StyleContainer $align="flex-start">
       {geomStyleOptions[sectionName].map((optKey) => (
         <div key={optKey} style={{ display: "flex", alignItems: "center" }}>
           <StyleOptionControl

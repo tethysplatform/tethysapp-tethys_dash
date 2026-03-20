@@ -10,6 +10,8 @@ const NormalInput = ({
   placeholder,
   divProps,
   labelProps,
+  min,
+  max,
 }) => {
   return (
     <div {...divProps}>
@@ -21,9 +23,7 @@ const NormalInput = ({
       <Form.Control
         aria-label={ariaLabel || label + " Input"}
         type={type}
-        onChange={(e) => {
-          onChange(e);
-        }}
+        onChange={onChange}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault(); // prevents submitting form on enter
@@ -31,6 +31,8 @@ const NormalInput = ({
         }}
         value={value}
         placeholder={placeholder}
+        min={min !== undefined ? min : null}
+        max={max !== undefined ? max : null}
       />
     </div>
   );
@@ -45,6 +47,8 @@ NormalInput.propTypes = {
   type: PropTypes.string, // type of input to use
   divProps: PropTypes.object, // additional props to pass to the parent div
   labelProps: PropTypes.object, // additional props to pass to the label
+  min: PropTypes.number, // minimum value for the input
+  max: PropTypes.number, // maximum value for the input
 };
 
 export default NormalInput;

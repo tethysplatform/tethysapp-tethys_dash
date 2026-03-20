@@ -221,9 +221,7 @@ const LegendPane = ({ legend, setLegend, containerRef, sourceProps }) => {
     // eslint-disable-next-line
   }, [sourceProps.type]);
 
-  const handleModeChange = (event) => {
-    const mode = event.target.value;
-
+  const handleModeChange = (mode) => {
     if (legendMode === "custom") {
       previousCustomLegendRef.current = legend;
     }

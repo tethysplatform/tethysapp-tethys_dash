@@ -21,7 +21,6 @@ import {
   mockedLiveChatBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization, {
-  toLocalISO,
   compareFilteredArgs,
 } from "components/visualizations/Base";
 import createLoadedComponent, {
@@ -1039,7 +1038,7 @@ it("Base - update date variable input", async () => {
     }),
   };
   const dateHourVariable = JSON.parse(JSON.stringify(mockedDateHourVariable));
-  const initialDate = "01/01/2025 12:00 AM"
+  const initialDate = "01/01/2025 12:00 AM";
   dateHourVariable.args_string = JSON.stringify({
     initial_value: initialDate,
     variable_name: "Test Variable",
@@ -1251,7 +1250,10 @@ it("Base - update date variable input", async () => {
       }),
     );
   });
-  expectLastGetVisualizationCallDate(spyGetVisualization, expectedVariableDateString);
+  expectLastGetVisualizationCallDate(
+    spyGetVisualization,
+    expectedVariableDateString,
+  );
 
   // Clear calls again to test no additional calls when clicking refresh without value change
   spyGetVisualization.mockClear();
@@ -1305,7 +1307,10 @@ it("Base - update date variable input", async () => {
       }),
     );
   });
-  expectLastGetVisualizationCallDate(spyGetVisualization, expectedVariableDateString);
+  expectLastGetVisualizationCallDate(
+    spyGetVisualization,
+    expectedVariableDateString,
+  );
 
   spyGetVisualization.mockRestore();
   // Restore original Date
@@ -1354,6 +1359,9 @@ it("Base - initial relative date variable input", async () => {
     initial_value: "now",
     variable_name: "Test Variable",
     variable_options_source: "date-hour",
+    "variable_options_source.metadata": {
+      format: "MM/dd/yyyy h:mm aa",
+    },
   });
 
   const mockedDashboard = {
@@ -1450,11 +1458,6 @@ it("Base - initial relative date variable input", async () => {
   const refreshButton = await screen.findByLabelText("Refresh variable input");
   const input = await screen.findByRole("textbox");
 
-  // check getVisualization call with date
-  let expectedDateString = formatDate(
-    mockDate,
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
-  );
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -1474,6 +1477,9 @@ it("Base - initial relative date variable input", async () => {
           "Test Variable": "now",
         },
         vizLoadingIcon: undefined,
+        variableInputDateFormats: {
+          "Test Variable": "MM/dd/yyyy h:mm aa",
+        },
       }),
     );
   });
@@ -1502,10 +1508,6 @@ it("Base - initial relative date variable input", async () => {
   const callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
   expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
 
-  expectedDateString = formatDate(
-    addDays(mockDate, -1),
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
-  );
   const expectedVariableDateString = formatDate(
     addDays(mockDate, -1),
     "MM/dd/yyyy h:mm a",
@@ -1532,141 +1534,14 @@ it("Base - initial relative date variable input", async () => {
       }),
     );
   });
-  expectLastGetVisualizationCallDate(spyGetVisualization, expectedVariableDateString);
+  expectLastGetVisualizationCallDate(
+    spyGetVisualization,
+    expectedVariableDateString,
+  );
 
   spyGetVisualization.mockRestore();
   // Restore original Date
   global.Date = originalDate;
-});
-
-it("Calls addVerticalLine for plotly visualizations with plotlyVerticalLine metadata", async () => {
-  const spyAddVerticalLine = jest.spyOn(
-    require("components/visualizations/BasePlot"),
-    "addVerticalLine",
-  );
-  const plotlyMeta = {
-    plotlyVerticalLine: {
-      value: 42,
-      color: "#ff0000",
-      width: 3,
-      dash: "dashdot",
-    },
-  };
-  mockedPlotBase.metadata_string = JSON.stringify(plotlyMeta);
-
-  server.use(
-    rest.get(
-      "http://api.test/apps/tethysdash/visualizations/get/",
-      (req, res, ctx) => {
-        return res(
-          ctx.delay(5),
-          ctx.status(200),
-          ctx.json({
-            success: true,
-            data: mockedPlotData,
-            viz_type: "plotly",
-          }),
-          ctx.set("Content-Type", "application/json"),
-        );
-      },
-    ),
-  );
-
-  render(
-    createLoadedComponent({
-      children: (
-        <GridItemContext.Provider
-          value={{
-            gridItemSource: mockedPlotBase.source,
-            gridItemArgsString: mockedPlotBase.args_string,
-            gridItemMetadataString: mockedPlotBase.metadata_string,
-            gridItemUUID: "12345678",
-            shouldLoad: true,
-          }}
-        >
-          <BaseVisualization />
-        </GridItemContext.Provider>
-      ),
-      options: {
-        visualizations: [
-          {
-            label: "Visualization Group",
-            options: [
-              {
-                source: "plugin_source",
-                value: "plugin_value",
-                label: "plugin_label",
-                args: { plugin_arg: "text" },
-                type: "plotly",
-                tags: ["test", "plugin"],
-                description: "some description",
-              },
-            ],
-          },
-        ],
-      },
-    }),
-  );
-
-  const plot = await screen.findByText("bar chart example");
-  expect(plot).toBeInTheDocument();
-  expect(spyAddVerticalLine).toHaveBeenCalledWith(expect.anything(), 42, {
-    color: "#ff0000",
-    width: 3,
-    dash: "dashdot",
-  });
-  spyAddVerticalLine.mockRestore();
-});
-
-describe("toLocalISO function", () => {
-  it("should format date with correct timezone offset signs - covers line 174", () => {
-    // Test the specific logic on line 174: (d.getTimezoneOffset() > 0 ? "-" : "+")
-
-    // Create a base date for testing
-    const baseDate = new Date("2025-01-15T12:00:00");
-
-    // Store original getTimezoneOffset method
-    const originalGetTimezoneOffset = baseDate.getTimezoneOffset;
-
-    try {
-      // Test Case 1: Positive offset (timezone behind UTC) - should use "-"
-      // This tests the first part of the ternary: d.getTimezoneOffset() > 0 ? "-"
-      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(360); // UTC-6 (360 minutes behind)
-      const resultBehindUTC = toLocalISO(baseDate);
-      expect(resultBehindUTC).toMatch(/.*-06:00$/); // Should end with -06:00
-
-      // Test Case 2: Negative offset (timezone ahead of UTC) - should use "+"
-      // This tests the second part of the ternary: : "+"
-      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(-120); // UTC+2 (120 minutes ahead, so negative)
-      const resultAheadUTC = toLocalISO(baseDate);
-      expect(resultAheadUTC).toMatch(/.*\+02:00$/); // Should end with +02:00
-
-      // Test Case 3: Zero offset (exactly UTC) - should use "+"
-      // This tests the edge case where getTimezoneOffset() === 0, so the condition is false
-      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(0); // UTC±0
-      const resultUTC = toLocalISO(baseDate);
-      expect(resultUTC).toMatch(/.*\+00:00$/); // Should end with +00:00
-
-      // Test Case 4: Large positive offset - should use "-"
-      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(720); // UTC-12
-      const resultLargeBehind = toLocalISO(baseDate);
-      expect(resultLargeBehind).toMatch(/.*-12:00$/); // Should end with -12:00
-
-      // Test Case 5: Large negative offset - should use "+"
-      baseDate.getTimezoneOffset = jest.fn().mockReturnValue(-720); // UTC+12
-      const resultLargeAhead = toLocalISO(baseDate);
-      expect(resultLargeAhead).toMatch(/.*\+12:00$/); // Should end with +12:00
-
-      // Verify the complete format structure
-      const completeResult = toLocalISO(baseDate);
-      expect(completeResult).toMatch(
-        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2}$/,
-      );
-    } finally {
-      // Always restore the original method
-      baseDate.getTimezoneOffset = originalGetTimezoneOffset;
-    }
-  });
 });
 
 describe("compareFilteredArgs function", () => {

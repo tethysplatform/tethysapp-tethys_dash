@@ -88,7 +88,7 @@ export const VisualizationArguments = ({
       gridItemIndex,
       setShowingSubModal,
       visualizationRef,
-    ]
+    ],
   );
 
   const renderArgs = useCallback(
@@ -108,7 +108,7 @@ export const VisualizationArguments = ({
 
         if (selectedValue?.sub_args) {
           for (const [subName, subOptions] of Object.entries(
-            selectedValue.sub_args
+            selectedValue.sub_args,
           )) {
             const subArgObj = {
               name: subName,
@@ -122,7 +122,7 @@ export const VisualizationArguments = ({
 
       return inputs;
     },
-    [vizInputsValues, renderInput]
+    [vizInputsValues, renderInput],
   );
 
   if (!selectedVizTypeOption || selectedVizTypeOption.value === "Text") {
@@ -135,7 +135,7 @@ export const VisualizationArguments = ({
 
 const MemoizedVisualizationArguments = memo(
   VisualizationArguments,
-  valuesEqual
+  valuesEqual,
 );
 
 function VisualizationPane({
@@ -161,7 +161,9 @@ function VisualizationPane({
   const [showVisualizationSelectorModal, setShowVisualizationSelectorModal] =
     useState(false);
   const { visualizations } = useContext(AppContext);
-  const { variableInputValues } = useContext(VariableInputsContext);
+  const { variableInputValues, variableInputDateFormats } = useContext(
+    VariableInputsContext,
+  );
   const { activeAppTour } = useAppTourContext();
   const currentSelectedVizTypeOption = useRef(selectedVizTypeOption);
   // Ref to track if we've already previewed for this source with empty args
@@ -266,18 +268,18 @@ function VisualizationPane({
         return { ...prev, [key]: newValue?.value ?? newValue };
       });
     },
-    [setVizInputsValues]
+    [setVizInputsValues],
   );
 
   const createInputChangeHandler = useCallback(
     (key) => (newValue) => handleInputChange(newValue, key),
-    [handleInputChange]
+    [handleInputChange],
   );
 
   function checkAllInputs() {
     if (selectedVizTypeOption) {
       const allFilled = Object.values(vizInputsValues).every(
-        (value) => !["", null].includes(value)
+        (value) => !["", null].includes(value),
       );
       const isEmptyArgs =
         Object.keys(vizInputsValues).length === 0 ||
@@ -305,14 +307,14 @@ function VisualizationPane({
         Object.entries(vizInputsValues).map(([key, val]) => [
           key,
           val.value ?? val,
-        ])
+        ]),
       ),
     };
     const sourceType = selectedVizTypeOption.type;
 
     setVizMetadata(itemData);
     setGridItemMessage(
-      "Cell updated to show " + selectedVizTypeOption["label"]
+      "Cell updated to show " + selectedVizTypeOption["label"],
     );
     if (selectedVizTypeOption.value === "Text") {
       return;
@@ -329,16 +331,16 @@ function VisualizationPane({
       setVizData({
         variable_name: itemData.args.variable_name,
         initial_value: itemData.args.initial_value,
+        show_label: itemData.args.show_label,
         variable_options_source: itemData.args.variable_options_source,
         metadata: itemData.args["variable_options_source.metadata"],
         onChange: (e) => setVariableInputValue(e),
       });
     } else {
-      const argTypes = selectedVizTypeOption.args;
       const updatedGridItemArgs = updateObjectWithVariableInputs(
         itemData.args,
         variableInputValues,
-        argTypes
+        variableInputDateFormats,
       );
       itemData.args = updatedGridItemArgs;
       itemData.requestId = requestId;
@@ -351,6 +353,7 @@ function VisualizationPane({
         metadataString: JSON.stringify(settings),
         variableInputValues,
         vizLoadingIcon: true,
+        variableInputDateFormats,
       });
     }
   }

@@ -400,6 +400,7 @@ test("Dashboard Viewer Modal Variable Input", async () => {
           source: "Variable Input",
           args_string: JSON.stringify({
             variable_name: "Test Variable",
+            show_label: true,
             variable_options_source: "text",
             initial_value: "Some Value",
           }),
@@ -535,6 +536,7 @@ test("Dashboard Viewer Modal Variable Input already exists", async () => {
           source: "Variable Input",
           args_string: JSON.stringify({
             variable_name: "Test Variable 2",
+            show_label: true,
             variable_options_source: "text",
             initial_value: "Some Value",
           }),
@@ -799,15 +801,19 @@ test("Dashboard Viewer Modal Map False layer control", async () => {
   );
   const baseMapDropdown = comboboxes[1];
   await selectEvent.openMenu(baseMapDropdown);
-  const baseMapOption = await screen.findByText("World Light Gray Base");
+  const baseMapOption = await screen.findByRole("option", {
+    name: "World Light Gray Base",
+  });
   expect(baseMapOption).toBeInTheDocument();
   fireEvent.click(baseMapOption);
 
   const showLayersDropdown = comboboxes[2];
   await selectEvent.openMenu(showLayersDropdown);
-  const showLayersOption = await screen.findAllByText("False");
-  expect(showLayersOption[1]).toBeInTheDocument();
-  fireEvent.click(showLayersOption[1]);
+  const showLayersFalseOption = await screen.findByRole("option", {
+    name: "False",
+  });
+  expect(showLayersFalseOption).toBeInTheDocument();
+  fireEvent.click(showLayersFalseOption);
 
   const dataviewerSaveButton = await screen.findByLabelText(
     "dataviewer-save-button",

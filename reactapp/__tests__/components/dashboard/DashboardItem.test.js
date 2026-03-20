@@ -170,7 +170,7 @@ test("Dashboard Item editing, no custom borders/css", async () => {
   const styles = window.getComputedStyle(dashboardGridItem);
   expect(styles.getPropertyValue("background-color")).toBe("whitesmoke");
   expect(styles.getPropertyValue("box-shadow")).toBe(
-    "0 4px 8px rgba(0,0,0,0.1)",
+    "0 4px 8px rgba(0, 0, 0, 0.1)",
   );
 
   expect(
@@ -229,7 +229,7 @@ test("Dashboard Item editing, custom borders/css", async () => {
   });
   const styles = window.getComputedStyle(dashboardGridItem);
   expect(styles.getPropertyValue("border-right")).toBe(
-    "3px solid rgb(57,84,240)",
+    "3px solid rgb(57, 84, 240)",
   );
   expect(styles.getPropertyValue("border-top")).toBe("");
   expect(styles.getPropertyValue("border-bottom")).toBe("");
@@ -238,7 +238,7 @@ test("Dashboard Item editing, custom borders/css", async () => {
     "rgba(161, 255, 141, 0.996)",
   );
   expect(styles.getPropertyValue("box-shadow")).toBe(
-    "4px 0 8px #f03939,-4px 0 8px rgb(57,84,240)",
+    "4px 0 8px #f03939,-4px 0 8px rgb(57, 84, 240)",
   );
 
   expect(
