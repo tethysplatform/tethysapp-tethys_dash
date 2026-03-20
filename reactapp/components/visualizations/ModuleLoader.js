@@ -26,8 +26,15 @@ function useDynamicFederatedComponent({ scope, module, url, remoteType }) {
     setFailed(false);
     setComponent(null);
 
-    const lazyComponent = React.lazy(
-      loadComponent({ scope, module, url, remoteType })
+    const loader = loadComponent({ scope, module, url, remoteType });
+
+    const lazyComponent = React.lazy(() =>
+      loader().catch(() => {
+        if (mounted) {
+          setFailed(true);
+        }
+        return { default: () => null };
+      })
     );
 
     if (mounted) {
