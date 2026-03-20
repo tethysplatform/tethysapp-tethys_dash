@@ -655,6 +655,7 @@ export const mockedCustomData = {
   url: "some url",
   scope: "some scope",
   module: "some module",
+  remoteType: "webpack",
   props: { prop1: "some prop" },
 };
 
