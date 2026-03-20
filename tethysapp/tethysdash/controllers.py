@@ -174,7 +174,7 @@ def visualization(request):
     """
     viz_source = request.GET["source"]
     viz_args = json.loads(request.GET["args"])
-    viz_request_id = request.GET["requestId"]
+    viz_request_id = request.GET.get("requestId")
     data = None
     viz_type = None
     success = True

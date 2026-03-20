@@ -394,7 +394,7 @@ function LegendRenderer({ legend }) {
 
   // 🔴 Handle ESRI
   useEffect(() => {
-    if (isEsri) {
+    if (isEsri && !legend.styleJSON && !legend.items) {
       setIsLoading(true);
       setError(null);
       if (!legend.url) {
