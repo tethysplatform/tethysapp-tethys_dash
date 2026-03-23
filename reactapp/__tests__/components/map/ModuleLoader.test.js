@@ -4,17 +4,23 @@ import moduleLoader, {
   resolveSize,
   buildPointStyle,
   getGeometryBucket,
+  loadESRIJSON,
+  buildPolygonFill,
 } from "components/map/ModuleLoader";
 import WebGLTile from "ol/layer/WebGLTile.js";
 import VectorTileLayer from "ol/layer/VectorTile.js";
 import VectorLayer from "ol/layer/Vector.js";
+import KML from "ol/format/KML.js";
+import { Vector as VectorSource } from "ol/source.js";
 import {
   layerConfigGeoJSON,
   layerConfigWebGLTile,
   layerConfigImageWMS,
   layerConfigVectorTile,
   layerConfigArcGISFeatureService,
-  layerConfigPMTilesVector
+  layerConfigPMTilesVector,
+  layerConfigPMTilesRaster,
+  layerConfigKML,
 } from "__tests__/utilities/constants";
 import {
   Style,
@@ -64,7 +70,7 @@ test("GeoJSON Instance", async () => {
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
 });
 
-test("ArcGIS Feature Service Instance", async () => {
+test("ArcGIS Feature Service Instance with TIME", async () => {
   const copiedConfig = {
     ...layerConfigArcGISFeatureService.configuration,
   };
@@ -78,13 +84,45 @@ test("ArcGIS Feature Service Instance", async () => {
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
 });
 
+test("ArcGIS Feature Service Instance without TIME", async () => {
+  const copiedConfig = {
+    ...layerConfigArcGISFeatureService.configuration,
+  };
+  const layerInstance = await moduleLoader(copiedConfig);
+  expect(layerInstance instanceof VectorLayer).toBe(true);
+
+  const cachedLayerInstance = await moduleLoader(copiedConfig);
+  expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
+});
+
 test("PMTiles Vector Layer Instance", async () => {
-  const layerInstance = await moduleLoader(layerConfigPMTilesVector.configuration);
+  const layerInstance = await moduleLoader(
+    layerConfigPMTilesVector.configuration,
+  );
   expect(layerInstance instanceof VectorTileLayer).toBe(true);
   const cachedLayerInstance = await moduleLoader(
     layerConfigVectorTile.configuration,
   );
   expect(cachedLayerInstance instanceof VectorTileLayer).toBe(true);
+});
+
+test("PMTiles Raster Layer Instance", async () => {
+  const layerInstance = await moduleLoader(
+    layerConfigPMTilesRaster.configuration,
+  );
+  expect(layerInstance instanceof WebGLTile).toBe(true);
+  const cachedLayerInstance = await moduleLoader(
+    layerConfigPMTilesRaster.configuration,
+  );
+  expect(cachedLayerInstance instanceof WebGLTile).toBe(true);
+});
+
+test("KML Layer Instance", async () => {
+  const layerInstance = await moduleLoader(layerConfigKML.configuration);
+  expect(layerInstance instanceof VectorLayer).toBe(true);
+  expect(layerInstance.getSource().format_ instanceof KML).toBe(true);
+  const cachedLayerInstance = await moduleLoader(layerConfigKML.configuration);
+  expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
 });
 
 test("Non Constructor Error", async () => {
@@ -305,6 +343,24 @@ describe("createJsonStyleFunction", () => {
     const fillColor2 = style2.getImage().getFill().getColor();
     expect(fillColor1).toBe(fillColor2);
   });
+
+  it("fixes strings to number for rule if needed", () => {
+    const styleJson = {
+      default: { point: { fill: "#ff0000", size: "10" } },
+      rules: [
+        {
+          conditionField: "value",
+          conditionType: ">",
+          conditionValue: "5",
+          size: "20",
+        },
+      ],
+    };
+    const styleFn = createJsonStyleFunction(styleJson);
+    const feature = mockFeature({ value: 10 });
+    const style = styleFn(feature);
+    expect(style.getImage().getRadius()).toBe(20);
+  });
 });
 
 describe("matchesCondition", () => {
@@ -515,6 +571,83 @@ describe("buildPointStyle", () => {
     expect(image.getStroke().getColor()).toBe("#0000ff");
     expect(image.getStroke().getWidth()).toBe(2);
   });
+
+  it("builds style of a diamond shape", () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+    const mockBeginPath = jest.fn();
+    const mockMoveTo = jest.fn();
+    const mockLineTo = jest.fn();
+    const mockStroke = jest.fn();
+    const mockTranslate = jest.fn();
+    const mockClosePath = jest.fn();
+    const mockFill = jest.fn();
+
+    let mockCtxInstance = null;
+    class MockCTX {
+      constructor() {
+        this.fillStyle = null;
+        this.strokeStyle = null;
+        this.lineWidth = null;
+      }
+      beginPath = mockBeginPath;
+      moveTo = mockMoveTo;
+      lineTo = mockLineTo;
+      stroke = mockStroke;
+      translate = mockTranslate;
+      closePath = mockClosePath;
+      fill = mockFill;
+    }
+    const mockGetContext = jest.fn(() => {
+      mockCtxInstance = new MockCTX();
+      return mockCtxInstance;
+    });
+    HTMLCanvasElement.prototype.getContext = mockGetContext;
+
+    // Mocks for Fill and Stroke
+    const fill = new Fill({ color: "#ff00ff" });
+    const stroke = new Stroke({ color: "#00ff00", width: 3 });
+    const size = 8;
+    const scaledSize = size * 0.6;
+
+    const style = buildPointStyle("diamond", size, fill, stroke);
+
+    expect(style).toBeInstanceOf(Style);
+    expect(mockGetContext).toHaveBeenCalledWith("2d");
+    expect(mockCtxInstance.lineWidth).toBe(3);
+    expect(mockCtxInstance.strokeStyle).toBe("#00ff00");
+
+    expect(mockBeginPath).toHaveBeenCalledTimes(4);
+    expect(mockClosePath).toHaveBeenCalledTimes(2);
+    expect(mockFill).toHaveBeenCalledTimes(2);
+    expect(mockStroke).toHaveBeenCalledTimes(2);
+
+    expect(mockMoveTo).toHaveBeenCalledTimes(6);
+    expect(mockLineTo).toHaveBeenCalledTimes(8);
+
+    // top triangle
+    expect(mockMoveTo.mock.calls[0]).toEqual([0, -size]);
+    expect(mockLineTo.mock.calls[0]).toEqual([scaledSize, 0]);
+    expect(mockLineTo.mock.calls[1]).toEqual([-scaledSize, 0]);
+
+    //outer edges
+    expect(mockMoveTo.mock.calls[1]).toEqual([0, -size]);
+    expect(mockLineTo.mock.calls[2]).toEqual([scaledSize, 0]);
+    expect(mockMoveTo.mock.calls[2]).toEqual([0, -size]);
+    expect(mockLineTo.mock.calls[3]).toEqual([-scaledSize, 0]);
+
+    // bottom triangle
+    expect(mockMoveTo.mock.calls[3]).toEqual([0, size]);
+    expect(mockLineTo.mock.calls[4]).toEqual([scaledSize, 0]);
+    expect(mockLineTo.mock.calls[5]).toEqual([-scaledSize, 0]);
+
+    expect(mockMoveTo.mock.calls[4]).toEqual([0, size]);
+    expect(mockLineTo.mock.calls[6]).toEqual([scaledSize, 0]);
+    expect(mockMoveTo.mock.calls[5]).toEqual([0, size]);
+    expect(mockLineTo.mock.calls[7]).toEqual([-scaledSize, 0]);
+
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
 });
 
 describe("getGeometryBucket", () => {
@@ -558,5 +691,319 @@ describe("getGeometryBucket", () => {
     const feature = mockFeature({}, "GeometryCollection");
     const bucket = getGeometryBucket(feature);
     expect(bucket).toBe("point");
+  });
+});
+
+describe("loadESRIJSON", () => {
+  it("loadESRIJSON returns VectorSource with correct URL", () => {
+    const config = {
+      props: {
+        url: "https://example.com/arcgis/rest/services/test/",
+        layer: "0",
+        params: {
+          WHERE: "1=1",
+          TIME: "123,456",
+        },
+        attributions: "Test Attribution",
+      },
+    };
+
+    const vectorSource = loadESRIJSON(config);
+
+    expect(vectorSource).toBeInstanceOf(VectorSource);
+
+    // Mock extent, resolution, projection for the url function
+    const extent = [0, 0, 10, 10];
+    const resolution = 1;
+    const projection = { getCode: () => "EPSG:3857" };
+
+    const url = vectorSource.getUrl();
+    const generatedUrl = url(extent, resolution, projection);
+
+    expect(generatedUrl).toContain(
+      "https://example.com/arcgis/rest/services/test/0/query/",
+    );
+    expect(generatedUrl).toContain("where=1=1");
+    expect(generatedUrl).toContain("time=123,456");
+    expect(generatedUrl).toContain("outFields=*");
+  });
+
+  it("loadESRIJSON url appends /", () => {
+    const config = {
+      props: {
+        url: "https://example.com/arcgis/rest/services/test",
+        layer: "0",
+        attributions: "Test Attribution",
+      },
+    };
+
+    const vectorSource = loadESRIJSON(config);
+
+    expect(vectorSource).toBeInstanceOf(VectorSource);
+
+    // Mock extent, resolution, projection for the url function
+    const extent = [0, 0, 10, 10];
+    const resolution = 1;
+    const projection = { getCode: () => "EPSG:3857" };
+
+    const url = vectorSource.getUrl();
+    const generatedUrl = url(extent, resolution, projection);
+
+    expect(generatedUrl).toContain(
+      "https://example.com/arcgis/rest/services/test/0/query/",
+    );
+    expect(generatedUrl).toContain("outFields=*");
+  });
+});
+
+describe("buildPolygonFill createDotFill", () => {
+  it("creates a Fill with a canvas pattern", () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+    const mockCreatePattern = jest.fn(() => "mockPattern");
+    const mockBeginPath = jest.fn();
+    const mockArc = jest.fn();
+    const mockFill = jest.fn();
+
+    let mockCtxInstance = null;
+    class MockCTX {
+      constructor() {
+        this.fillStyle = null;
+      }
+      beginPath = mockBeginPath;
+      arc = mockArc;
+      fill = mockFill;
+      createPattern = mockCreatePattern;
+    }
+    const mockGetContext = jest.fn(() => {
+      mockCtxInstance = new MockCTX();
+      return mockCtxInstance;
+    });
+    HTMLCanvasElement.prototype.getContext = mockGetContext;
+
+    const fill = buildPolygonFill({
+      polygonFillType: "dot",
+      fill: "#123456",
+      dotRadius: 3,
+      dotSpacing: 12,
+    });
+    expect(fill).toBeInstanceOf(Fill);
+    // The color property should be the mocked pattern string
+    expect(fill.getColor()).toBe("mockPattern");
+
+    expect(mockGetContext).toHaveBeenCalledWith("2d");
+    const mockCanvas = mockCreatePattern.mock.calls[0][0];
+    expect(mockCanvas.width).toBe(12);
+    expect(mockCanvas.height).toBe(12);
+    expect(mockBeginPath).toHaveBeenCalled();
+    expect(mockArc).toHaveBeenCalledWith(6, 6, 3, 0, 2 * Math.PI);
+    expect(mockFill).toHaveBeenCalled();
+    expect(mockCtxInstance.fillStyle).toBe("#123456");
+
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
+});
+
+describe("buildPolygonFill createHatchFill", () => {
+  it("creates a Fill with a diagonal hatch pattern", () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+    const mockCreatePattern = jest.fn(() => "mockPattern");
+    const mockBeginPath = jest.fn();
+    const mockMoveTo = jest.fn();
+    const mockLineTo = jest.fn();
+    const mockStroke = jest.fn();
+
+    let mockCtxInstance = null;
+    class MockCTX {
+      constructor() {
+        this.strokeStyle = null;
+        this.lineWidth = null;
+      }
+      beginPath = mockBeginPath;
+      moveTo = mockMoveTo;
+      lineTo = mockLineTo;
+      stroke = mockStroke;
+      createPattern = mockCreatePattern;
+    }
+    const mockGetContext = jest.fn(() => {
+      mockCtxInstance = new MockCTX();
+      return mockCtxInstance;
+    });
+    HTMLCanvasElement.prototype.getContext = mockGetContext;
+
+    const fill = buildPolygonFill({
+      polygonFillType: "hatch",
+      fill: "#abcdef",
+      hatchSpacing: 10,
+      hatchDirection: "diagonal",
+    });
+    expect(fill).toBeInstanceOf(Fill);
+    expect(mockGetContext).toHaveBeenCalledWith("2d");
+    const mockCanvas = mockCreatePattern.mock.calls[0][0];
+    expect(mockCreatePattern.mock.calls[0][1]).toBe("repeat");
+    expect(mockCanvas.width).toBe(10);
+    expect(mockCanvas.height).toBe(10);
+    expect(mockBeginPath).toHaveBeenCalled();
+    expect(mockMoveTo).toHaveBeenCalledWith(0, 10);
+    expect(mockLineTo).toHaveBeenCalledWith(10, 0);
+    expect(mockStroke).toHaveBeenCalled();
+    expect(mockCtxInstance.strokeStyle).toBe("#abcdef");
+    expect(mockCtxInstance.lineWidth).toBe(1);
+
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
+
+  it("creates a Fill with a horizontal hatch pattern", () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+    const mockCreatePattern = jest.fn(() => "mockPattern");
+    const mockBeginPath = jest.fn();
+    const mockMoveTo = jest.fn();
+    const mockLineTo = jest.fn();
+    const mockStroke = jest.fn();
+
+    let mockCtxInstance = null;
+    class MockCTX {
+      constructor() {
+        this.strokeStyle = null;
+        this.lineWidth = null;
+      }
+      beginPath = mockBeginPath;
+      moveTo = mockMoveTo;
+      lineTo = mockLineTo;
+      stroke = mockStroke;
+      createPattern = mockCreatePattern;
+    }
+    const mockGetContext = jest.fn(() => {
+      mockCtxInstance = new MockCTX();
+      return mockCtxInstance;
+    });
+    HTMLCanvasElement.prototype.getContext = mockGetContext;
+
+    const fill = buildPolygonFill({
+      polygonFillType: "hatch",
+      fill: "#abcdef",
+      hatchSpacing: 10,
+      hatchDirection: "horizontal",
+    });
+    expect(fill).toBeInstanceOf(Fill);
+    expect(mockGetContext).toHaveBeenCalledWith("2d");
+    const mockCanvas = mockCreatePattern.mock.calls[0][0];
+    expect(mockCreatePattern.mock.calls[0][1]).toBe("repeat");
+    expect(mockCanvas.width).toBe(10);
+    expect(mockCanvas.height).toBe(10);
+    expect(mockBeginPath).toHaveBeenCalled();
+    expect(mockMoveTo).toHaveBeenCalledWith(0, 5);
+    expect(mockLineTo).toHaveBeenCalledWith(10, 5);
+    expect(mockStroke).toHaveBeenCalled();
+    expect(mockCtxInstance.strokeStyle).toBe("#abcdef");
+    expect(mockCtxInstance.lineWidth).toBe(1);
+
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
+
+  it("creates a Fill with a vertical hatch pattern", () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+    const mockCreatePattern = jest.fn(() => "mockPattern");
+    const mockBeginPath = jest.fn();
+    const mockMoveTo = jest.fn();
+    const mockLineTo = jest.fn();
+    const mockStroke = jest.fn();
+
+    let mockCtxInstance = null;
+    class MockCTX {
+      constructor() {
+        this.strokeStyle = null;
+        this.lineWidth = null;
+      }
+      beginPath = mockBeginPath;
+      moveTo = mockMoveTo;
+      lineTo = mockLineTo;
+      stroke = mockStroke;
+      createPattern = mockCreatePattern;
+    }
+    const mockGetContext = jest.fn(() => {
+      mockCtxInstance = new MockCTX();
+      return mockCtxInstance;
+    });
+    HTMLCanvasElement.prototype.getContext = mockGetContext;
+
+    const fill = buildPolygonFill({
+      polygonFillType: "hatch",
+      fill: "#abcdef",
+      hatchSpacing: 10,
+      hatchDirection: "vertical",
+    });
+    expect(fill).toBeInstanceOf(Fill);
+    expect(mockGetContext).toHaveBeenCalledWith("2d");
+    const mockCanvas = mockCreatePattern.mock.calls[0][0];
+    expect(mockCreatePattern.mock.calls[0][1]).toBe("repeat");
+    expect(mockCanvas.width).toBe(10);
+    expect(mockCanvas.height).toBe(10);
+    expect(mockBeginPath).toHaveBeenCalled();
+    expect(mockMoveTo).toHaveBeenCalledWith(5, 0);
+    expect(mockLineTo).toHaveBeenCalledWith(5, 10);
+    expect(mockStroke).toHaveBeenCalled();
+    expect(mockCtxInstance.strokeStyle).toBe("#abcdef");
+    expect(mockCtxInstance.lineWidth).toBe(1);
+
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
+
+  it("creates a Fill with a cross hatch pattern", () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+    const mockCreatePattern = jest.fn(() => "mockPattern");
+    const mockBeginPath = jest.fn();
+    const mockMoveTo = jest.fn();
+    const mockLineTo = jest.fn();
+    const mockStroke = jest.fn();
+
+    let mockCtxInstance = null;
+    class MockCTX {
+      constructor() {
+        this.strokeStyle = null;
+        this.lineWidth = null;
+      }
+      beginPath = mockBeginPath;
+      moveTo = mockMoveTo;
+      lineTo = mockLineTo;
+      stroke = mockStroke;
+      createPattern = mockCreatePattern;
+    }
+    const mockGetContext = jest.fn(() => {
+      mockCtxInstance = new MockCTX();
+      return mockCtxInstance;
+    });
+    HTMLCanvasElement.prototype.getContext = mockGetContext;
+
+    const fill = buildPolygonFill({
+      polygonFillType: "hatch",
+      fill: "#abcdef",
+      hatchSpacing: 10,
+      hatchDirection: "cross",
+    });
+    expect(fill).toBeInstanceOf(Fill);
+    expect(mockGetContext).toHaveBeenCalledWith("2d");
+    const mockCanvas = mockCreatePattern.mock.calls[0][0];
+    expect(mockCreatePattern.mock.calls[0][1]).toBe("repeat");
+    expect(mockCanvas.width).toBe(10);
+    expect(mockCanvas.height).toBe(10);
+    expect(mockBeginPath).toHaveBeenCalledTimes(2);
+    const firstMoveToCall = mockMoveTo.mock.calls[0];
+    const firstLineToCall = mockLineTo.mock.calls[0];
+    const secondMoveToCall = mockMoveTo.mock.calls[1];
+    const secondLineToCall = mockLineTo.mock.calls[1];
+    expect(firstMoveToCall).toEqual([0, 5]);
+    expect(firstLineToCall).toEqual([10, 5]);
+    expect(secondMoveToCall).toEqual([5, 0]);
+    expect(secondLineToCall).toEqual([5, 10]);
+    expect(mockStroke).toHaveBeenCalledTimes(2);
+    expect(mockCtxInstance.strokeStyle).toBe("#abcdef");
+    expect(mockCtxInstance.lineWidth).toBe(1);
+
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
   });
 });

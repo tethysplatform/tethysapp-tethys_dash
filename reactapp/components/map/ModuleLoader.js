@@ -213,7 +213,7 @@ const loadGeoJSON = (config, mapProjection) => {
   return vectorSource;
 };
 
-const loadESRIJSON = (config) => {
+export const loadESRIJSON = (config) => {
   const vectorSource = new VectorSource({
     format: new EsriJSON(),
     url: function (extent, resolution, projection) {
@@ -560,7 +560,7 @@ export function getGeometryBucket(feature) {
   return "point";
 }
 
-function buildPolygonFill(merged) {
+export function buildPolygonFill(merged) {
   if (merged.polygonFillType === "hatch") {
     return createHatchFill({
       color: merged.fill || defaultFill,
