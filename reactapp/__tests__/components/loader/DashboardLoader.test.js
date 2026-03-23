@@ -7,6 +7,7 @@ import {
   mockedTextVariable,
   mockedCheckboxVariable,
   mockedDateRangeVariable,
+  mockedMapBase,
 } from "__tests__/utilities/constants";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
@@ -97,6 +98,194 @@ test("DashboardLoader", async () => {
 
   expect(await screen.findByText("Loading Dashboard...")).toBeInTheDocument();
   expect(await screen.findByText("Hello World!")).toBeInTheDocument();
+});
+
+test("DashboardLoader with Map", async () => {
+  const mockUpdateDashboard = jest.fn();
+  const dashboardWithMap = JSON.parse(JSON.stringify(userDashboard));
+  const newMockedTextVariable = JSON.parse(JSON.stringify(mockedTextVariable));
+  newMockedTextVariable.args_string = JSON.stringify({
+    initial_value: "some value",
+    variable_name: "LID",
+    variable_options_source: "text",
+  });
+  const anotherMapGridItem = JSON.parse(JSON.stringify(mockedMapBase));
+  anotherMapGridItem.args_string = JSON.stringify({
+    baseMap:
+      "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+    layers: [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "NWC",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: {
+                url: "some_url",
+              },
+            },
+          },
+        },
+        attributeVariables: {
+          NWC: {
+            nws_lid: "Diff LID",
+          },
+        },
+      },
+    ],
+  });
+  dashboardWithMap.tabs[0].gridItems = [
+    newMockedTextVariable,
+    mockedMapBase,
+    anotherMapGridItem,
+  ];
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(500),
+          ctx.status(200),
+          ctx.json({ success: true, dashboard: dashboardWithMap }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  render(
+    <AvailableDashboardsContext.Provider
+      value={{ updateDashboard: mockUpdateDashboard }}
+    >
+      <DashboardLoader {...dashboardWithMap}>
+        <TestingComponent TabID={1} />
+      </DashboardLoader>
+    </AvailableDashboardsContext.Provider>,
+  );
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ LID: "some value", "Diff LID": null }),
+  );
+
+  let { tabs, ...dashboardContextProperties } = dashboardWithMap;
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
+  );
+});
+
+test("DashboardLoader with Map and no layers", async () => {
+  const mockUpdateDashboard = jest.fn();
+  const dashboardWithMap = JSON.parse(JSON.stringify(userDashboard));
+  const mapGridItem = JSON.parse(JSON.stringify(mockedMapBase));
+  mapGridItem.args_string = JSON.stringify({
+    baseMap:
+      "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+  });
+  dashboardWithMap.tabs[0].gridItems = [mapGridItem];
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(500),
+          ctx.status(200),
+          ctx.json({ success: true, dashboard: dashboardWithMap }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  render(
+    <AvailableDashboardsContext.Provider
+      value={{ updateDashboard: mockUpdateDashboard }}
+    >
+      <DashboardLoader {...dashboardWithMap}>
+        <TestingComponent TabID={1} />
+      </DashboardLoader>
+    </AvailableDashboardsContext.Provider>,
+  );
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({}),
+  );
+
+  let { tabs, ...dashboardContextProperties } = dashboardWithMap;
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
+  );
+});
+
+test("DashboardLoader with Map and no attributeVariables", async () => {
+  const mockUpdateDashboard = jest.fn();
+  const dashboardWithMap = JSON.parse(JSON.stringify(userDashboard));
+  const mapGridItem = JSON.parse(JSON.stringify(mockedMapBase));
+  mapGridItem.args_string = JSON.stringify({
+    baseMap:
+      "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+    layers: [
+      {
+        configuration: {
+          type: "ImageLayer",
+          props: {
+            name: "NWC",
+            source: {
+              type: "ESRI Image and Map Service",
+              props: {
+                url: "some_url",
+              },
+            },
+          },
+        },
+      },
+    ],
+  });
+  dashboardWithMap.tabs[0].gridItems = [mapGridItem];
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(500),
+          ctx.status(200),
+          ctx.json({ success: true, dashboard: dashboardWithMap }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  render(
+    <AvailableDashboardsContext.Provider
+      value={{ updateDashboard: mockUpdateDashboard }}
+    >
+      <DashboardLoader {...dashboardWithMap}>
+        <TestingComponent TabID={1} />
+      </DashboardLoader>
+    </AvailableDashboardsContext.Provider>,
+  );
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({}),
+  );
+
+  let { tabs, ...dashboardContextProperties } = dashboardWithMap;
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
+  );
 });
 
 test("DashboardLoader 500 error", async () => {
