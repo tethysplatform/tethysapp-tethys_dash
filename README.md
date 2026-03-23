@@ -2,14 +2,42 @@
 
 This app was created using an experimental Tethys + React app scaffold. It uses React for the frontend of the app and Tethys as the backend. For more detailed information, check the [official TethysDash documentation](https://tethysdashdocs.readthedocs.io/en/latest/index.html)
 
+## Quick Installation
+
+1. If creating a new python environment, create and activate it
+
+```
+    python3 -m venv test_env
+    source test_env/bin/activate
+```
+
+2. Install TethysDash
+
+```
+    pip install tethysdash
+```
+
+3. Setup Tethys and TethysDash Databases and Services
+
+```
+    tethysdash setup
+```
+
+4. Start Tethys Portal
+
+```
+    tethysdash start
+```
+
 ## Development Installation
 
 You need to install both the Tethys dependencies and the node dependencies:
 
-1. Open Terminal and activate tethys env
+1. If creating a new python environment, create and activate it
 
 ```
-conda activate tethys
+    python3 -m venv test_env
+    source test_env/bin/activate
 ```
 
 2. Clone the Repo
@@ -22,37 +50,22 @@ git clone https://github.com/tethysplatform/tethysapp-tethys_dash
 
 ```
 cd tethysapp-tethys_dash/
-tethys install -d
+pip install -e .
 ```
 
-4. Create Persistence Store (if not done already) (update connection string as needed)
+4. Setup Tethys and TethysDash Databases and Services
 
 ```
-tethys services create persistent -n primary_db -c postgres:mysecretpassword@localhost:5432
+    tethysdash setup
 ```
 
-5. Connect Persistence Store to TethysDash
+5. Start Tethys Portal
 
 ```
-tethys link persistent:primary_db tethysdash:ps_database:primary_db
+    tethysdash start
 ```
 
-6. Setup Environment Variables (not necessary unless connection values are different)
-
-```
-export POSTGRES_PASSWORD=mysecretpassword
-export TETHYS_DB_HOST=localhost
-export TETHYSDASH_DB_NAME=tethysdash_primary_db
-export TETHYS_DB_PORT=5432
-```
-
-7. Setup TethysDash DB Tables
-
-```
-tethys syncstores tethysdash
-```
-
-8. Install Plugin Examples (not necessary but recommended)
+6. Install Plugin Examples (not necessary but recommended)
 
 ```
 cd ..
@@ -61,16 +74,14 @@ cd tethysdash_examples
 pip install -e .
 ```
 
-## Development
+## Frontend Development
 
 The webpack dev server is configured to proxy the Tethys development server (see `webpack.config.js`). The app endpoint will be handled by the webpack development server and all other endpoints will be handled by the Tethys (Django) development server. As such, you will need to start both in separate terminals.
-
-
 
 1. Install the node and dependencies
 
 ```
-cd tethysapp-tethysdash
+cd tethysapp-tethys_dash/
 npm install --dev
 ```
 
@@ -86,7 +97,7 @@ tethys manage start
 npm start
 ```
 
-## Build
+## Frontend Build
 
 Webpack is configured to bundle and build the React app into the `tethysapp/<app_package>/public/frontend` directory. Before building a Python distribution for release, you should build using this command:
 
@@ -94,7 +105,7 @@ Webpack is configured to bundle and build the React app into the `tethysapp/<app
 npm run build
 ```
 
-## Test
+## Frontend Test
 
 Use the following commands to lint and test the React portion of the app.
 

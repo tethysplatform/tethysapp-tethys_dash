@@ -1,53 +1,106 @@
 import pytest
 import json
 from uuid import uuid4
-from sqlalchemy import create_engine
+from sqlalchemy import text, create_engine
 from sqlalchemy.orm import Session
 from django.conf import settings
 from django.http import HttpResponse
 from unittest.mock import MagicMock
 from tethysapp.tethysdash.model import (
-    GroupPermissionLevel,
     Dashboard,
     DashboardTab,
     GridItem,
     DashboardPermission,
-    DashboardPermissionLevel,
     PermissionGroup,
     PermissionGroupUser,
     VisualizationPermission,
+    init_primary_db,
 )
 from django.contrib.auth import get_user_model
-import datetime
-from tethysapp.tethysdash.model import create_partition_for_date
+import os
+from pathlib import Path
+import psycopg2
+from sqlalchemy.engine.url import make_url
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def db_url():
     db_settings = settings.DATABASES["default"]
-    # Django sets "NAME" to the test DB name when running tests
-    url = f"postgresql+psycopg2://{db_settings['USER']}:{db_settings['PASSWORD']}@{db_settings['HOST']}:{db_settings['PORT']}/{db_settings['NAME']}"  # noqa: E501
-    return url
+    if db_settings["ENGINE"] == "django.db.backends.sqlite3":
+        parent_dir = Path(__file__).parent
+        return f"sqlite:///{parent_dir}/testing_db.sqlite"
+    else:
+        return f"postgresql+psycopg2://{db_settings['USER']}:{db_settings['PASSWORD']}@{db_settings['HOST']}:{db_settings['PORT']}/tethysdash_test_db"  # noqa: E501
 
 
-@pytest.fixture(scope="module")
-def db_connection(db_url):
-    """Create a SQLAlchemy engine for the primary database."""
-    engine = create_engine(db_url)
-    connection = engine.connect()
-    transaction = connection.begin()
+@pytest.fixture(scope="session")
+def db_engine_and_migrate(db_url):
+    """Create a SQLAlchemy engine and run migrations once."""
+    if db_url.startswith("sqlite:///"):
+        engine = create_engine(db_url, connect_args={"check_same_thread": False})
+    else:
+        url = make_url(db_url)
+        db_name = url.database
 
-    # # Run alembic migrations if needed
-    # init_primary_db(engine, first_time=True)
+        # Try to create the test db if it doesn't exist
+        try:
+            conn = psycopg2.connect(
+                dbname="postgres",
+                user=url.username,
+                password=url.password,
+                host=url.host,
+                port=url.port,
+            )
+            conn.autocommit = True
+            cur = conn.cursor()
+            cur.execute(f"CREATE DATABASE {db_name}")
+            cur.close()
+            conn.close()
+        except psycopg2.errors.DuplicateDatabase:
+            pass  # Database already exists
+        engine = create_engine(db_url)
 
-    yield connection
-
-    transaction.rollback()
-    connection.close()
+    init_primary_db(engine, first_time=True, clean=False)
+    yield engine
     engine.dispose()
 
+    if db_url.startswith("sqlite:///"):
+        db_path = db_url.replace("sqlite:///", "")
 
-@pytest.fixture(scope="module")
+        if os.path.exists(db_path):
+            os.remove(db_path)
+    else:
+        # Drop the PostgreSQL database after tests
+        url = make_url(db_url)
+        db_name = url.database
+        try:
+            conn = psycopg2.connect(
+                dbname="postgres",
+                user=url.username,
+                password=url.password,
+                host=url.host,
+                port=url.port,
+            )
+            conn.autocommit = True
+            cur = conn.cursor()
+            cur.execute(f"DROP DATABASE IF EXISTS {db_name}")
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Error dropping database {db_name}: {e}")
+
+
+@pytest.fixture(scope="function")
+def db_connection(db_engine_and_migrate):
+    """Create a fresh connection and transaction for each test."""
+    connection = db_engine_and_migrate.connect()
+    transaction = connection.begin()
+    yield connection
+    transaction.rollback()
+    connection.close()
+
+
+@pytest.fixture(scope="function")
 def session_maker(db_connection):
     """Create a SQLAlchemy session for the primary database."""
 
@@ -61,22 +114,28 @@ def session_maker(db_connection):
 
 @pytest.fixture(scope="function")
 def db_session(session_maker):
-    """Create a SQLAlchemy session for the primary database."""
     session = session_maker()
     session.expire_all()
-
     yield session
-
     session.rollback()
     session.close()
 
 
-@pytest.fixture(scope="function")
-def create_today_partition(db_connection):
-    """
-    Fixture to create a date partition for the messages table for today.
-    """
-    create_partition_for_date(db_connection, datetime.datetime.utcnow())
+@pytest.fixture(autouse=True)
+def truncate_tables(db_session, db_url):
+    meta = Dashboard.metadata
+
+    if db_url.startswith("sqlite:///"):
+        db_session.execute(text("PRAGMA foreign_keys=OFF"))
+        for table in reversed(meta.sorted_tables):
+            db_session.execute(table.delete())
+        db_session.commit()
+        db_session.execute(text("PRAGMA foreign_keys=ON"))
+    else:
+        # For PostgreSQL, truncate all tables and restart identity (reset autoincrement)
+        table_names = ", ".join([f'"{table.name}"' for table in meta.sorted_tables])
+        db_session.execute(text(f"TRUNCATE {table_names} RESTART IDENTITY CASCADE"))
+        db_session.commit()
 
 
 @pytest.fixture(scope="function")
@@ -112,7 +171,6 @@ def test_owner_user(db):
     User = get_user_model()
     user = User.objects.create_user(username="owner_user", password="password123")
     user.get_all_permissions = lambda: {"tethys_apps.tethysdash:manage_visualizations"}
-
     return user
 
 
@@ -158,7 +216,7 @@ def permission_group_table(db_session, permission_group):
             PermissionGroupUser(
                 username=member["username"],
                 group_id=group_id,
-                permission=GroupPermissionLevel[member["permission"]],
+                permission=member["permission"],
             )
         )
     db_session.commit()
@@ -190,7 +248,7 @@ def public_dashboard_data():
     return {
         "name": "public_dashboard",
         "description": "public_dashboard",
-        "uuid": "some_public_dashboard_uuid",
+        "uuid": str(uuid4()),
         "notes": "some notes",
         "owner": "public_user",
         "public": True,
@@ -235,7 +293,7 @@ def live_chat_dashboard_data(test_owner_user):
     return {
         "name": "live_chat_dashboard",
         "description": "live_chat_dashboard",
-        "uuid": "some_live_chat_dashboard_uuid",
+        "uuid": str(uuid4()),
         "notes": "some notes",
         "owner": test_owner_user.username,
         "public": False,
@@ -254,7 +312,7 @@ def dashboard(db_session, dashboard_data, permission_group_table, test_admin_use
     owner_permission = DashboardPermission(
         dashboard_id=dashboard_id,
         username=dashboard.owner,
-        permission=DashboardPermissionLevel.admin,
+        permission="admin",
     )
     db_session.add(owner_permission)
     db_session.commit()
@@ -262,7 +320,7 @@ def dashboard(db_session, dashboard_data, permission_group_table, test_admin_use
     editor_permission = DashboardPermission(
         dashboard_id=dashboard_id,
         username=test_admin_user.username,
-        permission=DashboardPermissionLevel.editor,
+        permission="editor",
     )
     db_session.add(editor_permission)
     db_session.commit()
@@ -270,7 +328,7 @@ def dashboard(db_session, dashboard_data, permission_group_table, test_admin_use
     viewer_permission = DashboardPermission(
         dashboard_id=dashboard_id,
         group_id=permission_group_table.id,
-        permission=DashboardPermissionLevel.viewer,
+        permission="viewer",
     )
     db_session.add(viewer_permission)
     db_session.commit()
@@ -304,7 +362,7 @@ def public_dashboard(db_session, public_dashboard_data):
     owner_permission = DashboardPermission(
         dashboard_id=dashboard_id,
         username=dashboard.owner,
-        permission=DashboardPermissionLevel.admin,
+        permission="admin",
     )
     db_session.add(owner_permission)
     db_session.commit()
@@ -337,7 +395,7 @@ def live_chat_dashboard(db_session, live_chat_dashboard_data, live_chat_grid_ite
     owner_permission = DashboardPermission(
         dashboard_id=dashboard_id,
         username=dashboard.owner,
-        permission=DashboardPermissionLevel.admin,
+        permission="admin",
     )
     db_session.add(owner_permission)
     db_session.commit()

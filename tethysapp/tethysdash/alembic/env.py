@@ -69,7 +69,7 @@ def run_migrations_online() -> None:
     """
     try:
         # Create SQLAlchemy engine
-        engine = create_engine(get_db_url())
+        engine = create_engine(config.get_main_option("sqlalchemy.url"))
 
         # Try to connect
         with engine.connect():
@@ -95,7 +95,11 @@ def run_migrations_online() -> None:
             context.run_migrations()
 
 
-config.set_main_option("sqlalchemy.url", get_db_url())
+if not config.get_main_option("sqlalchemy.url"):
+    raise RuntimeError(
+        "Database URL not found in Alembic configuration. Run migrations with `tethys syncstores tethysdash` to set up the correct url."  # noqa: E501
+    )
+
 if context.is_offline_mode():
     run_migrations_offline()
 else:

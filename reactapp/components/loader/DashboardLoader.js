@@ -85,20 +85,16 @@ const DashboardLoader = ({
       // when a griditem is deleted, I want to remove its variable inputs as well
 
       for (let tab of updatedTabs) {
+        let allInitialValues = {};
         for (let gridItem of tab.gridItems) {
-          let allInitialValues = {};
           const args = JSON.parse(gridItem.args_string);
 
           if (gridItem.source === "Variable Input") {
-            if (!(args.variable_name in allInitialValues)) {
-              allInitialValues[args.variable_name] = args.initial_value;
-            }
+            allInitialValues[args.variable_name] = args.initial_value;
 
             if (args.initial_value && typeof args.initial_value === "object") {
               for (let [key, value] of Object.entries(args.initial_value)) {
-                if (!(key in allInitialValues)) {
-                  allInitialValues[key] = value;
-                }
+                allInitialValues[key] = value;
               }
             }
           }

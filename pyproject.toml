@@ -3,15 +3,17 @@ requires = ["setuptools>=45", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tethysapp-tethysdash"
-version = "0.17.7"
+name = "tethysdash"
+version = "0.18.1"
 description = "A Tethys App for no code/low code web application development app"
 authors = [{ name = "Corey Krewson", email = "ckrewson@aquaveo.com" }]
-license = { text = "MIT" }
+license-files = ["LICENSE"]
 keywords = [""]
+readme = "README.md"
 dependencies = [
     "hjson==3.1",
     "nh3==0.2.21",
+    "beautifulsoup4==4.13.4",
     "better_profanity==0.7.0",
     "bleach==6.1.0",
     "bleach[css]",
@@ -27,12 +29,13 @@ dependencies = [
     "alembic==1.14.0",
     "xmltodict==0.14.2",
     "psycopg2-binary==2.9.11",
+    "geoalchemy2==0.18.4",
+    "tethys-platform>=4.5.0"
 ]
 classifiers = [
      "Environment :: Web Environment",
      "Framework :: Django",
      "Intended Audience :: Developers",
-     "License :: OSI Approved :: MIT",
      "Operating System :: OS Independent",
      "Programming Language :: Python",
      "Programming Language :: Python :: 3",
@@ -47,6 +50,10 @@ include-package-data = true
 [tool.setuptools.packages.find]
 # Find namespace packages like `tethysapp.tethysdash`
 include = ["tethysapp*"]
+
+[tool.setuptools_scm]
+write_to = "tethysapp/tethysdash/_version.py"
+local_scheme = "no-local-version"
 
 [tool.setuptools.package-data]
 # The key "" applies to all packages
@@ -68,3 +75,11 @@ include = ["tethysapp*"]
 # Optional: for compatibility with pytest if you run tests with `pytest`
 [tool.pytest.ini_options]
 django_find_project = false
+
+[project.urls]
+homepage = "https://tethysdashdocs.readthedocs.io/en/latest/"
+documentation = "https://tethysdashdocs.readthedocs.io/en/latest/"
+repository = "https://github.com/tethysplatform/tethysapp-tethys_dash"
+
+[project.scripts]
+tethysdash = "tethysapp.tethysdash.cli:main"

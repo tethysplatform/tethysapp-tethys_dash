@@ -131,7 +131,6 @@ def test_get_visualization_live_chat(
     db_session,
     live_chat_dashboard,
     mock_app_get_ps_db,
-    create_today_partition,
 ):
     mock_app_get_ps_db("tethysapp.tethysdash.visualizations.App")
     grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid

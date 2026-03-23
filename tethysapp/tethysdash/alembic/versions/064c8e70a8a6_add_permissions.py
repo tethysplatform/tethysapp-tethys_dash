@@ -12,7 +12,6 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
-
 # revision identifiers, used by Alembic.
 revision: str = "064c8e70a8a6"
 down_revision: Union[str, None] = "0597a408202d"
@@ -22,20 +21,28 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Add a public boolean column to dashboards, default False
-    op.add_column(
-        "dashboards",
-        sa.Column(
-            "public", sa.Boolean(), nullable=False, server_default=sa.text("FALSE")
-        ),
-    )
-
-    # Set public=True where 'public' is in access_groups
-    op.execute(
-        "UPDATE dashboards SET public = TRUE WHERE 'public' = ANY(access_groups)"
-    )
-
-    # Remove the access_groups column from dashboards
-    op.drop_column("dashboards", "access_groups")
+    bind = op.get_bind()
+    dialect = bind.dialect.name
+    if dialect == "postgresql":
+        op.add_column(
+            "dashboards",
+            sa.Column(
+                "public", sa.Boolean(), nullable=False, server_default=sa.text("FALSE")
+            ),
+        )
+        op.execute(
+            "UPDATE dashboards SET public = TRUE WHERE 'public' = ANY(access_groups)"
+        )
+        op.drop_column("dashboards", "access_groups")
+    else:
+        op.add_column(
+            "dashboards",
+            sa.Column("public", sa.Boolean(), nullable=False, server_default="0"),
+        )
+        op.execute(
+            "UPDATE dashboards SET public = 1 WHERE access_groups LIKE '%public%'"
+        )
+        op.drop_column("dashboards", "access_groups")
     # Create the dashboard_permissions table
     op.create_table(
         "dashboard_permissions",
@@ -80,19 +87,31 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # Restore the access_groups column to dashboards
-    op.add_column(
-        "dashboards",
-        sa.Column("access_groups", postgresql.ARRAY(sa.String()), nullable=True),
-    )
-    # Set access_groups to [] if public is FALSE, ['public'] if public is TRUE
-    op.execute(
-        "UPDATE dashboards SET access_groups = ARRAY['public'] WHERE public = TRUE"
-    )
-    op.execute(
-        "UPDATE dashboards SET access_groups = ARRAY[]::varchar[] WHERE public = FALSE"
-    )
-    # Remove the public boolean column from dashboards
-    op.drop_column("dashboards", "public")
-    op.drop_table("dashboard_permissions")
-    op.execute("DROP TABLE permission_group_user CASCADE")
-    op.execute("DROP TABLE permission_groups CASCADE")
+    bind = op.get_bind()
+    dialect = bind.dialect.name
+    if dialect == "postgresql":
+        op.add_column(
+            "dashboards",
+            sa.Column("access_groups", postgresql.ARRAY(sa.String()), nullable=True),
+        )
+        op.execute(
+            "UPDATE dashboards SET access_groups = ARRAY['public'] WHERE public = TRUE"
+        )
+        op.execute(
+            "UPDATE dashboards SET access_groups = ARRAY[]::varchar[] WHERE public = FALSE"  # noqa: E501
+        )
+        op.drop_column("dashboards", "public")
+        op.drop_table("dashboard_permissions")
+        op.execute("DROP TABLE permission_group_user CASCADE")
+        op.execute("DROP TABLE permission_groups CASCADE")
+    else:
+        op.add_column(
+            "dashboards",
+            sa.Column("access_groups", sa.String(), nullable=True),
+        )
+        op.execute("UPDATE dashboards SET access_groups = 'public' WHERE public = 1")
+        op.execute("UPDATE dashboards SET access_groups = '' WHERE public = 0")
+        op.drop_column("dashboards", "public")
+        op.drop_table("dashboard_permissions")
+        op.execute("DROP TABLE IF EXISTS permission_group_user")
+        op.execute("DROP TABLE IF EXISTS permission_groups")

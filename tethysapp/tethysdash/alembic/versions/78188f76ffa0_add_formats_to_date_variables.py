@@ -13,7 +13,6 @@ import sqlalchemy as sa
 from sqlalchemy.sql import table, column
 import json
 
-
 # revision identifiers, used by Alembic.
 revision: str = "78188f76ffa0"
 down_revision: Union[str, None] = "c12ae6fbc947"

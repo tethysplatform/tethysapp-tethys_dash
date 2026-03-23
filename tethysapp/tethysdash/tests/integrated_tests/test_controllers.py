@@ -1,7 +1,7 @@
 import pytest
 import json
 from django.urls import reverse
-from tethysapp.tethysdash.model import Dashboard, Message, create_partition_for_date
+from tethysapp.tethysdash.model import Dashboard, Message
 from unittest.mock import MagicMock
 import os
 import shutil
@@ -1402,6 +1402,8 @@ def test_create_permission_group(
     response_json = response.json()
     permission_group["id"] = response_json["updated_permission_group"]["id"]
     permission_group["owner"] = test_admin_user.username
+    print(response_json["updated_permission_group"])
+    print(permission_group)
     assert response_json == {
         "updated_permission_group": permission_group,
         "success": True,
@@ -1845,7 +1847,6 @@ async def test_visualization_consumer_receives_and_edit(
     date = datetime(2024, 1, 1, 0, 0, 0)
     mock_datetime.utcnow.return_value = date
     grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
-    create_partition_for_date(db_connection, date)
 
     application = VisualizationConsumer()
 
@@ -1999,7 +2000,7 @@ async def test_visualization_consumer_receive_not_live_chat(mock_app_get_ps_db):
 @pytest.mark.django_db
 @pytest.mark.asyncio
 async def test_visualization_consumer_receive_rate_limit_error(
-    mock_app_get_ps_db, mocker, create_today_partition, live_chat_dashboard, db_session
+    mock_app_get_ps_db, mocker, live_chat_dashboard, db_session
 ):
     """Test that receive sends rate limit error when rate limit is exceeded."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
@@ -2048,7 +2049,7 @@ async def test_visualization_consumer_receive_rate_limit_error(
 @pytest.mark.django_db
 @pytest.mark.asyncio
 async def test_visualization_consumer_receive_rate_limit_ttl_None(
-    mock_app_get_ps_db, mocker, create_today_partition, live_chat_dashboard, db_session
+    mock_app_get_ps_db, mocker, live_chat_dashboard, db_session
 ):
     """Test that receive sends rate limit error when rate limit is exceeded."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
@@ -2097,7 +2098,7 @@ async def test_visualization_consumer_receive_rate_limit_ttl_None(
 @pytest.mark.django_db
 @pytest.mark.asyncio
 async def test_visualization_consumer_receive_rate_limit_ttl_exception(
-    mock_app_get_ps_db, mocker, create_today_partition, live_chat_dashboard, db_session
+    mock_app_get_ps_db, mocker, live_chat_dashboard, db_session
 ):
     """Test that receive sends rate limit error when rate limit is exceeded."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
@@ -2148,7 +2149,7 @@ async def test_visualization_consumer_receive_rate_limit_ttl_exception(
 
 @pytest.mark.asyncio
 async def test_visualization_consumer_rate_limit_incr(
-    mock_app_get_ps_db, mocker, create_today_partition, live_chat_dashboard, db_session
+    mock_app_get_ps_db, mocker, live_chat_dashboard, db_session
 ):
     """
     Test that VisualizationConsumer.receive calls cache.incr(rate_key)
@@ -2201,7 +2202,7 @@ async def test_visualization_consumer_rate_limit_incr(
 @pytest.mark.django_db
 @pytest.mark.asyncio
 async def test_visualization_consumer_receive_failed_broadcast(
-    mocker, mock_app_get_ps_db, create_today_partition, live_chat_dashboard, db_session
+    mocker, mock_app_get_ps_db, live_chat_dashboard, db_session
 ):
     """Test that receive does nothing (pass)."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
@@ -2252,7 +2253,7 @@ async def test_visualization_consumer_receive_failed_broadcast(
 @pytest.mark.django_db
 @pytest.mark.asyncio
 async def test_visualization_consumer_receive_failed_db_save(
-    mocker, mock_app_get_ps_db, create_today_partition, live_chat_dashboard, db_session
+    mocker, mock_app_get_ps_db, live_chat_dashboard, db_session
 ):
     """Test that receive does nothing (pass)."""
     mock_app = mocker.patch("tethysapp.tethysdash.controllers.App")
@@ -2302,6 +2303,7 @@ async def test_visualization_consumer_receive_failed_db_save(
 @pytest.mark.django_db
 def test_visualization_permissions_error(client, admin_user, mock_app, mocker):
     mock_app("tethysapp.tethysdash.controllers.App")
+    mocker.patch("tethysapp.tethysdash.controllers.get_restricted_visualizations")
     mock_get_visualization_permissions = mocker.patch(
         "tethysapp.tethysdash.controllers.get_visualization_permissions"
     )
