@@ -1926,6 +1926,71 @@ describe("Slider Component", () => {
     expect(screen.getByText("3 (custom)")).toBeInTheDocument();
   });
 
+  it("renders a raw number value when variable input has a valid index", () => {
+    const handleChange = jest.fn();
+    const min = 0;
+    const max = 10;
+
+    const { rerender } = render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": "" },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={2}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="{{n}}"
+            dataType="Number"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    const minLabel = screen.getByText("0", {
+      selector: "strong",
+    });
+    expect(minLabel).toBeInTheDocument();
+    const maxLabel = screen.getByText("10", {
+      selector: "strong",
+    });
+    expect(maxLabel).toBeInTheDocument();
+    expect(handleChange).toHaveBeenCalledWith("0");
+
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { "Test Var": 4 },
+        }}
+      >
+        <GridItemContext.Provider value={{}}>
+          <Slider
+            variable_name={"Test Var"}
+            step={2}
+            min={min}
+            max={max}
+            initialValue={min}
+            outputFormat="{{n}}"
+            dataType="Number"
+            dateTimeDelta="Days"
+            onChange={handleChange}
+          />
+          ,
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+    expect(screen.getByText("4")).toBeInTheDocument();
+  });
+
   it("renders a raw date value when variable input doesnt have a valid index", async () => {
     const handleChange = jest.fn();
     const min = "2025-01-01T00:00:00.000";

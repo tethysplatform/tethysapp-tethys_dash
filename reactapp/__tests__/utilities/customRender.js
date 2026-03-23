@@ -226,6 +226,16 @@ export const InputVariablePComponent = () => {
   );
 };
 
+export const VariableInputDateFormatsPComponent = () => {
+  const { variableInputDateFormats } = useContext(VariableInputsContext);
+
+  return (
+    <p data-testid="variable-input-date-formats">
+      {JSON.stringify(variableInputDateFormats)}
+    </p>
+  );
+};
+
 TestingComponent.propTypes = {
   children: PropTypes.oneOfType([
     PropTypes.arrayOf(PropTypes.element),

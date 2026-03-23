@@ -960,7 +960,7 @@ export const mockedSliderVariable = {
   h: 20,
   source: "Variable Input",
   args_string: JSON.stringify({
-    initial_value: "0",
+    initial_value: 50,
     variable_name: "Test Variable",
     variable_options_source: "slider",
     "variable_options_source.metadata": {
@@ -1417,7 +1417,7 @@ export const layerConfigPMTilesVector = {
       zIndex: 1,
     },
   },
-}
+};
 
 export const exampleStyle = {
   version: 8,

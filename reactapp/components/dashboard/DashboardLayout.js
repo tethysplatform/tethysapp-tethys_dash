@@ -109,7 +109,10 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       layout={layout}
       rowHeight={rowHeight}
       cols={colCount}
-      onDragStop={(newLayout) => updateLayout(newLayout)}
+      onDragStop={
+        // istanbul ignore next
+        (newLayout) => updateLayout(newLayout)
+      }
       onResizeStop={(newLayout) => updateLayout(newLayout)}
       isDraggable={false}
       isResizable={false}

@@ -8,6 +8,7 @@ import {
   mockedCheckboxVariable,
   mockedDateRangeVariable,
   mockedMapBase,
+  mockedSliderVariable,
 } from "__tests__/utilities/constants";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
@@ -19,6 +20,7 @@ import {
   InputVariablePComponent,
   EditingPComponent,
   TabsPComponent,
+  VariableInputDateFormatsPComponent,
 } from "__tests__/utilities/customRender";
 import {
   LayoutContext,
@@ -48,6 +50,7 @@ const TestingComponent = ({
       ></button>
       <EditingPComponent />
       <InputVariablePComponent />
+      <VariableInputDateFormatsPComponent />
       <button
         data-testid="updatedTabButton"
         onClick={() => updateTab(TabID, updatedTabProperties)}
@@ -280,6 +283,114 @@ test("DashboardLoader with Map and no attributeVariables", async () => {
   );
 
   let { tabs, ...dashboardContextProperties } = dashboardWithMap;
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
+  );
+});
+
+test("DashboardLoader with Number Slider", async () => {
+  const mockUpdateDashboard = jest.fn();
+  const dashboardWithSlider = JSON.parse(JSON.stringify(userDashboard));
+  dashboardWithSlider.tabs[0].gridItems = [mockedSliderVariable];
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(500),
+          ctx.status(200),
+          ctx.json({ success: true, dashboard: dashboardWithSlider }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  render(
+    <AvailableDashboardsContext.Provider
+      value={{ updateDashboard: mockUpdateDashboard }}
+    >
+      <DashboardLoader {...dashboardWithSlider}>
+        <TestingComponent TabID={1} />
+      </DashboardLoader>
+    </AvailableDashboardsContext.Provider>,
+  );
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": 50 }),
+  );
+
+  expect(
+    await screen.findByTestId("variable-input-date-formats"),
+  ).toHaveTextContent(JSON.stringify({}));
+
+  let { tabs, ...dashboardContextProperties } = dashboardWithSlider;
+  expect(await screen.findByTestId("layout-context")).toHaveTextContent(
+    JSON.stringify({ ...dashboardContextProperties, editable: true }),
+  );
+  expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
+    JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
+  );
+});
+
+test("DashboardLoader with Date Slider", async () => {
+  const mockUpdateDashboard = jest.fn();
+  const dashboardWithSlider = JSON.parse(JSON.stringify(userDashboard));
+  const dateSliderVariable = JSON.parse(JSON.stringify(mockedSliderVariable));
+  dateSliderVariable.args_string = JSON.stringify({
+    initial_value: "01/14/2026T00:00",
+    variable_name: "Test Variable",
+    variable_options_source: "slider",
+    "variable_options_source.metadata": {
+      dataType: "Date",
+      dateTimeDelta: "Day",
+      rangeMode: false,
+      min: "01/14/2026T00:00",
+      max: "12/31/2026T23:59",
+      initialValue: "01/14/2026T00:00",
+      step: 1,
+      outputFormat: "yyyy-MM-dd",
+    },
+  });
+  dashboardWithSlider.tabs[0].gridItems = [dateSliderVariable];
+
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/dashboards/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.delay(500),
+          ctx.status(200),
+          ctx.json({ success: true, dashboard: dashboardWithSlider }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  render(
+    <AvailableDashboardsContext.Provider
+      value={{ updateDashboard: mockUpdateDashboard }}
+    >
+      <DashboardLoader {...dashboardWithSlider}>
+        <TestingComponent TabID={1} />
+      </DashboardLoader>
+    </AvailableDashboardsContext.Provider>,
+  );
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "01/14/2026T00:00" }),
+  );
+
+  expect(
+    await screen.findByTestId("variable-input-date-formats"),
+  ).toHaveTextContent(JSON.stringify({ "Test Variable": "yyyy-MM-dd" }));
+
+  let { tabs, ...dashboardContextProperties } = dashboardWithSlider;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
@@ -556,10 +667,15 @@ test("DashboardLoader updateGridItems existing date range variable input", async
     }),
   );
 
+  expect(
+    await screen.findByTestId("variable-input-date-formats"),
+  ).toHaveTextContent(JSON.stringify({}));
+
   let { tabs, ...dashboardContextProperties } = mockedDashboard;
   expect(await screen.findByTestId("layout-context")).toHaveTextContent(
     JSON.stringify({ ...dashboardContextProperties, editable: true }),
   );
+
   expect(await screen.findByTestId("tabs-context")).toHaveTextContent(
     JSON.stringify({ tabs: [...tabs], activeTabId: tabs[0].id }),
   );
@@ -583,6 +699,15 @@ test("DashboardLoader updateGridItems existing date range variable input", async
         "End Date": "01/16/2026T00:00",
       }),
     ),
+  );
+  expect(
+    await screen.findByTestId("variable-input-date-formats"),
+  ).toHaveTextContent(
+    JSON.stringify({
+      "Test Variable": "MM/dd/yyyy'T'HH:mm",
+      "Start Date": "MM/dd/yyyy'T'HH:mm",
+      "End Date": "MM/dd/yyyy'T'HH:mm",
+    }),
   );
 });
 

@@ -387,13 +387,14 @@ const Slider = ({
   });
 
   useEffect(() => {
-    const sliderVariableValue = variableInputValues[variable_name];
+    let sliderVariableValue = variableInputValues[variable_name];
     const currentValue = formatValue(
       values[debouncedCurrentIdx],
       outputFormat,
       isDateType,
     );
     if (sliderVariableValue) {
+      sliderVariableValue = sliderVariableValue.toString();
       // Find the index of the sliderVariableValue in values
       const idx = values.findIndex((v) =>
         valuesEqual(
