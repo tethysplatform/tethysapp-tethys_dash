@@ -1,5 +1,5 @@
-import React, { createRef, forwardRef, useEffect } from "react";
-import { render, screen, act } from "@testing-library/react";
+import { createRef, forwardRef, useEffect } from "react";
+import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import PropTypes from "prop-types";
 import ModuleLoader from "../../../components/visualizations/ModuleLoader";
@@ -59,7 +59,7 @@ describe("ModuleLoader", () => {
     DummyDefault.displayName = "DummyDefault";
 
     loadComponent.mockReturnValue(() =>
-      Promise.resolve({ default: DummyDefault })
+      Promise.resolve({ default: DummyDefault }),
     );
   });
 
@@ -72,7 +72,7 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} module={null} />
-        </Wrapper>
+        </Wrapper>,
       );
       expect(screen.getByText("No system specified")).toBeInTheDocument();
     });
@@ -82,7 +82,7 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} module={undefined} />
-        </Wrapper>
+        </Wrapper>,
       );
       expect(screen.getByText("No system specified")).toBeInTheDocument();
     });
@@ -92,7 +92,7 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} module="" />
-        </Wrapper>
+        </Wrapper>,
       );
       expect(screen.getByText("No system specified")).toBeInTheDocument();
     });
@@ -102,7 +102,7 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} module={0} />
-        </Wrapper>
+        </Wrapper>,
       );
       expect(screen.getByText("No system specified")).toBeInTheDocument();
     });
@@ -112,7 +112,7 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} module={null} />
-        </Wrapper>
+        </Wrapper>,
       );
       expect(loadComponent).not.toHaveBeenCalled();
     });
@@ -127,7 +127,7 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(loadComponent).toHaveBeenCalledWith({
@@ -143,11 +143,11 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(loadComponent).toHaveBeenCalledWith(
-        expect.objectContaining({ remoteType: "webpack" })
+        expect.objectContaining({ remoteType: "webpack" }),
       );
     });
 
@@ -156,11 +156,11 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} remoteType="vite-esm" />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(loadComponent).toHaveBeenCalledWith(
-        expect.objectContaining({ remoteType: "vite-esm" })
+        expect.objectContaining({ remoteType: "vite-esm" }),
       );
     });
 
@@ -169,7 +169,7 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} url={null} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       // useEffect guard: if (!url || !module) return;
@@ -181,7 +181,7 @@ describe("ModuleLoader", () => {
       const { rerender } = render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       loadComponent.mockClear();
@@ -189,11 +189,11 @@ describe("ModuleLoader", () => {
       rerender(
         <Wrapper>
           <ModuleLoader {...defaultProps} scope="newScope" />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(loadComponent).toHaveBeenCalledWith(
-        expect.objectContaining({ scope: "newScope" })
+        expect.objectContaining({ scope: "newScope" }),
       );
     });
 
@@ -202,7 +202,7 @@ describe("ModuleLoader", () => {
       const { rerender } = render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       loadComponent.mockClear();
@@ -210,11 +210,11 @@ describe("ModuleLoader", () => {
       rerender(
         <Wrapper>
           <ModuleLoader {...defaultProps} url="https://new-url.com/r.js" />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(loadComponent).toHaveBeenCalledWith(
-        expect.objectContaining({ url: "https://new-url.com/r.js" })
+        expect.objectContaining({ url: "https://new-url.com/r.js" }),
       );
     });
 
@@ -223,7 +223,7 @@ describe("ModuleLoader", () => {
       const { rerender } = render(
         <Wrapper>
           <ModuleLoader {...defaultProps} remoteType="webpack" />
-        </Wrapper>
+        </Wrapper>,
       );
 
       loadComponent.mockClear();
@@ -231,11 +231,11 @@ describe("ModuleLoader", () => {
       rerender(
         <Wrapper>
           <ModuleLoader {...defaultProps} remoteType="vite-esm" />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(loadComponent).toHaveBeenCalledWith(
-        expect.objectContaining({ remoteType: "vite-esm" })
+        expect.objectContaining({ remoteType: "vite-esm" }),
       );
     });
   });
@@ -250,19 +250,17 @@ describe("ModuleLoader", () => {
       ));
       Loaded.displayName = "Loaded";
 
-      loadComponent.mockReturnValue(() =>
-        Promise.resolve({ default: Loaded })
-      );
+      loadComponent.mockReturnValue(() => Promise.resolve({ default: Loaded }));
 
       const Wrapper = createContextWrapper();
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(
-        await screen.findByTestId("dynamic-component")
+        await screen.findByTestId("dynamic-component"),
       ).toBeInTheDocument();
     });
 
@@ -274,7 +272,7 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(screen.getByTestId("loading-animation")).toBeInTheDocument();
@@ -282,18 +280,18 @@ describe("ModuleLoader", () => {
 
     test("renders error message when remote fails to load", async () => {
       loadComponent.mockReturnValue(() =>
-        Promise.reject(new Error("network failure"))
+        Promise.reject(new Error("network failure")),
       );
 
       const Wrapper = createContextWrapper();
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(
-        await screen.findByText(`Failed to load remote: ${defaultProps.url}`)
+        await screen.findByText(`Failed to load remote: ${defaultProps.url}`),
       ).toBeInTheDocument();
     });
 
@@ -302,13 +300,11 @@ describe("ModuleLoader", () => {
       const { container } = render(
         <Wrapper>
           <ModuleLoader {...defaultProps} url={null} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(screen.queryByTestId("loading-animation")).not.toBeInTheDocument();
-      expect(
-        screen.queryByText("No system specified")
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText("No system specified")).not.toBeInTheDocument();
       expect(container).toBeEmptyDOMElement();
     });
   });
@@ -325,9 +321,7 @@ describe("ModuleLoader", () => {
       });
       Spy.displayName = "Spy";
 
-      loadComponent.mockReturnValue(() =>
-        Promise.resolve({ default: Spy })
-      );
+      loadComponent.mockReturnValue(() => Promise.resolve({ default: Spy }));
 
       const contextValue = {
         variableInputValues: { var1: "value1", var2: "value2" },
@@ -338,7 +332,7 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       await screen.findByTestId("spy-component");
@@ -366,7 +360,7 @@ describe("ModuleLoader", () => {
       Invoker.propTypes = { updateVariableInputValues: PropTypes.func };
 
       loadComponent.mockReturnValue(() =>
-        Promise.resolve({ default: Invoker })
+        Promise.resolve({ default: Invoker }),
       );
 
       const contextValue = {
@@ -378,7 +372,7 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       await screen.findByTestId("invoker");
@@ -397,9 +391,7 @@ describe("ModuleLoader", () => {
       });
       Spy.displayName = "Spy";
 
-      loadComponent.mockReturnValue(() =>
-        Promise.resolve({ default: Spy })
-      );
+      loadComponent.mockReturnValue(() => Promise.resolve({ default: Spy }));
 
       const Wrapper = createContextWrapper();
       render(
@@ -408,7 +400,7 @@ describe("ModuleLoader", () => {
             {...defaultProps}
             props={{ customProp: "customValue", anotherProp: 42 }}
           />
-        </Wrapper>
+        </Wrapper>,
       );
 
       await screen.findByTestId("spy-component");
@@ -426,15 +418,13 @@ describe("ModuleLoader", () => {
       ));
       Spy.displayName = "Spy";
 
-      loadComponent.mockReturnValue(() =>
-        Promise.resolve({ default: Spy })
-      );
+      loadComponent.mockReturnValue(() => Promise.resolve({ default: Spy }));
 
       const Wrapper = createContextWrapper();
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} visualizationRef={ref} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       await screen.findByTestId("spy-component");
@@ -458,7 +448,7 @@ describe("ModuleLoader", () => {
             props={{}}
             visualizationRef={createRef()}
           />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(loadComponent).toHaveBeenCalledWith({
@@ -475,14 +465,14 @@ describe("ModuleLoader", () => {
       const { rerender } = render(
         <Wrapper>
           <ModuleLoader {...defaultProps} module={0} />
-        </Wrapper>
+        </Wrapper>,
       );
       expect(screen.getByText("No system specified")).toBeInTheDocument();
 
       rerender(
         <Wrapper>
           <ModuleLoader {...defaultProps} module={false} />
-        </Wrapper>
+        </Wrapper>,
       );
       expect(screen.getByText("No system specified")).toBeInTheDocument();
     });
@@ -493,9 +483,7 @@ describe("ModuleLoader", () => {
       ));
       Loaded.displayName = "Loaded";
 
-      loadComponent.mockReturnValue(() =>
-        Promise.resolve({ default: Loaded })
-      );
+      loadComponent.mockReturnValue(() => Promise.resolve({ default: Loaded }));
 
       const contextValue = {
         variableInputValues: { v1: "a", v2: "b" },
@@ -506,11 +494,11 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
       expect(
-        await screen.findByTestId("dynamic-component")
+        await screen.findByTestId("dynamic-component"),
       ).toBeInTheDocument();
     });
   });

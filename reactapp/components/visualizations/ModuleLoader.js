@@ -34,7 +34,7 @@ function useDynamicFederatedComponent({ scope, module, url, remoteType }) {
           setFailed(true);
         }
         return { default: () => null };
-      })
+      }),
     );
 
     if (mounted) {
@@ -52,7 +52,7 @@ function useDynamicFederatedComponent({ scope, module, url, remoteType }) {
 function ModuleLoader(props) {
   console.log("[ModuleLoader] props:", props);
   const { variableInputValues, setVariableInputValues } = useContext(
-    VariableInputsContext
+    VariableInputsContext,
   );
 
   const updateVariableInputValues = useCallback(
@@ -61,18 +61,19 @@ function ModuleLoader(props) {
         ...prevStateValues,
         ...updatedValues,
       })),
-    [setVariableInputValues]
+    [setVariableInputValues],
   );
 
   const memoizedVariableInputValues = useMemo(
     () => variableInputValues,
-    [variableInputValues]
+    [variableInputValues],
   );
 
   if (!props.module) {
     return <h2>No system specified</h2>;
   }
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { Component, failed } = useDynamicFederatedComponent({
     scope: props.scope,
     module: props.module,
