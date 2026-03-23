@@ -11,7 +11,6 @@ import json
 from alembic import op
 import sqlalchemy as sa
 
-
 # revision identifiers, used by Alembic.
 revision: str = "b4f03a66239a"
 down_revision: Union[str, None] = "ed97dcad9e2b"
@@ -31,10 +30,8 @@ def upgrade() -> None:
     connection = op.get_bind()
     results = connection.execute(
         sa.select(
-            [
-                t_griditems.c.id,
-                t_griditems.c.refresh_rate,
-            ]
+            t_griditems.c.id,
+            t_griditems.c.refresh_rate,
         )
     ).fetchall()
 
@@ -63,10 +60,8 @@ def downgrade() -> None:
     connection = op.get_bind()
     results = connection.execute(
         sa.select(
-            [
-                t_griditems.c.id,
-                t_griditems.c.metadata_string,
-            ]
+            t_griditems.c.id,
+            t_griditems.c.metadata_string,
         )
     ).fetchall()
 

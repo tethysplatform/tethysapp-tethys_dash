@@ -13,7 +13,6 @@ import {
   GridItemContext,
   DataViewerModeContext,
 } from "components/contexts/Contexts";
-import { convertDatesToLocalISO } from "components/inputs/dateUtils";
 
 jest.mock("plotly.js-strict-dist-min", () => {
   const mockRelayout = jest.fn();

@@ -303,7 +303,6 @@ class VisualizationConsumer(AsyncWebsocketConsumer):
             text_data (str, optional): JSON string containing the message data.
             bytes_data (bytes, optional): Not used.
         """
-        print(text_data)
         try:
             data = json.loads(text_data)
             request_id = data["requestId"]

@@ -1,15 +1,13 @@
-import React, { createRef, forwardRef, useEffect } from "react";
+import { createRef, forwardRef, useEffect } from "react";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import PropTypes from "prop-types";
-import ModuleLoader, {
-  loadComponent,
-} from "../../../components/visualizations/ModuleLoader";
+import ModuleLoader from "../../../components/visualizations/ModuleLoader";
 import { VariableInputsContext } from "../../../components/contexts/Contexts";
-import useDynamicScript from "../../../hooks/useDynamicScript";
+import { loadComponent } from "../../../components/visualizations/remoteLoader";
 
-// Mock the useDynamicScript hook
-jest.mock("../../../hooks/useDynamicScript");
+// Mock the remoteLoader module
+jest.mock("../../../components/visualizations/remoteLoader");
 
 // Mock LoadingAnimation component
 jest.mock("../../../components/loader/LoadingAnimation", () => {
@@ -52,230 +50,279 @@ describe("ModuleLoader", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(console, "log").mockImplementation(() => {});
 
-    // Default useDynamicScript mock
-    useDynamicScript.mockReturnValue({ ready: false, failed: false });
+    // Default: loadComponent returns a thunk that resolves to a component
+    const DummyDefault = forwardRef((props, ref) => (
+      <div data-testid="remote-component">Remote Component</div>
+    ));
+    DummyDefault.displayName = "DummyDefault";
+
+    loadComponent.mockReturnValue(() =>
+      Promise.resolve({ default: DummyDefault }),
+    );
   });
 
+  // ──────────────────────────────────────────────────────────
+  // No module specified
+  // ──────────────────────────────────────────────────────────
   describe("No module specified", () => {
     test("renders 'No system specified' when module is null", () => {
       const Wrapper = createContextWrapper();
-
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} module={null} />
-        </Wrapper>
+        </Wrapper>,
       );
-
       expect(screen.getByText("No system specified")).toBeInTheDocument();
     });
 
     test("renders 'No system specified' when module is undefined", () => {
       const Wrapper = createContextWrapper();
-
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} module={undefined} />
-        </Wrapper>
+        </Wrapper>,
       );
-
       expect(screen.getByText("No system specified")).toBeInTheDocument();
     });
 
     test("renders 'No system specified' when module is empty string", () => {
       const Wrapper = createContextWrapper();
-
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} module="" />
-        </Wrapper>
+        </Wrapper>,
       );
-
       expect(screen.getByText("No system specified")).toBeInTheDocument();
     });
 
-    test("renders 'No system specified' when module is falsy", () => {
+    test("renders 'No system specified' when module is falsy (0)", () => {
       const Wrapper = createContextWrapper();
-
       render(
         <Wrapper>
-          <ModuleLoader {...defaultProps} module={false} />
-        </Wrapper>
+          <ModuleLoader {...defaultProps} module={0} />
+        </Wrapper>,
       );
-
       expect(screen.getByText("No system specified")).toBeInTheDocument();
+    });
+
+    test("does not call loadComponent when module is falsy", () => {
+      const Wrapper = createContextWrapper();
+      render(
+        <Wrapper>
+          <ModuleLoader {...defaultProps} module={null} />
+        </Wrapper>,
+      );
+      expect(loadComponent).not.toHaveBeenCalled();
     });
   });
 
-  describe("Dynamic script loading", () => {
-    test("calls useDynamicScript with correct URL when module and url provided", () => {
+  // ──────────────────────────────────────────────────────────
+  // useDynamicFederatedComponent (tested through ModuleLoader)
+  // ──────────────────────────────────────────────────────────
+  describe("useDynamicFederatedComponent", () => {
+    test("calls loadComponent with correct params", () => {
       const Wrapper = createContextWrapper();
-
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
-      expect(useDynamicScript).toHaveBeenCalledWith({
-        url: defaultProps.url,
+      expect(loadComponent).toHaveBeenCalledWith({
+        scope: "testScope",
+        module: "testModule",
+        url: "https://example.com/test.js",
+        remoteType: "webpack",
       });
     });
 
-    test("renders error message when script fails to load", () => {
-      useDynamicScript.mockReturnValue({ ready: false, failed: true });
+    test("defaults remoteType to 'webpack'", () => {
       const Wrapper = createContextWrapper();
-
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
-      expect(
-        screen.getByText(`Failed to load dynamic script: ${defaultProps.url}`)
-      ).toBeInTheDocument();
-    });
-
-    test("renders nothing when script is loading", () => {
-      useDynamicScript.mockReturnValue({ ready: false, failed: false });
-      const Wrapper = createContextWrapper();
-
-      const { container } = render(
-        <Wrapper>
-          <ModuleLoader {...defaultProps} />
-        </Wrapper>
+      expect(loadComponent).toHaveBeenCalledWith(
+        expect.objectContaining({ remoteType: "webpack" }),
       );
-
-      // Should not render anything when not ready and not failed
-      expect(screen.queryByText("No system specified")).not.toBeInTheDocument();
-      expect(
-        screen.queryByText(/Failed to load dynamic script/)
-      ).not.toBeInTheDocument();
-      expect(screen.queryByTestId("dynamic-component")).not.toBeInTheDocument();
-
-      // Container should not contain any visible text
-      expect(container).toBeEmptyDOMElement();
     });
 
-    test("renders loading animation when script is ready", () => {
-      useDynamicScript.mockReturnValue({ ready: true, failed: false });
+    test("passes remoteType='vite-esm' through to loadComponent", () => {
       const Wrapper = createContextWrapper();
-
       render(
         <Wrapper>
-          <ModuleLoader {...defaultProps} />
-        </Wrapper>
+          <ModuleLoader {...defaultProps} remoteType="vite-esm" />
+        </Wrapper>,
       );
 
-      // Should render the Suspense component with fallback
-      expect(screen.getByTestId("loading-animation")).toBeInTheDocument();
+      expect(loadComponent).toHaveBeenCalledWith(
+        expect.objectContaining({ remoteType: "vite-esm" }),
+      );
     });
-  });
 
-  describe("Script URL handling", () => {
-    test("handles case when module exists but url is null", () => {
+    test("does not call loadComponent when url is missing", () => {
       const Wrapper = createContextWrapper();
-
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} url={null} />
-        </Wrapper>
+        </Wrapper>,
       );
 
-      // When module exists but url is null, should pass null to useDynamicScript
-      expect(useDynamicScript).toHaveBeenCalledWith({
-        url: null,
-      });
+      // useEffect guard: if (!url || !module) return;
+      expect(loadComponent).not.toHaveBeenCalled();
     });
 
-    test("handles case when module exists but url is undefined", () => {
+    test("re-invokes loadComponent when scope changes", () => {
       const Wrapper = createContextWrapper();
-
-      render(
+      const { rerender } = render(
         <Wrapper>
-          <ModuleLoader {...defaultProps} url={undefined} />
-        </Wrapper>
+          <ModuleLoader {...defaultProps} />
+        </Wrapper>,
       );
 
-      // When module exists but url is undefined, should pass undefined to useDynamicScript
-      expect(useDynamicScript).toHaveBeenCalledWith({
-        url: undefined,
-      });
+      loadComponent.mockClear();
+
+      rerender(
+        <Wrapper>
+          <ModuleLoader {...defaultProps} scope="newScope" />
+        </Wrapper>,
+      );
+
+      expect(loadComponent).toHaveBeenCalledWith(
+        expect.objectContaining({ scope: "newScope" }),
+      );
     });
 
-    test("handles missing URL gracefully", () => {
+    test("re-invokes loadComponent when url changes", () => {
       const Wrapper = createContextWrapper();
-
-      render(
+      const { rerender } = render(
         <Wrapper>
-          <ModuleLoader
-            scope="testScope"
-            module="testModule"
-            // url is intentionally missing
-            props={{}}
-            visualizationRef={createRef()}
-          />
-        </Wrapper>
+          <ModuleLoader {...defaultProps} />
+        </Wrapper>,
       );
 
-      expect(useDynamicScript).toHaveBeenCalledWith({
-        url: undefined, // module && url evaluates to undefined when url is undefined
-      });
+      loadComponent.mockClear();
+
+      rerender(
+        <Wrapper>
+          <ModuleLoader {...defaultProps} url="https://new-url.com/r.js" />
+        </Wrapper>,
+      );
+
+      expect(loadComponent).toHaveBeenCalledWith(
+        expect.objectContaining({ url: "https://new-url.com/r.js" }),
+      );
+    });
+
+    test("re-invokes loadComponent when remoteType changes", () => {
+      const Wrapper = createContextWrapper();
+      const { rerender } = render(
+        <Wrapper>
+          <ModuleLoader {...defaultProps} remoteType="webpack" />
+        </Wrapper>,
+      );
+
+      loadComponent.mockClear();
+
+      rerender(
+        <Wrapper>
+          <ModuleLoader {...defaultProps} remoteType="vite-esm" />
+        </Wrapper>,
+      );
+
+      expect(loadComponent).toHaveBeenCalledWith(
+        expect.objectContaining({ remoteType: "vite-esm" }),
+      );
     });
   });
 
-  describe("Component lifecycle and state management", () => {
-    test("renders correctly on initial mount", () => {
-      const Wrapper = createContextWrapper();
+  // ──────────────────────────────────────────────────────────
+  // Rendering states
+  // ──────────────────────────────────────────────────────────
+  describe("rendering states", () => {
+    test("renders loaded component via Suspense", async () => {
+      const Loaded = forwardRef((props, ref) => (
+        <div data-testid="dynamic-component">Dynamic Loaded</div>
+      ));
+      Loaded.displayName = "Loaded";
 
+      loadComponent.mockReturnValue(() => Promise.resolve({ default: Loaded }));
+
+      const Wrapper = createContextWrapper();
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
-      // Initial state should not render anything visible
-      expect(screen.queryByText("No system specified")).not.toBeInTheDocument();
       expect(
-        screen.queryByText(/Failed to load dynamic script/)
-      ).not.toBeInTheDocument();
+        await screen.findByTestId("dynamic-component"),
+      ).toBeInTheDocument();
     });
 
-    test("handles script ready state correctly", () => {
-      useDynamicScript.mockReturnValue({ ready: true, failed: false });
-      const Wrapper = createContextWrapper();
+    test("shows loading fallback while component resolves", async () => {
+      // loadComponent returns a thunk that never resolves
+      loadComponent.mockReturnValue(() => new Promise(() => {}));
 
+      const Wrapper = createContextWrapper();
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
-      // Should show loading animation when script is ready
       expect(screen.getByTestId("loading-animation")).toBeInTheDocument();
     });
 
-    test("handles script failed state correctly", () => {
-      useDynamicScript.mockReturnValue({ ready: false, failed: true });
-      const Wrapper = createContextWrapper();
+    test("renders error message when remote fails to load", async () => {
+      loadComponent.mockReturnValue(() =>
+        Promise.reject(new Error("network failure")),
+      );
 
+      const Wrapper = createContextWrapper();
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
-      // Should show error message when script fails
       expect(
-        screen.getByText(`Failed to load dynamic script: ${defaultProps.url}`)
+        await screen.findByText(`Failed to load remote: ${defaultProps.url}`),
       ).toBeInTheDocument();
+    });
+
+    test("renders nothing when url is null (component stays null)", () => {
+      const Wrapper = createContextWrapper();
+      const { container } = render(
+        <Wrapper>
+          <ModuleLoader {...defaultProps} url={null} />
+        </Wrapper>,
+      );
+
+      expect(screen.queryByTestId("loading-animation")).not.toBeInTheDocument();
+      expect(screen.queryByText("No system specified")).not.toBeInTheDocument();
+      expect(container).toBeEmptyDOMElement();
     });
   });
 
-  describe("Context integration", () => {
-    test("integrates with VariableInputsContext", () => {
-      useDynamicScript.mockReturnValue({ ready: true, failed: false });
+  // ──────────────────────────────────────────────────────────
+  // Context integration
+  // ──────────────────────────────────────────────────────────
+  describe("context integration", () => {
+    test("passes variableInputValues to loaded component", async () => {
+      const receivedProps = {};
+      const Spy = forwardRef((props, ref) => {
+        Object.assign(receivedProps, props);
+        return <div data-testid="spy-component">Spy</div>;
+      });
+      Spy.displayName = "Spy";
+
+      loadComponent.mockReturnValue(() => Promise.resolve({ default: Spy }));
+
       const contextValue = {
         variableInputValues: { var1: "value1", var2: "value2" },
         setVariableInputValues: jest.fn(),
@@ -285,16 +332,37 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
-      // Should render loading animation, indicating successful context integration
-      expect(screen.getByTestId("loading-animation")).toBeInTheDocument();
+      await screen.findByTestId("spy-component");
+
+      expect(receivedProps.variableInputValues).toEqual({
+        var1: "value1",
+        var2: "value2",
+      });
+      expect(typeof receivedProps.updateVariableInputValues).toBe("function");
     });
 
-    test("createVariableInputsUpdater function is created", () => {
-      useDynamicScript.mockReturnValue({ ready: true, failed: false });
+    test("updateVariableInputValues merges with previous state", async () => {
       const setVariableInputValues = jest.fn();
+
+      const Invoker = forwardRef((props, ref) => {
+        const { updateVariableInputValues } = props;
+        useEffect(() => {
+          if (updateVariableInputValues) {
+            updateVariableInputValues({ newVar: "newValue" });
+          }
+        }, [updateVariableInputValues]);
+        return <div data-testid="invoker">Invoker</div>;
+      });
+      Invoker.displayName = "Invoker";
+      Invoker.propTypes = { updateVariableInputValues: PropTypes.func };
+
+      loadComponent.mockReturnValue(() =>
+        Promise.resolve({ default: Invoker }),
+      );
+
       const contextValue = {
         variableInputValues: { existing: "value" },
         setVariableInputValues,
@@ -304,42 +372,73 @@ describe("ModuleLoader", () => {
       render(
         <Wrapper>
           <ModuleLoader {...defaultProps} />
-        </Wrapper>
+        </Wrapper>,
       );
 
-      // The component should render successfully, indicating updateVariableInputValues was created
-      expect(screen.getByTestId("loading-animation")).toBeInTheDocument();
+      await screen.findByTestId("invoker");
+
+      expect(setVariableInputValues).toHaveBeenCalled();
+      const updater = setVariableInputValues.mock.calls[0][0];
+      const merged = updater({ existing: "value" });
+      expect(merged).toEqual({ existing: "value", newVar: "newValue" });
+    });
+
+    test("passes custom props to loaded component", async () => {
+      const receivedProps = {};
+      const Spy = forwardRef((props, ref) => {
+        Object.assign(receivedProps, props);
+        return <div data-testid="spy-component">Spy</div>;
+      });
+      Spy.displayName = "Spy";
+
+      loadComponent.mockReturnValue(() => Promise.resolve({ default: Spy }));
+
+      const Wrapper = createContextWrapper();
+      render(
+        <Wrapper>
+          <ModuleLoader
+            {...defaultProps}
+            props={{ customProp: "customValue", anotherProp: 42 }}
+          />
+        </Wrapper>,
+      );
+
+      await screen.findByTestId("spy-component");
+
+      expect(receivedProps.customProp).toBe("customValue");
+      expect(receivedProps.anotherProp).toBe(42);
+    });
+
+    test("forwards visualizationRef to loaded component", async () => {
+      const ref = createRef();
+      const Spy = forwardRef((props, fwdRef) => (
+        <div data-testid="spy-component" ref={fwdRef}>
+          Spy
+        </div>
+      ));
+      Spy.displayName = "Spy";
+
+      loadComponent.mockReturnValue(() => Promise.resolve({ default: Spy }));
+
+      const Wrapper = createContextWrapper();
+      render(
+        <Wrapper>
+          <ModuleLoader {...defaultProps} visualizationRef={ref} />
+        </Wrapper>,
+      );
+
+      await screen.findByTestId("spy-component");
+
+      expect(ref.current).toBeInstanceOf(HTMLDivElement);
     });
   });
 
-  describe("Edge cases", () => {
-    test("calls updateVariableInputValues and triggers setVariableInputValues (covers line 54)", async () => {
-      useDynamicScript.mockReturnValue({ ready: true, failed: false });
-      const setVariableInputValues = jest.fn((updater) => {
-        // Simulate React state updater function
-        const prev = { a: 1 };
-        return typeof updater === "function" ? updater(prev) : updater;
-      });
-      // Dummy component to capture props
-      const DummyComponent = forwardRef((props, ref) => {
-        const { updateVariableInputValues } = props;
-        useEffect(() => {
-          if (updateVariableInputValues) {
-            updateVariableInputValues({ b: 2 });
-          }
-        }, [updateVariableInputValues]);
-        return <div data-testid="dynamic-component">Dynamic Loaded</div>;
-      });
-      DummyComponent.displayName = "DummyComponent";
-      DummyComponent.propTypes = {
-        updateVariableInputValues: PropTypes.func,
-      };
-      jest.spyOn(React, "lazy").mockImplementation(() => DummyComponent);
-      const contextValue = {
-        variableInputValues: { a: 1 },
-        setVariableInputValues,
-      };
-      const Wrapper = createContextWrapper(contextValue);
+  // ──────────────────────────────────────────────────────────
+  // Edge cases
+  // ──────────────────────────────────────────────────────────
+  describe("edge cases", () => {
+    test("handles empty props object", () => {
+      const Wrapper = createContextWrapper();
       render(
         <Wrapper>
           <ModuleLoader
@@ -349,150 +448,58 @@ describe("ModuleLoader", () => {
             props={{}}
             visualizationRef={createRef()}
           />
-        </Wrapper>
+        </Wrapper>,
       );
-      expect(
-        await screen.findByTestId("dynamic-component")
-      ).toBeInTheDocument();
-      expect(setVariableInputValues).toHaveBeenCalled();
-      React.lazy.mockRestore();
+
+      expect(loadComponent).toHaveBeenCalledWith({
+        scope: "testScope",
+        module: "testModule",
+        url: "https://example.com/test.js",
+        remoteType: "webpack",
+      });
     });
+
     test("handles various falsy module values", () => {
       const Wrapper = createContextWrapper();
 
-      // Test with 0
       const { rerender } = render(
         <Wrapper>
           <ModuleLoader {...defaultProps} module={0} />
-        </Wrapper>
+        </Wrapper>,
       );
       expect(screen.getByText("No system specified")).toBeInTheDocument();
 
-      // Test with empty string
       rerender(
         <Wrapper>
-          <ModuleLoader {...defaultProps} module="" />
-        </Wrapper>
+          <ModuleLoader {...defaultProps} module={false} />
+        </Wrapper>,
       );
       expect(screen.getByText("No system specified")).toBeInTheDocument();
     });
 
-    describe("loadComponent and dynamic loading", () => {
-      let originalWindow;
-      beforeEach(() => {
-        originalWindow = { ...window };
-      });
-      afterEach(() => {
-        // Restore window object
-        Object.keys(window).forEach((key) => {
-          if (!(key in originalWindow)) {
-            delete window[key];
-          }
-        });
-        Object.assign(window, originalWindow);
-      });
+    test("integrates with VariableInputsContext", async () => {
+      const Loaded = forwardRef((props, ref) => (
+        <div data-testid="dynamic-component">Context OK</div>
+      ));
+      Loaded.displayName = "Loaded";
 
-      test("calls __webpack_init_sharing__ and container.init if window[scope] is not initialized", async () => {
-        // Arrange
-        const scope = "TestScope";
-        const module = "TestModule";
-        const mockInitSharing = jest.fn(() => Promise.resolve());
-        const mockContainerInit = jest.fn(() => Promise.resolve());
-        const mockGet = jest.fn(() =>
-          Promise.resolve(() => {
-            const Loaded = () => <div>Loaded!</div>;
-            Loaded.displayName = "Loaded";
-            return Loaded;
-          })
-        );
-        window[scope] = {
-          initialized: false,
-          init: mockContainerInit,
-          get: mockGet,
-        };
-        global.__webpack_init_sharing__ = mockInitSharing;
-        global.__webpack_share_scopes__ = { default: {} };
+      loadComponent.mockReturnValue(() => Promise.resolve({ default: Loaded }));
 
-        // Act
-        const loader = loadComponent(scope, module);
-        const result = await loader();
-        expect(mockInitSharing).toHaveBeenCalledWith("default");
-        expect(mockContainerInit).toHaveBeenCalledWith(
-          global.__webpack_share_scopes__.default
-        );
-        expect(mockGet).toHaveBeenCalledWith(module);
-        expect(typeof result).toBe("function");
-      });
-
-      test("does not call __webpack_init_sharing__ if window[scope] is already initialized", async () => {
-        const scope = "TestScope2";
-        const module = "TestModule2";
-        const mockGet = jest.fn(() =>
-          Promise.resolve(() => {
-            const Loaded2 = () => <div>Loaded2!</div>;
-            Loaded2.displayName = "Loaded2";
-            return Loaded2;
-          })
-        );
-        window[scope] = { initialized: true, get: mockGet };
-        // __webpack_init_sharing__ should not be called
-        global.__webpack_init_sharing__ = jest.fn();
-        global.__webpack_share_scopes__ = { default: {} };
-
-        const loader = loadComponent(scope, module);
-        const result = await loader();
-        expect(global.__webpack_init_sharing__).not.toHaveBeenCalled();
-        expect(mockGet).toHaveBeenCalledWith(module);
-        expect(typeof result).toBe("function");
-      });
-
-      test("renders the loaded component when ready (ModuleLoader line 54)", async () => {
-        // Simulate the dynamic import and ready state
-        useDynamicScript.mockReturnValue({ ready: true, failed: false });
-        // Patch React.lazy to return a dummy component
-        const DummyComponent = forwardRef((props, ref) => (
-          <div data-testid="dynamic-component">Dynamic Loaded</div>
-        ));
-        DummyComponent.displayName = "DummyComponent";
-        jest.spyOn(React, "lazy").mockImplementation(() => DummyComponent);
-        const Wrapper = createContextWrapper();
-        render(
-          <Wrapper>
-            <ModuleLoader
-              scope="testScope"
-              module="testModule"
-              url="https://example.com/test.js"
-              props={{}}
-              visualizationRef={createRef()}
-            />
-          </Wrapper>
-        );
-        expect(
-          await screen.findByTestId("dynamic-component")
-        ).toBeInTheDocument();
-        React.lazy.mockRestore();
-      });
-    });
-
-    test("handles empty props correctly", () => {
-      const Wrapper = createContextWrapper();
+      const contextValue = {
+        variableInputValues: { v1: "a", v2: "b" },
+        setVariableInputValues: jest.fn(),
+      };
+      const Wrapper = createContextWrapper(contextValue);
 
       render(
         <Wrapper>
-          <ModuleLoader
-            scope="testScope"
-            module="testModule"
-            url="https://example.com/test.js"
-            props={{}}
-            visualizationRef={createRef()}
-          />
-        </Wrapper>
+          <ModuleLoader {...defaultProps} />
+        </Wrapper>,
       );
 
-      // Should behave normally with empty props
-      expect(useDynamicScript).toHaveBeenCalledWith({
-        url: "https://example.com/test.js",
-      });
+      expect(
+        await screen.findByTestId("dynamic-component"),
+      ).toBeInTheDocument();
     });
   });
 });

@@ -184,6 +184,7 @@ export async function getVisualization({
         url: responseData.url,
         scope: responseData.scope,
         module: responseData.module,
+        remoteType: responseData.remoteType ?? "webpack",
         props: responseData.props,
       });
     } else if (apiResponse.viz_type === "text") {

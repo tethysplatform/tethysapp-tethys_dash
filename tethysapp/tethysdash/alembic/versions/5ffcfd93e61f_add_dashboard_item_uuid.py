@@ -12,7 +12,6 @@ import sqlalchemy as sa
 from sqlalchemy.sql import table, column
 import uuid
 
-
 # revision identifiers, used by Alembic.
 revision: str = "5ffcfd93e61f"
 down_revision: Union[str, None] = "488ef941ec3a"
@@ -22,21 +21,20 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Add 'uuid' column to 'griditems' table
+    bind = op.get_bind()
     op.add_column("griditems", sa.Column("uuid", sa.String(), nullable=True))
 
     griditems = table("griditems", column("id", sa.Integer), column("uuid", sa.String))
-
-    conn = op.get_bind()
-    results = conn.execute(sa.text("SELECT id FROM griditems")).fetchall()
+    results = bind.execute(sa.text("SELECT id FROM griditems")).fetchall()
     for row in results:
-        conn.execute(
+        bind.execute(
             griditems.update()
             .where(griditems.c.id == row.id)
             .values(uuid=str(uuid.uuid4()))
         )
 
-    # Make 'uuid' column non-nullable
-    op.alter_column("griditems", "uuid", nullable=False)
+    with op.batch_alter_table("griditems") as batch_op:
+        batch_op.alter_column("uuid", nullable=False)
 
 
 def downgrade() -> None:

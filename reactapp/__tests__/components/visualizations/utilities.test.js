@@ -484,6 +484,7 @@ test("getVisualization custom", async () => {
     url: "url",
     scope: "scope",
     module: "module",
+    remoteType: "webpack",
     props: {},
   });
 });

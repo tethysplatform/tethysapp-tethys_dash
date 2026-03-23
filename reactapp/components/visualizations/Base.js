@@ -178,6 +178,7 @@ export const Visualization = memo(
             url={vizData.url}
             scope={vizData.scope}
             module={vizData.module}
+            remoteType={vizData.remoteType}
             props={vizData.props}
           />
         );
