@@ -400,8 +400,7 @@ function getVectorTileLayerFeatures(map, pixel) {
   const features = [];
   map.forEachFeatureAtPixel(pixel, function (feature, layer) {
     if (!feature) return;
-    // Try to get the layer name from the feature property, fallback to OL layer name
-    let featureLayerName = feature.get("layer") || (layer && layer.get("name"));
+    let featureLayerName = feature.get("layer");
     features.push({
       layerName: featureLayerName,
       attributes: feature.getProperties(),

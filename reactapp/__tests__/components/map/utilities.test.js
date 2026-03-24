@@ -1141,10 +1141,7 @@ test("queryLayerFeatures PMTiles Vector", async () => {
       id: "feature-123",
       prop1: "value1",
     }),
-  };
-
-  const mockLayer = {
-    get: jest.fn(() => "PMTiles Vector Layer"),
+    get: () => "PMTiles Vector Layer",
   };
 
   const mockMap = {
@@ -1152,7 +1149,7 @@ test("queryLayerFeatures PMTiles Vector", async () => {
       getZoom: jest.fn(() => 10),
     })),
     forEachFeatureAtPixel: jest.fn((pixelArg, callback) => {
-      callback(mockFeature, mockLayer);
+      callback(mockFeature, {});
     }),
   };
 
@@ -1167,7 +1164,6 @@ test("queryLayerFeatures PMTiles Vector", async () => {
     pixel,
     expect.any(Function),
   );
-  expect(mockLayer.get).toHaveBeenCalledWith("name");
   expect(features).toStrictEqual([
     {
       layerName: "PMTiles Vector Layer",
