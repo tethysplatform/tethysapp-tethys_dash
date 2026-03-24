@@ -1,6 +1,5 @@
 import intake
 from tethysapp.tethysdash.model import get_visualization_user_permission, Message
-from tethysapp.tethysdash.app import App
 from tethysapp.tethysdash.exceptions import VisualizationError
 
 
@@ -87,6 +86,7 @@ def get_available_visualizations(user):
                   ]
               }
     """
+    from tethysapp.tethysdash.app import App
 
     default_intake_sources = {
         "csv",
@@ -167,6 +167,8 @@ def get_visualization(viz_source, viz_args, user, viz_request_id):
         AttributeError: If visualization plugin doesn't exist
         Exception: If data loading fails
     """
+    from tethysapp.tethysdash.app import App
+
     if viz_source == "Live Chat":
         print("Fetching live chat messages from database...")
         Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)

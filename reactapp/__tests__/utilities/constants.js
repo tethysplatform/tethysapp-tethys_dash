@@ -1442,7 +1442,7 @@ export const layerConfigPMTilesVector = {
       source: {
         type: "PMTiles Vector",
         props: {
-          url: "https://test.pmtiles",  // Fake url for testing purposes
+          url: "https://communityhydrofabric.s3.us-east-1.amazonaws.com/map/nexus.pmtiles",
         },
       },
       zIndex: 1,

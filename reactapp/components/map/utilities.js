@@ -11,6 +11,9 @@ import { toGeometry } from "ol/render/Feature";
 import appAPI from "services/api/app";
 import { v4 as uuidv4 } from "uuid";
 import JSON5 from "json5";
+import { PMTiles } from "pmtiles";
+import { VectorTile } from "@mapbox/vector-tile";
+import Protobuf from "pbf";
 
 export const sourcePropertiesOptions = {
   "ESRI Image and Map Service": {
@@ -358,7 +361,9 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
         LayerName,
       );
     } else if (sourceType === "PMTiles Vector") {
-      features = getVectorTileLayerFeatures(map, pixel, LayerName);
+      features = getVectorTileLayerFeatures(map, pixel);
+    } else if (sourceType === "KML") {
+      features = getKMLLayerFeatures(map, pixel, coordinate, LayerName);
     } else {
       throw Error(`${sourceType} is not currently configured to be queried`);
     }
@@ -367,23 +372,44 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   return features;
 }
 
-function getVectorTileLayerFeatures(map, pixel, LayerName) {
+async function getKMLLayerFeatures(map, pixel, coordinate, LayerName) {
+  let features = await getGeoJSONLayerFeatures(
+    map,
+    pixel,
+    coordinate,
+    LayerName,
+  );
+
+  // Remove styleUrl and description, and filter out features with no other attributes
+  features = features
+    .map((feature) => {
+      const attrs = { ...feature.attributes };
+      delete attrs.styleUrl;
+      delete attrs.description;
+      return {
+        ...feature,
+        attributes: attrs,
+      };
+    })
+    .filter((feature) => Object.keys(feature.attributes).length > 0);
+
+  return features;
+}
+
+function getVectorTileLayerFeatures(map, pixel) {
   const features = [];
   map.forEachFeatureAtPixel(pixel, function (feature, layer) {
-    if (layer.get("name") !== LayerName) {
-      return;
-    }
-    if (feature) {
-      const geometry = toGeometry(feature);
-      features.push({
-        layerName: LayerName,
-        attributes: feature.getProperties(),
-        geometry: {
-          type: geometry.getType(),
-          coordinates: geometry.getCoordinates(),
-        },
-      });
-    }
+    if (!feature) return;
+    // Try to get the layer name from the feature property, fallback to OL layer name
+    let featureLayerName = feature.get("layer") || (layer && layer.get("name"));
+    features.push({
+      layerName: featureLayerName,
+      attributes: feature.getProperties(),
+      geometry: {
+        type: toGeometry(feature).getType(),
+        coordinates: toGeometry(feature).getCoordinates(),
+      },
+    });
   });
   return features;
 }
@@ -500,7 +526,10 @@ async function getGeoJSONLayerFeatures(map, pixel, coordinate, LayerName) {
       const { geometry, ...properties } = feature.getProperties();
 
       // if a feature is a collection of geometries, then check each individual item in the collection and check if it was clicked
-      if (geometry.getType() === "GeometryCollection") {
+      if (
+        geometry.getType() === "GeometryCollection" ||
+        geometry.getType() === "MultiGeometry"
+      ) {
         const resolution = map.getView().getResolution();
 
         // loop through each individual geometry in the collection
@@ -611,6 +640,7 @@ export async function getLayerAttributes(
   const layerNumber = sourceProperties?.layer;
 
   // make the appropriate request based on the source type
+  // TODO: add PM Vector Tile and KML attribute retrieval
   if (sourceType === "ESRI Image and Map Service") {
     attributes = await getImageArcGISRestLayerAttributes(sourceUrl);
   } else if (sourceType === "WMS") {
@@ -627,11 +657,79 @@ export async function getLayerAttributes(
       layerNumber,
       layerName,
     );
+  } else if (sourceType === "KML") {
+    attributes = await getKMLLayerAttributes(sourceUrl, layerName);
+  } else if (sourceType === "PMTiles Vector") {
+    attributes = await getPMTilesVectorLayerAttributes(sourceUrl);
   } else {
     throw Error(`${sourceType} is not currently configured to be queried`);
   }
 
   return attributes;
+}
+
+async function getPMTilesVectorLayerAttributes(sourceUrl) {
+  // Default to tile 0/0/0 if not specified, or allow passing tile coordinates as needed
+  const z = 0,
+    x = 0,
+    y = 0;
+  const pmtiles = new PMTiles(sourceUrl);
+  const { data } = await pmtiles.getZxy(z, x, y);
+  const tile = new VectorTile(new Protobuf(data));
+  const sourceAttributes = {};
+  const layerNames = Object.keys(tile.layers);
+  for (const lyrName of layerNames) {
+    const layer = tile.layers[lyrName];
+    const attributesSet = new Set();
+    for (let i = 0; i < layer.length; i++) {
+      const feature = layer.feature(i);
+      Object.keys(feature.properties).forEach((attr) => {
+        attributesSet.add(attr);
+      });
+    }
+    const attributes = Array.from(attributesSet).map((attr) => ({
+      name: attr,
+      alias: attr,
+    }));
+    sourceAttributes[lyrName] = attributes;
+  }
+  return sourceAttributes;
+}
+
+async function getKMLLayerAttributes(sourceUrl, layerName) {
+  const parser = new DOMParser();
+  const kmlTextResponse = await fetch(sourceUrl);
+  const kmlText = await kmlTextResponse.text();
+  const xmlDoc = parser.parseFromString(kmlText, "application/xml");
+
+  const invalidTags = [
+    "Point",
+    "LineString",
+    "Polygon",
+    "MultiGeometry",
+    "MultiLineString",
+    "MultiPolygon",
+    "GeometryCollection",
+    "styleUrl",
+    "description",
+  ];
+
+  const placemarks = xmlDoc.getElementsByTagName("Placemark");
+  const attributes = [];
+  for (let i = 0; i < placemarks.length; i++) {
+    const placemark = placemarks[i];
+    for (let j = 0; j < placemark.children.length; j++) {
+      const child = placemark.children[j];
+      const tag = child.tagName;
+      if (
+        !invalidTags.includes(tag) &&
+        !attributes.some((attr) => attr.name === tag)
+      ) {
+        attributes.push({ name: tag, alias: tag });
+      }
+    }
+  }
+  return { [layerName]: attributes };
 }
 
 async function getImageArcGISRestLayerAttributes(sourceUrl) {

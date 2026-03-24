@@ -70,7 +70,7 @@ def copy_plugin_static(plugin_modules, static_plugin_images, static_plugin_data)
 
             if str(plugin_root) not in plugins_data_collected:
                 for filename in os.listdir(static_dir):
-                    if filename.endswith(".geojson") or filename.endswith(".json"):
+                    if filename.endswith(".geojson") or filename.endswith(".json") or filename.endswith(".kml"):
                         shutil.copy2(
                             os.path.join(static_dir, filename),
                             os.path.join(static_plugin_data, filename),
