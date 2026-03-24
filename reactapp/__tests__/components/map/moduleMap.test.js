@@ -14,6 +14,7 @@ import GeoJSON from "ol/format/GeoJSON.js";
 import Style from "ol/style/Style.js";
 import Stroke from "ol/style/Stroke.js";
 import Fill from "ol/style/Fill.js";
+import KML from "ol/format/KML.js";
 
 test("Module Map Imports", async () => {
   let modulePath, importModule, module;
@@ -92,4 +93,9 @@ test("Module Map Imports", async () => {
   importModule = moduleMap[modulePath];
   module = await importModule();
   expect(module.default).toBe(Fill);
+
+  modulePath = "ol/format/KML.js";
+  importModule = moduleMap[modulePath];
+  module = await importModule();
+  expect(module.default).toBe(KML);
 });

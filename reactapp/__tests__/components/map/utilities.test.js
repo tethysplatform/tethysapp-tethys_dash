@@ -17,7 +17,7 @@ import {
   layerConfigImageArcGISRest,
   layerConfigImageWMS,
   layerConfigArcGISFeatureService,
-  layerConfigPMTilesVector
+  layerConfigPMTilesVector,
 } from "__tests__/utilities/constants";
 import appAPI from "services/api/app";
 
@@ -1163,7 +1163,10 @@ test("queryLayerFeatures PMTiles Vector", async () => {
     pixel,
   );
 
-  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(pixel, expect.any(Function));
+  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
+    pixel,
+    expect.any(Function),
+  );
   expect(mockLayer.get).toHaveBeenCalledWith("name");
   expect(features).toStrictEqual([
     {
@@ -1188,7 +1191,7 @@ test("queryLayerFeatures PMTiles Vector Layer Name Mismatch", async () => {
   const pixel = [639, 366];
 
   const highlightLayer = {
-    get: jest.fn(() => "Highlighted Layer")
+    get: jest.fn(() => "Highlighted Layer"),
   };
 
   const mockMap = {
@@ -1208,7 +1211,10 @@ test("queryLayerFeatures PMTiles Vector Layer Name Mismatch", async () => {
     pixel,
   );
 
-  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(pixel, expect.any(Function));
+  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
+    pixel,
+    expect.any(Function),
+  );
   expect(features).toStrictEqual([]);
 });
 
@@ -1236,7 +1242,10 @@ test("queryLayerFeatures PMTiles Vector No Features Found", async () => {
     pixel,
   );
 
-  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(pixel, expect.any(Function));
+  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(
+    pixel,
+    expect.any(Function),
+  );
   expect(features).toStrictEqual([]);
 });
 
