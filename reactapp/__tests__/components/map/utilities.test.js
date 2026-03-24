@@ -1212,6 +1212,34 @@ test("queryLayerFeatures PMTiles Vector Layer Name Mismatch", async () => {
   expect(features).toStrictEqual([]);
 });
 
+test("queryLayerFeatures PMTiles Vector No Features Found", async () => {
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const mockLayer = {
+    get: jest.fn(() => "PMTiles Vector Layer"),
+  };
+
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixelArg, callback) => {
+      callback(null, mockLayer);
+    }),
+  };
+
+  const features = await queryLayerFeatures(
+    layerConfigPMTilesVector,
+    mockMap,
+    coordinate,
+    pixel,
+  );
+
+  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(pixel, expect.any(Function));
+  expect(features).toStrictEqual([]);
+});
+
 test("queryLayerFeatures SourceType Not Configured", async () => {
   const layerConfig = {
     configuration: {
