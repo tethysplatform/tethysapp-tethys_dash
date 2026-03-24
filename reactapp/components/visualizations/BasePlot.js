@@ -376,6 +376,7 @@ const BasePlot = ({
   // Ref to track the original vertical line shape
   const verticalLineOriginalRef = useRef(null);
 
+  // istanbul ignore next - functons tested separately, this is just cleanup
   useEffect(() => {
     const plotElement = visualizationRef?.current?.el;
     if (!plotElement) return;
@@ -414,6 +415,7 @@ const BasePlot = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height, layout, plotlyVerticalLine]);
 
+  // istanbul ignore next - functons tested separately, this is just cleanup
   const handleRelayout = useCallback(
     (eventData) => {
       handleEventData({

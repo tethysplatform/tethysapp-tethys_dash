@@ -313,8 +313,6 @@ function DataViewerModal({
     setAppTourStep(23);
   }
 
-  function emptyFunction() {}
-
   return (
     <MapContextProvider>
       <Modal
@@ -435,7 +433,7 @@ function DataViewerModal({
             variant="success"
             className="dataviewer-save-button"
             aria-label="dataviewer-save-button"
-            onClick={activeAppTour ? emptyFunction : saveChanges}
+            onClick={activeAppTour ? () => {} : saveChanges}
           >
             Save
           </Button>
