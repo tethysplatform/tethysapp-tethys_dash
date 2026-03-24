@@ -272,7 +272,7 @@ export const loadESRIJSON = (config) => {
   return vectorSource;
 };
 
-function createDotFill({ color = "#000", radius = 2, spacing = 8 }) {
+function createDotFill({ color, radius, spacing }) {
   const canvas = document.createElement("canvas");
   canvas.width = spacing;
   canvas.height = spacing;
@@ -291,11 +291,7 @@ function createDotFill({ color = "#000", radius = 2, spacing = 8 }) {
   });
 }
 
-function createHatchFill({
-  color = "#000",
-  spacing = 8,
-  direction = "diagonal",
-}) {
+function createHatchFill({ color, spacing, direction }) {
   const canvas = document.createElement("canvas");
   canvas.width = spacing;
   canvas.height = spacing;
@@ -564,16 +560,16 @@ export function buildPolygonFill(merged) {
   if (merged.polygonFillType === "hatch") {
     return createHatchFill({
       color: merged.fill || defaultFill,
-      spacing: merged.hatchSpacing ?? defaultHatchSpacing,
-      direction: merged.hatchDirection ?? defaultHatchDirection,
+      spacing: merged.hatchSpacing || defaultHatchSpacing,
+      direction: merged.hatchDirection || defaultHatchDirection,
     });
   }
 
   if (merged.polygonFillType === "dot") {
     return createDotFill({
       color: merged.fill || defaultFill,
-      radius: merged.dotRadius ?? defaultDotRadius,
-      spacing: merged.dotSpacing ?? defaultDotSpacing,
+      radius: merged.dotRadius || defaultDotRadius,
+      spacing: merged.dotSpacing || defaultDotSpacing,
     });
   }
 
@@ -647,7 +643,7 @@ export function createJsonStyleFunction(styleJson) {
 
     const stroke = lineDash
       ? new Stroke({
-          color: merged.stroke,
+          color: merged.stroke || defaultStroke,
           width: merged.strokeWidth ?? defaultStrokeWidth,
           lineDash,
         })
@@ -675,7 +671,7 @@ export function createJsonStyleFunction(styleJson) {
       style = new Style({ stroke, zIndex });
     }
     // --- POLYGON ---
-    else if (geometryBucket === "polygon") {
+    else {
       const fill = buildPolygonFill(merged);
       style = new Style({ fill, stroke, zIndex });
     }

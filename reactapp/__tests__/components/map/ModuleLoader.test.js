@@ -30,6 +30,15 @@ import {
   Fill,
   Stroke,
 } from "ol/style";
+import {
+  defaultFill,
+  defaultSize,
+  defaultHatchSpacing,
+  defaultDotSpacing,
+  defaultDotRadius,
+  defaultStroke,
+  defaultStrokeWidth,
+} from "components/inputs/RuleEditor.js";
 
 function mockFeature(props, geometryType = "Point") {
   return {
@@ -70,28 +79,24 @@ test("GeoJSON Instance", async () => {
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
 });
 
-test("ArcGIS Feature Service Instance with TIME", async () => {
+test("ArcGIS Feature Service Instance", async () => {
   const copiedConfig = {
     ...layerConfigArcGISFeatureService.configuration,
   };
   copiedConfig.props.source.props.params = {
     TIME: "2020-01-01T00:00:00.000Z,2020-12-31T23:59:59.000Z",
   };
-  const layerInstance = await moduleLoader(copiedConfig);
+  let layerInstance = await moduleLoader(copiedConfig);
   expect(layerInstance instanceof VectorLayer).toBe(true);
 
-  const cachedLayerInstance = await moduleLoader(copiedConfig);
+  let cachedLayerInstance = await moduleLoader(copiedConfig);
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
-});
 
-test("ArcGIS Feature Service Instance without TIME", async () => {
-  const copiedConfig = {
-    ...layerConfigArcGISFeatureService.configuration,
-  };
-  const layerInstance = await moduleLoader(copiedConfig);
+  copiedConfig.props.source.props = {};
+  layerInstance = await moduleLoader(copiedConfig);
   expect(layerInstance instanceof VectorLayer).toBe(true);
 
-  const cachedLayerInstance = await moduleLoader(copiedConfig);
+  cachedLayerInstance = await moduleLoader(copiedConfig);
   expect(cachedLayerInstance instanceof VectorLayer).toBe(true);
 });
 
@@ -218,6 +223,14 @@ describe("createJsonStyleFunction", () => {
           fill: "#00ff00",
           size: 15,
         },
+        {
+          geometryType: "point",
+          conditionField: "type",
+          conditionType: "=",
+          conditionValue: "not special",
+          fill: "#be1879",
+          size: 30,
+        },
       ],
     };
     const styleFn = createJsonStyleFunction(styleJson);
@@ -233,6 +246,7 @@ describe("createJsonStyleFunction", () => {
   it("returns a Style for a line", () => {
     const styleJson = {
       default: { linestring: { stroke: "#0000ff", strokeWidth: 2 } },
+      rules: [{ geometryType: "point" }],
     };
     const styleFn = createJsonStyleFunction(styleJson);
     const feature = mockFeature({}, "LineString");
@@ -260,6 +274,42 @@ describe("createJsonStyleFunction", () => {
     expect(strokeWidth).toBe(2);
     const strokeDash = style.getStroke().getLineDash();
     expect(strokeDash).toEqual([4, 8]);
+  });
+
+  it("returns a Style for default stroke", () => {
+    const styleJson = {
+      default: {
+        linestring: { strokeDash: [4, 8] },
+      },
+    };
+    const styleFn = createJsonStyleFunction(styleJson);
+    const feature = mockFeature({}, "LineString");
+    const style = styleFn(feature);
+    expect(style).toBeInstanceOf(Style);
+    const strokeColor = style.getStroke().getColor();
+    expect(strokeColor).toBe(defaultStroke);
+    const strokeWidth = style.getStroke().getWidth();
+    expect(strokeWidth).toBe(defaultStrokeWidth);
+    const strokeDash = style.getStroke().getLineDash();
+    expect(strokeDash).toEqual([4, 8]);
+  });
+
+  it("returns a Style for default stroke with lineDash", () => {
+    const styleJson = {
+      default: {
+        linestring: {},
+      },
+    };
+    const styleFn = createJsonStyleFunction(styleJson);
+    const feature = mockFeature({}, "LineString");
+    const style = styleFn(feature);
+    expect(style).toBeInstanceOf(Style);
+    const strokeColor = style.getStroke().getColor();
+    expect(strokeColor).toBe(defaultStroke);
+    const strokeWidth = style.getStroke().getWidth();
+    expect(strokeWidth).toBe(defaultStrokeWidth);
+    const strokeDash = style.getStroke().getLineDash();
+    expect(strokeDash).toEqual(null);
   });
 
   it("returns a Style for a with empty strokeDash", () => {
@@ -298,10 +348,28 @@ describe("createJsonStyleFunction", () => {
     expect(strokeDash).toEqual([4, 8]);
   });
 
+  it("returns a Style for a with string strokeDash bad values", () => {
+    const styleJson = {
+      default: {
+        linestring: { stroke: "#0000ff", strokeWidth: 2, strokeDash: "bad,r" },
+      },
+    };
+    const styleFn = createJsonStyleFunction(styleJson);
+    const feature = mockFeature({}, "LineString");
+    const style = styleFn(feature);
+    expect(style).toBeInstanceOf(Style);
+    const strokeColor = style.getStroke().getColor();
+    expect(strokeColor).toBe("#0000ff");
+    const strokeWidth = style.getStroke().getWidth();
+    expect(strokeWidth).toBe(2);
+    const strokeDash = style.getStroke().getLineDash();
+    expect(strokeDash).toEqual(null);
+  });
+
   it("returns a Style for a with empty string strokeDash", () => {
     const styleJson = {
       default: {
-        linestring: { stroke: "#0000ff", strokeWidth: 2, strokeDash: "" },
+        linestring: { stroke: "#0000ff", strokeWidth: 2, strokeDash: " " },
       },
     };
     const styleFn = createJsonStyleFunction(styleJson);
@@ -361,12 +429,29 @@ describe("createJsonStyleFunction", () => {
     const style = styleFn(feature);
     expect(style.getImage().getRadius()).toBe(20);
   });
+
+  it("returns point with default style when no geometry type match", () => {
+    const styleJson = {
+      default: { polygon: { fill: "#ff0000", size: 10 } },
+    };
+
+    const styleFn = createJsonStyleFunction(styleJson);
+    const feature = mockFeature({}, "UnknownGeometry");
+    const style = styleFn(feature);
+    expect(style).toBeInstanceOf(Style);
+    const fillColor = style.getImage().getFill().getColor();
+    expect(fillColor).toBe(defaultFill);
+    const size = style.getImage().getRadius();
+    expect(size).toBe(defaultSize);
+  });
 });
 
 describe("matchesCondition", () => {
   it("matches '=' condition", () => {
     expect(matchesCondition("test", "=", "test")).toBe(true);
     expect(matchesCondition("test", "=", "other")).toBe(false);
+    expect(matchesCondition(1, "=", "1")).toBe(true);
+    expect(matchesCondition("1", "=", 1)).toBe(true);
   });
 
   it("matches '!=' condition", () => {
@@ -442,6 +527,62 @@ describe("resolveSize", () => {
     ];
     const size = resolveSize(mockFeature({ value: 2 }), rules, 10);
     expect(size).toBe(10);
+  });
+
+  it("returns default size when no rule size given", () => {
+    const rules = [
+      {
+        conditionField: "value",
+        conditionType: ">",
+        conditionValue: 5,
+      },
+    ];
+    const size = resolveSize(mockFeature({ value: 2 }), rules, 10);
+    expect(size).toBe(10);
+  });
+
+  it("returns default size when no feature value", () => {
+    const rules = [
+      {
+        conditionField: "value",
+        conditionType: ">",
+        conditionValue: 5,
+        size: 20,
+      },
+    ];
+    const size = resolveSize(mockFeature({}), rules, 10);
+    expect(size).toBe(10);
+  });
+
+  it("return biggest size when matching multuple thresholds", () => {
+    const rules = [
+      {
+        conditionField: "value",
+        conditionType: ">",
+        conditionValue: 11,
+        size: 60,
+      },
+      {
+        conditionField: "value",
+        conditionType: ">",
+        conditionValue: 8,
+        size: 40,
+      },
+      {
+        conditionField: "value",
+        conditionType: ">",
+        conditionValue: 7,
+        size: 30,
+      },
+      {
+        conditionField: "value",
+        conditionType: ">",
+        conditionValue: 5,
+        size: 20,
+      },
+    ];
+    const size = resolveSize(mockFeature({ value: 9 }), rules, 10);
+    expect(size).toBe(40);
   });
 });
 
@@ -802,6 +943,55 @@ describe("buildPolygonFill createDotFill", () => {
 
     HTMLCanvasElement.prototype.getContext = originalGetContext;
   });
+
+  it("creates a Fill with a canvas pattern with defaults", () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+    const mockCreatePattern = jest.fn(() => "mockPattern");
+    const mockBeginPath = jest.fn();
+    const mockArc = jest.fn();
+    const mockFill = jest.fn();
+
+    let mockCtxInstance = null;
+    class MockCTX {
+      constructor() {
+        this.fillStyle = null;
+      }
+      beginPath = mockBeginPath;
+      arc = mockArc;
+      fill = mockFill;
+      createPattern = mockCreatePattern;
+    }
+    const mockGetContext = jest.fn(() => {
+      mockCtxInstance = new MockCTX();
+      return mockCtxInstance;
+    });
+    HTMLCanvasElement.prototype.getContext = mockGetContext;
+
+    const fill = buildPolygonFill({
+      polygonFillType: "dot",
+    });
+    expect(fill).toBeInstanceOf(Fill);
+    // The color property should be the mocked pattern string
+    expect(fill.getColor()).toBe("mockPattern");
+
+    expect(mockGetContext).toHaveBeenCalledWith("2d");
+    const mockCanvas = mockCreatePattern.mock.calls[0][0];
+    expect(mockCanvas.width).toBe(defaultDotSpacing);
+    expect(mockCanvas.height).toBe(defaultDotSpacing);
+    expect(mockBeginPath).toHaveBeenCalled();
+    expect(mockArc).toHaveBeenCalledWith(
+      defaultDotSpacing / 2,
+      defaultDotSpacing / 2,
+      defaultDotRadius,
+      0,
+      2 * Math.PI,
+    );
+    expect(mockFill).toHaveBeenCalled();
+    expect(mockCtxInstance.fillStyle).toBe(defaultFill);
+
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
 });
 
 describe("buildPolygonFill createHatchFill", () => {
@@ -849,6 +1039,52 @@ describe("buildPolygonFill createHatchFill", () => {
     expect(mockLineTo).toHaveBeenCalledWith(10, 0);
     expect(mockStroke).toHaveBeenCalled();
     expect(mockCtxInstance.strokeStyle).toBe("#abcdef");
+    expect(mockCtxInstance.lineWidth).toBe(1);
+
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
+
+  it("creates a Fill with defaults", () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+
+    const mockCreatePattern = jest.fn(() => "mockPattern");
+    const mockBeginPath = jest.fn();
+    const mockMoveTo = jest.fn();
+    const mockLineTo = jest.fn();
+    const mockStroke = jest.fn();
+
+    let mockCtxInstance = null;
+    class MockCTX {
+      constructor() {
+        this.strokeStyle = null;
+        this.lineWidth = null;
+      }
+      beginPath = mockBeginPath;
+      moveTo = mockMoveTo;
+      lineTo = mockLineTo;
+      stroke = mockStroke;
+      createPattern = mockCreatePattern;
+    }
+    const mockGetContext = jest.fn(() => {
+      mockCtxInstance = new MockCTX();
+      return mockCtxInstance;
+    });
+    HTMLCanvasElement.prototype.getContext = mockGetContext;
+
+    const fill = buildPolygonFill({
+      polygonFillType: "hatch",
+    });
+    expect(fill).toBeInstanceOf(Fill);
+    expect(mockGetContext).toHaveBeenCalledWith("2d");
+    const mockCanvas = mockCreatePattern.mock.calls[0][0];
+    expect(mockCreatePattern.mock.calls[0][1]).toBe("repeat");
+    expect(mockCanvas.width).toBe(defaultHatchSpacing);
+    expect(mockCanvas.height).toBe(defaultHatchSpacing);
+    expect(mockBeginPath).toHaveBeenCalled();
+    expect(mockMoveTo).toHaveBeenCalledWith(0, defaultHatchSpacing);
+    expect(mockLineTo).toHaveBeenCalledWith(defaultHatchSpacing, 0);
+    expect(mockStroke).toHaveBeenCalled();
+    expect(mockCtxInstance.strokeStyle).toBe(defaultFill);
     expect(mockCtxInstance.lineWidth).toBe(1);
 
     HTMLCanvasElement.prototype.getContext = originalGetContext;
@@ -1005,5 +1241,22 @@ describe("buildPolygonFill createHatchFill", () => {
     expect(mockCtxInstance.lineWidth).toBe(1);
 
     HTMLCanvasElement.prototype.getContext = originalGetContext;
+  });
+
+  it("creates a solid fill when polygonFillType is unknown", () => {
+    const fill = buildPolygonFill({
+      polygonFillType: "unknown",
+      fill: "#abcdef",
+    });
+    expect(fill).toBeInstanceOf(Fill);
+    expect(fill.getColor()).toBe("#abcdef");
+  });
+
+  it("creates a default solid fill when polygonFillType is unknown and no fill", () => {
+    const fill = buildPolygonFill({
+      polygonFillType: "unknown",
+    });
+    expect(fill).toBeInstanceOf(Fill);
+    expect(fill.getColor()).toBe(defaultFill);
   });
 });
