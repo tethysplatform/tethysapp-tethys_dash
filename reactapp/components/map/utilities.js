@@ -373,15 +373,17 @@ function getVectorTileLayerFeatures(map, pixel, LayerName) {
     if (layer.get("name") !== LayerName) {
       return;
     }
-    const geometry = toGeometry(feature);
-    features.push({
-      layerName: LayerName,
-      attributes: feature.getProperties(),
-      geometry: {
-        type: geometry.getType(),
-        coordinates: geometry.getCoordinates(),
-      },
-    });
+    if (feature) {
+      const geometry = toGeometry(feature);
+      features.push({
+        layerName: LayerName,
+        attributes: feature.getProperties(),
+        geometry: {
+          type: geometry.getType(),
+          coordinates: geometry.getCoordinates(),
+        },
+      });
+    }
   });
   return features;
 }

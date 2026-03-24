@@ -17,6 +17,7 @@ import {
   layerConfigImageArcGISRest,
   layerConfigImageWMS,
   layerConfigArcGISFeatureService,
+  layerConfigPMTilesVector
 } from "__tests__/utilities/constants";
 import appAPI from "services/api/app";
 
@@ -1130,7 +1131,113 @@ test("queryLayerFeatures ImageWMS Bad Request", async () => {
 });
 
 test("queryLayerFeatures PMTiles Vector", async () => {
-  
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const mockFeature = {
+    getType: () => "LineString",
+    getFlatCoordinates: () => [0, 0, 0, 1],
+    getProperties: () => ({
+      id: "feature-123",
+      prop1: "value1",
+    }),
+  };
+
+  const mockLayer = {
+    get: jest.fn(() => "PMTiles Vector Layer"),
+  };
+
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixelArg, callback) => {
+      callback(mockFeature, mockLayer);
+    }),
+  };
+
+  const features = await queryLayerFeatures(
+    layerConfigPMTilesVector,
+    mockMap,
+    coordinate,
+    pixel,
+  );
+
+  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(pixel, expect.any(Function));
+  expect(mockLayer.get).toHaveBeenCalledWith("name");
+  expect(features).toStrictEqual([
+    {
+      layerName: "PMTiles Vector Layer",
+      attributes: {
+        id: "feature-123",
+        prop1: "value1",
+      },
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [0, 0],
+          [0, 1],
+        ],
+      },
+    },
+  ]);
+});
+
+test("queryLayerFeatures PMTiles Vector Layer Name Mismatch", async () => {
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const highlightLayer = {
+    get: jest.fn(() => "Highlighted Layer")
+  };
+
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixelArg, callback) => {
+      // this should be filtered out by the layer name check
+      callback(null, highlightLayer);
+    }),
+  };
+
+  const features = await queryLayerFeatures(
+    layerConfigPMTilesVector,
+    mockMap,
+    coordinate,
+    pixel,
+  );
+
+  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(pixel, expect.any(Function));
+  expect(features).toStrictEqual([]);
+});
+
+test("queryLayerFeatures PMTiles Vector No Features Found", async () => {
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const mockLayer = {
+    get: jest.fn(() => "PMTiles Vector Layer"),
+  };
+
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixelArg, callback) => {
+      callback(null, mockLayer);
+    }),
+  };
+
+  const features = await queryLayerFeatures(
+    layerConfigPMTilesVector,
+    mockMap,
+    coordinate,
+    pixel,
+  );
+
+  expect(mockMap.forEachFeatureAtPixel).toHaveBeenCalledWith(pixel, expect.any(Function));
+  expect(features).toStrictEqual([]);
 });
 
 test("queryLayerFeatures SourceType Not Configured", async () => {

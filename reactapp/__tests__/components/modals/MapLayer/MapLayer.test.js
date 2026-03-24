@@ -649,6 +649,118 @@ test("MapLayerModal new VectorTile layer", async () => {
   });
 });
 
+test("MapLayerModal new PMTiles Vector layer", async () => {
+  const handleModalClose = jest.fn();
+  const addMapLayer = jest.fn();
+  const layerInfo = {};
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={handleModalClose}
+      addMapLayer={addMapLayer}
+      layerInfo={layerInfo}
+    />,
+  );
+
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
+  expect(screen.getByText("Layer")).toBeInTheDocument();
+  expect(screen.getByText("Source")).toBeInTheDocument();
+  expect(screen.getByText("Style")).toBeInTheDocument();
+  expect(screen.getByText("Legend")).toBeInTheDocument();
+  expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
+
+  const nameInput = await screen.findByLabelText("Name Input");
+  fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
+
+  const sourceTab = screen.getByText("Source");
+  fireEvent.click(sourceTab);
+  const sourceTabContent = screen.getByLabelText("layer-source-tab");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
+
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("PMTiles Vector");
+  fireEvent.click(sourceOption);
+  expect(await screen.findByText("Source Properties")).toBeInTheDocument();
+
+  const urlInput = within(sourceTabContent).getByLabelText("value Input 0");
+  fireEvent.change(urlInput, { target: { value: "some_url" } });
+
+  const createLayerButton = await screen.findByLabelText("Create Layer Button");
+  fireEvent.click(createLayerButton);
+
+  expect(addMapLayer).toHaveBeenCalledWith({
+    configuration: {
+      props: {
+        name: "New Layer Name",
+        source: {
+          props: {
+            url: "some_url",
+          },
+          type: "PMTiles Vector",
+        },
+      },
+      type: "VectorTileLayer",
+    },
+  });
+});
+
+test("MapLayerModal new PMTiles Raster layer", async () => {
+  const handleModalClose = jest.fn();
+  const addMapLayer = jest.fn();
+  const layerInfo = {};
+  render(
+    <TestingComponent
+      showModal={true}
+      handleModalClose={handleModalClose}
+      addMapLayer={addMapLayer}
+      layerInfo={layerInfo}
+    />,
+  );
+
+  expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  expect(screen.getByText("Add Map Layer")).toBeInTheDocument();
+  expect(screen.getByText("Layer")).toBeInTheDocument();
+  expect(screen.getByText("Source")).toBeInTheDocument();
+  expect(screen.getByText("Style")).toBeInTheDocument();
+  expect(screen.getByText("Legend")).toBeInTheDocument();
+  expect(screen.getByText("Attributes/Popup")).toBeInTheDocument();
+
+  const nameInput = await screen.findByLabelText("Name Input");
+  fireEvent.change(nameInput, { target: { value: "New Layer Name" } });
+
+  const sourceTab = screen.getByText("Source");
+  fireEvent.click(sourceTab);
+  const sourceTabContent = screen.getByLabelText("layer-source-tab");
+  const sourceDropdown = screen.getByLabelText("Source Type Input");
+
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("PMTiles Raster");
+  fireEvent.click(sourceOption);
+  expect(await screen.findByText("Source Properties")).toBeInTheDocument();
+
+  const urlInput = within(sourceTabContent).getByLabelText("value Input 0");
+  fireEvent.change(urlInput, { target: { value: "some_url" } });
+
+  const createLayerButton = await screen.findByLabelText("Create Layer Button");
+  fireEvent.click(createLayerButton);
+
+  expect(addMapLayer).toHaveBeenCalledWith({
+    configuration: {
+      props: {
+        name: "New Layer Name",
+        source: {
+          props: {
+            url: "some_url",
+          },
+          type: "PMTiles Raster",
+        },
+      },
+      type: "WebGLTile",
+    },
+  });
+});
+
 test("MapLayerModal no name error", async () => {
   const handleModalClose = jest.fn();
   const addMapLayer = jest.fn();
