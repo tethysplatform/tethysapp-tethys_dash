@@ -3,16 +3,16 @@
 Landing Page
 ============
 
-.. |owner_icon| image:: ../../images/owner_icon.png
+.. |owner_icon| image:: ../images/owner_icon.png
    :scale: 8%
 
-.. |public_icon| image:: ../../images/public_icon.png
+.. |public_icon| image:: ../images/public_icon.png
    :scale: 8%
 
 
 The TethysDash landing page displays a summary of all dashboards available to the user, including those owned by the user and those shared publicly.
 
-.. image:: ../../images/landing_page.png
+.. image:: ../images/landing_page.png
    :align: center
 
 Dashboard Cards
@@ -23,7 +23,7 @@ Each card on the landing page represents a dashboard and displays its name, desc
 Creating a Dashboard
 --------------------
 
-.. |login_icon| image:: ../../images/login_icon.png
+.. |login_icon| image:: ../images/login_icon.png
    :scale: 8%
 
 To create a new dashboard, make sure you are signed into the Tethys portal. If the login icon (|login_icon|) appears in the app header, click it to sign in.
@@ -35,7 +35,7 @@ Dashboard Card Context Menu
 
 After clicking the three dots in the top right corner of a dashboard card, a context menu appears with the following options:
 
-   .. image:: ../../images/dashboard_context_menu.png
+   .. image:: ../images/dashboard_context_menu.png
       :align: center
 
 
@@ -62,7 +62,7 @@ After clicking the three dots in the top right corner of a dashboard card, a con
   
 Granting access to a group gives all its members the specified level of access. The dashboard can also be made public.
 
-   .. image:: ../../images/manage_permissions.png
+   .. image:: ../images/manage_permissions.png
       :align: center
       :width: 400px
 
@@ -75,7 +75,7 @@ Granting access to a group gives all its members the specified level of access. 
 Importing Dashboards
 --------------------
 
-.. |dashboard_import_icon| image:: ../../images/dashboard_import.png
+.. |dashboard_import_icon| image:: ../images/dashboard_import.png
    :scale: 8%
 
 
@@ -158,14 +158,14 @@ Manage Groups
 
 Manage Groups lets you create user groups so you can grant access to an entire group at once, rather than selecting users individually. To manage groups, click the group icon in the upper right corner. This opens a pop-up window where you can edit, delete, or create groups.
 
-   .. image:: ../../images/permission_groups.png
+   .. image:: ../images/permission_groups.png
       :align: center
       :width: 400px
 
 
 To create a new group, click **Create New Group**, enter a name and description, and add users by their username. Users can be *members* or *admins*; group admins can edit the group.
 
-   .. image:: ../../images/add_permission_group.png
+   .. image:: ../images/add_permission_group.png
       :align: center
       :width: 400px
 

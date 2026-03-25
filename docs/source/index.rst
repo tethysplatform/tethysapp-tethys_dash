@@ -11,14 +11,14 @@ TethysDash provides a robust set of built-in visualization plugins and features 
 
 Try the TethysDash demo: `http://demo.firo.aquaveo.com/apps/tethysdash/ <http://demo.firo.aquaveo.com/apps/tethysdash/>`_
 
-.. figure:: ../images/rfc_max_analysis.png
+.. figure:: ../images/dashboard.png
    :align: center
 
    Example dashboard using multiple visualization plugins to display data from various sources.
 
 |
 
-For more information about creating and using dashboards, see the :ref:`dashboard_usage` section.
+For more information about creating and using dashboards, see the :ref:`dashboards` section.
 
 .. note::
 
@@ -30,8 +30,8 @@ Contents
 .. toctree::
    :maxdepth: 3
 
-   usage/landing_page
-   usage/usage
+   landing_page
+   dashboard
    variable_inputs
    plugins
    maps/maps
