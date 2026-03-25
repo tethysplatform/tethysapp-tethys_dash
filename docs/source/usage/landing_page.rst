@@ -9,20 +9,16 @@ Landing Page
 .. |public_icon| image:: ../../images/public_icon.png
    :scale: 8%
 
-The TethysDash landing page provides a summary of all available dashboards for the user. This includes dashboards that are 
-owned by the user as well as all dashboards that are shared publicly.
 
-Landing Page
-   .. image:: ../../images/landing_page.png
-      :align: center
+The TethysDash landing page displays a summary of all dashboards available to the user, including those owned by the user and those shared publicly.
+
+.. image:: ../../images/landing_page.png
+   :align: center
 
 Dashboard Cards
 ---------------
 
-Each card in the landing page represents an available dashboard and provides information such as the name, description, owner status, public status, and 
-a thumbnail. User dashboards are represented by the owner icon (|owner_icon|) in top left of the card. Public dashboards are represented by 
-the public icon (|public_icon|) in top left of the card. Users can view the dashboard description by hovering over the card. The 3 dot menu on the 
-top right of the card provides additional actions.
+Each card on the landing page represents a dashboard and displays its name, description, owner status, public status, and a thumbnail. Dashboards owned by the user are marked with the owner icon (|owner_icon|) in the top left corner, while public dashboards are marked with the public icon (|public_icon|). Hovering over a card reveals its description. The three-dot menu in the top right corner provides additional actions.
 
 Creating a Dashboard
 --------------------
@@ -30,51 +26,51 @@ Creating a Dashboard
 .. |login_icon| image:: ../../images/login_icon.png
    :scale: 8%
 
-In order to create a new dashboard, ensure that you are signed into the tethys portal. If a login icon (|login_icon|) is shown 
-in the header of the app, click on it and sign in. 
+To create a new dashboard, make sure you are signed into the Tethys portal. If the login icon (|login_icon|) appears in the app header, click it to sign in.
 
-If you are signed into the portal, then there will be a blank dashboard card with the text "Create a New Dashboard". Click on 
-the "Create a New Dashboard" card, provide the name and description, and then click on the "Create" button.
+Once signed in, a blank dashboard card labeled "Create a New Dashboard" will appear. Click this card, enter a name and description, then click "Create".
 
 Dashboard Card Context Menu
 ---------------------------
-After cliking on the 3dots on the top right of a dashboard card, a context menu will appear with the following options:
+
+After clicking the three dots in the top right corner of a dashboard card, a context menu appears with the following options:
 
    .. image:: ../../images/dashboard_context_menu.png
       :align: center
 
-**Open**: Open and view the contents of the dashboard. Users can also double-click on the card to open the dashboard.
 
-**Rename** (*Admin Privileges Required*): Rename the dashboard.
+**Open**: View the dashboard. You can also double-click the card to open it.
 
-**Update Description** (*Editor Privileges Required*): Update the dashboard description.
+**Rename** (*Admin Privileges Required*): Change the dashboard's name.
 
-**Update Thumbnail** (*Editor Privileges Required*): Update the dashboard thumbnail.
+**Update Description** (*Editor Privileges Required*): Edit the dashboard description.
 
-**Share → Make Public** (*Admin Privileges Required*): Share the dashboard so that it can be viewed by anyone. Other viewers will have read-only access.
+**Update Thumbnail** (*Editor Privileges Required*): Change the dashboard thumbnail.
 
-**Share → Copy Public URL**: Copy the public URL to the clipboard.
+**Share → Make Public** (*Admin Privileges Required*): Make the dashboard public so anyone can view it (read-only for others).
+
+**Share → Copy Public URL**: Copy the dashboard's public URL to the clipboard.
 
 **Share → Make Private** (*Admin Privileges Required*): Remove public access to the dashboard.
 
 .. _share-update-permissions:
-**Share → Update Permissions**   
-(*Admin Privileges Required*): Manage what groups and people have different levels of access for the dashboard. When selected, a pop-up will appear allowing you to enter user names or group names to add them to the dashboard. You may assign each person as a viewer, editor, or admin.  
-   - *Viewer*: Can see the dashboard on their landing page but cannot edit it.  
-   - *Editor*: Can view the dashboard and edit its contents, description, and thumbnail.  
-   - *Admin*: Can do everything an editor can, plus manage sharing permissions and rename the dashboard.  
-Giving access to a group grants that level of access to all members in the group. The dashboard can also be made public.
-   
+
+**Share → Update Permissions** (*Admin Privileges Required*): Manage which groups and users have access to the dashboard. A pop-up will appear to add users or groups and assign them as viewers, editors, or admins:
+   - *Viewer*: Can see the dashboard but cannot edit it.
+   - *Editor*: Can view and edit the dashboard's contents, description, and thumbnail.
+   - *Admin*: Has all editor permissions, plus can manage sharing and rename the dashboard.
+  
+Granting access to a group gives all its members the specified level of access. The dashboard can also be made public.
+
    .. image:: ../../images/manage_permissions.png
       :align: center
       :width: 400px
 
+**Copy** (*Sign In Required*): Create a personal copy of the dashboard.
 
-**Copy** (*Sign In Required*): Create a copy of the dashboard for the user.
+**Export**: Download the dashboard as a JSON file.
 
-**Export**: Export the dashboard into a JSON file.
-
-**Delete** (*Admin Privileges Required*): Delete the dashboard.
+**Delete** (*Admin Privileges Required*): Permanently remove the dashboard.
 
 Importing Dashboards
 --------------------
@@ -82,83 +78,92 @@ Importing Dashboards
 .. |dashboard_import_icon| image:: ../../images/dashboard_import.png
    :scale: 8%
 
-In order to provide an easier way to share and update dashboards between tethysdash instances, dashboards can be imported 
-using a structured JSON format. To import a dashboard, click on the dashboard import icon (|dashboard_import_icon|) in the 
-header of the landing page. You will then be prompted to choose a json file and import the file. 
 
-The structure of the JSON should be the following:
+To make it easier to share and update dashboards between TethysDash instances, dashboards can be imported using a structured JSON format. To import a dashboard, click the dashboard import icon (|dashboard_import_icon|) in the landing page header. Then select a JSON file to import.
+
+The JSON structure should be as follows:
 
 .. code-block:: json
 
    {
       "name": "dashboard name",
       "description": "dashboard description",
-      "accessGroups": ["public"], // add "public" to the array to make it public or leave the array empty to make it private
-      "unrestrictedPlacement": false, // determines if dashboard items can overlap and be placed anywhere
-      "notes": "dashboard notes", // notes that can be viewed with the dashboard
-      "gridItems": [ // each object within the array represents and individual item within the dashboard
+      "publicDashboard": true, // determines if the dashboard is public (optional, default is false)
+      "unrestrictedPlacement": false, // allows dashboard items to overlap and be placed anywhere
+      "notes": "dashboard notes", // notes viewable with the dashboard
+      "tabs": [ // each object represents a tab in the dashboard
          {
-            "i": 1, // a unique integer id for the item
-            "x": 0, // x coordinate of the top left corner
-            "y": 0, // y coordinate of the top left corner
-            "w": 33, // width (based on the grid size) of the item
-            "h": 44, // height (based on the grid size) of the item
-            "source": "cnrfc_10day_daily_maximum_streamflow_probability", // this refers to the intake driver name used for the visualization. This is just an example
-            "args_string": { // any necessary arguments for the intake driver. This is just an example
-               "gauge_location": "CREC1"
-            },
-            "metadata_string": { // any custom settings for the item. This is just an example. See below for possible options
-               "border": {
-                  "border": "1px solid black"
-               },
-               "customMessaging": {
-                  "error": "A custom error"
+            "id": 1, // unique integer ID for the tab
+            "name": "Tab 1", // name of the tab
+            "gridItems": [ // each object represents an individual visualization in the dashboard
+               {
+                  "i": 1, // unique integer ID for the item
+                  "x": 0, // x coordinate (top left)
+                  "y": 0, // y coordinate (top left)
+                  "w": 33, // width (grid units)
+                  "h": 44, // height (grid units)
+                  "source": "Text", // source or intake driver name for the visualization (example)
+                  "args_string": { // arguments for the intake driver (example)
+                     "text": "Example Text"
+                  },
+                  "metadata_string": { // custom settings for the item (example). See below for options
+                     "border": {
+                        "border": "1px solid black"
+                     },
+                     "customMessaging": {
+                        "error": "A custom error"
+                     }
+                  }
                }
-            }
+            ]
          }
       ]
    }
 
 
+
 The following options are available for the metadata_string key:
    
    * **border** (object)
-      * **border**: Determines the style for all borders. Value follows the CSS pattern for defining a border e.g. "1px solid black".
-      * **border-bottom**: Determines the style for the bottom border. Value follows the CSS pattern for defining a border e.g. "1px solid black".
-      * **border-top**: Determines the style for the top border. Value follows the CSS pattern for defining a border e.g. "1px solid black".
-      * **border-left**: Determines the style for the left border. Value follows the CSS pattern for defining a border e.g. "1px solid black".
-      * **border-right**: Determines the style for the right border. Value follows the CSS pattern for defining a border e.g. "1px solid black".
+      * **border**: Style for all borders (e.g., "1px solid black").
+      * **border-bottom**: Style for the bottom border.
+      * **border-top**: Style for the top border.
+      * **border-left**: Style for the left border.
+      * **border-right**: Style for the right border.
    
-   * **boxShadow** (string): Determines the style for the box shadow around the item. Value follows the CSS pattern for defining a box shadow e.g. "4px 0 8px black".
+   * **boxShadow** (string): Box shadow style (e.g., "4px 0 8px black").
    
-   * **backgroundColor** (string): Determines the style for the background color of the item. Value follows the CSS pattern for defining colors (simple name, hex, etc)
+   * **backgroundColor** (string): Background color (name, hex, etc).
    
    * **customMessaging** (object)
-      * **error**: A custom error to show when the visualization processing has an error.
-      * **<Variable Input Name>**: A custom message to show when the provided Variable Input has no value.
+      * **error**: Custom error message for visualization errors.
+      * **<Variable Input Name>**: Custom message when a Variable Input has no value.
    
-   * **refreshRate** (integer): Determines the time interval for which the visualization will be refreshed to get newest information
+   * **refreshRate** (integer): Time interval (in seconds) to refresh the visualization.
   
-   * Any additional settings for specific visualizations (see :ref:`settings_tab`)
+   * Any additional settings for specific visualizations (see :ref:`settings_tab`).
 
 Manage Visualization Permissions
-----------------------------
+--------------------------------
 
-When creating plugins (detailed more :ref:`here <visualizationplugins>`), one option in the plugin is the parameter ``visualization_permissions``. It defaults to ``false``; however, if set to ``true`` then permissions can be updated for that specific visualization. A group name or username can be added to a specific visualization. Only users with permission will be able to access those visualizations.
 
-If none of the plugins include this option, then visualization permissions cannot be adjusted on the landing page.
+When creating plugins (see :ref:`here <visualizationplugins>`), you can set the ``visualization_permissions`` parameter. By default, it is ``false``. If set to ``true``, permissions can be updated for that specific visualization, allowing you to add group names or usernames. Only users with permission will be able to access those visualizations.
+
+If none of the plugins include this option, visualization permissions cannot be adjusted on the landing page.
 
 
 Manage Groups
 -------------
 
-Manage Groups allows you to create groups of users so that access can be granted to an entire group without selecting individual users each time. To manage groups, select the icon for groups in the upper right-hand corner. This opens a pop-up window that allows you to edit or delete existing groups and to create new ones.
+
+Manage Groups lets you create user groups so you can grant access to an entire group at once, rather than selecting users individually. To manage groups, click the group icon in the upper right corner. This opens a pop-up window where you can edit, delete, or create groups.
 
    .. image:: ../../images/permission_groups.png
       :align: center
       :width: 400px
 
-To create a new group, click **Create New Group**. Then enter a name and a description for the group. Add users using their username. Users may be either *members* or *admins* of the group. Group admins can make edits to the group.
+
+To create a new group, click **Create New Group**, enter a name and description, and add users by their username. Users can be *members* or *admins*; group admins can edit the group.
 
    .. image:: ../../images/add_permission_group.png
       :align: center
