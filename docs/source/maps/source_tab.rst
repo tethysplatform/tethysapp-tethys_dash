@@ -4,10 +4,8 @@
 Source Tab
 ----------
 
-The source tab defines the source of the data for the layer and any additional properties. Once a source type is selected, 
-source properties will appear for further customizations and setup. Some properties are required for layers to render while 
-others are optional. Source type options are predefined and currently consist of the following options with their available 
-properties. 
+
+The source tab defines the data source for the layer and its properties. After selecting a source type, relevant properties will appear for further customization. Some properties are required for the layer to render, while others are optional. The available source types and their properties are listed below.
 
 ------------------------------------------------------------------------------------------------------------------------
 
@@ -77,10 +75,8 @@ Image Tile
 GeoJSON
 ++++++++
 
-The GeoJSON source is slightly different from the other source options. This option will display a text area and a 
-button to upload your GeoJSON that may be stored in a file. GeoJSONs must follow 
-`the GeoJSON specification <https://datatracker.ietf.org/doc/html/rfc7946>`_ and also contain a "crs.properties.name" 
-value for projection information. A example of a valid GeoJSON is::
+
+The GeoJSON source is different from the other options. It provides a text area and a button to upload your GeoJSON file. GeoJSONs must follow the `GeoJSON specification <https://datatracker.ietf.org/doc/html/rfc7946>`_ and include a "crs.properties.name" value for projection information. Example of a valid GeoJSON::
 
     {
         "type": "FeatureCollection",

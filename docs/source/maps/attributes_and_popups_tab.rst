@@ -4,28 +4,23 @@
 Attributes/Popup Tab
 --------------------
 
-The Attributes/Popup tab is used to configure the interaction with the layer in the map once it is clicked.
-**After the layer name and required source properties are configured**, then a table of layers and their attributes 
-will be shown.
 
-A checkbox at the top of the tab says "Allow Layer Query", which enables click interaction for the layer. If the checkbox is unchecked, no table of attrbute will load because the layer will not be queriable.
+The Attributes/Popup tab configures how users interact with a map layer when it is clicked.
 
-Within this table, fields can be configured to handle click interaction in 2 ways:
+**After configuring the layer name and required source properties**, a table of layers and their attributes will appear.
 
-    1- When a layer is clicked, a popup will be shown with the attributes for that selected feature(s). Attributes can be 
-    configured to not be shown in popups by unchecking the "Show in popup" column.
+At the top of the tab, the "Allow Layer Query" checkbox enables click interaction for the layer. If unchecked, no attribute table will load and the layer will not be queryable.
 
-    2- Fields can be configured to work with and update variable inputs. See the :ref:`variableinputs` section for more 
-    information on how variable inputs work. In the "Variable Input Name" column of the table, add a desired variable input 
-    for the field whose value will be used for the variable input when a feature is clicked. 
+Within this table, fields can be configured for click interaction in two ways:
+
+    1. When a layer is clicked, a popup displays the attributes for the selected feature(s). You can hide attributes from the popup by unchecking the "Show in popup" column.
+
+    2. Fields can be linked to variable inputs. See the :ref:`variableinputs` section for details. In the "Variable Input Name" column, add the desired variable input for the field whose value will be set when a feature is clicked.
+
 
 
 .. note::
-    A variable input can be configured within the attributes table and not need its own variable input 
-    visualization in the dashboard. For example, a chart can be configured to reference a new variable input.
-    Then within the map, a field can use that new variable input for updating. Once a map feature is clicked, the 
-    chart will automatically be updated with the configured field of the clicked layer, without the need to change 
-    a dropdown or text input within the dashboard itself. An example of this is shown below.
+    You can configure a variable input in the attributes table without adding a separate variable input visualization to the dashboard. For example, a chart can reference a new variable input, and a map field can update that variable. When a map feature is clicked, the chart updates automatically with the field value—no need to change a dropdown or text input. See the example below.
 
     .. video:: ../videos/map_variable_input.mp4
         :autoplay:
@@ -34,20 +29,21 @@ Within this table, fields can be configured to handle click interaction in 2 way
 
 |
 
-If the layer loads correctly, then a static table will be shown with the available attributes. 
+
+If the layer loads correctly, a static table will display the available attributes.
 
 .. figure:: ../../images/attribute_successful.png
     :align: center
 
 |
 
-If the layer loads incorrectly, then a dynamic table will be shown, in which the fields can be custom added. New rows 
-can be created with tabbing through the inputs.
+
+If the layer loads incorrectly, a dynamic table will appear, allowing you to add fields manually. New rows can be created by tabbing through the inputs.
 
 .. figure:: ../../images/attribute_unsuccessful.png
     :align: center
 
 |
 
-If the layer loads correctly but not attributes are found, then no table will be shown and a warning will appear, 
-indicating that no attributes were found. 
+
+If the layer loads correctly but no attributes are found, no table will be shown and a warning will indicate that no attributes were found.

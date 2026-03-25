@@ -3,17 +3,16 @@
 Configure a Map Layer
 =====================
 
-The map layer configuration is designed to handle most map layer needs, including layer and source 
-properties. For complex needs, a custom component may be needed to create the desired map. If a custom 
-component is needed, see the :ref:`custom_visualization` section for more information. 
+
+Map layer configuration is designed to handle most needs, including layer and source properties. For advanced requirements, you may need a custom component. See the :ref:`custom_visualization` section for details.
 
    .. image:: ../../images/layer_configuration.png
       :align: center
 
 |
 
-Layer configuration is split up into a variety of tabs for easier navigation and setup. See below for an in depth 
-explanation for each tab.
+
+Layer configuration is organized into several tabs for easier navigation and setup. See below for detailed explanations of each tab.
 
 .. toctree::
    :maxdepth: 1

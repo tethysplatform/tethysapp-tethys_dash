@@ -17,7 +17,7 @@ requesting a new visualization and provide the same information as step numbers 
 
 If you have a github account and would like to request a new visualization, please do the following:
 
-    1. Go to https://github.com/Aquaveo/TethysDashDocs/issues/new to open up a new issue/request.
+    1. Go to https://github.com/tethysplatform/tethysapp-tethys_dash/issues/new to open up a new issue/request.
     2. Click on "Labels" on the right side of the screen and select "enhancement"
     3. Provide a clear and concise title for the desired visualization.
     4. Provide a clear description of the following:
@@ -36,7 +36,7 @@ and provide the same information as step numbers 3 and 4 below.
 
 If you have a github account and submit an issue, please do the following:
 
-    1. Go to https://github.com/Aquaveo/TethysDashDocs/issues/new to open up a new issue/request.
+    1. Go to https://github.com/tethysplatform/tethysapp-tethys_dash/issues/new to open up a new issue/request.
     2. Click on "Labels" on the right side of the screen and select "bug"
     3. Provide a clear and concise title for the desired visualization.
     4. Provide a clear description of the following:

@@ -4,10 +4,8 @@
 Style Tab
 ---------
 
-The style tab allows layer to have custom styles. Custom styling for the configured layers follows the `MapLibre Style Spec <https://maplibre.org/maplibre-style-spec/>`_ 
-standards for configuration and uses the `ol-mapbox-style applyStyle <https://openlayers.org/ol-mapbox-style/functions/applyStyle.html>`_ 
-function for implementation. Make sure to follow the above links and documentation so that the layers render with the 
-correct styling.
+
+The style tab lets you apply custom styles to map layers. Styling follows the `MapLibre Style Spec <https://maplibre.org/maplibre-style-spec/>`_ and uses the `ol-mapbox-style applyStyle <https://openlayers.org/ol-mapbox-style/functions/applyStyle.html>`_ function. Refer to these resources to ensure your layers render correctly.
 
 +++++++
 Example
@@ -39,8 +37,7 @@ GeoJSON::
 .. figure:: ../../images/geojson.png
     :align: center
 
-    GeoJSON layer without styling
-|
+    GeoJSON layer without custom styling
 
 Style JSON::
 
@@ -74,14 +71,11 @@ Style JSON::
 .. figure:: ../../images/styled_geojson.png
     :align: center
 
-    GeoJSON layer with styling
+    GeoJSON layer with custom styling
 
-|
 
 .. warning::
-    In order for styling to work, the "sources" key in the json object must correspond to the layer name from the layer 
-    tab. For example, if the configured layer has a name of "My Beautiful Layer", then the styling json must look something 
-    like::
+    For styling to work, the "sources" key in the JSON object must match the layer name from the layer tab. For example, if your layer is named "My Beautiful Layer", the styling JSON should look like::
 
         {
             "version": 8,
