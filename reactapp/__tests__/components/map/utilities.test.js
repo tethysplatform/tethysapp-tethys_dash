@@ -18,8 +18,10 @@ import {
   layerConfigImageWMS,
   layerConfigArcGISFeatureService,
   layerConfigPMTilesVector,
+  layerConfigKML,
 } from "__tests__/utilities/constants";
 import appAPI from "services/api/app";
+import { PMTiles } from "pmtiles";
 
 jest.mock("uuid", () => ({
   v4: () => 12345678,
@@ -1245,6 +1247,62 @@ test("queryLayerFeatures PMTiles Vector No Features Found", async () => {
   expect(features).toStrictEqual([]);
 });
 
+test("queryLayerFeatures KML", async () => {
+  const mockMap = {
+    getView: jest.fn(() => ({
+      getResolution: jest.fn(),
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixel, callback) => {
+      // Simulate features found at the given pixel
+      const mockFeature = {
+        getId: () => "feature-123",
+        getProperties: () => ({
+          geometry: {
+            getType: jest.fn(() => "LineString"),
+            getCoordinates: jest.fn(() => [
+              [0, 0],
+              [0, 1],
+            ]),
+          },
+          attr1: "value1",
+          styleUrl: "someStyle",
+        }),
+      }; // Mocked feature object
+      const mockLayer = {
+        get: jest.fn(() => "KML Layer"),
+        getProperties: () => ({
+          name: "KML Layer",
+        }),
+      };
+      callback(mockFeature, mockLayer); // Call the callback with the mock feature
+    }),
+  };
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const features = await queryLayerFeatures(
+    layerConfigKML,
+    mockMap,
+    coordinate,
+    pixel,
+  );
+
+  expect(features).toStrictEqual([
+    {
+      layerName: "KML Layer",
+      attributes: { attr1: "value1" },
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [0, 0],
+          [0, 1],
+        ],
+      },
+    },
+  ]);
+});
+
 test("queryLayerFeatures SourceType Not Configured", async () => {
   const layerConfig = {
     configuration: {
@@ -1715,6 +1773,76 @@ test("getLayerAttributes GEOJSON no feature properties", async () => {
   const attributes = await getLayerAttributes(sourceProps, layerName);
 
   expect(attributes).toStrictEqual({ "GeoJSON Layer": [] });
+});
+
+test("getLayerAttributes KML", async () => {
+  const sourceProps = layerConfigKML.configuration.props.source;
+  const layerName = layerConfigKML.configuration.props.name;
+
+  const mockKMLText = `<?xml version="1.0" encoding="UTF-8"?>
+  <kml xmlns="http://www.opengis.net/kml/2.2">
+    <Document>
+      <Placemark>
+        <name>Test Placemark</name>
+        <description>Test Description</description>
+        <styleUrl>#testStyle</styleUrl>
+        <Point>
+          <coordinates>0,0,0</coordinates>
+        </Point>
+      </Placemark>
+    </Document>
+  </kml>`;
+
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      ok: true,
+      text: () => Promise.resolve(mockKMLText),
+    }),
+  );
+
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "KML Layer": [{ name: "name", alias: "name" }],
+  });
+});
+
+test("getLayerAttributes PM Tiles Vector", async () => {
+  // Mock PMTiles, VectorTile, and Protobuf
+  jest
+    .spyOn(PMTiles.prototype, "getZxy")
+    .mockResolvedValue({ data: "some data" });
+  jest
+    .spyOn(require("@mapbox/vector-tile"), "VectorTile")
+    .mockImplementation(() => ({
+      layers: {
+        "PMTiles Vector Layer": {
+          length: 2,
+          feature: (i) => ({
+            properties:
+              i === 0
+                ? { id: 1 }
+                : i === 1
+                  ? { prop1: "foo" }
+                  : { prop1: "foo" },
+          }),
+        },
+      },
+    }));
+  jest.mock("pbf", () => jest.fn());
+
+  const sourceProps = layerConfigPMTilesVector.configuration.props.source;
+  const layerName = layerConfigPMTilesVector.configuration.props.name;
+  sourceProps.props.url = "some/url.pmtiles";
+
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "PMTiles Vector Layer": [
+      { name: "id", alias: "id" },
+      { name: "prop1", alias: "prop1" },
+    ],
+  });
 });
 
 test("getLayerAttributes Error", async () => {

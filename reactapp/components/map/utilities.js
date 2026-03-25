@@ -381,17 +381,15 @@ async function getKMLLayerFeatures(map, pixel, coordinate, LayerName) {
   );
 
   // Remove styleUrl and description, and filter out features with no other attributes
-  features = features
-    .map((feature) => {
-      const attrs = { ...feature.attributes };
-      delete attrs.styleUrl;
-      delete attrs.description;
-      return {
-        ...feature,
-        attributes: attrs,
-      };
-    })
-    .filter((feature) => Object.keys(feature.attributes).length > 0);
+  features = features.map((feature) => {
+    const attrs = { ...feature.attributes };
+    delete attrs.styleUrl;
+    delete attrs.description;
+    return {
+      ...feature,
+      attributes: attrs,
+    };
+  });
 
   return features;
 }
@@ -714,21 +712,23 @@ async function getKMLLayerAttributes(sourceUrl, layerName) {
   ];
 
   const placemarks = xmlDoc.getElementsByTagName("Placemark");
-  const attributes = [];
+  const attributes = new Set();
   for (let i = 0; i < placemarks.length; i++) {
     const placemark = placemarks[i];
     for (let j = 0; j < placemark.children.length; j++) {
       const child = placemark.children[j];
       const tag = child.tagName;
-      if (
-        !invalidTags.includes(tag) &&
-        !attributes.some((attr) => attr.name === tag)
-      ) {
-        attributes.push({ name: tag, alias: tag });
+      if (!invalidTags.includes(tag)) {
+        attributes.add(tag);
       }
     }
   }
-  return { [layerName]: attributes };
+  return {
+    [layerName]: Array.from(attributes).map((attr) => ({
+      name: attr,
+      alias: attr,
+    })),
+  };
 }
 
 async function getImageArcGISRestLayerAttributes(sourceUrl) {
