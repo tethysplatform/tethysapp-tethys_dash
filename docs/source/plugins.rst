@@ -3,12 +3,8 @@
 Visualization Plugins
 =====================
 
-Dashboard visualizations plugins are based on the `intake <https://github.com/intake/intake>`_ python package and can 
-be developed following the information found in the 
-`Making Driver <https://intake.readthedocs.io/en/latest/making-plugins.html>`_  documentation. This section will cover 
-the requirements needed to make plugins specifically for this application, including necessary setup, properties, 
-and methods. The `TethysDash Plugin Template respository <https://github.com/FIRO-Tethys/tethysdash_plugin_template>`_ is 
-a good place to look at examples of how to create TethysDash plugins.
+
+Dashboard visualization plugins are built on the `intake <https://github.com/intake/intake>`_ Python package. You can develop plugins by following the `Making Driver <https://intake.readthedocs.io/en/latest/making-plugins.html>`_ documentation. This section covers the requirements for creating plugins specifically for TethysDash, including setup, required properties, and methods. For examples, see the `TethysDash Plugin Template repository <https://github.com/FIRO-Tethys/tethysdash_plugin_template>`_.
 
 Development
 -----------
@@ -17,18 +13,16 @@ Development
 Creating a repository
 =====================
 
-Before developing a plugin, a new repository will need to be created for the plugin. This will ensure that others 
-users can clone and install the package as needed. The file structure is up to the developer but following the structure in 
-the `TethysDash Plugin Template respository <https://github.com/FIRO-Tethys/tethysdash_plugin_template>`_ will ensure 
-that they all work as expected. Make sure to add a static folder with thumbnails of the visualizations so that the visualization 
-can be easier to discover and understand when the user browses all the available visualizations (:ref:`visualization_tab`)
+
+Before developing a plugin, create a new repository for it. This allows others to clone and install the package as needed. While the file structure is flexible, following the structure in the `TethysDash Plugin Template repository <https://github.com/FIRO-Tethys/tethysdash_plugin_template>`_ is recommended for compatibility. Be sure to add a static folder with visualization thumbnails to make your plugin easier to discover when users browse available visualizations (:doc:`dashboard_visualizations`).
 
 =======================
 Intake DataSource Class
 =======================
 
-The focus of the development will be creating a new intake driver and datasource in the form of a python class. Below 
-is an example of a simple intake driver example::
+
+The main focus is to create a new intake driver and datasource as a Python class. Below is an example of a simple intake driver::
+
 
     from intake.source import base
     import plotly.express as px
@@ -58,24 +52,23 @@ is an example of a simple intake driver example::
             fig = px.line(df, x="year", y="lifeExp", color="country", symbol="country")
             return json.loads(fig.to_json())
 
-The container, version, and name properties are all required by intake. For a more in depth review of properties and 
-classes for base.DataSource, refer to the intake 
-`documentation <https://intake.readthedocs.io/en/latest/making-plugins.html>`_.
+
+The container, version, and name properties are required by intake. For more details on properties and base.DataSource, see the intake `documentation <https://intake.readthedocs.io/en/latest/making-plugins.html>`_.
 
 Properties:
-    - **container**: This will almost always be "python" which means the intake driver will return a python object.
-    - **version**: version of the package
-    - **name**: name of the package. This is the name that will be used for installation. When using the plugin, intake will open it using the syntax `intake.open_<driver_name>`.
-    - **visualization_args**: This a property specific for the dashboard app. This is a dictionary containing the function arguments as keys with the data type as the value. This dictionary will be parsed in the application to dynamically create html inputs for the users. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list of values for a dropdown menu (i.e. `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`).
-    - **visualization_group**: This a property specific for the dashboard app. List visualizations in the dashboard application will be grouped based on this property.
-    - **visualization_label**: This a property specific for the dashboard app. Describes the formal name of the visualization that will be displayed in the visualization list in the dashboard app.
-    - **visualization_type**: This a property specific for the dashboard app. Describes the type of visualization this is created. Can be "plotly", "table","image", "card", "map", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section and the "Visualization Type Argument" for more information. 
-    - **visualization_description**: This a property specific for the dashboard app. Provides a description of the visualization. 
-    - **visualization_tags**: This a property specific for the dashboard app. An array of tags used for visualization search and discovery.
-    - **visualization_permissions**: This a property specific for the dashboard app. A boolean value that determines if the visualization will have permission settings that can be adjusted on the landing page. Defaults to false.
+    - **container**: Usually "python"; the intake driver returns a Python object.
+    - **version**: Version of the package.
+    - **name**: Name of the package. Used for installation and as the driver name (e.g., `intake.open_<driver_name>`).
+    - **visualization_args**: (TethysDash-specific) Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`).
+    - **visualization_group**: (TethysDash-specific) Used to group visualizations in the dashboard app.
+    - **visualization_label**: (TethysDash-specific) The display name for the visualization in the dashboard app.
+    - **visualization_type**: (TethysDash-specific) The type of visualization: "plotly", "table", "image", "card", "map", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section for details.
+    - **visualization_description**: (TethysDash-specific) Description of the visualization.
+    - **visualization_tags**: (TethysDash-specific) List of tags for search and discovery.
+    - **visualization_permissions**: (TethysDash-specific) Boolean to enable permission settings on the landing page. Defaults to false.
 Methods:
-    - **init**: This is a typical python class **init** method. Set any class specific properties here for the visualization, such as the "continent" property in the example above.
-    - **read**: This is the main function that developers will want to focus on. The dashboard app will call this method and use the results as the visualization data.
+    - **__init__**: Standard Python class initializer. Set any class-specific properties here (e.g., "continent" in the example above).
+    - **read**: The main function to implement. The dashboard app calls this method and uses its results as the visualization data.
 
 ==========================
 Plugin Visualization Types
@@ -101,6 +94,7 @@ Displays a `Plotly <https://plotly.com/python/>`_ chart with the provided data, 
 **Example**: ::
 
     from intake.source import base
+    import plotly.graph_objects as go
 
     class PlotlyExample(base.DataSource):
         container = "python"
@@ -855,8 +849,8 @@ Displays a custom visualization from a custom react component.
 Testing
 =======
 
-To test the plugin, simply run python in a command prompt or jupyter notebook, initialize the created class, and run 
-the read method. As shown below, various arguments and scenarios can be configured and run the desired workflows.
+
+To test your plugin, run Python in a terminal or Jupyter notebook, initialize your class, and call the read method. You can configure different arguments and scenarios to test your workflows.
 
 .. image:: ../images/plugin_example.png
    :align: center
@@ -864,10 +858,8 @@ the read method. As shown below, various arguments and scenarios can be configur
 Installation
 ------------
 
-Once the plugin is developed and working as desired, a setup file needs to be created so that the plugin can be 
-installed and used by the dashboard app. If a setup.py file is being used, add the setup entry_point arguments as 
-shown below. If multiple data sources have been created with the plugin, simply add to the intake.drivers list as 
-needed.::
+
+Once your plugin is ready, create a setup file so it can be installed and used by the dashboard app. If using setup.py, add the entry_points argument as shown below. For multiple data sources, add each to the intake.drivers list as needed.::
 
     setup(
         ...
@@ -879,12 +871,14 @@ needed.::
         ...
     )
     
-If a pyproject.toml file is being used, add the entry_point arguments as shown below::
+
+If using pyproject.toml, add the entry_points as shown below::
 
     [project.entry-points."intake.drivers"]
     <plugin_name> = "<path_to_plugin_source>:<data_source_name>"
 
-The entry point indicates that the python package is an intake driver. When the package is installed, the plugin will 
 automatically be added to the intake registry for use. Replace the inserted values above with the necessary strings 
 (i.e. 'usace_time_series = usace_visualizations.time_series:TimeSeries').
+
+The entry point tells intake that your package is a driver. When installed, the plugin is automatically added to the intake registry. Replace the example values with your own (e.g., 'usace_time_series = usace_visualizations.time_series:TimeSeries').
 
