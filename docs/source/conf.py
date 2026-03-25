@@ -1,13 +1,19 @@
 # Configuration file for the Sphinx documentation builder.
+import os
+import tomllib as toml
 
 # -- Project information
+pyproject_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../pyproject.toml'))
+with open(pyproject_path, 'rb') as f:
+    pyproject = toml.load(f)
+project_version = pyproject['project']['version']
 
 project = "TethysDash"
 copyright = "2024, Aquaveo"
 author = "Corey Krewson"
 
-release = "0.10"
-version = "0.10.7"
+release = '.'.join(project_version.split('.')[:2])
+version = project_version
 
 # -- General configuration
 

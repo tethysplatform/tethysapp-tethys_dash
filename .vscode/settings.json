@@ -1,5 +1,7 @@
 {
   "editor.rulers": [88],
   "terminal.integrated.cwd": "",
-  "terminal.integrated.splitCwd": "workspaceRoot"
+  "terminal.integrated.splitCwd": "workspaceRoot",
+  "python-envs.defaultEnvManager": "ms-python.python:conda",
+  "python-envs.defaultPackageManager": "ms-python.python:conda"
 }

@@ -1,6 +1,6 @@
 # TethysDash
 
-This app was created using an experimental Tethys + React app scaffold. It uses React for the frontend of the app and Tethys as the backend. For more detailed information, check the [official TethysDash documentation](https://tethysdashdocs.readthedocs.io/en/latest/index.html)
+This app was created using an experimental Tethys + React app scaffold. It uses React for the frontend of the app and Tethys as the backend. For more detailed information, check the [official TethysDash documentation](https://tethysdash.readthedocs.io/en/latest/)
 
 ## Quick Installation
 

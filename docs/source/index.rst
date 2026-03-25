@@ -1,36 +1,24 @@
-Welcome to TethysDash documentation!
-===================================
 
-**TethysDash** is a `tethys <https://www.tethysplatform.org/>`_ application in which users can create customized 
-dashboards for simplified data discovery.
 
-To use a demo version of TethysDash, visit `http://demo.firo.aquaveo.com/apps/tethysdash/ <http://demo.firo.aquaveo.com/apps/tethysdash/>`_
+Welcome to the TethysDash Documentation!
+========================================
 
-Visualizations for the dashboards are based on preinstalled visualization plugins. For more information 
-on the plugin architecture and developing new visualization plugins, see the :doc:`plugins` section. 
+**TethysDash** is a `Tethys Platform <https://www.tethysplatform.org/>`_ application that empowers users to create custom dashboards for streamlined data discovery.
 
-Once visualization plugins are installed, users can created their own unique dashboards in any configuration and 
-setup for whatever desired purpose. Below are some example dashboards and use cases.
+With the TethysDash dashboard builder, users can easily add, configure, and arrange a variety of visualizations to display data from multiple sources in a cohesive and interactive way.
 
-Operations
-   .. image:: ../images/operations.png
-      :align: center
+TethysDash provides a robust set of built-in visualization plugins and features for building effective dashboards and applications. Its true strength lies in flexibility and extensibility—dashboards can leverage preinstalled plugins to perform custom and complex analyses. For details on the plugin architecture and developing new plugins, see the :doc:`plugins` section.
 
-|
+Try the TethysDash demo: `http://demo.firo.aquaveo.com/apps/tethysdash/ <http://demo.firo.aquaveo.com/apps/tethysdash/>`_
 
-Briefing
-   .. image:: ../images/briefing.png
-      :align: center
+.. figure:: ../images/rfc_max_analysis.png
+   :align: center
+
+   Example dashboard using multiple visualization plugins to display data from various sources.
 
 |
 
-Data Analysis
-   .. image:: ../images/data_analysis.png
-      :align: center
-
-|
-
-To learn more about creating and using dashboards, see the :ref:`dashboard_usage` section.
+For more information about creating and using dashboards, see the :ref:`dashboard_usage` section.
 
 .. note::
 
