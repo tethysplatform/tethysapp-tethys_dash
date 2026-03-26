@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tethysdash"
-version = "0.18.4"
+version = "0.18.5"
 description = "A Tethys App for no code/low code web application development app"
 authors = [{ name = "Corey Krewson", email = "ckrewson@aquaveo.com" }]
 license-files = ["LICENSE"]
@@ -46,6 +46,7 @@ classifiers = [
 
 [tool.setuptools]
 include-package-data = true
+exclude = ["docs*", "tests*", "reactapp*"]
 
 [tool.setuptools.packages.find]
 # Find namespace packages like `tethysapp.tethysdash`
