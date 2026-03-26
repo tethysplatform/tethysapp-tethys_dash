@@ -33,6 +33,7 @@ Default Visualization Types
 - **Custom Image**: Display a publicly accessible image.
 - **Text**: Display formatted text.
 - **Variable Input**: Create a variable for use in other visualizations. See :doc:`../variable_inputs` for details.
+- **Live Chat**: Display a chat box for users to communicate in real time. Websocket must be configured for this visualization to work. See :doc:`../installation` for details.
 
 Settings Tab
 ------------

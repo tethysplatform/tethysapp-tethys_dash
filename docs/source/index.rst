@@ -30,6 +30,7 @@ Contents
 .. toctree::
    :maxdepth: 3
 
+   installation
    landing_page
    dashboard
    variable_inputs

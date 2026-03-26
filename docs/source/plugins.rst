@@ -3,7 +3,6 @@
 Visualization Plugins
 =====================
 
-
 Dashboard visualization plugins are built on the `intake <https://github.com/intake/intake>`_ Python package. You can develop plugins by following the `Making Driver <https://intake.readthedocs.io/en/latest/making-plugins.html>`_ documentation. This section covers the requirements for creating plugins specifically for TethysDash, including setup, required properties, and methods. For examples, see the `TethysDash Plugin Template repository <https://github.com/FIRO-Tethys/tethysdash_plugin_template>`_.
 
 Development
@@ -882,3 +881,22 @@ automatically be added to the intake registry for use. Replace the inserted valu
 
 The entry point tells intake that your package is a driver. When installed, the plugin is automatically added to the intake registry. Replace the example values with your own (e.g., 'usace_time_series = usace_visualizations.time_series:TimeSeries').
 
+Sending Progress Updates
+------------------------
+
+TethysDash plugins also have the capability to send progress updates from the read method. This is useful for long running processes to give users feedback on the status of their request. In order to use this feature, the TethysDash application must be configured to use websockets. For more information about setting up websockers, see :doc:`installation`.
+
+To send progress updates, do the following:
+
+1. Import the send_websocket_message function from tethysdash::
+   
+    from tethyapp.tethysdash import send_websocket_message
+
+2. Make sure the read method has the request_id kwarg to receive the request_id from the dashboard app::
+
+    def read(self, request_id=None):
+
+3. Implement into your read method by sending messages with the following format::
+
+    send_websocket_message(request_id, 'some custom progress message')
+    send_websocket_message(request_id, 'some custom progress message', 1, 2) # option values of step and total_steps for progress percentage (i.e. 1 out of 2 steps completed is 50%)

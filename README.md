@@ -59,19 +59,19 @@ pip install -e .
     tethysdash setup
 ```
 
-5. Start Tethys Portal
-
-```
-    tethysdash start
-```
-
-6. Install Plugin Examples (not necessary but recommended)
+5. Install Plugin Examples (not necessary but recommended)
 
 ```
 cd ..
 git clone https://github.com/FIRO-Tethys/tethysdash_examples
 cd tethysdash_examples
 pip install -e .
+```
+
+6. Start Tethys Portal
+
+```
+    tethysdash start
 ```
 
 ## Frontend Development

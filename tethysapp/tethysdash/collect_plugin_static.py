@@ -60,6 +60,8 @@ def copy_plugin_static(plugin_modules, static_plugin_images, static_plugin_data)
                     image_path = "default_table.png"
                 elif visualization_type == "custom":
                     image_path = "default_custom.png"
+                elif visualization_type == "live_chat":
+                    image_path = "default_live_chat.png"
                 else:
                     print(f"--> PNG thumbnail not available for {source}")
                     continue
@@ -70,7 +72,11 @@ def copy_plugin_static(plugin_modules, static_plugin_images, static_plugin_data)
 
             if str(plugin_root) not in plugins_data_collected:
                 for filename in os.listdir(static_dir):
-                    if filename.endswith(".geojson") or filename.endswith(".json") or filename.endswith(".kml"):
+                    if (
+                        filename.endswith(".geojson")
+                        or filename.endswith(".json")
+                        or filename.endswith(".kml")
+                    ):
                         shutil.copy2(
                             os.path.join(static_dir, filename),
                             os.path.join(static_plugin_data, filename),
