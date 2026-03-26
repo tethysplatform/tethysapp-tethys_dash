@@ -8,12 +8,19 @@ Configuring Visualizations
 
 Each dashboard item is a visualization that can be configured and customized. To edit a visualization, open the item's context menu and select "Edit." A popup appears with configuration options on the left and a live preview on the right.
 
+.. image:: ../images/dashboard_edit_visualization.png
+   :align: center
+   :width: 800px
+
 Visualization Tab
 -----------------
 
 - Select the type of visualization from a dropdown or use the search (|search_visualizations_button|) button.
 - Hover over visualization cards to see descriptions, tags, and types.
 - Type in dropdowns to filter options or add new ones.
+
+.. image:: ../images/dropdown_search.png
+   :align: center
 
 After selecting a visualization type, additional arguments may appear, specific to that visualization. For example, a chart may require you to select a location.
 

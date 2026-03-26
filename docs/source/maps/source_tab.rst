@@ -107,6 +107,41 @@ Vector Tile
     - **attributions:** (optional) Attributions.
     - **projection:** (optional) Projection. Default is the view projection (EPSG:3857).
 
+------------------------------------------------------------------------------------------------------------------------
+
++++
+KML
++++
+
+**Openlayers Class:** `KML <https://openlayers.org/en/latest/apidoc/module-ol_format_KML-KML.html>`_
+
+**Layer Properties:**
+    - **urls:** (required) KML file URL. Must be publicly accessible.
+    - **attributions:** (optional) Attributions.
+    - **projection:** (optional) Projection. Default is the view projection (EPSG:3857).
+
+------------------------------------------------------------------------------------------------------------------------
+
+++++++++++++++
+PMTiles Vector
+++++++++++++++
+
+**Layer Properties:**
+    - **urls:** (required) PMTiles Vector Tile URL. Must be publicly accessible and include {x}, {y} or {-y}, and {z} placeholders.
+    - **attributions:** (optional) Attributions.
+    - **tileSize:** (optional) Tile size. Default is 256.
+
+------------------------------------------------------------------------------------------------------------------------
+
+++++++++++++++
+PMTiles Raster
+++++++++++++++
+
+**Layer Properties:**
+    - **urls:** (required) PMTiles Raster Tile URL. Must be publicly accessible and include {x}, {y} or {-y}, and {z} placeholders.
+    - **attributions:** (optional) Attributions.
+    - **tileSize:** (optional) Tile size. Default is 256.
+
 
 
 
