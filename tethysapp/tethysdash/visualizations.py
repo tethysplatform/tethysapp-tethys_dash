@@ -1,6 +1,7 @@
 import intake
 from tethysapp.tethysdash.model import get_visualization_user_permission, Message
 from tethysapp.tethysdash.exceptions import VisualizationError
+from tethysapp.tethysdash.plugin_helpers import get_plugin_prop
 
 
 def build_plugin_metadata(plugin, source):
@@ -14,17 +15,18 @@ def build_plugin_metadata(plugin, source):
     Returns:
         dict: Plugin metadata dictionary
     """
+
     return {
         "source": source,
-        "value": plugin.visualization_label,
-        "label": plugin.visualization_label,
-        "args": plugin.visualization_args,
-        "type": plugin.visualization_type,
-        "tags": getattr(plugin, "visualization_tags", []),
-        "attribution": getattr(plugin, "visualization_attribution", ""),
-        "description": getattr(plugin, "visualization_description", ""),
-        "loading_icon": getattr(plugin, "visualization_loading_icon", True),
-        "restricted": getattr(plugin, "visualization_restricted", False),
+        "value": get_plugin_prop(plugin, "label"),
+        "label": get_plugin_prop(plugin, "label"),
+        "args": get_plugin_prop(plugin, "args"),
+        "type": get_plugin_prop(plugin, "type"),
+        "tags": get_plugin_prop(plugin, "tags", []),
+        "attribution": get_plugin_prop(plugin, "attribution", ""),
+        "description": get_plugin_prop(plugin, "description", ""),
+        "loading_icon": get_plugin_prop(plugin, "loading_icon", True),
+        "restricted": get_plugin_prop(plugin, "restricted", False),
     }
 
 
@@ -38,11 +40,11 @@ def get_restricted_visualizations():
     restricted_visualizations = {}
     for source in intake.source.registry:
         plugin = getattr(intake, f"open_{source}")
-        if getattr(plugin, "visualization_restricted", False):
+        if get_plugin_prop(plugin, "restricted", False):
             restricted_visualizations[source] = {
                 "info": {
-                    "label": plugin.visualization_label,
-                    "description": getattr(plugin, "visualization_description", ""),
+                    "label": get_plugin_prop(plugin, "label"),
+                    "description": get_plugin_prop(plugin, "description", ""),
                 },
                 "users": [],
                 "groups": [],
@@ -128,7 +130,9 @@ def get_available_visualizations(user):
         if metadata["restricted"]:
             restricted_visualizations.append((plugin, metadata))
         else:
-            add_to_group(available_visualizations, plugin.visualization_group, metadata)
+            add_to_group(
+                available_visualizations, get_plugin_prop(plugin, "group"), metadata
+            )
 
     if restricted_visualizations:
         Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
@@ -137,7 +141,9 @@ def get_available_visualizations(user):
             for plugin, metadata in restricted_visualizations:
                 if get_visualization_user_permission(session, metadata["source"], user):
                     add_to_group(
-                        available_visualizations, plugin.visualization_group, metadata
+                        available_visualizations,
+                        get_plugin_prop(plugin, "group"),
+                        metadata,
                     )
         finally:
             session.close()
@@ -201,7 +207,7 @@ def get_visualization(viz_source, viz_args, user, viz_request_id):
         raise VisualizationError(f"Visualization ({viz_source}) is not installed.")
 
     plugin = getattr(intake, f"open_{viz_source}")
-    restricted = getattr(plugin, "visualization_restricted", False)
+    restricted = get_plugin_prop(plugin, "restricted", False)
     if restricted:
         Session = App.get_persistent_store_database("primary_db", as_sessionmaker=True)
         session = Session()
@@ -219,4 +225,4 @@ def get_visualization(viz_source, viz_args, user, viz_request_id):
     except TypeError:
         data = plugin_instance.read()
 
-    return plugin.visualization_type, data
+    return get_plugin_prop(plugin, "type"), data

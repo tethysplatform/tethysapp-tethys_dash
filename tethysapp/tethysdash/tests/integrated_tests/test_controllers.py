@@ -136,7 +136,7 @@ def test_dashboards(
     permission_group,
 ):
     mocked_app = mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     workspace_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
@@ -185,7 +185,7 @@ def test_dashboards_with_support_email(
     tmp_path,
 ):
     mocked_app = mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     workspace_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
@@ -217,7 +217,7 @@ def test_dashboards_with_support_github(
     tmp_path,
 ):
     mocked_app = mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     workspace_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
@@ -251,7 +251,7 @@ def test_dashboards_with_support_email_and_github(
     tmp_path,
 ):
     mocked_app = mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     workspace_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
@@ -290,7 +290,7 @@ def test_get_dashboard(
     tmp_path,
     permission_group,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
@@ -331,7 +331,7 @@ def test_get_dashboard(
 def test_get_dashboard_failed(
     client, admin_user, mock_app_get_ps_db, dashboard, mocker, tmp_path
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
@@ -360,7 +360,7 @@ def test_get_dashboard_failed(
 def test_get_dashboard_failed_unknown_exception(
     client, admin_user, mock_app_get_ps_db, dashboard, mocker, tmp_path
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
@@ -393,7 +393,7 @@ def test_add_dashboard(
     client, mock_app, db_session, mocker, tmp_path, test_admin_user, mock_app_get_ps_db
 ):
     mock_app("tethysapp.tethysdash.app.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
@@ -525,7 +525,7 @@ def test_delete_dashboard(
     tmp_path,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethys_apps.base.paths.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
     itemData = {
@@ -561,7 +561,7 @@ def test_delete_dashboard_with_thumbnail(
     tmp_path,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethys_apps.base.paths.get_app_media")
     app_media_path = tmp_path
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
@@ -659,11 +659,11 @@ def test_update_dashboard(
     tmp_path,
     permission_group,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     itemData = {
         "id": dashboard.id,
         "name": "new_dashboard_name",
@@ -799,7 +799,7 @@ def test_copy_dashboard(
     tmp_path,
 ):
     mock_app("tethysapp.tethysdash.app.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
@@ -854,7 +854,7 @@ def test_copy_dashboard_with_thumbnail(
     tmp_path,
 ):
     mock_app("tethysapp.tethysdash.app.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
@@ -915,7 +915,7 @@ def test_copy_dashboard_failed(
     tmp_path,
 ):
     mock_app("tethysapp.tethysdash.app.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
@@ -960,7 +960,7 @@ def test_copy_dashboard_failed_unknown_exception(
     tmp_path,
 ):
     mock_app("tethysapp.tethysdash.app.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     app_media_path = tmp_path
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=app_media_path)
@@ -1357,7 +1357,7 @@ def test_update_permission_group(
     permission_group_table,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     url = reverse("tethysdash:update_permission_group")
     client.force_login(test_admin_user)
@@ -1390,7 +1390,7 @@ def test_create_permission_group(
     permission_group,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     url = reverse("tethysdash:update_permission_group")
     client.force_login(test_admin_user)
@@ -1418,7 +1418,7 @@ def test_create_permission_group_nonexistent_users(
     mock_app_get_ps_db,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     url = reverse("tethysdash:update_permission_group")
     client.force_login(test_admin_user)
@@ -1460,7 +1460,7 @@ def test_create_permission_group_error(
     client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_update_permission_groups = mocker.patch(
         "tethysapp.tethysdash.controllers.update_permission_groups"
     )
@@ -1486,7 +1486,7 @@ def test_create_permission_group_exception(
     client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_update_permission_groups = mocker.patch(
         "tethysapp.tethysdash.controllers.update_permission_groups"
     )
@@ -1509,7 +1509,7 @@ def test_create_permission_group_exception_without_message(
     client, admin_user, mock_app, mock_app_get_ps_db, permission_group, mocker
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_update_permission_groups = mocker.patch(
         "tethysapp.tethysdash.controllers.update_permission_groups"
     )
@@ -1536,7 +1536,7 @@ def test_delete_permission_group(
     permission_group_table,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     url = reverse("tethysdash:delete_permission_group")
     client.force_login(test_admin_user)
@@ -1559,7 +1559,7 @@ def test_delete_permission_group_error(
     permission_group_table,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_delete_permission_groups = mocker.patch(
         "tethysapp.tethysdash.controllers.delete_permission_groups"
     )
@@ -1592,7 +1592,7 @@ def test_delete_permission_group_exception(
     permission_group_table,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_delete_permission_groups = mocker.patch(
         "tethysapp.tethysdash.controllers.delete_permission_groups"
     )
@@ -1622,7 +1622,7 @@ def test_delete_permission_group_exception_without_message(
     permission_group_table,
 ):
     mock_app("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_delete_permission_groups = mocker.patch(
         "tethysapp.tethysdash.controllers.delete_permission_groups"
     )
@@ -1839,7 +1839,7 @@ async def test_visualization_consumer_receives_and_edit(
 ):
     """Test that receive does nothing (pass)."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_broadcast = mocker.patch(
         "tethysapp.tethysdash.controllers.send_websocket_message"
     )
@@ -1940,7 +1940,7 @@ async def test_visualization_consumer_receives_and_edit(
 async def test_visualization_consumer_receive_missing_requestid(mock_app_get_ps_db):
     """Test that receive does nothing (pass)."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     application = VisualizationConsumer()
     sent = []
@@ -1972,7 +1972,7 @@ async def test_visualization_consumer_receive_missing_requestid(mock_app_get_ps_
 async def test_visualization_consumer_receive_not_live_chat(mock_app_get_ps_db):
     """Test that receive does nothing (pass)."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     application = VisualizationConsumer()
     sent = []
@@ -2004,7 +2004,7 @@ async def test_visualization_consumer_receive_rate_limit_error(
 ):
     """Test that receive sends rate limit error when rate limit is exceeded."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
 
     application = VisualizationConsumer()
@@ -2016,8 +2016,9 @@ async def test_visualization_consumer_receive_rate_limit_error(
     application.send = fake_send
 
     # Patch only cache.get and cache.ttl
-    mocker.patch("tethysapp.tethysdash.controllers.cache.get", return_value=5)
-    mocker.patch("tethysapp.tethysdash.controllers.cache.ttl", return_value=7)
+    mock_cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
+    mock_cache.get.return_value = 5  # Simulate count > 0 and < 5
+    mock_cache.ttl.return_value = 7  # Simulate ttl returning 7
 
     await application.receive(
         text_data=json.dumps(
@@ -2053,7 +2054,7 @@ async def test_visualization_consumer_receive_rate_limit_ttl_None(
 ):
     """Test that receive sends rate limit error when rate limit is exceeded."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
 
     application = VisualizationConsumer()
@@ -2065,8 +2066,9 @@ async def test_visualization_consumer_receive_rate_limit_ttl_None(
     application.send = fake_send
 
     # Patch only cache.get and cache.ttl
-    mocker.patch("tethysapp.tethysdash.controllers.cache.get", return_value=5)
-    mocker.patch("tethysapp.tethysdash.controllers.cache.ttl", return_value=None)
+    mock_cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
+    mock_cache.get.return_value = 5  # Simulate count > 0 and < 5
+    mock_cache.ttl.return_value = None  # Simulate ttl returning None
 
     await application.receive(
         text_data=json.dumps(
@@ -2102,7 +2104,7 @@ async def test_visualization_consumer_receive_rate_limit_ttl_exception(
 ):
     """Test that receive sends rate limit error when rate limit is exceeded."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
 
     application = VisualizationConsumer()
@@ -2114,11 +2116,9 @@ async def test_visualization_consumer_receive_rate_limit_ttl_exception(
     application.send = fake_send
 
     # Patch only cache.get and cache.ttl
-    mocker.patch("tethysapp.tethysdash.controllers.cache.get", return_value=5)
-    mocker.patch(
-        "tethysapp.tethysdash.controllers.cache.ttl",
-        side_effect=[Exception("TTL error")],
-    )
+    mock_cache = mocker.patch("tethysapp.tethysdash.controllers.cache")
+    mock_cache.get.return_value = 5  # Simulate count > 0 and < 5
+    mock_cache.ttl.side_effect = Exception("TTL error")
 
     await application.receive(
         text_data=json.dumps(
@@ -2161,7 +2161,7 @@ async def test_visualization_consumer_rate_limit_incr(
     mock_cache.incr = MagicMock()
 
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
 
     application = VisualizationConsumer()
@@ -2206,7 +2206,7 @@ async def test_visualization_consumer_receive_failed_broadcast(
 ):
     """Test that receive does nothing (pass)."""
     mock_app_get_ps_db("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_broadcast = mocker.patch(
         "tethysapp.tethysdash.controllers.send_websocket_message"
     )
@@ -2257,7 +2257,7 @@ async def test_visualization_consumer_receive_failed_db_save(
 ):
     """Test that receive does nothing (pass)."""
     mock_app = mocker.patch("tethysapp.tethysdash.controllers.App")
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mocker.patch("tethysapp.tethysdash.controllers.send_websocket_message")
     mock_app.get_persistent_store_database.side_effect = Exception(
         "database save failed"

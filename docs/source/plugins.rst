@@ -3,7 +3,7 @@
 Visualization Plugins
 =====================
 
-Dashboard visualization plugins are built on the `intake <https://github.com/intake/intake>`_ Python package. You can develop plugins by following the `Making Driver <https://intake.readthedocs.io/en/latest/making-plugins.html>`_ documentation. This section covers the requirements for creating plugins specifically for TethysDash, including setup, required properties, and methods. For examples, see the `TethysDash Plugin Template repository <https://github.com/FIRO-Tethys/tethysdash_plugin_template>`_.
+Dashboard visualization plugins are created by subclassing the `TethysDashPlugin` base class, which provides integration with the `intake <https://github.com/intake/intake>`_ package. While TethysDash uses Intake under the hood, plugin authors should focus on implementing subclasses of `TethysDashPlugin` rather than writing intake drivers directly. This section covers the requirements for creating plugins specifically for TethysDash, including setup, required properties, and methods. For examples, see the `TethysDash Plugin Template repository <https://github.com/FIRO-Tethys/tethysdash_plugin_template>`_.
 
 Development
 -----------
@@ -16,58 +16,48 @@ Creating a repository
 Before developing a plugin, create a new repository for it. This allows others to clone and install the package as needed. While the file structure is flexible, following the structure in the `TethysDash Plugin Template repository <https://github.com/FIRO-Tethys/tethysdash_plugin_template>`_ is recommended for compatibility. Be sure to add a static folder with visualization thumbnails to make your plugin easier to discover when users browse available visualizations (:doc:`dashboard_visualizations`).
 
 =======================
-Intake DataSource Class
+TethysDash Plugin Class
 =======================
 
 
-The main focus is to create a new intake driver and datasource as a Python class. Below is an example of a simple intake driver::
+TethysDash offers a base class, `TethysDashPlugin`, for building custom visualization plugins. To create a plugin, subclass `TethysDashPlugin` and define the required properties described below. The primary method to implement is `run`, which TethysDash will call to generate and return the visualization data.::
 
 
-    from intake.source import base
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
     import plotly.express as px
     import json
 
-    class PlotExample(base.DataSource):
-        container = 'python'
-        version = '0.0.1'
+    class PlotExample(TethysDashPlugin):
         name = 'plot_example'
-        visualization_args = {"continent": "text"}
-        visualization_group = "Example"
-        visualization_label = "Example Plot"
-        visualization_type = "plotly"
-        visualization_tags = [
+        args = {"continent": "text"}
+        group = "Example"
+        label = "Example Plot"
+        type = "plotly"
+        tags = [
             "example",
             "plotly",
         ]
-        visualization_description = "An example plugin for the plotly visualization"
+        description = "An example plugin for the plotly visualization"
 
-        def __init__(self, continent, metadata=None, **kwargs):
-            self.continent = continent
-            super().__init__(metadata=metadata)
-
-        def read(self):
+        def run(self):
             """Return a version of the xarray with all the data in memory"""
             df = px.data.gapminder().query(f"continent == '{self.continent}'")
             fig = px.line(df, x="year", y="lifeExp", color="country", symbol="country")
             return json.loads(fig.to_json())
 
-
-The container, version, and name properties are required by intake. For more details on properties and base.DataSource, see the intake `documentation <https://intake.readthedocs.io/en/latest/making-plugins.html>`_.
-
 Properties:
-    - **container**: Usually "python"; the intake driver returns a Python object.
-    - **version**: Version of the package.
-    - **name**: Name of the package. Used for installation and as the driver name (e.g., `intake.open_<driver_name>`).
-    - **visualization_args**: (TethysDash-specific) Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`).
-    - **visualization_group**: (TethysDash-specific) Used to group visualizations in the dashboard app.
-    - **visualization_label**: (TethysDash-specific) The display name for the visualization in the dashboard app.
-    - **visualization_type**: (TethysDash-specific) The type of visualization: "plotly", "table", "image", "card", "map", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section for details.
-    - **visualization_description**: (TethysDash-specific) Description of the visualization.
-    - **visualization_tags**: (TethysDash-specific) List of tags for search and discovery.
-    - **visualization_permissions**: (TethysDash-specific) Boolean to enable permission settings on the landing page. Defaults to false.
+    - **name**: (required) Name of the package. Used for installation and as the driver name (e.g., `intake.open_<driver_name>`).
+    - **group**: (required) Used to group visualizations in the dashboard app.
+    - **label**: (required) The display name for the visualization in the dashboard app.
+    - **type**: (required) The type of visualization. Must be "plotly", "table", "image", "card", "text", "variable_input", "map", "map_layer", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section for details.
+    - **args**: Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`). These args are set as attributes of the plugin class and can be used in the run method using self (e.g., `self.year`, `self.location`, `self.available_colors`).
+    - **tags**: List of tags for search and discovery.
+    - **description**: Description of the visualization.
+    - **restricted**: Boolean to restrict access to the plugin. If true, the plugin will only be visible to users with permissions. Defaults to false.
+    - **loading_icon**: Boolean to enable a loading icon when the plugin is loading data. Defaults to true.
+    - **attribution**: Description of the data source for attribution purposes. Optional.
 Methods:
-    - **__init__**: Standard Python class initializer. Set any class-specific properties here (e.g., "continent" in the example above).
-    - **read**: The main function to implement. The dashboard app calls this method and uses its results as the visualization data.
+    - **run**: The main function to implement. The dashboard app calls this method and uses its results as the visualization data.
 
 ==========================
 Plugin Visualization Types
@@ -92,28 +82,23 @@ Displays a `Plotly <https://plotly.com/python/>`_ chart with the provided data, 
 
 **Example**: ::
 
-    from intake.source import base
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
     import plotly.graph_objects as go
 
-    class PlotlyExample(base.DataSource):
-        container = "python"
-        version = "0.0.1"
+    class PlotlyExample(TethysDashPlugin):
         name = "plotly_example"
-        visualization_args = {}
-        visualization_group = "Example"
-        visualization_label = "Plotly Example"
-        visualization_type = "plotly"
-        visualization_tags = [
+        group = "Example"
+        label = "Plotly Example"
+        type = "plotly"
+        tags = [
             "example",
             "plotly",
         ]
-        visualization_description = "An example plugin for the plotly visualization"
+        description = "An example plugin for the plotly visualization"
 
-        def __init__(self, metadata=None):
-            super().__init__(metadata=metadata)
+        def run(self):
+            """Return plotly information"""
 
-        def read(self):
-            """
             Return plotly information
             """
             data = [
@@ -174,26 +159,20 @@ Displays a table from the provided data.
 
 **Example**: ::
 
-    from intake.source import base
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 
-    class TableExample(base.DataSource):
-        container = "python"
-        version = "0.0.1"
+    class TableExample(TethysDashPlugin):
         name = "table_example"
-        visualization_args = {}
-        visualization_group = "Example"
-        visualization_label = "Table Example"
-        visualization_type = "table"
-        visualization_tags = [
+        group = "Example"
+        label = "Table Example"
+        type = "table"
+        tags = [
             "example",
             "table",
         ]
-        visualization_description = "An example plugin for the table visualization"
+        description = "An example plugin for the table visualization"
 
-        def __init__(self, metadata=None):
-            super().__init__(metadata=metadata)
-
-        def read(self):
+        def run(self):
             """
                 Return table data
             """
@@ -243,27 +222,21 @@ Displays an image based on the returned URL string.
 
 **Example**: ::
 
-    from intake.source import base
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 
 
-    class ImageExample(base.DataSource):
-        container = "python"
-        version = "0.0.1"
+    class ImageExample(TethysDashPlugin):
         name = "image_example"
-        visualization_args = {}
-        visualization_group = "Example"
-        visualization_label = "Image Example"
-        visualization_type = "image"
-        visualization_tags = [
+        group = "Example"
+        label = "Image Example"
+        type = "image"
+        tags = [
             "example",
             "image",
         ]
-        visualization_description = "An example plugin for the image visualization"
+        description = "An example plugin for the image visualization"
 
-        def __init__(self, metadata=None):
-            super().__init__(metadata=metadata)
-
-        def read(self):
+        def run(self):
             """
             Return an image url
             """
@@ -295,26 +268,20 @@ value, label, and icon.
 
 **Example**: ::
 
-    from intake.source import base
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 
-    class CardExample(base.DataSource):
-        container = "python"
-        version = "0.0.1"
+    class CardExample(TethysDashPlugin):
         name = "card_example"
-        visualization_args = {}
-        visualization_group = "Example"
-        visualization_label = "Card Example"
-        visualization_type = "card"
-        visualization_tags = [
+        group = "Example"
+        label = "Card Example"
+        type = "card"
+        tags = [
             "example",
             "card",
         ]
-        visualization_description = "An example plugin for the card visualization"
+        description = "An example plugin for the card visualization"
 
-        def __init__(self, metadata=None):
-            super().__init__(metadata=metadata)
-
-        def read(self):
+        def run(self):
             """
                 Return the data for the cards
             """
@@ -364,26 +331,20 @@ Displays custom text
 
 **Example**: ::
 
-    from intake.source import base
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 
-    class TextExample(base.DataSource):
-        container = "python"
-        version = "0.0.1"
+    class TextExample(TethysDashPlugin):
         name = "text_example"
-        visualization_args = {}
-        visualization_group = "Example"
-        visualization_label = "Text Example"
-        visualization_type = "text"
-        visualization_tags = [
+        group = "Example"
+        label = "Text Example"
+        type = "text"
+        tags = [
             "example",
             "text",
         ]
-        visualization_description = "An example plugin for the text visualization"
+        description = "An example plugin for the text visualization"
 
-        def __init__(self, metadata=None):
-            super().__init__(metadata=metadata)
-
-        def read(self):
+        def run(self):
             """
                 Return the data for the text
             """
@@ -411,28 +372,22 @@ Displays a variable input
 
 **Example**: ::
 
-    from intake.source import base
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 
-    class VariableInputExample(base.DataSource):
-        container = "python"
-        version = "0.0.1"
+    class VariableInputExample(TethysDashPlugin):
         name = "variable_input_example"
-        visualization_args = {}
-        visualization_group = "Example"
-        visualization_label = "Variable Input Example"
-        visualization_type = "variable_input"
-        visualization_tags = [
+        group = "Example"
+        label = "Variable Input Example"
+        type = "variable_input"
+        tags = [
             "example",
             "variable input",
         ]
-        visualization_description = "An example plugin for the variable input visualization"
+        description = "An example plugin for the variable input visualization"
 
-        def __init__(self, metadata=None):
-            super().__init__(metadata=metadata)
-
-        def read(self):
+        def run(self):
             """
-                Return the data for the text
+                Return the data for the variable input
             """
             layer_names = [
                 {"label": "Observed River Stage", "value": 0},
@@ -473,27 +428,21 @@ configurations for configs and layers.
 
 **Example**: ::
 
-    from intake.source import base
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 
 
-    class Plots(base.DataSource):
-        container = "python"
-        version = "0.0.1"
-        name = "map_example"
-        visualization_args = {}
-        visualization_group = "Example"
-        visualization_label = "Map Example"
-        visualization_type = "map"
-        visualization_tags = [
+    class Plots(TethysDashPlugin):
+        group = "Example"
+        label = "Map Example"
+        type = "map"
+        tags = [
             "example",
             "map",
         ]
-        visualization_description = "An example plugin for the map visualization"
+        description = "An example plugin for the map visualization"
 
-        def __init__(self, metadata=None, **kwargs):
-            super().__init__(metadata=metadata)
 
-        def read(self):
+        def run(self):
 
             return {
                 "baseMap": "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
@@ -585,24 +534,18 @@ from the plugin
 
 **Example**: ::
 
-    from intake.source import base
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 
 
-    class MapLayerExample(base.DataSource):
-        container = "python"
-        version = "0.0.1"
+    class MapLayerExample(TethysDashPlugin):
         name = "map_example"
-        visualization_args = {}
-        visualization_group = "Example"
-        visualization_label = "Map Layer Template Example"
-        visualization_type = "map_layer"
-        visualization_tags = ["example", "map", "map_layer"]
-        visualization_description = "An example plugin for the map layer template"
+        group = "Example"
+        label = "Map Layer Template Example"
+        type = "map_layer"
+        tags = ["example", "map", "map_layer"]
+        description = "An example plugin for the map layer template"
 
-        def __init__(self, metadata=None, **kwargs):
-            super().__init__(metadata=metadata)
-
-        def read(self):
+        def run(self):
             """
             Return map layer configuration
             """
@@ -812,21 +755,15 @@ Displays a custom visualization from a custom react component.
 
     **Example**: ::
 
-        from intake.source import base
+        from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 
-        class CustomExample(base.DataSource):
-            container = "python"
-            version = "0.0.1"
+        class CustomExample(TethysDashPlugin):
             name = "custom_example"
-            visualization_args = {}
-            visualization_group = "Example"
-            visualization_label = "Custom Example"
-            visualization_type = "custom"
+            group = "Example"
+            label = "Custom Example"
+            type = "custom"
 
-            def __init__(self, metadata=None):
-                super().__init__(metadata=metadata)
-
-            def read(self):
+            def run(self):
                 """
                     Return the configuration for the custom component
                 """

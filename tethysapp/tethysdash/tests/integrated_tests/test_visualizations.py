@@ -11,7 +11,7 @@ from tethysapp.tethysdash.exceptions import VisualizationError
 def test_get_available_visualizations(
     mock_app_get_ps_db, mock_plugin, mock_plugin_visualization, mocker, test_owner_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.visualizations.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_intake = mocker.patch("tethysapp.tethysdash.visualizations.intake")
     mock_get_visualization_user_permission = mocker.patch(
         "tethysapp.tethysdash.visualizations.get_visualization_user_permission"
@@ -33,7 +33,7 @@ def test_get_available_visualizations2(
     mocker,
     test_owner_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.visualizations.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_visualization_user_permission = mocker.patch(
         "tethysapp.tethysdash.visualizations.get_visualization_user_permission"
     )
@@ -54,7 +54,7 @@ def test_get_visualization_uninstalled_plugin(
     class MockIntake:
         source = type("Source", (), {"registry": {}})
 
-    mock_app_get_ps_db("tethysapp.tethysdash.visualizations.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mocker.patch("tethysapp.tethysdash.visualizations.intake", new=MockIntake())
 
     test_args = {"some_arg": "test"}
@@ -69,7 +69,7 @@ def test_get_visualization_uninstalled_plugin(
 def test_get_visualization_restricted_and_access(
     mock_app_get_ps_db, mock_plugin, mocker, test_owner_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.visualizations.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_intake = mocker.patch("tethysapp.tethysdash.visualizations.intake")
     mock_get_visualization_user_permission = mocker.patch(
         "tethysapp.tethysdash.visualizations.get_visualization_user_permission"
@@ -92,7 +92,7 @@ def test_get_visualization_restricted_and_access(
 def test_get_visualization_restricted_and_no_access(
     mock_app_get_ps_db, mock_plugin, mocker, test_owner_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.visualizations.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_intake = mocker.patch("tethysapp.tethysdash.visualizations.intake")
     mock_get_visualization_user_permission = mocker.patch(
         "tethysapp.tethysdash.visualizations.get_visualization_user_permission"
@@ -132,7 +132,7 @@ def test_get_visualization_live_chat(
     live_chat_dashboard,
     mock_app_get_ps_db,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.visualizations.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     grid_item_uuid = live_chat_dashboard.tabs[0].grid_items[0].uuid
 
     viz_type, viz_data = get_visualization(

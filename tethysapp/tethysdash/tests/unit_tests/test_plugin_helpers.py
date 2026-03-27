@@ -2,6 +2,7 @@ from tethysapp.tethysdash.plugin_helpers import (
     LayerConfigurationBuilder,
     validate_geojson,
     send_websocket_message,
+    TethysDashPlugin,
 )
 import requests
 import pytest
@@ -449,7 +450,7 @@ def test_send_websocket_message_success(mocker):
     )
     mocker.patch("asgiref.sync.async_to_sync", mock_async_to_sync)
 
-    send_websocket_message("reqid", {"foo": "bar"}, step=1, total_steps=2)
+    send_websocket_message("reqid", {"foo": "bar"}, percentage_complete=50)
 
     mock_async_to_sync.assert_called_once()
     mock_group_send.assert_called_once_with(
@@ -459,8 +460,7 @@ def test_send_websocket_message_success(mocker):
             "message": {
                 "message": {"foo": "bar"},
                 "requestId": "reqid",
-                "step": 1,
-                "totalSteps": 2,
+                "percentageComplete": 50,
             },
         },
     )
@@ -848,3 +848,189 @@ def test_parse_date_hour_input_invalid():
     # Not a string
     with pytest.raises(TypeError):
         parse_date_hour_input(202312251430)
+
+
+class MinimalPlugin(TethysDashPlugin):
+    name = "minimal"
+    group = "TestGroup"
+    label = "Minimal Plugin"
+    type = "plotly"
+    args = {"foo": "bar"}
+    tags = ["tag1"]
+    description = "desc"
+    restricted = True
+    loading_icon = False
+    attribution = "attr"
+
+    def run(self):
+        return "ran"
+
+
+class MinimalPlugin2(TethysDashPlugin):
+    name = "minimal"
+    visualization_group = "TestGroup"
+    visualization_label = "Minimal Plugin"
+    visualization_type = "plotly"
+    visualization_args = {"foo": "bar"}
+    visualization_tags = ["tag1"]
+    visualization_description = "desc"
+    visualization_restricted = True
+    visualization_loading_icon = False
+    visualization_attribution = "attr"
+
+    def run(self):
+        return "ran"
+
+
+def test_plugin_init_and_attributes():
+    plugin = MinimalPlugin()
+    assert plugin.name == "minimal"
+    assert plugin.group == "TestGroup"
+    assert plugin.label == "Minimal Plugin"
+    assert plugin.type == "plotly"
+    assert plugin.args == {"foo": "bar"}
+    assert plugin.tags == ["tag1"]
+    assert plugin.description == "desc"
+    assert plugin.restricted is True
+    assert plugin.loading_icon is False
+    assert plugin.attribution == "attr"
+
+
+def test_plugin2_init_and_attributes():
+    plugin = MinimalPlugin2()
+    assert plugin.name == "minimal"
+    assert plugin.group == "TestGroup"
+    assert plugin.label == "Minimal Plugin"
+    assert plugin.type == "plotly"
+    assert plugin.args == {"foo": "bar"}
+    assert plugin.tags == ["tag1"]
+    assert plugin.description == "desc"
+    assert plugin.restricted is True
+    assert plugin.loading_icon is False
+    assert plugin.attribution == "attr"
+
+
+def test_plugin_run_and_read():
+    plugin = MinimalPlugin()
+    assert plugin.run() == "ran"
+    # read should call run and set request_id
+    result = plugin.read("reqid")
+    assert result == "ran"
+    assert plugin.request_id == "reqid"
+
+
+def test_plugin_required_fields():
+    # Missing name
+    class NoName(TethysDashPlugin):
+        group = "g"
+        label = "l"
+        type = "plotly"
+
+    with pytest.raises(ValueError, match="name attribute"):
+        NoName()
+
+    # Missing type
+    class NoType(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+
+    with pytest.raises(ValueError, match="type attribute"):
+        NoType()
+
+    # Missing label
+    class NoLabel(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        type = "plotly"
+
+    with pytest.raises(ValueError, match="label attribute"):
+        NoLabel()
+
+    # Missing group
+    class NoGroup(TethysDashPlugin):
+        name = "n"
+        label = "l"
+        type = "plotly"
+
+    with pytest.raises(ValueError, match="group attribute"):
+        NoGroup()
+
+
+def test_plugin_type_validation():
+    class BadType(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "not_a_type"
+
+    with pytest.raises(ValueError, match="not valid"):
+        BadType()
+
+
+def test_plugin_args_and_tags_types():
+    class BadArgs(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = "notadict"
+
+    with pytest.raises(ValueError, match="args must be a dictionary"):
+        BadArgs()
+
+    class BadTags(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        tags = "notalist"
+
+    with pytest.raises(ValueError, match="tags must be a list"):
+        BadTags()
+
+
+def test_plugin_reserved_keys():
+    class ReservedArgs(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"label": "bad"}
+
+    with pytest.raises(ValueError, match="reserved keys"):
+        ReservedArgs()
+
+
+def test_plugin_run_not_implemented():
+    class NoRun(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+
+    plugin = NoRun()
+    with pytest.raises(NotImplementedError):
+        plugin.run()
+
+
+def test_plugin_send_update(monkeypatch):
+    plugin = MinimalPlugin()
+    plugin.request_id = "reqid"
+    called = {}
+
+    def fake_send_websocket_message(request_id, message, percentage_complete=None):
+        called["args"] = (request_id, message, percentage_complete)
+
+    monkeypatch.setattr(
+        "tethysapp.tethysdash.plugin_helpers.send_websocket_message",
+        fake_send_websocket_message,
+    )
+    plugin.send_update("msg", percentage_complete=42)
+    assert called["args"] == ("reqid", "msg", 42)
+
+
+def test_plugin_kwargs_are_set():
+    plugin = MinimalPlugin(extra1=123, extra2="abc")
+    assert plugin.extra1 == 123
+    assert plugin.extra2 == "abc"

@@ -9,14 +9,155 @@ import requests
 import xmltodict
 import copy
 from datetime import datetime
+from intake.source import base
+
+
+# Helper to get the property, preferring new style, falling back to old
+def get_plugin_prop(obj, name, default=None):
+    old_name = f"visualization_{name}"
+    if hasattr(obj, old_name):
+        return getattr(obj, old_name)
+    elif hasattr(obj, name):
+        return getattr(obj, name)
+    else:
+        return default
+
+
+valid_plugin_types = [
+    "plotly",
+    "table",
+    "image",
+    "card",
+    "text",
+    "variable_input",
+    "map",
+    "map_layer",
+    "custom",
+]
+
+
+class TethysDashPlugin(base.DataSource):
+    """
+    Base class for TethysDash plugins.
+
+    This class extends the Intake DataSource base class and serves as a common
+    parent for all TethysDash plugin types.
+
+    Plugin developers can subclass this base class when creating new plugins to
+    ensure consistency and compatibility with the TethysDash system.
+    """
+
+    container = "python"
+    version = "0.0.1"
+    name = None
+    args = {}
+    group = None
+    label = None
+    type = None
+    tags = []
+    description = ""
+    restricted = False
+    loading_icon = True
+    attribution = ""
+
+    def __init__(self, metadata=None, *args, **kwargs):
+        super().__init__(metadata=metadata)
+        self.args = get_plugin_prop(self, "args", {})
+        self.group = get_plugin_prop(self, "group", None)
+        self.label = get_plugin_prop(self, "label", None)
+        self.type = get_plugin_prop(self, "type", None)
+        self.tags = get_plugin_prop(self, "tags", [])
+        self.description = get_plugin_prop(self, "description", "")
+        self.restricted = get_plugin_prop(self, "restricted", False)
+        self.loading_icon = get_plugin_prop(self, "loading_icon", True)
+        self.attribution = get_plugin_prop(self, "attribution", "")
+
+        if not self.name:
+            raise ValueError("Plugin must have a name attribute defined.")
+        if not self.type:
+            raise ValueError("Plugin must have a type attribute defined.")
+        if not self.label:
+            raise ValueError("Plugin must have a label attribute defined.")
+        if self.group is None:
+            raise ValueError("Plugin must have a group attribute defined.")
+        if self.type not in valid_plugin_types:
+            raise ValueError(
+                f"Plugin type '{self.type}' is not valid. Must be one of: {', '.join(valid_plugin_types)}"  # noqa: E501
+            )
+        if type(self.args) is not dict:
+            raise ValueError("Plugin args must be a dictionary.")
+        if type(self.tags) is not list:
+            raise ValueError("Plugin tags must be a list.")
+
+        reserved_keys = {
+            "args",
+            "group",
+            "label",
+            "type",
+            "tags",
+            "description",
+            "restricted",
+            "loading_icon",
+            "attribution",
+        }
+
+        if self.args.keys() & reserved_keys:
+            raise ValueError(
+                f"Plugin args cannot contain reserved keys: {', '.join(reserved_keys)}"
+            )  # noqa: E501
+
+        for kwarg_name, kwarg_value in kwargs.items():
+            setattr(self, kwarg_name, kwarg_value)
+
+    def run(self):
+        """
+        Method to execute the plugin's main functionality.
+
+        Arguments that are passed to the plugin from the frontend will be available as class attributes after initialization.
+
+        Returns:
+            The output of the plugin, which will be passed to the visualization
+            component for rendering.
+        """
+        raise NotImplementedError("Subclasses must implement the run() method.")
+
+    def read(self, request_id):
+        """
+        DO NOT OVERRIDE THIS METHOD.
+        This method is managed by the TethysDashPlugin base class.
+
+        Returns:
+            The output of the plugin, which will be passed to the visualization
+            component for rendering.
+        """
+        self.request_id = request_id
+
+        return self.run()
+
+    def send_update(
+        self,
+        message,
+        percentage_complete=None,
+    ):
+        """
+        Send an update message via WebSocket.
+
+        Args:
+            message (str): The message content to send.
+            percentage_complete (float, optional): A number between 0 and 100 indicating the percentage of completion for a task. If provided, this will be included in the message to indicate progress.
+        """
+        send_websocket_message(
+            self.request_id,
+            message,
+            percentage_complete=percentage_complete,
+        )
 
 
 # General helper for sending messages via Django Channels
 def send_websocket_message(
     request_id,
     message,
-    step=None,
-    total_steps=None,
+    percentage_complete=None,
     sender=None,
     sessionId=None,
     timestamp=None,
@@ -28,23 +169,21 @@ def send_websocket_message(
     Args:
         request_id (str): The request identifier for the message.
         message (str): The message content to send.
-        step (int, optional): Current step in a multi-step process.
-        total_steps (int, optional): Total steps in a multi-step process.
+        percentage_complete (float, optional): A number between 0 and 100 indicating the percentage of completion for a task. If provided, this will be included in the message to indicate progress.
         sender (str, optional): Identifier for the message sender.
         sessionId (str, optional): Session identifier for the message.
         timestamp (str, optional): Timestamp of the message.
 
     Example:
-        send_websocket_message('user_123', 'progress_message', 1, 2)
+        send_websocket_message('user_123', 'progress_message', 50)
     """
     try:
         from channels.layers import get_channel_layer
         from asgiref.sync import async_to_sync
 
         websocket_message = {"message": message, "requestId": request_id}
-        if step is not None and total_steps is not None:
-            websocket_message["step"] = step
-            websocket_message["totalSteps"] = total_steps
+        if percentage_complete is not None:
+            websocket_message["percentageComplete"] = percentage_complete
 
         if sender:
             websocket_message["sender"] = sender

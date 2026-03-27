@@ -64,7 +64,7 @@ def mock_alembic(mocker):
 
 @pytest.mark.django_db
 def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_user):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     description = "added_dashboard"
     uuid = str(uuid4())
     name = "added_dashboard"
@@ -150,7 +150,7 @@ def test_add_and_delete_dashboard(db_session, mock_app_get_ps_db, test_owner_use
 def test_add_and_delete_dashboard_with_grid_items(
     db_session, mock_app_get_ps_db, test_owner_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     description = "added_dashboard"
     uuid = str(uuid4())
     name = "added_dashboard"
@@ -216,7 +216,7 @@ def test_add_and_delete_dashboard_with_grid_items(
 
 @pytest.mark.django_db
 def test_add_dashboard_with_tabs(db_session, mock_app_get_ps_db, test_owner_user):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     description = "added_dashboard"
     uuid = str(uuid4())
     name = "added_dashboard"
@@ -303,7 +303,7 @@ def test_add_dashboard_with_tabs(db_session, mock_app_get_ps_db, test_owner_user
 def test_delete_named_dashboard(
     dashboard, db_session, mock_app_get_ps_db, test_owner_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     delete_named_dashboard(test_owner_user, dashboard.id)
 
@@ -317,7 +317,7 @@ def test_delete_named_dashboard(
 def test_delete_named_dashboard_id_doesnt_exist(
     dashboard, db_session, mock_app_get_ps_db
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     with pytest.raises(Exception) as excinfo:
         delete_named_dashboard("admin", 1000000000000000000)
@@ -336,7 +336,7 @@ def test_delete_named_dashboard_id_doesnt_exist(
 def test_delete_named_dashboard_not_allowed(
     dashboard, db_session, mock_app_get_ps_db, test_admin_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     with pytest.raises(Exception) as excinfo:
         delete_named_dashboard(test_admin_user, dashboard.id)
@@ -355,7 +355,7 @@ def test_delete_named_dashboard_not_allowed(
 def test_update_named_dashboard_grid_items(
     dashboard, db_session, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
     new_dashboard_name = "new_name"
@@ -516,7 +516,7 @@ def test_update_named_dashboard_grid_items(
 def test_update_named_dashboard_image(
     db_session, dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
@@ -559,7 +559,7 @@ def test_update_named_dashboard_live_chat(
     tmp_path,
     test_owner_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
@@ -616,7 +616,7 @@ def test_update_named_dashboard_live_chat(
 
 @pytest.mark.django_db
 def test_update_named_dashboard_not_exist(mock_app_get_ps_db):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     with pytest.raises(Exception) as excinfo:
         updated_notes = "Some new notes"
@@ -636,7 +636,7 @@ def test_update_named_dashboard_not_exist(mock_app_get_ps_db):
 def test_update_named_dashboard_no_edit_permissions(
     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_member_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
     new_dashboard_name = "new_name"
@@ -660,7 +660,7 @@ def test_update_named_dashboard_no_edit_permissions(
 def test_update_named_dashboard_no_admin_permissions_for_name(
     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_admin_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
     new_dashboard_name = "new_name"
@@ -684,7 +684,7 @@ def test_update_named_dashboard_no_admin_permissions_for_name(
 def test_update_named_dashboard_no_admin_permissions_for_public(
     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_admin_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
@@ -714,7 +714,7 @@ def test_get_dashboards_all(
     test_owner_user,
     test_admin_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
@@ -763,7 +763,7 @@ def test_get_dashboards_specific_dashboard_view(
     test_owner_user,
     test_admin_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
@@ -800,7 +800,7 @@ def test_get_dashboards_specific_landing_page_view(
     test_owner_user,
     test_admin_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
@@ -833,10 +833,10 @@ def test_copy_named_dashboard(
     test_owner_user,
     test_member_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     new_dashboard_name = "new_name"
     new_description = "some updated descripion"
     tabs = [
@@ -920,7 +920,7 @@ def test_parse_db_dashboard_landing_page_view(
     test_owner_user,
     test_admin_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
@@ -957,7 +957,7 @@ def test_parse_db_dashboard_landing_page_view_with_prefix(
     test_owner_user,
     test_admin_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
     mocker.patch("os.path.exists", return_value=True)
@@ -994,7 +994,7 @@ def test_parse_db_dashboard_dashboard_view(
     test_owner_user,
     test_admin_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
@@ -1025,7 +1025,7 @@ def test_parse_db_dashboard_dashboard_view(
 def test_clean_up_jsons(
     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
@@ -1108,7 +1108,7 @@ def test_clean_up_jsons(
 def test_clean_up_jsons_no_existing_dashboard_folder(
     dashboard, mock_app_get_ps_db, mocker, tmp_path, test_owner_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mock_get_app_media = mocker.patch("tethysapp.tethysdash.model.get_app_media")
     mock_get_app_media.return_value = MagicMock(path=tmp_path)
 
@@ -1162,7 +1162,7 @@ def test_clean_up_jsons_no_existing_dashboard_folder(
 
 @pytest.mark.django_db
 def test_init_primary_db_with_current_revision(mock_app_get_ps_db, mocker, tmp_path):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout="abcd1234 some message"),
@@ -1191,7 +1191,7 @@ def test_init_primary_db_with_current_revision(mock_app_get_ps_db, mocker, tmp_p
 def test_init_primary_db_no_current_revision_upgrade_all(
     mock_app_get_ps_db, mocker, tmp_path
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
@@ -1222,7 +1222,7 @@ def test_init_primary_db_no_current_revision_upgrade_all(
 
 @pytest.mark.django_db
 def test_init_primary_db_skips_existing_table(mock_app_get_ps_db, mocker, tmp_path):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
@@ -1517,7 +1517,7 @@ def test_get_user_permission_groups(
     permission_group_table,
     test_member_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     permission_groups = get_user_permission_groups(
         test_member_user,
     )
@@ -1552,7 +1552,7 @@ def test_update_permission_group(
     test_admin_user,
     test_member_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     updated_members = [
         {
             "username": test_owner_user.username,
@@ -1592,7 +1592,7 @@ def test_update_permission_group_nonexistent_user(
     permission_group_table,
     test_owner_user,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     updated_members = [
         {
             "username": "nonexistent_user",
@@ -1617,7 +1617,7 @@ def test_update_permission_group_nonexistent_user(
 def test_update_permission_group_but_group_doesnt_exist(
     mock_app_get_ps_db, permission_group
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     permission_group = {
         "name": "new group",
         "id": 100,
@@ -1636,7 +1636,7 @@ def test_update_permission_group_but_group_doesnt_exist(
 def test_update_permission_group_but_not_admin(
     mock_app_get_ps_db, permission_group, permission_group_table, test_member_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     updated_permission_group = permission_group
     updated_permission_group["id"] = permission_group_table.id
 
@@ -1653,7 +1653,7 @@ def test_update_permission_group_but_not_admin(
 def test_update_permission_group_but_new_name_already_exists(
     mock_app_get_ps_db, db_session, permission_group, permission_group_table
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     group = PermissionGroup(
         name="new_group",
@@ -1684,7 +1684,7 @@ def test_update_permission_group_but_new_name_already_exists(
 def test_create_permission_group_then_update(
     mock_app_get_ps_db, test_owner_user, test_admin_user, test_member_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     permission_group = {
         "name": "new group",
         "description": "a new group description",
@@ -1769,7 +1769,7 @@ def test_create_permission_group_then_update(
 def test_create_permission_group_but_names_already_exists(
     mock_app_get_ps_db, permission_group, permission_group_table
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     permission_group_dict = update_permission_groups(
         "admin_user",
         permission_group,
@@ -1787,7 +1787,7 @@ def test_create_permission_group_but_names_already_exists(
 def test_create_permission_group_but_nonexistent_user(
     mock_app_get_ps_db, permission_group, test_owner_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     permission_group["members"] = [
         {
             "username": "nonexistent_user",
@@ -1807,7 +1807,7 @@ def test_create_permission_group_but_nonexistent_user(
 def test_delete_permission_groups(
     mock_app_get_ps_db, db_session, permission_group_table, test_owner_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     group_id = permission_group_table.id
     delete_status = delete_permission_groups(test_owner_user, group_id)
 
@@ -1821,7 +1821,7 @@ def test_delete_permission_groups(
 def test_delete_permission_groups_by_admin_access(
     mock_app_get_ps_db, db_session, permission_group_table, test_admin_user
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     group_id = permission_group_table.id
     delete_status = delete_permission_groups(test_admin_user, group_id)
 
@@ -1835,7 +1835,7 @@ def test_delete_permission_groups_by_admin_access(
 def test_delete_permission_groups_failed_by_member_access(
     mock_app_get_ps_db, test_member_user, permission_group_table
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     group_id = permission_group_table.id
     delete_status = delete_permission_groups(test_member_user, group_id)
 
@@ -1845,7 +1845,7 @@ def test_delete_permission_groups_failed_by_member_access(
 
 @pytest.mark.django_db
 def test_delete_permission_groups_id_not_found(mock_app_get_ps_db, db_session):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     delete_status = delete_permission_groups("owner_user", 100)
 
     db_session.expire_all()
@@ -1892,7 +1892,7 @@ def test_get_visualization_permissions(
     visualization_permission,
     permission_group_table,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     permissions = get_visualization_permissions()
 
     assert mock_plugin.name in permissions
@@ -1913,7 +1913,7 @@ def test_update_visualization_permissions(
     permission_group_table,
     visualization_permission,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     updated_permissions = {
         mock_plugin.name: {
             "users": [],
@@ -1969,7 +1969,7 @@ def test_update_visualization_permissions_nonexistent_user_and_groups(
     mock_app_get_ps_db,
     mock_plugin,
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
 
     updated_permissions = {
         mock_plugin.name: {
@@ -2042,7 +2042,8 @@ def test_get_user_app_permissions_basic():
                 "tethys_apps.tethysdash:delete_dashboard",
             ]
 
-    from tethysapp.tethysdash.model import get_user_app_permissions, App
+    from tethysapp.tethysdash.model import get_user_app_permissions
+    from tethysapp.tethysdash.app import App
 
     App.package = "tethysdash"
     user = MockUser()
@@ -2055,7 +2056,8 @@ def test_get_user_app_permissions_no_permissions():
         def get_all_permissions(self):
             return []
 
-    from tethysapp.tethysdash.model import get_user_app_permissions, App
+    from tethysapp.tethysdash.model import get_user_app_permissions
+    from tethysapp.tethysdash.app import App
 
     App.package = "tethysdash"
     user = MockUser()
@@ -2068,7 +2070,8 @@ def test_get_user_app_permissions_unrelated_permissions():
         def get_all_permissions(self):
             return ["other_app:view", "another_app:edit"]
 
-    from tethysapp.tethysdash.model import get_user_app_permissions, App
+    from tethysapp.tethysdash.model import get_user_app_permissions
+    from tethysapp.tethysdash.app import App
 
     App.package = "tethysdash"
     user = MockUser()
@@ -2086,7 +2089,8 @@ def test_get_user_app_permissions_mixed_permissions():
                 "tethys_apps.tethysdash:custom",
             ]
 
-    from tethysapp.tethysdash.model import get_user_app_permissions, App
+    from tethysapp.tethysdash.model import get_user_app_permissions
+    from tethysapp.tethysdash.app import App
 
     App.package = "tethysdash"
     user = MockUser()
@@ -2119,7 +2123,7 @@ class MockGridItem:
 def test_init_primary_db_moves_json_and_geojson_files(
     mock_app_get_ps_db, tmp_path, mocker
 ):
-    mock_app_get_ps_db("tethysapp.tethysdash.model.App")
+    mock_app_get_ps_db("tethysapp.tethysdash.app.App")
     mocker.patch(
         "tethysapp.tethysdash.model.subprocess.run",
         return_value=SimpleNamespace(stdout=""),
