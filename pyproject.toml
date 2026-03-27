@@ -46,11 +46,11 @@ classifiers = [
 
 [tool.setuptools]
 include-package-data = true
-exclude = ["docs*", "tests*", "reactapp*"]
 
 [tool.setuptools.packages.find]
 # Find namespace packages like `tethysapp.tethysdash`
 include = ["tethysapp*"]
+exclude = ["docs*", "tests*", "reactapp*"]
 
 [tool.setuptools_scm]
 write_to = "tethysapp/tethysdash/_version.py"
