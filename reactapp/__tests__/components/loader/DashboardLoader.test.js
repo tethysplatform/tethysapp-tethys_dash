@@ -140,6 +140,7 @@ test("DashboardLoader with Map", async () => {
   });
   dashboardWithMap.tabs[0].gridItems = [
     newMockedTextVariable,
+    mockedDateRangeVariable,
     mockedMapBase,
     anotherMapGridItem,
   ];
@@ -169,7 +170,25 @@ test("DashboardLoader with Map", async () => {
   );
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ LID: "some value", "Diff LID": null }),
+    JSON.stringify({
+      LID: "some value",
+      "Test Variable": {
+        "Start Date": "01/14/2026T00:00",
+        "End Date": "01/16/2026T00:00",
+      },
+      "Start Date": "01/14/2026T00:00",
+      "End Date": "01/16/2026T00:00",
+      "Diff LID": null,
+    }),
+  );
+  expect(
+    await screen.findByTestId("variable-input-date-formats"),
+  ).toHaveTextContent(
+    JSON.stringify({
+      "Test Variable": "MM/dd/yyyy'T'HH:mm",
+      "Start Date": "MM/dd/yyyy'T'HH:mm",
+      "End Date": "MM/dd/yyyy'T'HH:mm",
+    }),
   );
 
   let { tabs, ...dashboardContextProperties } = dashboardWithMap;
