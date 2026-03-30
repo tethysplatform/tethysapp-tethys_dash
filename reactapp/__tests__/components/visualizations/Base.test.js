@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { addDays, format as formatDate } from "date-fns";
+import { addDays } from "date-fns";
 import {
   mockedApiImageBase,
   mockedCardBase,
