@@ -48,15 +48,26 @@ const DatePicker = ({
 
   // Track raw input value separately
   const datePickerRef = useRef(null);
-  const [rawInputValue, setRawInputValue] = useState(value);
+  const [rawInputValue, setRawInputValue] = useState(
+    typeof value === "string" ? value : format(value, dateHourFormat),
+  );
 
   // Update rawInputValue if value prop changes (from parent)
   useEffect(() => {
     // Only update rawInputValue if value prop is different from current rawInputValue
     // or if value is not the formatted version of rawInputValue
-    let formattedRaw = parseDate(rawInputValue, dateFormat, true);
-    if (value !== formattedRaw) {
-      setRawInputValue(value);
+    let dateHourFormattedRaw = parseDate(rawInputValue, dateHourFormat, true);
+    let dateFormattedRaw = parseDate(rawInputValue, dateFormat, true);
+    if (
+      value !== dateHourFormattedRaw &&
+      value !== dateFormattedRaw &&
+      !isRelativeInput(rawInputValue)
+    ) {
+      try {
+        setRawInputValue(format(value, dateHourFormat));
+      } catch (e) {
+        setRawInputValue(value);
+      }
     }
     // eslint-disable-next-line
   }, [value]);
@@ -64,7 +75,7 @@ const DatePicker = ({
   // Derive selectedDate for calendar from value prop (only if not relative)
   let selectedDate = null;
   if (!checkForVariable(value)) {
-    selectedDate = parseDate(value, dateFormat);
+    selectedDate = parseDate(value, dateHourFormat);
   }
 
   const onRawChange = (val) => {
@@ -75,8 +86,7 @@ const DatePicker = ({
       if (inDataViewerMode) {
         onChange(val);
       } else {
-        const formattedDate = format(parsedDate, dateFormat);
-        onChange(formattedDate);
+        onChange(parsedDate);
       }
       return;
     }
@@ -91,6 +101,11 @@ const DatePicker = ({
     if (parsedDate) {
       onChange(parsedDate);
     }
+
+    const parsedDateHour = parseDate(val, dateHourFormat, true);
+    if (parsedDateHour) {
+      onChange(parsedDateHour);
+    }
   };
 
   const openCalendar = () => {
@@ -98,9 +113,8 @@ const DatePicker = ({
   };
 
   const handleSelect = (date) => {
-    const formattedDate = format(date, dateFormat);
     setRawInputValue(format(date, dateHourFormat));
-    onChange(formattedDate);
+    onChange(date);
   };
 
   return (
@@ -135,7 +149,6 @@ const DatePicker = ({
             selected={selectedDate}
             onChange={handleSelect}
             showTimeInput={true}
-            dateFormat={dateFormat}
             timeInputLabel="Time:"
             showYearDropdown
             showMonthDropdown
@@ -154,7 +167,7 @@ DatePicker.propTypes = {
   label: PropTypes.string,
   type: PropTypes.oneOf(["date", "date-hour"]),
   onChange: PropTypes.func,
-  value: PropTypes.string,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
   divProps: PropTypes.object,
   dateFormat: PropTypes.string,
 };

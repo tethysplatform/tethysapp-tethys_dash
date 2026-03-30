@@ -65,7 +65,7 @@ test("DatePicker initial date and change to variable input", async () => {
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
 
   const input = screen.getByRole("textbox");
-  expect(input.value).toBe("01/01/1990");
+  expect(input.value).toBe("01/01/1990 12:00 AM");
 
   // eslint-disable-next-line
   fireEvent.change(input, { target: { value: "${Date" } });
@@ -219,9 +219,9 @@ test("DatePicker select tomorrow date-hour", async () => {
 
   await userEvent.click(tomorrowCalendarItem);
   expect(input.value).toBe(`${format(tomorrow, "MM/dd/yyyy")} 12:00 AM`);
-  expect(mockOnChange).toHaveBeenCalledWith(
-    `${format(tomorrow, "MM/dd/yyyy")} 12:00 AM`,
-  );
+  const expectedDateTime = tomorrow;
+  expectedDateTime.setHours(0, 0, 0, 0);
+  expect(mockOnChange).toHaveBeenCalledWith(expectedDateTime);
 });
 
 test("DatePicker select tomorrow date", async () => {
@@ -257,12 +257,13 @@ test("DatePicker select tomorrow date", async () => {
 
   await userEvent.click(tomorrowCalendarItem);
   expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy '12:00 AM'"));
-  expect(mockOnChange).toHaveBeenCalledWith(
-    format(tomorrow, "MM/dd/yyyy '12:00 AM'"),
-  );
+  const expectedDateTime = tomorrow;
+  expectedDateTime.setHours(0, 0, 0, 0);
+  expect(mockOnChange).toHaveBeenCalledWith(expectedDateTime);
 });
 
 test("DatePicker relative date in dataviewer mode", async () => {
+  const frozenNow = new Date("2026-03-30T19:23:57.966Z");
   const mockOnChange = jest.fn();
 
   render(
@@ -274,23 +275,29 @@ test("DatePicker relative date in dataviewer mode", async () => {
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
 
   const input = screen.getByRole("textbox");
-  fireEvent.change(input, {
-    target: { value: "now" },
-  });
+  jest.useFakeTimers();
+  try {
+    jest.setSystemTime(frozenNow);
+    fireEvent.change(input, {
+      target: { value: "now" },
+    });
 
-  expect(mockOnChange).toHaveBeenLastCalledWith("now");
-  expect(mockOnChange).toHaveBeenCalledTimes(1);
+    expect(mockOnChange).toHaveBeenLastCalledWith("now");
+    expect(mockOnChange).toHaveBeenCalledTimes(1);
 
-  fireEvent.change(input, {
-    target: { value: null },
-  });
+    fireEvent.change(input, {
+      target: { value: null },
+    });
 
-  expect(mockOnChange).toHaveBeenCalledTimes(1);
+    expect(mockOnChange).toHaveBeenCalledTimes(1);
 
-  fireEvent.change(input, {
-    target: { value: "now+1H+1D" },
-  });
+    fireEvent.change(input, {
+      target: { value: "now+1H+1D" },
+    });
 
-  expect(mockOnChange).toHaveBeenLastCalledWith("now+1H+1D");
-  expect(mockOnChange).toHaveBeenCalledTimes(2);
+    expect(mockOnChange).toHaveBeenLastCalledWith("now+1H+1D");
+    expect(mockOnChange).toHaveBeenCalledTimes(2);
+  } finally {
+    jest.useRealTimers();
+  }
 });

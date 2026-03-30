@@ -9,12 +9,17 @@ const StyledDiv = styled.div`
   overflow-y: auto;
 `;
 
+const PreWrapDiv = styled.div`
+  white-space: pre-wrap;
+  word-break: break-word;
+`;
+
 const Text = ({ textValue, visualizationRef }) => {
   const clean = DOMPurify.sanitize(textValue);
 
   return (
     <StyledDiv ref={visualizationRef}>
-      <div>{parse(clean)}</div>
+      <PreWrapDiv>{parse(clean)}</PreWrapDiv>
     </StyledDiv>
   );
 };

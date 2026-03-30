@@ -1218,14 +1218,8 @@ it("Base - update date variable input", async () => {
   callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
   expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
 
-  expectedDateString = formatDate(
-    addDays(mockDate, -1),
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
-  );
-  let expectedVariableDateString = formatDate(
-    addDays(mockDate, -1),
-    "MM/dd/yyyy h:mm a",
-  );
+  expectedDateString = addDays(mockDate, -1);
+  let expectedVariableDateString = addDays(mockDate, -1);
 
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
@@ -1276,14 +1270,8 @@ it("Base - update date variable input", async () => {
   callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
   expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
 
-  expectedDateString = formatDate(
-    addDays(mockDate, -2),
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
-  );
-  expectedVariableDateString = formatDate(
-    addDays(mockDate, -2),
-    "MM/dd/yyyy h:mm a",
-  );
+  expectedDateString = addDays(mockDate, -2);
+  expectedVariableDateString = addDays(mockDate, -2);
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -1507,10 +1495,7 @@ it("Base - initial relative date variable input", async () => {
   const callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
   expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
 
-  const expectedVariableDateString = formatDate(
-    addDays(mockDate, -1),
-    "MM/dd/yyyy h:mm a",
-  );
+  const expectedVariableDateString = addDays(mockDate, -1);
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({

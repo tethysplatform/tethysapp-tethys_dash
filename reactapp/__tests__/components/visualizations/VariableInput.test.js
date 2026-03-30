@@ -31,6 +31,7 @@ const advanceTimers = async (ms) => {
 };
 
 it("Creates a Date Input for a Variable Input", async () => {
+  const frozenNow = new Date("2026-03-30T19:23:57.966Z");
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.tabs[0].gridItems = [mockedDateVariable];
   const handleChange = jest.fn();
@@ -77,14 +78,18 @@ it("Creates a Date Input for a Variable Input", async () => {
 
   await userEvent.click(tomorrowCalendarItem);
   expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy '12:00 AM'"));
-  expect(handleChange).toHaveBeenLastCalledWith(
-    format(tomorrow, "MM/dd/yyyy '12:00 AM'"),
-  );
+  const expectedDateTime = tomorrow;
+  expectedDateTime.setHours(0, 0, 0, 0);
+  expect(handleChange).toHaveBeenLastCalledWith(expectedDateTime);
 
-  fireEvent.change(input, { target: { value: "now" } });
-  const expectedDatetimeString = format(today, dateHourFormat);
-  // there is a race condition where this could fail because the minute changed between the click and the change
-  expect(handleChange).toHaveBeenLastCalledWith(expectedDatetimeString);
+  jest.useFakeTimers();
+  try {
+    jest.setSystemTime(frozenNow);
+    fireEvent.change(input, { target: { value: "now" } });
+  } finally {
+    jest.useRealTimers();
+  }
+  expect(handleChange).toHaveBeenLastCalledWith(frozenNow);
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({ "Test Variable": "" }),
   );
@@ -94,11 +99,12 @@ it("Creates a Date Input for a Variable Input", async () => {
   await userEvent.click(refreshButton);
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": expectedDatetimeString }),
+    JSON.stringify({ "Test Variable": frozenNow }),
   );
 });
 
 it("Creates a Date Range Input for a Variable Input", async () => {
+  const frozenNow = new Date("2026-03-30T19:23:57.966Z");
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.tabs[0].gridItems = [mockedDateRangeVariable];
   const handleChange = jest.fn();
@@ -140,12 +146,11 @@ it("Creates a Date Range Input for a Variable Input", async () => {
     }),
   );
 
+  jest.useFakeTimers();
+  jest.setSystemTime(frozenNow);
   fireEvent.change(inputs[0], { target: { value: "now" } });
   const today = new Date();
-  const expectedDatetimeString = format(
-    today,
-    varInputArgs["variable_options_source.metadata"].format,
-  );
+  jest.useRealTimers();
 
   const refreshButton = screen.getByLabelText("Refresh variable input");
   expect(refreshButton).toBeInTheDocument();
@@ -154,10 +159,10 @@ it("Creates a Date Range Input for a Variable Input", async () => {
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable": {
-        "Start Date": expectedDatetimeString,
+        "Start Date": today,
         "End Date": "01/16/2026T00:00",
       },
-      "Start Date": expectedDatetimeString,
+      "Start Date": today,
       "End Date": "01/16/2026T00:00",
     }),
   );
@@ -188,10 +193,10 @@ it("Creates a Date Range Input for a Variable Input", async () => {
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable": {
-        "Start Date": expectedDatetimeString,
+        "Start Date": today,
         "End Date": "01/16/2026T00:00",
       },
-      "Start Date": expectedDatetimeString,
+      "Start Date": today,
       "End Date": "01/16/2026T00:00",
     }),
   );
@@ -1174,6 +1179,124 @@ describe("When inDataViewerMode", () => {
       label: "FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE",
       value: "FTDC1",
     });
+  });
+
+  it("Create a date picker input for a Variable Input", async () => {
+    const frozenNow = new Date("2026-03-30T19:23:57.966Z");
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedDateVariable];
+    const handleChange = jest.fn();
+    const varInputArgs = JSON.parse(mockedDateVariable.args_string);
+
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <VariableInput
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
+              onChange={handleChange}
+            />
+            <InputVariablePComponent />
+          </>
+        ),
+        options: {
+          dashboards: { dashboards: [dashboard] },
+          inDataViewerMode: true,
+        },
+      }),
+    );
+
+    expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+    const input = screen.getByRole("textbox");
+    expect(input.value).toBe("");
+
+    const calendarButton = screen.getByLabelText("Calendar Icon");
+    await userEvent.click(calendarButton);
+
+    const datePicker = await screen.findByRole("dialog");
+    expect(datePicker).toBeInTheDocument();
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const weekday = tomorrow.toLocaleDateString("en-US", { weekday: "long" });
+    const month = tomorrow.toLocaleDateString("en-US", { month: "long" });
+    const day = tomorrow.getDate();
+    const ordinal = getOrdinal(day);
+    const year = tomorrow.getFullYear();
+
+    const formatted = `Choose ${weekday}, ${month} ${day}${ordinal}, ${year}`;
+    const tomorrowCalendarItem = screen.getByLabelText(formatted);
+
+    await userEvent.click(tomorrowCalendarItem);
+    expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy '12:00 AM'"));
+    tomorrow.setHours(0, 0, 0, 0);
+    expect(handleChange).toHaveBeenLastCalledWith(tomorrow);
+
+    expect(screen.getByText("Example Date Output")).toBeInTheDocument();
+    const dateOutput = screen.getByLabelText("Example Date Output Span");
+    expect(dateOutput).toHaveTextContent(
+      format(tomorrow, "MM/dd/yyyy '12:00 AM'"),
+    );
+
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(frozenNow);
+      fireEvent.change(input, { target: { value: "now" } });
+    } finally {
+      jest.useRealTimers();
+    }
+    expect(handleChange).toHaveBeenLastCalledWith("now");
+
+    expect(screen.getByText("Example Date Output")).toBeInTheDocument();
+    expect(dateOutput).toHaveTextContent(format(frozenNow, dateHourFormat));
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": "" }),
+    );
+
+    const refreshButton = screen.getByLabelText("Refresh variable input");
+    expect(refreshButton).toBeInTheDocument();
+    await userEvent.click(refreshButton);
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": "" }),
+    );
+  });
+
+  it("Create a date picker input; bad format", async () => {
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedDateVariable];
+    const handleChange = jest.fn();
+    const varInputArgs = JSON.parse(mockedDateVariable.args_string);
+
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <VariableInput
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
+              onChange={handleChange}
+              metadata={{ format: "bad format" }}
+            />
+            <InputVariablePComponent />
+          </>
+        ),
+        options: {
+          dashboards: { dashboards: [dashboard] },
+          inDataViewerMode: true,
+        },
+      }),
+    );
+
+    expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+    const dateOutput = screen.getByLabelText("Example Date Output Span");
+    expect(dateOutput).toHaveTextContent("Invalid date format");
+    expect(screen.getByText("Example Date Output")).toBeInTheDocument();
   });
 });
 

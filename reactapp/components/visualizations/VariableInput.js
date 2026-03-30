@@ -17,6 +17,7 @@ import { BsArrowClockwise } from "react-icons/bs";
 import Slider from "components/inputs/Slider";
 import CSVUploader from "components/inputs/CSVUploader";
 import { valuesEqual } from "components/modals/utilities";
+import { parseDate } from "components/inputs/dateUtils";
 
 const StyledDiv = styled.div`
   padding: 1rem;
@@ -185,6 +186,18 @@ const VariableInput = ({
     }
   }
 
+  function displayDateOuput() {
+    const parsedDate = parseDate(
+      value?.startDate || value,
+      updatedMetadata?.format,
+      true,
+    );
+    if (!parsedDate) {
+      return "Invalid date format";
+    }
+    return parsedDate;
+  }
+
   if (Array.isArray(type) || type === "checkbox") {
     return (
       <StyledDiv>
@@ -284,6 +297,16 @@ const VariableInput = ({
               onChange={handleInputChange}
               inputProps={updatedMetadata}
             />
+            {inDataViewerMode && (
+              <div style={{ marginTop: "1rem" }}>
+                <label>
+                  <b>Example Date Output</b>:
+                </label>{" "}
+                <span aria-label="Example Date Output Span">
+                  {displayDateOuput()}
+                </span>
+              </div>
+            )}
           </InputDiv>
           <ButtonDiv>
             <TooltipButton

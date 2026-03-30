@@ -14,7 +14,6 @@ import CheckboxInput from "components/inputs/CheckboxInput";
 import DatePicker from "components/inputs/DatePicker";
 import DateFormat from "components/inputs/DateFormat";
 import DateRange from "components/inputs/DateRange";
-import { parseDate } from "components/inputs/dateUtils";
 import * as customInputs from "components/inputs/Custom";
 
 const StyledDiv = styled.div`
@@ -104,16 +103,6 @@ const Input = ({ label, type, onChange, value, valueOptions, inputProps }) => {
             value={value}
             dateFormat={inputProps?.format}
           />
-        )}
-        {inDataViewerMode && (
-          <div style={{ marginTop: "1rem" }}>
-            <label>
-              <b>Example Date Output</b>:
-            </label>{" "}
-            <span>
-              {parseDate(value?.startDate || value, inputProps?.format, true)}
-            </span>
-          </div>
         )}
       </>
     );
