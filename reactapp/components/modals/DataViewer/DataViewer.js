@@ -402,11 +402,11 @@ function DataViewerModal({
                     vizType={vizType}
                     vizData={vizData}
                     dataviewerViz={true}
-                    vizMetadata={updateObjectWithVariableInputs(
-                      settings,
-                      variableInputValues,
+                    vizMetadata={updateObjectWithVariableInputs({
+                      args: settings,
+                      variableInputs: variableInputValues,
                       variableInputDateFormats,
-                    )}
+                    })}
                     progressMessage={getMessageForRequest(requestId.current)}
                   />
                 )}

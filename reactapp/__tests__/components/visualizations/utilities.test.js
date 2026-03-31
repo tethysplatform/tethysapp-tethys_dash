@@ -658,28 +658,28 @@ test("updateObjectWithVariableInputs", async () => {
   };
   const variableInputs = { "Some Variable": "Test" };
 
-  let result = updateObjectWithVariableInputs(
-    JSON.parse(JSON.stringify(args)),
+  let result = updateObjectWithVariableInputs({
+    args: JSON.parse(JSON.stringify(args)),
     variableInputs,
-  );
+  });
   expect(result).toStrictEqual({
     location: "Test",
     text: "Here is some text with the a variable Test",
   });
 
-  const newResult = updateObjectWithVariableInputs(
-    JSON.parse(JSON.stringify(args)),
-    {},
-  );
+  const newResult = updateObjectWithVariableInputs({
+    args: JSON.parse(JSON.stringify(args)),
+    variableInputs: {},
+  });
   expect(newResult).toStrictEqual({
     location: "",
     text: "Here is some text with the a variable ",
   });
 
-  const jsonResult = updateObjectWithVariableInputs(
-    JSON.parse(JSON.stringify(args)),
-    { "Some Variable": { some: "value" } },
-  );
+  const jsonResult = updateObjectWithVariableInputs({
+    args: JSON.parse(JSON.stringify(args)),
+    variableInputs: { "Some Variable": { some: "value" } },
+  });
   expect(jsonResult).toStrictEqual({
     location: { some: "value" },
     text: 'Here is some text with the a variable {"some":"value"}',
@@ -704,11 +704,11 @@ test("updateObjectWithVariableInputs", async () => {
   global.Date.now = jest.fn(() => fixedDate.getTime());
 
   try {
-    const dateResult = updateObjectWithVariableInputs(
-      JSON.parse(JSON.stringify(date_args)),
-      dateVariableInputs,
+    const dateResult = updateObjectWithVariableInputs({
+      args: JSON.parse(JSON.stringify(date_args)),
+      variableInputs: dateVariableInputs,
       variableInputDateFormats,
-    );
+    });
     const expectedADate = format(
       fixedDate,
       variableInputDateFormats["Some Variable"],

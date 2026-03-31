@@ -18,6 +18,7 @@ import Slider from "components/inputs/Slider";
 import CSVUploader from "components/inputs/CSVUploader";
 import { valuesEqual } from "components/modals/utilities";
 import { parseDate } from "components/inputs/dateUtils";
+import DataSelect from "components/inputs/DataSelect";
 
 const StyledDiv = styled.div`
   padding: 1rem;
@@ -59,10 +60,10 @@ const VariableInput = ({
   // Initialize updatedMetadata when metadata or variableInputValues change
   useEffect(() => {
     if (metadata) {
-      const newUpdatedMetadata = updateObjectWithVariableInputs(
-        { ...metadata },
-        variableInputValues,
-      );
+      const newUpdatedMetadata = updateObjectWithVariableInputs({
+        args: { ...metadata },
+        variableInputs: variableInputValues,
+      });
       setUpdatedMetadata(newUpdatedMetadata);
     }
   }, [metadata, variableInputValues]);
@@ -164,7 +165,8 @@ const VariableInput = ({
         Array.isArray(type) ||
         type === "checkbox" ||
         type === "slider" ||
-        type === "csv-uploader"
+        type === "csv-uploader" ||
+        type === "dropdown"
       ) {
         if (!inDataViewerMode) {
           updateVariableInputs(e.value ?? e);
@@ -257,6 +259,21 @@ const VariableInput = ({
               : undefined
           }
           onChange={handleInputChange}
+        />
+      </StyledDiv>
+    );
+  } else if (type === "dropdown") {
+    return (
+      <StyledDiv>
+        <DataSelect
+          label={show_label ? label : ""}
+          selectedOption={findSelectOptionByValue(
+            updatedMetadata?.choices || [],
+            value,
+          )}
+          onChange={(option) => handleInputChange(option?.value)}
+          options={updatedMetadata?.choices || []}
+          creatable={true}
         />
       </StyledDiv>
     );

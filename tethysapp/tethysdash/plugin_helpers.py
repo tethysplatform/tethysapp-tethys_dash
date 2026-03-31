@@ -10,6 +10,8 @@ import xmltodict
 import copy
 from datetime import datetime
 from intake.source import base
+from dateutil.parser import parse
+import pytz
 
 
 # Helper to get the property, preferring new style, falling back to old
@@ -107,6 +109,13 @@ class TethysDashPlugin(base.DataSource):
             )  # noqa: E501
 
         for kwarg_name, kwarg_value in kwargs.items():
+            arg_type = self.args[kwarg_name]
+            if arg_type in ["date", "date-hour"]:
+                kwarg_value = (
+                    parse(kwarg_value)
+                    .replace(second=0, microsecond=0)
+                    .replace(tzinfo=pytz.UTC)
+                )
             setattr(self, kwarg_name, kwarg_value)
 
     def run(self):

@@ -343,19 +343,20 @@ const BaseVisualization = () => {
       "source",
     );
     const sourceType = visualization?.type;
+    const sourceArgs = visualization?.args;
 
     const itemData = { source: gridItemSource, args: args };
-    const updatedGridItemArgs = updateObjectWithVariableInputs(
+    const updatedGridItemArgs = updateObjectWithVariableInputs({
       args,
-      variableInputValues,
+      variableInputs: variableInputValues,
       variableInputDateFormats,
-    );
+    });
 
-    const updatedGridItemMetadata = updateObjectWithVariableInputs(
-      gridMetadata,
-      variableInputValues,
+    const updatedGridItemMetadata = updateObjectWithVariableInputs({
+      args: gridMetadata,
+      variableInputs: variableInputValues,
       variableInputDateFormats,
-    );
+    });
     const customMessaging = gridMetadata.customMessaging;
 
     const filteredOriginalArgs = filterNonRelativeDateArgs(
@@ -393,6 +394,7 @@ const BaseVisualization = () => {
         setVizType,
         setVizData,
         sourceType,
+        sourceArgs,
         itemData,
         argsString: gridItemArgsString,
         metadataString: gridItemMetadataString,

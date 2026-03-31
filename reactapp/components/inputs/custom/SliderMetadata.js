@@ -71,16 +71,16 @@ const SliderMetadata = ({ onChange, values }) => {
   const possibleValues =
     min != null && max != null && step != null && dataType
       ? calculateSliderValues(
-          updateObjectWithVariableInputs(
-            {
+          updateObjectWithVariableInputs({
+            args: {
               min,
               max,
               step,
               unit: dateTimeDelta?.value,
               dataType: dataType?.value,
             },
-            variableInputValues,
-          ),
+            variableInputs: variableInputValues,
+          }),
         )
       : [];
 

@@ -311,6 +311,7 @@ function VisualizationPane({
       ),
     };
     const sourceType = selectedVizTypeOption.type;
+    const sourceArgs = selectedVizTypeOption?.args;
 
     setVizMetadata(itemData);
     setGridItemMessage(
@@ -337,17 +338,18 @@ function VisualizationPane({
         onChange: (e) => setVariableInputValue(e),
       });
     } else {
-      const updatedGridItemArgs = updateObjectWithVariableInputs(
-        itemData.args,
-        variableInputValues,
+      const updatedGridItemArgs = updateObjectWithVariableInputs({
+        args: itemData.args,
+        variableInputs: variableInputValues,
         variableInputDateFormats,
-      );
+      });
       itemData.args = updatedGridItemArgs;
       itemData.requestId = requestId;
       await getVisualization({
         setVizType,
         setVizData,
         sourceType,
+        sourceArgs,
         itemData,
         argsString: JSON.stringify(vizInputsValues),
         metadataString: JSON.stringify(settings),

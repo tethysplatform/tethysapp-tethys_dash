@@ -2,6 +2,7 @@ import appAPI from "services/api/app";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import {
   parseDateMath,
+  parseDate,
   convertDatesToLocalISO,
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
@@ -63,6 +64,7 @@ export async function getVisualization({
   setVizType,
   setVizData,
   sourceType,
+  sourceArgs,
   itemData,
   argsString,
   metadataString,
@@ -107,6 +109,7 @@ export async function getVisualization({
     setVizData({
       source: itemData.args.image_source,
       alt: "custom_image",
+      imageError: metadata.customMessaging?.error,
     });
 
     return;
@@ -116,12 +119,13 @@ export async function getVisualization({
     setVizType("loader");
   }
 
-  itemData.args = updateObjectWithVariableInputs(
-    JSON.parse(argsString),
-    variableInputValues,
+  itemData.args = updateObjectWithVariableInputs({
+    args: JSON.parse(argsString),
+    variableInputs: variableInputValues,
     variableInputDateFormats,
-    true,
-  );
+    sourceArgs,
+    returnDatesAsLocalISO: true,
+  });
 
   const apiResponse = await appAPI.getVisualizationData(itemData);
   if (apiResponse.success === true) {
@@ -131,10 +135,10 @@ export async function getVisualization({
     }
 
     if (dashboardView) {
-      responseData = updateObjectWithVariableInputs(
-        responseData,
-        variableInputValues,
-      );
+      responseData = updateObjectWithVariableInputs({
+        args: responseData,
+        variableInputs: variableInputValues,
+      });
     }
 
     if (typeof apiResponse.data === "string") {
@@ -234,12 +238,13 @@ export function getGridItem(gridItems, gridItemI) {
   return result;
 }
 
-export function updateObjectWithVariableInputs(
+export function updateObjectWithVariableInputs({
   args,
   variableInputs,
   variableInputDateFormats,
+  sourceArgs = {},
   returnDatesAsLocalISO = false,
-) {
+}) {
   const argsCopy = JSON.parse(JSON.stringify(args));
   const variableInputsCopy = JSON.parse(JSON.stringify(variableInputs));
 
@@ -289,6 +294,17 @@ export function updateObjectWithVariableInputs(
       );
     }
 
+    if (
+      sourceArgs[gridItemsArg] === "date" ||
+      sourceArgs[gridItemsArg] === "date-hour"
+    ) {
+      const parsedDate = parseDate(
+        updatedValuesWithVariableInputs,
+        variableInputDateFormats?.[gridItemsArg],
+      );
+      updatedValuesWithVariableInputs = convertDatesToLocalISO(parsedDate);
+    }
+
     if (typeof argsCopy[gridItemsArg] !== "string") {
       updatedValuesWithVariableInputs = JSON.parse(
         updatedValuesWithVariableInputs,
@@ -306,9 +322,9 @@ export const nonDropDownVariableInputTypes = [
   "checkbox",
   { label: "date", value: "date", sub_args: { metadata: "date-format" } },
   {
-    label: "date-hour (deprecated, use date instead)",
-    value: "date-hour",
-    sub_args: { metadata: "date-format" },
+    label: "dropdown",
+    value: "dropdown",
+    sub_args: { metadata: "custom-DropdownMetadata" },
   },
   {
     label: "date-range",

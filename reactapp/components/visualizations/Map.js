@@ -402,7 +402,6 @@ const MapVisualization = ({
   };
 
   const updateVariableInputsForFeature = (selectedFeature) => {
-    console.log("Updating variable inputs for feature:", selectedFeature);
     const layerName = selectedFeature.layerName;
     const mapAttributeVariables = mapAttributeVariablesRef.current;
 
