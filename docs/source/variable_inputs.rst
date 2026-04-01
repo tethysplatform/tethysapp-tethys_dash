@@ -30,7 +30,8 @@ To set up a variable input:
    - **number:** Creates a number input with a refresh button.
    - **checkbox:** Creates a checkbox input.
    - **date:** Creates a date picker input with a refresh button. Set a default by selecting a date.
-   - **date-hour:** Like date, but also allows time selection.
+   - **dropdown:** Creates a dropdown input. Set the choices by entering values and pressing Add. Set a default by selecting a value.
+   - **date-range:** Creates a date range picker input with a refresh button. Set a default by selecting a date range.
    - **slider:** Creates a slider input. Choose "Single Value" or "Range," set the data type (number or date), minimum and maximum values, step size, and initial/range values. Choose the output format.
    - **csv uploader:** Creates a file uploader that accepts only CSV files. Specify CSV columns by entering values and pressing enter.
    - **EXISTING VISUALIZATION INPUTS:** Options here are derived from arguments for installed visualization plugins. Selecting one of these will turn the visualization argument into a variable input.
