@@ -2,6 +2,7 @@ import { format, parse } from "date-fns";
 
 // Formats for date and date-hour
 export const dateHourFormat = "MM/dd/yyyy h:mm aa";
+export const dateOnlyFormat = "MM/dd/yyyy";
 
 export function toLocalISO(d) {
   const pad = (n) => String(n).padStart(2, "0");

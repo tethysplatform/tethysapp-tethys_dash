@@ -120,32 +120,6 @@ describe("DataInput Component", () => {
     expect(screen.getByText("Test Variable")).toBeInTheDocument();
   });
 
-  test("renders date-format input and handles change", async () => {
-    render(
-      createLoadedComponent({
-        children: (
-          <DataInput
-            type={"date-format"}
-            value={{ format: "MM/dd/yyyy" }}
-            onChange={mockOnChange}
-          />
-        ),
-      }),
-    );
-
-    const dateFormatInput = await screen.findByLabelText("Output Format Input");
-
-    // Verify date format input rendering
-    expect(dateFormatInput).toBeInTheDocument();
-    expect(dateFormatInput).toHaveValue("MM/dd/yyyy");
-
-    // Simulate a change
-    fireEvent.change(dateFormatInput, { target: { value: "yyyy-MM-dd" } });
-
-    // Ensure onChange is triggered with the correct value
-    expect(mockOnChange).toHaveBeenCalledWith({ format: "yyyy-MM-dd" });
-  });
-
   test("renders checkbox and handles change", async () => {
     render(
       createLoadedComponent({

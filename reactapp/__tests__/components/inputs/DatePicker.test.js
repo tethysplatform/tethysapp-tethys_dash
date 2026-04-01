@@ -65,7 +65,7 @@ test("DatePicker initial date and change to variable input", async () => {
   expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
 
   const input = screen.getByRole("textbox");
-  expect(input.value).toBe("01/01/1990 12:00 AM");
+  expect(input.value).toBe("01/01/1990");
 
   // eslint-disable-next-line
   fireEvent.change(input, { target: { value: "${Date" } });
@@ -116,6 +116,49 @@ test("DatePicker initial date-hour", async () => {
 
   const input = screen.getByRole("textbox");
   expect(input.value).toBe("01/01/1990 12:00 AM");
+  expect(mockOnChange).toHaveBeenCalledTimes(0);
+});
+
+test("DatePicker initial date", async () => {
+  const mockOnChange = jest.fn();
+  const frozenNow = new Date("2026-03-30T19:23:57.966Z");
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        value={frozenNow}
+        onChange={mockOnChange}
+      />
+    </DataViewerModeContext.Provider>,
+  );
+
+  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+
+  const input = screen.getByRole("textbox");
+  expect(input.value).toBe("03/30/2026 2:23 PM");
+  expect(mockOnChange).toHaveBeenCalledTimes(0);
+});
+
+test("DatePicker initial date, false showTimeInput", async () => {
+  const mockOnChange = jest.fn();
+  const frozenNow = new Date("2026-03-30T19:23:57.966Z");
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        value={frozenNow}
+        onChange={mockOnChange}
+        showTimeInput={false}
+      />
+    </DataViewerModeContext.Provider>,
+  );
+
+  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+
+  const input = screen.getByRole("textbox");
+  expect(input.value).toBe("03/30/2026");
   expect(mockOnChange).toHaveBeenCalledTimes(0);
 });
 
@@ -257,6 +300,49 @@ test("DatePicker select tomorrow date", async () => {
 
   await userEvent.click(tomorrowCalendarItem);
   expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy '12:00 AM'"));
+  const expectedDateTime = tomorrow;
+  expectedDateTime.setHours(0, 0, 0, 0);
+  expect(mockOnChange).toHaveBeenCalledWith(expectedDateTime);
+});
+
+test("DatePicker select tomorrow date, showTimeInput false", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <DatePicker
+        label="Test DatePicker"
+        value=""
+        onChange={mockOnChange}
+        showTimeInput={false}
+      />
+    </DataViewerModeContext.Provider>,
+  );
+
+  expect(await screen.findByText("Test DatePicker")).toBeInTheDocument();
+
+  const input = screen.getByRole("textbox");
+  expect(input.value).toBe("");
+
+  const calendarButton = screen.getByLabelText("Calendar Icon");
+  await userEvent.click(calendarButton);
+
+  const datePicker = await screen.findByRole("dialog");
+  expect(datePicker).toBeInTheDocument();
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const weekday = tomorrow.toLocaleDateString("en-US", { weekday: "long" });
+  const month = tomorrow.toLocaleDateString("en-US", { month: "long" });
+  const day = tomorrow.getDate();
+  const ordinal = getOrdinal(day);
+  const year = tomorrow.getFullYear();
+
+  const formatted = `Choose ${weekday}, ${month} ${day}${ordinal}, ${year}`;
+  const tomorrowCalendarItem = screen.getByLabelText(formatted);
+
+  await userEvent.click(tomorrowCalendarItem);
+  expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy"));
   const expectedDateTime = tomorrow;
   expectedDateTime.setHours(0, 0, 0, 0);
   expect(mockOnChange).toHaveBeenCalledWith(expectedDateTime);

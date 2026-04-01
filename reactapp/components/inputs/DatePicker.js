@@ -9,6 +9,7 @@ import { DataViewerModeContext } from "components/contexts/Contexts";
 import styled from "styled-components";
 import {
   dateHourFormat,
+  dateOnlyFormat,
   parseDateMath,
   checkForVariable,
   isRelativeInput,
@@ -22,7 +23,7 @@ const Wrapper = styled.div`
 `;
 
 const StyledInput = styled.input`
-  paddingright: 2rem;
+  padding-right: 2rem;
   width: 100%;
 `;
 
@@ -43,13 +44,16 @@ const DatePicker = ({
   onChange,
   divProps,
   dateFormat = dateHourFormat,
+  showTimeInput = true,
 }) => {
   const { inDataViewerMode } = useContext(DataViewerModeContext);
 
   // Track raw input value separately
   const datePickerRef = useRef(null);
   const [rawInputValue, setRawInputValue] = useState(
-    typeof value === "string" ? value : format(value, dateHourFormat),
+    typeof value === "string"
+      ? value
+      : format(value, showTimeInput ? dateHourFormat : dateOnlyFormat),
   );
 
   // Update rawInputValue if value prop changes (from parent)
@@ -57,14 +61,18 @@ const DatePicker = ({
     // Only update rawInputValue if value prop is different from current rawInputValue
     // or if value is not the formatted version of rawInputValue
     let dateHourFormattedRaw = parseDate(rawInputValue, dateHourFormat, true);
+    let dateOnlyFormattedRaw = parseDate(rawInputValue, dateOnlyFormat, true);
     let dateFormattedRaw = parseDate(rawInputValue, dateFormat, true);
     if (
       value !== dateHourFormattedRaw &&
+      value !== dateOnlyFormattedRaw &&
       value !== dateFormattedRaw &&
       !isRelativeInput(rawInputValue)
     ) {
       try {
-        setRawInputValue(format(value, dateHourFormat));
+        setRawInputValue(
+          format(value, showTimeInput ? dateHourFormat : dateOnlyFormat),
+        );
       } catch (e) {
         setRawInputValue(value);
       }
@@ -113,7 +121,9 @@ const DatePicker = ({
   };
 
   const handleSelect = (date) => {
-    setRawInputValue(format(date, dateHourFormat));
+    setRawInputValue(
+      format(date, showTimeInput ? dateHourFormat : dateOnlyFormat),
+    );
     onChange(date);
   };
 
@@ -148,7 +158,7 @@ const DatePicker = ({
             ref={datePickerRef}
             selected={selectedDate}
             onChange={handleSelect}
-            showTimeInput={true}
+            showTimeInput={showTimeInput}
             timeInputLabel="Time:"
             showYearDropdown
             showMonthDropdown
@@ -170,6 +180,7 @@ DatePicker.propTypes = {
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
   divProps: PropTypes.object,
   dateFormat: PropTypes.string,
+  showTimeInput: PropTypes.bool,
 };
 
 export default memo(DatePicker);

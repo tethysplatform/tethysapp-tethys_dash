@@ -23,10 +23,6 @@ const DropdownMetadata = ({ onChange, values }) => {
     const label = newLabel.trim();
     const value = newValue.trim();
 
-    if (!label || !value) {
-      return;
-    }
-
     updateChoices([...choices, { label, value }]);
     setNewLabel("");
     setNewValue("");
@@ -54,10 +50,6 @@ const DropdownMetadata = ({ onChange, values }) => {
 
   const handleMoveChoice = (index, direction) => {
     const targetIndex = index + direction;
-
-    if (targetIndex < 0 || targetIndex >= choices.length) {
-      return;
-    }
 
     const updatedChoices = [...choices];
     const [movedChoice] = updatedChoices.splice(index, 1);

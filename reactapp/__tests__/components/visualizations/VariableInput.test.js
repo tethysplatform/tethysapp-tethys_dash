@@ -14,6 +14,7 @@ import {
   mockedCSVUploaderVariable,
   mockedDateVariable,
   mockedDateRangeVariable,
+  mockedCustomDropdownVariable,
 } from "__tests__/utilities/constants";
 import { select } from "react-select-event";
 import createLoadedComponent, {
@@ -199,6 +200,117 @@ it("Creates a Date Range Input for a Variable Input", async () => {
       "Start Date": today,
       "End Date": "01/16/2026T00:00",
     }),
+  );
+});
+
+it("Creates a Custom Dropdown Input for a Variable Input", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedCustomDropdownVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedCustomDropdownVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+            metadata={varInputArgs["variable_options_source.metadata"]}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+  const variableInput = await screen.findByRole("combobox");
+  expect(variableInput).toBeInTheDocument();
+  await select(variableInput, "Option 1");
+
+  expect(screen.getByText("Option 1")).toBeInTheDocument();
+  expect(handleChange).toHaveBeenCalledWith("option_1");
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "option_1" }),
+  );
+});
+
+it("Creates a Custom Dropdown Input for a Variable Input, no choices", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedCustomDropdownVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedCustomDropdownVariable.args_string);
+  varInputArgs["variable_options_source.metadata"] = {};
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+            metadata={varInputArgs["variable_options_source.metadata"]}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+  const variableInput = await screen.findByRole("combobox");
+  expect(variableInput).toBeInTheDocument();
+
+  await userEvent.click(variableInput);
+  expect(await screen.findByText("No options")).toBeInTheDocument();
+});
+
+it("Creates a Custom Dropdown Input for a Variable Input, no label", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedCustomDropdownVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedCustomDropdownVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+            metadata={varInputArgs["variable_options_source.metadata"]}
+            show_label={false}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(screen.queryByText("Test Variable")).not.toBeInTheDocument();
+
+  const variableInput = await screen.findByRole("combobox");
+  expect(variableInput).toBeInTheDocument();
+  await select(variableInput, "Option 1");
+
+  expect(screen.getByText("Option 1")).toBeInTheDocument();
+  expect(handleChange).toHaveBeenCalledWith("option_1");
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "option_1" }),
   );
 });
 
