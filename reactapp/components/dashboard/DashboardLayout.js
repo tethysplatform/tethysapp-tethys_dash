@@ -20,6 +20,7 @@ import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { valuesEqual } from "components/modals/utilities";
 import { v4 as uuidv4 } from "uuid";
+import { computePanelLayout } from "components/dashboard/panelLayoutUtils";
 
 const ReactGridLayout = WidthProvider(RGL);
 
@@ -37,42 +38,79 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
   const gridItemsUpdated = useRef();
   gridItemsUpdated.current = gridItems;
 
-  // Listen for dynamic panel creation events from embedded plugins
+  // Listen for dynamic panel creation events from embedded plugins.
+  // Supports both batch events (multiple panels at once with layout)
+  // and single events (backward compat).
   useEffect(() => {
-    function handleAddVisualization(e) {
-      const { source, args, position } = e.detail || {};
-      if (!source) return;
+    function moduleExistsOnDashboard(module, items) {
+      return items.some((item) => {
+        try {
+          return JSON.parse(item.args_string).module === module;
+        } catch {
+          return false;
+        }
+      });
+    }
 
+    function handleAddVisualization(e) {
+      const detail = e.detail || {};
       const current = gridItemsUpdated.current;
-      // Deduplicate by module name for Client Custom panels
-      if (args?.module) {
-        const alreadyExists = current.some((item) => {
-          try {
-            return JSON.parse(item.args_string).module === args.module;
-          } catch {
-            return false;
-          }
-        });
-        if (alreadyExists) return;
+
+      // Determine panels to add
+      let panelEntries;
+      if (detail.batch && Array.isArray(detail.panels)) {
+        // Batch event: array of { args, w?, h? }
+        panelEntries = detail.panels.map((p) => ({
+          source: detail.source || "Client Custom",
+          args: p.args ?? {},
+          w: p.w,
+          h: p.h,
+        }));
+      } else if (detail.source) {
+        // Single event (backward compat)
+        panelEntries = [
+          {
+            source: detail.source,
+            args: detail.args ?? {},
+            w: detail.position?.w,
+            h: detail.position?.h,
+          },
+        ];
+      } else {
+        return;
       }
 
-      const maxI = current.reduce(
+      // Filter out duplicates by module
+      const newPanels = panelEntries.filter(
+        (p) => !p.args.module || !moduleExistsOnDashboard(p.args.module, current),
+      );
+      if (newPanels.length === 0) return;
+
+      // Compute layout positions
+      const positions = computePanelLayout(newPanels, current);
+
+      // Build grid items in a single batch
+      let maxI = current.reduce(
         (max, item) => Math.max(max, parseInt(item.i) || 0),
         0,
       );
-      const newItem = {
-        x: position?.x ?? 0,
-        y: position?.y ?? Infinity,
-        w: position?.w ?? 50,
-        h: position?.h ?? 20,
-        source,
-        args_string: JSON.stringify(args ?? {}),
-        metadata_string: JSON.stringify({ refreshRate: 0 }),
-        uuid: uuidv4(),
-        id: null,
-        i: `${maxI + 1}`,
-      };
-      updateTab(tabId, { gridItems: [...current, newItem] });
+      const newGridItems = newPanels.map((panel, idx) => {
+        const pos = positions[idx] || { x: 0, y: Infinity, w: 50, h: 20 };
+        return {
+          x: pos.x,
+          y: pos.y,
+          w: pos.w,
+          h: pos.h,
+          source: panel.source,
+          args_string: JSON.stringify(panel.args),
+          metadata_string: JSON.stringify({ refreshRate: 0 }),
+          uuid: uuidv4(),
+          id: null,
+          i: `${++maxI}`,
+        };
+      });
+
+      updateTab(tabId, { gridItems: [...current, ...newGridItems] });
     }
 
     window.addEventListener("tethysdash:add-visualization", handleAddVisualization);
