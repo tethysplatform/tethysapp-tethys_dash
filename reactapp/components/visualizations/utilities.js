@@ -70,6 +70,7 @@ export async function getVisualization({
   dashboardView,
   vizLoadingIcon = true,
   variableInputDateFormats = {},
+  visualizations = [],
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -109,6 +110,23 @@ export async function getVisualization({
       alt: "custom_image",
     });
 
+    return;
+  } else if (sourceType === "client_custom") {
+    setVizType("client_custom");
+    setVizData({
+      source: itemData.source,
+      props: itemData.args,
+    });
+    return;
+  } else if (sourceType === "client_custom_remote") {
+    setVizType("custom");
+    setVizData({
+      url: itemData.args.url,
+      scope: itemData.args.scope,
+      module: itemData.args.module,
+      remoteType: itemData.args.remoteType ?? "vite-esm",
+      props: itemData.args.initialData ?? {},
+    });
     return;
   }
 

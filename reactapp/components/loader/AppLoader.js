@@ -26,6 +26,7 @@ import {
 import IdleTimerManager from "components/loader/IdleTimerManager";
 import WebsocketProvider from "components/contexts/WebSocketContext";
 import { v4 as uuidv4 } from "uuid";
+import clientPluginRegistry from "generated/clientPluginRegistry.json";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -260,8 +261,50 @@ function Loader({ children }) {
             description:
               "A live chart box that allows users to send and receive messages with other users.",
           },
+          {
+            source: "Client Custom",
+            value: "Client Custom",
+            label: "Client Custom",
+            type: "client_custom_remote",
+            args: {
+              url: "text",
+              scope: "text",
+              module: "text",
+              remoteType: ["webpack", "vite-esm"],
+            },
+            tags: ["custom", "remote", "microfrontend"],
+            description:
+              "Load a custom React component from a remote Module Federation URL. Requires a remoteEntry.js URL, scope, and module name.",
+          },
         ],
       });
+
+      // Merge npm-installed client plugins into the visualization list
+      for (const plugin of clientPluginRegistry) {
+        const entry = {
+          source: plugin.source,
+          value: plugin.source,
+          label: plugin.label,
+          type: plugin.type,
+          tags: plugin.tags ?? [],
+          description: plugin.description ?? "",
+          args: plugin.args ?? {},
+          loading_icon: false,
+          packageName: plugin.packageName,
+          module: plugin.module,
+        };
+        const existingGroup = allVisualizations.find(
+          (g) => g.label === plugin.group,
+        );
+        if (existingGroup) {
+          existingGroup.options.push(entry);
+        } else {
+          allVisualizations.push({
+            label: plugin.group,
+            options: [entry],
+          });
+        }
+      }
 
       tethysApp.customSettings = {
         support_email: contactUsEmail,

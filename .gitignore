@@ -23,5 +23,8 @@ build
 dist
 
 
+reactapp/generated/clientPluginRegistry.json
+reactapp/generated/clientPluginImports.js
+
 tethysapp/tethysdash/public/images/plugins/*
 tethysapp/tethysdash/public/data/plugins/*

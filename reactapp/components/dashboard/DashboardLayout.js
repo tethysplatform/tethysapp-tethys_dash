@@ -1,4 +1,11 @@
-import { useCallback, useRef, useContext, memo, useMemo } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useContext,
+  memo,
+  useMemo,
+} from "react";
 import RGL, { WidthProvider } from "react-grid-layout";
 import {
   LayoutContext,
@@ -12,6 +19,7 @@ import PropTypes from "prop-types";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 import { valuesEqual } from "components/modals/utilities";
+import { v4 as uuidv4 } from "uuid";
 
 const ReactGridLayout = WidthProvider(RGL);
 
@@ -28,6 +36,49 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
 
   const gridItemsUpdated = useRef();
   gridItemsUpdated.current = gridItems;
+
+  // Listen for dynamic panel creation events from embedded plugins
+  useEffect(() => {
+    function handleAddVisualization(e) {
+      const { source, args, position } = e.detail || {};
+      if (!source) return;
+
+      const current = gridItemsUpdated.current;
+      // Deduplicate by module name for Client Custom panels
+      if (args?.module) {
+        const alreadyExists = current.some((item) => {
+          try {
+            return JSON.parse(item.args_string).module === args.module;
+          } catch {
+            return false;
+          }
+        });
+        if (alreadyExists) return;
+      }
+
+      const maxI = current.reduce(
+        (max, item) => Math.max(max, parseInt(item.i) || 0),
+        0,
+      );
+      const newItem = {
+        x: position?.x ?? 0,
+        y: position?.y ?? Infinity,
+        w: position?.w ?? 50,
+        h: position?.h ?? 20,
+        source,
+        args_string: JSON.stringify(args ?? {}),
+        metadata_string: JSON.stringify({ refreshRate: 0 }),
+        uuid: uuidv4(),
+        id: null,
+        i: `${maxI + 1}`,
+      };
+      updateTab(tabId, { gridItems: [...current, newItem] });
+    }
+
+    window.addEventListener("tethysdash:add-visualization", handleAddVisualization);
+    return () =>
+      window.removeEventListener("tethysdash:add-visualization", handleAddVisualization);
+  }, [tabId, updateTab]);
 
   // Memoize layout from gridItems
   const layout = useMemo(
