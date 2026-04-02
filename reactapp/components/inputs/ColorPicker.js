@@ -14,7 +14,7 @@ const ColorPicker = ({ color, onChange, hideInput }) => {
         onChange(newColor.hex);
         setPickerColor(newColor);
       }, 5), // debounce at 5ms
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 

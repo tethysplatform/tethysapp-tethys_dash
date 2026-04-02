@@ -412,7 +412,7 @@ const Slider = ({
         }
       }
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variableInputValues]);
 
   // Update speed if speeds prop changes
@@ -424,7 +424,7 @@ const Slider = ({
         return found ? prev : speeds[0].value;
       });
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(speeds)]);
 
   useEffect(() => {
@@ -469,7 +469,7 @@ const Slider = ({
       );
       onChange(formatted);
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedCurrentIdx, outputFormat, rangeMode, isDateType, values]);
 
   useEffect(() => {

@@ -247,12 +247,12 @@ const DashboardItem = () => {
     setAttribution(
       findVisualizationBySource(visualizations, gridItemSource)?.attribution,
     );
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridItemSource]);
 
   useEffect(() => {
     setGridItemStyling(JSON.parse(gridItemMetadataString));
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridItemMetadataString]);
 
   async function deleteGridItem(e) {

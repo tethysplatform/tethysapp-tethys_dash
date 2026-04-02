@@ -117,7 +117,7 @@ const MapComponent = ({
         visualizationRef.current = null;
       }
     };
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Ref to track last applied mapExtent string
@@ -176,7 +176,7 @@ const MapComponent = ({
     });
 
     visualizationRef.current.setView(mapViewConfig);
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapExtent]);
 
   useEffect(() => {
@@ -308,7 +308,7 @@ const MapComponent = ({
     };
 
     updateLayers();
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers]);
 
   const updateMapExtentVariable = (event) => {

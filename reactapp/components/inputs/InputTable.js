@@ -54,7 +54,7 @@ const InputTable = ({
     if (!headers) {
       setTableHeaders(Object.keys(values[0]));
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [values]);
 
   // check to see if all the field in a row are either a boolean or have empty strings as values

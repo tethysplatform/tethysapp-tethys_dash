@@ -119,7 +119,7 @@ const SliderMetadata = ({ onChange, values }) => {
       }
       onChange(onChangeValues);
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     min,
     max,

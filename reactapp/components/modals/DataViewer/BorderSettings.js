@@ -168,7 +168,7 @@ const BorderSettings = ({ initialBorder, onChange, settingsPaneRef }) => {
 
   useEffect(() => {
     onChange(border);
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [border]);
 
   function parseBorderStyles(styles) {

@@ -7,6 +7,11 @@ import {
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
 
+/**
+ * Returns an array of warning messages when any variable inputs referenced by a
+ * visualization's args have no value, or null if all inputs are populated.
+ * Respects custom messaging configured in the grid item metadata.
+ */
 export function checkForEmptyVariableInputs({
   metadataString,
   argsString,
@@ -34,6 +39,10 @@ export function checkForEmptyVariableInputs({
   return warnings.length > 0 ? warnings : null;
 }
 
+/**
+ * Searches a nested visualization options array for an entry whose `source`
+ * field matches `targetSource`. Returns the matching option object or null.
+ */
 export function findVisualizationBySource(data, targetSource) {
   for (const group of data) {
     for (const option of group.options) {
@@ -45,8 +54,13 @@ export function findVisualizationBySource(data, targetSource) {
   return null;
 }
 
+/**
+ * Returns a deduplicated list of variable input names referenced in `args`
+ * using the `${variableName}` template syntax. Accepts either a string or an
+ * object (which is JSON-serialised before scanning).
+ */
 export function getDependentVariableInputs(args) {
-  const regex = /\${(.*?)}/g; // Matches ${...}
+  const regex = /\${(.*?)}/g; // Matches ${variableName} placeholders
   const uniqueValues = new Set();
 
   if (typeof args !== "string") {
@@ -60,6 +74,13 @@ export function getDependentVariableInputs(args) {
   return [...uniqueValues];
 }
 
+/**
+ * Fetches visualization data from the backend and updates viz state via the
+ * provided `setVizType` / `setVizData` callbacks. Handles all built-in source
+ * types (Map, Text, Custom Image) locally before calling the API. Emits
+ * `vizWarning` when required variable inputs are empty and `vizError` on API
+ * failure.
+ */
 export async function getVisualization({
   setVizType,
   setVizData,
@@ -230,14 +251,26 @@ export async function getVisualization({
   }
 }
 
+/**
+ * Returns the grid item object with `i === gridItemI` from `gridItems`,
+ * or undefined if no match is found.
+ */
 export function getGridItem(gridItems, gridItemI) {
-  var result = gridItems.find((obj) => {
+  const result = gridItems.find((obj) => {
     return obj.i === gridItemI;
   });
 
   return result;
 }
 
+/**
+ * Substitutes `${variableName}` template placeholders in `args` with the
+ * corresponding values from `variableInputs`. Date-typed variable inputs are
+ * formatted according to `variableInputDateFormats` before substitution.
+ * An exact match like `"${foo}"` preserves the original value type; inline
+ * matches within a longer string are stringified. Returns a new object with
+ * all substitutions applied.
+ */
 export function updateObjectWithVariableInputs({
   args,
   variableInputs,
@@ -278,13 +311,16 @@ export function updateObjectWithVariableInputs({
       value = JSON.stringify(value);
     }
 
-    // If value is exactly a variable input, preserve its type
+    // If value is exactly a variable input, preserve its type.
+    // Matches the full string "${variableName}" with no surrounding text.
     const exactVarMatch = value.match(/^\$\{([^}]+)\}$/);
     let updatedValuesWithVariableInputs;
     if (exactVarMatch) {
       const key = exactVarMatch[1];
       updatedValuesWithVariableInputs = variableInputsCopy[key] || "";
     } else {
+      // Value contains one or more inline ${variableName} placeholders mixed
+      // with other text. Replaces each placeholder with its string equivalent.
       updatedValuesWithVariableInputs = value.replace(
         /\$\{([^}]+)\}/g,
         (_, key) =>
@@ -469,6 +505,11 @@ export function getBaseMapLayer(baseMapURL) {
   return layer_dict;
 }
 
+/**
+ * Recursively searches a nested select-options array for the first element
+ * where `element[searchKey] === searchValue`. Descends into `element.options`
+ * arrays. Returns the matching element or null.
+ */
 export function findSelectOptionByValue(
   data,
   searchValue,

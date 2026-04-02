@@ -211,7 +211,11 @@ export const Visualization = memo(
   },
 );
 
-// Helper function to compare only the keys that exist in filteredOriginalArgs
+/**
+ * Compares `currentArgs` and `updatedArgs`, but only for the keys present in
+ * `keysToCompare`. Returns true if all overlapping key values are equal
+ * (deep equality via `valuesEqual`), false otherwise.
+ */
 export const compareFilteredArgs = (
   currentArgs,
   updatedArgs,
@@ -301,14 +305,14 @@ const BaseVisualization = () => {
     } else {
       setVariableDependentVisualizations({});
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridItemSource, gridItemArgsString, gridItemMetadataString]);
 
   useEffect(() => {
     if (!["", "Variable Input"].includes(gridItemSource)) {
       setVariableDependentVisualizations({});
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variableInputValues, shouldLoad]);
 
   useEffect(() => {
@@ -330,7 +334,7 @@ const BaseVisualization = () => {
       );
       return () => clearInterval(interval);
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridItemMetadataString, isEditing]);
 
   async function setVariableDependentVisualizations({ refresh }) {

@@ -159,12 +159,12 @@ export const AddMapLayer = ({
     if (!valuesEqual(mapLayers, values)) {
       setMapLayers(values);
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [values]);
 
   useEffect(() => {
     setShowingSubModal(showMapLayerModal);
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showMapLayerModal]);
 
   const addMapLayer = (newMapLayer) => {

@@ -272,7 +272,7 @@ const MapVisualization = ({
         }
       }
     };
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visualizationRef]);
 
   useEffect(() => {
@@ -316,7 +316,7 @@ const MapVisualization = ({
         updateVariableInputsForFeature(selectedFeature);
       }
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popupContent]);
 
   useEffect(() => {
@@ -387,7 +387,7 @@ const MapVisualization = ({
     };
 
     updateLayers();
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, baseMap]);
 
   const onSwipe = (swiper) => {

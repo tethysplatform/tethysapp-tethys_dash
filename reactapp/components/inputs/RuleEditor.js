@@ -185,7 +185,7 @@ const RuleEditor = ({
       });
       currentGeomType.current = selectedGeomType.value;
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rule.geometryType]);
 
   const handleGeomTypeChange = (opt) => {

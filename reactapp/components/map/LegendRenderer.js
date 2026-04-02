@@ -389,7 +389,7 @@ function LegendRenderer({ legend }) {
         })
         .finally(() => setIsLoading(false));
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [legend]);
 
   // 🔴 Handle ESRI
@@ -431,7 +431,7 @@ function LegendRenderer({ legend }) {
         }
       })();
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [legend]);
 
   if (!legend) return null;

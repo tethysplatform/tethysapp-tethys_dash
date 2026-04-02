@@ -78,7 +78,7 @@ function Loader({ children }) {
         routes: setupRoutes(availableDashboards),
       }));
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [availableDashboards]);
 
   useEffect(() => {
@@ -290,7 +290,7 @@ function Loader({ children }) {
 
     loadAppData();
 
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const copyDashboard = useCallback(

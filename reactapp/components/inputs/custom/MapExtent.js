@@ -82,7 +82,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
     if (!values) {
       setCustomExtent("-10686671.12,4721671.57,4.5");
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -99,7 +99,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
         onChange(null);
       }
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customExtent]);
 
   useEffect(() => {
@@ -129,7 +129,7 @@ export const MapExtent = ({ onChange, values, visualizationRef }) => {
       view.un("change:resolution", handleResolutionChange);
       map.un("moveend", handleResolutionChange);
     };
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [extentMode, mapReady]);
 
   const setMapExtent = () => {

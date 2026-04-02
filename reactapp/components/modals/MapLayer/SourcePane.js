@@ -118,7 +118,7 @@ const SourcePane = ({
       SetPropertyTypes(types);
       setSourceType({ value: sourceProps.type, label: sourceProps.type });
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceProps.type]);
 
   useEffect(() => {
@@ -167,7 +167,7 @@ const SourcePane = ({
       }));
       setGeoJSONSource("custom");
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceProps.geojson]);
 
   function handlePropertyChange({ newValue, rowIndex, field }) {

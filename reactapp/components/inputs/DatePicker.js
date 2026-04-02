@@ -77,7 +77,7 @@ const DatePicker = ({
         setRawInputValue(value);
       }
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   // Derive selectedDate for calendar from value prop (only if not relative)

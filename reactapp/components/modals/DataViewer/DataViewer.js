@@ -240,7 +240,7 @@ function DataViewerModal({
           return;
         }
 
-        var variableInputSource = vizInputsValues.variable_options_source;
+        const variableInputSource = vizInputsValues.variable_options_source;
 
         for (const variableInputName of newVariableInputNames) {
           if (

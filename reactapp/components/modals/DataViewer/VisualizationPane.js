@@ -217,12 +217,12 @@ function VisualizationPane({
       setVizMetadata(null);
       currentSelectedVizTypeOption.current = selectedVizTypeOption;
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedVizTypeOption]);
 
   useEffect(() => {
     checkAllInputs();
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vizInputsValues, settings.customMessaging]);
 
   function onDataTypeChange(e) {

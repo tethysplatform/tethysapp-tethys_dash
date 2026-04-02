@@ -103,7 +103,7 @@ const BackgroundSettings = ({
 
   useEffect(() => {
     onChange(backgroundColor);
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [backgroundColor]);
 
   return (

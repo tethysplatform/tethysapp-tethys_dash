@@ -15,6 +15,9 @@ import { valuesEqual } from "components/modals/utilities";
 
 const ReactGridLayout = WidthProvider(RGL);
 
+// Grid is divided into 100 equal columns so widget widths are percentages of
+// the viewport (e.g. w=50 → half the screen). Row height is derived from
+// column width minus a 10px gutter so cells are approximately square by default.
 const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
@@ -56,7 +59,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
   function updateLayout(newLayout) {
     const updatedGridItems = [];
     for (let lay of newLayout) {
-      var result = gridItems.find((obj) => {
+      const result = gridItems.find((obj) => {
         return obj.i === lay.i;
       });
 
@@ -79,7 +82,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
 
   const handleResize = useCallback(
     (l, oldLayoutItem, layoutItem, placeholder) => {
-      var result = gridItemsUpdated.current.find((obj) => {
+      const result = gridItemsUpdated.current.find((obj) => {
         return obj.i === layoutItem.i;
       });
       const metadata = JSON.parse(result.metadata_string);

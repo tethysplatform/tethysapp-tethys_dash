@@ -105,7 +105,7 @@ const VariableInput = ({
       ) {
         setType(variable_options_source);
       } else {
-        var selectedArg = visualizationArgs.find((obj) => {
+        const selectedArg = visualizationArgs.find((obj) => {
           return obj.label === variable_options_source;
         });
         if (selectedArg) {
