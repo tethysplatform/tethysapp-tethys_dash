@@ -92,6 +92,21 @@ class Dashboard(Base):
 
 
 class DashboardTab(Base):
+    """
+    SQLAlchemy model for tabs within a dashboard.
+
+    A dashboard can contain one or more tabs. Each tab groups a set of
+    grid items and is displayed as a named tab in the UI.
+
+    Attributes:
+        id (int): Primary key identifier
+        dashboard_id (int): Foreign key to the parent dashboard
+        name (str): Display name shown on the tab
+        tab_order (int): Zero-based position of the tab within the dashboard
+        dashboard (relationship): Reference to the parent dashboard
+        grid_items (relationship): Grid items belonging to this tab
+    """
+
     __tablename__ = "dashboard_tabs"
 
     id = Column(Integer, primary_key=True)
@@ -332,6 +347,25 @@ class Message(Base):
     edited = Column(Boolean, nullable=False, default=False)
 
 
+def _sanitize_text_args_string(args_string):
+    """Sanitize the HTML content of a Text widget's args_string.
+
+    Accepts the args_string in either dict or JSON-string form, sanitizes
+    the ``"text"`` field with ``sanitize_html``, and returns the result as
+    a JSON string.
+
+    Args:
+        args_string (str | dict): The grid item args, either already parsed
+            or still a JSON-encoded string.
+
+    Returns:
+        str: JSON-encoded ``{"text": <sanitized_html>}`` string.
+    """
+    if not isinstance(args_string, dict):
+        args_string = json.loads(args_string)
+    return json.dumps({"text": sanitize_html(args_string["text"])})
+
+
 def add_new_dashboard(
     owner,
     uuid,
@@ -420,13 +454,9 @@ def add_new_dashboard(
                         grid_item_metadata_string = grid_item["metadata_string"]
                         grid_item_uuid = str(uuid4())
                         if grid_item_source == "Text":
-                            if type(grid_item_args_string) is not dict:
-                                grid_item_args_string = json.loads(
-                                    grid_item_args_string
-                                )
-
-                            clean_text = sanitize_html(grid_item_args_string["text"])
-                            grid_item_args_string = json.dumps({"text": clean_text})
+                            grid_item_args_string = _sanitize_text_args_string(
+                                grid_item_args_string
+                            )
 
                         add_new_grid_item(
                             session,
@@ -458,11 +488,9 @@ def add_new_dashboard(
                     grid_item_metadata_string = grid_item["metadata_string"]
                     grid_item_uuid = str(uuid4())
                     if grid_item_source == "Text":
-                        if type(grid_item_args_string) is not dict:
-                            grid_item_args_string = json.loads(grid_item_args_string)
-
-                        clean_text = sanitize_html(grid_item_args_string["text"])
-                        grid_item_args_string = json.dumps({"text": clean_text})
+                        grid_item_args_string = _sanitize_text_args_string(
+                            grid_item_args_string
+                        )
 
                     add_new_grid_item(
                         session,
@@ -544,10 +572,10 @@ def add_new_grid_item(
     Returns:
         GridItem: The newly created grid item object
     """
-    if type(grid_item_args_string) is dict:
+    if isinstance(grid_item_args_string, dict):
         grid_item_args_string = json.dumps(grid_item_args_string)
 
-    if type(grid_item_metadata_string) is dict:
+    if isinstance(grid_item_metadata_string, dict):
         grid_item_metadata_string = json.dumps(grid_item_metadata_string)
 
     new_grid_item = GridItem(
@@ -783,10 +811,10 @@ def update_named_dashboard(user, id, dashboard_updates):
                 "User does not have admin or editor permissions to update the dashboard."  # noqa: E501
             )
 
-        db_name = dashboard_updates.get("name", db_dashboard.name)
-        db_public = dashboard_updates.get("public", db_dashboard.public)
+        updated_name = dashboard_updates.get("name", db_dashboard.name)
+        updated_public = dashboard_updates.get("public", db_dashboard.public)
 
-        if db_name != db_dashboard.name:
+        if updated_name != db_dashboard.name:
             # Check if user has admin permission
             if user_permission != "admin":
                 raise Exception(
@@ -800,7 +828,7 @@ def update_named_dashboard(user, id, dashboard_updates):
         if "notes" in dashboard_updates:
             db_dashboard.notes = sanitize_html(dashboard_updates["notes"])
 
-        if db_public != db_dashboard.public:
+        if updated_public != db_dashboard.public:
             # Check if user has admin permission
             if user_permission != "admin":
                 raise Exception(
@@ -875,10 +903,9 @@ def update_named_dashboard(user, id, dashboard_updates):
 
                     # Sanitize text content
                     if grid_item_source == "Text":
-                        clean_text = sanitize_html(
-                            json.loads(grid_item_args_string)["text"]
+                        grid_item_args_string = _sanitize_text_args_string(
+                            grid_item_args_string
                         )
-                        grid_item_args_string = json.dumps({"text": clean_text})
 
                     if grid_item_id and grid_item_id in existing_grid_items_by_id:
                         db_grid_item = existing_grid_items_by_id[grid_item_id]

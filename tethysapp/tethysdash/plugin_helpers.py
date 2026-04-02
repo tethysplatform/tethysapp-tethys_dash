@@ -14,8 +14,21 @@ from dateutil.parser import parse
 import pytz
 
 
-# Helper to get the property, preferring new style, falling back to old
 def get_plugin_prop(obj, name, default=None):
+    """Retrieve a plugin property, supporting both current and legacy naming.
+
+    Checks for the legacy ``visualization_<name>`` attribute first (for
+    backward compatibility with older plugins), then falls back to ``<name>``,
+    and finally to ``default`` if neither is present.
+
+    Args:
+        obj: The plugin class or instance to inspect.
+        name (str): The property name to look up (e.g. ``"label"``).
+        default: Value to return when the property is not found (default: None).
+
+    Returns:
+        The property value, or ``default`` if not found.
+    """
     old_name = f"visualization_{name}"
     if hasattr(obj, old_name):
         return getattr(obj, old_name)
@@ -86,9 +99,9 @@ class TethysDashPlugin(base.DataSource):
             raise ValueError(
                 f"Plugin type '{self.type}' is not valid. Must be one of: {', '.join(valid_plugin_types)}"  # noqa: E501
             )
-        if type(self.args) is not dict:
+        if not isinstance(self.args, dict):
             raise ValueError("Plugin args must be a dictionary.")
-        if type(self.tags) is not list:
+        if not isinstance(self.tags, list):
             raise ValueError("Plugin tags must be a list.")
 
         reserved_keys = {
