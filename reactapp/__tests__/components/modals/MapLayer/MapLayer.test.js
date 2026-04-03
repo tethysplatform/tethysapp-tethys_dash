@@ -1,4 +1,5 @@
 import PropTypes from "prop-types";
+import { useRef } from "react";
 import {
   render,
   screen,
@@ -9,6 +10,9 @@ import {
 import selectEvent from "react-select-event";
 import MapLayerModal from "components/modals/MapLayer/MapLayer";
 import { AppContext, LayoutContext } from "components/contexts/Contexts";
+import MapContextProvider, {
+  useMapContext,
+} from "components/contexts/MapContext";
 import appAPI from "services/api/app";
 import { getLayerAttributes } from "components/map/utilities";
 import { server } from "__tests__/utilities/server";
@@ -1413,6 +1417,209 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
         the_geom: "the_geom",
       },
     },
+  });
+});
+
+// Helper component for extent draw tests — wraps MapLayerModal with MapContext
+const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
+  const csrf = "asdasdasdasd";
+  const appContext = { csrf, mapLayerTemplates: [] };
+  const { setExtentDrawMode, setDrawnExtent, extentDrawMode } =
+    useMapContext();
+  const defaultRef = useRef({
+    getView: () => ({
+      getProjection: () => ({
+        getCode: () => "EPSG:4326",
+      }),
+    }),
+  });
+  const visualizationRef =
+    visualizationRefOverride !== undefined
+      ? visualizationRefOverride
+      : defaultRef;
+
+  return (
+    <>
+      <AppContext.Provider value={appContext}>
+        <LayoutContext.Provider value={{ uuid: "123" }}>
+          <MapLayerModal
+            showModal={true}
+            handleModalClose={jest.fn()}
+            addMapLayer={jest.fn()}
+            layerInfo={layerInfo}
+            visualizationRef={visualizationRef}
+          />
+        </LayoutContext.Provider>
+      </AppContext.Provider>
+      <button
+        data-testid="set-drawn-extent"
+        onClick={() => setDrawnExtent([10, 20, 30, 40])}
+      >
+        Set Drawn Extent
+      </button>
+      <button
+        data-testid="clear-extent-draw-mode"
+        onClick={() => setExtentDrawMode(null)}
+      >
+        Clear Extent Draw Mode
+      </button>
+      <p data-testid="extent-draw-mode">
+        {extentDrawMode ? "active" : "null"}
+      </p>
+    </>
+  );
+};
+
+ExtentTestComponent.propTypes = {
+  layerInfo: PropTypes.object,
+  visualizationRefOverride: PropTypes.object,
+};
+
+test("MapLayerModal re-shows and updates sourceProps when drawnExtent arrives", async () => {
+  render(
+    <MapContextProvider>
+      <ExtentTestComponent
+        layerInfo={{
+          sourceProps: {
+            type: "Static Image",
+            props: {
+              url: "https://example.com/image.png",
+            },
+          },
+          layerProps: { name: "Test Layer" },
+        }}
+      />
+    </MapContextProvider>,
+  );
+
+  // Navigate to Source tab
+  const sourceTab = screen.getByText("Source");
+  fireEvent.click(sourceTab);
+
+  // Fill in URL for the "Draw Extent on Map" button
+  await waitFor(() => {
+    expect(screen.getByText("*url")).toBeInTheDocument();
+  });
+
+  // Click "Draw Extent on Map" — triggers onRequestHideModal (line 96)
+  const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
+  fireEvent.click(drawButton);
+
+  // Verify extentDrawMode was set
+  await waitFor(() => {
+    expect(screen.getByTestId("extent-draw-mode")).toHaveTextContent("active");
+  });
+
+  // Simulate drawnExtent arriving (lines 103-120)
+  fireEvent.click(screen.getByTestId("set-drawn-extent"));
+
+  // Modal should re-show — verify the dialog is still present with updated values
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // Verify sourceProps were updated with the extent
+  // Navigate back to source tab to see updated values
+  fireEvent.click(screen.getByText("Source"));
+  await waitFor(() => {
+    const inputs = screen.getAllByRole("textbox");
+    // imageExtent should be populated with the drawn extent
+    const imageExtentInput = inputs.find(
+      (input) => input.value === "10.00, 20.00, 30.00, 40.00",
+    );
+    expect(imageExtentInput).toBeDefined();
+  });
+});
+
+test("MapLayerModal re-shows when extentDrawMode is cancelled", async () => {
+  render(
+    <MapContextProvider>
+      <ExtentTestComponent
+        layerInfo={{
+          sourceProps: {
+            type: "Static Image",
+            props: {
+              url: "https://example.com/image.png",
+            },
+          },
+          layerProps: { name: "Test Layer" },
+        }}
+      />
+    </MapContextProvider>,
+  );
+
+  // Navigate to Source tab and click Draw Extent
+  fireEvent.click(screen.getByText("Source"));
+  await waitFor(() => {
+    expect(screen.getByText("*url")).toBeInTheDocument();
+  });
+
+  const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
+  fireEvent.click(drawButton);
+
+  await waitFor(() => {
+    expect(screen.getByTestId("extent-draw-mode")).toHaveTextContent("active");
+  });
+
+  // Simulate cancel — extentDrawMode set to null (line 126)
+  fireEvent.click(screen.getByTestId("clear-extent-draw-mode"));
+
+  await waitFor(() => {
+    expect(screen.getByTestId("extent-draw-mode")).toHaveTextContent("null");
+  });
+
+  // Modal should re-show
+  expect(screen.getByRole("dialog")).toBeInTheDocument();
+});
+
+test("MapLayerModal falls back to EPSG:3857 when visualizationRef is null", async () => {
+  const nullRef = { current: null };
+
+  render(
+    <MapContextProvider>
+      <ExtentTestComponent
+        layerInfo={{
+          sourceProps: {
+            type: "Static Image",
+            props: {
+              url: "https://example.com/image.png",
+            },
+          },
+          layerProps: { name: "Test Layer" },
+        }}
+        visualizationRefOverride={nullRef}
+      />
+    </MapContextProvider>,
+  );
+
+  // Navigate to Source tab and trigger draw extent
+  fireEvent.click(screen.getByText("Source"));
+  await waitFor(() => {
+    expect(screen.getByText("*url")).toBeInTheDocument();
+  });
+
+  const drawButton = await screen.findByLabelText("Draw Extent on Map Button");
+  fireEvent.click(drawButton);
+
+  await waitFor(() => {
+    expect(screen.getByTestId("extent-draw-mode")).toHaveTextContent("active");
+  });
+
+  // Simulate drawnExtent arriving with null visualizationRef
+  fireEvent.click(screen.getByTestId("set-drawn-extent"));
+
+  await waitFor(() => {
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  // Verify projection fell back to EPSG:3857
+  fireEvent.click(screen.getByText("Source"));
+  await waitFor(() => {
+    const inputs = screen.getAllByRole("textbox");
+    const projectionInput = inputs.find(
+      (input) => input.value === "EPSG:3857",
+    );
+    expect(projectionInput).toBeDefined();
   });
 });
 

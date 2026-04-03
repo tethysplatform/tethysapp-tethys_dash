@@ -65,7 +65,7 @@ describe("TextEditor", () => {
 
     // Should have triggered the onChange callback
     expect(onChangeMock).toHaveBeenCalledWith(
-      "<p>Hello world<strong>h</strong></p>"
+      "<p>Hello world<strong>h</strong></p>",
     );
 
     const undoButton = screen.getByRole("button", { name: "Undo Menu Button" });
@@ -77,7 +77,7 @@ describe("TextEditor", () => {
     fireEvent.click(redoButton);
 
     expect(onChangeMock).toHaveBeenCalledWith(
-      "<p>Hello world<strong>h</strong></p>"
+      "<p>Hello world<strong>h</strong></p>",
     );
 
     const eraserButton = screen.getByRole("button", {
@@ -230,7 +230,7 @@ describe("TextEditor", () => {
 
     // Should have triggered the onChange callback
     expect(onChangeMock).toHaveBeenCalledWith(
-      "<p>Hello world<code>h</code></p>"
+      "<p>Hello world<code>h</code></p>",
     );
   });
 
@@ -277,7 +277,7 @@ describe("TextEditor", () => {
 
     // Should have triggered the onChange callback
     expect(onChangeMock).toHaveBeenCalledWith(
-      '<p>Hello world<mark data-color="blue" style="background-color: blue; color: inherit">h</mark></p>'
+      '<p>Hello world<mark data-color="blue" style="background-color: blue;">h</mark></p>',
     );
   });
 
@@ -324,7 +324,7 @@ describe("TextEditor", () => {
 
     // Should have triggered the onChange callback
     expect(onChangeMock).toHaveBeenCalledWith(
-      '<p>Hello world<span style="color: blue">h</span></p>'
+      '<p>Hello world<span style="color: blue;">h</span></p>',
     );
   });
 
@@ -347,7 +347,7 @@ describe("TextEditor", () => {
 
     // Should have triggered the onChange callback
     expect(onChangeMock).toHaveBeenCalledWith(
-      '<p style="text-align: left">Hello world</p>'
+      '<p style="text-align: left;">Hello world</p>',
     );
   });
 
@@ -370,7 +370,7 @@ describe("TextEditor", () => {
 
     // Should have triggered the onChange callback
     expect(onChangeMock).toHaveBeenCalledWith(
-      '<p style="text-align: center">Hello world</p>'
+      '<p style="text-align: center;">Hello world</p>',
     );
   });
 
@@ -393,7 +393,7 @@ describe("TextEditor", () => {
 
     // Should have triggered the onChange callback
     expect(onChangeMock).toHaveBeenCalledWith(
-      '<p style="text-align: right">Hello world</p>'
+      '<p style="text-align: right;">Hello world</p>',
     );
   });
 
@@ -416,7 +416,7 @@ describe("TextEditor", () => {
 
     // Should have triggered the onChange callback
     expect(onChangeMock).toHaveBeenCalledWith(
-      "<ul><li><p>Hello world</p></li></ul>"
+      "<ul><li><p>Hello world</p></li></ul>",
     );
   });
 
@@ -451,7 +451,7 @@ describe("TextEditor", () => {
     // Should have triggered the onChange callback
     await waitFor(() => {
       expect(onChangeMock).toHaveBeenCalledWith(
-        "<ol><li><p>Hello world</p></li><li><p>n</p></li></ol>"
+        "<ol><li><p>Hello world</p></li><li><p>n</p></li></ol>",
       );
     });
 
@@ -461,7 +461,7 @@ describe("TextEditor", () => {
     fireEvent.click(indentIncreaseButton);
 
     expect(onChangeMock.mock.calls[3][0]).toBe(
-      "<ol><li><p>Hello world</p><ol><li><p>n</p></li></ol></li></ol>"
+      "<ol><li><p>Hello world</p><ol><li><p>n</p></li></ol></li></ol>",
     );
 
     const secondListItemPos = editorInstance.state.doc.content.size - 5; // Adjust offset as needed
@@ -472,7 +472,7 @@ describe("TextEditor", () => {
     fireEvent.click(indentDecreaseButton);
 
     expect(onChangeMock.mock.calls[4][0]).toBe(
-      "<ol><li><p>Hello world</p></li><li><p>n</p></li></ol>"
+      "<ol><li><p>Hello world</p></li><li><p>n</p></li></ol>",
     );
   });
 
@@ -516,7 +516,7 @@ describe("TextEditor", () => {
     await userEvent.type(editor, "h");
 
     expect(onChangeMock).toHaveBeenCalledWith(
-      '<p>Hello world<span style="font-family: &quot;Courier New&quot;, monospace">h</span></p>'
+      '<p>Hello world<span style="font-family: &quot;Courier New&quot;, monospace;">h</span></p>',
     );
   });
 

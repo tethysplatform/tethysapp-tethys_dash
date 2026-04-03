@@ -96,6 +96,10 @@ const ExtentInteraction = ({ visualizationRef }) => {
   useEffect(() => {
     if (!extentDrawMode || !visualizationRef.current) return;
 
+    if (extentDrawMode.initialExtent) {
+      setHasExtent(true);
+    }
+
     // Hide existing layers that match the image URL to avoid confusion
     const hiddenLayers = [];
     if (extentDrawMode.imageUrl) {

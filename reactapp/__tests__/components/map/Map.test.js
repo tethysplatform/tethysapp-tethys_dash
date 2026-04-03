@@ -761,6 +761,50 @@ test("Map Layer createJsonStyleFunction returns null, style not set", async () =
   // setStyle should not be called because the layer has no setStyle function
 });
 
+test("ExtentInteraction renders when extentDrawMode is set", async () => {
+  const ExtentActivator = () => {
+    const { setExtentDrawMode, mapReady } = useMapContext();
+    const visualizationRef = useRef();
+
+    return (
+      <div>
+        <MapComponent visualizationRef={visualizationRef} />
+        {mapReady && (
+          <button
+            data-testid="activate-extent"
+            onClick={() =>
+              setExtentDrawMode({
+                imageUrl: "https://example.com/image.png",
+                projection: "EPSG:3857",
+                initialExtent: null,
+              })
+            }
+          >
+            Activate
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <ExtentActivator />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  const activateButton = await screen.findByTestId("activate-extent");
+  fireEvent.click(activateButton);
+
+  expect(
+    await screen.findByText("Draw or adjust a rectangle to place the image"),
+  ).toBeInTheDocument();
+});
+
 TestingComponent.propTypes = {
   mapProps: PropTypes.shape({
     onMapClick: PropTypes.bool,

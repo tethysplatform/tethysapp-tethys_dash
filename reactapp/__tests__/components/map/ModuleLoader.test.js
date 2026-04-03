@@ -135,6 +135,17 @@ test("Static Image Layer Instance", async () => {
   expect(cachedLayerInstance instanceof ImageLayer).toBe(true);
 });
 
+test("Static Image imageExtent string is parsed to numeric array", async () => {
+  const config = JSON.parse(
+    JSON.stringify(layerConfigStaticImage.configuration),
+  );
+  config.props.source.props.imageExtent = "-100.5, 30.2, -90.1, 40.8";
+  const layerInstance = await moduleLoader(config);
+  const source = layerInstance.getSource();
+  const extent = source.getImageExtent();
+  expect(extent).toEqual([-100.5, 30.2, -90.1, 40.8]);
+});
+
 test("KML Layer Instance", async () => {
   const layerInstance = await moduleLoader(layerConfigKML.configuration);
   expect(layerInstance instanceof VectorLayer).toBe(true);
