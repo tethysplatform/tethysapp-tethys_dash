@@ -6,6 +6,7 @@ import moduleLoader, {
 import LayersControl from "components/map/LayersControl";
 import LegendControl from "components/map/LegendControl";
 import DrawInteractions from "components/map/DrawInteractions";
+import ExtentInteraction from "components/map/ExtentInteraction";
 import {
   legendPropType,
   configurationPropType,
@@ -355,6 +356,9 @@ const MapComponent = ({
             visualizationRef={visualizationRef}
             drawing={drawing}
           />
+        )}
+        {mapContext?.extentDrawMode && (
+          <ExtentInteraction visualizationRef={visualizationRef} />
         )}
         {layerControl && (
           <LayersControl

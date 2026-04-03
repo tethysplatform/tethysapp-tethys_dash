@@ -8,6 +8,7 @@ import moduleLoader, {
   buildPolygonFill,
 } from "components/map/ModuleLoader";
 import WebGLTile from "ol/layer/WebGLTile.js";
+import ImageLayer from "ol/layer/Image.js";
 import VectorTileLayer from "ol/layer/VectorTile.js";
 import VectorLayer from "ol/layer/Vector.js";
 import KML from "ol/format/KML.js";
@@ -21,6 +22,7 @@ import {
   layerConfigPMTilesVector,
   layerConfigPMTilesRaster,
   layerConfigKML,
+  layerConfigStaticImage,
 } from "__tests__/utilities/constants";
 import {
   Style,
@@ -122,6 +124,17 @@ test("PMTiles Raster Layer Instance", async () => {
   expect(cachedLayerInstance instanceof WebGLTile).toBe(true);
 });
 
+test("Static Image Layer Instance", async () => {
+  const layerInstance = await moduleLoader(
+    layerConfigStaticImage.configuration,
+  );
+  expect(layerInstance instanceof ImageLayer).toBe(true);
+  const cachedLayerInstance = await moduleLoader(
+    layerConfigStaticImage.configuration,
+  );
+  expect(cachedLayerInstance instanceof ImageLayer).toBe(true);
+});
+
 test("KML Layer Instance", async () => {
   const layerInstance = await moduleLoader(layerConfigKML.configuration);
   expect(layerInstance instanceof VectorLayer).toBe(true);
@@ -131,9 +144,12 @@ test("KML Layer Instance", async () => {
 });
 
 test("Non Constructor Error", async () => {
-  jest.mock("ol/layer/Image.js", () => "non function");
-  await expect(moduleLoader(layerConfigImageWMS.configuration)).rejects.toThrow(
-    "Module 'ImageLayer' does not export a constructor",
+  const badConfig = JSON.parse(
+    JSON.stringify(layerConfigImageWMS.configuration),
+  );
+  badConfig.type = "bad-module";
+  await expect(moduleLoader(badConfig)).rejects.toThrow(
+    "Module 'bad-module' does not export a constructor.",
   );
 });
 

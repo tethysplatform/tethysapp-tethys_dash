@@ -170,6 +170,18 @@ export const sourcePropertiesOptions = {
       },
     },
   },
+  "Static Image": {
+    required: {
+      url: { placeholder: "https://example.com/image.png" },
+      projection: { placeholder: "EPSG:4326" },
+      imageExtent: { placeholder: "minX,minY,maxX,maxY" },
+    },
+    optional: {
+      attributions: {
+        placeholder: "Attributions",
+      },
+    },
+  },
 };
 
 export const layerPropertiesOptions = {

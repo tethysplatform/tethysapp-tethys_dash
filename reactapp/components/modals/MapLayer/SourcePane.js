@@ -13,6 +13,8 @@ import NormalInput from "components/inputs/NormalInput";
 import appAPI from "services/api/app";
 import { removeEmptyValues } from "components/modals/utilities";
 import { LayoutContext } from "components/contexts/Contexts";
+import { useMapContext } from "components/contexts/MapContext";
+import Button from "react-bootstrap/Button";
 import "components/modals/wideModal.css";
 
 const StyledTextInput = styled.textarea`
@@ -96,6 +98,7 @@ const SourcePane = ({
   setSourceProps,
   setAttributeProps,
   setErrorMessage,
+  onRequestHideModal,
 }) => {
   const [sourceProperties, setSourceProperties] = useState([]); // array of objects that represent properties that will be rendered in the table
   const [propertyPlaceholders, SetPropertyPlaceholders] = useState([]); // array of objects that represent placeholders for the table inputs
@@ -104,6 +107,7 @@ const SourcePane = ({
   const [geoJSON, setGeoJSON] = useState("{}"); // track the geojson value
   const [geoJSONSource, setGeoJSONSource] = useState("custom"); // track the geojson value
   const { uuid } = useContext(LayoutContext);
+  const mapContext = useMapContext();
 
   useEffect(() => {
     // if loading existing layer, then set states appropriately
@@ -119,7 +123,7 @@ const SourcePane = ({
       setSourceType({ value: sourceProps.type, label: sourceProps.type });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceProps.type]);
+  }, [sourceProps.type, sourceProps.props?.imageExtent]);
 
   useEffect(() => {
     const fetchGeoJSON = async () => {
@@ -221,6 +225,35 @@ const SourcePane = ({
     setAttributeProps({});
   }
 
+  function handleDrawExtentOnMap() {
+    // Read current values from the sourceProperties table
+    const currentProps = parsePropertiesArray(sourceProperties);
+    const imageUrl = currentProps.url || "";
+    const projection = currentProps.projection || "";
+
+    let initialExtent = null;
+    if (currentProps.imageExtent) {
+      const parsed = currentProps.imageExtent
+        .split(",")
+        .map((v) => parseFloat(v.trim()));
+      if (parsed.length === 4 && parsed.every((v) => isFinite(v))) {
+        initialExtent = parsed;
+      }
+    }
+
+    if (!imageUrl) {
+      setErrorMessage("Please enter an image URL before drawing the extent.");
+      return;
+    }
+
+    mapContext.setExtentDrawMode({
+      initialExtent,
+      imageUrl,
+      projection: projection || null,
+    });
+    onRequestHideModal();
+  }
+
   function handleGeoJSONUpload({ fileContent }) {
     setGeoJSON(fileContent);
     setSourceProps((previousSourceProps) => ({
@@ -315,6 +348,18 @@ const SourcePane = ({
               <p>
                 <em>* indicates a required property</em>
               </p>
+              {sourceType.value === "Static Image" &&
+                mapContext &&
+                onRequestHideModal && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleDrawExtentOnMap}
+                    aria-label="Draw Extent on Map Button"
+                  >
+                    Draw Extent on Map
+                  </Button>
+                )}
             </>
           )}
         </>
@@ -328,6 +373,7 @@ SourcePane.propTypes = {
   setSourceProps: PropTypes.func, // setter for sourceProps state
   setAttributeProps: PropTypes.func, // setter for attributeProps state
   setErrorMessage: PropTypes.func,
+  onRequestHideModal: PropTypes.func, // callback to hide the modal for extent drawing
 };
 
 export default memo(SourcePane);

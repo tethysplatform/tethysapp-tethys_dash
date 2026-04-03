@@ -2,7 +2,7 @@ import PropTypes from "prop-types";
 import Modal from "react-bootstrap/Modal";
 import styled from "styled-components";
 import Button from "react-bootstrap/Button";
-import { useState, useRef, useContext } from "react";
+import { useState, useRef, useContext, useEffect, useCallback } from "react";
 import Alert from "react-bootstrap/Alert";
 import Tab from "react-bootstrap/Tab";
 import Tabs from "react-bootstrap/Tabs";
@@ -24,6 +24,7 @@ import {
   removeEmptyValues,
   checkRequiredKeys,
 } from "components/modals/utilities";
+import { useMapContext } from "components/contexts/MapContext";
 import Select from "react-select";
 import appAPI from "services/api/app";
 import "components/modals/wideModal.css";
@@ -72,6 +73,7 @@ const MapLayerModal = ({
   handleModalClose,
   addMapLayer,
   layerInfo,
+  visualizationRef,
 }) => {
   const [tabKey, setTabKey] = useState("layer");
   const [errorMessage, setErrorMessage] = useState(null);
@@ -83,10 +85,47 @@ const MapLayerModal = ({
   const [style, setStyle] = useState(layerInfo.style);
   const [legend, setLegend] = useState(layerInfo.legend);
   const [selectedOption, setSelectedOption] = useState(null);
+  const [hiddenForExtentDraw, setHiddenForExtentDraw] = useState(false);
   const legendContainerRef = useRef(null);
   const styleContainerRef = useRef(null);
   const { csrf, mapLayerTemplates } = useContext(AppContext);
   const { uuid } = useContext(LayoutContext);
+  const mapContext = useMapContext();
+
+  const onRequestHideModal = useCallback(() => {
+    setHiddenForExtentDraw(true);
+  }, []);
+
+  // When drawnExtent arrives, re-show modal and update sourceProps
+  useEffect(() => {
+    if (!mapContext?.drawnExtent || !hiddenForExtentDraw) return;
+
+    const extent = mapContext.drawnExtent;
+    const projection =
+      visualizationRef?.current
+        ?.getView()
+        ?.getProjection()
+        ?.getCode() || "EPSG:3857";
+
+    setSourceProps((prev) => ({
+      ...prev,
+      props: {
+        ...prev.props,
+        imageExtent: extent.map((v) => v.toFixed(2)).join(", "),
+        projection: projection,
+      },
+    }));
+
+    setHiddenForExtentDraw(false);
+    mapContext.setDrawnExtent(null);
+  }, [mapContext?.drawnExtent, hiddenForExtentDraw, mapContext, visualizationRef]);
+
+  // When extentDrawMode becomes null while hidden (user cancelled), re-show modal
+  useEffect(() => {
+    if (hiddenForExtentDraw && !mapContext?.extentDrawMode) {
+      setHiddenForExtentDraw(false);
+    }
+  }, [mapContext?.extentDrawMode, hiddenForExtentDraw]);
 
   async function saveLayer() {
     setErrorMessage(null);
@@ -275,6 +314,8 @@ const MapLayerModal = ({
         className="map-layer"
         dialogClassName="fiftyWideModalDialog"
         contentClassName="mapLayerContent"
+        style={hiddenForExtentDraw ? { visibility: "hidden" } : undefined}
+        backdrop={hiddenForExtentDraw ? false : true}
       >
         <StyledModalHeader closeButton>
           <Modal.Title>Add Map Layer</Modal.Title>
@@ -308,6 +349,7 @@ const MapLayerModal = ({
                 setSourceProps={setSourceProps}
                 setAttributeProps={setAttributeProps}
                 setErrorMessage={setErrorMessage}
+                onRequestHideModal={onRequestHideModal}
               />
             </Tab>
             <Tab
@@ -434,6 +476,10 @@ MapLayerModal.propTypes = {
   existingLayerOriginalName: PropTypes.shape({
     current: PropTypes.any,
   }),
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };
 
 export default MapLayerModal;

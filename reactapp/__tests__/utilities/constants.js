@@ -1476,6 +1476,23 @@ export const layerConfigPMTilesVector = {
   },
 };
 
+export const layerConfigStaticImage = {
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name: "Static Image Layer",
+      source: {
+        type: "Static Image",
+        props: {
+          url: "https://example.com/image.png",
+          projection: "EPSG:4326",
+          imageExtent: "-180, -90, 180, 90",
+        },
+      },
+    },
+  },
+};
+
 export const exampleStyle = {
   version: 8,
   sprite:
