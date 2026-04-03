@@ -1,16 +1,70 @@
 /**
  * panelLayoutUtils.js
  *
- * Generic layout utility for dynamically created dashboard panels.
- * Arranges panels using count-based tiling patterns (monocle, hsplit,
- * two-over-one, grid). Panel-type-specific knowledge (dimensions,
- * priority) is provided by the caller via the event payload — this
- * module has no knowledge of specific plugins or panel types.
+ * Generic tiling layout utility for dynamically created dashboard panels.
+ * Uses a simple slot-based approach: scans the grid for the first available
+ * horizontal slot that fits the panel, row by row from top to bottom.
+ * Panel-type-specific knowledge (dimensions, priority) is provided by the
+ * caller via the event payload — this module has no knowledge of specific
+ * plugins or panel types.
  */
 
 const COLS = 100;
 const DEFAULT_W = 50;
 const DEFAULT_H = 20;
+
+/**
+ * Build a list of occupied rectangles from existing grid items.
+ */
+function getOccupied(items) {
+  return items.map((item) => ({
+    x: item.x || 0,
+    y: item.y || 0,
+    w: item.w || 0,
+    h: item.h || 0,
+  }));
+}
+
+/**
+ * Check if placing a panel at (x, y) with size (w, h) would overlap
+ * any existing occupied rectangle.
+ */
+function overlaps(x, y, w, h, occupied) {
+  for (const rect of occupied) {
+    if (
+      x < rect.x + rect.w &&
+      x + w > rect.x &&
+      y < rect.y + rect.h &&
+      y + h > rect.y
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Find the first available slot for a panel of size (w, h).
+ * Scans row by row (y increments by 1), and for each row scans
+ * left to right in steps of `step` columns.
+ * Returns { x, y } of the top-left corner of the slot.
+ */
+function findSlot(w, h, occupied, step = 1) {
+  const maxY = occupied.reduce(
+    (max, rect) => Math.max(max, rect.y + rect.h),
+    0,
+  );
+  // Scan up to maxY + h to guarantee we find a slot (empty row below all content)
+  for (let y = 0; y <= maxY + h; y++) {
+    for (let x = 0; x <= COLS - w; x += step) {
+      if (!overlaps(x, y, w, h, occupied)) {
+        return { x, y };
+      }
+    }
+  }
+  // Fallback: place below everything
+  return { x: 0, y: maxY };
+}
 
 /**
  * Compute layout positions for a batch of new panels.
@@ -19,39 +73,15 @@ const DEFAULT_H = 20;
  *   Each entry may include `w` and `h` hints. Missing values fall back
  *   to DEFAULT_W / DEFAULT_H.
  * @param {Array<{x: number, y: number, w: number, h: number}>} existingGridItems
- *   Current grid items on the dashboard, used to find the floor.
+ *   Current grid items on the dashboard, used to find occupied space.
  * @returns {Array<{x: number, y: number, w: number, h: number}>}
  *   Computed positions, one per input panel (same order).
  */
-/**
- * Get distinct row start positions sorted bottom-to-top.
- * Each entry: { y, rightEdge } where rightEdge is the max x+w on that row.
- */
-function getRowsSorted(existingGridItems) {
-  if (existingGridItems.length === 0) return [];
-
-  // Group items by their y (row start)
-  const rowMap = new Map();
-  for (const item of existingGridItems) {
-    const y = item.y || 0;
-    const edge = (item.x || 0) + (item.w || 0);
-    rowMap.set(y, Math.max(rowMap.get(y) || 0, edge));
-  }
-
-  // Sort bottom-to-top (highest y first)
-  return Array.from(rowMap.entries())
-    .map(([y, rightEdge]) => ({ y, rightEdge }))
-    .sort((a, b) => b.y - a.y);
-}
-
 export function computePanelLayout(panels, existingGridItems) {
   if (!panels || panels.length === 0) return [];
 
-  // Find the bottom edge of existing content
-  const floor = existingGridItems.reduce(
-    (max, item) => Math.max(max, (item.y || 0) + (item.h || 0)),
-    0,
-  );
+  // Start with all existing items as occupied
+  const occupied = getOccupied(existingGridItems);
 
   // Resolve defaults
   const resolved = panels.map((p) => ({
@@ -59,57 +89,17 @@ export function computePanelLayout(panels, existingGridItems) {
     h: p.h ?? DEFAULT_H,
   }));
 
-  const count = resolved.length;
-
-  if (count === 1) {
-    const panelW = resolved[0].w;
-    const panelH = resolved[0].h;
-
-    // Scan rows bottom-to-top looking for horizontal space
-    const rows = getRowsSorted(existingGridItems);
-    for (const row of rows) {
-      if (row.rightEdge + panelW <= COLS) {
-        // Fits next to existing content — use hint width
-        return [{ x: row.rightEdge, y: row.y, w: panelW, h: panelH }];
-      }
-    }
-
-    // No space on any existing row — use full width so no space is wasted
-    return [{ x: 0, y: floor, w: COLS, h: panelH }];
-  }
-
-  // Pack panels into rows, respecting each panel's w hint.
-  // Fills each row left-to-right until the next panel doesn't fit,
-  // then starts a new row. Panels alone on their row expand to full width.
   const positions = [];
-  let rowY = floor;
-  let rowX = 0;
-  let rowMaxH = 0;
-  let rowStartIdx = 0;
 
-  for (let i = 0; i < count; i++) {
-    const panel = resolved[i];
+  for (const panel of resolved) {
+    // Find the first slot that fits this panel
+    const slot = findSlot(panel.w, panel.h, occupied);
 
-    // If this panel doesn't fit on the current row, wrap to a new row
-    if (rowX + panel.w > COLS) {
-      // If the previous row had only one panel, expand it to full width
-      if (i - rowStartIdx === 1) {
-        positions[rowStartIdx].w = COLS;
-      }
-      rowY += rowMaxH;
-      rowX = 0;
-      rowMaxH = 0;
-      rowStartIdx = i;
-    }
+    const pos = { x: slot.x, y: slot.y, w: panel.w, h: panel.h };
+    positions.push(pos);
 
-    positions.push({ x: rowX, y: rowY, w: panel.w, h: panel.h });
-    rowX += panel.w;
-    rowMaxH = Math.max(rowMaxH, panel.h);
-  }
-
-  // Expand the last panel if it's alone on its row
-  if (count - rowStartIdx === 1) {
-    positions[positions.length - 1].w = COLS;
+    // Mark this slot as occupied so the next panel avoids it
+    occupied.push(pos);
   }
 
   return positions;
