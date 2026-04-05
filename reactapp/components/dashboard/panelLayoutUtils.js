@@ -46,17 +46,17 @@ function overlaps(x, y, w, h, occupied) {
 /**
  * Find the first available slot for a panel of size (w, h).
  * Scans row by row (y increments by 1), and for each row scans
- * left to right in steps of `step` columns.
+ * left to right one column at a time.
  * Returns { x, y } of the top-left corner of the slot.
  */
-function findSlot(w, h, occupied, step = 1) {
+function findSlot(w, h, occupied) {
   const maxY = occupied.reduce(
     (max, rect) => Math.max(max, rect.y + rect.h),
     0,
   );
   // Scan up to maxY + h to guarantee we find a slot (empty row below all content)
   for (let y = 0; y <= maxY + h; y++) {
-    for (let x = 0; x <= COLS - w; x += step) {
+    for (let x = 0; x <= COLS - w; x++) {
       if (!overlaps(x, y, w, h, occupied)) {
         return { x, y };
       }

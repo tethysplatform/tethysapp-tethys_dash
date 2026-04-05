@@ -133,19 +133,10 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
     [gridItems, isEditing, disabledEditingMovement],
   );
 
-  // Memoize parsed grid items array at the top level
-  const parsedGridItems = useMemo(
-    () =>
-      gridItems.map((item) => ({
-        ...item,
-      })),
-    [gridItems],
-  );
-
   function updateLayout(newLayout) {
     const updatedGridItems = [];
     for (let lay of newLayout) {
-      var result = gridItems.find((obj) => {
+      const result = gridItems.find((obj) => {
         return obj.i === lay.i;
       });
 
@@ -168,7 +159,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
 
   const handleResize = useCallback(
     (l, oldLayoutItem, layoutItem, placeholder) => {
-      var result = gridItemsUpdated.current.find((obj) => {
+      const result = gridItemsUpdated.current.find((obj) => {
         return obj.i === layoutItem.i;
       });
       const metadata = JSON.parse(result.metadata_string);
@@ -210,7 +201,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       allowOverlap={unrestrictedPlacement}
       useCSSTransforms={false}
     >
-      {parsedGridItems.map((item, index) => (
+      {gridItems.map((item, index) => (
         <div key={item.i}>
           <GridItemContext.Provider
             value={{

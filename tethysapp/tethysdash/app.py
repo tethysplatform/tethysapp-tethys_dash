@@ -61,6 +61,18 @@ class App(TethysAppBase):
                 description="Support GitHub URL",
                 required=False,
             ),
+            CustomSetting(
+                name="chatbox_api_host",
+                type=CustomSetting.TYPE_STRING,
+                description="Base URL where the chatbox MFE is served (e.g., http://localhost:5001). The Vite server proxies /api to Ollama and /sse to the MCP server.",
+                required=False,
+            ),
+            CustomSetting(
+                name="chatbox_api_key",
+                type=CustomSetting.TYPE_STRING,
+                description="Ollama API key (optional, for authenticated Ollama endpoints)",
+                required=False,
+            ),
         )
 
         return custom_settings

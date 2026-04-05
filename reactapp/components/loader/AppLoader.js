@@ -25,6 +25,7 @@ import {
 } from "components/dashboard/DashboardItem";
 import IdleTimerManager from "components/loader/IdleTimerManager";
 import WebsocketProvider from "components/contexts/WebSocketContext";
+import { ChatSidebarProvider } from "components/contexts/ChatSidebarContext";
 import { v4 as uuidv4 } from "uuid";
 import clientPluginRegistry from "generated/clientPluginRegistry.json";
 
@@ -311,6 +312,7 @@ function Loader({ children }) {
         support_github: contactUsGitHub,
         ...(dashboards.support_info || {}),
       };
+      tethysApp.chatboxConfig = dashboards.chatbox_config || null;
 
       setAppContext({
         tethysApp,
@@ -571,12 +573,14 @@ function Loader({ children }) {
           <AvailableDashboardsContext.Provider
             value={availableDashboardsContextValue}
           >
-            <AppTourContextProvider>
-              <WebsocketProvider>
-                {children}
-                <IdleTimerManager />
-              </WebsocketProvider>
-            </AppTourContextProvider>
+            <ChatSidebarProvider>
+              <AppTourContextProvider>
+                <WebsocketProvider>
+                  {children}
+                  <IdleTimerManager />
+                </WebsocketProvider>
+              </AppTourContextProvider>
+            </ChatSidebarProvider>
           </AvailableDashboardsContext.Provider>
         </PermissionGroupContext.Provider>
       </AppContext.Provider>

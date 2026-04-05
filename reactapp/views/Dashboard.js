@@ -2,6 +2,7 @@ import DashboardTabs from "components/dashboard/DashboardTabs";
 import DashboardLayoutAlerts from "components/dashboard/DashboardLayoutAlerts";
 import LayoutAlertContextProvider from "components/contexts/LayoutAlertContext";
 import { DashboardHeader } from "components/layout/Header";
+import ChatSidebar from "components/sidebar/ChatSidebar";
 import PropTypes from "prop-types";
 import DashboardLoader from "components/loader/DashboardLoader";
 
@@ -12,7 +13,12 @@ function DashboardView(dashboardProps) {
         <LayoutAlertContextProvider>
           <DashboardHeader />
           <DashboardLayoutAlerts />
-          <DashboardTabs />
+          <div style={{ display: "flex", flex: 1, overflow: "hidden" }}>
+            <div style={{ flex: 1, minWidth: 0}}>
+              <DashboardTabs />
+            </div>
+            <ChatSidebar />
+          </div>
         </LayoutAlertContextProvider>
       </DashboardLoader>
     </div>

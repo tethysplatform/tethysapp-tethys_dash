@@ -231,6 +231,15 @@ def dashboards(request):
     if support_info:
         response["support_info"] = support_info
 
+    chatbox_host = App.get_custom_setting("chatbox_api_host")
+    if chatbox_host:
+        host = chatbox_host.rstrip("/")
+        response["chatbox_config"] = {
+            "mfeUrl": f"{host}/assets/remoteEntry.js",
+            "ollamaHost": host,              # Vite preview server proxies /api → Ollama
+            "mcpServerUrl": f"{host}/sse",   # Vite preview server proxies /sse → MCP
+        }
+
     clean_up_jsons(user)
     return JsonResponse(response)
 

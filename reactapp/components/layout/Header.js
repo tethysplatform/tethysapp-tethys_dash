@@ -36,8 +36,10 @@ import {
   BsPencilSquare,
   BsFillPersonFill,
   BsUpload,
+  BsChatDots,
 } from "react-icons/bs";
 import { HiUserGroup } from "react-icons/hi";
+import { ChatSidebarContext } from "components/contexts/ChatSidebarContext";
 import { CiUndo } from "react-icons/ci";
 import { FaPlus } from "react-icons/fa6";
 import { FaExpandArrowsAlt, FaLock, FaUnlock } from "react-icons/fa";
@@ -280,7 +282,9 @@ export const DashboardHeader = () => {
     "dontShowDashboardInfoOnStart"
   );
   const [showInfoModal, setShowInfoModal] = useState(false);
-  const { user } = useContext(AppContext);
+  const { user, tethysApp } = useContext(AppContext);
+  const { isOpen: chatSidebarOpen, toggle: toggleChatSidebar } =
+    useContext(ChatSidebarContext) ?? {};
   const { name, editable, saveLayoutContext, unrestrictedPlacement } =
     useContext(LayoutContext);
   const { tabs, updateTab, resetTabs, getActiveTab } = useContext(TabContext);
@@ -547,6 +551,17 @@ export const DashboardHeader = () => {
                 disabled={isSaving}
               >
                 <BsFillPersonFill size="1.5rem" />
+              </TooltipButton>
+            )}
+            {tethysApp?.chatboxConfig && (
+              <TooltipButton
+                onClick={toggleChatSidebar}
+                tooltipPlacement="bottom"
+                tooltipText={chatSidebarOpen ? "Close Chat" : "Open Chat"}
+                aria-label="chatSidebarToggle"
+                disabled={isSaving}
+              >
+                <BsChatDots size="1.5rem" />
               </TooltipButton>
             )}
             <TooltipButton

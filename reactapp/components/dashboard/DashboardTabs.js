@@ -72,7 +72,6 @@ const DeleteButton = styled.button`
 
 const StyledTabs = styled(Tabs)`
   display: ${(props) => (props.$shouldHideTabBar ? "none" : "flex")};
-
   .nav-item {
     flex: 1;
   }
