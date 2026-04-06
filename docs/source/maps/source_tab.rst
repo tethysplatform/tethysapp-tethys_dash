@@ -142,7 +142,54 @@ PMTiles Raster
     - **attributions:** (optional) Attributions.
     - **tileSize:** (optional) Tile size. Default is 256.
 
+------------------------------------------------------------------------------------------------------------------------
 
+++++++++++++
+Static Image
+++++++++++++
+
+**Openlayers Class:** `ImageStatic <https://openlayers.org/en/latest/apidoc/module-ol_source_ImageStatic-ImageStatic.html>`_
+
+The Static Image source overlays a georeferenced image (PNG, GIF, JPG, etc.) on the map at a specific location defined by a bounding extent. This is useful for displaying weather radar imagery, historical maps, satellite captures, or any image that needs to be positioned at a specific geographic location.
+
+**Layer Properties:**
+    - **url:** (required) URL of the image to display. Must be publicly accessible.
+    - **projection:** (required) Projection of the image extent coordinates (e.g. ``EPSG:3857``, ``EPSG:4326``).
+    - **imageExtent:** (required) Bounding extent of the image as a comma-separated string in the format ``minX, minY, maxX, maxY``, using coordinates in the specified projection.
+    - **attributions:** (optional) Attributions.
+
+**Interactive Placement:**
+
+Instead of manually entering the ``imageExtent`` coordinates, you can use the **Draw Extent on Map** button to visually place the image:
+
+1. Enter the image URL in the source properties.
+2. Click the **Draw Extent on Map** button. The layer configuration modal will temporarily hide, revealing the map.
+3. Click and drag on the map to draw a rectangle where the image should appear. A semi-transparent preview of the image will display over the drawn area.
+4. Adjust the rectangle corners to resize or reposition the image as needed.
+5. Click **Confirm** to accept the placement. The modal will reappear with the ``imageExtent`` and ``projection`` fields automatically populated.
+6. Click **Cancel** to return to the modal without changes.
+
+.. note::
+    When editing an existing Static Image layer, the original layer is temporarily hidden during placement so the preview is clearly visible.
+
+**Example JSON Configuration:**
+
+::
+
+    {
+        "type": "ImageLayer",
+        "props": {
+            "name": "Weather Radar",
+            "source": {
+                "type": "Static Image",
+                "props": {
+                    "url": "https://example.com/radar.png",
+                    "projection": "EPSG:3857",
+                    "imageExtent": "-14070864.27, 5265423.09, -12936622.21, 6254376.58"
+                }
+            }
+        }
+    }
 
 
 
