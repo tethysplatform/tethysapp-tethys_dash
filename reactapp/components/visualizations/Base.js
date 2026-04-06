@@ -307,6 +307,16 @@ const BaseVisualization = () => {
         variable_options_source: args.variable_options_source,
         metadata: args["variable_options_source.metadata"],
       });
+    } else if (args.inlineData && args.vizType) {
+      // Inline data from TethysDash MCP — render directly without API call.
+      // Bypasses setVariableDependentVisualizations to avoid infinite re-render loop.
+      // Only update state if vizType actually changed to prevent re-render cycles
+      // (BasePlot's useEffect depends on layout prop reference stability).
+      setVizType((prev) => (prev === args.vizType ? prev : args.vizType));
+      setVizData((prev) => {
+        if (prev && prev._inlineId === gridItemArgsString) return prev;
+        return { ...args.inlineData, _inlineId: gridItemArgsString };
+      });
     } else {
       setVariableDependentVisualizations({});
     }
@@ -314,7 +324,8 @@ const BaseVisualization = () => {
   }, [gridItemSource, gridItemArgsString, gridItemMetadataString]);
 
   useEffect(() => {
-    if (!["", "Variable Input"].includes(gridItemSource)) {
+    const args = JSON.parse(gridItemArgsString);
+    if (!["", "Variable Input"].includes(gridItemSource) && !args.inlineData) {
       setVariableDependentVisualizations({});
     }
     // eslint-disable-next-line

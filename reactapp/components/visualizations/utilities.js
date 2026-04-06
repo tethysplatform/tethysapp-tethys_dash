@@ -86,6 +86,16 @@ export async function getVisualization({
     return;
   }
 
+  // Inline data: render directly without a backend API call.
+  // Used by TethysDash MCP server to create native visualizations with data attached.
+  // args.vizType overrides sourceType since inline grid items may not be in the visualization list.
+  const inlineVizType = itemData.args.vizType || sourceType;
+  if (itemData.args.inlineData && inlineVizType) {
+    setVizType(inlineVizType);
+    setVizData(itemData.args.inlineData);
+    return;
+  }
+
   if (itemData.source === "Map") {
     setVizType("map");
     setVizData({

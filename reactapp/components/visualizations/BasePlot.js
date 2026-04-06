@@ -343,6 +343,10 @@ export const handleEventData = ({
   }
 };
 
+// Stable empty object — prevents useEffect re-render loop when metadata
+// has no plotlyVerticalLine (destructuring default {} creates new ref each render).
+const EMPTY_VERTICAL_LINE = {};
+
 const BasePlot = ({
   data,
   layout,
@@ -359,7 +363,7 @@ const BasePlot = ({
     VariableInputsContext,
   );
   const { inDataViewerMode } = useContext(DataViewerModeContext);
-  const { plotlyVerticalLine = {} } = metadata;
+  const { plotlyVerticalLine = EMPTY_VERTICAL_LINE } = metadata;
   const {
     step: verticalLineStep,
     mode: verticalLineMode,

@@ -1,0 +1,365 @@
+"""
+TethysDash MCP Server
+
+Exposes tools for creating native TethysDash visualizations (Plotly charts,
+tables, maps, cards, text) and rendering registered MFE components.
+
+The LLM calls these tools to create dashboard grid items with inline data -
+no backend API call needed. The chatbox dispatches the returned specs as
+DOM events that DashboardLayout.js handles.
+
+Usage:
+    python -m tethysapp.tethysdash.mcp.tethysdash_mcp_server
+
+Connects to chatbox via MCP SSE transport on port 9001.
+"""
+
+import logging
+import os
+import json
+from typing import Optional, Dict, Any, List
+from typing_extensions import Annotated
+from pydantic import Field
+from fastmcp import FastMCP
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
+
+mcp = FastMCP("TethysDash MCP Server")
+LOGGER = logging.getLogger("tethysdash.mcp")
+
+CORS_MIDDLEWARE = [
+    Middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+]
+
+# ---------------------------------------------------------------------------
+# Built-in visualization tools
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def create_plotly_chart(
+    data: Annotated[List[Dict[str, Any]], Field(description="Plotly trace objects. Each dict should have 'x', 'y', and optionally 'type', 'name', 'mode', etc.")],
+    layout: Annotated[Optional[Dict[str, Any]], Field(description="Plotly layout object with title, axis labels, etc.")] = None,
+    config: Annotated[Optional[Dict[str, Any]], Field(description="Plotly config object (responsive, displaylogo, etc.)")] = None,
+    title: Annotated[Optional[str], Field(description="Chart title (shorthand - added to layout.title)")] = None,
+    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
+    h: Annotated[int, Field(description="Grid height in row units (each unit ~10px at 1920px)")] = 40,
+) -> Dict[str, Any]:
+    """Create a Plotly chart visualization on the dashboard.
+
+    Returns a visualization spec that the chatbox dispatches as a grid item.
+    The chart renders using TethysDash's native BasePlot component.
+    """
+    final_layout = layout or {}
+    if title and "title" not in final_layout:
+        final_layout["title"] = title
+
+    final_config = config or {"responsive": True, "displaylogo": False}
+
+    return {
+        "visualization": {
+            "source": "Inline Plotly",
+            "vizType": "plotly",
+            "inlineData": {
+                "data": data,
+                "layout": final_layout,
+                "config": final_config,
+            },
+            "w": w,
+            "h": h,
+        }
+    }
+
+
+@mcp.tool()
+def create_data_table(
+    data: Annotated[List[Dict[str, Any]], Field(description="Array of row objects, e.g. [{'col1': 'val1', 'col2': 'val2'}, ...]")],
+    title: Annotated[Optional[str], Field(description="Table title")] = None,
+    subtitle: Annotated[Optional[str], Field(description="Table subtitle")] = None,
+    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
+    h: Annotated[int, Field(description="Grid height in row units (each unit ~10px at 1920px)")] = 35,
+) -> Dict[str, Any]:
+    """Create a data table visualization on the dashboard.
+
+    Returns a visualization spec that renders using TethysDash's native DataTable component.
+    """
+    return {
+        "visualization": {
+            "source": "Inline Table",
+            "vizType": "table",
+            "inlineData": {
+                "data": data,
+                "title": title or "",
+                "subtitle": subtitle or "",
+            },
+            "w": w,
+            "h": h,
+        }
+    }
+
+
+@mcp.tool()
+def create_card(
+    title: Annotated[str, Field(description="Card title")],
+    description: Annotated[Optional[str], Field(description="Card description text")] = None,
+    data: Annotated[Optional[Any], Field(description="Card data (value, metric, etc.)")] = None,
+    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 25,
+    h: Annotated[int, Field(description="Grid height in row units")] = 15,
+) -> Dict[str, Any]:
+    """Create a card visualization on the dashboard.
+
+    Cards display a title, description, and optional data value.
+    Renders using TethysDash's native Card component.
+    """
+    return {
+        "visualization": {
+            "source": "Inline Card",
+            "vizType": "card",
+            "inlineData": {
+                "title": title,
+                "description": description or "",
+                "data": data,
+            },
+            "w": w,
+            "h": h,
+        }
+    }
+
+
+@mcp.tool()
+def create_text(
+    text: Annotated[str, Field(description="Text content to display")],
+    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
+    h: Annotated[int, Field(description="Grid height in row units")] = 15,
+) -> Dict[str, Any]:
+    """Create a text visualization on the dashboard.
+
+    Renders using TethysDash's native Text component.
+    """
+    return {
+        "visualization": {
+            "source": "Inline Text",
+            "vizType": "text",
+            "inlineData": {
+                "text": text,
+            },
+            "w": w,
+            "h": h,
+        }
+    }
+
+
+@mcp.tool()
+def create_custom_image(
+    image_url: Annotated[str, Field(description="URL of the image to display (http/https URL, data URI, or S3 path)")],
+    alt_text: Annotated[Optional[str], Field(description="Alt text for accessibility")] = None,
+    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
+    h: Annotated[int, Field(description="Grid height in row units (each unit ~10px at 1920px)")] = 30,
+) -> Dict[str, Any]:
+    """Create a custom image visualization on the dashboard.
+
+    Displays an image from a URL. Renders using TethysDash's native Image component.
+    """
+    return {
+        "visualization": {
+            "source": "Inline Image",
+            "vizType": "image",
+            "inlineData": {
+                "source": image_url,
+                "alt": alt_text or "custom_image",
+            },
+            "w": w,
+            "h": h,
+        }
+    }
+
+
+BASE_MAPS = {
+    "light_gray": "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+    "dark_gray": "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer",
+    "topo": "https://server.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer",
+    "imagery": "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer",
+    "streets": "https://server.arcgisonline.com/arcgis/rest/services/World_Street_Map/MapServer",
+}
+
+DEFAULT_BASE_MAP = BASE_MAPS["light_gray"]
+
+
+@mcp.tool()
+def create_map_visualization(
+    layers: Annotated[List[Dict[str, Any]], Field(description=(
+        "Array of map layer objects. Each layer must have this structure: "
+        '{"configuration": {"type": "<LayerType>", "props": {"name": "<display name>", '
+        '"source": {"type": "<SourceType>", "props": {<source-specific>}}}}}. '
+        "Layer types: ImageLayer, VectorLayer, WebGLTile, VectorTileLayer. "
+        "Source types: WMS, GeoJSON, KML, 'Image Tile', 'Vector Tile', "
+        "'ESRI Image and Map Service', 'ESRI Feature Service', 'PMTiles Raster', 'PMTiles Vector'. "
+        "WMS example: {\"configuration\": {\"type\": \"ImageLayer\", \"props\": {\"name\": \"States\", "
+        "\"source\": {\"type\": \"WMS\", \"props\": {\"url\": \"https://host/wms\", "
+        "\"params\": {\"LAYERS\": \"workspace:layer\"}}}}}}. "
+        "GeoJSON example: {\"configuration\": {\"type\": \"VectorLayer\", \"props\": {\"name\": \"Features\", "
+        "\"source\": {\"type\": \"GeoJSON\", \"props\": {}, \"geojson\": <GeoJSON object>}}}}."
+    ))],
+    base_map: Annotated[Optional[str], Field(description=(
+        "Base map tile service URL or shorthand name. "
+        "Shorthand names: 'light_gray', 'dark_gray', 'topo', 'imagery', 'streets'. "
+        "Or provide a full ArcGIS MapServer URL. Set to null for no base map."
+    ))] = "light_gray",
+    map_extent: Annotated[Optional[str], Field(description=(
+        "Map extent as a comma-separated string. "
+        "Bounding box format: 'minX,minY,maxX,maxY' (e.g., '-125,24,-66,50' for CONUS). "
+        "Center+zoom format: 'lon,lat,zoom' (e.g., '-98.5,39.8,4' for US center). "
+        "Set to null for default extent."
+    ))] = None,
+    layer_control: Annotated[bool, Field(description="Show the layer control panel")] = True,
+    map_drawing: Annotated[Optional[Dict[str, Any]], Field(description=(
+        "Drawing interaction config. Null to disable. "
+        "Format: {\"options\": [\"Point\", \"LineString\", \"Polygon\", \"Box\", \"Circle\"], \"limit\": 10}."
+    ))] = None,
+    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
+    h: Annotated[int, Field(description="Grid height in row units (each unit ~10px at 1920px)")] = 45,
+) -> Dict[str, Any]:
+    """Create an OpenLayers map visualization on the dashboard.
+
+    Supports WMS, GeoJSON, KML, ESRI services, Image/Vector tiles, and PMTiles.
+    Renders using TethysDash's native MapVisualization component.
+    """
+    resolved_base_map = BASE_MAPS.get(base_map, base_map) if base_map else None
+
+    return {
+        "visualization": {
+            "source": "Inline Map",
+            "vizType": "map",
+            "inlineData": {
+                "baseMap": resolved_base_map,
+                "layers": layers,
+                "layerControl": layer_control,
+                "map_extent": {"extent": map_extent} if map_extent else None,
+                "mapConfig": {"style": {"width": "100%", "height": "100%"}},
+                "mapDrawing": map_drawing,
+            },
+            "w": w,
+            "h": h,
+        }
+    }
+
+
+# ---------------------------------------------------------------------------
+# MFE rendering tools
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def render_mfe(
+    url: Annotated[str, Field(description="URL to the MFE's remoteEntry.js")],
+    scope: Annotated[str, Field(description="Module Federation scope name")],
+    module: Annotated[str, Field(description="Module path (e.g., './ChartPanel')")],
+    remote_type: Annotated[str, Field(description="Federation type: 'vite-esm' or 'webpack'")] = "vite-esm",
+    props: Annotated[Optional[Dict[str, Any]], Field(description="Props to pass to the MFE component")] = None,
+    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
+    h: Annotated[int, Field(description="Grid height in row units")] = 25,
+) -> Dict[str, Any]:
+    """Render a custom Module Federation microfrontend component on the dashboard.
+
+    Use this for MFE components that have been imported/registered by the user.
+    The component is loaded at runtime via Module Federation.
+    """
+    return {
+        "visualization": {
+            "source": "Client Custom",
+            "vizType": "custom",
+            "args": {
+                "url": url,
+                "scope": scope,
+                "module": module,
+                "remoteType": remote_type,
+                "initialData": props or {},
+            },
+            "w": w,
+            "h": h,
+        }
+    }
+
+
+# ---------------------------------------------------------------------------
+# Discovery tools
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def list_available_visualizations() -> Dict[str, Any]:
+    """List all visualization types available for creating dashboard items.
+
+    Returns built-in types (plotly, table, map, card, text) and any
+    registered MFE components.
+    """
+    return {
+        "builtin": [
+            {
+                "type": "plotly",
+                "name": "Plotly Chart",
+                "tool": "create_plotly_chart",
+                "description": "Interactive line/bar/scatter charts via Plotly.js",
+            },
+            {
+                "type": "table",
+                "name": "Data Table",
+                "tool": "create_data_table",
+                "description": "Tabular data display with headers and rows",
+            },
+            {
+                "type": "map",
+                "name": "Map",
+                "tool": "create_map_visualization",
+                "description": "OpenLayers map. Supports WMS, GeoJSON, KML, ESRI services, Image/Vector tiles, PMTiles",
+            },
+            {
+                "type": "card",
+                "name": "Card",
+                "tool": "create_card",
+                "description": "Simple card with title, description, and data value",
+            },
+            {
+                "type": "image",
+                "name": "Custom Image",
+                "tool": "create_custom_image",
+                "description": "Display an image from a URL",
+            },
+            {
+                "type": "text",
+                "name": "Text",
+                "tool": "create_text",
+                "description": "Static text content",
+            },
+        ],
+        "mfe": {
+            "tool": "render_mfe",
+            "description": "Render any Module Federation component by providing url, scope, and module",
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# Logging + Entry Point
+# ---------------------------------------------------------------------------
+
+def _configure_logging():
+    level = os.getenv("TETHYSDASH_LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=getattr(logging, level, logging.INFO),
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    )
+
+
+if __name__ == "__main__":
+    _configure_logging()
+    port = int(os.getenv("TETHYSDASH_MCP_PORT", "9001"))
+    LOGGER.info(f"Starting TethysDash MCP Server on 0.0.0.0:{port} with SSE transport")
+    mcp.run(
+        transport="sse",
+        host="0.0.0.0",
+        port=port,
+        middleware=CORS_MIDDLEWARE,
+    )
