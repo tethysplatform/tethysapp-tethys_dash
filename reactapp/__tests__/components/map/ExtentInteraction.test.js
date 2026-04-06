@@ -238,7 +238,6 @@ test("confirm sets drawnExtent and clears extentDrawMode", async () => {
 });
 
 test("hides existing layers with matching URL on mount and restores on cleanup", async () => {
-  const mockSetVisible = jest.fn();
   // We can't use instanceof Static with the mock, so we test the cleanup behavior
   // by verifying removeInteraction is called on unmount
   const mockMap = createMockMap({
@@ -332,9 +331,7 @@ test("skips preview layer when imageUrl is not provided", async () => {
   await screen.findByText("Confirm");
 
   // Trigger extentchanged callback without imageUrl
-  const onCall = mockOn.mock.calls.find(
-    (call) => call[0] === "extentchanged",
-  );
+  const onCall = mockOn.mock.calls.find((call) => call[0] === "extentchanged");
   const extentChangedCallback = onCall[1];
 
   act(() => {
@@ -369,9 +366,7 @@ test("extentchanged event updates hasExtent and triggers preview", async () => {
   expect(screen.getByText("Confirm")).toBeDisabled();
 
   // Get the extentchanged callback that was registered via interaction.on
-  const onCall = mockOn.mock.calls.find(
-    (call) => call[0] === "extentchanged",
-  );
+  const onCall = mockOn.mock.calls.find((call) => call[0] === "extentchanged");
   expect(onCall).toBeDefined();
 
   const extentChangedCallback = onCall[1];
@@ -400,7 +395,9 @@ test("extentchanged event updates hasExtent and triggers preview", async () => {
 test("hides existing layers with matching Static source URL", async () => {
   const Static = require("ol/source/ImageStatic.js").default;
   const mockStaticSource = new Static();
-  mockStaticSource.getUrl = jest.fn().mockReturnValue("https://example.com/image.png");
+  mockStaticSource.getUrl = jest
+    .fn()
+    .mockReturnValue("https://example.com/image.png");
 
   const mockSetVisible = jest.fn();
   const mockExistingLayer = {
@@ -533,9 +530,7 @@ test("extentchanged with invalid extent triggers early return", async () => {
   fireEvent.click(screen.getByTestId("activate"));
   await screen.findByText("Confirm");
 
-  const onCall = mockOn.mock.calls.find(
-    (call) => call[0] === "extentchanged",
-  );
+  const onCall = mockOn.mock.calls.find((call) => call[0] === "extentchanged");
   const extentChangedCallback = onCall[1];
 
   // null extent
@@ -573,9 +568,7 @@ test("debounce clears previous timeout on rapid extentchanged events", async () 
   fireEvent.click(screen.getByTestId("activate"));
   await screen.findByText("Confirm");
 
-  const onCall = mockOn.mock.calls.find(
-    (call) => call[0] === "extentchanged",
-  );
+  const onCall = mockOn.mock.calls.find((call) => call[0] === "extentchanged");
   const extentChangedCallback = onCall[1];
 
   // Fire two rapid extentchanged events
@@ -696,9 +689,7 @@ test("handleConfirm early returns when interactionRef is null", async () => {
         <p data-testid="drawnExtent">
           {drawnExtent ? JSON.stringify(drawnExtent) : "null"}
         </p>
-        <p data-testid="extentDrawMode">
-          {extentDrawMode ? "active" : "null"}
-        </p>
+        <p data-testid="extentDrawMode">{extentDrawMode ? "active" : "null"}</p>
       </>
     );
   };

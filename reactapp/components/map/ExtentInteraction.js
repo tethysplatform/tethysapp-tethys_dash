@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback, useState, memo } from "react";
 import { default as ExtentInteractionOL } from "ol/interaction/Extent";
 import ImageLayer from "ol/layer/Image.js";
+import { Map } from "ol";
 import Static from "ol/source/ImageStatic.js";
 import { useMapContext } from "components/contexts/MapContext";
 import styled from "styled-components";
@@ -96,6 +97,8 @@ const ExtentInteraction = ({ visualizationRef }) => {
   useEffect(() => {
     if (!extentDrawMode || !visualizationRef.current) return;
 
+    const map = visualizationRef.current;
+
     if (extentDrawMode.initialExtent) {
       setHasExtent(true);
     }
@@ -103,7 +106,7 @@ const ExtentInteraction = ({ visualizationRef }) => {
     // Hide existing layers that match the image URL to avoid confusion
     const hiddenLayers = [];
     if (extentDrawMode.imageUrl) {
-      visualizationRef.current.getLayers().forEach((layer) => {
+      map.getLayers().forEach((layer) => {
         const source = layer.getSource?.();
         if (
           source instanceof Static &&
@@ -148,15 +151,13 @@ const ExtentInteraction = ({ visualizationRef }) => {
       }, 150);
     });
 
-    visualizationRef.current.addInteraction(interaction);
+    map.addInteraction(interaction);
     interactionRef.current = interaction;
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       cleanupPreviewLayer();
-      if (visualizationRef.current && interactionRef.current) {
-        visualizationRef.current.removeInteraction(interactionRef.current);
-      }
+      map.removeInteraction(interaction);
       interactionRef.current = null;
       // Restore visibility of hidden layers
       hiddenLayers.forEach((layer) => layer.setVisible(true));
@@ -194,10 +195,7 @@ const ExtentInteraction = ({ visualizationRef }) => {
 };
 
 ExtentInteraction.propTypes = {
-  visualizationRef: PropTypes.oneOfType([
-    PropTypes.func,
-    PropTypes.shape({ current: PropTypes.any }),
-  ]),
+  visualizationRef: PropTypes.shape({ current: PropTypes.instanceOf(Map) }),
 };
 
 export default memo(ExtentInteraction);
