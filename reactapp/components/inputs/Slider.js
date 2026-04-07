@@ -315,7 +315,7 @@ const Slider = ({
   max,
   initialValue,
   initialRange,
-  rangeMode = false,
+  rangeMode: rangeModeRaw = false,
   outputFormat,
   dataType,
   dateTimeDelta,
@@ -326,6 +326,8 @@ const Slider = ({
     { label: "Medium", value: 500 },
     { label: "Fast", value: 200 },
   ],
+  values: valuesProp,
+  labels: labelsProp,
 }) => {
   const { gridItemArgsString } = useContext(GridItemContext);
   const { variableInputDateFormats, variableInputValues } = useContext(
@@ -351,20 +353,47 @@ const Slider = ({
   }
 
   const isDateType = dataType === "Date";
+  const isArrayType = dataType === "Array";
+  const rangeMode = isArrayType ? false : rangeModeRaw;
   const unit = dateTimeDelta;
-  const values = useMemo(
-    () =>
-      calculateSliderValues({
-        min,
-        max,
-        step,
-        unit,
-        dataType,
-        rawMinDateFormat,
-        rawMaxDateFormat,
-      }),
-    [min, max, step, unit, dataType, rawMinDateFormat, rawMaxDateFormat],
-  );
+
+  // For Array mode, keep a stable reference to avoid spurious resets on refresh
+  const prevArrayRef = useRef(valuesProp);
+  const values = useMemo(() => {
+    if (isArrayType) {
+      const incoming = Array.isArray(valuesProp) ? valuesProp : [];
+      // Only return a new reference if the content actually changed
+      const prev = prevArrayRef.current;
+      if (
+        Array.isArray(prev) &&
+        prev.length === incoming.length &&
+        prev.every((v, i) => v === incoming[i])
+      ) {
+        return prev;
+      }
+      prevArrayRef.current = incoming;
+      return incoming;
+    }
+    return calculateSliderValues({
+      min,
+      max,
+      step,
+      unit,
+      dataType,
+      rawMinDateFormat,
+      rawMaxDateFormat,
+    });
+  }, [
+    isArrayType,
+    valuesProp,
+    min,
+    max,
+    step,
+    unit,
+    dataType,
+    rawMinDateFormat,
+    rawMaxDateFormat,
+  ]);
 
   // Track index/indices
   const [currentIdx, setCurrentIdx] = useState(() =>
@@ -388,13 +417,27 @@ const Slider = ({
 
   useEffect(() => {
     let sliderVariableValue = variableInputValues[variable_name];
-    const currentValue = formatValue(
-      values[debouncedCurrentIdx],
-      outputFormat,
-      isDateType,
-    );
-    if (sliderVariableValue) {
-      sliderVariableValue = sliderVariableValue.toString();
+    if (!sliderVariableValue) return;
+    sliderVariableValue = sliderVariableValue.toString();
+
+    if (isArrayType) {
+      // Array mode: use strict equality, bypass formatValue entirely
+      const currentValue = values[debouncedCurrentIdx];
+      const idx = values.findIndex((v) => v === sliderVariableValue);
+      if (idx === -1) {
+        setRawValue(sliderVariableValue);
+      } else {
+        setRawValue(null);
+        if (sliderVariableValue !== currentValue) {
+          setCurrentIdx(idx);
+        }
+      }
+    } else {
+      const currentValue = formatValue(
+        values[debouncedCurrentIdx],
+        outputFormat,
+        isDateType,
+      );
       // Find the index of the sliderVariableValue in values
       const idx = values.findIndex((v) =>
         valuesEqual(
@@ -428,32 +471,46 @@ const Slider = ({
   }, [JSON.stringify(speeds)]);
 
   useEffect(() => {
-    // Only update index if relevant props changed
-    const shouldUpdate =
-      prev.current.rangeMode !== rangeMode ||
-      !valuesEqual(prev.current.initialRange, initialRange) ||
-      prev.current.initialValue !== initialValue ||
-      prev.current.min !== min ||
-      prev.current.max !== max ||
-      prev.current.valuesLength !== values.length;
-    if (shouldUpdate) {
-      setCurrentIdx(
-        getInitialIndices(values, initialValue, initialRange, rangeMode),
-      );
-      prev.current = {
-        rangeMode,
-        initialRange,
-        initialValue,
-        min,
-        max,
-        valuesLength: values.length,
-      };
+    if (isArrayType) {
+      // Array mode: clamp index to new array length (position preservation on refresh)
+      if (prev.current.valuesLength !== values.length) {
+        setCurrentIdx((prevIdx) =>
+          values.length === 0 ? 0 : Math.min(prevIdx, values.length - 1),
+        );
+        prev.current = { ...prev.current, valuesLength: values.length };
+      }
+    } else {
+      // Number/Date mode: reset to initial indices when relevant props change
+      const shouldUpdate =
+        prev.current.rangeMode !== rangeMode ||
+        !valuesEqual(prev.current.initialRange, initialRange) ||
+        prev.current.initialValue !== initialValue ||
+        prev.current.min !== min ||
+        prev.current.max !== max ||
+        prev.current.valuesLength !== values.length;
+      if (shouldUpdate) {
+        setCurrentIdx(
+          getInitialIndices(values, initialValue, initialRange, rangeMode),
+        );
+        prev.current = {
+          rangeMode,
+          initialRange,
+          initialValue,
+          min,
+          max,
+          valuesLength: values.length,
+        };
+      }
     }
-  }, [rangeMode, initialRange, initialValue, min, max, values]);
+  }, [isArrayType, rangeMode, initialRange, initialValue, min, max, values]);
 
   useEffect(() => {
-    // Only call onChange if index actually changed
-    if (rangeMode) {
+    if (isArrayType) {
+      // Array mode: emit raw value without formatting
+      if (values.length > 0 && debouncedCurrentIdx < values.length) {
+        onChange(values[debouncedCurrentIdx]);
+      }
+    } else if (rangeMode) {
       const arr = Array.isArray(debouncedCurrentIdx)
         ? debouncedCurrentIdx
         : [0, values.length - 1];
@@ -470,7 +527,7 @@ const Slider = ({
       onChange(formatted);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedCurrentIdx, outputFormat, rangeMode, isDateType, values]);
+  }, [debouncedCurrentIdx, outputFormat, rangeMode, isDateType, isArrayType, values]);
 
   useEffect(() => {
     if (playing) {
@@ -558,17 +615,40 @@ const Slider = ({
     }
   };
 
+  // Empty array guard for Array mode
+  if (isArrayType && values.length === 0) {
+    return (
+      <>
+        {label && (
+          <Form.Label className="no-caret">
+            <b>{label}</b>:
+          </Form.Label>
+        )}
+        <Form>
+          <div className="text-center text-muted py-2">No data available</div>
+        </Form>
+      </>
+    );
+  }
+
   if (rangeMode && (!Array.isArray(currentIdx) || currentIdx.length !== 2))
     return null;
   if (!rangeMode && Array.isArray(currentIdx)) return null;
 
   // For non-indexed value, snap handle to nearest index but display raw value
   let sliderValue = rangeMode ? currentIdx : currentIdx;
-  let displayValue = rangeMode
-    ? `${formatValue(values[currentIdx[0]], outputFormat, isDateType)} - ${formatValue(values[currentIdx[1]], outputFormat, isDateType)}`
-    : formatValue(values[currentIdx], outputFormat, isDateType);
+  const labels = isArrayType && Array.isArray(labelsProp) ? labelsProp : null;
+  let displayValue;
+  if (isArrayType) {
+    const currentLabel = labels?.[currentIdx] ?? `${currentIdx + 1} / ${values.length}`;
+    displayValue = currentLabel;
+  } else if (rangeMode) {
+    displayValue = `${formatValue(values[currentIdx[0]], outputFormat, isDateType)} - ${formatValue(values[currentIdx[1]], outputFormat, isDateType)}`;
+  } else {
+    displayValue = formatValue(values[currentIdx], outputFormat, isDateType);
+  }
 
-  if (!rangeMode && rawValue !== null) {
+  if (!rangeMode && !isArrayType && rawValue !== null) {
     // Find the closest index for the handle, support both date and number types
     let closestIdx = 0;
     let minDiff = Infinity;
@@ -596,6 +676,13 @@ const Slider = ({
     sliderValue = closestIdx;
     displayValue =
       formatValue(rawValue, outputFormat, isDateType) + " (custom)";
+  } else if (!rangeMode && isArrayType && rawValue !== null) {
+    // Array mode: use strict equality for rawValue matching
+    const idx = values.findIndex((v) => v === rawValue);
+    if (idx !== -1) {
+      sliderValue = idx;
+    }
+    displayValue = (labels?.[sliderValue] ?? `${sliderValue + 1} / ${values.length}`) + " (custom)";
   }
   const sliderMin = 0;
   const sliderMax = values.length - 1;
@@ -719,7 +806,11 @@ const Slider = ({
         </Row>
         <Row className="align-items-center">
           <Col xs="auto" className="text-center" aria-label="Min Value">
-            <strong>{formatValue(values[0], outputFormat, isDateType)}</strong>
+            <strong>
+              {isArrayType
+                ? (labels?.[0] ?? "1")
+                : formatValue(values[0], outputFormat, isDateType)}
+            </strong>
           </Col>
           <Col>
             <SliderLib
@@ -746,7 +837,13 @@ const Slider = ({
           </Col>
           <Col xs="auto" className="text-center" aria-label="Max Value">
             <strong>
-              {formatValue(values[values.length - 1], outputFormat, isDateType)}
+              {isArrayType
+                ? (labels?.[values.length - 1] ?? values.length)
+                : formatValue(
+                    values[values.length - 1],
+                    outputFormat,
+                    isDateType,
+                  )}
             </strong>
           </Col>
         </Row>
@@ -765,16 +862,18 @@ const Slider = ({
 Slider.propTypes = {
   variable_name: PropTypes.string.isRequired,
   label: PropTypes.string,
-  step: PropTypes.number.isRequired,
-  min: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
-  max: PropTypes.oneOfType([PropTypes.number, PropTypes.string]).isRequired,
+  step: PropTypes.number,
+  min: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
+  max: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   initialValue: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   initialRange: PropTypes.arrayOf(
     PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
   ),
   rangeMode: PropTypes.bool,
-  outputFormat: PropTypes.string.isRequired,
+  outputFormat: PropTypes.string,
   dataType: PropTypes.string.isRequired,
+  values: PropTypes.array,
+  labels: PropTypes.arrayOf(PropTypes.string),
   dateTimeDelta: PropTypes.string,
   onChange: PropTypes.func.isRequired,
   debounceDelay: PropTypes.number,

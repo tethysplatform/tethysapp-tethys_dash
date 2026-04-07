@@ -6,6 +6,7 @@ import NormalInput from "components/inputs/NormalInput";
 import DataSelect from "components/inputs/DataSelect";
 import DatePicker from "components/inputs/DatePicker";
 import DateFormat from "components/inputs/DateFormat";
+import DropdownMetadata from "components/inputs/custom/DropdownMetadata";
 import { timeDeltas, calculateSliderValues } from "components/inputs/Slider";
 import { VariableInputsContext } from "components/contexts/Contexts";
 import { updateObjectWithVariableInputs } from "components/visualizations/utilities";
@@ -66,6 +67,14 @@ const SliderMetadata = ({ onChange, values }) => {
   const [speedOptions, setSpeedOptions] = useState(
     values?.speedOptions || defaultSpeedOptions.map((opt) => opt.value),
   );
+  const [arrayChoices, setArrayChoices] = useState(
+    Array.isArray(values?.values)
+      ? values.values.map((v, i) => ({
+          label: Array.isArray(values?.labels) ? (values.labels[i] ?? v) : v,
+          value: v,
+        }))
+      : [],
+  );
   const { variableInputValues } = useContext(VariableInputsContext);
 
   const possibleValues =
@@ -85,6 +94,21 @@ const SliderMetadata = ({ onChange, values }) => {
       : [];
 
   useEffect(() => {
+    if (dataType?.value === "Array") {
+      // Array mode: require non-empty choices
+      if (arrayChoices.length === 0) {
+        onChange(null);
+        return;
+      }
+      onChange({
+        dataType: "Array",
+        values: arrayChoices.map((c) => c.value),
+        labels: arrayChoices.map((c) => c.label),
+        speedOptions,
+      });
+      return;
+    }
+
     if (
       min != null &&
       max != null &&
@@ -131,6 +155,7 @@ const SliderMetadata = ({ onChange, values }) => {
     dataType?.value,
     dateTimeDelta.value,
     speedOptions,
+    arrayChoices,
   ]);
 
   const handleSpeedOptionsChange = (e) => {
@@ -179,6 +204,7 @@ const SliderMetadata = ({ onChange, values }) => {
 
   const isNumber = dataType?.value === "Number";
   const isDate = dataType?.value === "Date";
+  const isArrayType = dataType?.value === "Array";
   const dateTimeDeltaOptions = Object.keys(timeDeltas).map((key) => ({
     value: key,
     label: key,
@@ -207,15 +233,17 @@ const SliderMetadata = ({ onChange, values }) => {
           ))}
         </SpeedOptionContainer>
       </SpeedOptionWrapper>
-      <DataRadioSelect
-        label="Slider Mode"
-        radioOptions={[
-          { value: false, label: "Single Value" },
-          { value: true, label: "Range" },
-        ]}
-        selectedRadio={rangeMode}
-        onChange={setRangeMode}
-      />
+      {!isArrayType && (
+        <DataRadioSelect
+          label="Slider Mode"
+          radioOptions={[
+            { value: false, label: "Single Value" },
+            { value: true, label: "Range" },
+          ]}
+          selectedRadio={rangeMode}
+          onChange={setRangeMode}
+        />
+      )}
       <DataSelect
         label="Data Type"
         aria-label="Data Type Input"
@@ -224,6 +252,7 @@ const SliderMetadata = ({ onChange, values }) => {
         options={[
           { value: "Number", label: "Number" },
           { value: "Date", label: "Date" },
+          { value: "Array", label: "Array" },
         ]}
       />
 
@@ -394,6 +423,14 @@ const SliderMetadata = ({ onChange, values }) => {
           />
         </>
       )}
+      {isArrayType && (
+        <div style={{ marginTop: "1rem" }}>
+          <DropdownMetadata
+            onChange={(meta) => setArrayChoices(meta.choices)}
+            values={{ choices: arrayChoices }}
+          />
+        </div>
+      )}
     </>
   );
 };
@@ -421,6 +458,8 @@ SliderMetadata.propTypes = {
     outputFormat: PropTypes.string,
     dateTimeDelta: PropTypes.string, // For slider metadata
     speedOptions: PropTypes.arrayOf(PropTypes.number),
+    values: PropTypes.arrayOf(PropTypes.string),
+    labels: PropTypes.arrayOf(PropTypes.string),
   }),
 };
 

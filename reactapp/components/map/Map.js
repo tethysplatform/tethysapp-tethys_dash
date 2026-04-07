@@ -215,6 +215,7 @@ const MapComponent = ({
       let failedLayers = [];
 
       // Add or update layers in parallel
+      const layerLoadPromises = [];
       await Promise.all(
         customLayers.map(async (layerConfig) => {
           const name = layerConfig.props?.name;
@@ -234,6 +235,48 @@ const MapComponent = ({
               isFirstRender.current
             ) {
               newLayer.setVisible(false);
+            }
+
+            // Wait for the new layer to finish loading before removing
+            // the old layer it replaces. This prevents flickering during
+            // animated layer transitions (e.g., Array slider cycling
+            // through image URLs). Only applies when replacing a layer
+            // with an updated version of itself (same name), not when
+            // swapping structurally different layers.
+            const replacesExisting = layersToRemove.some(
+              (old) => old.get("name") === name,
+            );
+            if (replacesExisting) {
+              const source = newLayer.getSource?.();
+              const isTileSource =
+                source && typeof source.getTile === "function";
+              const isImageSource =
+                source && typeof source.getImage === "function";
+
+              if (isTileSource || isImageSource) {
+                const loadPromise = new Promise((resolve) => {
+                  const loadEndEvent = isTileSource
+                    ? "tileloadend"
+                    : "imageloadend";
+                  const loadErrEvent = isTileSource
+                    ? "tileloaderror"
+                    : "imageloaderror";
+
+                  let resolved = false;
+                  const done = () => {
+                    if (!resolved) {
+                      resolved = true;
+                      resolve();
+                    }
+                  };
+
+                  source.once(loadEndEvent, done);
+                  source.once(loadErrEvent, done);
+                  // Safety timeout so we don't wait forever
+                  setTimeout(done, 5000);
+                });
+                layerLoadPromises.push(loadPromise);
+              }
             }
 
             map.addLayer(newLayer);
@@ -261,6 +304,12 @@ const MapComponent = ({
           }
         }),
       );
+
+      // Wait for new layers to load before removing old ones to prevent
+      // flickering. Falls through immediately if no load promises exist.
+      if (layerLoadPromises.length > 0) {
+        await Promise.all(layerLoadPromises);
+      }
 
       // Remove layers that are no longer needed
       layersToRemove.forEach((layer) => {

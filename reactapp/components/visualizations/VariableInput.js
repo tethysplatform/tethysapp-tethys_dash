@@ -212,14 +212,19 @@ const VariableInput = ({
       </StyledDiv>
     );
   } else if (type === "slider") {
-    // initialValue or initialRange must be present, rest are required
-    const alwaysRequiredKeys = ["step", "min", "max", "dataType"];
-    const hasInitialValue = updatedMetadata?.initialValue != null;
-    const hasInitialRange = updatedMetadata?.initialRange != null;
+    const isArrayMode = updatedMetadata?.dataType === "Array";
     const missingKeys = [];
+
     if (!updatedMetadata) {
-      missingKeys.push(...alwaysRequiredKeys, "initialValue or initialRange");
+      missingKeys.push("dataType");
+    } else if (isArrayMode) {
+      // Array mode requires a values array
+      if (!Array.isArray(updatedMetadata.values)) missingKeys.push("values");
     } else {
+      // Number/Date mode: original validation
+      const alwaysRequiredKeys = ["step", "min", "max", "dataType"];
+      const hasInitialValue = updatedMetadata?.initialValue != null;
+      const hasInitialRange = updatedMetadata?.initialRange != null;
       alwaysRequiredKeys.forEach((key) => {
         if (updatedMetadata[key] == null) missingKeys.push(key);
       });
@@ -241,10 +246,12 @@ const VariableInput = ({
           max={updatedMetadata.max}
           initialValue={updatedMetadata.initialValue}
           initialRange={updatedMetadata.initialRange}
-          rangeMode={updatedMetadata.rangeMode}
+          rangeMode={isArrayMode ? false : updatedMetadata.rangeMode}
           outputFormat={updatedMetadata.outputFormat}
           dataType={updatedMetadata.dataType}
           dateTimeDelta={updatedMetadata?.dateTimeDelta}
+          values={updatedMetadata.values}
+          labels={updatedMetadata.labels}
           speeds={
             Array.isArray(updatedMetadata?.speedOptions)
               ? updatedMetadata.speedOptions.map((v) => {

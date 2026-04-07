@@ -335,7 +335,7 @@ const BaseVisualization = () => {
       return () => clearInterval(interval);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gridItemMetadataString, isEditing]);
+  }, [gridItemMetadataString, isEditing, shouldLoad]);
 
   async function setVariableDependentVisualizations({ refresh }) {
     const originalArgs = JSON.parse(gridItemArgsString);

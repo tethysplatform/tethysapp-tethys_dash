@@ -805,6 +805,335 @@ test("ExtentInteraction renders when extentDrawMode is set", async () => {
   ).toBeInTheDocument();
 });
 
+test("Replacing a layer with same name waits for load before removing old", async () => {
+  jest.useFakeTimers();
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  const layers = [
+    {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "Image Tile",
+          props: {
+            url: "https://example.com/tiles/v1/{z}/{y}/{x}",
+          },
+        },
+        name: "animated_layer",
+        zIndex: 0,
+      },
+    },
+  ];
+
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+  expect(removeLayerSpy.mock.calls.length).toBe(0);
+
+  // Replace with same name but different URL — triggers double-buffering
+  const updatedLayers = [
+    {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "Image Tile",
+          props: {
+            url: "https://example.com/tiles/v2/{z}/{y}/{x}",
+          },
+        },
+        name: "animated_layer",
+        zIndex: 0,
+      },
+    },
+  ];
+
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers: updatedLayers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  // Advance past the 5-second safety timeout so the load promise resolves
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(2);
+  });
+  jest.advanceTimersByTime(5100);
+
+  await waitFor(() => {
+    expect(removeLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  // Old layer was removed after the new one was added
+  expect(addLayerSpy.mock.calls[1][0].values_.name).toBe("animated_layer");
+  expect(removeLayerSpy.mock.calls[0][0].values_.name).toBe("animated_layer");
+
+  jest.useRealTimers();
+});
+
+test("Replacing an ImageLayer with same name uses imageloadend path", async () => {
+  jest.useFakeTimers();
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  const layers = [
+    {
+      type: "ImageLayer",
+      props: {
+        name: "esri_animated",
+        source: {
+          type: "ESRI Image and Map Service",
+          props: {
+            url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+          },
+        },
+        zIndex: 0,
+      },
+    },
+  ];
+
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  // Replace with same name, different URL
+  const updatedLayers = [
+    {
+      type: "ImageLayer",
+      props: {
+        name: "esri_animated",
+        source: {
+          type: "ESRI Image and Map Service",
+          props: {
+            url: "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast_v2/MapServer",
+          },
+        },
+        zIndex: 0,
+      },
+    },
+  ];
+
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers: updatedLayers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(2);
+  });
+
+  // Trigger the safety timeout
+  jest.advanceTimersByTime(5100);
+
+  await waitFor(() => {
+    expect(removeLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  expect(removeLayerSpy.mock.calls[0][0].values_.name).toBe("esri_animated");
+
+  jest.useRealTimers();
+});
+
+test("Replacing a VectorLayer with same name removes old immediately (no load wait)", async () => {
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  const geojson = {
+    type: "FeatureCollection",
+    crs: { type: "name", properties: { name: "EPSG:3857" } },
+    features: [
+      {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [0, 0] },
+      },
+    ],
+  };
+
+  const layers = [
+    {
+      type: "VectorLayer",
+      props: {
+        name: "vector_animated",
+        source: { type: "GeoJSON", props: {}, geojson },
+      },
+    },
+  ];
+
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  // Replace with same name but different data — VectorLayer has no getTile/getImage
+  const updatedGeojson = {
+    ...geojson,
+    features: [
+      {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [1, 1] },
+      },
+    ],
+  };
+
+  const updatedLayers = [
+    {
+      type: "VectorLayer",
+      props: {
+        name: "vector_animated",
+        source: { type: "GeoJSON", props: {}, geojson: updatedGeojson },
+      },
+    },
+  ];
+
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers: updatedLayers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  // Should remove immediately — no load promise for vector sources
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(2);
+  });
+  await waitFor(() => {
+    expect(removeLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  expect(removeLayerSpy.mock.calls[0][0].values_.name).toBe("vector_animated");
+});
+
+test("Double-buffering done() is idempotent when called twice", async () => {
+  jest.useFakeTimers();
+  const addLayerSpy = jest.spyOn(Map.prototype, "addLayer");
+  const removeLayerSpy = jest.spyOn(Map.prototype, "removeLayer");
+
+  const layers = [
+    {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "Image Tile",
+          props: {
+            url: "https://example.com/tiles/v1/{z}/{y}/{x}",
+          },
+        },
+        name: "double_done_layer",
+        zIndex: 0,
+      },
+    },
+  ];
+
+  const { rerender } = render(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  expect(await screen.findByText("Map Ready")).toBeInTheDocument();
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  const updatedLayers = [
+    {
+      type: "WebGLTile",
+      props: {
+        source: {
+          type: "Image Tile",
+          props: {
+            url: "https://example.com/tiles/v2/{z}/{y}/{x}",
+          },
+        },
+        name: "double_done_layer",
+        zIndex: 0,
+      },
+    },
+  ];
+
+  rerender(
+    <VariableInputsContext.Provider
+      value={{ setVariableInputValues: jest.fn() }}
+    >
+      <MapContextProvider>
+        <TestingComponent mapProps={{ layers: updatedLayers }} />
+      </MapContextProvider>
+    </VariableInputsContext.Provider>,
+  );
+
+  await waitFor(() => {
+    expect(addLayerSpy.mock.calls.length).toBe(2);
+  });
+
+  // Manually fire the tileloadend event on the new layer's source
+  // BEFORE the timeout — this triggers done() the first time
+  const newLayer = addLayerSpy.mock.calls[1][0];
+  const source = newLayer.getSource();
+  source.dispatchEvent("tileloadend");
+
+  // Now advance past the timeout — done() fires a second time (should be no-op)
+  jest.advanceTimersByTime(5100);
+
+  await waitFor(() => {
+    expect(removeLayerSpy.mock.calls.length).toBe(1);
+  });
+
+  // Only one removal despite done() being called twice
+  expect(removeLayerSpy.mock.calls[0][0].values_.name).toBe(
+    "double_done_layer",
+  );
+
+  jest.useRealTimers();
+});
+
 TestingComponent.propTypes = {
   mapProps: PropTypes.shape({
     onMapClick: PropTypes.bool,

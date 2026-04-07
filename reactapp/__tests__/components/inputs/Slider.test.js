@@ -2318,3 +2318,430 @@ test("calculateSliderValues handles mixed absolute/relative dates correctly", ()
     Date.now = originalNow;
   }
 });
+
+// =============================================================================
+// Array mode tests
+// =============================================================================
+describe("Array mode", () => {
+  beforeAll(() => {
+    spyElementPrototypes(HTMLElement, {
+      getBoundingClientRect: () => ({
+        top: 0,
+        bottom: 100,
+        left: 0,
+        right: 100,
+        width: 100,
+        height: 100,
+      }),
+    });
+  });
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.clearAllTimers();
+    jest.useRealTimers();
+  });
+
+  const renderArraySlider = (props = {}, contextOverrides = {}) => {
+    const defaultValues = [
+      "https://example.com/img1.png",
+      "https://example.com/img2.png",
+      "https://example.com/img3.png",
+    ];
+    const handleChange = jest.fn();
+
+    const view = render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: {},
+          ...contextOverrides,
+        }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            variable_name="array_slider"
+            label="Array Slider"
+            dataType="Array"
+            values={defaultValues}
+            onChange={handleChange}
+            debounceDelay={0}
+            speeds={[
+              { label: "Fast", value: 250 },
+              { label: "Slow", value: 1000 },
+            ]}
+            {...props}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    return { handleChange, ...view };
+  };
+
+  it("renders with values prop and emits raw value on mount", async () => {
+    const { handleChange } = renderArraySlider();
+
+    expect(screen.getByText(/Array Slider/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("https://example.com/img1.png");
+    });
+  });
+
+  it("emits raw value at current index without formatting", async () => {
+    const values = ["valueA", "valueB", "valueC"];
+    const { handleChange } = renderArraySlider({ values });
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("valueA");
+    });
+  });
+
+  it("displays labels when provided", async () => {
+    const values = ["url1", "url2", "url3"];
+    const labels = ["Frame 1", "Frame 2", "Frame 3"];
+    renderArraySlider({ values, labels });
+
+    // Min label shows first label, max shows last
+    expect(screen.getByLabelText("Min Value")).toHaveTextContent("Frame 1");
+    expect(screen.getByLabelText("Max Value")).toHaveTextContent("Frame 3");
+    // Display value shows current label
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("Frame 1");
+  });
+
+  // Covers line 643: displayValue falls back to index when no labels
+  it("displays index-based labels when no labels provided", async () => {
+    const values = ["url1", "url2", "url3"];
+    renderArraySlider({ values, labels: undefined });
+
+    expect(screen.getByLabelText("Min Value")).toHaveTextContent("1");
+    expect(screen.getByLabelText("Max Value")).toHaveTextContent("3");
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("1 / 3");
+  });
+
+  // Covers line 620: empty array guard
+  it("renders disabled placeholder when values is empty", async () => {
+    renderArraySlider({ values: [] });
+
+    expect(screen.getByText("No data available")).toBeInTheDocument();
+  });
+
+  it("keeps stable reference when values content is identical", async () => {
+    const values = ["a", "b", "c"];
+    const { handleChange, rerender } = renderArraySlider({ values });
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("a");
+    });
+    handleChange.mockClear();
+
+    // Rerender with a new array reference but same content
+    rerender(
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            variable_name="array_slider"
+            label="Array Slider"
+            dataType="Array"
+            values={["a", "b", "c"]}
+            onChange={handleChange}
+            debounceDelay={0}
+            speeds={[{ label: "Fast", value: 250 }]}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    // Should not reset index or re-emit — content is identical
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("1 / 3");
+  });
+
+  it("clamps index when array shrinks on refresh", async () => {
+    const values = ["a", "b", "c", "d", "e"];
+    const { handleChange, rerender } = renderArraySlider({ values });
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("a");
+    });
+
+    // Move slider to index 4 (last item "e")
+    const slider = screen.getByRole("slider");
+    fireEvent.keyDown(slider, { keyCode: 39 }); // right
+    fireEvent.keyDown(slider, { keyCode: 39 });
+    fireEvent.keyDown(slider, { keyCode: 39 });
+    fireEvent.keyDown(slider, { keyCode: 39 });
+    await advanceTimers(100);
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("e");
+    });
+
+    // Now shrink array to 2 items — index should clamp from 4 to 1
+    rerender(
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            variable_name="array_slider"
+            label="Array Slider"
+            dataType="Array"
+            values={["x", "y"]}
+            onChange={handleChange}
+            debounceDelay={0}
+            speeds={[{ label: "Fast", value: 250 }]}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("y");
+    });
+  });
+
+  it("syncs index from variableInputValues via strict equality", async () => {
+    const values = ["url1", "url2", "url3"];
+    const { handleChange, rerender } = renderArraySlider({ values });
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("url1");
+    });
+
+    // Simulate external variable input setting the slider to "url3"
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { array_slider: "url3" },
+        }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            variable_name="array_slider"
+            label="Array Slider"
+            dataType="Array"
+            values={values}
+            onChange={handleChange}
+            debounceDelay={0}
+            speeds={[{ label: "Fast", value: 250 }]}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("url3");
+    });
+  });
+
+  it("sets rawValue when variableInputValue is not in the array", async () => {
+    const values = ["url1", "url2", "url3"];
+    const { rerender } = renderArraySlider({ values });
+
+    // Simulate external variable setting a value not in the array
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { array_slider: "unknown_url" },
+        }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            variable_name="array_slider"
+            label="Array Slider"
+            dataType="Array"
+            values={values}
+            onChange={jest.fn()}
+            debounceDelay={0}
+            speeds={[{ label: "Fast", value: 250 }]}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    // Covers line 681-686: rawValue display with (custom) suffix
+    await waitFor(() => {
+      expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+        "(custom)",
+      );
+    });
+  });
+
+  it("snaps slider to rawValue index when value exists in updated array", async () => {
+    const values = ["url1", "url2", "url3"];
+    const handleChange = jest.fn();
+    const { rerender } = renderArraySlider({ values, onChange: handleChange });
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("url1");
+    });
+
+    // First set rawValue to something NOT in the array
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { array_slider: "url_new" },
+        }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            variable_name="array_slider"
+            label="Array Slider"
+            dataType="Array"
+            values={values}
+            onChange={handleChange}
+            debounceDelay={0}
+            speeds={[{ label: "Fast", value: 250 }]}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    await waitFor(() => {
+      expect(screen.getByLabelText("Display Value")).toHaveTextContent(
+        "(custom)",
+      );
+    });
+
+    // Now update the array to INCLUDE the rawValue — slider should snap to it
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { array_slider: "url_new" },
+        }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            variable_name="array_slider"
+            label="Array Slider"
+            dataType="Array"
+            values={["url1", "url_new", "url3"]}
+            onChange={handleChange}
+            debounceDelay={0}
+            speeds={[{ label: "Fast", value: 250 }]}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    // rawValue "url_new" is now at index 1 — slider should snap there
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("url_new");
+    });
+  });
+
+  it("treats undefined values prop as empty array", async () => {
+    renderArraySlider({ values: undefined });
+
+    expect(screen.getByText("No data available")).toBeInTheDocument();
+  });
+
+  it("clamps to 0 when array becomes empty on refresh", async () => {
+    const { rerender } = renderArraySlider({ values: ["a", "b"] });
+
+    rerender(
+      <VariableInputsContext.Provider
+        value={{ variableInputDateFormats: {}, variableInputValues: {} }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            variable_name="array_slider"
+            label="Array Slider"
+            dataType="Array"
+            values={[]}
+            onChange={jest.fn()}
+            debounceDelay={0}
+            speeds={[{ label: "Fast", value: 250 }]}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    expect(screen.getByText("No data available")).toBeInTheDocument();
+  });
+
+  // Covers line 431 false branch: external variable matches current value in Array mode
+  it("does not reset index when variableInputValue matches current Array value", async () => {
+    const values = ["url1", "url2", "url3"];
+    const { handleChange, rerender } = renderArraySlider({ values });
+
+    await waitFor(() => {
+      expect(handleChange).toHaveBeenCalledWith("url1");
+    });
+
+    // Set external variable to the same value the slider is already on
+    rerender(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { array_slider: "url1" },
+        }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            variable_name="array_slider"
+            label="Array Slider"
+            dataType="Array"
+            values={values}
+            onChange={handleChange}
+            debounceDelay={0}
+            speeds={[{ label: "Fast", value: 250 }]}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    // Index should stay at 0
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("1 / 3");
+  });
+
+  // Covers line 453 false branch: external variable matches current value in Number mode
+  it("does not reset index when variableInputValue matches current Number value", async () => {
+    const handleChange = jest.fn();
+
+    render(
+      <VariableInputsContext.Provider
+        value={{
+          variableInputDateFormats: {},
+          variableInputValues: { num_slider: "3" },
+        }}
+      >
+        <GridItemContext.Provider value={{ gridItemArgsString: "{}" }}>
+          <Slider
+            variable_name="num_slider"
+            label="Num Slider"
+            step={1}
+            min={0}
+            max={5}
+            initialValue={3}
+            outputFormat="{{n}}"
+            dataType="Number"
+            onChange={handleChange}
+            debounceDelay={0}
+          />
+        </GridItemContext.Provider>
+      </VariableInputsContext.Provider>,
+    );
+
+    await advanceTimers(100);
+    // Display should still show 3 — index was not reset
+    expect(screen.getByLabelText("Display Value")).toHaveTextContent("3");
+  });
+});
