@@ -321,7 +321,7 @@ const VariableInput = ({
               onChange={handleInputChange}
               inputProps={updatedMetadata}
             />
-            {inDataViewerMode && (
+            {inDataViewerMode && type && type.includes("date") && (
               <div style={{ marginTop: "1rem" }}>
                 <label>
                   <b>Example Date Output</b>:
