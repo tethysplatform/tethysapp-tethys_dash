@@ -553,7 +553,7 @@ export const DashboardHeader = () => {
                 <BsFillPersonFill size="1.5rem" />
               </TooltipButton>
             )}
-            {tethysApp?.chatboxConfig && (
+            {(
               <TooltipButton
                 onClick={toggleChatSidebar}
                 tooltipPlacement="bottom"

@@ -1,8 +1,9 @@
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 import json
 import os
 import shutil
 import nh3
+import requests as http_requests
 from rest_framework.decorators import api_view
 import uuid
 from datetime import datetime
@@ -43,7 +44,7 @@ from better_profanity import profanity
 
 # Load the default wordlist
 profanity.load_censor_words()
-
+_DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 
 @controller(login_required=False)
 def home(request):
@@ -231,14 +232,9 @@ def dashboards(request):
     if support_info:
         response["support_info"] = support_info
 
-    chatbox_host = App.get_custom_setting("chatbox_api_host")
-    if chatbox_host:
-        host = chatbox_host.rstrip("/")
-        response["chatbox_config"] = {
-            "mfeUrl": f"{host}/assets/remoteEntry.js",
-            "ollamaHost": host,              # Vite preview server proxies /api → Ollama
-            "mcpServerUrl": f"{host}/sse",   # Vite preview server proxies /sse → MCP
-        }
+    response["chatbox_config"] = {
+        "ollamaHost": "/apps/tethysdash/ollama-proxy"
+    }
 
     clean_up_jsons(user)
     return JsonResponse(response)
@@ -1008,3 +1004,56 @@ def download_json(request, app_workspace):
             message = "Failed to upload the json. Check server for logs."
 
         return JsonResponse({"success": False, "message": message})
+
+
+# ---------------------------------------------------------------------------
+# Ollama Proxy — avoids CORS by forwarding browser requests to Ollama
+# ---------------------------------------------------------------------------
+
+
+
+def _proxy_to_ollama(request, api_path, timeout=(10, 300)):
+    host = (
+        App.get_custom_setting("chatbox_ollama_host") or _DEFAULT_OLLAMA_HOST
+    ).rstrip("/")
+    key = App.get_custom_setting("chatbox_ollama_key") or ""
+    url = f"{host}/{api_path}"
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    try:
+        if request.method == "POST":
+            resp = http_requests.post(
+                url, headers=headers, data=request.body, stream=True, timeout=timeout
+            )
+        else:
+            resp = http_requests.get(
+                url, headers=headers, stream=True, timeout=timeout
+            )
+        return StreamingHttpResponse(
+            resp.iter_content(chunk_size=4096),
+            content_type=resp.headers.get("Content-Type", "application/json"),
+            status=resp.status_code,
+        )
+    except http_requests.ConnectionError:
+        return JsonResponse({"error": "Cannot connect to Ollama"}, status=502)
+    except http_requests.Timeout:
+        return JsonResponse({"error": "Ollama request timed out"}, status=504)
+
+
+@api_view(["GET"])
+@controller(url="tethysdash/ollama-proxy/api/tags/", login_required=True)
+def ollama_tags(request):
+    return _proxy_to_ollama(request, "api/tags", timeout=(5, 30))
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/ollama-proxy/api/show/", login_required=True)
+def ollama_show(request):
+    return _proxy_to_ollama(request, "api/show", timeout=(5, 30))
+
+
+@api_view(["POST"])
+@controller(url="tethysdash/ollama-proxy/api/chat/", login_required=True)
+def ollama_chat(request):
+    return _proxy_to_ollama(request, "api/chat", timeout=(10, 300))

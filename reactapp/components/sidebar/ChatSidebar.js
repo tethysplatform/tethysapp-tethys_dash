@@ -1,12 +1,11 @@
-import { Suspense, memo, useCallback, useContext, useMemo } from "react";
+import { memo, useCallback, useContext, useMemo } from "react";
 import styled from "styled-components";
 import {
   AppContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
 import { ChatSidebarContext } from "components/contexts/ChatSidebarContext";
-import useDynamicFederatedComponent from "components/visualizations/useDynamicFederatedComponent";
-import LoadingAnimation from "components/loader/LoadingAnimation";
+import { Chatbox } from "@chatbox/core/components";
 import { BsXLg } from "react-icons/bs";
 
 const SIDEBAR_WIDTH = 360;
@@ -63,13 +62,11 @@ const Content = styled.div`
 
 function ChatSidebar() {
   const { isOpen, setIsOpen } = useContext(ChatSidebarContext);
-  const { tethysApp } = useContext(AppContext);
+  const { tethysApp, csrf } = useContext(AppContext);
   const { variableInputValues, setVariableInputValues } =
     useContext(VariableInputsContext);
 
   const chatboxConfig = tethysApp?.chatboxConfig;
-  const defaultModel = "qwen3";
-  const modelOptions = useMemo(() => [defaultModel], []);
 
   const updateVariableInputValues = useCallback(
     (updatedValues) =>
@@ -82,15 +79,8 @@ function ChatSidebar() {
     [variableInputValues],
   );
 
-  const { Component, failed } = useDynamicFederatedComponent({
-    scope: "mfe_nrds_chatbox",
-    module: "./Chatbox",
-    url: chatboxConfig?.mfeUrl,
-    remoteType: "vite-esm",
-  });
-
-  if (!chatboxConfig) return null;
-
+  // Sidebar renders even without chatboxConfig — users add MCP servers via the panel.
+  // ollamaHost is optional (model discovery still works via default localhost).
   return (
     <Wrapper $isOpen={isOpen}>
       <Header>
@@ -100,24 +90,12 @@ function ChatSidebar() {
         </CloseButton>
       </Header>
       <Content>
-        {failed ? (
-          <div style={{ padding: 16, color: "#888" }}>
-            Failed to load chatbox.
-          </div>
-        ) : Component ? (
-          <Suspense fallback={<LoadingAnimation text="Loading Chat..." />}>
-            <Component
-              ollamaHost={chatboxConfig.ollamaHost}
-              model={defaultModel}
-              modelOptions={modelOptions}
-              prompt=""
-              variableInputValues={memoizedVariableInputValues}
-              updateVariableInputValues={updateVariableInputValues}
-            />
-          </Suspense>
-        ) : (
-          <LoadingAnimation text="Loading Chat..." />
-        )}
+        <Chatbox
+          ollamaHost={chatboxConfig?.ollamaHost || undefined}
+          csrfToken={csrf}
+          variableInputValues={memoizedVariableInputValues}
+          updateVariableInputValues={updateVariableInputValues}
+        />
       </Content>
     </Wrapper>
   );
