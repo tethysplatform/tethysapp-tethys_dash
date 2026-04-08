@@ -1041,7 +1041,7 @@ it("Base - update date variable input", async () => {
   dateHourVariable.args_string = JSON.stringify({
     initial_value: initialDate,
     variable_name: "Test Variable",
-    variable_options_source: "date-hour",
+    variable_options_source: "date",
   });
 
   const mockedDashboard = {
@@ -1123,7 +1123,7 @@ it("Base - update date variable input", async () => {
                 source: "plugin_source",
                 value: "plugin_value",
                 label: "plugin_label",
-                args: { plugin_arg: "date-hour" },
+                args: { plugin_arg: "date" },
                 type: "plotly",
                 tags: ["test", "plugin"],
                 description: "some description",
@@ -1345,7 +1345,7 @@ it("Base - initial relative date variable input", async () => {
   dateHourVariable.args_string = JSON.stringify({
     initial_value: "now",
     variable_name: "Test Variable",
-    variable_options_source: "date-hour",
+    variable_options_source: "date",
     "variable_options_source.metadata": {
       format: "MM/dd/yyyy h:mm aa",
     },
@@ -1430,7 +1430,7 @@ it("Base - initial relative date variable input", async () => {
                 source: "plugin_source",
                 value: "plugin_value",
                 label: "plugin_label",
-                args: { plugin_arg: "date-hour" },
+                args: { plugin_arg: "date" },
                 type: "plotly",
                 tags: ["test", "plugin"],
                 description: "some description",

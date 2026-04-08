@@ -1863,7 +1863,7 @@ test("VisualizationArguments", async () => {
     {
       label: "Date Arg",
       name: "date_arg",
-      type: "date-hour",
+      type: "date",
       value: "01/01/2020",
     },
     {

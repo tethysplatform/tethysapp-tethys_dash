@@ -330,10 +330,7 @@ export function updateObjectWithVariableInputs({
       );
     }
 
-    if (
-      sourceArgs[gridItemsArg] === "date" ||
-      sourceArgs[gridItemsArg] === "date-hour"
-    ) {
+    if (sourceArgs[gridItemsArg] === "date") {
       const parsedDate = parseDate(
         updatedValuesWithVariableInputs,
         variableInputDateFormats?.[gridItemsArg],

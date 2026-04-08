@@ -123,12 +123,8 @@ class TethysDashPlugin(base.DataSource):
 
         for kwarg_name, kwarg_value in kwargs.items():
             arg_type = self.args[kwarg_name]
-            if arg_type in ["date", "date-hour"]:
-                kwarg_value = (
-                    parse(kwarg_value)
-                    .replace(second=0, microsecond=0)
-                    .replace(tzinfo=pytz.UTC)
-                )
+            if arg_type == "date":
+                kwarg_value = parse(kwarg_value).replace(second=0, microsecond=0)
             setattr(self, kwarg_name, kwarg_value)
 
     def run(self):

@@ -792,11 +792,12 @@ it("Creates a Number Input for a Variable Input", async () => {
 
   expect(await screen.findByText("Test Variable")).toBeInTheDocument();
 
-  const variableInput = await screen.findByRole("spinbutton");
+  const variableInput = await screen.findByRole("textbox");
   expect(variableInput).toBeInTheDocument();
+  await user.clear(variableInput);
   await user.type(variableInput, "9");
 
-  expect(variableInput).toHaveValue(9);
+  expect(variableInput).toHaveValue("9");
   expect(handleChange).toHaveBeenCalledWith(9);
 
   // Only update the Text Input after clicking the input refresh button
@@ -1216,11 +1217,12 @@ describe("When inDataViewerMode", () => {
 
     expect(await screen.findByText("Test Variable")).toBeInTheDocument();
 
-    const variableInput = await screen.findByRole("spinbutton");
+    const variableInput = await screen.findByRole("textbox");
     expect(variableInput).toBeInTheDocument();
+    await user.clear(variableInput);
     await user.type(variableInput, "9");
 
-    expect(variableInput).toHaveValue(9);
+    expect(variableInput).toHaveValue("9");
     expect(handleChange).toHaveBeenCalledWith(9);
 
     // Only update the Text Input after clicking the input refresh button

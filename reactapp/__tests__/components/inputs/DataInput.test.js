@@ -308,7 +308,7 @@ test("renders date-hour", async () => {
       children: (
         <DataInput
           label="Test DatePicker"
-          type="date-hour"
+          type="date"
           value=""
           onChange={mockOnChange}
         />

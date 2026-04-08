@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import Form from "react-bootstrap/Form";
 import PropTypes from "prop-types";
+
 const hasUnclosedVariable = (val) => {
-  if (typeof val !== "string") return false;
   const lastOpen = val.lastIndexOf("${");
   if (lastOpen === -1) return false;
   const closeAfter = val.indexOf("}", lastOpen + 2);
@@ -43,13 +43,20 @@ const NormalInput = ({
     // Otherwise, only allow numeric characters, ".", "-", and "$" (to start a variable)
     if (!hasUnclosedVariable(val)) {
       const nonVarParts = val.replace(/\$\{[^}]*\}/g, "");
-      if (nonVarParts !== "" && isNaN(Number(nonVarParts)) && !nonVarParts.endsWith("$")) return;
+      if (
+        nonVarParts !== "" &&
+        nonVarParts !== "-" &&
+        isNaN(Number(nonVarParts)) &&
+        !nonVarParts.endsWith("$")
+      )
+        return;
     }
 
     setRawValue(val);
 
     // Don't propagate incomplete values to parent — keeps last valid value
-    if (val === "" || val === "-" || hasUnclosedVariable(val) || val === "$") return;
+    if (val === "" || val === "-" || hasUnclosedVariable(val) || val === "$")
+      return;
 
     onChange(e);
   };

@@ -529,13 +529,13 @@ describe("RuleEditor", () => {
     );
 
     const strokeWidthInput = screen.getByLabelText("Stroke Width Input");
-    expect(strokeWidthInput).toHaveValue(defaultStrokeWidth);
+    expect(strokeWidthInput).toHaveValue(`${defaultStrokeWidth}`);
 
     const sizeInput = screen.getByLabelText("Size Input");
-    expect(sizeInput).toHaveValue(defaultSize);
+    expect(sizeInput).toHaveValue(`${defaultSize}`);
 
     const zIndexInput = screen.getByLabelText("Z Index Input");
-    expect(zIndexInput).toHaveValue(defaultZIndex);
+    expect(zIndexInput).toHaveValue(`${defaultZIndex}`);
   });
 
   it("linestring with stroke Dash", async () => {

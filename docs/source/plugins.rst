@@ -357,7 +357,8 @@ Displays custom text
 Variable Input
 ``````````````
 
-Displays a variable input
+Displays a variable input that other visualizations can reference to dynamically update their behavior.
+See :doc:`variable_inputs` for information on connecting variable inputs to visualizations.
 
 .. image:: ../images/variable_input_example.png
     :align: center
@@ -367,39 +368,302 @@ Displays a variable input
 **DataSource visualization_type value:** *variable_input*
 
 **read return: (dictionary)**
-    - **variable_name** (required): Name of the variable input
-    - **initial_value** (required): Initial value of the variable input
-    - **variable_options_source** (required): can be "text", "number", "checkbox", and array (as shown in the example)
+    - **variable_name** (required): Name of the variable input.
+    - **initial_value** (required): Initial value of the variable input.
+    - **variable_options_source** (required): Determines the input type. Can be ``"text"``, ``"number"``, ``"checkbox"``, ``"date"``, ``"date-range"``, ``"dropdown"``, ``"slider"``, ``"csv-uploader"``, or an array of ``{"label": str, "value": any}`` objects for a simple dropdown.
+    - **metadata** (optional): Configuration object for input types that require additional settings (date, date-range, dropdown, slider, csv-uploader).
 
-**Example**: ::
+
+Text Input
+''''''''''
+
+Displays a text field with a refresh button. ::
 
     from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 
-    class VariableInputExample(TethysDashPlugin):
-        name = "variable_input_example"
+    class TextVariableInput(TethysDashPlugin):
+        name = "text_variable_input"
         group = "Example"
-        label = "Variable Input Example"
+        label = "Text Variable Input"
         type = "variable_input"
-        tags = [
-            "example",
-            "variable input",
-        ]
-        description = "An example plugin for the variable input visualization"
+        tags = ["example", "variable input"]
+        description = "A text variable input"
 
         def run(self):
-            """
-                Return the data for the variable input
-            """
-            layer_names = [
-                {"label": "Observed River Stage", "value": 0},
-                {"label": "River Stages 24 Hour Forecast", "value": 1},
-            ]
-
             return {
-                "variable_name": "Layer Name",
-                "initial_value": "",
-                "variable_options_source": layer_names,
+                "variable_name": "Search Term",
+                "initial_value": "default text",
+                "variable_options_source": "text",
             }
+
+|
+
+Number Input
+''''''''''''
+
+Displays a number field with a refresh button. ::
+
+    def run(self):
+        return {
+            "variable_name": "Year",
+            "initial_value": 2024,
+            "variable_options_source": "number",
+        }
+
+|
+
+Checkbox Input
+''''''''''''''
+
+Displays a checkbox. The value updates immediately on toggle. ::
+
+    def run(self):
+        return {
+            "variable_name": "Show Legend",
+            "initial_value": True,
+            "variable_options_source": "checkbox",
+        }
+
+|
+
+Date Input
+''''''''''
+
+Displays a date picker. Optionally includes a time picker.
+
+**metadata fields:**
+    - **format** (optional): Date format string using `date-fns <https://date-fns.org/docs/format>`_ tokens (e.g., ``"MM/dd/yyyy"``, ``"MM/dd/yyyy'T'HH:mm"``).
+    - **showTimeInput** (optional): Set to ``True`` to show a time picker alongside the date. Defaults to ``True``.
+
+**Date only example**: ::
+
+    def run(self):
+        return {
+            "variable_name": "Forecast Date",
+            "initial_value": "",
+            "variable_options_source": "date",
+            "metadata": {
+                "format": "MM/dd/yyyy",
+                "showTimeInput": False,
+            },
+        }
+
+**Date and time example**: ::
+
+    def run(self):
+        return {
+            "variable_name": "Forecast Date",
+            "initial_value": "",
+            "variable_options_source": "date",
+            "metadata": {
+                "format": "MM/dd/yyyy'T'HH:mm",
+                "showTimeInput": True,
+            },
+        }
+
+|
+
+Date Range Input
+''''''''''''''''
+
+Displays two linked date pickers for a start and end date. Each date becomes its own variable input that other visualizations can reference.
+
+**metadata fields:**
+    - **format** (optional): Date format string using `date-fns <https://date-fns.org/docs/format>`_ tokens. Defaults to ``"MM/dd/yyyy'T'HH:mm"``.
+    - **startDateVariable** (required): Name for the start date variable input.
+    - **endDateVariable** (required): Name for the end date variable input.
+
+.. note::
+    The keys in ``initial_value`` must match the ``startDateVariable`` and ``endDateVariable`` names exactly.
+
+**Example**: ::
+
+    def run(self):
+        return {
+            "variable_name": "Analysis Period",
+            "initial_value": {
+                "Start Date": "01/14/2026T00:00",
+                "End Date": "01/16/2026T00:00",
+            },
+            "variable_options_source": "date-range",
+            "metadata": {
+                "format": "MM/dd/yyyy'T'HH:mm",
+                "startDateVariable": "Start Date",
+                "endDateVariable": "End Date",
+            },
+        }
+
+|
+
+Dropdown Input
+''''''''''''''
+
+Displays a dropdown selector. Users can also type to create new values.
+
+**metadata fields:**
+    - **choices** (required): A list of ``{"label": str, "value": any}`` objects.
+
+**Example**: ::
+
+    def run(self):
+        return {
+            "variable_name": "Color Theme",
+            "initial_value": "light",
+            "variable_options_source": "dropdown",
+            "metadata": {
+                "choices": [
+                    {"label": "Light Mode", "value": "light"},
+                    {"label": "Dark Mode", "value": "dark"},
+                    {"label": "High Contrast", "value": "high_contrast"},
+                ],
+            },
+        }
+
+|
+
+Array-based Dropdown
+''''''''''''''''''''
+
+An alternative to the dropdown type above. Instead of using metadata, pass an array of option objects directly as the ``variable_options_source``. No metadata is needed.
+
+**Example**: ::
+
+    def run(self):
+        layer_names = [
+            {"label": "Observed River Stage", "value": 0},
+            {"label": "River Stages 24 Hour Forecast", "value": 1},
+        ]
+
+        return {
+            "variable_name": "Layer Name",
+            "initial_value": "",
+            "variable_options_source": layer_names,
+        }
+
+|
+
+Slider Input
+''''''''''''
+
+Displays a slider with optional play/pause animation controls. The slider supports three modes based on the ``dataType`` metadata field: **Number**, **Date**, and **Array**.
+
+**Common metadata fields:**
+    - **dataType** (required): ``"Number"``, ``"Date"``, or ``"Array"``.
+    - **outputFormat** (optional): Format template for the displayed value. Use ``"{{n}}"`` for numbers or `date-fns <https://date-fns.org/docs/format>`_ tokens for dates.
+    - **speedOptions** (optional): A list of playback speeds in milliseconds (e.g., ``[2000, 1000, 500, 250, 100]``).
+
+**Number Slider**
+
+    Slides between a numeric min and max value.
+
+    **Additional metadata fields:**
+        - **min** (required): Minimum value.
+        - **max** (required): Maximum value.
+        - **step** (required): Step increment.
+        - **initialValue** (required): Starting value. Use ``initialRange`` instead for range mode.
+        - **rangeMode** (required): ``False`` for a single value, ``True`` for a two-handle range slider.
+        - **initialRange** (required if rangeMode is True): A two-element list ``[low, high]``.
+
+    **Example**: ::
+
+        def run(self):
+            return {
+                "variable_name": "Opacity",
+                "initial_value": 50,
+                "variable_options_source": "slider",
+                "metadata": {
+                    "dataType": "Number",
+                    "min": 0,
+                    "max": 100,
+                    "step": 1,
+                    "initialValue": 50,
+                    "rangeMode": False,
+                    "outputFormat": "{{n}}%",
+                    "speedOptions": [2000, 1000, 500, 250, 100],
+                },
+            }
+
+**Date Slider**
+
+    Slides between two dates using a configurable time delta.
+
+    **Additional metadata fields:**
+        - **min** (required): Start date string (e.g., ``"01/01/2020 12:00 AM"``). Also supports relative dates like ``"now"``, ``"now-7D"``, ``"now+30D"``.
+        - **max** (required): End date string. Same format options as min.
+        - **step** (required): Number of time delta units per step.
+        - **dateTimeDelta** (required): Time unit for each step. One of ``"Seconds"``, ``"Minutes"``, ``"Hours"``, ``"Days"``, ``"Weeks"``, ``"Months"``, ``"Years"``.
+        - **initialValue** (required): Starting date value.
+        - **rangeMode** (required): ``False`` for a single value, ``True`` for a two-handle range slider.
+
+    **Example**: ::
+
+        def run(self):
+            return {
+                "variable_name": "Forecast Time",
+                "initial_value": "2020-01-05T00:00:00",
+                "variable_options_source": "slider",
+                "metadata": {
+                    "dataType": "Date",
+                    "min": "01/01/2020 12:00 AM",
+                    "max": "01/10/2020 12:00 AM",
+                    "step": 1,
+                    "dateTimeDelta": "Days",
+                    "initialValue": "2020-01-05T00:00:00",
+                    "rangeMode": False,
+                    "outputFormat": "MM/dd/yyyy",
+                    "speedOptions": [2000, 1000, 500, 250, 100],
+                },
+            }
+
+**Array Slider**
+
+    Slides through a predefined list of discrete values.
+
+    **Additional metadata fields:**
+        - **values** (required): A list of values to slide through.
+        - **labels** (optional): A list of display labels corresponding to each value.
+        - **initialValue** (optional): Starting value (must be an item in the values list).
+
+    **Example**: ::
+
+        def run(self):
+            return {
+                "variable_name": "Radar Frame",
+                "initial_value": "https://example.com/radar/frame1.png",
+                "variable_options_source": "slider",
+                "metadata": {
+                    "dataType": "Array",
+                    "values": [
+                        "https://example.com/radar/frame1.png",
+                        "https://example.com/radar/frame2.png",
+                        "https://example.com/radar/frame3.png",
+                    ],
+                    "labels": ["12:00", "12:15", "12:30"],
+                    "initialValue": "https://example.com/radar/frame1.png",
+                },
+            }
+
+|
+
+CSV Uploader Input
+''''''''''''''''''
+
+Displays a file upload area for CSV files. The uploaded data is parsed and made available as the variable value.
+
+**metadata fields:**
+    - **headers** (required): A list of expected column names in the CSV file.
+
+**Example**: ::
+
+    def run(self):
+        return {
+            "variable_name": "Upload Data",
+            "initial_value": "",
+            "variable_options_source": "csv-uploader",
+            "metadata": {
+                "headers": ["timestamp", "value", "location"],
+            },
+        }
 
 |
 

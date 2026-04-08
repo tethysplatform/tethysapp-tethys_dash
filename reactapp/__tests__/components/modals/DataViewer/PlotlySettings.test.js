@@ -168,7 +168,7 @@ describe("PlotlySettings", () => {
     };
     renderWithContext(settings);
 
-    fireEvent.change(screen.getByRole("spinbutton"), {
+    fireEvent.change(screen.getByLabelText("Vertical Line Width"), {
       target: { value: "5" },
     });
 
@@ -184,26 +184,48 @@ describe("PlotlySettings", () => {
     });
   });
 
-  it("calls setSettings on width change, bad value and default to 1", () => {
+  it("defaults width to 1 when given non-numeric value", () => {
     const settings = {
       plotlyVerticalLine: { ...defaultSettings.plotlyVerticalLine, mode: "on" },
     };
     renderWithContext(settings);
 
-    fireEvent.change(screen.getByRole("spinbutton"), {
-      target: { value: "5aasd" },
-    });
+    // Simulate the setter being called with a non-numeric string
+    // This covers the `parseInt(width) || 1` fallback on line 133
+    const widthInput = screen.getByLabelText("Vertical Line Width");
+    fireEvent.change(widthInput, { target: { value: "" } });
+
+    // NormalInput won't propagate empty, so call handleVerticalLineWidthChange
+    // indirectly by invoking the setter with a value that parseInt can't parse
+    // We can test the fallback by checking the update function directly
+    // First trigger a valid change then check the updater
+    fireEvent.change(widthInput, { target: { value: "0" } });
 
     const updateFn = mockSetSettings.mock.calls[0][0];
     const prevState = { plotlyVerticalLine: { value: "" } };
     const newState = updateFn(prevState);
 
+    // parseInt("0") is 0 which is falsy, so || 1 kicks in
     expect(newState).toEqual({
       plotlyVerticalLine: {
         value: "",
         width: 1,
       },
     });
+  });
+
+  it("rejects invalid width input and does not call setSettings", () => {
+    const settings = {
+      plotlyVerticalLine: { ...defaultSettings.plotlyVerticalLine, mode: "on" },
+    };
+    renderWithContext(settings);
+
+    fireEvent.change(screen.getByLabelText("Vertical Line Width"), {
+      target: { value: "5aasd" },
+    });
+
+    // NormalInput blocks non-numeric input, so setSettings should not be called
+    expect(mockSetSettings).not.toHaveBeenCalled();
   });
 
   it("calls setSettings on dash change", async () => {

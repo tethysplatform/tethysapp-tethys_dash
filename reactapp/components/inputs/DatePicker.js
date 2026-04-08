@@ -175,7 +175,6 @@ const DatePicker = ({
 
 DatePicker.propTypes = {
   label: PropTypes.string,
-  type: PropTypes.oneOf(["date", "date-hour"]),
   onChange: PropTypes.func,
   value: PropTypes.oneOfType([PropTypes.string, PropTypes.instanceOf(Date)]),
   divProps: PropTypes.object,

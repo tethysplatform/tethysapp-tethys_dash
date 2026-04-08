@@ -1058,7 +1058,7 @@ export const mockedDateHourVariable = {
   args_string: JSON.stringify({
     initial_value: "",
     variable_name: "Test Variable",
-    variable_options_source: "date-hour",
+    variable_options_source: "date",
     "variable_options_source.metadata": {
       format: "MM/dd/yyyy h:mm aa",
     },

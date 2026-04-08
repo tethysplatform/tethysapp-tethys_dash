@@ -236,7 +236,9 @@ export const compareFilteredArgs = (
   return valuesEqual(filteredCurrent, filteredUpdated);
 };
 
-// Filter function to exclude date/date-hour types and relative dates
+// Filter function to exclude args where ALL dependent variable inputs are
+// relative dates or date-formatted. If any non-date input is referenced,
+// keep the arg so changes to those inputs still trigger a re-fetch.
 const filterNonRelativeDateArgs = (
   args,
   variableInputs,
@@ -247,16 +249,14 @@ const filterNonRelativeDateArgs = (
     const dateFormat = variableInputDateFormats?.[key];
     const dependentVariableInputs = getDependentVariableInputs(value);
 
-    let validFilter = true;
-    for (const input of dependentVariableInputs) {
-      // Skip if the argument type is date or date-hour and the value is a relative date
-      const variableInput = variableInputs?.[input];
-      if (dateFormat || isRelativeInput(variableInput)) {
-        validFilter = false;
-      }
-    }
+    const allDependentsAreDates =
+      dependentVariableInputs.length > 0 &&
+      dependentVariableInputs.every((input) => {
+        const variableInput = variableInputs?.[input];
+        return dateFormat || isRelativeInput(variableInput);
+      });
 
-    if (validFilter) {
+    if (!allDependentsAreDates) {
       filtered[key] = value;
     }
   }

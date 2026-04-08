@@ -56,7 +56,6 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
   fireEvent.change(stepInput, { target: { value: "1" } });
   fireEvent.change(outputFormatInput, { target: { value: "{{n}}" } });
 
-  // onChange null because initial Value is empty
   expect(mockOnChange).toHaveBeenCalledTimes(2);
   expect(mockOnChange).toHaveBeenLastCalledWith(null);
 
