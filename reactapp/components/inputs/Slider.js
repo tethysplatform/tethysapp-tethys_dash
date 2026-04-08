@@ -792,16 +792,16 @@ const Slider = ({
     for (let i = 0; i < values.length; i++) {
       let diff;
       if (isDateType) {
-        diff = Math.abs(
-          parseDateMath({
-            value: values[i],
-            dateFormat: outputFormat,
-          }).getTime() -
-            parseDateMath({
-              value: rawValue,
-              dateFormat: outputFormat,
-            }).getTime(),
-        );
+        const valDate = parseDateMath({
+          value: values[i],
+          dateFormat: outputFormat,
+        });
+        const rawDate = parseDateMath({
+          value: rawValue,
+          dateFormat: outputFormat,
+        });
+        if (!valDate || !rawDate) continue;
+        diff = Math.abs(valDate.getTime() - rawDate.getTime());
       } else {
         diff = Math.abs(Number(values[i]) - Number(rawValue));
       }
