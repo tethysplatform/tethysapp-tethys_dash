@@ -64,6 +64,8 @@ const SliderMetadata = ({ onChange, values }) => {
       ? { value: values.dateTimeDelta, label: values.dateTimeDelta }
       : { value: "Days", label: "Days" },
   );
+  const [alignSteps, setAlignSteps] = useState(values?.alignSteps ?? false);
+  const [alignOffset, setAlignOffset] = useState(values?.alignOffset ?? 0);
   const [speedOptions, setSpeedOptions] = useState(
     values?.speedOptions || defaultSpeedOptions.map((opt) => opt.value),
   );
@@ -87,6 +89,8 @@ const SliderMetadata = ({ onChange, values }) => {
               step,
               unit: dateTimeDelta?.value,
               dataType: dataType?.value,
+              alignSteps,
+              alignOffset,
             },
             variableInputs: variableInputValues,
           }),
@@ -140,6 +144,10 @@ const SliderMetadata = ({ onChange, values }) => {
       }
       if (dataType.value === "Date") {
         onChangeValues.dateTimeDelta = dateTimeDelta.value;
+        if (alignSteps) {
+          onChangeValues.alignSteps = alignSteps;
+          onChangeValues.alignOffset = alignOffset;
+        }
       }
       onChange(onChangeValues);
     }
@@ -156,6 +164,8 @@ const SliderMetadata = ({ onChange, values }) => {
     dateTimeDelta.value,
     speedOptions,
     arrayChoices,
+    alignSteps,
+    alignOffset,
   ]);
 
   const handleSpeedOptionsChange = (e) => {
@@ -371,6 +381,28 @@ const SliderMetadata = ({ onChange, values }) => {
               />
             </TimeDeltaDiv>
           </FlexDiv>
+          <div style={{ marginTop: "1rem" }}>
+            <label
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+            >
+              <input
+                type="checkbox"
+                checked={alignSteps}
+                onChange={(e) => setAlignSteps(e.target.checked)}
+                aria-label="Align steps to time boundaries"
+              />
+              <b>Align steps to time boundaries</b>
+            </label>
+          </div>
+          {alignSteps && (
+            <NormalInput
+              label={`Offset (${dateTimeDelta.value})`}
+              value={alignOffset}
+              type="number"
+              onChange={(e) => setAlignOffset(Number(e.target.value))}
+              divProps={{ style: { marginTop: "0.5rem" } }}
+            />
+          )}
           {rangeMode ? (
             <>
               <DataSelect
@@ -457,6 +489,8 @@ SliderMetadata.propTypes = {
     rangeMode: PropTypes.bool,
     outputFormat: PropTypes.string,
     dateTimeDelta: PropTypes.string, // For slider metadata
+    alignSteps: PropTypes.bool,
+    alignOffset: PropTypes.number,
     speedOptions: PropTypes.arrayOf(PropTypes.number),
     values: PropTypes.arrayOf(PropTypes.string),
     labels: PropTypes.arrayOf(PropTypes.string),

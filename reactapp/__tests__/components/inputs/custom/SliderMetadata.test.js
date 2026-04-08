@@ -497,3 +497,101 @@ test("SliderMetadata with existing date, turn on range mode", async () => {
     speedOptions: [2000, 1000, 500, 250, 100],
   });
 });
+
+test("Align steps checkbox appears only for Date type and includes alignSteps/alignOffset in onChange", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <SliderMetadata
+          onChange={mockOnChange}
+          values={{}}
+          visualizationRef={null}
+        />
+      </VariableInputsContext.Provider>
+    </DataViewerModeContext.Provider>,
+  );
+
+  // No align checkbox before selecting data type
+  expect(
+    screen.queryByLabelText("Align steps to time boundaries"),
+  ).not.toBeInTheDocument();
+
+  // Select Number type — still no align checkbox
+  const dataTypeSelect = screen.getByLabelText("Data Type Input");
+  await selectEvent.select(dataTypeSelect, "Number");
+  expect(
+    screen.queryByLabelText("Align steps to time boundaries"),
+  ).not.toBeInTheDocument();
+
+  // Switch to Date type — align checkbox appears
+  await selectEvent.select(dataTypeSelect, "Date");
+  const alignCheckbox = await screen.findByRole("checkbox", {
+    name: /Align steps to time boundaries/,
+  });
+  expect(alignCheckbox).toBeInTheDocument();
+  expect(alignCheckbox.checked).toBe(false);
+
+  // Offset input should not be visible when unchecked
+  expect(screen.queryByLabelText(/Offset/)).not.toBeInTheDocument();
+
+  // Check the align checkbox
+  fireEvent.click(alignCheckbox);
+  expect(alignCheckbox.checked).toBe(true);
+
+  // Offset input should now be visible
+  expect(screen.getByLabelText(/Offset/)).toBeInTheDocument();
+});
+
+test("SliderMetadata includes alignSteps and alignOffset in onChange when enabled", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <SliderMetadata
+          onChange={mockOnChange}
+          values={{
+            dataType: "Date",
+            min: "01/01/2025 12:00 AM",
+            max: "01/10/2025 12:00 AM",
+            step: 6,
+            dateTimeDelta: "Hours",
+            outputFormat: "yyyyMMddHH",
+            initialValue: "2025-01-01T06:00:00",
+            speedOptions: [2000, 1000, 500, 250, 100],
+            alignSteps: true,
+            alignOffset: 0,
+          }}
+          visualizationRef={null}
+        />
+      </VariableInputsContext.Provider>
+    </DataViewerModeContext.Provider>,
+  );
+
+  // Verify checkbox is checked from initial values
+  const alignCheckbox = screen.getByRole("checkbox", {
+    name: /Align steps to time boundaries/,
+  });
+  expect(alignCheckbox.checked).toBe(true);
+
+  // Verify onChange was called with alignSteps and alignOffset
+  expect(mockOnChange).toHaveBeenCalledWith(
+    expect.objectContaining({
+      alignSteps: true,
+      alignOffset: 0,
+    }),
+  );
+
+  // Change the offset value
+  const offsetInput = screen.getByLabelText(/Offset/);
+  fireEvent.change(offsetInput, { target: { value: "3" } });
+
+  expect(mockOnChange).toHaveBeenCalledWith(
+    expect.objectContaining({
+      alignSteps: true,
+      alignOffset: 3,
+    }),
+  );
+});

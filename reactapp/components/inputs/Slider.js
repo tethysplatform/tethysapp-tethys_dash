@@ -123,6 +123,87 @@ const formatValue = (val, outputFormat, isDateType) => {
     : formatNumber(val, outputFormat);
 };
 
+/**
+ * Aligns a date to the nearest step boundary in the given direction.
+ * The alignment grid is defined by: offset + n * step (in the given unit).
+ * Sub-units are zeroed before alignment (e.g., minutes/seconds for Hours).
+ */
+export const alignDateToStep = (date, step, unit, offset = 0) => {
+  const d = new Date(date);
+
+  // Zero out sub-units and get the unit value to align
+  switch (unit) {
+    case "Seconds": {
+      d.setMilliseconds(0);
+      const s = d.getSeconds();
+      d.setSeconds(offset + Math.ceil((s - offset) / step) * step);
+      break;
+    }
+    case "Minutes": {
+      d.setSeconds(0, 0);
+      const m = d.getMinutes();
+      d.setMinutes(offset + Math.ceil((m - offset) / step) * step);
+      break;
+    }
+    case "Hours": {
+      d.setMinutes(0, 0, 0);
+      const h = d.getHours();
+      d.setHours(offset + Math.ceil((h - offset) / step) * step);
+      break;
+    }
+    case "Days": {
+      const hadTime =
+        d.getHours() > 0 || d.getMinutes() > 0 || d.getSeconds() > 0;
+      d.setHours(0, 0, 0, 0);
+      if (hadTime) {
+        d.setDate(d.getDate() + 1);
+      }
+      break;
+    }
+    case "Weeks": {
+      const hadTime =
+        d.getHours() > 0 || d.getMinutes() > 0 || d.getSeconds() > 0;
+      d.setHours(0, 0, 0, 0);
+      const day = d.getDay(); // 0=Sun
+      if (day !== 0 || hadTime) {
+        d.setDate(d.getDate() + (7 - day));
+      }
+      break;
+    }
+    case "Months": {
+      const hadSubMonth =
+        d.getDate() > 1 ||
+        d.getHours() > 0 ||
+        d.getMinutes() > 0 ||
+        d.getSeconds() > 0;
+      d.setHours(0, 0, 0, 0);
+      d.setDate(1);
+      if (hadSubMonth) {
+        d.setMonth(d.getMonth() + 1);
+      }
+      break;
+    }
+    case "Years": {
+      const hadSubYear =
+        d.getMonth() > 0 ||
+        d.getDate() > 1 ||
+        d.getHours() > 0 ||
+        d.getMinutes() > 0 ||
+        d.getSeconds() > 0;
+      d.setHours(0, 0, 0, 0);
+      d.setMonth(0, 1);
+      if (hadSubYear) {
+        d.setFullYear(d.getFullYear() + 1);
+        d.setMonth(0, 1);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return d;
+};
+
 export const calculateSliderValues = ({
   min,
   max,
@@ -131,6 +212,8 @@ export const calculateSliderValues = ({
   dataType,
   rawMinDateFormat,
   rawMaxDateFormat,
+  alignSteps = false,
+  alignOffset = 0,
 }) => {
   // Helper to ensure max is always included
   const ensureMaxIncluded = (arr, max, eqFn = (a, b) => a === b) => {
@@ -195,8 +278,44 @@ export const calculateSliderValues = ({
     };
 
     if (isRelative(min) && isRelative(max)) {
-      // For relative, output as 'now-xU' where U is unit
       const unitAbbr = Object.keys(unitMap).find((k) => unitMap[k] === unit);
+
+      if (alignSteps) {
+        // Resolve to absolute dates, align, then convert back to relative offsets
+        const now = new Date();
+        const minOffset = parseRel(min, unit);
+        const maxOffset = parseRel(max, unit);
+        let minDate = timeDeltas[unit](now, minOffset);
+        let maxDate = timeDeltas[unit](now, maxOffset);
+        minDate = alignDateToStep(minDate, step, unit, alignOffset);
+        maxDate = alignDateToStep(maxDate, step, unit, alignOffset);
+        // Convert aligned dates back to relative offsets from now
+        const alignedMinOffset = diffDeltas[unit](minDate, now);
+        const alignedMaxOffset = diffDeltas[unit](maxDate, now);
+        const arr = [];
+        const forward = alignedMinOffset <= alignedMaxOffset;
+        let current = alignedMinOffset;
+        while (
+          (forward && current <= alignedMaxOffset) ||
+          (!forward && current >= alignedMaxOffset)
+        ) {
+          let suffix = "now";
+          if (current !== 0) {
+            suffix = `now${current < 0 ? "-" : "+"}${Math.abs(current)}${unitAbbr}`;
+          }
+          arr.push(suffix);
+          current += step * (forward ? 1 : -1);
+        }
+        // Ensure max is included
+        let suffix = "now";
+        if (alignedMaxOffset !== 0) {
+          suffix = `now${alignedMaxOffset < 0 ? "-" : "+"}${Math.abs(alignedMaxOffset)}${unitAbbr}`;
+        }
+        arr.push(suffix);
+        return Array.from(new Set(arr));
+      }
+
+      // For relative, output as 'now-xU' where U is unit
       const minVal = parseRel(min, unit);
       const maxVal = parseRel(max, unit);
       const arr = [];
@@ -250,6 +369,10 @@ export const calculateSliderValues = ({
       maxDate =
         parseDateMath({ value: max, dateFormat: rawMaxDateFormat }) ||
         new Date();
+    }
+    if (alignSteps) {
+      minDate = alignDateToStep(minDate, step, unit, alignOffset);
+      maxDate = alignDateToStep(maxDate, step, unit, alignOffset);
     }
     const arr = [];
     const diff = diffDeltas[unit](maxDate, minDate);
@@ -328,6 +451,8 @@ const Slider = ({
   ],
   values: valuesProp,
   labels: labelsProp,
+  alignOffset = 0,
+  alignSteps = false,
 }) => {
   const { gridItemArgsString } = useContext(GridItemContext);
   const { variableInputDateFormats, variableInputValues } = useContext(
@@ -382,6 +507,8 @@ const Slider = ({
       dataType,
       rawMinDateFormat,
       rawMaxDateFormat,
+      alignOffset,
+      alignSteps,
     });
   }, [
     isArrayType,
@@ -393,6 +520,8 @@ const Slider = ({
     dataType,
     rawMinDateFormat,
     rawMaxDateFormat,
+    alignOffset,
+    alignSteps,
   ]);
 
   // Track index/indices
@@ -527,7 +656,14 @@ const Slider = ({
       onChange(formatted);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [debouncedCurrentIdx, outputFormat, rangeMode, isDateType, isArrayType, values]);
+  }, [
+    debouncedCurrentIdx,
+    outputFormat,
+    rangeMode,
+    isDateType,
+    isArrayType,
+    values,
+  ]);
 
   useEffect(() => {
     if (playing) {
@@ -640,7 +776,8 @@ const Slider = ({
   const labels = isArrayType && Array.isArray(labelsProp) ? labelsProp : null;
   let displayValue;
   if (isArrayType) {
-    const currentLabel = labels?.[currentIdx] ?? `${currentIdx + 1} / ${values.length}`;
+    const currentLabel =
+      labels?.[currentIdx] ?? `${currentIdx + 1} / ${values.length}`;
     displayValue = currentLabel;
   } else if (rangeMode) {
     displayValue = `${formatValue(values[currentIdx[0]], outputFormat, isDateType)} - ${formatValue(values[currentIdx[1]], outputFormat, isDateType)}`;
@@ -682,7 +819,9 @@ const Slider = ({
     if (idx !== -1) {
       sliderValue = idx;
     }
-    displayValue = (labels?.[sliderValue] ?? `${sliderValue + 1} / ${values.length}`) + " (custom)";
+    displayValue =
+      (labels?.[sliderValue] ?? `${sliderValue + 1} / ${values.length}`) +
+      " (custom)";
   }
   const sliderMin = 0;
   const sliderMax = values.length - 1;

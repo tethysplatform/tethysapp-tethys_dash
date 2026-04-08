@@ -266,6 +266,8 @@ const VariableInput = ({
               : undefined
           }
           onChange={handleInputChange}
+          alignSteps={updatedMetadata.alignSteps}
+          alignOffset={updatedMetadata.alignOffset}
         />
       </StyledDiv>
     );

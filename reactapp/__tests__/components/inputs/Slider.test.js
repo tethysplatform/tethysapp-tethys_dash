@@ -8,7 +8,10 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { spyElementPrototypes } from "rc-util/lib/test/domHook";
-import Slider, { calculateSliderValues } from "components/inputs/Slider";
+import Slider, {
+  calculateSliderValues,
+  alignDateToStep,
+} from "components/inputs/Slider";
 import { format, addDays, addHours } from "date-fns";
 import {
   GridItemContext,
@@ -2743,5 +2746,269 @@ describe("Array mode", () => {
     await advanceTimers(100);
     // Display should still show 3 — index was not reset
     expect(screen.getByLabelText("Display Value")).toHaveTextContent("3");
+  });
+});
+
+// =============================================================================
+// alignDateToStep tests
+// =============================================================================
+describe("alignDateToStep", () => {
+  it("aligns hours to step boundaries with no offset", () => {
+    const date = new Date("2026-04-02T14:35:22");
+    const result = alignDateToStep(date, 6, "Hours", 0);
+    expect(result.getHours()).toBe(18);
+    expect(result.getMinutes()).toBe(0);
+    expect(result.getSeconds()).toBe(0);
+  });
+
+  it("aligns hours with offset", () => {
+    // 18:00 with step=3, offset=5 → grid is 5,8,11,14,17,20 → ceil(18)=20
+    const date = new Date("2026-04-02T18:00:00");
+    const result = alignDateToStep(date, 3, "Hours", 5);
+    expect(result.getHours()).toBe(20);
+    expect(result.getMinutes()).toBe(0);
+  });
+
+  it("keeps value on grid point unchanged", () => {
+    // 12:00 is on the 6-hour grid with offset=0
+    const date = new Date("2026-04-02T12:00:00");
+    const result = alignDateToStep(date, 6, "Hours", 0);
+    expect(result.getHours()).toBe(12);
+    expect(result.getDate()).toBe(2);
+  });
+
+  it("aligns minutes to step boundaries", () => {
+    const date = new Date("2026-04-02T14:17:45");
+    const result = alignDateToStep(date, 30, "Minutes", 0);
+    expect(result.getMinutes()).toBe(30);
+    expect(result.getSeconds()).toBe(0);
+  });
+
+  it("aligns days to midnight (ceils)", () => {
+    const date = new Date("2026-04-02T14:30:00");
+    const result = alignDateToStep(date, 1, "Days", 0);
+    expect(result.getDate()).toBe(3);
+    expect(result.getHours()).toBe(0);
+    expect(result.getMinutes()).toBe(0);
+  });
+
+  it("keeps midnight unchanged for days", () => {
+    const date = new Date("2026-04-02T00:00:00");
+    const result = alignDateToStep(date, 1, "Days", 0);
+    expect(result.getDate()).toBe(2);
+    expect(result.getHours()).toBe(0);
+  });
+
+  it("handles hour overflow to next day", () => {
+    // 23:00 with step=6, offset=0 → grid is 0,6,12,18,24→next day 00:00
+    const date = new Date("2026-04-02T23:00:00");
+    const result = alignDateToStep(date, 6, "Hours", 0);
+    expect(result.getDate()).toBe(3);
+    expect(result.getHours()).toBe(0);
+  });
+
+  it("aligns seconds to step boundaries", () => {
+    const date = new Date("2026-04-02T14:30:17.500");
+    const result = alignDateToStep(date, 15, "Seconds", 0);
+    expect(result.getSeconds()).toBe(30);
+    expect(result.getMilliseconds()).toBe(0);
+  });
+
+  it("aligns seconds with offset", () => {
+    const date = new Date("2026-04-02T14:30:17");
+    const result = alignDateToStep(date, 10, "Seconds", 5);
+    // grid: 5,15,25,35,45,55 → ceil(17) = 25
+    expect(result.getSeconds()).toBe(25);
+  });
+
+  it("aligns weeks to start of week", () => {
+    // Wednesday April 8 2026 at 10:00
+    const date = new Date("2026-04-08T10:00:00");
+    const result = alignDateToStep(date, 1, "Weeks", 0);
+    // Should ceil to next Sunday (April 12)
+    expect(result.getDay()).toBe(0); // Sunday
+    expect(result.getHours()).toBe(0);
+    expect(result.getDate()).toBe(12);
+  });
+
+  it("keeps Sunday midnight unchanged for weeks", () => {
+    // Sunday April 12 2026 at midnight
+    const date = new Date("2026-04-12T00:00:00");
+    const result = alignDateToStep(date, 1, "Weeks", 0);
+    expect(result.getDay()).toBe(0);
+    expect(result.getDate()).toBe(12);
+    expect(result.getHours()).toBe(0);
+  });
+
+  it("aligns months to 1st of month", () => {
+    const date = new Date("2026-04-15T10:30:00");
+    const result = alignDateToStep(date, 1, "Months", 0);
+    // Should ceil to May 1
+    expect(result.getMonth()).toBe(4); // May (0-indexed)
+    expect(result.getDate()).toBe(1);
+    expect(result.getHours()).toBe(0);
+  });
+
+  it("keeps 1st of month midnight unchanged", () => {
+    const date = new Date("2026-04-01T00:00:00");
+    const result = alignDateToStep(date, 1, "Months", 0);
+    expect(result.getMonth()).toBe(3); // April
+    expect(result.getDate()).toBe(1);
+  });
+
+  it("aligns years to Jan 1", () => {
+    const date = new Date("2026-06-15T10:00:00");
+    const result = alignDateToStep(date, 1, "Years", 0);
+    // Should ceil to Jan 1 2027
+    expect(result.getFullYear()).toBe(2027);
+    expect(result.getMonth()).toBe(0);
+    expect(result.getDate()).toBe(1);
+    expect(result.getHours()).toBe(0);
+  });
+
+  it("keeps Jan 1 midnight unchanged for years", () => {
+    const date = new Date("2026-01-01T00:00:00");
+    const result = alignDateToStep(date, 1, "Years", 0);
+    expect(result.getFullYear()).toBe(2026);
+    expect(result.getMonth()).toBe(0);
+    expect(result.getDate()).toBe(1);
+  });
+
+  it("returns date unchanged for unknown unit", () => {
+    const date = new Date("2026-04-02T14:35:22");
+    const result = alignDateToStep(date, 1, "Unknown", 0);
+    expect(result.getTime()).toBe(date.getTime());
+  });
+
+  it("defaults offset to 0 when omitted", () => {
+    const date = new Date("2026-04-02T14:35:22");
+    const result = alignDateToStep(date, 6, "Hours");
+    expect(result.getHours()).toBe(18);
+    expect(result.getMinutes()).toBe(0);
+  });
+});
+
+// =============================================================================
+// calculateSliderValues with alignSteps tests
+// =============================================================================
+describe("calculateSliderValues with alignSteps", () => {
+  it("aligns absolute date steps to 6-hour boundaries", () => {
+    const result = calculateSliderValues({
+      min: "2025-01-01T02:30:00",
+      max: "2025-01-02T02:30:00",
+      step: 6,
+      unit: "Hours",
+      dataType: "Date",
+      alignSteps: true,
+      alignOffset: 0,
+    });
+    // min ceils from 02:30 → 06:00, max ceils from 02:30 next day → 06:00
+    expect(result[0]).toBe("2025-01-01T06:00:00");
+    expect(result[result.length - 1]).toBe("2025-01-02T06:00:00");
+    // All values should be on 6-hour boundaries
+    result.forEach((val) => {
+      const hour = new Date(val).getHours();
+      expect(hour % 6).toBe(0);
+    });
+  });
+
+  it("aligns with offset for 3-hour step", () => {
+    const result = calculateSliderValues({
+      min: "2025-01-01T18:00:00",
+      max: "2025-01-02T12:00:00",
+      step: 3,
+      unit: "Hours",
+      dataType: "Date",
+      alignSteps: true,
+      alignOffset: 5,
+    });
+    // min=18:00, grid=5,8,11,14,17,20 → ceil(18)=20
+    expect(result[0]).toBe("2025-01-01T20:00:00");
+    // All hours should be on offset+n*3 grid: 2,5,8,11,14,17,20,23
+    result.forEach((val) => {
+      const hour = new Date(val).getHours();
+      expect(Math.abs((hour - 5) % 3)).toBe(0);
+    });
+  });
+
+  it("aligns 30-minute steps", () => {
+    const result = calculateSliderValues({
+      min: "2025-01-01T10:15:00",
+      max: "2025-01-01T12:45:00",
+      step: 30,
+      unit: "Minutes",
+      dataType: "Date",
+      alignSteps: true,
+      alignOffset: 0,
+    });
+    // min ceils 10:15 → 10:30, max ceils 12:45 → 13:00
+    expect(result[0]).toBe("2025-01-01T10:30:00");
+    expect(result[result.length - 1]).toBe("2025-01-01T13:00:00");
+    result.forEach((val) => {
+      const mins = new Date(val).getMinutes();
+      expect(mins % 30).toBe(0);
+    });
+  });
+
+  it("does not align when alignSteps is false", () => {
+    const result = calculateSliderValues({
+      min: "2025-01-01T02:30:00",
+      max: "2025-01-01T14:30:00",
+      step: 6,
+      unit: "Hours",
+      dataType: "Date",
+      alignSteps: false,
+    });
+    // Should start at exact min
+    expect(result[0]).toBe("2025-01-01T02:30:00");
+  });
+
+  it("aligns relative dates and returns relative strings", () => {
+    // Fix "now" to a known time using jest fake timers
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2025-06-15T14:35:00"));
+
+    try {
+      const result = calculateSliderValues({
+        min: "now-1D",
+        max: "now",
+        step: 6,
+        unit: "Hours",
+        dataType: "Date",
+        alignSteps: true,
+        alignOffset: 0,
+      });
+      // now=14:35 on June 15, now-1D=14:35 on June 14
+      // min ceils to 18:00 June 14 → now-21H (20.58 rounds to 21)
+      // max ceils to 18:00 June 15 → now+3H (3.42 rounds to 3)
+      // Results should be relative strings like now-XH
+      result.forEach((val) => {
+        expect(val).toMatch(/^now([+-]\d+H)?$/);
+      });
+      expect(result.length).toBeGreaterThan(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("value already on grid stays unchanged", () => {
+    const result = calculateSliderValues({
+      min: "2025-01-01T06:00:00",
+      max: "2025-01-02T06:00:00",
+      step: 6,
+      unit: "Hours",
+      dataType: "Date",
+      alignSteps: true,
+      alignOffset: 0,
+    });
+    expect(result[0]).toBe("2025-01-01T06:00:00");
+    expect(result[result.length - 1]).toBe("2025-01-02T06:00:00");
+    expect(result).toEqual([
+      "2025-01-01T06:00:00",
+      "2025-01-01T12:00:00",
+      "2025-01-01T18:00:00",
+      "2025-01-02T00:00:00",
+      "2025-01-02T06:00:00",
+    ]);
   });
 });
