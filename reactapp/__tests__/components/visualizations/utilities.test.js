@@ -940,3 +940,157 @@ test("checkForEmptyVariableInputs", async () => {
 
   expect(emptyVariableWarnings).toStrictEqual(null);
 });
+
+test("getVisualization Custom Image with slider metadata returns imageSequence", async () => {
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "image",
+    itemData: {
+      source: "Custom Image",
+      args: { image_source: "https://example.com/frame2.gif" },
+    },
+    metadataString: JSON.stringify({ refreshRate: 0 }),
+    // eslint-disable-next-line
+    argsString: JSON.stringify({ image_source: "https://example.com/${Slider}.gif" }),
+    variableInputValues: { Slider: "frame2" },
+    variableInputSliderMeta: {
+      Slider: { values: ["frame1", "frame2", "frame3"] },
+    },
+  });
+
+  expect(mockSetVizType).toHaveBeenCalledWith("imageSequence");
+  expect(mockSetVizData).toHaveBeenCalledWith({
+    urls: [
+      "https://example.com/frame1.gif",
+      "https://example.com/frame2.gif",
+      "https://example.com/frame3.gif",
+    ],
+    activeUrl: "https://example.com/frame2.gif",
+    alt: "custom_image",
+    imageError: undefined,
+  });
+});
+
+test("getVisualization Custom Image with slider metadata and custom error message", async () => {
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "image",
+    itemData: {
+      source: "Custom Image",
+      args: { image_source: "https://example.com/frame1.gif" },
+    },
+    metadataString: JSON.stringify({
+      refreshRate: 0,
+      customMessaging: { error: "Image not available" },
+    }),
+    // eslint-disable-next-line
+    argsString: JSON.stringify({ image_source: "https://example.com/${Slider}.gif" }),
+    variableInputValues: { Slider: "frame1" },
+    variableInputSliderMeta: {
+      Slider: { values: ["frame1", "frame2"] },
+    },
+  });
+
+  expect(mockSetVizType).toHaveBeenCalledWith("imageSequence");
+  expect(mockSetVizData).toHaveBeenCalledWith(
+    expect.objectContaining({
+      imageError: "Image not available",
+    }),
+  );
+});
+
+test("getVisualization Custom Image without slider metadata falls back to image", async () => {
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "image",
+    itemData: {
+      source: "Custom Image",
+      args: { image_source: "https://example.com/frame1.gif" },
+    },
+    metadataString: JSON.stringify({ refreshRate: 0 }),
+    // eslint-disable-next-line
+    argsString: JSON.stringify({ image_source: "https://example.com/${Dropdown}.gif" }),
+    variableInputValues: { Dropdown: "frame1" },
+    // Dropdown has no slider metadata — should fall through to regular image
+    variableInputSliderMeta: {},
+  });
+
+  expect(mockSetVizType).toHaveBeenCalledWith("image");
+  expect(mockSetVizData).toHaveBeenCalledWith({
+    source: "https://example.com/frame1.gif",
+    alt: "custom_image",
+    imageError: undefined,
+  });
+});
+
+test("getVisualization Custom Image without image_source in argsString falls back to image", async () => {
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "image",
+    itemData: {
+      source: "Custom Image",
+      args: { image_source: "https://example.com/static.gif" },
+    },
+    metadataString: JSON.stringify({ refreshRate: 0 }),
+    // argsString has no image_source key → originalArgs.image_source is undefined → falls back to ""
+    argsString: JSON.stringify({}),
+    variableInputValues: {},
+    variableInputSliderMeta: {
+      Slider: { values: ["a", "b"] },
+    },
+  });
+
+  // No ${} in empty template → depVars is empty → no sliderVar → falls through to image
+  expect(mockSetVizType).toHaveBeenCalledWith("image");
+  expect(mockSetVizData).toHaveBeenCalledWith({
+    source: "https://example.com/static.gif",
+    alt: "custom_image",
+    imageError: undefined,
+  });
+});
+
+test("getVisualization Custom Image with empty slider values falls back to image", async () => {
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "image",
+    itemData: {
+      source: "Custom Image",
+      args: { image_source: "https://example.com/current.gif" },
+    },
+    metadataString: JSON.stringify({ refreshRate: 0 }),
+    // eslint-disable-next-line
+    argsString: JSON.stringify({ image_source: "https://example.com/${Slider}.gif" }),
+    variableInputValues: { Slider: "current" },
+    // Slider metadata exists but values array is empty
+    variableInputSliderMeta: {
+      Slider: { values: [] },
+    },
+  });
+
+  expect(mockSetVizType).toHaveBeenCalledWith("image");
+  expect(mockSetVizData).toHaveBeenCalledWith({
+    source: "https://example.com/current.gif",
+    alt: "custom_image",
+    imageError: undefined,
+  });
+});

@@ -93,6 +93,7 @@ export async function getVisualization({
   dashboardView,
   vizLoadingIcon = true,
   variableInputDateFormats = {},
+  variableInputSliderMeta = {},
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -126,9 +127,40 @@ export async function getVisualization({
 
     return;
   } else if (itemData.source === "Custom Image") {
+    const imageSource = itemData.args.image_source;
+    const originalArgs = JSON.parse(argsString);
+    const rawTemplate = originalArgs.image_source || "";
+    const depVars = getDependentVariableInputs(rawTemplate);
+
+    // If the image URL depends on a slider variable, generate all URLs
+    // and use ImageSequence for instant frame switching
+    const sliderVar = depVars.find(
+      (v) => variableInputSliderMeta[v]?.values?.length > 0,
+    );
+    if (sliderVar) {
+      const sliderValues = variableInputSliderMeta[sliderVar].values;
+      const urls = sliderValues.map((val) => {
+        const substituted = updateObjectWithVariableInputs({
+          args: { ...originalArgs },
+          variableInputs: { ...variableInputValues, [sliderVar]: val },
+          variableInputDateFormats,
+        });
+        return substituted.image_source;
+      });
+
+      setVizType("imageSequence");
+      setVizData({
+        urls,
+        activeUrl: imageSource,
+        alt: "custom_image",
+        imageError: metadata.customMessaging?.error,
+      });
+      return;
+    }
+
     setVizType("image");
     setVizData({
-      source: itemData.args.image_source,
+      source: imageSource,
       alt: "custom_image",
       imageError: metadata.customMessaging?.error,
     });

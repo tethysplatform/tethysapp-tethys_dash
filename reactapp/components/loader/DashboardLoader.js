@@ -38,6 +38,7 @@ const DashboardLoader = ({
   const [loadError, setLoadError] = useState(false);
   const [variableInputValues, setVariableInputValues] = useState({});
   const [variableInputDateFormats, setVariableInputDateFormats] = useState({});
+  const [variableInputSliderMeta, setVariableInputSliderMeta] = useState({});
   const [tabs, setTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
   const [notes, setNotes] = useState([]);
@@ -243,8 +244,16 @@ const DashboardLoader = ({
       variableInputValues,
       setVariableInputValues,
       variableInputDateFormats,
+      variableInputSliderMeta,
+      setVariableInputSliderMeta,
     }),
-    [variableInputValues, setVariableInputValues, variableInputDateFormats],
+    [
+      variableInputValues,
+      setVariableInputValues,
+      variableInputDateFormats,
+      variableInputSliderMeta,
+      setVariableInputSliderMeta,
+    ],
   );
 
   const tabContextValue = useMemo(

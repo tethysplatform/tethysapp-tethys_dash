@@ -1,6 +1,7 @@
 import PropTypes from "prop-types";
 import { useEffect, useState, memo, useRef, useContext, Fragment } from "react";
 import Image from "components/visualizations/Image";
+import ImageSequence from "components/visualizations/ImageSequence";
 import Text from "components/visualizations/Text";
 import VariableInput from "components/visualizations/VariableInput";
 import MapVisualization from "components/visualizations/Map";
@@ -108,6 +109,16 @@ export const Visualization = memo(
         return (
           <Image
             source={vizData.source}
+            alt={vizData.alt}
+            imageError={vizData.imageError}
+            visualizationRef={vizRef}
+          />
+        );
+      case "imageSequence":
+        return (
+          <ImageSequence
+            urls={vizData.urls}
+            activeUrl={vizData.activeUrl}
             alt={vizData.alt}
             imageError={vizData.imageError}
             visualizationRef={vizRef}
@@ -275,9 +286,11 @@ const BaseVisualization = () => {
   const [vizData, setVizData] = useState({});
   const [vizMetadata, setVizMetadata] = useState({});
   const { visualizations } = useContext(AppContext);
-  const { variableInputValues, variableInputDateFormats } = useContext(
-    VariableInputsContext,
-  );
+  const {
+    variableInputValues,
+    variableInputDateFormats,
+    variableInputSliderMeta,
+  } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemMetadataWithVariableInputs = useRef(0);
   const customMessages = useRef({});
@@ -374,6 +387,27 @@ const BaseVisualization = () => {
     const alreadyLoadedEmptyArgs =
       loadedEmptyArgsForSource.current[gridItemSource];
 
+    // ImageSequence fast-path: when only a slider variable changed,
+    // just update activeUrl instead of regenerating the full URL list.
+    if (
+      vizType === "imageSequence" &&
+      gridItemSource === "Custom Image" &&
+      !refresh &&
+      shouldLoad
+    ) {
+      const newActiveUrl = updatedGridItemArgs.image_source;
+      if (newActiveUrl && newActiveUrl !== vizData.activeUrl) {
+        gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
+        setVizData((prev) => ({ ...prev, activeUrl: newActiveUrl }));
+      }
+      // Still check if non-slider args changed (e.g. a dropdown variable in the URL).
+      // If urls need regeneration, fall through to the full getVisualization below.
+      const prevUrls = vizData.urls;
+      if (prevUrls && !prevUrls.includes(newActiveUrl)) {
+        refresh = true;
+      }
+    }
+
     if (
       (refresh ||
         (isEmptyArgs && !alreadyLoadedEmptyArgs) ||
@@ -410,6 +444,7 @@ const BaseVisualization = () => {
           "source",
         )?.loading_icon,
         variableInputDateFormats,
+        variableInputSliderMeta,
       });
     }
 
