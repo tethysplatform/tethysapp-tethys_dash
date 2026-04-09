@@ -62,7 +62,9 @@ function discoverClientPlugins() {
   // Generate the static import map (used by ClientModuleLoader at build time)
   // Each entry maps a source name to a dynamic import() with a literal path
   // so that webpack can resolve and code-split the modules at build time.
-  const importEntries = registry.map((plugin) => {
+  // Skip client_custom_remote plugins — they are loaded at runtime via Module Federation.
+  const buildTimePlugins = registry.filter((p) => p.type !== "client_custom_remote");
+  const importEntries = buildTimePlugins.map((plugin) => {
     const importPath = `${plugin.packageName}/${plugin.module}`.replace(
       /^\.\//,
       ""

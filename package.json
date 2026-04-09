@@ -21,6 +21,7 @@
   "license": "ISC",
   "dependencies": {
     "@chatbox/core": "file:../plugins/nextgen_plugins/packages/chatbox-core",
+    "chatbox": "file:../plugins/nextgen_plugins/nextgen_plugins/chatbox/frontend/chatbox",
     "@tiptap/extension-color": "^2.12.0",
     "@tiptap/extension-font-family": "^2.12.0",
     "@tiptap/extension-highlight": "^2.12.0",
