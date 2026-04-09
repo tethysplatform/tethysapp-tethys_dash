@@ -17,6 +17,7 @@ Connects to chatbox via MCP SSE transport on port 9001.
 import logging
 import os
 import json
+import uuid
 from typing import Optional, Dict, Any, List
 from typing_extensions import Annotated
 from pydantic import Field
@@ -60,6 +61,28 @@ def _load_client_plugin_registry() -> List[Dict[str, Any]]:
 
 
 CLIENT_PLUGIN_REGISTRY = _load_client_plugin_registry()
+
+
+def _load_runtime_plugin_registry() -> List[Dict[str, Any]]:
+    """Load the runtime plugin registry synced from browser localStorage."""
+    registry_path = os.path.normpath(os.path.join(
+        os.path.dirname(__file__), "..", "..", "..",
+        "reactapp", "generated", "runtimePluginRegistry.json"
+    ))
+    try:
+        with open(registry_path, "r") as f:
+            registry = json.load(f)
+        LOGGER.info("Loaded %d runtime plugin(s) from %s", len(registry), registry_path)
+        return registry
+    except FileNotFoundError:
+        return []
+    except json.JSONDecodeError as e:
+        LOGGER.warning("Invalid JSON in runtime plugin registry: %s", e)
+        return []
+
+
+RUNTIME_PLUGIN_REGISTRY = _load_runtime_plugin_registry()
+ALL_PLUGIN_REGISTRY = CLIENT_PLUGIN_REGISTRY + RUNTIME_PLUGIN_REGISTRY
 
 
 def _convert_arg_to_schema(arg_name: str, arg_spec) -> Dict[str, Any]:
@@ -331,6 +354,147 @@ def render_mfe(
 
 
 # ---------------------------------------------------------------------------
+# Client plugin rendering
+# ---------------------------------------------------------------------------
+
+def _validate_plugin_props(source: str, props: Dict) -> Optional[str]:
+    """Validate props against a plugin's declared arg schema. Returns error string or None."""
+    plugin = next((p for p in CLIENT_PLUGIN_REGISTRY if p["source"] == source), None)
+    if not plugin:
+        available = [p["source"] for p in CLIENT_PLUGIN_REGISTRY]
+        return f"Plugin '{source}' not found. Available: {available}"
+
+    schema = plugin.get("args", {})
+    for arg_name, arg_spec in schema.items():
+        value = props.get(arg_name)
+        if value is None:
+            continue  # missing args handled by required check below
+        if isinstance(arg_spec, list) and value not in arg_spec:
+            return f"Invalid value '{value}' for '{arg_name}'. Must be one of: {arg_spec}"
+        if arg_spec == "number" and not isinstance(value, (int, float)):
+            return f"'{arg_name}' must be a number, got: {type(value).__name__}"
+
+    # All args are required unless type is "checkbox"
+    for arg_name, arg_spec in schema.items():
+        if arg_spec != "checkbox" and arg_name not in props:
+            return f"Missing required arg: '{arg_name}'"
+
+    return None
+
+
+@mcp.tool()
+def render_client_plugin(
+    source: Annotated[str, Field(description="Client plugin source name from list_available_visualizations")],
+    props: Annotated[Optional[Dict[str, Any]], Field(description="Props to pass to the plugin component. Check list_available_visualizations for each plugin's required args and valid values.")] = None,
+    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
+    h: Annotated[int, Field(description="Grid height in row units")] = 30,
+) -> Dict[str, Any]:
+    """Render an installed client plugin on the dashboard.
+
+    Call list_available_visualizations first to discover available plugins
+    and their argument schemas. Props are validated against the plugin's
+    declared arg schema before rendering.
+    """
+    safe_props = props or {}
+    validation_error = _validate_plugin_props(source, safe_props)
+    if validation_error:
+        return {"error": validation_error}
+
+    plugin = next((p for p in ALL_PLUGIN_REGISTRY if p["source"] == source), None)
+    if plugin is None:
+        available = [p["source"] for p in ALL_PLUGIN_REGISTRY]
+        return {"error": f"Plugin '{source}' not found. Available: {available}"}
+
+    # Runtime MFE plugins: return Module Federation coordinates.
+    # The frontend resolves the remoteEntry.js URL (see chatbox.jsx handleResult).
+    if plugin.get("type") == "client_custom_remote":
+        viz_spec = {
+            "source": "Client Custom",
+            "vizType": "custom",
+            "scope": plugin.get("scope"),
+            "module": plugin.get("module"),
+            "remoteType": plugin.get("remoteType", "vite-esm"),
+            "args": safe_props,
+            "w": w,
+            "h": h,
+        }
+        if plugin.get("url"):
+            viz_spec["url"] = plugin["url"]
+        if plugin.get("dataKey"):
+            viz_spec["dataKey"] = plugin["dataKey"]
+        return {"visualization": viz_spec}
+
+    # Build-time npm plugins: render via ClientModuleLoader
+    return {
+        "visualization": {
+            "source": source,
+            "vizType": "client_custom",
+            "args": safe_props,
+            "w": w,
+            "h": h,
+        }
+    }
+
+
+# ---------------------------------------------------------------------------
+# Runtime plugin registration
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def register_runtime_plugin(
+    url: Annotated[str, Field(description="URL to the remoteEntry.js file")],
+    scope: Annotated[str, Field(description="Module Federation scope name")],
+    module: Annotated[str, Field(description="Exposed module path (e.g., './MyPanel')")],
+    label: Annotated[str, Field(description="Display name for the plugin")],
+    remote_type: Annotated[str, Field(description="Remote type: 'vite-esm' or 'webpack'")] = "vite-esm",
+    description: Annotated[str, Field(description="Human-readable description")] = "",
+    group: Annotated[str, Field(description="Visualization group/category")] = "Custom",
+    data_key: Annotated[str, Field(description="variableInputValues key this panel reads")] = "",
+) -> Dict[str, Any]:
+    """Register a runtime MFE plugin so it appears in available visualizations.
+
+    The plugin is saved to the server-side registry and becomes immediately
+    available via list_available_visualizations and render_client_plugin.
+    """
+    global ALL_PLUGIN_REGISTRY, RUNTIME_PLUGIN_REGISTRY
+
+    key = f"{scope}/{module}"
+    if any(f"{p.get('scope')}/{p.get('module')}" == key for p in ALL_PLUGIN_REGISTRY):
+        return {"error": f"Plugin {key} is already registered."}
+
+    entry = {
+        "id": str(uuid.uuid4()),
+        "source": label.strip(),
+        "url": url.strip(),
+        "scope": scope.strip(),
+        "module": module.strip(),
+        "remoteType": remote_type,
+        "label": label.strip(),
+        "description": description,
+        "group": group,
+        "tags": [],
+        "dataKey": data_key,
+        "args": {},
+        "type": "client_custom_remote",
+    }
+
+    registry_path = os.path.normpath(os.path.join(
+        os.path.dirname(__file__), "..", "..", "..",
+        "reactapp", "generated", "runtimePluginRegistry.json"
+    ))
+    runtime = _load_runtime_plugin_registry()
+    runtime.append(entry)
+    os.makedirs(os.path.dirname(registry_path), exist_ok=True)
+    with open(registry_path, "w") as f:
+        json.dump(runtime, f, indent=2)
+
+    RUNTIME_PLUGIN_REGISTRY = runtime
+    ALL_PLUGIN_REGISTRY = CLIENT_PLUGIN_REGISTRY + RUNTIME_PLUGIN_REGISTRY
+
+    return {"status": "registered", "plugin": entry}
+
+
+# ---------------------------------------------------------------------------
 # Discovery tools
 # ---------------------------------------------------------------------------
 
@@ -348,36 +512,42 @@ def list_available_visualizations() -> Dict[str, Any]:
                 "name": "Plotly Chart",
                 "tool": "create_plotly_chart",
                 "description": "Interactive line/bar/scatter charts via Plotly.js",
+                "prefer_native": True,
             },
             {
                 "type": "table",
                 "name": "Data Table",
                 "tool": "create_data_table",
                 "description": "Tabular data display with headers and rows",
+                "prefer_native": True,
             },
             {
                 "type": "map",
                 "name": "Map",
                 "tool": "create_map_visualization",
                 "description": "OpenLayers map. Supports WMS, GeoJSON, KML, ESRI services, Image/Vector tiles, PMTiles",
+                "prefer_native": True,
             },
             {
                 "type": "card",
                 "name": "Card",
                 "tool": "create_card",
                 "description": "Simple card with title, description, and data value",
+                "prefer_native": True,
             },
             {
                 "type": "image",
                 "name": "Custom Image",
                 "tool": "create_custom_image",
                 "description": "Display an image from a URL",
+                "prefer_native": True,
             },
             {
                 "type": "text",
                 "name": "Text",
                 "tool": "create_text",
                 "description": "Static text content",
+                "prefer_native": True,
             },
         ],
         "client_plugins": [
@@ -390,7 +560,7 @@ def list_available_visualizations() -> Dict[str, Any]:
                 "args_schema": _convert_plugin_args_to_schema(plugin.get("args", {})),
                 "tool": "render_client_plugin",
             }
-            for plugin in CLIENT_PLUGIN_REGISTRY
+            for plugin in ALL_PLUGIN_REGISTRY
         ],
         "mfe": {
             "tool": "render_mfe",

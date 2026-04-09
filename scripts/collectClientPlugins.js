@@ -32,7 +32,7 @@ function discoverClientPlugins() {
             );
             continue;
           }
-          registry.push({
+          const entry = {
             source: plugin.source,
             label: plugin.label || plugin.source,
             group: plugin.group || "Client Plugins",
@@ -42,7 +42,11 @@ function discoverClientPlugins() {
             description: plugin.description || "",
             args: plugin.args || {},
             packageName: depName,
-          });
+          };
+          // Module Federation fields for client_custom_remote plugins
+          if (plugin.scope) entry.scope = plugin.scope;
+          if (plugin.remoteType) entry.remoteType = plugin.remoteType;
+          registry.push(entry);
         }
       }
     } catch (e) {

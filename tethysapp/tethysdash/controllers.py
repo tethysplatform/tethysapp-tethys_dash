@@ -1057,3 +1057,36 @@ def ollama_show(request):
 @controller(url="tethysdash/ollama-proxy/api/chat/", login_required=True)
 def ollama_chat(request):
     return _proxy_to_ollama(request, "api/chat", timeout=(10, 300))
+
+
+@api_view(["GET", "POST"])
+@controller(url="tethysdash/runtime-plugins/sync", login_required=True)
+def runtime_plugins_sync(request):
+    """
+    Sync runtime plugin registry between browser localStorage and server.
+    GET: Returns the current registry.
+    POST: Overwrites the registry with the request body.
+    The file is read by the MCP server for LLM tool discovery.
+    """
+    registry_path = os.path.normpath(os.path.join(
+        os.path.dirname(__file__), "..", "..",
+        "reactapp", "generated", "runtimePluginRegistry.json"
+    ))
+
+    if request.method == "GET":
+        try:
+            with open(registry_path, "r") as f:
+                data = json.load(f)
+            return JsonResponse(data, safe=False)
+        except (FileNotFoundError, json.JSONDecodeError):
+            return JsonResponse([], safe=False)
+
+    # POST
+    try:
+        plugins = json.loads(request.body)
+        os.makedirs(os.path.dirname(registry_path), exist_ok=True)
+        with open(registry_path, "w") as f:
+            json.dump(plugins, f, indent=2)
+        return JsonResponse({"status": "ok", "count": len(plugins)})
+    except (json.JSONDecodeError, TypeError) as e:
+        return JsonResponse({"error": str(e)}, status=400)

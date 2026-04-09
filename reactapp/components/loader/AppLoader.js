@@ -28,6 +28,7 @@ import WebsocketProvider from "components/contexts/WebSocketContext";
 import { ChatSidebarProvider } from "components/contexts/ChatSidebarContext";
 import { v4 as uuidv4 } from "uuid";
 import clientPluginRegistry from "generated/clientPluginRegistry.json";
+import { getPlugins } from "services/pluginRegistry";
 
 const APP_ID = process.env.TETHYS_APP_ID;
 const LOADER_DELAY = process.env.TETHYS_LOADER_DELAY;
@@ -302,6 +303,43 @@ function Loader({ children }) {
         } else {
           allVisualizations.push({
             label: plugin.group,
+            options: [entry],
+          });
+        }
+      }
+
+      // Merge runtime-registered plugins (from localStorage)
+      const runtimePlugins = getPlugins();
+      for (const plugin of runtimePlugins) {
+        const entry = {
+          source: plugin.label,
+          value: plugin.label,
+          label: plugin.label,
+          type: plugin.type || "client_custom_remote",
+          tags: plugin.tags ?? [],
+          description: plugin.description ?? "",
+          args: {
+            url: plugin.url,
+            scope: plugin.scope,
+            module: plugin.module,
+            remoteType: plugin.remoteType || "vite-esm",
+          },
+          module: plugin.module,
+          scope: plugin.scope,
+          url: plugin.url,
+          remoteType: plugin.remoteType,
+        };
+        const existingGroup = allVisualizations.find(
+          (g) => g.label === (plugin.group || "Custom"),
+        );
+        if (existingGroup) {
+          const key = `${plugin.scope}/${plugin.module}`;
+          if (!existingGroup.options.some((o) => `${o.scope}/${o.module}` === key)) {
+            existingGroup.options.push(entry);
+          }
+        } else {
+          allVisualizations.push({
+            label: plugin.group || "Custom",
             options: [entry],
           });
         }
