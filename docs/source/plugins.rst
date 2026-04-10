@@ -49,7 +49,7 @@ Properties:
     - **name**: (required) Name of the package. Used for installation and as the driver name (e.g., `intake.open_<driver_name>`).
     - **group**: (required) Used to group visualizations in the dashboard app.
     - **label**: (required) The display name for the visualization in the dashboard app.
-    - **type**: (required) The type of visualization. Must be "plotly", "table", "image", "card", "text", "variable_input", "map", "map_layer", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section for details.
+    - **type**: (required) The type of visualization. Must be "plotly", "table", "image", "imageCollection", "card", "text", "variable_input", "map", "map_layer", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section for details.
     - **args**: Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`). These args are set as attributes of the plugin class and can be used in the run method using self (e.g., `self.year`, `self.location`, `self.available_colors`).
     - **tags**: List of tags for search and discovery.
     - **description**: Description of the visualization.
@@ -243,6 +243,51 @@ Displays an image based on the returned URL string.
             """
 
             return "https://aquaveo.com/pub/media/wysiwyg/aquaveo-logo-bw.svg"
+
+|
+
+Image Collection
+````````````````
+
+Displays a collection of images in a flex-wrap grid within a single visualization block.
+
+**DataSource visualization_type value:** *imageCollection*
+
+**read return: (dict)**
+    - **urls** (required): A list of strings containing the urls to the images
+    - **title** (optional): A string title displayed above the image grid
+    - **columns** (optional): An integer specifying the number of columns in the grid. If omitted, images flex automatically to fill the available space.
+
+**Example**: ::
+
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
+
+
+    class ImageCollectionExample(TethysDashPlugin):
+        name = "image_collection_example"
+        group = "Example"
+        label = "Image Collection Example"
+        type = "imageCollection"
+        tags = [
+            "example",
+            "imageCollection",
+        ]
+        description = "An example plugin for the image collection visualization"
+
+        def run(self):
+            """
+            Return a collection of image urls
+            """
+
+            return {
+                "urls": [
+                    "https://example.com/image1.png",
+                    "https://example.com/image2.png",
+                    "https://example.com/image3.png",
+                ],
+                "title": "My Image Collection",
+                "columns": 3,
+            }
 
 |
 
