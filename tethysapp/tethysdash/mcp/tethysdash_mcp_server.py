@@ -81,8 +81,15 @@ def _load_runtime_plugin_registry() -> List[Dict[str, Any]]:
         return []
 
 
-RUNTIME_PLUGIN_REGISTRY = _load_runtime_plugin_registry()
-ALL_PLUGIN_REGISTRY = CLIENT_PLUGIN_REGISTRY + RUNTIME_PLUGIN_REGISTRY
+def _get_all_plugins() -> List[Dict[str, Any]]:
+    """Return combined static + runtime registries, re-reading runtime from disk."""
+    runtime = _load_runtime_plugin_registry()
+    combined = CLIENT_PLUGIN_REGISTRY + runtime
+    LOGGER.info(
+        "Plugin registries: %d static + %d runtime = %d total",
+        len(CLIENT_PLUGIN_REGISTRY), len(runtime), len(combined),
+    )
+    return combined
 
 
 def _convert_arg_to_schema(arg_name: str, arg_spec) -> Dict[str, Any]:
@@ -359,9 +366,10 @@ def render_mfe(
 
 def _validate_plugin_props(source: str, props: Dict) -> Optional[str]:
     """Validate props against a plugin's declared arg schema. Returns error string or None."""
-    plugin = next((p for p in CLIENT_PLUGIN_REGISTRY if p["source"] == source), None)
+    all_plugins = _get_all_plugins()
+    plugin = next((p for p in all_plugins if p["source"] == source), None)
     if not plugin:
-        available = [p["source"] for p in CLIENT_PLUGIN_REGISTRY]
+        available = [p["source"] for p in all_plugins]
         return f"Plugin '{source}' not found. Available: {available}"
 
     schema = plugin.get("args", {})
@@ -396,13 +404,18 @@ def render_client_plugin(
     declared arg schema before rendering.
     """
     safe_props = props or {}
+    all_plugins = _get_all_plugins()
+
+    LOGGER.info("render_client_plugin called: source=%s, props=%s", source, safe_props)
+
     validation_error = _validate_plugin_props(source, safe_props)
     if validation_error:
         return {"error": validation_error}
 
-    plugin = next((p for p in ALL_PLUGIN_REGISTRY if p["source"] == source), None)
+    plugin = next((p for p in all_plugins if p["source"] == source), None)
     if plugin is None:
-        available = [p["source"] for p in ALL_PLUGIN_REGISTRY]
+        available = [p["source"] for p in all_plugins]
+        LOGGER.warning("Plugin '%s' not found. Available: %s", source, available)
         return {"error": f"Plugin '{source}' not found. Available: {available}"}
 
     # Runtime MFE plugins: return Module Federation coordinates.
@@ -456,10 +469,12 @@ def register_runtime_plugin(
     The plugin is saved to the server-side registry and becomes immediately
     available via list_available_visualizations and render_client_plugin.
     """
-    global ALL_PLUGIN_REGISTRY, RUNTIME_PLUGIN_REGISTRY
+    LOGGER.info("register_runtime_plugin called: url=%s, scope=%s, module=%s, label=%s", url, scope, module, label)
 
+    all_plugins = _get_all_plugins()
     key = f"{scope}/{module}"
-    if any(f"{p.get('scope')}/{p.get('module')}" == key for p in ALL_PLUGIN_REGISTRY):
+    if any(f"{p.get('scope')}/{p.get('module')}" == key for p in all_plugins):
+        LOGGER.warning("Plugin %s already registered, skipping", key)
         return {"error": f"Plugin {key} is already registered."}
 
     entry = {
@@ -488,9 +503,7 @@ def register_runtime_plugin(
     with open(registry_path, "w") as f:
         json.dump(runtime, f, indent=2)
 
-    RUNTIME_PLUGIN_REGISTRY = runtime
-    ALL_PLUGIN_REGISTRY = CLIENT_PLUGIN_REGISTRY + RUNTIME_PLUGIN_REGISTRY
-
+    LOGGER.info("Registered plugin %s → %s (total runtime: %d)", key, label, len(runtime))
     return {"status": "registered", "plugin": entry}
 
 
@@ -560,7 +573,7 @@ def list_available_visualizations() -> Dict[str, Any]:
                 "args_schema": _convert_plugin_args_to_schema(plugin.get("args", {})),
                 "tool": "render_client_plugin",
             }
-            for plugin in ALL_PLUGIN_REGISTRY
+            for plugin in _get_all_plugins()
         ],
         "mfe": {
             "tool": "render_mfe",

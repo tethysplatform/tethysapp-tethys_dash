@@ -22,7 +22,7 @@ function VisualizationSelector({
   handleModalClose,
   setSelectVizTypeOption,
 }) {
-  const { visualizations } = useContext(AppContext);
+  const { visualizations, csrf } = useContext(AppContext);
   const [search, setSearch] = useState("");
   const [visualizationItems, setVisualizationItems] = useState(visualizations);
   const [sectionsOpened, setSectionsOpened] = useState([]);
@@ -155,7 +155,7 @@ function VisualizationSelector({
                   disabled={!registerFields.url || !registerFields.scope || !registerFields.module || !registerFields.label}
                   onClick={() => {
                     addPlugin(registerFields);
-                    syncToServer(document.querySelector("[name=csrfmiddlewaretoken]")?.value || "");
+                    syncToServer(csrf);
                     setRegisterFields({ url: "", scope: "", module: "", label: "", remoteType: "vite-esm", description: "", group: "Custom" });
                     setShowRegisterForm(false);
                     const runtime = getPlugins();

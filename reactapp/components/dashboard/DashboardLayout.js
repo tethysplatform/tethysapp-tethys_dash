@@ -28,8 +28,8 @@ const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 
 const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
-  const { unrestrictedPlacement } = useContext(LayoutContext);
-  const { updateTab } = useContext(TabContext);
+  const { unrestrictedPlacement, saveLayoutContext } = useContext(LayoutContext);
+  const { updateTab, tabs } = useContext(TabContext);
   const { isEditing } = useContext(EditingContext);
   const { disabledEditingMovement } = useContext(
     DisabledEditingMovementContext,
@@ -110,13 +110,24 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
         };
       });
 
-      updateTab(tabId, { gridItems: [...current, ...newGridItems] });
+      const updatedGridItems = [...current, ...newGridItems];
+      updateTab(tabId, { gridItems: updatedGridItems });
+
+      // Auto-save: persist dynamically created panels to the backend
+      if (saveLayoutContext) {
+        const updatedTabs = tabs.map((tab) =>
+          tab.id === tabId ? { ...tab, gridItems: updatedGridItems } : tab,
+        );
+        saveLayoutContext({ tabs: updatedTabs }).catch(() => {
+          // Save failed silently — user can manually save later
+        });
+      }
     }
 
     window.addEventListener("tethysdash:add-visualization", handleAddVisualization);
     return () =>
       window.removeEventListener("tethysdash:add-visualization", handleAddVisualization);
-  }, [tabId, updateTab]);
+  }, [tabId, updateTab, tabs, saveLayoutContext]);
 
   // Memoize layout from gridItems
   const layout = useMemo(
