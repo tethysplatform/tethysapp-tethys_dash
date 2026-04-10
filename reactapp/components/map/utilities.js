@@ -354,7 +354,12 @@ export async function queryLayerFeatures(layerInfo, map, coordinate, pixel) {
   } else {
     // make the appropriate request based on the source type
     if (sourceType === "ESRI Image and Map Service") {
-      features = await getESRILayerFeatures(sourceUrl, map, coordinate);
+      features = await getESRILayerFeatures(
+        sourceUrl,
+        sourceParams,
+        map,
+        coordinate,
+      );
     } else if (sourceType === "WMS") {
       features = await getImageWMSLayerFeatures(
         sourceUrl,
@@ -423,7 +428,7 @@ function getVectorTileLayerFeatures(map, pixel) {
   return features;
 }
 
-async function getESRILayerFeatures(sourceUrl, map, coordinate) {
+async function getESRILayerFeatures(sourceUrl, sourceParams, map, coordinate) {
   // setup fetch request with params
   const featureQueryUrl = sourceUrl + "/identify";
   const params = new URLSearchParams({
@@ -439,6 +444,11 @@ async function getESRILayerFeatures(sourceUrl, map, coordinate) {
       .getSize()
       .concat(map.getView().getResolution())
       .join(", "),
+    layers: sourceParams.LAYERS
+      ? sourceParams.LAYERS.startsWith("show:")
+        ? `visible:${sourceParams.LAYERS.slice(5)}`
+        : sourceParams.LAYERS
+      : "visible",
   });
 
   let featureQueryJson;
@@ -651,7 +661,10 @@ export async function getLayerAttributes(
   // make the appropriate request based on the source type
   // TODO: add PM Vector Tile and KML attribute retrieval
   if (sourceType === "ESRI Image and Map Service") {
-    attributes = await getImageArcGISRestLayerAttributes(sourceUrl);
+    attributes = await getImageArcGISRestLayerAttributes(
+      sourceUrl,
+      sourceParams,
+    );
   } else if (sourceType === "WMS") {
     attributes = await getImageWMSLayerAttributes(sourceUrl, sourceParams);
   } else if (sourceType === "GeoJSON") {
@@ -743,7 +756,7 @@ async function getKMLLayerAttributes(sourceUrl, layerName) {
   };
 }
 
-async function getImageArcGISRestLayerAttributes(sourceUrl) {
+async function getImageArcGISRestLayerAttributes(sourceUrl, sourceParams) {
   // setup fetch request with params
   const sourceURLParams = new URLSearchParams({
     f: "json",
@@ -754,25 +767,47 @@ async function getImageArcGISRestLayerAttributes(sourceUrl) {
   const sourceInfoResponse = await fetch(sourceInfoUrl);
   const sourceInfoJSON = await sourceInfoResponse.json();
 
-  // setup constants, get an array of layer names
+  // Filter layers based on sourceParams.LAYERS directive (show/hide/include/exclude)
   const sourceAttributes = {};
-  const layers = sourceInfoJSON.layers.map((layer) => layer.name);
+  const allLayers = sourceInfoJSON.layers;
+  let visibleLayers;
 
-  // for each layer, make a new request to get layer specific attributes
-  for (let layerIndex = 0; layerIndex < layers.length; layerIndex++) {
-    let layerName = layers[layerIndex];
+  if (sourceParams?.LAYERS) {
+    const [directive, ids] = sourceParams.LAYERS.split(":");
+    const layerIds = ids.split(",").map(Number);
 
+    if (directive === "show") {
+      visibleLayers = allLayers.filter((l) => layerIds.includes(l.id));
+    } else if (directive === "hide") {
+      visibleLayers = allLayers.filter((l) => !layerIds.includes(l.id));
+    } else if (directive === "include") {
+      visibleLayers = allLayers.filter(
+        (l) => l.defaultVisibility || layerIds.includes(l.id),
+      );
+    } else if (directive === "exclude") {
+      visibleLayers = allLayers.filter(
+        (l) => l.defaultVisibility && !layerIds.includes(l.id),
+      );
+    } else {
+      visibleLayers = allLayers.filter((l) => l.defaultVisibility);
+    }
+  } else {
+    visibleLayers = allLayers.filter((l) => l.defaultVisibility);
+  }
+
+  // for each visible layer, make a new request to get layer specific attributes
+  for (const layer of visibleLayers) {
     // Fetch data and parse json
-    let specificLayerInfoUrl = `${sourceUrl}/${layerIndex}?${sourceURLParams.toString()}`;
+    let specificLayerInfoUrl = `${sourceUrl}/${layer.id}?${sourceURLParams.toString()}`;
     let specificLayerInfoResponse = await fetch(specificLayerInfoUrl);
     let specificLayerInfoJson = await specificLayerInfoResponse.json();
 
     // loop through layer fields and append to sourceAttributes object
     let specificLayerFieds = [];
-    for (const field of specificLayerInfoJson.fields) {
+    for (const field of specificLayerInfoJson.fields ?? []) {
       specificLayerFieds.push({ name: field.name, alias: field.alias });
     }
-    sourceAttributes[layerName] = specificLayerFieds;
+    sourceAttributes[layer.name] = specificLayerFieds;
   }
 
   return sourceAttributes;
