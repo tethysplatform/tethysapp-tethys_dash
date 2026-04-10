@@ -48,6 +48,7 @@ valid_plugin_types = [
     "map",
     "map_layer",
     "custom",
+    "imageCollection",
 ]
 
 
@@ -122,7 +123,7 @@ class TethysDashPlugin(base.DataSource):
             )  # noqa: E501
 
         for kwarg_name, kwarg_value in kwargs.items():
-            arg_type = self.args[kwarg_name]
+            arg_type = self.args.get(kwarg_name)
             if arg_type == "date":
                 kwarg_value = parse(kwarg_value).replace(second=0, microsecond=0)
             setattr(self, kwarg_name, kwarg_value)

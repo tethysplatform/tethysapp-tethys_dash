@@ -226,6 +226,14 @@ export async function getVisualization({
         alt: itemData.source,
         imageError: metadata.customMessaging?.error,
       });
+    } else if (apiResponse.viz_type === "imageCollection") {
+      setVizType("imageCollection");
+      setVizData({
+        urls: responseData.urls,
+        title: responseData.title,
+        columns: responseData.columns,
+        imageError: metadata.customMessaging?.error,
+      });
     } else if (apiResponse.viz_type === "map") {
       setVizType("map");
       setVizData({

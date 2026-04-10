@@ -2,6 +2,7 @@ import PropTypes from "prop-types";
 import { useEffect, useState, memo, useRef, useContext, Fragment } from "react";
 import Image from "components/visualizations/Image";
 import ImageSequence from "components/visualizations/ImageSequence";
+import ImageCollection from "components/visualizations/ImageCollection";
 import Text from "components/visualizations/Text";
 import VariableInput from "components/visualizations/VariableInput";
 import MapVisualization from "components/visualizations/Map";
@@ -120,6 +121,16 @@ export const Visualization = memo(
             urls={vizData.urls}
             activeUrl={vizData.activeUrl}
             alt={vizData.alt}
+            imageError={vizData.imageError}
+            visualizationRef={vizRef}
+          />
+        );
+      case "imageCollection":
+        return (
+          <ImageCollection
+            urls={vizData.urls}
+            title={vizData.title}
+            columns={vizData.columns}
             imageError={vizData.imageError}
             visualizationRef={vizRef}
           />
