@@ -102,6 +102,10 @@ def _convert_arg_to_schema(arg_name: str, arg_spec) -> Dict[str, Any]:
         return {"type": "number"}
     if arg_spec == "checkbox":
         return {"type": "boolean", "default": False}
+    if arg_spec == "object":
+        return {"type": "object"}
+    if arg_spec == "array":
+        return {"type": "array"}
     if isinstance(arg_spec, dict):
         return arg_spec  # pass through rich declarations as-is
     return {"type": "string", "description": f"Input type: {arg_spec}"}
@@ -332,7 +336,7 @@ def create_map_visualization(
 def render_mfe(
     url: Annotated[str, Field(description="URL to the MFE's remoteEntry.js")],
     scope: Annotated[str, Field(description="Module Federation scope name")],
-    module: Annotated[str, Field(description="Module path (e.g., './ChartPanel')")],
+    module: Annotated[str, Field(description="Module path starting with './' (e.g., './ChartPanel')")],
     remote_type: Annotated[str, Field(description="Federation type: 'vite-esm' or 'webpack'")] = "vite-esm",
     props: Annotated[Optional[Dict[str, Any]], Field(description="Props to pass to the MFE component")] = None,
     w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
@@ -340,9 +344,13 @@ def render_mfe(
 ) -> Dict[str, Any]:
     """Render a custom Module Federation microfrontend component on the dashboard.
 
-    Use this for MFE components that have been imported/registered by the user.
-    The component is loaded at runtime via Module Federation.
+    IMPORTANT: Prefer render_client_plugin for any plugin listed in
+    list_available_visualizations. Only use render_mfe for ad-hoc MFEs
+    not in the registry.
     """
+    # Normalize module path — must start with './'
+    normalized_module = module if module.startswith("./") else f"./{module.lstrip('/')}"
+
     return {
         "visualization": {
             "source": "Client Custom",
@@ -350,7 +358,7 @@ def render_mfe(
             "args": {
                 "url": url,
                 "scope": scope,
-                "module": module,
+                "module": normalized_module,
                 "remoteType": remote_type,
                 "initialData": props or {},
             },
@@ -365,7 +373,15 @@ def render_mfe(
 # ---------------------------------------------------------------------------
 
 def _validate_plugin_props(source: str, props: Dict) -> Optional[str]:
-    """Validate props against a plugin's declared arg schema. Returns error string or None."""
+    """Validate props against a plugin's declared arg schema. Returns error string or None.
+
+    When schema is non-empty:
+    - Strips unknown props not in schema
+    - Validates types for known props
+    - Requires non-checkbox args
+
+    When schema is empty: accepts any props (backward compat).
+    """
     all_plugins = _get_all_plugins()
     plugin = next((p for p in all_plugins if p["source"] == source), None)
     if not plugin:
@@ -373,19 +389,60 @@ def _validate_plugin_props(source: str, props: Dict) -> Optional[str]:
         return f"Plugin '{source}' not found. Available: {available}"
 
     schema = plugin.get("args", {})
+
+    # Empty schema: permissive mode (backward compat)
+    if not schema:
+        return None
+
+    # Strip unknown props
+    unknown = [k for k in props if k not in schema]
+    if unknown:
+        LOGGER.warning(
+            "Stripping unknown props for '%s': %s (declared: %s)",
+            source, unknown, list(schema.keys()),
+        )
+        for k in unknown:
+            del props[k]
+
+    # Validate declared args
     for arg_name, arg_spec in schema.items():
         value = props.get(arg_name)
         if value is None:
-            continue  # missing args handled by required check below
+            continue
         if isinstance(arg_spec, list) and value not in arg_spec:
             return f"Invalid value '{value}' for '{arg_name}'. Must be one of: {arg_spec}"
+        if isinstance(arg_spec, dict):
+            # Rich schema: validate based on inner type field
+            inner_type = arg_spec.get("type")
+            if inner_type == "array" and not isinstance(value, list):
+                return f"'{arg_name}' must be an array, got: {type(value).__name__}"
+            if inner_type == "object" and not isinstance(value, dict):
+                return f"'{arg_name}' must be an object, got: {type(value).__name__}"
+            if inner_type == "string" and not isinstance(value, str):
+                return f"'{arg_name}' must be a string, got: {type(value).__name__}"
+            if inner_type == "number" and not isinstance(value, (int, float)):
+                return f"'{arg_name}' must be a number, got: {type(value).__name__}"
+            continue
         if arg_spec == "number" and not isinstance(value, (int, float)):
             return f"'{arg_name}' must be a number, got: {type(value).__name__}"
+        if arg_spec == "text" and not isinstance(value, str):
+            return f"'{arg_name}' must be a string, got: {type(value).__name__}"
+        if arg_spec == "object" and not isinstance(value, dict):
+            return f"'{arg_name}' must be an object, got: {type(value).__name__}"
+        if arg_spec == "array" and not isinstance(value, list):
+            return f"'{arg_name}' must be an array, got: {type(value).__name__}"
 
-    # All args are required unless type is "checkbox"
+    # Check required args — rich schemas can declare required: false
     for arg_name, arg_spec in schema.items():
-        if arg_spec != "checkbox" and arg_name not in props:
-            return f"Missing required arg: '{arg_name}'"
+        if arg_name in props:
+            continue
+        # Rich schema objects: check required field (default: true)
+        if isinstance(arg_spec, dict) and not arg_spec.get("required", True):
+            continue
+        # Simple type strings: checkbox is optional, everything else required
+        if arg_spec == "checkbox":
+            continue
+        return f"Missing required arg: '{arg_name}'"
 
     return None
 
@@ -397,11 +454,11 @@ def render_client_plugin(
     w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
     h: Annotated[int, Field(description="Grid height in row units")] = 30,
 ) -> Dict[str, Any]:
-    """Render an installed client plugin on the dashboard.
+    """Render a registered client plugin on the dashboard.
 
-    Call list_available_visualizations first to discover available plugins
-    and their argument schemas. Props are validated against the plugin's
-    declared arg schema before rendering.
+    ALWAYS use this tool (not render_mfe) for plugins listed in
+    list_available_visualizations. This tool reads the correct URL, scope,
+    module, and validates props against the plugin's declared arg schema.
     """
     safe_props = props or {}
     all_plugins = _get_all_plugins()

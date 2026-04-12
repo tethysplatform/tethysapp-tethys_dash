@@ -318,16 +318,12 @@ function Loader({ children }) {
           type: plugin.type || "client_custom_remote",
           tags: plugin.tags ?? [],
           description: plugin.description ?? "",
-          args: {
-            url: plugin.url,
-            scope: plugin.scope,
-            module: plugin.module,
-            remoteType: plugin.remoteType || "vite-esm",
-          },
+          args: plugin.args || {},
           module: plugin.module,
           scope: plugin.scope,
           url: plugin.url,
           remoteType: plugin.remoteType,
+          runtimePluginId: plugin.id,
         };
         const existingGroup = allVisualizations.find(
           (g) => g.label === (plugin.group || "Custom"),

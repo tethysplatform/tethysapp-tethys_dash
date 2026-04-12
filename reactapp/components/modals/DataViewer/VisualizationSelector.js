@@ -5,9 +5,10 @@ import styled from "styled-components";
 import { AppContext } from "components/contexts/Contexts";
 import VisualizationCard from "components/modals/DataViewer/VisualizationCard";
 import VisualizationGroup from "components/modals/DataViewer/VisualizationGroup";
-import { InputGroup, FormControl } from "react-bootstrap";
+import { InputGroup, FormControl, Button } from "react-bootstrap";
 import { BsSearch } from "react-icons/bs";
-import { addPlugin, getPlugins, syncToServer } from "services/pluginRegistry";
+import { addPlugin, getPlugins, removePlugin, syncToServer } from "services/pluginRegistry";
+import { fetchMfeMetadata } from "services/mfeMetadataLoader";
 import { BsPlus } from "react-icons/bs";
 import "components/modals/wideModal.css";
 
@@ -31,6 +32,53 @@ function VisualizationSelector({
     url: "", scope: "", module: "", label: "",
     remoteType: "vite-esm", description: "", group: "Custom",
   });
+  const [autoFilledArgs, setAutoFilledArgs] = useState([]);
+  const [loadingMeta, setLoadingMeta] = useState(false);
+  const [removeTarget, setRemoveTarget] = useState(null);
+
+  const handleRemovePlugin = () => {
+    if (!removeTarget) return;
+    removePlugin(removeTarget.id);
+    syncToServer(csrf);
+    setVisualizationItems((prev) =>
+      prev
+        .map((group) => ({
+          ...group,
+          options: group.options.filter(
+            (o) => o.runtimePluginId !== removeTarget.id,
+          ),
+        }))
+        .filter((group) => group.options.length > 0),
+    );
+    setRemoveTarget(null);
+  };
+
+  const tryAutoFill = async () => {
+    if (!registerFields.url || !registerFields.scope) return;
+    setLoadingMeta(true);
+    const meta = await fetchMfeMetadata({
+      url: registerFields.url,
+      scope: registerFields.scope,
+      remoteType: registerFields.remoteType || "vite-esm",
+    });
+    setLoadingMeta(false);
+    if (!meta) return;
+
+    setRegisterFields((f) => ({
+      ...f,
+      label: f.label || meta.label,
+      description: f.description || meta.description,
+    }));
+    if (meta.args && Object.keys(meta.args).length > 0) {
+      setAutoFilledArgs(
+        Object.entries(meta.args).map(([name, spec]) => ({
+          name,
+          type: Array.isArray(spec) ? "enum" : spec,
+          enumValues: Array.isArray(spec) ? spec.join(", ") : "",
+        })),
+      );
+    }
+  };
 
   const onSearch = (e) => {
     setSearch(e.target.value);
@@ -124,11 +172,32 @@ function VisualizationSelector({
                   value={registerFields.url}
                   onChange={(e) => setRegisterFields((f) => ({ ...f, url: e.target.value }))}
                 />
-                <FormControl
-                  placeholder="Scope *"
-                  value={registerFields.scope}
-                  onChange={(e) => setRegisterFields((f) => ({ ...f, scope: e.target.value }))}
-                />
+                <div style={{ display: "flex", gap: "4px" }}>
+                  <FormControl
+                    placeholder="Scope *"
+                    value={registerFields.scope}
+                    onChange={(e) => setRegisterFields((f) => ({ ...f, scope: e.target.value }))}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    disabled={!registerFields.url || !registerFields.scope || loadingMeta}
+                    onClick={tryAutoFill}
+                    style={{
+                      background: "#6c757d",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "6px",
+                      padding: "4px 10px",
+                      cursor: "pointer",
+                      fontSize: "0.75rem",
+                      whiteSpace: "nowrap",
+                      opacity: (!registerFields.url || !registerFields.scope || loadingMeta) ? 0.5 : 1,
+                    }}
+                  >
+                    {loadingMeta ? "..." : "Auto-fill"}
+                  </button>
+                </div>
                 <FormControl
                   placeholder="Module (e.g., ./MyPanel) *"
                   value={registerFields.module}
@@ -150,13 +219,29 @@ function VisualizationSelector({
                   onChange={(e) => setRegisterFields((f) => ({ ...f, group: e.target.value }))}
                 />
               </div>
+              {/* Args from ./meta auto-fill (read-only) */}
+              {autoFilledArgs.length > 0 && (
+                <div style={{ marginTop: "8px", fontSize: "0.8rem", color: "#666" }}>
+                  <strong>Args detected:</strong> {autoFilledArgs.map((a) => a.name).join(", ")}
+                </div>
+              )}
               <div style={{ marginTop: "12px", display: "flex", justifyContent: "flex-end" }}>
                 <button
                   disabled={!registerFields.url || !registerFields.scope || !registerFields.module || !registerFields.label}
                   onClick={() => {
-                    addPlugin(registerFields);
+                    const serializedArgs = {};
+                    for (const arg of autoFilledArgs) {
+                      if (!arg.name.trim()) continue;
+                      if (arg.type === "enum") {
+                        serializedArgs[arg.name.trim()] = arg.enumValues.split(",").map((v) => v.trim()).filter(Boolean);
+                      } else {
+                        serializedArgs[arg.name.trim()] = arg.type;
+                      }
+                    }
+                    addPlugin({ ...registerFields, args: serializedArgs });
                     syncToServer(csrf);
                     setRegisterFields({ url: "", scope: "", module: "", label: "", remoteType: "vite-esm", description: "", group: "Custom" });
+                    setAutoFilledArgs([]);
                     setShowRegisterForm(false);
                     const runtime = getPlugins();
                     const newEntry = runtime[runtime.length - 1];
@@ -168,11 +253,12 @@ function VisualizationSelector({
                         type: "client_custom_remote",
                         tags: newEntry.tags || [],
                         description: newEntry.description || "",
-                        args: { url: newEntry.url, scope: newEntry.scope, module: newEntry.module, remoteType: newEntry.remoteType },
+                        args: newEntry.args || {},
                         module: newEntry.module,
                         scope: newEntry.scope,
                         url: newEntry.url,
                         remoteType: newEntry.remoteType,
+                        runtimePluginId: newEntry.id,
                       };
                       setVisualizationItems((prev) => {
                         const grp = newEntry.group || "Custom";
@@ -212,12 +298,39 @@ function VisualizationSelector({
                     key={index}
                     onClick={() => handleOnClick(metadata)}
                     {...metadata}
+                    onRemove={
+                      metadata.runtimePluginId
+                        ? () => setRemoveTarget({ id: metadata.runtimePluginId, label: metadata.label })
+                        : undefined
+                    }
                   />
                 ))}
               </>
             </VisualizationGroup>
           ))}
         </StyledModalBody>
+      </Modal>
+      <Modal
+        show={!!removeTarget}
+        onHide={() => setRemoveTarget(null)}
+        centered
+        size="sm"
+      >
+        <Modal.Header closeButton>
+          <Modal.Title style={{ fontSize: "1rem" }}>Remove Plugin</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Remove <strong>{removeTarget?.label}</strong>? This will unregister the
+          plugin from your dashboard.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" size="sm" onClick={() => setRemoveTarget(null)}>
+            Cancel
+          </Button>
+          <Button variant="danger" size="sm" onClick={handleRemovePlugin}>
+            Remove
+          </Button>
+        </Modal.Footer>
       </Modal>
     </>
   );

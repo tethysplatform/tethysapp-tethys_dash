@@ -1,13 +1,13 @@
 [
   {
-    "id": "231c29bd-9a17-4d92-9022-2a727afcd124",
-    "source": "QUERIX",
+    "id": "6f56008e-a83c-41fe-a15a-51e6027c31c2",
+    "source": "querix",
     "url": "http://localhost:5001/assets/remoteEntry.js",
     "scope": "mfe_nrds_chatbox",
     "module": "./QueryPanel",
     "remoteType": "vite-esm",
-    "label": "QUERIX",
-    "description": "Query table panel",
+    "label": "querix",
+    "description": "",
     "group": "Custom",
     "tags": [],
     "dataKey": "",
