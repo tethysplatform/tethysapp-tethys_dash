@@ -24,9 +24,11 @@ from pydantic import Field
 from fastmcp import FastMCP
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
+import requests as http_requests
 
 mcp = FastMCP("TethysDash MCP Server")
 LOGGER = logging.getLogger("tethysdash.mcp")
+TETHYSDASH_BASE_URL = os.getenv("TETHYSDASH_BASE_URL", "http://localhost:8080/apps/tethysdash")
 
 CORS_MIDDLEWARE = [
     Middleware(
@@ -322,6 +324,107 @@ def create_map_visualization(
                 "mapConfig": {"style": {"width": "100%", "height": "100%"}},
                 "mapDrawing": map_drawing,
             },
+            "w": w,
+            "h": h,
+        }
+    }
+
+
+# ---------------------------------------------------------------------------
+# Variable input + intake plugin tools
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def create_variable_input(
+    variable_name: Annotated[str, Field(description="Variable name used in ${...} references by other visualizations")],
+    variable_type: Annotated[str, Field(description="Input type: 'text', 'number', 'checkbox', 'date', or 'slider'")] = "text",
+    initial_value: Annotated[str, Field(description="Default value for the variable input")] = "",
+    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 20,
+    h: Annotated[int, Field(description="Grid height in row units")] = 5,
+) -> Dict[str, Any]:
+    """Create a variable input on the dashboard.
+
+    Variable inputs are interactive controls (text fields, dropdowns, sliders)
+    that other visualizations can reference using ${variable_name} syntax.
+    When the user changes the input, all linked visualizations auto-refresh.
+
+    Example: create_variable_input(variable_name="gauge_id", variable_type="text", initial_value="XSGEW")
+    Then use render_intake_plugin(source="my_plugin", args={"gauge_id": "${gauge_id}"})
+    """
+    valid_types = ["text", "number", "checkbox", "date", "slider"]
+    if variable_type not in valid_types:
+        return {"error": f"Invalid variable_type '{variable_type}'. Must be one of: {valid_types}"}
+
+    LOGGER.info("create_variable_input: name=%s, type=%s, initial=%s", variable_name, variable_type, initial_value)
+
+    return {
+        "visualization": {
+            "source": "Variable Input",
+            "vizType": "variableInput",
+            "args": {
+                "variable_name": variable_name,
+                "variable_options_source": variable_type,
+                "initial_value": initial_value,
+            },
+            "w": w,
+            "h": h,
+        }
+    }
+
+
+@mcp.tool()
+def list_intake_plugins() -> Dict[str, Any]:
+    """List all installed Python intake-driver plugins available in TethysDash.
+
+    Returns plugin names, types, argument schemas, groups, and descriptions.
+    Use this to discover what backend plugins are available before calling
+    render_intake_plugin.
+
+    Note: Requires the TethysDash Django server to be running.
+    """
+    try:
+        response = http_requests.get(
+            f"{TETHYSDASH_BASE_URL}/visualizations/list/",
+            timeout=10,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        LOGGER.info("list_intake_plugins: fetched %d groups from Django API", len(data) if isinstance(data, list) else 1)
+
+        return {"intake_plugins": data}
+    except http_requests.RequestException as e:
+        LOGGER.error("Failed to fetch intake plugins from Django: %s", e)
+        return {"error": f"Failed to fetch intake plugins from TethysDash: {e}"}
+
+
+@mcp.tool()
+def render_intake_plugin(
+    source: Annotated[str, Field(description="Intake plugin source name from list_intake_plugins (e.g., 'time_series_maker')")],
+    args: Annotated[Dict[str, Any], Field(description="Plugin arguments. Use ${variable_name} syntax to reference dashboard variable inputs. Example: {\"gauge_id\": \"${my_gauge}\"}")],
+    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
+    h: Annotated[int, Field(description="Grid height in row units")] = 25,
+) -> Dict[str, Any]:
+    """Create a visualization using a Python intake-driver plugin.
+
+    The visualization calls the TethysDash backend API with the given args.
+    Args can reference variable inputs using ${variable_name} syntax —
+    when the referenced variable changes, the visualization auto-refreshes.
+
+    Call list_intake_plugins first to see available plugins and their args.
+
+    Example: render_intake_plugin(
+        source="time_series_maker",
+        args={"gauge_id": "${gauge_id}", "start_date": "2024-01-01"}
+    )
+    """
+    LOGGER.info("render_intake_plugin: source=%s, args=%s", source, args)
+
+    return {
+        "visualization": {
+            "source": source,
+            "vizType": "intake_plugin",
+            "args": args,
             "w": w,
             "h": h,
         }
@@ -635,6 +738,14 @@ def list_available_visualizations() -> Dict[str, Any]:
         "mfe": {
             "tool": "render_mfe",
             "description": "Render any Module Federation component by providing url, scope, and module",
+        },
+        "variable_inputs": {
+            "tool": "create_variable_input",
+            "description": "Create interactive variable inputs (text, number, date, slider, checkbox). Other visualizations reference them with ${variable_name} syntax.",
+        },
+        "intake_plugins": {
+            "tool": "list_intake_plugins",
+            "description": "Python backend plugins installed via intake. Call list_intake_plugins to discover available plugins and their args, then use render_intake_plugin to create visualizations.",
         },
     }
 
