@@ -426,9 +426,8 @@ def create_variable_input(
     Variable inputs are interactive controls (text fields, dropdowns, sliders)
     that other visualizations can reference using ${variable_name} syntax.
     When the user changes the input, all linked visualizations auto-refresh.
-
-    Example: create_variable_input(variable_name="gauge_id", variable_type="text", initial_value="XSGEW")
-    Then use render_plugin(source="my_plugin", args={"gauge_id": "${gauge_id}"})
+    To link a plugin to this variable, call list_intake_plugins to get the source name,
+    then render_plugin with args referencing ${variable_name}.
     """
     valid_types = ["text", "number", "checkbox", "date", "slider"]
     if variable_type not in valid_types:
@@ -493,27 +492,19 @@ def list_intake_plugins() -> Dict[str, Any]:
     tags=["dashboard", "plugin"],
 )
 def render_plugin(
-    source: Annotated[str, Field(description="Intake driver name from the 'source' field in list_intake_plugins results. This is the Python driver name (e.g., 'nwmps'), NOT the display label (e.g., 'NWMP Gauges Time Series'). Using the label will cause a 'not installed' error.")],
+    source: Annotated[str, Field(description="Intake driver name from the 'source' field in list_intake_plugins results. Always call list_intake_plugins first to get the exact source name. Do NOT guess or invent source names — using a wrong name causes a 'not installed' error.")],
     args: Annotated[Dict[str, Any], Field(description="Plugin arguments. Use ${variable_name} syntax to reference dashboard variable inputs. Example: {\"gauge_id\": \"${my_gauge}\"}")],
     w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
     h: Annotated[int, Field(description="Grid height in row units")] = 25,
 ) -> Dict[str, Any]:
     """Create a visualization using a Python intake-driver plugin.
 
-    IMPORTANT: The source parameter must be the intake driver name from the
-    'source' field in list_intake_plugins results, NOT the display label.
-    Using the label will cause a 'Visualization is not installed' error.
+    IMPORTANT: Always call list_intake_plugins first to get the exact source name.
+    The source parameter must match the 'source' field from list_intake_plugins results.
+    Using a wrong or guessed name causes a 'Visualization is not installed' error.
 
-    The visualization calls the TethysDash backend API with the given args.
     Args can reference variable inputs using ${variable_name} syntax —
     when the referenced variable changes, the visualization auto-refreshes.
-
-    Call list_intake_plugins first to discover available plugins.
-
-    Example: render_plugin(
-        source="nwmps",  # Use 'source' field, not 'label'
-        args={"id": "${gauge_id}"}
-    )
     """
     LOGGER.info("render_plugin: source=%s, args=%s", source, args)
 
