@@ -19,6 +19,7 @@ import {
   userDashboard,
   mockedMapBase,
   mockedLiveChatBase,
+  mockedImageCollectionBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization, {
   Visualization,
@@ -1595,9 +1596,7 @@ it("ImageSequence fast-path updates activeUrl without calling getVisualization",
   const baseContexts = (variableInputValues) => (
     <AppContext.Provider value={{ visualizations: [] }}>
       <EditingContext.Provider value={{ isEditing: false }}>
-        <WebsocketContext.Provider
-          value={{ getMessageForRequest: () => null }}
-        >
+        <WebsocketContext.Provider value={{ getMessageForRequest: () => null }}>
           <VariableInputsContext.Provider
             value={{
               variableInputValues,
@@ -1665,6 +1664,30 @@ it("ImageSequence fast-path updates activeUrl without calling getVisualization",
   });
 
   spyGetVisualization.mockRestore();
+});
+
+it("renders ImageCollection", () => {
+  const urls = [
+    "https://example.com/img1.gif",
+    "https://example.com/img2.gif",
+    "https://example.com/img3.gif",
+  ];
+  render(
+    <Visualization
+      vizType="imageCollection"
+      vizData={{
+        urls,
+        title: "Example Image Collection",
+        columns: 2,
+        imageError: "Failed",
+      }}
+      vizMetadata={{}}
+    />,
+  );
+
+  expect(screen.getByText("Example Image Collection")).toBeInTheDocument();
+  const images = screen.getAllByRole("img");
+  expect(images).toHaveLength(3);
 });
 
 describe("compareFilteredArgs function", () => {

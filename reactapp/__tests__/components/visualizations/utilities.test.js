@@ -638,6 +638,53 @@ test("getVisualization Live Chat", async () => {
   });
 });
 
+test("getVisualization imageCollection", async () => {
+  const imageCollectionData = {
+    title: "Image Collection",
+    urls: ["https://example.com/image1.png", "https://example.com/image2.png"],
+    columns: 2,
+  };
+  server.use(
+    rest.get(
+      "http://api.test/apps/tethysdash/visualizations/get/",
+      (req, res, ctx) => {
+        return res(
+          ctx.status(200),
+          ctx.json({
+            success: true,
+            viz_type: "imageCollection",
+            data: imageCollectionData,
+          }),
+          ctx.set("Content-Type", "application/json"),
+        );
+      },
+    ),
+  );
+
+  const mockSetVizType = jest.fn();
+  const mockSetVizData = jest.fn();
+  const visualizationRef = jest.fn();
+  await getVisualization({
+    setVizType: mockSetVizType,
+    setVizData: mockSetVizData,
+    sourceType: "imageCollection",
+    itemData: {},
+    visualizationRef,
+    metadataString: "{}",
+    argsString: "{}",
+    variableInputValues: [],
+  });
+
+  expect(mockSetVizType.mock.calls[0][0]).toBe("loader");
+  expect(mockSetVizType.mock.calls[1][0]).toBe("imageCollection");
+  expect(mockSetVizData.mock.calls[0][0]).toStrictEqual({
+    title: "Image Collection",
+    urls: ["https://example.com/image1.png", "https://example.com/image2.png"],
+    columns: 2,
+    imageError: undefined,
+  });
+});
+
 test("getGridItem", async () => {
   const gridItems = [
     { i: 1, data: "1" },
@@ -955,7 +1002,9 @@ test("getVisualization Custom Image with slider metadata returns imageSequence",
     },
     metadataString: JSON.stringify({ refreshRate: 0 }),
     // eslint-disable-next-line
-    argsString: JSON.stringify({ image_source: "https://example.com/${Slider}.gif" }),
+    argsString: JSON.stringify({
+      image_source: "https://example.com/${Slider}.gif",
+    }),
     variableInputValues: { Slider: "frame2" },
     variableInputSliderMeta: {
       Slider: { values: ["frame1", "frame2", "frame3"] },
@@ -992,7 +1041,9 @@ test("getVisualization Custom Image with slider metadata and custom error messag
       customMessaging: { error: "Image not available" },
     }),
     // eslint-disable-next-line
-    argsString: JSON.stringify({ image_source: "https://example.com/${Slider}.gif" }),
+    argsString: JSON.stringify({
+      image_source: "https://example.com/${Slider}.gif",
+    }),
     variableInputValues: { Slider: "frame1" },
     variableInputSliderMeta: {
       Slider: { values: ["frame1", "frame2"] },
@@ -1021,7 +1072,9 @@ test("getVisualization Custom Image without slider metadata falls back to image"
     },
     metadataString: JSON.stringify({ refreshRate: 0 }),
     // eslint-disable-next-line
-    argsString: JSON.stringify({ image_source: "https://example.com/${Dropdown}.gif" }),
+    argsString: JSON.stringify({
+      image_source: "https://example.com/${Dropdown}.gif",
+    }),
     variableInputValues: { Dropdown: "frame1" },
     // Dropdown has no slider metadata — should fall through to regular image
     variableInputSliderMeta: {},
@@ -1079,7 +1132,9 @@ test("getVisualization Custom Image with empty slider values falls back to image
     },
     metadataString: JSON.stringify({ refreshRate: 0 }),
     // eslint-disable-next-line
-    argsString: JSON.stringify({ image_source: "https://example.com/${Slider}.gif" }),
+    argsString: JSON.stringify({
+      image_source: "https://example.com/${Slider}.gif",
+    }),
     variableInputValues: { Slider: "current" },
     // Slider metadata exists but values array is empty
     variableInputSliderMeta: {

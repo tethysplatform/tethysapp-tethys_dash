@@ -776,6 +776,146 @@ test("queryLayerFeatures ImageArcGISRest", async () => {
     mapExtent: "1,2,3,4",
     returnFieldName: true,
     imageDisplay: "100, 200, 500",
+    layers: "visible",
+  });
+  const featureQueryUrl =
+    layerConfigImageArcGISRest.configuration.props.source.props.url +
+    "/identify";
+  expect(global.fetch).toHaveBeenCalledWith(
+    `${featureQueryUrl}?${params.toString()}`,
+  );
+  expect(features).toStrictEqual(mockArgisResults);
+
+  global.fetch.mockRestore?.();
+});
+
+test("queryLayerFeatures ImageArcGISRest, show layer", async () => {
+  const mockArgisResults = [
+    {
+      layerId: 0,
+      layerName: "Max Status - Forecast Trend",
+      displayFieldName: "Name",
+      value: "Philadelphia",
+      attributes: {
+        nws_name: "Philadelphia",
+        producer: "LMRFC",
+        issuer: "JAN",
+        "NWS LID": "PLAM6",
+        "USGS Site Code": "02481880",
+        "USGS Name": "PEARL RIVER AT BURNSIDE, MS",
+        "NWM Feature ID": "15785080",
+        "Forecast/Threshold Unit": "FT",
+        "Threshold - Record": "23.6",
+        "Threshold - Major": "23",
+        "Threshold - Moderate": "16",
+        "Threshold - Minor": "13",
+        "Threshold - Action": "12",
+        "Forecast Issue Time": "2025-02-05 14:32:00 UTC",
+        "Forecast Generation Time": "2025-02-05 14:39:34 UTC",
+        "Forecast Initial Value": "12.4",
+        "Forecast Initial Status": "action",
+        "Forecast Initial Value Timestep": "2025-02-06 00:00:00 UTC",
+        "Forecast Min Value": "12.1",
+        "Forecast Min Status": "action",
+        "Forecast Min Value Timestep": "2025-02-10 06:00:00 UTC",
+        "Forecast Initial Flood Value": "12.4",
+        "Forecast Initial Flood Status": "action",
+        "Forecast Initial Flood Value Timestep": "2025-02-06 00:00:00 UTC",
+        "Forecast Max Value": "12.4",
+        "Forecast Max Status": "action",
+        "Forecast Max Value Timestep": "2025-02-06 00:00:00 UTC",
+        "Forecast Trend": "constant",
+        "Record Forecast": "false",
+        geom: "Point",
+        "Hydrograph Link":
+          "https://water.noaa.gov/resources/hydrographs/plam6_hg.png",
+        "HEFS Link":
+          "https://water.noaa.gov/resources/probabilistic/short_term/PLAM6.shortrange.hefs.png",
+        "Update Time": "2025-02-05 21:25:18 UTC",
+        oid: "51",
+      },
+      geometryType: "esriGeometryPoint",
+      geometry: {
+        x: -9918321.7268,
+        y: 3874271.337899998,
+        spatialReference: {
+          wkid: 102100,
+          latestWkid: 3857,
+        },
+      },
+    },
+  ];
+
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: () =>
+        Promise.resolve({
+          results: mockArgisResults,
+        }),
+    }),
+  );
+
+  const mockMap = {
+    getSize: jest.fn(() => [100, 200]),
+    getView: jest.fn(() => ({
+      calculateExtent: jest.fn(() => [1, 2, 3, 4]),
+      getResolution: jest.fn(() => 500),
+      getProjection: jest.fn(() => ({
+        getCode: jest.fn(() => "EPSG:4326"),
+      })),
+      getZoom: jest.fn(() => 10),
+    })),
+    forEachFeatureAtPixel: jest.fn((pixel, callback) => {
+      // Simulate features found at the given pixel
+      const mockFeature = {
+        getId: () => "feature-123",
+        getProperties: () => ({
+          geometry: {
+            getType: jest.fn(() => "LineString"),
+            getCoordinates: jest.fn(() => [
+              [0, 0],
+              [0, 1],
+            ]),
+          },
+        }),
+      }; // Mocked feature object
+      const mockLayer = {
+        get: jest.fn(() => "ImageArcGISRest Layer"),
+        getProperties: () => ({
+          name: "ImageArcGISRest Layer",
+        }),
+      };
+      callback(mockFeature, mockLayer); // Call the callback with the mock feature
+    }),
+  };
+  const coordinate = [0, 0];
+  const pixel = [639, 366];
+
+  const copiedLayerConfig = JSON.parse(
+    JSON.stringify(layerConfigImageArcGISRest),
+  );
+  copiedLayerConfig.configuration.props.source.props.params = {
+    LAYERS: "show:0,2",
+  };
+
+  const features = await queryLayerFeatures(
+    copiedLayerConfig,
+    mockMap,
+    coordinate,
+    pixel,
+  );
+
+  const params = new URLSearchParams({
+    f: "json",
+    tolerance: 10, // Pixel tolerance
+    returnGeometry: true,
+    geometryType: "esriGeometryPoint",
+    sr: "4326",
+    geometry: "0,0",
+    mapExtent: "1,2,3,4",
+    returnFieldName: true,
+    imageDisplay: "100, 200, 500",
+    layers: "visible:0,2",
   });
   const featureQueryUrl =
     layerConfigImageArcGISRest.configuration.props.source.props.url +
@@ -846,6 +986,7 @@ test("queryLayerFeatures ImageArcGISRest Bad Request", async () => {
     mapExtent: "1,2,3,4",
     returnFieldName: true,
     imageDisplay: "100, 200, 500",
+    layers: "visible",
   });
   const featureQueryUrl =
     layerConfigImageArcGISRest.configuration.props.source.props.url +
@@ -1390,6 +1531,437 @@ test("getLayerAttributes ImageArcGISRest", async () => {
       { name: "nws_name", alias: "Name" },
       { name: "producer", alias: "RFC" },
     ],
+  });
+});
+
+test("getLayerAttributes ImageArcGISRest, param layers show", async () => {
+  const mockServiceResults = {
+    layers: [
+      {
+        id: 0,
+        name: "Max Status - Forecast Trend",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 1,
+        name: "Max Status - Forecast Trend (1)",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 2,
+        name: "Max Status - Forecast Trend (2)",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+    ],
+  };
+
+  const mockLayerResults = {
+    fields: [
+      {
+        name: "nws_name",
+        type: "esriFieldTypeString",
+        alias: "Name",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockLayerResults3 = {
+    fields: [
+      {
+        name: "nws_name3",
+        type: "esriFieldTypeString",
+        alias: "Name3",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    }),
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults3);
+
+  const sourceProps = layerConfigImageArcGISRest.configuration.props.source;
+  const layerName = layerConfigImageArcGISRest.configuration.props.name;
+
+  sourceProps.props.params = {
+    LAYERS: "show:0,2",
+  };
+
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "Max Status - Forecast Trend": [{ name: "nws_name", alias: "Name" }],
+    "Max Status - Forecast Trend (2)": [{ name: "nws_name3", alias: "Name3" }],
+  });
+});
+
+test("getLayerAttributes ImageArcGISRest, param layers hide", async () => {
+  const mockServiceResults = {
+    layers: [
+      {
+        id: 0,
+        name: "Max Status - Forecast Trend",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 1,
+        name: "Max Status - Forecast Trend (1)",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 2,
+        name: "Max Status - Forecast Trend (2)",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+    ],
+  };
+
+  const mockLayerResults = {
+    fields: [
+      {
+        name: "nws_name2",
+        type: "esriFieldTypeString",
+        alias: "Name2",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    }),
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults);
+
+  const sourceProps = layerConfigImageArcGISRest.configuration.props.source;
+  const layerName = layerConfigImageArcGISRest.configuration.props.name;
+
+  sourceProps.props.params = {
+    LAYERS: "hide:0,2",
+  };
+
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "Max Status - Forecast Trend (1)": [{ name: "nws_name2", alias: "Name2" }],
+  });
+});
+
+test("getLayerAttributes ImageArcGISRest, param layers include", async () => {
+  const mockServiceResults = {
+    layers: [
+      {
+        id: 0,
+        name: "Max Status - Forecast Trend",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 1,
+        name: "Max Status - Forecast Trend (1)",
+        parentLayerId: -1,
+        defaultVisibility: false,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 2,
+        name: "Max Status - Forecast Trend (2)",
+        parentLayerId: -1,
+        defaultVisibility: false,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+    ],
+  };
+
+  const mockLayerResults = {
+    fields: [
+      {
+        name: "nws_name",
+        type: "esriFieldTypeString",
+        alias: "Name",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockLayerResults3 = {
+    fields: [
+      {
+        name: "nws_name3",
+        type: "esriFieldTypeString",
+        alias: "Name3",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    }),
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults3);
+
+  const sourceProps = layerConfigImageArcGISRest.configuration.props.source;
+  const layerName = layerConfigImageArcGISRest.configuration.props.name;
+
+  sourceProps.props.params = {
+    LAYERS: "include:2",
+  };
+
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "Max Status - Forecast Trend": [{ name: "nws_name", alias: "Name" }],
+    "Max Status - Forecast Trend (2)": [{ name: "nws_name3", alias: "Name3" }],
+  });
+});
+
+test("getLayerAttributes ImageArcGISRest, param layers exclude", async () => {
+  const mockServiceResults = {
+    layers: [
+      {
+        id: 0,
+        name: "Max Status - Forecast Trend",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 1,
+        name: "Max Status - Forecast Trend (1)",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 2,
+        name: "Max Status - Forecast Trend (2)",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+    ],
+  };
+
+  const mockLayerResults = {
+    fields: [
+      {
+        name: "nws_name",
+        type: "esriFieldTypeString",
+        alias: "Name",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockLayerResults3 = {
+    fields: [
+      {
+        name: "nws_name3",
+        type: "esriFieldTypeString",
+        alias: "Name3",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    }),
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults3);
+
+  const sourceProps = layerConfigImageArcGISRest.configuration.props.source;
+  const layerName = layerConfigImageArcGISRest.configuration.props.name;
+
+  sourceProps.props.params = {
+    LAYERS: "exclude:1",
+  };
+
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "Max Status - Forecast Trend": [{ name: "nws_name", alias: "Name" }],
+    "Max Status - Forecast Trend (2)": [{ name: "nws_name3", alias: "Name3" }],
+  });
+});
+
+test("getLayerAttributes ImageArcGISRest, param layers nonsense, missing fields", async () => {
+  const mockServiceResults = {
+    layers: [
+      {
+        id: 0,
+        name: "Max Status - Forecast Trend",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 1,
+        name: "Max Status - Forecast Trend (1)",
+        parentLayerId: -1,
+        defaultVisibility: false,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+      {
+        id: 2,
+        name: "Max Status - Forecast Trend (2)",
+        parentLayerId: -1,
+        defaultVisibility: true,
+        subLayerIds: null,
+        minScale: 0,
+        maxScale: 0,
+        type: "Feature Layer",
+        geometryType: "esriGeometryPoint",
+        supportsDynamicLegends: true,
+      },
+    ],
+  };
+
+  const mockLayerResults = {};
+
+  const mockLayerResults3 = {
+    fields: [
+      {
+        name: "nws_name3",
+        type: "esriFieldTypeString",
+        alias: "Name3",
+        length: 60000,
+        domain: null,
+      },
+    ],
+  };
+
+  const mockFetch = jest.fn();
+  global.fetch = jest.fn(() =>
+    Promise.resolve({
+      json: mockFetch,
+    }),
+  );
+  mockFetch.mockResolvedValueOnce(mockServiceResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults);
+  mockFetch.mockResolvedValueOnce(mockLayerResults3);
+
+  const sourceProps = layerConfigImageArcGISRest.configuration.props.source;
+  const layerName = layerConfigImageArcGISRest.configuration.props.name;
+
+  sourceProps.props.params = {
+    LAYERS: "nonsense:1",
+  };
+
+  const attributes = await getLayerAttributes(sourceProps, layerName);
+
+  expect(attributes).toStrictEqual({
+    "Max Status - Forecast Trend": [],
+    "Max Status - Forecast Trend (2)": [{ name: "nws_name3", alias: "Name3" }],
   });
 });
 

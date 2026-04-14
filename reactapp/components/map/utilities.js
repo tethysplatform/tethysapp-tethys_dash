@@ -444,10 +444,8 @@ async function getESRILayerFeatures(sourceUrl, sourceParams, map, coordinate) {
       .getSize()
       .concat(map.getView().getResolution())
       .join(", "),
-    layers: sourceParams.LAYERS
-      ? sourceParams.LAYERS.startsWith("show:")
-        ? `visible:${sourceParams.LAYERS.slice(5)}`
-        : sourceParams.LAYERS
+    layers: sourceParams?.LAYERS?.startsWith("show:")
+      ? `visible:${sourceParams.LAYERS.slice(5)}`
       : "visible",
   });
 

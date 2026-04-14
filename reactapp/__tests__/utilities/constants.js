@@ -933,6 +933,25 @@ export const mockedCustomImageBase = {
   }),
 };
 
+export const mockedImageCollectionBase = {
+  id: 1,
+  uuid: "some-uuid-1",
+  i: "1",
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Image Collection",
+  args_string: JSON.stringify({
+    urls: ["/some_url1.png", "/some_url2.png", "/some_url3.png"],
+    title: "Some Title",
+    columns: 2,
+  }),
+  metadata_string: JSON.stringify({
+    refreshRate: 0,
+  }),
+};
+
 export const mockedTextBase = {
   id: 1,
   uuid: "some-uuid-1",
