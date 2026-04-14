@@ -80,7 +80,7 @@ function ChatSidebar() {
   );
 
   // Sidebar renders even without chatboxConfig — users add MCP servers via the panel.
-  // ollamaHost is optional (model discovery still works via default localhost).
+  // LLM provider config is managed via localStorage (LLMProviderPanel in chatbox).
   return (
     <Wrapper $isOpen={isOpen}>
       <Header>
@@ -91,7 +91,6 @@ function ChatSidebar() {
       </Header>
       <Content>
         <Chatbox
-          ollamaHost={chatboxConfig?.ollamaHost || undefined}
           csrfToken={csrf}
           variableInputValues={memoizedVariableInputValues}
           updateVariableInputValues={updateVariableInputValues}

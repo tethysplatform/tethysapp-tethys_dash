@@ -95,7 +95,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
         0,
       );
       const newGridItems = newPanels.map((panel, idx) => {
-        const pos = positions[idx] || { x: 0, y: Infinity, w: 50, h: 20 };
+        const pos = positions[idx] || { x: 0, y: 0, w: 50, h: 20 };
         return {
           x: pos.x,
           y: pos.y,
@@ -150,6 +150,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       const result = gridItems.find((obj) => {
         return obj.i === lay.i;
       });
+      if (!result) continue;
 
       updatedGridItems.push({
         args_string: result.args_string,
@@ -173,6 +174,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       const result = gridItemsUpdated.current.find((obj) => {
         return obj.i === layoutItem.i;
       });
+      if (!result) return;
       const metadata = JSON.parse(result.metadata_string);
       const enforceAspectRatio = metadata.enforceAspectRatio;
       if (enforceAspectRatio) {

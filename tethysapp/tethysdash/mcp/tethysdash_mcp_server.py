@@ -22,13 +22,64 @@ from typing import Optional, Dict, Any, List
 from typing_extensions import Annotated
 from pydantic import Field
 from fastmcp import FastMCP
+from fastmcp.server.transforms.search import BM25SearchTransform
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import Response as StarletteResponse
 import requests as http_requests
 
-mcp = FastMCP("TethysDash MCP Server")
+mcp = FastMCP(
+    "TethysDash MCP Server",
+    transforms=[
+        BM25SearchTransform(
+            max_results=5,
+            always_visible=[
+                "create_plotly_chart",
+                "create_data_table",
+                "create_variable_input",
+                "render_plugin",
+                "render_custom_visualization",
+                "list_available_visualizations",
+                "list_intake_plugins",
+            ],
+        ),
+    ],
+)
 LOGGER = logging.getLogger("tethysdash.mcp")
 TETHYSDASH_BASE_URL = os.getenv("TETHYSDASH_BASE_URL", "http://localhost:8080/apps/tethysdash")
+
+
+def _patch_sse_transport_for_cors():
+    """Monkey-patch SseServerTransport.handle_post_message to handle OPTIONS.
+
+    MCP SDK v1.26+ validates Content-Type on all requests routed to
+    handle_post_message, including CORS preflight OPTIONS (which have no
+    Content-Type). This patch intercepts OPTIONS and returns 200 with
+    CORS headers before the SDK's validation runs.
+    """
+    from mcp.server.sse import SseServerTransport
+
+    original_handle = SseServerTransport.handle_post_message
+
+    async def patched_handle(self, scope, receive, send):
+        if scope.get("method") == "OPTIONS":
+            origin = dict(scope.get("headers", [])).get(b"origin", b"").decode()
+            headers = {
+                "access-control-allow-origin": origin or "*",
+                "access-control-allow-methods": "GET, POST, OPTIONS",
+                "access-control-allow-headers": "content-type, x-csrftoken, authorization",
+                "access-control-allow-credentials": "true",
+                "access-control-max-age": "86400",
+            }
+            response = StarletteResponse(status_code=200, headers=headers)
+            await response(scope, receive, send)
+            return
+        await original_handle(self, scope, receive, send)
+
+    SseServerTransport.handle_post_message = patched_handle
+
+_patch_sse_transport_for_cors()
+
 
 CORS_MIDDLEWARE = [
     Middleware(
@@ -36,7 +87,7 @@ CORS_MIDDLEWARE = [
         allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
-    )
+    ),
 ]
 
 # ---------------------------------------------------------------------------
@@ -122,7 +173,11 @@ def _convert_plugin_args_to_schema(args: Dict) -> Dict[str, Any]:
 # Built-in visualization tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(
+    name="create_plotly_chart",
+    description="Create an interactive Plotly chart on the dashboard",
+    tags=["visualization", "chart"],
+)
 def create_plotly_chart(
     data: Annotated[List[Dict[str, Any]], Field(description="Plotly trace objects. Each dict should have 'x', 'y', and optionally 'type', 'name', 'mode', etc.")],
     layout: Annotated[Optional[Dict[str, Any]], Field(description="Plotly layout object with title, axis labels, etc.")] = None,
@@ -157,7 +212,11 @@ def create_plotly_chart(
     }
 
 
-@mcp.tool()
+@mcp.tool(
+    name="create_data_table",
+    description="Create a data table on the dashboard",
+    tags=["visualization", "table"],
+)
 def create_data_table(
     data: Annotated[List[Dict[str, Any]], Field(description="Array of row objects, e.g. [{'col1': 'val1', 'col2': 'val2'}, ...]")],
     title: Annotated[Optional[str], Field(description="Table title")] = None,
@@ -184,7 +243,11 @@ def create_data_table(
     }
 
 
-@mcp.tool()
+@mcp.tool(
+    name="create_card",
+    description="Create a card with title, description, and value on the dashboard",
+    tags=["visualization", "card"],
+)
 def create_card(
     title: Annotated[str, Field(description="Card title")],
     description: Annotated[Optional[str], Field(description="Card description text")] = None,
@@ -212,7 +275,11 @@ def create_card(
     }
 
 
-@mcp.tool()
+@mcp.tool(
+    name="create_text",
+    description="Create a text content block on the dashboard",
+    tags=["visualization", "text"],
+)
 def create_text(
     text: Annotated[str, Field(description="Text content to display")],
     w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
@@ -235,7 +302,11 @@ def create_text(
     }
 
 
-@mcp.tool()
+@mcp.tool(
+    name="create_custom_image",
+    description="Display an image from a URL on the dashboard",
+    tags=["visualization", "image"],
+)
 def create_custom_image(
     image_url: Annotated[str, Field(description="URL of the image to display (http/https URL, data URI, or S3 path)")],
     alt_text: Annotated[Optional[str], Field(description="Alt text for accessibility")] = None,
@@ -271,7 +342,11 @@ BASE_MAPS = {
 DEFAULT_BASE_MAP = BASE_MAPS["light_gray"]
 
 
-@mcp.tool()
+@mcp.tool(
+    name="create_map_visualization",
+    description="Create an OpenLayers map on the dashboard with layers, base maps, and drawing tools",
+    tags=["visualization", "map"],
+)
 def create_map_visualization(
     layers: Annotated[List[Dict[str, Any]], Field(description=(
         "Array of map layer objects. Each layer must have this structure: "
@@ -334,7 +409,11 @@ def create_map_visualization(
 # Variable input + intake plugin tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(
+    name="create_variable_input",
+    description="Create an interactive variable input that other visualizations can reference with ${variable_name} syntax",
+    tags=["dashboard", "variable"],
+)
 def create_variable_input(
     variable_name: Annotated[str, Field(description="Variable name used in ${...} references by other visualizations")],
     variable_type: Annotated[str, Field(description="Input type: 'text', 'number', 'checkbox', 'date', or 'slider'")] = "text",
@@ -349,7 +428,7 @@ def create_variable_input(
     When the user changes the input, all linked visualizations auto-refresh.
 
     Example: create_variable_input(variable_name="gauge_id", variable_type="text", initial_value="XSGEW")
-    Then use render_intake_plugin(source="my_plugin", args={"gauge_id": "${gauge_id}"})
+    Then use render_plugin(source="my_plugin", args={"gauge_id": "${gauge_id}"})
     """
     valid_types = ["text", "number", "checkbox", "date", "slider"]
     if variable_type not in valid_types:
@@ -372,13 +451,23 @@ def create_variable_input(
     }
 
 
-@mcp.tool()
+@mcp.tool(
+    name="list_intake_plugins",
+    description="List all installed backend plugins with their argument schemas. Use the 'source' field (not 'label') when calling render_plugin.",
+    tags=["discovery", "plugin"],
+)
 def list_intake_plugins() -> Dict[str, Any]:
     """List all installed Python intake-driver plugins available in TethysDash.
 
-    Returns plugin names, types, argument schemas, groups, and descriptions.
-    Use this to discover what backend plugins are available before calling
-    render_intake_plugin.
+    Returns plugin groups, each with options containing:
+    - source: the intake driver name (USE THIS in render_plugin)
+    - label: display name (DO NOT use this as the source argument)
+    - type: visualization type (plotly, table, map, etc.)
+    - args: argument definitions
+
+    IMPORTANT: When calling render_plugin, use the 'source' field
+    from each plugin option, NOT the 'label' field. The source is the
+    intake driver name that the backend uses to instantiate the plugin.
 
     Note: Requires the TethysDash Django server to be running.
     """
@@ -389,7 +478,7 @@ def list_intake_plugins() -> Dict[str, Any]:
         )
         response.raise_for_status()
         data = response.json()
-
+        LOGGER.info("Fetched intake plugins from Django API: %s", data)
         LOGGER.info("list_intake_plugins: fetched %d groups from Django API", len(data) if isinstance(data, list) else 1)
 
         return {"intake_plugins": data}
@@ -398,27 +487,35 @@ def list_intake_plugins() -> Dict[str, Any]:
         return {"error": f"Failed to fetch intake plugins from TethysDash: {e}"}
 
 
-@mcp.tool()
-def render_intake_plugin(
-    source: Annotated[str, Field(description="Intake plugin source name from list_intake_plugins (e.g., 'time_series_maker')")],
+@mcp.tool(
+    name="render_plugin",
+    description="Create a visualization using an installed backend plugin. Call list_intake_plugins first to discover available plugins and their args. Use the 'source' field from the results.",
+    tags=["dashboard", "plugin"],
+)
+def render_plugin(
+    source: Annotated[str, Field(description="Intake driver name from the 'source' field in list_intake_plugins results. This is the Python driver name (e.g., 'nwmps'), NOT the display label (e.g., 'NWMP Gauges Time Series'). Using the label will cause a 'not installed' error.")],
     args: Annotated[Dict[str, Any], Field(description="Plugin arguments. Use ${variable_name} syntax to reference dashboard variable inputs. Example: {\"gauge_id\": \"${my_gauge}\"}")],
     w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
     h: Annotated[int, Field(description="Grid height in row units")] = 25,
 ) -> Dict[str, Any]:
     """Create a visualization using a Python intake-driver plugin.
 
+    IMPORTANT: The source parameter must be the intake driver name from the
+    'source' field in list_intake_plugins results, NOT the display label.
+    Using the label will cause a 'Visualization is not installed' error.
+
     The visualization calls the TethysDash backend API with the given args.
     Args can reference variable inputs using ${variable_name} syntax —
     when the referenced variable changes, the visualization auto-refreshes.
 
-    Call list_intake_plugins first to see available plugins and their args.
+    Call list_intake_plugins first to discover available plugins.
 
-    Example: render_intake_plugin(
-        source="time_series_maker",
-        args={"gauge_id": "${gauge_id}", "start_date": "2024-01-01"}
+    Example: render_plugin(
+        source="nwmps",  # Use 'source' field, not 'label'
+        args={"id": "${gauge_id}"}
     )
     """
-    LOGGER.info("render_intake_plugin: source=%s, args=%s", source, args)
+    LOGGER.info("render_plugin: source=%s, args=%s", source, args)
 
     return {
         "visualization": {
@@ -435,7 +532,9 @@ def render_intake_plugin(
 # MFE rendering tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+# Hidden from LLM — not registered as an MCP tool.
+# Kept as internal function for backward compatibility.
+# Can be re-exposed later via BM25SearchTransform.
 def render_mfe(
     url: Annotated[str, Field(description="URL to the MFE's remoteEntry.js")],
     scope: Annotated[str, Field(description="Module Federation scope name")],
@@ -447,9 +546,9 @@ def render_mfe(
 ) -> Dict[str, Any]:
     """Render a custom Module Federation microfrontend component on the dashboard.
 
-    IMPORTANT: Prefer render_client_plugin for any plugin listed in
-    list_available_visualizations. Only use render_mfe for ad-hoc MFEs
-    not in the registry.
+    NOTE: This function is hidden from the LLM tool registry.
+    Use render_custom_visualization for plugins listed in
+    list_available_visualizations.
     """
     # Normalize module path — must start with './'
     normalized_module = module if module.startswith("./") else f"./{module.lstrip('/')}"
@@ -550,8 +649,12 @@ def _validate_plugin_props(source: str, props: Dict) -> Optional[str]:
     return None
 
 
-@mcp.tool()
-def render_client_plugin(
+@mcp.tool(
+    name="render_custom_visualization",
+    description="Render a registered custom visualization component on the dashboard. Call list_available_visualizations first to see available custom plugins.",
+    tags=["dashboard", "visualization", "custom"],
+)
+def render_custom_visualization(
     source: Annotated[str, Field(description="Client plugin source name from list_available_visualizations")],
     props: Annotated[Optional[Dict[str, Any]], Field(description="Props to pass to the plugin component. Check list_available_visualizations for each plugin's required args and valid values.")] = None,
     w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
@@ -559,14 +662,14 @@ def render_client_plugin(
 ) -> Dict[str, Any]:
     """Render a registered client plugin on the dashboard.
 
-    ALWAYS use this tool (not render_mfe) for plugins listed in
+    ALWAYS use this tool for plugins listed in
     list_available_visualizations. This tool reads the correct URL, scope,
     module, and validates props against the plugin's declared arg schema.
     """
     safe_props = props or {}
     all_plugins = _get_all_plugins()
 
-    LOGGER.info("render_client_plugin called: source=%s, props=%s", source, safe_props)
+    LOGGER.info("render_custom_visualization called: source=%s, props=%s", source, safe_props)
 
     validation_error = _validate_plugin_props(source, safe_props)
     if validation_error:
@@ -613,7 +716,11 @@ def render_client_plugin(
 # Runtime plugin registration
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(
+    name="register_runtime_plugin",
+    description="Register a runtime MFE plugin so it appears in available visualizations and can be rendered with render_custom_visualization",
+    tags=["dashboard", "plugin", "register"],
+)
 def register_runtime_plugin(
     url: Annotated[str, Field(description="URL to the remoteEntry.js file")],
     scope: Annotated[str, Field(description="Module Federation scope name")],
@@ -627,7 +734,7 @@ def register_runtime_plugin(
     """Register a runtime MFE plugin so it appears in available visualizations.
 
     The plugin is saved to the server-side registry and becomes immediately
-    available via list_available_visualizations and render_client_plugin.
+    available via list_available_visualizations and render_custom_visualization.
     """
     LOGGER.info("register_runtime_plugin called: url=%s, scope=%s, module=%s, label=%s", url, scope, module, label)
 
@@ -671,7 +778,11 @@ def register_runtime_plugin(
 # Discovery tools
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(
+    name="list_available_visualizations",
+    description="List all visualization types: native (charts, tables, maps), registered custom visualizations, and MFE components",
+    tags=["discovery"],
+)
 def list_available_visualizations() -> Dict[str, Any]:
     """List all visualization types available for creating dashboard items.
 
@@ -731,13 +842,14 @@ def list_available_visualizations() -> Dict[str, Any]:
                 "description": plugin.get("description", ""),
                 "tags": plugin.get("tags", []),
                 "args_schema": _convert_plugin_args_to_schema(plugin.get("args", {})),
-                "tool": "render_client_plugin",
+                "tool": "render_custom_visualization",
             }
             for plugin in _get_all_plugins()
         ],
         "mfe": {
-            "tool": "render_mfe",
-            "description": "Render any Module Federation component by providing url, scope, and module",
+            "tool": "render_custom_visualization",
+            "description": "Module Federation components are rendered via render_custom_visualization. Use register_runtime_plugin to add new MFE plugins, then render them with render_custom_visualization.",
+            "note": "The legacy render_mfe tool is hidden. Use render_custom_visualization instead.",
         },
         "variable_inputs": {
             "tool": "create_variable_input",
@@ -745,7 +857,7 @@ def list_available_visualizations() -> Dict[str, Any]:
         },
         "intake_plugins": {
             "tool": "list_intake_plugins",
-            "description": "Python backend plugins installed via intake. Call list_intake_plugins to discover available plugins and their args, then use render_intake_plugin to create visualizations.",
+            "description": "Python backend plugins installed via intake. Call list_intake_plugins to discover available plugins and their args, then use render_plugin to create visualizations.",
         },
     }
 

@@ -1,13 +1,13 @@
 [
   {
-    "id": "6f56008e-a83c-41fe-a15a-51e6027c31c2",
+    "id": "38d4fba5-786f-4a28-974a-c3c46da50526",
     "source": "querix",
     "url": "http://localhost:5001/assets/remoteEntry.js",
     "scope": "mfe_nrds_chatbox",
     "module": "./QueryPanel",
     "remoteType": "vite-esm",
     "label": "querix",
-    "description": "",
+    "description": "table for nrds",
     "group": "Custom",
     "tags": [],
     "dataKey": "",

@@ -232,9 +232,7 @@ def dashboards(request):
     if support_info:
         response["support_info"] = support_info
 
-    response["chatbox_config"] = {
-        "ollamaHost": "/apps/tethysdash/ollama-proxy"
-    }
+    response["chatbox_config"] = {}
 
     clean_up_jsons(user)
     return JsonResponse(response)
@@ -1013,10 +1011,9 @@ def download_json(request, app_workspace):
 
 
 def _proxy_to_ollama(request, api_path, timeout=(10, 300)):
-    host = (
-        App.get_custom_setting("chatbox_ollama_host") or _DEFAULT_OLLAMA_HOST
-    ).rstrip("/")
-    key = App.get_custom_setting("chatbox_ollama_key") or ""
+    # Read host/key from request headers (browser-managed credentials)
+    host = (request.headers.get("X-Ollama-Host", "") or _DEFAULT_OLLAMA_HOST).rstrip("/")
+    key = request.headers.get("X-Ollama-Key", "")
     url = f"{host}/{api_path}"
     headers = {"Content-Type": "application/json"}
     if key:
