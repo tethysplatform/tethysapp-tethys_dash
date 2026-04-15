@@ -37,6 +37,7 @@ mcp = FastMCP(
                 "create_plotly_chart",
                 "create_data_table",
                 "create_variable_input",
+                "create_map_visualization",
                 "render_plugin",
                 "render_custom_visualization",
                 "list_available_visualizations",
@@ -292,8 +293,7 @@ def create_text(
     return {
         "visualization": {
             "source": "Text",
-            "vizType": "text",
-            "inlineData": {
+            "args": {
                 "text": text,
             },
             "w": w,
@@ -320,10 +320,8 @@ def create_custom_image(
     return {
         "visualization": {
             "source": "Custom Image",
-            "vizType": "image",
-            "inlineData": {
-                "source": image_url,
-                "alt": alt_text or "custom_image",
+            "args": {
+                "image_source": image_url,
             },
             "w": w,
             "h": h,
@@ -492,8 +490,7 @@ def create_map_visualization(
     return {
         "visualization": {
             "source": "Map",
-            "vizType": "map",
-            "inlineData": {
+            "args": {
                 "baseMap": resolved_base_map,
                 "layers": all_layers,
                 "layerControl": layer_control,
