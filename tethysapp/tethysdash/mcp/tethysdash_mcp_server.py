@@ -418,8 +418,8 @@ def create_variable_input(
     variable_name: Annotated[str, Field(description="Variable name used in ${...} references by other visualizations")],
     variable_type: Annotated[str, Field(description="Input type: 'text', 'number', 'checkbox', 'date', or 'slider'")] = "text",
     initial_value: Annotated[str, Field(description="Default value for the variable input")] = "",
-    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 20,
-    h: Annotated[int, Field(description="Grid height in row units")] = 5,
+    w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 25,
+    h: Annotated[int, Field(description="Grid height in row units")] = 12,
 ) -> Dict[str, Any]:
     """Create a variable input on the dashboard.
 
@@ -477,7 +477,7 @@ def list_intake_plugins() -> Dict[str, Any]:
         )
         response.raise_for_status()
         data = response.json()
-        LOGGER.info("Fetched intake plugins from Django API: %s", data)
+        # LOGGER.info("Fetched intake plugins from Django API: %s", data)
         LOGGER.info("list_intake_plugins: fetched %d groups from Django API", len(data) if isinstance(data, list) else 1)
 
         return {"intake_plugins": data}

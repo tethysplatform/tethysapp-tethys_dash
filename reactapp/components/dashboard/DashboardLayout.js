@@ -59,9 +59,10 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       // Determine panels to add
       let panelEntries;
       if (detail.batch && Array.isArray(detail.panels)) {
-        // Batch event: array of { args, w?, h? }
+        // Batch event: array of { source?, args, w?, h? }
+        // Per-panel source falls back to outer detail.source for backward compat
         panelEntries = detail.panels.map((p) => ({
-          source: detail.source || "Client Custom",
+          source: p.source || detail.source || "Client Custom",
           args: p.args ?? {},
           w: p.w,
           h: p.h,
@@ -129,33 +130,66 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       window.removeEventListener("tethysdash:add-visualization", handleAddVisualization);
   }, [tabId, updateTab, tabs, saveLayoutContext]);
 
-  // Memoize layout from gridItems
+  // Deduplicate and validate gridItems before computing layout.
+  // Filters out items with null keys or duplicate keys, and coerces
+  // all values to proper types so react-grid-layout's internal
+  // compact/bottom functions never encounter undefined elements.
+  const validGridItems = useMemo(() => {
+    const seen = new Set();
+    return gridItems.filter((griditem) => {
+      if (griditem.i == null) return false;
+      const key = String(griditem.i);
+      if (seen.has(key)) {
+        console.warn(
+          "[DashboardLayout] Duplicate grid item key detected:",
+          key,
+        );
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }, [gridItems]);
+
   const layout = useMemo(
     () =>
-      gridItems.map((griditem) => ({
-        h: griditem.h,
-        i: griditem.i,
-        w: griditem.w,
-        x: griditem.x,
-        y: griditem.y,
+      validGridItems.map((griditem) => ({
+        h: Number(griditem.h) || 10,
+        i: String(griditem.i),
+        w: Number(griditem.w) || 50,
+        x: Number(griditem.x) || 0,
+        y: Number(griditem.y) || 0,
+        minH: 3,
+        minW: 5,
         isDraggable: isEditing && !disabledEditingMovement,
         isResizable: isEditing && !disabledEditingMovement,
       })),
-    [gridItems, isEditing, disabledEditingMovement],
+    [validGridItems, isEditing, disabledEditingMovement],
   );
 
   function updateLayout(newLayout) {
+    // Use the ref for the freshest gridItems — avoids stale closure
+    // when React batches state updates during resize/drag.
+    const currentGridItems = gridItemsUpdated.current;
     const updatedGridItems = [];
     for (let lay of newLayout) {
-      const result = gridItems.find((obj) => {
-        return obj.i === lay.i;
+      const result = currentGridItems.find((obj) => {
+        return String(obj.i) === String(lay.i);
       });
-      if (!result) continue;
+      if (!result) {
+        console.warn(
+          "[DashboardLayout] Layout item not found in gridItems:",
+          lay.i,
+          "gridItems keys:",
+          currentGridItems.map((g) => g.i),
+        );
+        continue;
+      }
 
       updatedGridItems.push({
         args_string: result.args_string,
         h: lay.h,
-        i: result.i,
+        i: String(result.i),
         source: result.source,
         metadata_string: result.metadata_string,
         w: lay.w,
@@ -172,7 +206,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
   const handleResize = useCallback(
     (l, oldLayoutItem, layoutItem, placeholder) => {
       const result = gridItemsUpdated.current.find((obj) => {
-        return obj.i === layoutItem.i;
+        return String(obj.i) === String(layoutItem.i);
       });
       if (!result) return;
       const metadata = JSON.parse(result.metadata_string);
@@ -214,7 +248,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       allowOverlap={unrestrictedPlacement}
       useCSSTransforms={false}
     >
-      {gridItems.map((item, index) => (
+      {validGridItems.map((item, index) => (
         <div key={item.i}>
           <GridItemContext.Provider
             value={{
