@@ -452,21 +452,21 @@ def create_variable_input(
 
 @mcp.tool(
     name="list_intake_plugins",
-    description="List all installed backend plugins with their argument schemas. Use the 'source' field (not 'label') when calling render_plugin.",
+    description="List all installed backend plugins. Returns source (intake driver name), label, type, and argument names for each plugin. Use the 'source' field when calling render_plugin.",
     tags=["discovery", "plugin"],
 )
 def list_intake_plugins() -> Dict[str, Any]:
     """List all installed Python intake-driver plugins available in TethysDash.
 
-    Returns plugin groups, each with options containing:
+    Returns a compact list of plugins with:
     - source: the intake driver name (USE THIS in render_plugin)
-    - label: display name (DO NOT use this as the source argument)
+    - label: display name
     - type: visualization type (plotly, table, map, etc.)
-    - args: argument definitions
+    - arg_names: list of argument names the plugin accepts
 
-    IMPORTANT: When calling render_plugin, use the 'source' field
-    from each plugin option, NOT the 'label' field. The source is the
-    intake driver name that the backend uses to instantiate the plugin.
+    IMPORTANT: When calling render_plugin, use the 'source' field,
+    NOT the 'label' field. The source is the Python driver name that
+    the backend uses to instantiate the plugin.
 
     Note: Requires the TethysDash Django server to be running.
     """
@@ -477,10 +477,31 @@ def list_intake_plugins() -> Dict[str, Any]:
         )
         response.raise_for_status()
         data = response.json()
-        # LOGGER.info("Fetched intake plugins from Django API: %s", data)
-        LOGGER.info("list_intake_plugins: fetched %d groups from Django API", len(data) if isinstance(data, list) else 1)
+        # Django API returns {"visualizations": [...groups...]}, not a bare list
+        groups = data.get("visualizations", []) if isinstance(data, dict) else data if isinstance(data, list) else []
+        LOGGER.info("list_intake_plugins: fetched %d groups with %d total plugins",
+                     len(groups),
+                     sum(len(g.get("options", [])) for g in groups if isinstance(g, dict)))
 
-        return {"intake_plugins": data}
+        # Return compact format: source + label + type + arg names only.
+        # Full argument schemas are large (~10-100KB) and cause the result
+        # to be truncated, preventing the LLM from seeing all plugins.
+        compact = []
+        for group in groups:
+            options = group.get("options", []) if isinstance(group, dict) else []
+            for opt in options:
+                entry = {
+                    "source": opt.get("source", ""),
+                    "label": opt.get("label", ""),
+                    "type": opt.get("type", ""),
+                }
+                # Extract just argument names from the args schema
+                args = opt.get("args", {})
+                if isinstance(args, dict):
+                    entry["arg_names"] = list(args.keys())
+                compact.append(entry)
+
+        return {"intake_plugins": compact}
     except http_requests.RequestException as e:
         LOGGER.error("Failed to fetch intake plugins from Django: %s", e)
         return {"error": f"Failed to fetch intake plugins from TethysDash: {e}"}
