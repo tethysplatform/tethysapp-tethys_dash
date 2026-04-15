@@ -931,11 +931,11 @@ async function loadStyle(style, layerName, dashboard_uuid, keep_urls) {
 }
 
 export async function loadGeoJSON(geojson, dashboard_uuid, keep_urls = false) {
-  if (typeof geojson === "object") return geojson;
-  if (geojson.trim().startsWith("{")) {
-    return JSON5.parse(geojson);
-  }
-  if (geojson.includes("/")) {
+  if (typeof geojson === "object") {
+    // Already an object — skip string handling, fall through to CRS assignment
+  } else if (geojson.trim().startsWith("{")) {
+    geojson = JSON5.parse(geojson);
+  } else if (geojson.includes("/")) {
     if (keep_urls) return geojson;
     const response = await fetch(geojson);
     if (!response.ok) throw Error(`Failed to fetch: ${response.statusText}`);
