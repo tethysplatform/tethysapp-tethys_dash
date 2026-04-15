@@ -487,17 +487,23 @@ def create_map_visualization(
         if drawing_variable:
             map_drawing["variable_name"] = drawing_variable
 
+    # Build args matching the manual UI's format — only include keys with
+    # actual values. The edit modal's checkAllInputs treats null as "unfilled"
+    # and blocks save. mapConfig is not a registry arg (frontend generates it).
+    args = {
+        "baseMap": resolved_base_map,
+        "layers": all_layers,
+        "layerControl": layer_control,
+    }
+    if resolved_extent:
+        args["map_extent"] = resolved_extent
+    if map_drawing:
+        args["mapDrawing"] = map_drawing
+
     return {
         "visualization": {
             "source": "Map",
-            "args": {
-                "baseMap": resolved_base_map,
-                "layers": all_layers,
-                "layerControl": layer_control,
-                "map_extent": resolved_extent,
-                "mapConfig": {"style": {"width": "100%", "height": "100%"}},
-                "mapDrawing": map_drawing,
-            },
+            "args": args,
             "w": w,
             "h": h,
         }
