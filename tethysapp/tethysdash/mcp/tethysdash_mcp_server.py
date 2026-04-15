@@ -337,55 +337,157 @@ BASE_MAPS = {
     "topo": "https://server.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer",
     "imagery": "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer",
     "streets": "https://server.arcgisonline.com/arcgis/rest/services/World_Street_Map/MapServer",
+    "terrain": "https://server.arcgisonline.com/arcgis/rest/services/World_Terrain_Base/MapServer",
+    "ocean": "https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer",
 }
 
-DEFAULT_BASE_MAP = BASE_MAPS["light_gray"]
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+NOMINATIM_USER_AGENT = "TethysDash/1.0 (tethysdash@aquaveo.com)"
+
+
+def _geocode(place_name):
+    """Geocode a place name to (lon, lat) via Nominatim."""
+    resp = http_requests.get(
+        NOMINATIM_URL,
+        params={"q": place_name, "format": "json", "limit": 1},
+        headers={"User-Agent": NOMINATIM_USER_AGENT},
+        timeout=10,
+    )
+    resp.raise_for_status()
+    results = resp.json()
+    if not results:
+        return None
+    return float(results[0]["lon"]), float(results[0]["lat"])
+
+
+def _build_markers_layer(markers):
+    """Build a GeoJSON VectorLayer configuration from a list of marker dicts."""
+    features = []
+    for m in markers:
+        props = {}
+        if m.get("label"):
+            props["label"] = m["label"]
+        features.append({
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [m["lon"], m["lat"]],
+            },
+            "properties": props,
+        })
+    geojson = {
+        "type": "FeatureCollection",
+        "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+        "features": features,
+    }
+    return {
+        "configuration": {
+            "type": "VectorLayer",
+            "props": {
+                "name": "Markers",
+                "source": {"type": "GeoJSON", "props": {}, "geojson": geojson},
+            },
+        }
+    }
 
 
 @mcp.tool(
     name="create_map_visualization",
-    description="Create an OpenLayers map on the dashboard with layers, base maps, and drawing tools",
-    tags=["visualization", "map"],
+    description=(
+        "Create a geographic map visualization on the dashboard. "
+        "Supports markers, WMS/GeoJSON/ESRI/KML layers, drawing tools, "
+        "and dashboard variable integration. Use 'center' for place names "
+        "or 'map_extent' for explicit coordinates."
+    ),
+    tags=["visualization", "map", "geographic", "location", "marker", "layer"],
 )
 def create_map_visualization(
-    layers: Annotated[List[Dict[str, Any]], Field(description=(
-        "Array of map layer objects. Each layer must have this structure: "
-        '{"configuration": {"type": "<LayerType>", "props": {"name": "<display name>", '
-        '"source": {"type": "<SourceType>", "props": {<source-specific>}}}}}. '
+    layers: Annotated[Optional[List[Dict[str, Any]]], Field(description=(
+        "Array of map layer objects for WMS, GeoJSON, KML, ESRI, or tile services. "
+        "Each layer: {\"configuration\": {\"type\": \"<LayerType>\", \"props\": "
+        "{\"name\": \"<display name>\", \"source\": {\"type\": \"<SourceType>\", "
+        "\"props\": {<source-specific>}}}}}. "
         "Layer types: ImageLayer, VectorLayer, WebGLTile, VectorTileLayer. "
         "Source types: WMS, GeoJSON, KML, 'Image Tile', 'Vector Tile', "
         "'ESRI Image and Map Service', 'ESRI Feature Service', 'PMTiles Raster', 'PMTiles Vector'. "
-        "WMS example: {\"configuration\": {\"type\": \"ImageLayer\", \"props\": {\"name\": \"States\", "
-        "\"source\": {\"type\": \"WMS\", \"props\": {\"url\": \"https://host/wms\", "
-        "\"params\": {\"LAYERS\": \"workspace:layer\"}}}}}}. "
-        "GeoJSON example: {\"configuration\": {\"type\": \"VectorLayer\", \"props\": {\"name\": \"Features\", "
-        "\"source\": {\"type\": \"GeoJSON\", \"props\": {}, \"geojson\": <GeoJSON object>}}}}."
-    ))],
-    base_map: Annotated[Optional[str], Field(description=(
-        "Base map tile service URL or shorthand name. "
-        "Shorthand names: 'light_gray', 'dark_gray', 'topo', 'imagery', 'streets'. "
-        "Or provide a full ArcGIS MapServer URL. Set to null for no base map."
-    ))] = "light_gray",
-    map_extent: Annotated[Optional[str], Field(description=(
-        "Map extent as a comma-separated string. "
-        "Bounding box format: 'minX,minY,maxX,maxY' (e.g., '-125,24,-66,50' for CONUS). "
-        "Center+zoom format: 'lon,lat,zoom' (e.g., '-98.5,39.8,4' for US center). "
-        "Set to null for default extent."
+        "Layer args support ${variable_name} syntax to reference dashboard variable inputs."
     ))] = None,
-    layer_control: Annotated[bool, Field(description="Show the layer control panel")] = True,
-    map_drawing: Annotated[Optional[Dict[str, Any]], Field(description=(
-        "Drawing interaction config. Null to disable. "
-        "Format: {\"options\": [\"Point\", \"LineString\", \"Polygon\", \"Box\", \"Circle\"], \"limit\": 10}."
+    markers: Annotated[Optional[List[Dict[str, Any]]], Field(description=(
+        "Simple point markers as [{\"lon\": <number>, \"lat\": <number>, \"label\": \"<text>\"}]. "
+        "The server auto-builds a GeoJSON VectorLayer with correct CRS. "
+        "Use this for quick markers instead of constructing full GeoJSON layer configs."
+    ))] = None,
+    center: Annotated[Optional[str], Field(description=(
+        "Place name to center the map on (geocoded via Nominatim). "
+        "Ignored when map_extent is provided."
+    ))] = None,
+    base_map: Annotated[Optional[str], Field(description=(
+        "Base map shorthand or full ArcGIS MapServer URL. "
+        "Shorthands: 'streets', 'imagery', 'topo', 'light_gray', 'dark_gray', 'terrain', 'ocean'. "
+        "Any ArcGIS MapServer URL also works directly. Null for no base map."
+    ))] = "streets",
+    map_extent: Annotated[Optional[str], Field(description=(
+        "Map extent as comma-separated coordinates in EPSG:4326 (lon/lat). "
+        "Center+zoom: 'lon,lat,zoom'. Bounding box: 'minLon,minLat,maxLon,maxLat'. "
+        "Takes precedence over 'center' when both are provided."
+    ))] = None,
+    zoom: Annotated[int, Field(description="Zoom level (1=world, 12=city, 18=street)")] = 12,
+    layer_control: Annotated[bool, Field(description="Show layer visibility control panel")] = False,
+    drawing_tools: Annotated[Optional[List[str]], Field(description=(
+        "Drawing tool types to enable: 'Point', 'LineString', 'Polygon', 'Rectangle'. "
+        "Null to disable drawing."
+    ))] = None,
+    drawing_limit: Annotated[int, Field(description="Max drawn features (0 = unlimited)")] = 0,
+    drawing_variable: Annotated[Optional[str], Field(description=(
+        "Dashboard variable name to publish drawn geometries to."
+    ))] = None,
+    extent_variable: Annotated[Optional[str], Field(description=(
+        "Dashboard variable name to publish map extent on pan/zoom."
     ))] = None,
     w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 50,
-    h: Annotated[int, Field(description="Grid height in row units (each unit ~10px at 1920px)")] = 45,
+    h: Annotated[int, Field(description="Grid height in row units")] = 45,
 ) -> Dict[str, Any]:
-    """Create an OpenLayers map visualization on the dashboard.
+    """Create a geographic map on the dashboard.
 
-    Supports WMS, GeoJSON, KML, ESRI services, Image/Vector tiles, and PMTiles.
-    Renders using TethysDash's native MapVisualization component.
+    Simple usage: provide 'center' or 'markers' for a quick map.
+    Advanced usage: add WMS/GeoJSON/ESRI layers, drawing tools, and variable bindings.
     """
+    LOGGER.info("create_map_visualization: center=%s, markers=%s, layers=%s",
+                center, markers is not None, layers is not None)
+
+    # Resolve base map
     resolved_base_map = BASE_MAPS.get(base_map, base_map) if base_map else None
+
+    # Build layers array
+    all_layers = list(layers) if layers else []
+    if markers:
+        all_layers.append(_build_markers_layer(markers))
+
+    # Resolve center via geocoding
+    resolved_extent = None
+    if map_extent:
+        resolved_extent = {"extent": map_extent, "projection": "EPSG:4326"}
+    elif center:
+        coords = _geocode(center)
+        if coords is None:
+            return {"error": f"Could not geocode '{center}'. Try providing explicit coordinates via map_extent."}
+        lon, lat = coords
+        resolved_extent = {"extent": f"{lon},{lat},{zoom}", "projection": "EPSG:4326"}
+    elif markers:
+        # Auto-center on first marker
+        lon, lat = markers[0]["lon"], markers[0]["lat"]
+        resolved_extent = {"extent": f"{lon},{lat},{zoom}", "projection": "EPSG:4326"}
+
+    # Add extent variable if requested
+    if extent_variable and resolved_extent:
+        resolved_extent["variable"] = extent_variable
+
+    # Build drawing config
+    map_drawing = None
+    if drawing_tools:
+        map_drawing = {"options": drawing_tools, "limit": drawing_limit}
+        if drawing_variable:
+            map_drawing["variable_name"] = drawing_variable
 
     return {
         "visualization": {
@@ -393,9 +495,9 @@ def create_map_visualization(
             "vizType": "map",
             "inlineData": {
                 "baseMap": resolved_base_map,
-                "layers": layers,
+                "layers": all_layers,
                 "layerControl": layer_control,
-                "map_extent": {"extent": map_extent} if map_extent else None,
+                "map_extent": resolved_extent,
                 "mapConfig": {"style": {"width": "100%", "height": "100%"}},
                 "mapDrawing": map_drawing,
             },
