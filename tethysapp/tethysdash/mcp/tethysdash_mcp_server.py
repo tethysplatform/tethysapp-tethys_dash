@@ -291,7 +291,7 @@ def create_text(
     """
     return {
         "visualization": {
-            "source": "Inline Text",
+            "source": "Text",
             "vizType": "text",
             "inlineData": {
                 "text": text,
@@ -319,7 +319,7 @@ def create_custom_image(
     """
     return {
         "visualization": {
-            "source": "Inline Image",
+            "source": "Custom Image",
             "vizType": "image",
             "inlineData": {
                 "source": image_url,
@@ -389,7 +389,7 @@ def create_map_visualization(
 
     return {
         "visualization": {
-            "source": "Inline Map",
+            "source": "Map",
             "vizType": "map",
             "inlineData": {
                 "baseMap": resolved_base_map,
