@@ -604,7 +604,12 @@ def add_map_service_layer(
     ))] = None,
     geojson: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
         "Inline GeoJSON FeatureCollection or Feature object. "
-        "Required when source_type is GeoJSON. CRS is auto-assigned if missing."
+        "Required when source_type is GeoJSON and no geojson_url is provided. "
+        "CRS is auto-assigned if missing."
+    ))] = None,
+    geojson_url: Annotated[Optional[str], Field(description=(
+        "URL to a GeoJSON file. Use instead of inline geojson when the data "
+        "is hosted externally. The frontend fetches the URL at render time."
     ))] = None,
     queryable: Annotated[bool, Field(description=(
         "Enable click-to-query on this layer"
@@ -664,8 +669,8 @@ def add_map_service_layer(
         if not url or not layer_id:
             return {"error": "source_type 'ESRI Feature Service' requires 'url' and 'layer_id' parameters"}
     elif source_type == "GeoJSON":
-        if not geojson:
-            return {"error": "source_type 'GeoJSON' requires 'geojson' parameter"}
+        if not geojson and not geojson_url:
+            return {"error": "source_type 'GeoJSON' requires 'geojson' or 'geojson_url' parameter"}
     elif source_type == "KML":
         if not url:
             return {"error": "source_type 'KML' requires 'url' parameter"}
@@ -704,14 +709,23 @@ def add_map_service_layer(
         source_props.update(extra_params)
 
     elif source_type == "GeoJSON":
-        # Auto-assign CRS if missing (same pattern as _build_markers_layer)
-        geojson_with_crs = dict(geojson)
-        if "crs" not in geojson_with_crs:
-            geojson_with_crs["crs"] = {
-                "type": "name",
-                "properties": {"name": "EPSG:4326"},
-            }
-        source_props = {"geojson": geojson_with_crs}
+        # GeoJSON goes on the source object directly (not under props).
+        # This matches the manual UI format (MapLayer.js:246) and is what
+        # loadLayerJSONs (utilities.js:1029) and ModuleLoader.loadGeoJSON
+        # both expect: source.geojson, not source.props.geojson.
+        if geojson_url:
+            # URL string — the frontend fetches it at render time via
+            # loadGeoJSON in utilities.js (the geojson.includes("/") branch).
+            geojson_with_crs = geojson_url
+        else:
+            # Inline data — auto-assign CRS if missing
+            geojson_with_crs = dict(geojson)
+            if "crs" not in geojson_with_crs:
+                geojson_with_crs["crs"] = {
+                    "type": "name",
+                    "properties": {"name": "EPSG:4326"},
+                }
+        source_props = {}
 
     elif source_type == "KML":
         source_props = {"url": url}
@@ -727,12 +741,17 @@ def add_map_service_layer(
 
     # Build the layer configuration
     layer_type = SOURCE_TYPE_TO_LAYER_TYPE[source_type]
+    source_config = {
+        "type": source_type,
+        "props": source_props,
+    }
+    # GeoJSON data lives at source.geojson (top-level), not source.props.geojson.
+    # loadLayerJSONs and ModuleLoader.loadGeoJSON both read it from this location.
+    if source_type == "GeoJSON" and geojson_with_crs:
+        source_config["geojson"] = geojson_with_crs
     props_dict = {
         "name": name,
-        "source": {
-            "type": source_type,
-            "props": source_props,
-        },
+        "source": source_config,
     }
 
     # Add optional layer props
