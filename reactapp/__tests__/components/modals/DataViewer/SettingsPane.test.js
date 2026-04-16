@@ -307,9 +307,9 @@ test("Settings with border", async () => {
   let styleSelect = await screen.findByRole("combobox");
   await selectEvent.select(styleSelect, "dashed");
 
-  let widthInput = await screen.findAllByRole("spinbutton");
-  expect(widthInput[1].value).toBe("4");
-  fireEvent.change(widthInput[1], { target: { value: 20 } });
+  let widthInput = await screen.findByRole("textbox", { name: "Width Input" });
+  expect(widthInput.value).toBe("4");
+  fireEvent.change(widthInput, { target: { value: 20 } });
 
   expect(await screen.findByTestId("settings")).toHaveTextContent(
     JSON.stringify({

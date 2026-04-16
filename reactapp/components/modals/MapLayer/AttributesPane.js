@@ -221,7 +221,7 @@ const AttributesPane = ({
         });
       }
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabKey, sourceProps]);
 
   useEffect(() => {
@@ -231,7 +231,7 @@ const AttributesPane = ({
       );
       parseAttributes(attributes);
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attributeProps]);
 
   function parseAttributes(layerAttributes) {

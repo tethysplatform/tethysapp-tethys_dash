@@ -16,7 +16,7 @@ const CustomAlert = ({ alertType, showAlert, setShowAlert, alertMessage }) => {
         setShowAlert(false);
       }, 5000);
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAlert]);
 
   function onClose() {

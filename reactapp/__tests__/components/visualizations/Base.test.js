@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { act } from "react";
 import userEvent from "@testing-library/user-event";
-import { addDays, format as formatDate } from "date-fns";
+import { addDays } from "date-fns";
 import {
   mockedApiImageBase,
   mockedCardBase,
@@ -19,8 +19,10 @@ import {
   userDashboard,
   mockedMapBase,
   mockedLiveChatBase,
+  mockedImageCollectionBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization, {
+  Visualization,
   compareFilteredArgs,
 } from "components/visualizations/Base";
 import createLoadedComponent, {
@@ -30,7 +32,13 @@ import { Map } from "ol";
 import * as utilities from "components/visualizations/utilities";
 import { server } from "__tests__/utilities/server";
 import { rest } from "msw";
-import { GridItemContext } from "components/contexts/Contexts";
+import {
+  GridItemContext,
+  AppContext,
+  EditingContext,
+  VariableInputsContext,
+} from "components/contexts/Contexts";
+import { WebsocketContext } from "components/contexts/WebSocketContext";
 
 jest.mock("uuid", () => ({
   v4: () => 12345678,
@@ -1041,7 +1049,7 @@ it("Base - update date variable input", async () => {
   dateHourVariable.args_string = JSON.stringify({
     initial_value: initialDate,
     variable_name: "Test Variable",
-    variable_options_source: "date-hour",
+    variable_options_source: "date",
   });
 
   const mockedDashboard = {
@@ -1123,7 +1131,7 @@ it("Base - update date variable input", async () => {
                 source: "plugin_source",
                 value: "plugin_value",
                 label: "plugin_label",
-                args: { plugin_arg: "date-hour" },
+                args: { plugin_arg: "date" },
                 type: "plotly",
                 tags: ["test", "plugin"],
                 description: "some description",
@@ -1218,14 +1226,8 @@ it("Base - update date variable input", async () => {
   callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
   expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
 
-  expectedDateString = formatDate(
-    addDays(mockDate, -1),
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
-  );
-  let expectedVariableDateString = formatDate(
-    addDays(mockDate, -1),
-    "MM/dd/yyyy h:mm a",
-  );
+  expectedDateString = addDays(mockDate, -1);
+  let expectedVariableDateString = addDays(mockDate, -1);
 
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
@@ -1276,14 +1278,8 @@ it("Base - update date variable input", async () => {
   callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
   expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
 
-  expectedDateString = formatDate(
-    addDays(mockDate, -2),
-    "yyyy-MM-dd'T'HH:mm:ss'-06:00'",
-  );
-  expectedVariableDateString = formatDate(
-    addDays(mockDate, -2),
-    "MM/dd/yyyy h:mm a",
-  );
+  expectedDateString = addDays(mockDate, -2);
+  expectedVariableDateString = addDays(mockDate, -2);
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -1357,7 +1353,7 @@ it("Base - initial relative date variable input", async () => {
   dateHourVariable.args_string = JSON.stringify({
     initial_value: "now",
     variable_name: "Test Variable",
-    variable_options_source: "date-hour",
+    variable_options_source: "date",
     "variable_options_source.metadata": {
       format: "MM/dd/yyyy h:mm aa",
     },
@@ -1442,7 +1438,7 @@ it("Base - initial relative date variable input", async () => {
                 source: "plugin_source",
                 value: "plugin_value",
                 label: "plugin_label",
-                args: { plugin_arg: "date-hour" },
+                args: { plugin_arg: "date" },
                 type: "plotly",
                 tags: ["test", "plugin"],
                 description: "some description",
@@ -1507,10 +1503,7 @@ it("Base - initial relative date variable input", async () => {
   const callCountAfterFirstRefresh = spyGetVisualization.mock.calls.length;
   expect(callCountAfterFirstRefresh).toBeGreaterThan(0);
 
-  const expectedVariableDateString = formatDate(
-    addDays(mockDate, -1),
-    "MM/dd/yyyy h:mm a",
-  );
+  const expectedVariableDateString = addDays(mockDate, -1);
   await waitFor(() => {
     expect(spyGetVisualization).toHaveBeenLastCalledWith(
       expect.objectContaining({
@@ -1541,6 +1534,160 @@ it("Base - initial relative date variable input", async () => {
   spyGetVisualization.mockRestore();
   // Restore original Date
   global.Date = originalDate;
+});
+
+it("renders ImageSequence when vizType is imageSequence", () => {
+  const urls = [
+    "https://example.com/img1.gif",
+    "https://example.com/img2.gif",
+    "https://example.com/img3.gif",
+  ];
+  render(
+    <Visualization
+      vizType="imageSequence"
+      vizData={{
+        urls,
+        activeUrl: urls[1],
+        alt: "custom_image",
+        imageError: "Failed",
+      }}
+      vizMetadata={{}}
+    />,
+  );
+
+  // All images should be rendered in the DOM (preloaded)
+  const images = screen.getAllByAltText("custom_image");
+  expect(images).toHaveLength(3);
+  // The active image should be visible
+  const activeImg = images.find(
+    (img) => img.src === "https://example.com/img2.gif",
+  );
+  expect(activeImg).toBeTruthy();
+});
+
+it("ImageSequence fast-path updates activeUrl without calling getVisualization", async () => {
+  const spyGetVisualization = jest.spyOn(utilities, "getVisualization");
+
+  const sliderUrls = [
+    "https://example.com/frame1.gif",
+    "https://example.com/frame2.gif",
+    "https://example.com/frame3.gif",
+  ];
+
+  // Mock getVisualization to set imageSequence on first call
+  spyGetVisualization.mockImplementation(
+    ({ setVizType, setVizData, itemData }) => {
+      if (itemData.source === "Custom Image") {
+        setVizType("imageSequence");
+        setVizData({
+          urls: sliderUrls,
+          activeUrl: itemData.args.image_source,
+          alt: "custom_image",
+        });
+      }
+    },
+  );
+
+  const argsString = JSON.stringify({
+    image_source: "${Slider}",
+  });
+  const metadataString = JSON.stringify({ refreshRate: 0 });
+
+  const baseContexts = (variableInputValues) => (
+    <AppContext.Provider value={{ visualizations: [] }}>
+      <EditingContext.Provider value={{ isEditing: false }}>
+        <WebsocketContext.Provider value={{ getMessageForRequest: () => null }}>
+          <VariableInputsContext.Provider
+            value={{
+              variableInputValues,
+              variableInputDateFormats: {},
+              variableInputSliderMeta: {
+                Slider: { values: sliderUrls },
+              },
+            }}
+          >
+            <GridItemContext.Provider
+              value={{
+                gridItemSource: "Custom Image",
+                gridItemArgsString: argsString,
+                gridItemMetadataString: metadataString,
+                gridItemUUID: "img-seq-uuid",
+                shouldLoad: true,
+              }}
+            >
+              <BaseVisualization />
+            </GridItemContext.Provider>
+          </VariableInputsContext.Provider>
+        </WebsocketContext.Provider>
+      </EditingContext.Provider>
+    </AppContext.Provider>
+  );
+
+  // First render with Slider=frame1 → getVisualization sets imageSequence
+  const { rerender } = render(
+    baseContexts({ Slider: "https://example.com/frame1.gif" }),
+  );
+  await waitFor(() => {
+    expect(spyGetVisualization).toHaveBeenCalledTimes(1);
+  });
+
+  spyGetVisualization.mockClear();
+
+  // Rerender with Slider=frame2 (which IS in sliderUrls)
+  // The fast-path should update activeUrl directly and NOT call getVisualization
+  rerender(baseContexts({ Slider: "https://example.com/frame2.gif" }));
+
+  // Wait for effects to flush, then verify fast-path skipped getVisualization
+  await waitFor(() => {
+    expect(spyGetVisualization).not.toHaveBeenCalled();
+  });
+
+  // The "Loading Images..." text confirms ImageSequence is rendered
+  // (images don't fire onLoad in jsdom, so they stay in loading state)
+  expect(screen.getByText("Loading Images...")).toBeInTheDocument();
+
+  // Rerender with same Slider value (frame2 again) → newActiveUrl equals
+  // vizData.activeUrl, so the setVizData call on line 401 is skipped (branch 399 false)
+  rerender(baseContexts({ Slider: "https://example.com/frame2.gif" }));
+  await waitFor(() => {
+    expect(spyGetVisualization).not.toHaveBeenCalled();
+  });
+
+  spyGetVisualization.mockClear();
+
+  // Now rerender with a URL NOT in sliderUrls → fast-path detects mismatch,
+  // sets refresh=true, falls through to getVisualization
+  rerender(baseContexts({ Slider: "https://example.com/NEW_frame.gif" }));
+
+  await waitFor(() => {
+    expect(spyGetVisualization).toHaveBeenCalled();
+  });
+
+  spyGetVisualization.mockRestore();
+});
+
+it("renders ImageCollection", () => {
+  const urls = [
+    "https://example.com/img1.gif",
+    "https://example.com/img2.gif",
+    "https://example.com/img3.gif",
+  ];
+  render(
+    <Visualization
+      vizType="imageCollection"
+      vizData={{
+        urls,
+        title: "Example Image Collection",
+        columns: 2,
+        imageError: "Failed",
+      }}
+      vizMetadata={{}}
+    />,
+  );
+
+  expect(screen.getByText("Example Image Collection")).toBeInTheDocument();
+  const images = screen.getAllByRole("img");
+  expect(images).toHaveLength(3);
 });
 
 describe("compareFilteredArgs function", () => {

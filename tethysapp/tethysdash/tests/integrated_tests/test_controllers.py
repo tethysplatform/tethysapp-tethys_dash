@@ -1186,7 +1186,7 @@ def test_download_json_failed_unknown_exception(
     assert response.json()["success"] is False
     assert (
         response.json()["message"]
-        == "Failed to upload the json. Check server for logs."
+        == "Failed to download the json. Check server for logs."
     )
 
 

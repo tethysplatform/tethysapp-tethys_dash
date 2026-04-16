@@ -10,10 +10,25 @@ import xmltodict
 import copy
 from datetime import datetime
 from intake.source import base
+from dateutil.parser import parse
+import pytz
 
 
-# Helper to get the property, preferring new style, falling back to old
 def get_plugin_prop(obj, name, default=None):
+    """Retrieve a plugin property, supporting both current and legacy naming.
+
+    Checks for the legacy ``visualization_<name>`` attribute first (for
+    backward compatibility with older plugins), then falls back to ``<name>``,
+    and finally to ``default`` if neither is present.
+
+    Args:
+        obj: The plugin class or instance to inspect.
+        name (str): The property name to look up (e.g. ``"label"``).
+        default: Value to return when the property is not found (default: None).
+
+    Returns:
+        The property value, or ``default`` if not found.
+    """
     old_name = f"visualization_{name}"
     if hasattr(obj, old_name):
         return getattr(obj, old_name)
@@ -33,6 +48,7 @@ valid_plugin_types = [
     "map",
     "map_layer",
     "custom",
+    "imageCollection",
 ]
 
 
@@ -84,9 +100,9 @@ class TethysDashPlugin(base.DataSource):
             raise ValueError(
                 f"Plugin type '{self.type}' is not valid. Must be one of: {', '.join(valid_plugin_types)}"  # noqa: E501
             )
-        if type(self.args) is not dict:
+        if not isinstance(self.args, dict):
             raise ValueError("Plugin args must be a dictionary.")
-        if type(self.tags) is not list:
+        if not isinstance(self.tags, list):
             raise ValueError("Plugin tags must be a list.")
 
         reserved_keys = {
@@ -107,6 +123,9 @@ class TethysDashPlugin(base.DataSource):
             )  # noqa: E501
 
         for kwarg_name, kwarg_value in kwargs.items():
+            arg_type = self.args.get(kwarg_name)
+            if arg_type == "date":
+                kwarg_value = parse(kwarg_value).replace(second=0, microsecond=0)
             setattr(self, kwarg_name, kwarg_value)
 
     def run(self):
@@ -125,6 +144,9 @@ class TethysDashPlugin(base.DataSource):
         """
         DO NOT OVERRIDE THIS METHOD.
         This method is managed by the TethysDashPlugin base class.
+
+        Args:
+            request_id (str): The unique identifier for the plugin execution request, used for WebSocket messaging.
 
         Returns:
             The output of the plugin, which will be passed to the visualization
@@ -240,6 +262,15 @@ available_source_properties = {
             "projection": "EPSG:<Code>",
         },
     },
+    "KML": {
+        "required": {
+            "url": "KML URL",
+        },
+        "optional": {
+            "attributions": "Attributions",
+            "projection": "EPSG:<Code>",
+        },
+    },
     "Image Tile": {
         "required": {
             "url": "Image Tile URL",
@@ -275,6 +306,24 @@ available_source_properties = {
             },
         },
     },
+    "PMTiles Vector": {
+        "required": {
+            "url": "PMTiles Vector URL",
+        },
+        "optional": {
+            "attributions": "Attributions",
+            "tileSize": "Tile Size (e.g., 256, 512)",
+        },
+    },
+    "PMTiles Raster": {
+        "required": {
+            "url": "PMTiles Raster URL",
+        },
+        "optional": {
+            "attributions": "Attributions",
+            "tileSize": "Tile Size (e.g., 256, 512)",
+        },
+    },
 }
 
 
@@ -299,9 +348,12 @@ class LayerConfigurationBuilder:
                 - 'ESRI Image and Map Service'
                 - 'ESRI Feature Service'
                 - 'WMS'
+                - 'KML'
                 - 'Image Tile'
                 - 'GeoJSON'
                 - 'Vector Tile'
+                - 'PMTiles Vector'
+                - 'PMTiles Raster'
 
         Raises:
             ValueError: If layer_source is not one of the supported options.
@@ -315,6 +367,9 @@ class LayerConfigurationBuilder:
             "ESRI Image and Map Service": "ImageLayer",
             "ESRI Feature Service": "VectorLayer",
             "GeoJSON": "VectorLayer",
+            "KML": "VectorLayer",
+            "PMTiles Vector": "VectorTileLayer",
+            "PMTiles Raster": "TileLayer",
         }
 
         if layer_source not in valid_sources:

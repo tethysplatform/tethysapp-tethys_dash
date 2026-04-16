@@ -56,7 +56,6 @@ test("SliderMetadata with empty values, select Number, then date", async () => {
   fireEvent.change(stepInput, { target: { value: "1" } });
   fireEvent.change(outputFormatInput, { target: { value: "{{n}}" } });
 
-  // onChange null because initial Value is empty
   expect(mockOnChange).toHaveBeenCalledTimes(2);
   expect(mockOnChange).toHaveBeenLastCalledWith(null);
 
@@ -228,6 +227,195 @@ test("SliderMetadata with existing number, turn on range mode", async () => {
   });
 });
 
+test("SliderMetadata select Array type, add values via DropdownMetadata", async () => {
+  const mockOnChange = jest.fn();
+  const values = {};
+
+  render(
+    <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+      <SliderMetadata
+        onChange={mockOnChange}
+        values={values}
+        visualizationRef={null}
+      />
+    </VariableInputsContext.Provider>,
+  );
+
+  const dataTypeSelect = screen.getByLabelText("Data Type Input");
+  await selectEvent.select(dataTypeSelect, "Array");
+
+  // Array mode with no values emits null
+  expect(mockOnChange).toHaveBeenLastCalledWith(null);
+
+  // Slider Mode should be hidden in Array mode
+  expect(screen.queryByText("Slider Mode")).not.toBeInTheDocument();
+
+  // Number/Date fields should not be visible
+  expect(screen.queryByText("Minimum")).not.toBeInTheDocument();
+  expect(screen.queryByText("Maximum")).not.toBeInTheDocument();
+  expect(screen.queryByText("Step")).not.toBeInTheDocument();
+  expect(screen.queryByText("Output Format")).not.toBeInTheDocument();
+
+  // DropdownMetadata should be rendered — add a choice
+  const labelInput = screen.getByLabelText("New choice label");
+  const valueInput = screen.getByLabelText("New choice value");
+  const addButton = screen.getByLabelText("Add choice");
+
+  fireEvent.change(labelInput, { target: { value: "Frame 1" } });
+  fireEvent.change(valueInput, {
+    target: { value: "https://example.com/img1.png" },
+  });
+  fireEvent.click(addButton);
+
+  // Should emit valid Array config with the added choice
+  expect(mockOnChange).toHaveBeenLastCalledWith({
+    dataType: "Array",
+    values: ["https://example.com/img1.png"],
+    labels: ["Frame 1"],
+    speedOptions: [2000, 1000, 500, 250, 100],
+  });
+
+  // Add a second choice
+  fireEvent.change(labelInput, { target: { value: "Frame 2" } });
+  fireEvent.change(valueInput, {
+    target: { value: "https://example.com/img2.png" },
+  });
+  fireEvent.click(addButton);
+
+  expect(mockOnChange).toHaveBeenLastCalledWith({
+    dataType: "Array",
+    values: ["https://example.com/img1.png", "https://example.com/img2.png"],
+    labels: ["Frame 1", "Frame 2"],
+    speedOptions: [2000, 1000, 500, 250, 100],
+  });
+});
+
+test("SliderMetadata with existing Array values and labels", async () => {
+  const mockOnChange = jest.fn();
+  const values = {
+    dataType: "Array",
+    values: ["url1", "url2", "url3"],
+    labels: ["Label 1", "Label 2", "Label 3"],
+    speedOptions: [1000, 500],
+  };
+
+  render(
+    <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+      <SliderMetadata
+        onChange={mockOnChange}
+        values={values}
+        visualizationRef={null}
+      />
+    </VariableInputsContext.Provider>,
+  );
+
+  // Should emit on mount with existing values
+  expect(mockOnChange).toHaveBeenLastCalledWith({
+    dataType: "Array",
+    values: ["url1", "url2", "url3"],
+    labels: ["Label 1", "Label 2", "Label 3"],
+    speedOptions: [1000, 500],
+  });
+
+  // Existing choices should be visible in the table
+  expect(screen.getByLabelText("Choice 1 label")).toHaveValue("Label 1");
+  expect(screen.getByLabelText("Choice 1 value")).toHaveValue("url1");
+  expect(screen.getByLabelText("Choice 2 label")).toHaveValue("Label 2");
+  expect(screen.getByLabelText("Choice 3 label")).toHaveValue("Label 3");
+
+  // Remove all choices — should emit null
+  const removeButtons = screen.getAllByLabelText(/Remove choice/);
+  fireEvent.click(removeButtons[0]);
+  fireEvent.click(screen.getAllByLabelText(/Remove choice/)[0]);
+  fireEvent.click(screen.getAllByLabelText(/Remove choice/)[0]);
+
+  expect(mockOnChange).toHaveBeenLastCalledWith(null);
+});
+
+test("SliderMetadata with Array values and shorter labels array falls back to value", async () => {
+  const mockOnChange = jest.fn();
+  const values = {
+    dataType: "Array",
+    values: ["url1", "url2", "url3"],
+    labels: ["Label 1"],
+    speedOptions: [1000],
+  };
+
+  render(
+    <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+      <SliderMetadata
+        onChange={mockOnChange}
+        values={values}
+        visualizationRef={null}
+      />
+    </VariableInputsContext.Provider>,
+  );
+
+  // First choice has the provided label, others fall back to their value
+  expect(screen.getByLabelText("Choice 1 label")).toHaveValue("Label 1");
+  expect(screen.getByLabelText("Choice 2 label")).toHaveValue("url2");
+  expect(screen.getByLabelText("Choice 3 label")).toHaveValue("url3");
+});
+
+test("SliderMetadata with existing Array values but no labels uses values as labels", async () => {
+  const mockOnChange = jest.fn();
+  const values = {
+    dataType: "Array",
+    values: ["url1", "url2"],
+    speedOptions: [1000, 500],
+  };
+
+  render(
+    <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+      <SliderMetadata
+        onChange={mockOnChange}
+        values={values}
+        visualizationRef={null}
+      />
+    </VariableInputsContext.Provider>,
+  );
+
+  // Labels should fall back to the values themselves
+  expect(screen.getByLabelText("Choice 1 label")).toHaveValue("url1");
+  expect(screen.getByLabelText("Choice 1 value")).toHaveValue("url1");
+  expect(screen.getByLabelText("Choice 2 label")).toHaveValue("url2");
+  expect(screen.getByLabelText("Choice 2 value")).toHaveValue("url2");
+
+  expect(mockOnChange).toHaveBeenLastCalledWith({
+    dataType: "Array",
+    values: ["url1", "url2"],
+    labels: ["url1", "url2"],
+    speedOptions: [1000, 500],
+  });
+});
+
+test("SliderMetadata Array mode handles DropdownMetadata emitting null", async () => {
+  const mockOnChange = jest.fn();
+  const values = {
+    dataType: "Array",
+    values: ["only_one"],
+    speedOptions: [1000],
+  };
+
+  render(
+    <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+      <SliderMetadata
+        onChange={mockOnChange}
+        values={values}
+        visualizationRef={null}
+      />
+    </VariableInputsContext.Provider>,
+  );
+
+  // Remove the only choice — DropdownMetadata emits { choices: [] }
+  // then setArrayChoices receives meta?.choices ?? [] which is []
+  const removeButton = screen.getByLabelText("Remove choice 1");
+  fireEvent.click(removeButton);
+
+  // Empty array triggers onChange(null)
+  expect(mockOnChange).toHaveBeenLastCalledWith(null);
+});
+
 test("SliderMetadata with existing date, turn on range mode", async () => {
   const mockOnChange = jest.fn();
   const values = {
@@ -308,4 +496,102 @@ test("SliderMetadata with existing date, turn on range mode", async () => {
     rangeMode: true,
     speedOptions: [2000, 1000, 500, 250, 100],
   });
+});
+
+test("Align steps checkbox appears only for Date type and includes alignSteps/alignOffset in onChange", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <SliderMetadata
+          onChange={mockOnChange}
+          values={{}}
+          visualizationRef={null}
+        />
+      </VariableInputsContext.Provider>
+    </DataViewerModeContext.Provider>,
+  );
+
+  // No align checkbox before selecting data type
+  expect(
+    screen.queryByLabelText("Align steps to time boundaries"),
+  ).not.toBeInTheDocument();
+
+  // Select Number type — still no align checkbox
+  const dataTypeSelect = screen.getByLabelText("Data Type Input");
+  await selectEvent.select(dataTypeSelect, "Number");
+  expect(
+    screen.queryByLabelText("Align steps to time boundaries"),
+  ).not.toBeInTheDocument();
+
+  // Switch to Date type — align checkbox appears
+  await selectEvent.select(dataTypeSelect, "Date");
+  const alignCheckbox = await screen.findByRole("checkbox", {
+    name: /Align steps to time boundaries/,
+  });
+  expect(alignCheckbox).toBeInTheDocument();
+  expect(alignCheckbox.checked).toBe(false);
+
+  // Offset input should not be visible when unchecked
+  expect(screen.queryByLabelText(/Offset/)).not.toBeInTheDocument();
+
+  // Check the align checkbox
+  fireEvent.click(alignCheckbox);
+  expect(alignCheckbox.checked).toBe(true);
+
+  // Offset input should now be visible
+  expect(screen.getByLabelText(/Offset/)).toBeInTheDocument();
+});
+
+test("SliderMetadata includes alignSteps and alignOffset in onChange when enabled", async () => {
+  const mockOnChange = jest.fn();
+
+  render(
+    <DataViewerModeContext.Provider value={{ inDataViewerMode: false }}>
+      <VariableInputsContext.Provider value={{ variableInputValues: {} }}>
+        <SliderMetadata
+          onChange={mockOnChange}
+          values={{
+            dataType: "Date",
+            min: "01/01/2025 12:00 AM",
+            max: "01/10/2025 12:00 AM",
+            step: 6,
+            dateTimeDelta: "Hours",
+            outputFormat: "yyyyMMddHH",
+            initialValue: "2025-01-01T06:00:00",
+            speedOptions: [2000, 1000, 500, 250, 100],
+            alignSteps: true,
+            alignOffset: 0,
+          }}
+          visualizationRef={null}
+        />
+      </VariableInputsContext.Provider>
+    </DataViewerModeContext.Provider>,
+  );
+
+  // Verify checkbox is checked from initial values
+  const alignCheckbox = screen.getByRole("checkbox", {
+    name: /Align steps to time boundaries/,
+  });
+  expect(alignCheckbox.checked).toBe(true);
+
+  // Verify onChange was called with alignSteps and alignOffset
+  expect(mockOnChange).toHaveBeenCalledWith(
+    expect.objectContaining({
+      alignSteps: true,
+      alignOffset: 0,
+    }),
+  );
+
+  // Change the offset value
+  const offsetInput = screen.getByLabelText(/Offset/);
+  fireEvent.change(offsetInput, { target: { value: "3" } });
+
+  expect(mockOnChange).toHaveBeenCalledWith(
+    expect.objectContaining({
+      alignSteps: true,
+      alignOffset: 3,
+    }),
+  );
 });

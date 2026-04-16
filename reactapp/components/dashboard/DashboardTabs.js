@@ -13,6 +13,7 @@ const EditableTabTitle = styled.div`
   gap: 0.5rem;
   min-width: 0;
   width: 100%;
+  height: 100%;
   justify-content: center;
   opacity: ${(props) => (props.$isDragging ? 0.5 : 1)};
   background-color: ${(props) =>
@@ -42,6 +43,7 @@ const TabTitleInput = styled.input`
 
 const TabTitleText = styled.span`
   cursor: ${(props) => (props.$isActive ? "pointer" : "default")};
+  display: block;
   min-width: 0;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -74,11 +76,19 @@ const StyledTabs = styled(Tabs)`
   display: ${(props) => (props.$shouldHideTabBar ? "none" : "flex")};
   .nav-item {
     flex: 1;
+    min-width: 0;
   }
 
   .nav-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     text-align: center;
     width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    max-height: 44px;
+    overflow: hidden;
     background-color: #e3f2fd;
     border: 1px solid #d0d0d0;
     color: #333;
@@ -197,7 +207,7 @@ const DashboardTabs = () => {
 
   const renderTabTitle = (tab) => {
     if (!isEditing) {
-      return tab.name;
+      return <TabTitleText title={tab.name}>{tab.name}</TabTitleText>;
     }
 
     const isDragging = draggedTabId === tab.id;
@@ -208,6 +218,7 @@ const DashboardTabs = () => {
         draggable={isEditing}
         $isDragging={isDragging}
         $isDropTarget={isDropTarget}
+        title={tab.name}
         onDragStart={(e) => handleDragStart(e, tab.id)}
         onDragOver={(e) => handleDragOver(e, tab.id)}
         onDragLeave={handleDragLeave}

@@ -91,7 +91,7 @@ it("BorderSettings", async () => {
   let styleSelect = await screen.findByRole("combobox");
   await selectEvent.select(styleSelect, "solid");
 
-  let widthInput = await screen.findByRole("spinbutton");
+  let widthInput = await screen.findByRole("textbox", { name: "Width Input" });
   expect(widthInput.value).toBe(`${defaultBorderWidth}`);
   fireEvent.change(widthInput, { target: { value: 20 } });
 
@@ -159,7 +159,7 @@ it("BorderSettings", async () => {
   styleSelect = await screen.findByRole("combobox");
   await selectEvent.select(styleSelect, "dashed");
 
-  widthInput = await screen.findByRole("spinbutton");
+  widthInput = await screen.findByRole("textbox", { name: "Width Input" });
   expect(widthInput.value).toBe("20");
   fireEvent.change(widthInput, { target: { value: 10 } });
 

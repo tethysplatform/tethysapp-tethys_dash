@@ -933,6 +933,25 @@ export const mockedCustomImageBase = {
   }),
 };
 
+export const mockedImageCollectionBase = {
+  id: 1,
+  uuid: "some-uuid-1",
+  i: "1",
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Image Collection",
+  args_string: JSON.stringify({
+    urls: ["/some_url1.png", "/some_url2.png", "/some_url3.png"],
+    title: "Some Title",
+    columns: 2,
+  }),
+  metadata_string: JSON.stringify({
+    refreshRate: 0,
+  }),
+};
+
 export const mockedTextBase = {
   id: 1,
   uuid: "some-uuid-1",
@@ -1058,9 +1077,35 @@ export const mockedDateHourVariable = {
   args_string: JSON.stringify({
     initial_value: "",
     variable_name: "Test Variable",
-    variable_options_source: "date-hour",
+    variable_options_source: "date",
     "variable_options_source.metadata": {
       format: "MM/dd/yyyy h:mm aa",
+    },
+  }),
+  metadata_string: JSON.stringify({
+    refreshRate: 0,
+  }),
+};
+
+export const mockedCustomDropdownVariable = {
+  id: 1,
+  uuid: "some-uuid-1",
+  i: "1",
+  x: 0,
+  y: 0,
+  w: 20,
+  h: 20,
+  source: "Variable Input",
+  args_string: JSON.stringify({
+    initial_value: "option_1",
+    variable_name: "Test Variable",
+    variable_options_source: "dropdown",
+    "variable_options_source.metadata": {
+      choices: [
+        { value: "option_1", label: "Option 1" },
+        { value: "option_2", label: "Option 2" },
+        { value: "option_3", label: "Option 3" },
+      ],
     },
   }),
   metadata_string: JSON.stringify({
@@ -1446,6 +1491,23 @@ export const layerConfigPMTilesVector = {
         },
       },
       zIndex: 1,
+    },
+  },
+};
+
+export const layerConfigStaticImage = {
+  configuration: {
+    type: "ImageLayer",
+    props: {
+      name: "Static Image Layer",
+      source: {
+        type: "Static Image",
+        props: {
+          url: "https://example.com/image.png",
+          projection: "EPSG:4326",
+          imageExtent: "-180, -90, 180, 90",
+        },
+      },
     },
   },
 };

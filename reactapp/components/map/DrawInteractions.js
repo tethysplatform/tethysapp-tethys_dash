@@ -167,7 +167,7 @@ const DrawInteractions = ({ mapDrawing, visualizationRef, drawing }) => {
       // eslint-disable-next-line
       visualizationRef.current?.removeInteraction(drawInteraction);
     };
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapDrawing, drawType]);
 
   useEffect(() => {

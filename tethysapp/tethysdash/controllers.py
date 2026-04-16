@@ -46,6 +46,22 @@ from better_profanity import profanity
 profanity.load_censor_words()
 _DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 
+def _get_error_message(e, fallback):
+    """Return the first arg of an exception, or ``fallback`` if unavailable.
+
+    Args:
+        e (Exception): The caught exception.
+        fallback (str): Message to use when the exception carries no args.
+
+    Returns:
+        str: Human-readable error message suitable for an API response.
+    """
+    try:
+        return e.args[0]
+    except Exception:
+        return fallback
+
+
 @controller(login_required=False)
 def home(request):
     """
@@ -577,11 +593,7 @@ def get_dashboard(request):
         return JsonResponse({"success": True, "dashboard": dashboard})
     except Exception as e:
         print(e)
-        try:
-            message = e.args[0]
-        except Exception:
-            message = "Failed to get the dashboard. Check server for logs."
-
+        message = _get_error_message(e, "Failed to get the dashboard. Check server for logs.")
         return JsonResponse({"success": False, "message": message})
 
 
@@ -648,13 +660,7 @@ def add_dashboard(request, app_media):
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})
     except Exception as e:
         print(e)
-        try:
-            message = e.args[0]
-        except Exception:
-            message = (
-                f"Failed to create the dashboard named {name}. Check server for logs."
-            )
-
+        message = _get_error_message(e, f"Failed to create the dashboard named {name}. Check server for logs.")
         return JsonResponse({"success": False, "message": message})
 
 
@@ -681,15 +687,15 @@ def copy_dashboard(request, app_media):
     """
 
     dashboard_metadata = json.loads(request.body)
-    id = dashboard_metadata["id"]
+    dashboard_id = dashboard_metadata["id"]
     new_name = dashboard_metadata["newName"]
     user = request.user
     dashboard_uuid = str(uuid.uuid4())
-    print(f"Creating a dashboard {id}")
+    print(f"Creating a dashboard {dashboard_id}")
 
     try:
         new_dashboard_id, copied_dashboard_uuid = copy_named_dashboard(
-            user, id, new_name, dashboard_uuid
+            user, dashboard_id, new_name, dashboard_uuid
         )
 
         copied_dashboard_image = os.path.join(
@@ -701,16 +707,12 @@ def copy_dashboard(request, app_media):
                 os.path.join(app_media.path, f"{dashboard_uuid}.png"),
             )
         new_dashboard = get_dashboards(user, id=new_dashboard_id)
-        print(f"Successfully copied dashboard {id}")
+        print(f"Successfully copied dashboard {dashboard_id}")
 
         return JsonResponse({"success": True, "new_dashboard": new_dashboard})
     except Exception as e:
         print(e)
-        try:
-            message = e.args[0]
-        except Exception:
-            message = f"Failed to create the dashboard named {new_name}. Check server for logs."  # noqa:E501
-
+        message = _get_error_message(e, f"Failed to create the dashboard named {new_name}. Check server for logs.")  # noqa:E501
         return JsonResponse({"success": False, "message": message})
 
 
@@ -735,12 +737,12 @@ def delete_dashboard(request, app_media):
     """
 
     dashboard_metadata = json.loads(request.body)
-    id = dashboard_metadata["id"]
+    dashboard_id = dashboard_metadata["id"]
     user = request.user
 
     try:
-        dashboard_uuid = delete_named_dashboard(user, id)
-        print(f"Successfully deleted dashboard {id}")
+        dashboard_uuid = delete_named_dashboard(user, dashboard_id)
+        print(f"Successfully deleted dashboard {dashboard_id}")
 
         dashboard_image = os.path.join(app_media.path, f"{dashboard_uuid}.png")
         if os.path.exists(dashboard_image):
@@ -749,11 +751,7 @@ def delete_dashboard(request, app_media):
         return JsonResponse({"success": True})
     except Exception as e:
         print(e)
-        try:
-            message = e.args[0]
-        except Exception:
-            message = f"Failed to delete the dashboard {id}. Check server for logs."
-
+        message = _get_error_message(e, f"Failed to delete the dashboard {dashboard_id}. Check server for logs.")
         return JsonResponse({"success": False, "message": message})
 
 
@@ -788,21 +786,17 @@ def update_dashboard(request):
             }
         )
 
-    id = dashboard_updates.pop("id")
+    dashboard_id = dashboard_updates.pop("id")
     user = request.user
 
     try:
-        updated_dashboard = update_named_dashboard(user, id, dashboard_updates)
-        print(f"Successfully updated the dashboard {id}")
+        updated_dashboard = update_named_dashboard(user, dashboard_id, dashboard_updates)
+        print(f"Successfully updated the dashboard {dashboard_id}")
 
         return JsonResponse({"success": True, "updated_dashboard": updated_dashboard})
     except Exception as e:
         print(e)
-        try:
-            message = e.args[0]
-        except Exception:
-            message = f"Failed to update the dashboard {id}. Check server for logs."
-
+        message = _get_error_message(e, f"Failed to update the dashboard {dashboard_id}. Check server for logs.")
         return JsonResponse({"success": False, "message": message})
 
 
@@ -861,11 +855,7 @@ def update_permission_group(request):
         )
     except Exception as e:
         print(e)
-        try:
-            message = e.args[0]
-        except Exception:
-            message = f"Failed to update the permission group {permission_group_updates['name']}. Check server for logs."  # noqa: E501
-
+        message = _get_error_message(e, f"Failed to update the permission group {permission_group_updates['name']}. Check server for logs.")  # noqa: E501
         return JsonResponse({"success": False, "message": message})
 
 
@@ -891,24 +881,20 @@ def delete_permission_group(request):
     permission_group_id = request_body.get("id")
 
     try:
-        deleteResponse = delete_permission_groups(user, permission_group_id)
+        delete_response = delete_permission_groups(user, permission_group_id)
 
-        if deleteResponse["status"] == "error":
+        if delete_response["status"] == "error":
             return JsonResponse(
                 {
                     "success": False,
-                    "message": deleteResponse["message"],
+                    "message": delete_response["message"],
                 }
             )
 
         return JsonResponse({"success": True})
     except Exception as e:
         print(e)
-        try:
-            message = e.args[0]
-        except Exception:
-            message = f"Failed to delete the permission group {permission_group_id}. Check server for logs."  # noqa: E501
-
+        message = _get_error_message(e, f"Failed to delete the permission group {permission_group_id}. Check server for logs.")  # noqa: E501
         return JsonResponse({"success": False, "message": message})
 
 
@@ -954,11 +940,7 @@ def upload_json(request, app_workspace):
         return JsonResponse({"success": True, "filename": filename})
 
     except Exception as e:
-        try:
-            message = e.args[0]
-        except Exception:
-            message = "Failed to upload the json. Check server for logs."
-
+        message = _get_error_message(e, "Failed to upload the json. Check server for logs.")
         return JsonResponse({"success": False, "message": message})
 
 
@@ -996,11 +978,7 @@ def download_json(request, app_workspace):
         return JsonResponse({"success": True, "data": data})
     except Exception as e:
         print(e)
-        try:
-            message = e.args[0]
-        except Exception:
-            message = "Failed to upload the json. Check server for logs."
-
+        message = _get_error_message(e, "Failed to download the json. Check server for logs.")
         return JsonResponse({"success": False, "message": message})
 
 

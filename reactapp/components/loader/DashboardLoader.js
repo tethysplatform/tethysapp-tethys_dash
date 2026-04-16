@@ -38,6 +38,7 @@ const DashboardLoader = ({
   const [loadError, setLoadError] = useState(false);
   const [variableInputValues, setVariableInputValues] = useState({});
   const [variableInputDateFormats, setVariableInputDateFormats] = useState({});
+  const [variableInputSliderMeta, setVariableInputSliderMeta] = useState({});
   const [tabs, setTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
   const [notes, setNotes] = useState([]);
@@ -68,7 +69,7 @@ const DashboardLoader = ({
     };
 
     fetchDashboard();
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -135,7 +136,7 @@ const DashboardLoader = ({
                   args?.["variable_options_source.metadata"]?.format || "";
               } else if (
                 args.variable_options_source === "slider" &&
-                args["variable_options_source.metadata"]?.dataType !== "Number"
+                args["variable_options_source.metadata"]?.dataType === "Date"
               ) {
                 dateFormat =
                   args["variable_options_source.metadata"].outputFormat;
@@ -243,8 +244,16 @@ const DashboardLoader = ({
       variableInputValues,
       setVariableInputValues,
       variableInputDateFormats,
+      variableInputSliderMeta,
+      setVariableInputSliderMeta,
     }),
-    [variableInputValues, setVariableInputValues, variableInputDateFormats],
+    [
+      variableInputValues,
+      setVariableInputValues,
+      variableInputDateFormats,
+      variableInputSliderMeta,
+      setVariableInputSliderMeta,
+    ],
   );
 
   const tabContextValue = useMemo(

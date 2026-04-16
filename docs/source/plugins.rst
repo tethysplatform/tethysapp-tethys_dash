@@ -49,7 +49,7 @@ Properties:
     - **name**: (required) Name of the package. Used for installation and as the driver name (e.g., `intake.open_<driver_name>`).
     - **group**: (required) Used to group visualizations in the dashboard app.
     - **label**: (required) The display name for the visualization in the dashboard app.
-    - **type**: (required) The type of visualization. Must be "plotly", "table", "image", "card", "text", "variable_input", "map", "map_layer", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section for details.
+    - **type**: (required) The type of visualization. Must be "plotly", "table", "image", "imageCollection", "card", "text", "variable_input", "map", "map_layer", or "custom". See the `Plugin Visualization Types <Plugin Visualization Types_>`_ section for details.
     - **args**: Dictionary of function arguments as keys and data types as values. Used to dynamically create HTML inputs. Values can be `HTML Input Types <https://www.w3schools.com/html/html_form_input_types.asp>`_ or a list for dropdowns (e.g., `{"year": "number", "location": "text", "available_colors": ["red", "blue", "white"]}`). These args are set as attributes of the plugin class and can be used in the run method using self (e.g., `self.year`, `self.location`, `self.available_colors`).
     - **tags**: List of tags for search and discovery.
     - **description**: Description of the visualization.
@@ -246,6 +246,51 @@ Displays an image based on the returned URL string.
 
 |
 
+Image Collection
+````````````````
+
+Displays a collection of images in a flex-wrap grid within a single visualization block.
+
+**DataSource visualization_type value:** *imageCollection*
+
+**read return: (dict)**
+    - **urls** (required): A list of strings containing the urls to the images
+    - **title** (optional): A string title displayed above the image grid
+    - **columns** (optional): An integer specifying the number of columns in the grid. If omitted, images flex automatically to fill the available space.
+
+**Example**: ::
+
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
+
+
+    class ImageCollectionExample(TethysDashPlugin):
+        name = "image_collection_example"
+        group = "Example"
+        label = "Image Collection Example"
+        type = "imageCollection"
+        tags = [
+            "example",
+            "imageCollection",
+        ]
+        description = "An example plugin for the image collection visualization"
+
+        def run(self):
+            """
+            Return a collection of image urls
+            """
+
+            return {
+                "urls": [
+                    "https://example.com/image1.png",
+                    "https://example.com/image2.png",
+                    "https://example.com/image3.png",
+                ],
+                "title": "My Image Collection",
+                "columns": 3,
+            }
+
+|
+
 Card
 ````
 
@@ -357,7 +402,8 @@ Displays custom text
 Variable Input
 ``````````````
 
-Displays a variable input
+Displays a variable input that other visualizations can reference to dynamically update their behavior.
+See :doc:`variable_inputs` for information on connecting variable inputs to visualizations.
 
 .. image:: ../images/variable_input_example.png
     :align: center
@@ -367,39 +413,302 @@ Displays a variable input
 **DataSource visualization_type value:** *variable_input*
 
 **read return: (dictionary)**
-    - **variable_name** (required): Name of the variable input
-    - **initial_value** (required): Initial value of the variable input
-    - **variable_options_source** (required): can be "text", "number", "checkbox", and array (as shown in the example)
+    - **variable_name** (required): Name of the variable input.
+    - **initial_value** (required): Initial value of the variable input.
+    - **variable_options_source** (required): Determines the input type. Can be ``"text"``, ``"number"``, ``"checkbox"``, ``"date"``, ``"date-range"``, ``"dropdown"``, ``"slider"``, ``"csv-uploader"``, or an array of ``{"label": str, "value": any}`` objects for a simple dropdown.
+    - **metadata** (optional): Configuration object for input types that require additional settings (date, date-range, dropdown, slider, csv-uploader).
 
-**Example**: ::
+
+Text Input
+''''''''''
+
+Displays a text field with a refresh button. ::
 
     from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
 
-    class VariableInputExample(TethysDashPlugin):
-        name = "variable_input_example"
+    class TextVariableInput(TethysDashPlugin):
+        name = "text_variable_input"
         group = "Example"
-        label = "Variable Input Example"
+        label = "Text Variable Input"
         type = "variable_input"
-        tags = [
-            "example",
-            "variable input",
-        ]
-        description = "An example plugin for the variable input visualization"
+        tags = ["example", "variable input"]
+        description = "A text variable input"
 
         def run(self):
-            """
-                Return the data for the variable input
-            """
-            layer_names = [
-                {"label": "Observed River Stage", "value": 0},
-                {"label": "River Stages 24 Hour Forecast", "value": 1},
-            ]
-
             return {
-                "variable_name": "Layer Name",
-                "initial_value": "",
-                "variable_options_source": layer_names,
+                "variable_name": "Search Term",
+                "initial_value": "default text",
+                "variable_options_source": "text",
             }
+
+|
+
+Number Input
+''''''''''''
+
+Displays a number field with a refresh button. ::
+
+    def run(self):
+        return {
+            "variable_name": "Year",
+            "initial_value": 2024,
+            "variable_options_source": "number",
+        }
+
+|
+
+Checkbox Input
+''''''''''''''
+
+Displays a checkbox. The value updates immediately on toggle. ::
+
+    def run(self):
+        return {
+            "variable_name": "Show Legend",
+            "initial_value": True,
+            "variable_options_source": "checkbox",
+        }
+
+|
+
+Date Input
+''''''''''
+
+Displays a date picker. Optionally includes a time picker.
+
+**metadata fields:**
+    - **format** (optional): Date format string using `date-fns <https://date-fns.org/docs/format>`_ tokens (e.g., ``"MM/dd/yyyy"``, ``"MM/dd/yyyy'T'HH:mm"``).
+    - **showTimeInput** (optional): Set to ``True`` to show a time picker alongside the date. Defaults to ``True``.
+
+**Date only example**: ::
+
+    def run(self):
+        return {
+            "variable_name": "Forecast Date",
+            "initial_value": "",
+            "variable_options_source": "date",
+            "metadata": {
+                "format": "MM/dd/yyyy",
+                "showTimeInput": False,
+            },
+        }
+
+**Date and time example**: ::
+
+    def run(self):
+        return {
+            "variable_name": "Forecast Date",
+            "initial_value": "",
+            "variable_options_source": "date",
+            "metadata": {
+                "format": "MM/dd/yyyy'T'HH:mm",
+                "showTimeInput": True,
+            },
+        }
+
+|
+
+Date Range Input
+''''''''''''''''
+
+Displays two linked date pickers for a start and end date. Each date becomes its own variable input that other visualizations can reference.
+
+**metadata fields:**
+    - **format** (optional): Date format string using `date-fns <https://date-fns.org/docs/format>`_ tokens. Defaults to ``"MM/dd/yyyy'T'HH:mm"``.
+    - **startDateVariable** (required): Name for the start date variable input.
+    - **endDateVariable** (required): Name for the end date variable input.
+
+.. note::
+    The keys in ``initial_value`` must match the ``startDateVariable`` and ``endDateVariable`` names exactly.
+
+**Example**: ::
+
+    def run(self):
+        return {
+            "variable_name": "Analysis Period",
+            "initial_value": {
+                "Start Date": "01/14/2026T00:00",
+                "End Date": "01/16/2026T00:00",
+            },
+            "variable_options_source": "date-range",
+            "metadata": {
+                "format": "MM/dd/yyyy'T'HH:mm",
+                "startDateVariable": "Start Date",
+                "endDateVariable": "End Date",
+            },
+        }
+
+|
+
+Dropdown Input
+''''''''''''''
+
+Displays a dropdown selector. Users can also type to create new values.
+
+**metadata fields:**
+    - **choices** (required): A list of ``{"label": str, "value": any}`` objects.
+
+**Example**: ::
+
+    def run(self):
+        return {
+            "variable_name": "Color Theme",
+            "initial_value": "light",
+            "variable_options_source": "dropdown",
+            "metadata": {
+                "choices": [
+                    {"label": "Light Mode", "value": "light"},
+                    {"label": "Dark Mode", "value": "dark"},
+                    {"label": "High Contrast", "value": "high_contrast"},
+                ],
+            },
+        }
+
+|
+
+Array-based Dropdown
+''''''''''''''''''''
+
+An alternative to the dropdown type above. Instead of using metadata, pass an array of option objects directly as the ``variable_options_source``. No metadata is needed.
+
+**Example**: ::
+
+    def run(self):
+        layer_names = [
+            {"label": "Observed River Stage", "value": 0},
+            {"label": "River Stages 24 Hour Forecast", "value": 1},
+        ]
+
+        return {
+            "variable_name": "Layer Name",
+            "initial_value": "",
+            "variable_options_source": layer_names,
+        }
+
+|
+
+Slider Input
+''''''''''''
+
+Displays a slider with optional play/pause animation controls. The slider supports three modes based on the ``dataType`` metadata field: **Number**, **Date**, and **Array**.
+
+**Common metadata fields:**
+    - **dataType** (required): ``"Number"``, ``"Date"``, or ``"Array"``.
+    - **outputFormat** (optional): Format template for the displayed value. Use ``"{{n}}"`` for numbers or `date-fns <https://date-fns.org/docs/format>`_ tokens for dates.
+    - **speedOptions** (optional): A list of playback speeds in milliseconds (e.g., ``[2000, 1000, 500, 250, 100]``).
+
+**Number Slider**
+
+    Slides between a numeric min and max value.
+
+    **Additional metadata fields:**
+        - **min** (required): Minimum value.
+        - **max** (required): Maximum value.
+        - **step** (required): Step increment.
+        - **initialValue** (required): Starting value. Use ``initialRange`` instead for range mode.
+        - **rangeMode** (required): ``False`` for a single value, ``True`` for a two-handle range slider.
+        - **initialRange** (required if rangeMode is True): A two-element list ``[low, high]``.
+
+    **Example**: ::
+
+        def run(self):
+            return {
+                "variable_name": "Opacity",
+                "initial_value": 50,
+                "variable_options_source": "slider",
+                "metadata": {
+                    "dataType": "Number",
+                    "min": 0,
+                    "max": 100,
+                    "step": 1,
+                    "initialValue": 50,
+                    "rangeMode": False,
+                    "outputFormat": "{{n}}%",
+                    "speedOptions": [2000, 1000, 500, 250, 100],
+                },
+            }
+
+**Date Slider**
+
+    Slides between two dates using a configurable time delta.
+
+    **Additional metadata fields:**
+        - **min** (required): Start date string (e.g., ``"01/01/2020 12:00 AM"``). Also supports relative dates like ``"now"``, ``"now-7D"``, ``"now+30D"``.
+        - **max** (required): End date string. Same format options as min.
+        - **step** (required): Number of time delta units per step.
+        - **dateTimeDelta** (required): Time unit for each step. One of ``"Seconds"``, ``"Minutes"``, ``"Hours"``, ``"Days"``, ``"Weeks"``, ``"Months"``, ``"Years"``.
+        - **initialValue** (required): Starting date value.
+        - **rangeMode** (required): ``False`` for a single value, ``True`` for a two-handle range slider.
+
+    **Example**: ::
+
+        def run(self):
+            return {
+                "variable_name": "Forecast Time",
+                "initial_value": "2020-01-05T00:00:00",
+                "variable_options_source": "slider",
+                "metadata": {
+                    "dataType": "Date",
+                    "min": "01/01/2020 12:00 AM",
+                    "max": "01/10/2020 12:00 AM",
+                    "step": 1,
+                    "dateTimeDelta": "Days",
+                    "initialValue": "2020-01-05T00:00:00",
+                    "rangeMode": False,
+                    "outputFormat": "MM/dd/yyyy",
+                    "speedOptions": [2000, 1000, 500, 250, 100],
+                },
+            }
+
+**Array Slider**
+
+    Slides through a predefined list of discrete values.
+
+    **Additional metadata fields:**
+        - **values** (required): A list of values to slide through.
+        - **labels** (optional): A list of display labels corresponding to each value.
+        - **initialValue** (optional): Starting value (must be an item in the values list).
+
+    **Example**: ::
+
+        def run(self):
+            return {
+                "variable_name": "Radar Frame",
+                "initial_value": "https://example.com/radar/frame1.png",
+                "variable_options_source": "slider",
+                "metadata": {
+                    "dataType": "Array",
+                    "values": [
+                        "https://example.com/radar/frame1.png",
+                        "https://example.com/radar/frame2.png",
+                        "https://example.com/radar/frame3.png",
+                    ],
+                    "labels": ["12:00", "12:15", "12:30"],
+                    "initialValue": "https://example.com/radar/frame1.png",
+                },
+            }
+
+|
+
+CSV Uploader Input
+''''''''''''''''''
+
+Displays a file upload area for CSV files. The uploaded data is parsed and made available as the variable value.
+
+**metadata fields:**
+    - **headers** (required): A list of expected column names in the CSV file.
+
+**Example**: ::
+
+    def run(self):
+        return {
+            "variable_name": "Upload Data",
+            "initial_value": "",
+            "variable_options_source": "csv-uploader",
+            "metadata": {
+                "headers": ["timestamp", "value", "location"],
+            },
+        }
 
 |
 
@@ -511,6 +820,11 @@ from the plugin
 
 **DataSource visualization_type value:** *map_layer*
 
+.. note::
+    Use the ``LayerConfigurationBuilder`` helper class (shown in the example below) to construct the return dictionary. It validates required fields and ensures the correct structure is produced. Import it alongside ``TethysDashPlugin``::
+
+        from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin, LayerConfigurationBuilder
+
 **read return: (dictionary)**
     - **configuration** (required): An object that contains metadata for the layer and source.
         - **type** (required): A string that determines the type of openlayers layer type ("ImageLayer", "VectorLayer", "TileLayer", "VectorTileLayer").
@@ -533,9 +847,45 @@ from the plugin
     - **queryable** (optional): A boolean indicating if the layer is queryable
     - **legend** (optional): See maps :ref:`legend_tab` for more information.
 
+**LayerConfigurationBuilder**
+
+    TethysDash provides a ``LayerConfigurationBuilder`` helper class to construct map layer configurations with the correct structure. It is the recommended approach for building map layer plugins. The builder validates required source properties at build time and eliminates the need to manually construct the nested configuration dictionary.
+
+    **Supported source types:**
+
+    - ``ESRI Image and Map Service``
+    - ``ESRI Feature Service``
+    - ``WMS``
+    - ``KML``
+    - ``Image Tile``
+    - ``GeoJSON``
+    - ``Vector Tile``
+    - ``PMTiles Vector``
+    - ``PMTiles Raster``
+
+    **Builder methods:**
+
+    - ``set_source_properties(**kwargs)`` — Set properties on the layer's data source (e.g., ``url``, ``params``, ``attributions``). Required and optional properties vary by source type; call ``get_available_source_properties()`` to inspect them.
+    - ``set_layer_visibility(bool)`` — Set the default visibility of the layer.
+    - ``set_opacity(float)`` — Set layer opacity between 0.0 and 1.0.
+    - ``set_queryable(bool)`` — Set whether the layer is queryable on click.
+    - ``set_min_zoom(int)`` / ``set_max_zoom(int)`` — Set zoom visibility bounds.
+    - ``set_min_resolution(int)`` / ``set_max_resolution(int)`` — Set resolution visibility bounds.
+    - ``set_min_zoom_query(int)`` — Minimum zoom level required to query the layer.
+    - ``set_geojson(dict)`` — Attach a GeoJSON object (for GeoJSON source type only).
+    - ``set_legend(dict | "default" | None)`` — Set the legend configuration.
+    - ``set_style(dict | str)`` — Set the layer style.
+    - ``add_attribute_alias(key, alias, layer_name)`` — Add a display alias for a layer attribute.
+    - ``add_attribute_variable(key, variable, layer_name)`` — Map a layer attribute to a dashboard variable input.
+    - ``omit_popup_attribute(key, layer_name)`` — Hide an attribute from the feature popup.
+    - ``get_available_source_properties()`` — Return the required and optional properties for the configured source type.
+    - ``get_layer_names()`` — Fetch layer names from the service (supported for ESRI, WMS, and GeoJSON sources).
+    - ``get_layer_attributes()`` — Fetch attribute field names from the service.
+    - ``build()`` — Validate required fields and return the final configuration dictionary.
+
 **Example**: ::
 
-    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin
+    from tethysapp.tethysdash.plugin_helpers import TethysDashPlugin, LayerConfigurationBuilder
 
 
     class MapLayerExample(TethysDashPlugin):
@@ -548,75 +898,40 @@ from the plugin
 
         def run(self):
             """
-            Return map layer configuration
+            Return map layer configuration using LayerConfigurationBuilder
             """
-            layer_source = {
-                "type": "ESRI Image and Map Service",
-                "props": {
-                    "url": "https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
-                    "attributions": "National Water Center",
-                    "params": {"LAYERS": "show:0"},
-                },
-            }
+            layer_name = "RFC Max Forecast"
+            sublayer_name = "Max Status - Forecast Trend"
 
-            layer_configuration = {
-                "type": "ImageLayer",
-                "props": {
-                    "name": "RFC Max Forecast",
-                    "source": layer_source,
-                    "opacity": 0.5,
-                },
-                "layerVisibility": True,
-                "style": {
-                    "type": "Style",
-                    "props": {
-                        "stroke": {
-                            "type": "Stroke",
-                            "props": {
-                                "color": "#501020",
-                                "width": 1,
-                            },
-                        },
-                    },
-                },
-            }
+            builder = LayerConfigurationBuilder(layer_name, "ESRI Image and Map Service")
 
-            aliases = {
-                "Max Status - Forecast Trend": {
-                    "record_threshold": "Record Threshold",
-                    "major_threshold": "Major Threshold",
-                    "moderate_threshold": "Moderate Threshold",
-                    "minor_threshold": "Minor Threshold",
-                    "action_threshold": "Action Threshold",
-                }
-            }
+            builder.set_source_properties(
+                url="https://maps.water.noaa.gov/server/rest/services/rfc/rfc_max_forecast/MapServer",
+                attributions="National Water Center",
+                params={"LAYERS": "show:0"},
+            )
 
-            variables = {
-                "Max Status - Forecast Trend": {
-                    "nws_lid": "LID",
-                }
-            }
+            builder.set_layer_visibility(True)
+            builder.set_opacity(0.5)
+            builder.set_queryable(True)
 
-            omitted_attributes = {
-                "Max Status - Forecast Trend": [
-                    "geom",
-                    "oid",
-                ]
-            }
+            builder.add_attribute_alias("record_threshold", "Record Threshold", sublayer_name)
+            builder.add_attribute_alias("major_threshold", "Major Threshold", sublayer_name)
+            builder.add_attribute_alias("moderate_threshold", "Moderate Threshold", sublayer_name)
+            builder.add_attribute_alias("minor_threshold", "Minor Threshold", sublayer_name)
+            builder.add_attribute_alias("action_threshold", "Action Threshold", sublayer_name)
 
-            legend = {
+            builder.add_attribute_variable("nws_lid", "LID", sublayer_name)
+
+            builder.omit_popup_attribute("geom", sublayer_name)
+            builder.omit_popup_attribute("oid", sublayer_name)
+
+            builder.set_legend({
                 "title": "Some Title",
                 "items": [{"label": "Some label", "color": "green", "symbol": "square"}],
-            }
+            })
 
-            return {
-                "configuration": layer_configuration,
-                "attributeVariables": variables,
-                "omittedPopupAttributes": omitted_attributes,
-                "attributeAliases": aliases,
-                "queryable": True,
-                "legend": legend,
-            }
+            return builder.build()
 
 
 |

@@ -14,6 +14,7 @@ import {
   mockedCSVUploaderVariable,
   mockedDateVariable,
   mockedDateRangeVariable,
+  mockedCustomDropdownVariable,
 } from "__tests__/utilities/constants";
 import { select } from "react-select-event";
 import createLoadedComponent, {
@@ -31,6 +32,7 @@ const advanceTimers = async (ms) => {
 };
 
 it("Creates a Date Input for a Variable Input", async () => {
+  const frozenNow = new Date("2026-03-30T19:23:57.966Z");
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.tabs[0].gridItems = [mockedDateVariable];
   const handleChange = jest.fn();
@@ -77,14 +79,18 @@ it("Creates a Date Input for a Variable Input", async () => {
 
   await userEvent.click(tomorrowCalendarItem);
   expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy '12:00 AM'"));
-  expect(handleChange).toHaveBeenLastCalledWith(
-    format(tomorrow, "MM/dd/yyyy '12:00 AM'"),
-  );
+  const expectedDateTime = tomorrow;
+  expectedDateTime.setHours(0, 0, 0, 0);
+  expect(handleChange).toHaveBeenLastCalledWith(expectedDateTime);
 
-  fireEvent.change(input, { target: { value: "now" } });
-  const expectedDatetimeString = format(today, dateHourFormat);
-  // there is a race condition where this could fail because the minute changed between the click and the change
-  expect(handleChange).toHaveBeenLastCalledWith(expectedDatetimeString);
+  jest.useFakeTimers();
+  try {
+    jest.setSystemTime(frozenNow);
+    fireEvent.change(input, { target: { value: "now" } });
+  } finally {
+    jest.useRealTimers();
+  }
+  expect(handleChange).toHaveBeenLastCalledWith(frozenNow);
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({ "Test Variable": "" }),
   );
@@ -94,11 +100,12 @@ it("Creates a Date Input for a Variable Input", async () => {
   await userEvent.click(refreshButton);
 
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
-    JSON.stringify({ "Test Variable": expectedDatetimeString }),
+    JSON.stringify({ "Test Variable": frozenNow }),
   );
 });
 
 it("Creates a Date Range Input for a Variable Input", async () => {
+  const frozenNow = new Date("2026-03-30T19:23:57.966Z");
   const dashboard = JSON.parse(JSON.stringify(userDashboard));
   dashboard.tabs[0].gridItems = [mockedDateRangeVariable];
   const handleChange = jest.fn();
@@ -140,12 +147,11 @@ it("Creates a Date Range Input for a Variable Input", async () => {
     }),
   );
 
+  jest.useFakeTimers();
+  jest.setSystemTime(frozenNow);
   fireEvent.change(inputs[0], { target: { value: "now" } });
   const today = new Date();
-  const expectedDatetimeString = format(
-    today,
-    varInputArgs["variable_options_source.metadata"].format,
-  );
+  jest.useRealTimers();
 
   const refreshButton = screen.getByLabelText("Refresh variable input");
   expect(refreshButton).toBeInTheDocument();
@@ -154,10 +160,10 @@ it("Creates a Date Range Input for a Variable Input", async () => {
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable": {
-        "Start Date": expectedDatetimeString,
+        "Start Date": today,
         "End Date": "01/16/2026T00:00",
       },
-      "Start Date": expectedDatetimeString,
+      "Start Date": today,
       "End Date": "01/16/2026T00:00",
     }),
   );
@@ -188,12 +194,123 @@ it("Creates a Date Range Input for a Variable Input", async () => {
   expect(await screen.findByTestId("input-variables")).toHaveTextContent(
     JSON.stringify({
       "Test Variable": {
-        "Start Date": expectedDatetimeString,
+        "Start Date": today,
         "End Date": "01/16/2026T00:00",
       },
-      "Start Date": expectedDatetimeString,
+      "Start Date": today,
       "End Date": "01/16/2026T00:00",
     }),
+  );
+});
+
+it("Creates a Custom Dropdown Input for a Variable Input", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedCustomDropdownVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedCustomDropdownVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+            metadata={varInputArgs["variable_options_source.metadata"]}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+  const variableInput = await screen.findByRole("combobox");
+  expect(variableInput).toBeInTheDocument();
+  await select(variableInput, "Option 1");
+
+  expect(screen.getByText("Option 1")).toBeInTheDocument();
+  expect(handleChange).toHaveBeenCalledWith("option_1");
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "option_1" }),
+  );
+});
+
+it("Creates a Custom Dropdown Input for a Variable Input, no choices", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedCustomDropdownVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedCustomDropdownVariable.args_string);
+  varInputArgs["variable_options_source.metadata"] = {};
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+            metadata={varInputArgs["variable_options_source.metadata"]}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+  const variableInput = await screen.findByRole("combobox");
+  expect(variableInput).toBeInTheDocument();
+
+  await userEvent.click(variableInput);
+  expect(await screen.findByText("No options")).toBeInTheDocument();
+});
+
+it("Creates a Custom Dropdown Input for a Variable Input, no label", async () => {
+  const dashboard = JSON.parse(JSON.stringify(userDashboard));
+  dashboard.tabs[0].gridItems = [mockedCustomDropdownVariable];
+  const handleChange = jest.fn();
+  const varInputArgs = JSON.parse(mockedCustomDropdownVariable.args_string);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <VariableInput
+            variable_name={varInputArgs.variable_name}
+            initial_value={varInputArgs.initial_value}
+            variable_options_source={varInputArgs.variable_options_source}
+            onChange={handleChange}
+            metadata={varInputArgs["variable_options_source.metadata"]}
+            show_label={false}
+          />
+          <InputVariablePComponent />
+        </>
+      ),
+      options: { dashboards: { dashboards: [dashboard] } },
+    }),
+  );
+
+  expect(screen.queryByText("Test Variable")).not.toBeInTheDocument();
+
+  const variableInput = await screen.findByRole("combobox");
+  expect(variableInput).toBeInTheDocument();
+  await select(variableInput, "Option 1");
+
+  expect(screen.getByText("Option 1")).toBeInTheDocument();
+  expect(handleChange).toHaveBeenCalledWith("option_1");
+
+  expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+    JSON.stringify({ "Test Variable": "option_1" }),
   );
 });
 
@@ -384,6 +501,91 @@ it("Creates a Slider Input for a Variable Input, missing metadata", async () => 
   expect(
     await screen.findByTestId("slider-missing-metadata"),
   ).toBeInTheDocument();
+});
+
+it("renders slider-missing-metadata when Array mode has no values array", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{ gridItemArgsString: JSON.stringify({}) }}
+          >
+            <VariableInput
+              variable_name="Array Slider"
+              variable_options_source="slider"
+              metadata={{ dataType: "Array" }}
+              onChange={jest.fn()}
+            />
+          </GridItemContext.Provider>
+        </>
+      ),
+    }),
+  );
+  expect(
+    await screen.findByTestId("slider-missing-metadata"),
+  ).toBeInTheDocument();
+});
+
+it("renders slider-missing-metadata when Array mode values is not an array", async () => {
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{ gridItemArgsString: JSON.stringify({}) }}
+          >
+            <VariableInput
+              variable_name="Array Slider"
+              variable_options_source="slider"
+              metadata={{ dataType: "Array", values: "not-an-array" }}
+              onChange={jest.fn()}
+            />
+          </GridItemContext.Provider>
+        </>
+      ),
+    }),
+  );
+  expect(
+    await screen.findByTestId("slider-missing-metadata"),
+  ).toBeInTheDocument();
+});
+
+it("renders Array mode slider when metadata has valid values array", async () => {
+  const handleChange = jest.fn();
+  render(
+    createLoadedComponent({
+      children: (
+        <>
+          <GridItemContext.Provider
+            value={{ gridItemArgsString: JSON.stringify({}) }}
+          >
+            <VariableInput
+              variable_name="Array Slider"
+              variable_options_source="slider"
+              metadata={{
+                dataType: "Array",
+                values: ["url1", "url2", "url3"],
+                labels: ["Frame 1", "Frame 2", "Frame 3"],
+                speedOptions: [500, 250],
+              }}
+              onChange={handleChange}
+            />
+          </GridItemContext.Provider>
+        </>
+      ),
+    }),
+  );
+
+  // Should render a working slider, not the missing-metadata div
+  expect(
+    screen.queryByTestId("slider-missing-metadata"),
+  ).not.toBeInTheDocument();
+  // Slider should be present with min/max labels from the labels array
+  expect(await screen.findByLabelText("Min Value")).toHaveTextContent(
+    "Frame 1",
+  );
+  expect(screen.getByLabelText("Max Value")).toHaveTextContent("Frame 3");
 });
 
 it("renders slider-missing-metadata when no initial value or range", async () => {
@@ -590,11 +792,12 @@ it("Creates a Number Input for a Variable Input", async () => {
 
   expect(await screen.findByText("Test Variable")).toBeInTheDocument();
 
-  const variableInput = await screen.findByRole("spinbutton");
+  const variableInput = await screen.findByRole("textbox");
   expect(variableInput).toBeInTheDocument();
+  await user.clear(variableInput);
   await user.type(variableInput, "9");
 
-  expect(variableInput).toHaveValue(9);
+  expect(variableInput).toHaveValue("9");
   expect(handleChange).toHaveBeenCalledWith(9);
 
   // Only update the Text Input after clicking the input refresh button
@@ -1014,11 +1217,12 @@ describe("When inDataViewerMode", () => {
 
     expect(await screen.findByText("Test Variable")).toBeInTheDocument();
 
-    const variableInput = await screen.findByRole("spinbutton");
+    const variableInput = await screen.findByRole("textbox");
     expect(variableInput).toBeInTheDocument();
+    await user.clear(variableInput);
     await user.type(variableInput, "9");
 
-    expect(variableInput).toHaveValue(9);
+    expect(variableInput).toHaveValue("9");
     expect(handleChange).toHaveBeenCalledWith(9);
 
     // Only update the Text Input after clicking the input refresh button
@@ -1174,6 +1378,124 @@ describe("When inDataViewerMode", () => {
       label: "FTDC1 - SMITH RIVER - DOCTOR FINE BRIDGE",
       value: "FTDC1",
     });
+  });
+
+  it("Create a date picker input for a Variable Input", async () => {
+    const frozenNow = new Date("2026-03-30T19:23:57.966Z");
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedDateVariable];
+    const handleChange = jest.fn();
+    const varInputArgs = JSON.parse(mockedDateVariable.args_string);
+
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <VariableInput
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
+              onChange={handleChange}
+            />
+            <InputVariablePComponent />
+          </>
+        ),
+        options: {
+          dashboards: { dashboards: [dashboard] },
+          inDataViewerMode: true,
+        },
+      }),
+    );
+
+    expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+
+    const input = screen.getByRole("textbox");
+    expect(input.value).toBe("");
+
+    const calendarButton = screen.getByLabelText("Calendar Icon");
+    await userEvent.click(calendarButton);
+
+    const datePicker = await screen.findByRole("dialog");
+    expect(datePicker).toBeInTheDocument();
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(today.getDate() + 1);
+    const weekday = tomorrow.toLocaleDateString("en-US", { weekday: "long" });
+    const month = tomorrow.toLocaleDateString("en-US", { month: "long" });
+    const day = tomorrow.getDate();
+    const ordinal = getOrdinal(day);
+    const year = tomorrow.getFullYear();
+
+    const formatted = `Choose ${weekday}, ${month} ${day}${ordinal}, ${year}`;
+    const tomorrowCalendarItem = screen.getByLabelText(formatted);
+
+    await userEvent.click(tomorrowCalendarItem);
+    expect(input.value).toBe(format(tomorrow, "MM/dd/yyyy '12:00 AM'"));
+    tomorrow.setHours(0, 0, 0, 0);
+    expect(handleChange).toHaveBeenLastCalledWith(tomorrow);
+
+    expect(screen.getByText("Example Date Output")).toBeInTheDocument();
+    const dateOutput = screen.getByLabelText("Example Date Output Span");
+    expect(dateOutput).toHaveTextContent(
+      format(tomorrow, "MM/dd/yyyy '12:00 AM'"),
+    );
+
+    jest.useFakeTimers();
+    try {
+      jest.setSystemTime(frozenNow);
+      fireEvent.change(input, { target: { value: "now" } });
+    } finally {
+      jest.useRealTimers();
+    }
+    expect(handleChange).toHaveBeenLastCalledWith("now");
+
+    expect(screen.getByText("Example Date Output")).toBeInTheDocument();
+    expect(dateOutput).toHaveTextContent(format(frozenNow, dateHourFormat));
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": "" }),
+    );
+
+    const refreshButton = screen.getByLabelText("Refresh variable input");
+    expect(refreshButton).toBeInTheDocument();
+    await userEvent.click(refreshButton);
+
+    expect(await screen.findByTestId("input-variables")).toHaveTextContent(
+      JSON.stringify({ "Test Variable": "" }),
+    );
+  });
+
+  it("Create a date picker input; bad format", async () => {
+    const dashboard = JSON.parse(JSON.stringify(userDashboard));
+    dashboard.tabs[0].gridItems = [mockedDateVariable];
+    const handleChange = jest.fn();
+    const varInputArgs = JSON.parse(mockedDateVariable.args_string);
+
+    render(
+      createLoadedComponent({
+        children: (
+          <>
+            <VariableInput
+              variable_name={varInputArgs.variable_name}
+              initial_value={varInputArgs.initial_value}
+              variable_options_source={varInputArgs.variable_options_source}
+              onChange={handleChange}
+              metadata={{ format: "bad format" }}
+            />
+            <InputVariablePComponent />
+          </>
+        ),
+        options: {
+          dashboards: { dashboards: [dashboard] },
+          inDataViewerMode: true,
+        },
+      }),
+    );
+
+    expect(await screen.findByText("Test Variable")).toBeInTheDocument();
+    const dateOutput = screen.getByLabelText("Example Date Output Span");
+    expect(dateOutput).toHaveTextContent("Invalid date format");
+    expect(screen.getByText("Example Date Output")).toBeInTheDocument();
   });
 });
 

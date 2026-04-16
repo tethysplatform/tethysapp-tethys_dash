@@ -94,7 +94,7 @@ const StylePane = ({
       setStyle(JSON.stringify(style, null, 4));
       setStyleSource("custom");
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [style]);
 
   // Only sync rules from style JSON when switching to rules mode
@@ -118,7 +118,7 @@ const StylePane = ({
       }
     }
     lastStyleMode.current = styleMode;
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [styleMode]);
 
   // Only update style JSON when rules or default style change and in rules mode

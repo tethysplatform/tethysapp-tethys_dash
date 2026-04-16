@@ -186,6 +186,12 @@ describe("parseDate", () => {
     const result = parseDate("", dateHourFormat, true);
     expect(result).toBeNull();
   });
+
+  it("returns null for bad format", () => {
+    const today = new Date();
+    const result = parseDate(today, "bad_format", true);
+    expect(result).toBeNull();
+  });
 });
 
 describe("toLocalISO function", () => {

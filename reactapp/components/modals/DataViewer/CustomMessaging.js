@@ -38,12 +38,12 @@ const CustomMessaging = ({
 
   useEffect(() => {
     onChange(customMessaging);
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customMessaging]);
 
   useEffect(() => {
     setDependentVariableInputs(getDependentVariableInputs(vizInputsValues));
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vizInputsValues]);
 
   function onCustomMessageChange(type, message) {

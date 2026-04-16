@@ -218,7 +218,7 @@ const LegendPane = ({ legend, setLegend, containerRef, sourceProps }) => {
       }
       setLegendMode(nextMode);
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceProps.type]);
 
   const handleModeChange = (mode) => {

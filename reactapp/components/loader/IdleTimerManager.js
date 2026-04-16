@@ -59,7 +59,7 @@ function IdleTimerManager() {
 
     loadAppData();
 
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const onAction = (event) => {
@@ -116,7 +116,7 @@ function IdleTimerManager() {
     return () => {
       clearInterval(interval);
     };
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTimerEnabled, showActivePrompt]);
 
   useEffect(() => {
@@ -158,7 +158,7 @@ function IdleTimerManager() {
       // Initial load
       callAPI();
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [count]);
 
   const handleDontShow = (e) => {

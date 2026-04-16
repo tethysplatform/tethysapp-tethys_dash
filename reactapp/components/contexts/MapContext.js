@@ -4,12 +4,18 @@ import { MapContext } from "components/contexts/Contexts";
 
 const MapContextProvider = ({ children }) => {
   const [mapReady, setMapReady] = useState(false);
+  const [extentDrawMode, setExtentDrawMode] = useState(null);
+  const [drawnExtent, setDrawnExtent] = useState(null);
 
   return (
     <MapContext.Provider
       value={{
         mapReady,
         setMapReady,
+        extentDrawMode,
+        setExtentDrawMode,
+        drawnExtent,
+        setDrawnExtent,
       }}
     >
       {children}

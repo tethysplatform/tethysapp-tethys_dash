@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tethysdash"
-version = "0.18.7"
+version = "0.19.1"
 description = "A Tethys App for no code/low code web application development app"
 authors = [{ name = "Corey Krewson", email = "ckrewson@aquaveo.com" }]
 license-files = ["LICENSE"]
@@ -50,7 +50,7 @@ include-package-data = true
 [tool.setuptools.packages.find]
 # Find namespace packages like `tethysapp.tethysdash`
 include = ["tethysapp*"]
-exclude = ["docs*", "tests*", "reactapp*"]
+exclude = ["docs*", "tests*", "reactapp*", "claude*"]
 
 [tool.setuptools_scm]
 write_to = "tethysapp/tethysdash/_version.py"

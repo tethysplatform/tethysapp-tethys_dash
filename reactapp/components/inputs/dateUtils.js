@@ -1,7 +1,8 @@
 import { format, parse } from "date-fns";
 
-// Formats for date and date-hour
+// Formats for date
 export const dateHourFormat = "MM/dd/yyyy h:mm aa";
+export const dateOnlyFormat = "MM/dd/yyyy";
 
 export function toLocalISO(d) {
   const pad = (n) => String(n).padStart(2, "0");
@@ -58,7 +59,12 @@ export const parseDateMath = ({ value, dateFormat }) => {
     date = new Date();
     value = value.slice(3);
   } else {
-    date = parse(value, dateFormat, new Date());
+    try {
+      date = parse(value, dateFormat, new Date());
+    } catch (e) {
+      // If parsing fails, return null
+      return null;
+    }
 
     if (isNaN(date)) {
       date = new Date(value);
@@ -138,7 +144,12 @@ export const parseDate = (
   // If formatting requested, only format if valid date
   if (return_formatted) {
     if (selectedDate instanceof Date && !isNaN(selectedDate)) {
-      return format(selectedDate, dateFormat);
+      try {
+        return format(selectedDate, dateFormat);
+      } catch (e) {
+        // If formatting fails, return null
+        return null;
+      }
     } else {
       // If invalid, return null (or could return rawDate if preferred)
       return null;

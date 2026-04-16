@@ -58,7 +58,7 @@ const LayersControl = ({ updater, visualizationRef }) => {
       // Update state tracking the checkbox
       setLayerVisibility(formatVisibility(mapLayers));
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isexpanded, updater]);
 
   function formatVisibility(mapLayers) {

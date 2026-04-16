@@ -31,6 +31,12 @@ const moduleCache = {};
 const styleCache = new Map();
 
 const moduleLoader = async (config, mapProjection) => {
+  if (config.type === "Static Image" && typeof config.props?.imageExtent === "string") {
+    config.props.imageExtent = config.props.imageExtent
+      .split(",")
+      .map((v) => parseFloat(v.trim()));
+  }
+
   if (config.type.includes("ESRI")) {
     if (config.props?.params?.TIME) {
       config.props.params.TIME = config.props.params.TIME.split(",")
@@ -185,6 +191,8 @@ const getModuleImporter = (type) => {
     InvalidForTesting: "DontUseThis",
     "PMTiles Vector": "ol-pmtiles",
     "PMTiles Raster": "ol-pmtiles",
+    "Static Image": "ol/source/ImageStatic.js",
+    "bad-module": "bad-module",
     // Add other mappings as needed
   };
 

@@ -149,6 +149,7 @@ export const AddMapLayer = ({
   values,
   setShowingSubModal,
   gridItemIndex,
+  visualizationRef,
 }) => {
   const [showMapLayerModal, setShowMapLayerModal] = useState(false);
   const [layerInfo, setLayerInfo] = useState({});
@@ -159,12 +160,12 @@ export const AddMapLayer = ({
     if (!valuesEqual(mapLayers, values)) {
       setMapLayers(values);
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [values]);
 
   useEffect(() => {
     setShowingSubModal(showMapLayerModal);
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showMapLayerModal]);
 
   const addMapLayer = (newMapLayer) => {
@@ -271,6 +272,7 @@ export const AddMapLayer = ({
           mapLayers={mapLayers}
           existingLayerOriginalName={existingLayerOriginalName}
           gridItemIndex={gridItemIndex}
+          visualizationRef={visualizationRef}
         />
       )}
     </>
@@ -306,4 +308,8 @@ AddMapLayer.propTypes = {
   values: PropTypes.arrayOf(layerPropType),
   setShowingSubModal: PropTypes.func, // indicates to parent modals that a submodal is showing and therefore a change in zindex is needed for the submodal focusing
   gridItemIndex: PropTypes.number, // index of the griditem currently being updated
+  visualizationRef: PropTypes.oneOfType([
+    PropTypes.func,
+    PropTypes.shape({ current: PropTypes.any }),
+  ]),
 };

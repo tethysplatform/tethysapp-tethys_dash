@@ -7,6 +7,7 @@ from tethysapp.tethysdash.plugin_helpers import (
 import requests
 import pytest
 import re
+from datetime import datetime, timezone
 
 
 def test_layer_configuration_builder_ESRI_map(mocker):
@@ -855,7 +856,7 @@ class MinimalPlugin(TethysDashPlugin):
     group = "TestGroup"
     label = "Minimal Plugin"
     type = "plotly"
-    args = {"foo": "bar"}
+    args = {"foo": "bar", "fooDate": "date"}
     tags = ["tag1"]
     description = "desc"
     restricted = True
@@ -888,7 +889,7 @@ def test_plugin_init_and_attributes():
     assert plugin.group == "TestGroup"
     assert plugin.label == "Minimal Plugin"
     assert plugin.type == "plotly"
-    assert plugin.args == {"foo": "bar"}
+    assert plugin.args == {"foo": "bar", "fooDate": "date"}
     assert plugin.tags == ["tag1"]
     assert plugin.description == "desc"
     assert plugin.restricted is True
@@ -1031,6 +1032,6 @@ def test_plugin_send_update(monkeypatch):
 
 
 def test_plugin_kwargs_are_set():
-    plugin = MinimalPlugin(extra1=123, extra2="abc")
-    assert plugin.extra1 == 123
-    assert plugin.extra2 == "abc"
+    plugin = MinimalPlugin(foo=123, fooDate="2023-01-01")
+    assert plugin.foo == 123
+    assert plugin.fooDate == datetime(2023, 1, 1, 0, 0, tzinfo=timezone.utc)

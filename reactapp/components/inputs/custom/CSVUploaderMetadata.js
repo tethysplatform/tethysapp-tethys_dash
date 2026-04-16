@@ -7,7 +7,7 @@ const CSVUploaderMetadata = ({ onChange, values }) => {
 
   useEffect(() => {
     onChange({ ...values, headers: headers });
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [headers]);
 
   function handleHeadersChange(newValues) {

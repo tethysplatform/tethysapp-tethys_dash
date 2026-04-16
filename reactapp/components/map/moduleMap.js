@@ -17,4 +17,7 @@ export const moduleMap = {
   "ol/style/Fill.js": () => import("ol/style/Fill.js"),
   "ol/format/EsriJSON.js": () => import("ol/format/EsriJSON.js"),
   "ol-pmtiles": () => import("ol-pmtiles"),
+  "ol/source/ImageStatic.js": () => import("ol/source/ImageStatic.js"),
+  "bad-module": () =>
+    "This is not a valid module and should cause an error when imported.",
 };

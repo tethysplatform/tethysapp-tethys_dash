@@ -240,7 +240,7 @@ function DataViewerModal({
           return;
         }
 
-        var variableInputSource = vizInputsValues.variable_options_source;
+        const variableInputSource = vizInputsValues.variable_options_source;
 
         for (const variableInputName of newVariableInputNames) {
           if (
@@ -402,11 +402,11 @@ function DataViewerModal({
                     vizType={vizType}
                     vizData={vizData}
                     dataviewerViz={true}
-                    vizMetadata={updateObjectWithVariableInputs(
-                      settings,
-                      variableInputValues,
+                    vizMetadata={updateObjectWithVariableInputs({
+                      args: settings,
+                      variableInputs: variableInputValues,
                       variableInputDateFormats,
-                    )}
+                    })}
                     progressMessage={getMessageForRequest(requestId.current)}
                   />
                 )}

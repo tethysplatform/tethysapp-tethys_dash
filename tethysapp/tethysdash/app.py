@@ -36,6 +36,14 @@ class App(TethysAppBase):
         return ps_settings
 
     def permissions(self):
+        """
+        Define app-level permissions.
+
+        Returns:
+            tuple: Permissions available in this app. ``manage_visualizations``
+            grants access to view and edit which users/groups may access
+            restricted visualization plugins.
+        """
         manage_visualizations = Permission(
             name="manage_visualizations", description="Manage visualizations"
         )
@@ -46,7 +54,12 @@ class App(TethysAppBase):
 
     def custom_settings(self):
         """
-        Example custom_settings method.
+        Define custom app settings.
+
+        Returns:
+            tuple: Optional settings configurable by administrators:
+            ``support_email`` is displayed to users on support pages;
+            ``support_github`` is the URL of the project's GitHub repository.
         """
         custom_settings = (
             CustomSetting(

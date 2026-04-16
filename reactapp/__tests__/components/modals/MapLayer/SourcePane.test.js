@@ -8,6 +8,7 @@ import appAPI from "services/api/app";
 import PropTypes from "prop-types";
 import userEvent from "@testing-library/user-event";
 import { LayoutContext } from "components/contexts/Contexts";
+import MapContextProvider from "components/contexts/MapContext";
 import { sourcePropertiesOptions } from "components/map/utilities";
 
 const exampleGeoJSON = {
@@ -29,7 +30,11 @@ const exampleGeoJSON = {
   ],
 };
 
-const TestingComponent = ({ initialSourceProps, setErrorMessage }) => {
+const TestingComponent = ({
+  initialSourceProps,
+  setErrorMessage,
+  onRequestHideModal,
+}) => {
   const [sourceProps, setSourceProps] = useState(initialSourceProps ?? {});
   const [attributeProps, setAttributeProps] = useState({
     variables: {
@@ -41,21 +46,24 @@ const TestingComponent = ({ initialSourceProps, setErrorMessage }) => {
   });
 
   return (
-    <LayoutContext.Provider value={{ uuid: "123" }}>
-      <SourcePane
-        sourceProps={sourceProps}
-        setSourceProps={setSourceProps}
-        setAttributeProps={setAttributeProps}
-        setErrorMessage={setErrorMessage}
-      />
-      <p data-testid="sourceProps">{JSON.stringify(sourceProps)}</p>
-      <p data-testid="attributeVariables">
-        {JSON.stringify(attributeProps.variables)}
-      </p>
-      <p data-testid="omittedPopupAttributes">
-        {JSON.stringify(attributeProps.omitted)}
-      </p>
-    </LayoutContext.Provider>
+    <MapContextProvider>
+      <LayoutContext.Provider value={{ uuid: "123" }}>
+        <SourcePane
+          sourceProps={sourceProps}
+          setSourceProps={setSourceProps}
+          setAttributeProps={setAttributeProps}
+          setErrorMessage={setErrorMessage}
+          onRequestHideModal={onRequestHideModal}
+        />
+        <p data-testid="sourceProps">{JSON.stringify(sourceProps)}</p>
+        <p data-testid="attributeVariables">
+          {JSON.stringify(attributeProps.variables)}
+        </p>
+        <p data-testid="omittedPopupAttributes">
+          {JSON.stringify(attributeProps.omitted)}
+        </p>
+      </LayoutContext.Provider>
+    </MapContextProvider>
   );
 };
 
@@ -640,4 +648,162 @@ describe("generatePropertiesArrayWithValues", () => {
 TestingComponent.propTypes = {
   initialSourceProps: PropTypes.object,
   setErrorMessage: PropTypes.func,
+  onRequestHideModal: PropTypes.func,
 };
+
+test("SourcePane Static Image fields", async () => {
+  render(<TestingComponent onRequestHideModal={jest.fn()} />);
+
+  const sourceDropdown = screen.getByRole("combobox");
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("Static Image");
+  fireEvent.click(sourceOption);
+
+  expect(await screen.findByText("Source Properties")).toBeInTheDocument();
+  expect(screen.getByText("*url")).toBeInTheDocument();
+  expect(screen.getByText("*projection")).toBeInTheDocument();
+  expect(screen.getByText("*imageExtent")).toBeInTheDocument();
+  expect(screen.getByText("attributions")).toBeInTheDocument();
+
+  expect(await screen.findByTestId("sourceProps")).toHaveTextContent(
+    JSON.stringify({ type: "Static Image", props: {} }),
+  );
+});
+
+test("SourcePane Static Image Draw Extent button calls onRequestHideModal", async () => {
+  const mockOnRequestHideModal = jest.fn();
+  render(
+    <TestingComponent onRequestHideModal={mockOnRequestHideModal} />,
+  );
+
+  const sourceDropdown = screen.getByRole("combobox");
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("Static Image");
+  fireEvent.click(sourceOption);
+
+  // Fill in URL first
+  const inputs = await screen.findAllByRole("textbox");
+  const urlInput = inputs[0];
+  fireEvent.change(urlInput, {
+    target: { value: "https://example.com/image.png" },
+  });
+
+  const drawButton = await screen.findByLabelText(
+    "Draw Extent on Map Button",
+  );
+  expect(drawButton).toBeInTheDocument();
+  fireEvent.click(drawButton);
+
+  expect(mockOnRequestHideModal).toHaveBeenCalledTimes(1);
+});
+
+test("SourcePane Static Image Draw Extent requires URL", async () => {
+  const mockSetErrorMessage = jest.fn();
+  render(
+    <TestingComponent
+      setErrorMessage={mockSetErrorMessage}
+      onRequestHideModal={jest.fn()}
+    />,
+  );
+
+  const sourceDropdown = screen.getByRole("combobox");
+  selectEvent.openMenu(sourceDropdown);
+  const sourceOption = await screen.findByText("Static Image");
+  fireEvent.click(sourceOption);
+
+  const drawButton = await screen.findByLabelText(
+    "Draw Extent on Map Button",
+  );
+  fireEvent.click(drawButton);
+
+  expect(mockSetErrorMessage).toHaveBeenCalledWith(
+    "Please enter an image URL before drawing the extent.",
+  );
+});
+
+test("SourcePane Static Image existing values", async () => {
+  render(
+    <TestingComponent
+      initialSourceProps={{
+        type: "Static Image",
+        props: {
+          url: "https://example.com/image.png",
+          projection: "EPSG:3857",
+          imageExtent: "-100, 30, -90, 40",
+        },
+      }}
+      onRequestHideModal={jest.fn()}
+    />,
+  );
+
+  expect(await screen.findByText("Source Type")).toBeInTheDocument();
+  expect(screen.getByText("*url")).toBeInTheDocument();
+  expect(screen.getByText("*projection")).toBeInTheDocument();
+  expect(screen.getByText("*imageExtent")).toBeInTheDocument();
+
+  const inputs = await screen.findAllByRole("textbox");
+  const urlInput = inputs[0];
+  const projectionInput = inputs[1];
+  const imageExtentInput = inputs[2];
+
+  expect(urlInput.value).toBe("https://example.com/image.png");
+  expect(projectionInput.value).toBe("EPSG:3857");
+  expect(imageExtentInput.value).toBe("-100, 30, -90, 40");
+});
+
+test("SourcePane Static Image Draw Extent parses existing imageExtent", async () => {
+  const mockOnRequestHideModal = jest.fn();
+  render(
+    <TestingComponent
+      initialSourceProps={{
+        type: "Static Image",
+        props: {
+          url: "https://example.com/image.png",
+          projection: "EPSG:3857",
+          imageExtent: "-100.5, 30.2, -90.1, 40.8",
+        },
+      }}
+      onRequestHideModal={mockOnRequestHideModal}
+    />,
+  );
+
+  await waitFor(() => {
+    expect(screen.getByText("*imageExtent")).toBeInTheDocument();
+  });
+
+  const drawButton = await screen.findByLabelText(
+    "Draw Extent on Map Button",
+  );
+  fireEvent.click(drawButton);
+
+  expect(mockOnRequestHideModal).toHaveBeenCalledTimes(1);
+});
+
+test("SourcePane Static Image Draw Extent handles invalid imageExtent gracefully", async () => {
+  const mockOnRequestHideModal = jest.fn();
+  render(
+    <TestingComponent
+      initialSourceProps={{
+        type: "Static Image",
+        props: {
+          url: "https://example.com/image.png",
+          projection: "EPSG:3857",
+          imageExtent: "not, a, valid",
+        },
+      }}
+      onRequestHideModal={mockOnRequestHideModal}
+    />,
+  );
+
+  await waitFor(() => {
+    expect(screen.getByText("*imageExtent")).toBeInTheDocument();
+  });
+
+  const drawButton = await screen.findByLabelText(
+    "Draw Extent on Map Button",
+  );
+  fireEvent.click(drawButton);
+
+  // Should still proceed (initialExtent stays null) without error
+  expect(mockOnRequestHideModal).toHaveBeenCalledTimes(1);
+});

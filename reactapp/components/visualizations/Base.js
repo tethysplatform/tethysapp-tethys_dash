@@ -1,6 +1,8 @@
 import PropTypes from "prop-types";
 import { useEffect, useState, memo, useRef, useContext, Fragment } from "react";
 import Image from "components/visualizations/Image";
+import ImageSequence from "components/visualizations/ImageSequence";
+import ImageCollection from "components/visualizations/ImageCollection";
 import Text from "components/visualizations/Text";
 import VariableInput from "components/visualizations/VariableInput";
 import MapVisualization from "components/visualizations/Map";
@@ -114,6 +116,26 @@ export const Visualization = memo(
             visualizationRef={vizRef}
           />
         );
+      case "imageSequence":
+        return (
+          <ImageSequence
+            urls={vizData.urls}
+            activeUrl={vizData.activeUrl}
+            alt={vizData.alt}
+            imageError={vizData.imageError}
+            visualizationRef={vizRef}
+          />
+        );
+      case "imageCollection":
+        return (
+          <ImageCollection
+            urls={vizData.urls}
+            title={vizData.title}
+            columns={vizData.columns}
+            imageError={vizData.imageError}
+            visualizationRef={vizRef}
+          />
+        );
       case "text":
         return <Text textValue={vizData.text} />;
       case "variableInput":
@@ -220,7 +242,11 @@ export const Visualization = memo(
   },
 );
 
-// Helper function to compare only the keys that exist in filteredOriginalArgs
+/**
+ * Compares `currentArgs` and `updatedArgs`, but only for the keys present in
+ * `keysToCompare`. Returns true if all overlapping key values are equal
+ * (deep equality via `valuesEqual`), false otherwise.
+ */
 export const compareFilteredArgs = (
   currentArgs,
   updatedArgs,
@@ -241,7 +267,9 @@ export const compareFilteredArgs = (
   return valuesEqual(filteredCurrent, filteredUpdated);
 };
 
-// Filter function to exclude date/date-hour types and relative dates
+// Filter function to exclude args where ALL dependent variable inputs are
+// relative dates or date-formatted. If any non-date input is referenced,
+// keep the arg so changes to those inputs still trigger a re-fetch.
 const filterNonRelativeDateArgs = (
   args,
   variableInputs,
@@ -252,16 +280,14 @@ const filterNonRelativeDateArgs = (
     const dateFormat = variableInputDateFormats?.[key];
     const dependentVariableInputs = getDependentVariableInputs(value);
 
-    let validFilter = true;
-    for (const input of dependentVariableInputs) {
-      // Skip if the argument type is date or date-hour and the value is a relative date
-      const variableInput = variableInputs?.[input];
-      if (dateFormat || isRelativeInput(variableInput)) {
-        validFilter = false;
-      }
-    }
+    const allDependentsAreDates =
+      dependentVariableInputs.length > 0 &&
+      dependentVariableInputs.every((input) => {
+        const variableInput = variableInputs?.[input];
+        return dateFormat || isRelativeInput(variableInput);
+      });
 
-    if (validFilter) {
+    if (!allDependentsAreDates) {
       filtered[key] = value;
     }
   }
@@ -280,9 +306,11 @@ const BaseVisualization = () => {
   const [vizData, setVizData] = useState({});
   const [vizMetadata, setVizMetadata] = useState({});
   const { visualizations } = useContext(AppContext);
-  const { variableInputValues, variableInputDateFormats } = useContext(
-    VariableInputsContext,
-  );
+  const {
+    variableInputValues,
+    variableInputDateFormats,
+    variableInputSliderMeta,
+  } = useContext(VariableInputsContext);
   const gridItemArgsWithVariableInputs = useRef(0);
   const gridItemMetadataWithVariableInputs = useRef(0);
   const customMessages = useRef({});
@@ -320,7 +348,7 @@ const BaseVisualization = () => {
     } else {
       setVariableDependentVisualizations({});
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridItemSource, gridItemArgsString, gridItemMetadataString]);
 
   useEffect(() => {
@@ -328,7 +356,7 @@ const BaseVisualization = () => {
     if (!["", "Variable Input"].includes(gridItemSource) && !args.inlineData) {
       setVariableDependentVisualizations({});
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [variableInputValues, shouldLoad]);
 
   useEffect(() => {
@@ -356,8 +384,8 @@ const BaseVisualization = () => {
       );
       return () => clearInterval(interval);
     }
-    // eslint-disable-next-line
-  }, [gridItemMetadataString, isEditing]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gridItemMetadataString, isEditing, shouldLoad]);
 
   async function setVariableDependentVisualizations({ refresh }) {
     const originalArgs = JSON.parse(gridItemArgsString);
@@ -369,19 +397,20 @@ const BaseVisualization = () => {
       "source",
     );
     const sourceType = visualization?.type;
+    const sourceArgs = visualization?.args;
 
     const itemData = { source: gridItemSource, args: args };
-    const updatedGridItemArgs = updateObjectWithVariableInputs(
+    const updatedGridItemArgs = updateObjectWithVariableInputs({
       args,
-      variableInputValues,
+      variableInputs: variableInputValues,
       variableInputDateFormats,
-    );
+    });
 
-    const updatedGridItemMetadata = updateObjectWithVariableInputs(
-      gridMetadata,
-      variableInputValues,
+    const updatedGridItemMetadata = updateObjectWithVariableInputs({
+      args: gridMetadata,
+      variableInputs: variableInputValues,
       variableInputDateFormats,
-    );
+    });
     const customMessaging = gridMetadata.customMessaging;
 
     const filteredOriginalArgs = filterNonRelativeDateArgs(
@@ -394,6 +423,27 @@ const BaseVisualization = () => {
     const isEmptyArgs = gridItemSource && Object.keys(args).length === 0;
     const alreadyLoadedEmptyArgs =
       loadedEmptyArgsForSource.current[gridItemSource];
+
+    // ImageSequence fast-path: when only a slider variable changed,
+    // just update activeUrl instead of regenerating the full URL list.
+    if (
+      vizType === "imageSequence" &&
+      gridItemSource === "Custom Image" &&
+      !refresh &&
+      shouldLoad
+    ) {
+      const newActiveUrl = updatedGridItemArgs.image_source;
+      if (newActiveUrl && newActiveUrl !== vizData.activeUrl) {
+        gridItemArgsWithVariableInputs.current = updatedGridItemArgs;
+        setVizData((prev) => ({ ...prev, activeUrl: newActiveUrl }));
+      }
+      // Still check if non-slider args changed (e.g. a dropdown variable in the URL).
+      // If urls need regeneration, fall through to the full getVisualization below.
+      const prevUrls = vizData.urls;
+      if (prevUrls && !prevUrls.includes(newActiveUrl)) {
+        refresh = true;
+      }
+    }
 
     if (
       (refresh ||
@@ -419,6 +469,7 @@ const BaseVisualization = () => {
         setVizType,
         setVizData,
         sourceType,
+        sourceArgs,
         itemData,
         argsString: gridItemArgsString,
         metadataString: gridItemMetadataString,
@@ -431,6 +482,7 @@ const BaseVisualization = () => {
         )?.loading_icon,
         variableInputDateFormats,
         visualizations,
+        variableInputSliderMeta,
       });
     }
 

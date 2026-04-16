@@ -1,5 +1,13 @@
+import { useState, useEffect } from "react";
 import Form from "react-bootstrap/Form";
 import PropTypes from "prop-types";
+
+const hasUnclosedVariable = (val) => {
+  const lastOpen = val.lastIndexOf("${");
+  if (lastOpen === -1) return false;
+  const closeAfter = val.indexOf("}", lastOpen + 2);
+  return closeAfter === -1;
+};
 
 const NormalInput = ({
   label,
@@ -13,6 +21,46 @@ const NormalInput = ({
   min,
   max,
 }) => {
+  const isNumber = type === "number";
+  const [rawValue, setRawValue] = useState(String(value ?? ""));
+
+  useEffect(() => {
+    const strValue = String(value ?? "");
+    if (strValue !== "NaN") {
+      setRawValue(strValue);
+    }
+  }, [value]);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+
+    if (!isNumber) {
+      onChange(e);
+      return;
+    }
+
+    // Inside an unclosed ${...}, allow anything (building variable name)
+    // Otherwise, only allow numeric characters, ".", "-", and "$" (to start a variable)
+    if (!hasUnclosedVariable(val)) {
+      const nonVarParts = val.replace(/\$\{[^}]*\}/g, "");
+      if (
+        nonVarParts !== "" &&
+        nonVarParts !== "-" &&
+        isNaN(Number(nonVarParts)) &&
+        !nonVarParts.endsWith("$")
+      )
+        return;
+    }
+
+    setRawValue(val);
+
+    // Don't propagate incomplete values to parent — keeps last valid value
+    if (val === "" || val === "-" || hasUnclosedVariable(val) || val === "$")
+      return;
+
+    onChange(e);
+  };
+
   return (
     <div {...divProps}>
       {label && (
@@ -22,14 +70,26 @@ const NormalInput = ({
       )}
       <Form.Control
         aria-label={ariaLabel || label + " Input"}
-        type={type}
-        onChange={onChange}
+        type={isNumber ? "text" : type}
+        onChange={handleChange}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
-            e.preventDefault(); // prevents submitting form on enter
+            e.preventDefault();
+          }
+          if (isNumber && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+            const num = Number(rawValue);
+            if (isNaN(num)) return;
+            const step = e.key === "ArrowUp" ? 1 : -1;
+            let newVal = num + step;
+            if (min !== undefined && newVal < min) newVal = min;
+            if (max !== undefined && newVal > max) newVal = max;
+            const newStr = String(newVal);
+            setRawValue(newStr);
+            onChange({ target: { value: newStr } });
+            e.preventDefault();
           }
         }}
-        value={value}
+        value={isNumber ? rawValue : value}
         placeholder={placeholder}
         min={min !== undefined ? min : null}
         max={max !== undefined ? max : null}

@@ -24,6 +24,9 @@ import { computePanelLayout } from "components/dashboard/panelLayoutUtils";
 
 const ReactGridLayout = WidthProvider(RGL);
 
+// Grid is divided into 100 equal columns so widget widths are percentages of
+// the viewport (e.g. w=50 → half the screen). Row height is derived from
+// column width minus a 10px gutter so cells are approximately square by default.
 const colCount = 100;
 const rowHeight = window.innerWidth / colCount - 10;
 

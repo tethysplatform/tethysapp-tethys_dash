@@ -2,10 +2,16 @@ import appAPI from "services/api/app";
 import { spaceAndCapitalize } from "components/modals/utilities";
 import {
   parseDateMath,
+  parseDate,
   convertDatesToLocalISO,
 } from "components/inputs/dateUtils";
 import { format } from "date-fns";
 
+/**
+ * Returns an array of warning messages when any variable inputs referenced by a
+ * visualization's args have no value, or null if all inputs are populated.
+ * Respects custom messaging configured in the grid item metadata.
+ */
 export function checkForEmptyVariableInputs({
   metadataString,
   argsString,
@@ -33,6 +39,10 @@ export function checkForEmptyVariableInputs({
   return warnings.length > 0 ? warnings : null;
 }
 
+/**
+ * Searches a nested visualization options array for an entry whose `source`
+ * field matches `targetSource`. Returns the matching option object or null.
+ */
 export function findVisualizationBySource(data, targetSource) {
   for (const group of data) {
     for (const option of group.options) {
@@ -44,8 +54,13 @@ export function findVisualizationBySource(data, targetSource) {
   return null;
 }
 
+/**
+ * Returns a deduplicated list of variable input names referenced in `args`
+ * using the `${variableName}` template syntax. Accepts either a string or an
+ * object (which is JSON-serialised before scanning).
+ */
 export function getDependentVariableInputs(args) {
-  const regex = /\${(.*?)}/g; // Matches ${...}
+  const regex = /\${(.*?)}/g; // Matches ${variableName} placeholders
   const uniqueValues = new Set();
 
   if (typeof args !== "string") {
@@ -59,10 +74,18 @@ export function getDependentVariableInputs(args) {
   return [...uniqueValues];
 }
 
+/**
+ * Fetches visualization data from the backend and updates viz state via the
+ * provided `setVizType` / `setVizData` callbacks. Handles all built-in source
+ * types (Map, Text, Custom Image) locally before calling the API. Emits
+ * `vizWarning` when required variable inputs are empty and `vizError` on API
+ * failure.
+ */
 export async function getVisualization({
   setVizType,
   setVizData,
   sourceType,
+  sourceArgs,
   itemData,
   argsString,
   metadataString,
@@ -71,6 +94,7 @@ export async function getVisualization({
   vizLoadingIcon = true,
   variableInputDateFormats = {},
   visualizations = [],
+  variableInputSliderMeta = {},
 }) {
   const metadata = JSON.parse(metadataString);
   const emptyVariableWarnings = checkForEmptyVariableInputs({
@@ -114,10 +138,42 @@ export async function getVisualization({
 
     return;
   } else if (itemData.source === "Custom Image") {
+    const imageSource = itemData.args.image_source;
+    const originalArgs = JSON.parse(argsString);
+    const rawTemplate = originalArgs.image_source || "";
+    const depVars = getDependentVariableInputs(rawTemplate);
+
+    // If the image URL depends on a slider variable, generate all URLs
+    // and use ImageSequence for instant frame switching
+    const sliderVar = depVars.find(
+      (v) => variableInputSliderMeta[v]?.values?.length > 0,
+    );
+    if (sliderVar) {
+      const sliderValues = variableInputSliderMeta[sliderVar].values;
+      const urls = sliderValues.map((val) => {
+        const substituted = updateObjectWithVariableInputs({
+          args: { ...originalArgs },
+          variableInputs: { ...variableInputValues, [sliderVar]: val },
+          variableInputDateFormats,
+        });
+        return substituted.image_source;
+      });
+
+      setVizType("imageSequence");
+      setVizData({
+        urls,
+        activeUrl: imageSource,
+        alt: "custom_image",
+        imageError: metadata.customMessaging?.error,
+      });
+      return;
+    }
+
     setVizType("image");
     setVizData({
-      source: itemData.args.image_source,
+      source: imageSource,
       alt: "custom_image",
+      imageError: metadata.customMessaging?.error,
     });
 
     return;
@@ -144,12 +200,13 @@ export async function getVisualization({
     setVizType("loader");
   }
 
-  itemData.args = updateObjectWithVariableInputs(
-    JSON.parse(argsString),
-    variableInputValues,
+  itemData.args = updateObjectWithVariableInputs({
+    args: JSON.parse(argsString),
+    variableInputs: variableInputValues,
     variableInputDateFormats,
-    true,
-  );
+    sourceArgs,
+    returnDatesAsLocalISO: true,
+  });
 
   const apiResponse = await appAPI.getVisualizationData(itemData);
   if (apiResponse.success === true) {
@@ -159,10 +216,10 @@ export async function getVisualization({
     }
 
     if (dashboardView) {
-      responseData = updateObjectWithVariableInputs(
-        responseData,
-        variableInputValues,
-      );
+      responseData = updateObjectWithVariableInputs({
+        args: responseData,
+        variableInputs: variableInputValues,
+      });
     }
 
     if (typeof apiResponse.data === "string") {
@@ -195,6 +252,14 @@ export async function getVisualization({
       setVizData({
         source: responseData,
         alt: itemData.source,
+        imageError: metadata.customMessaging?.error,
+      });
+    } else if (apiResponse.viz_type === "imageCollection") {
+      setVizType("imageCollection");
+      setVizData({
+        urls: responseData.urls,
+        title: responseData.title,
+        columns: responseData.columns,
         imageError: metadata.customMessaging?.error,
       });
     } else if (apiResponse.viz_type === "map") {
@@ -254,20 +319,33 @@ export async function getVisualization({
   }
 }
 
+/**
+ * Returns the grid item object with `i === gridItemI` from `gridItems`,
+ * or undefined if no match is found.
+ */
 export function getGridItem(gridItems, gridItemI) {
-  var result = gridItems.find((obj) => {
+  const result = gridItems.find((obj) => {
     return obj.i === gridItemI;
   });
 
   return result;
 }
 
-export function updateObjectWithVariableInputs(
+/**
+ * Substitutes `${variableName}` template placeholders in `args` with the
+ * corresponding values from `variableInputs`. Date-typed variable inputs are
+ * formatted according to `variableInputDateFormats` before substitution.
+ * An exact match like `"${foo}"` preserves the original value type; inline
+ * matches within a longer string are stringified. Returns a new object with
+ * all substitutions applied.
+ */
+export function updateObjectWithVariableInputs({
   args,
   variableInputs,
   variableInputDateFormats,
+  sourceArgs = {},
   returnDatesAsLocalISO = false,
-) {
+}) {
   const argsCopy = JSON.parse(JSON.stringify(args));
   const variableInputsCopy = JSON.parse(JSON.stringify(variableInputs));
 
@@ -301,13 +379,16 @@ export function updateObjectWithVariableInputs(
       value = JSON.stringify(value);
     }
 
-    // If value is exactly a variable input, preserve its type
+    // If value is exactly a variable input, preserve its type.
+    // Matches the full string "${variableName}" with no surrounding text.
     const exactVarMatch = value.match(/^\$\{([^}]+)\}$/);
     let updatedValuesWithVariableInputs;
     if (exactVarMatch) {
       const key = exactVarMatch[1];
       updatedValuesWithVariableInputs = variableInputsCopy[key] || "";
     } else {
+      // Value contains one or more inline ${variableName} placeholders mixed
+      // with other text. Replaces each placeholder with its string equivalent.
       updatedValuesWithVariableInputs = value.replace(
         /\$\{([^}]+)\}/g,
         (_, key) =>
@@ -315,6 +396,14 @@ export function updateObjectWithVariableInputs(
             ? JSON.stringify(variableInputsCopy[key])
             : (variableInputsCopy[key] ?? ""),
       );
+    }
+
+    if (sourceArgs[gridItemsArg] === "date") {
+      const parsedDate = parseDate(
+        updatedValuesWithVariableInputs,
+        variableInputDateFormats?.[gridItemsArg],
+      );
+      updatedValuesWithVariableInputs = convertDatesToLocalISO(parsedDate);
     }
 
     if (typeof argsCopy[gridItemsArg] !== "string") {
@@ -332,11 +421,15 @@ export const nonDropDownVariableInputTypes = [
   "text",
   "number",
   "checkbox",
-  { label: "date", value: "date", sub_args: { metadata: "date-format" } },
   {
-    label: "date-hour (deprecated, use date instead)",
-    value: "date-hour",
-    sub_args: { metadata: "date-format" },
+    label: "date",
+    value: "date",
+    sub_args: { metadata: "custom-DateMetadata" },
+  },
+  {
+    label: "dropdown",
+    value: "dropdown",
+    sub_args: { metadata: "custom-DropdownMetadata" },
   },
   {
     label: "date-range",
@@ -472,6 +565,11 @@ export function getBaseMapLayer(baseMapURL) {
   return layer_dict;
 }
 
+/**
+ * Recursively searches a nested select-options array for the first element
+ * where `element[searchKey] === searchValue`. Descends into `element.options`
+ * arrays. Returns the matching element or null.
+ */
 export function findSelectOptionByValue(
   data,
   searchValue,

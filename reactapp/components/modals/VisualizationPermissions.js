@@ -79,7 +79,7 @@ function VisualizationPermissionsModal({ showModal, setShowModal }) {
     if (showModal) {
       fetchPermissions();
     }
-    // eslint-disable-next-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showModal]);
 
   const handleModalClose = () => {

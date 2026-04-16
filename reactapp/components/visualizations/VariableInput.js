@@ -17,6 +17,8 @@ import { BsArrowClockwise } from "react-icons/bs";
 import Slider from "components/inputs/Slider";
 import CSVUploader from "components/inputs/CSVUploader";
 import { valuesEqual } from "components/modals/utilities";
+import { parseDate } from "components/inputs/dateUtils";
+import DataSelect from "components/inputs/DataSelect";
 
 const StyledDiv = styled.div`
   padding: 1rem;
@@ -58,10 +60,10 @@ const VariableInput = ({
   // Initialize updatedMetadata when metadata or variableInputValues change
   useEffect(() => {
     if (metadata) {
-      const newUpdatedMetadata = updateObjectWithVariableInputs(
-        { ...metadata },
-        variableInputValues,
-      );
+      const newUpdatedMetadata = updateObjectWithVariableInputs({
+        args: { ...metadata },
+        variableInputs: variableInputValues,
+      });
       setUpdatedMetadata(newUpdatedMetadata);
     }
   }, [metadata, variableInputValues]);
@@ -103,7 +105,7 @@ const VariableInput = ({
       ) {
         setType(variable_options_source);
       } else {
-        var selectedArg = visualizationArgs.find((obj) => {
+        const selectedArg = visualizationArgs.find((obj) => {
           return obj.label === variable_options_source;
         });
         if (selectedArg) {
@@ -163,7 +165,8 @@ const VariableInput = ({
         Array.isArray(type) ||
         type === "checkbox" ||
         type === "slider" ||
-        type === "csv-uploader"
+        type === "csv-uploader" ||
+        type === "dropdown"
       ) {
         if (!inDataViewerMode) {
           updateVariableInputs(e.value ?? e);
@@ -185,6 +188,18 @@ const VariableInput = ({
     }
   }
 
+  function displayDateOuput() {
+    const parsedDate = parseDate(
+      value?.startDate || value,
+      updatedMetadata?.format,
+      true,
+    );
+    if (!parsedDate) {
+      return "Invalid date format";
+    }
+    return parsedDate;
+  }
+
   if (Array.isArray(type) || type === "checkbox") {
     return (
       <StyledDiv>
@@ -197,14 +212,19 @@ const VariableInput = ({
       </StyledDiv>
     );
   } else if (type === "slider") {
-    // initialValue or initialRange must be present, rest are required
-    const alwaysRequiredKeys = ["step", "min", "max", "dataType"];
-    const hasInitialValue = updatedMetadata?.initialValue != null;
-    const hasInitialRange = updatedMetadata?.initialRange != null;
+    const isArrayMode = updatedMetadata?.dataType === "Array";
     const missingKeys = [];
+
     if (!updatedMetadata) {
-      missingKeys.push(...alwaysRequiredKeys, "initialValue or initialRange");
+      missingKeys.push("dataType");
+    } else if (isArrayMode) {
+      // Array mode requires a values array
+      if (!Array.isArray(updatedMetadata.values)) missingKeys.push("values");
     } else {
+      // Number/Date mode: original validation
+      const alwaysRequiredKeys = ["step", "min", "max", "dataType"];
+      const hasInitialValue = updatedMetadata?.initialValue != null;
+      const hasInitialRange = updatedMetadata?.initialRange != null;
       alwaysRequiredKeys.forEach((key) => {
         if (updatedMetadata[key] == null) missingKeys.push(key);
       });
@@ -226,10 +246,12 @@ const VariableInput = ({
           max={updatedMetadata.max}
           initialValue={updatedMetadata.initialValue}
           initialRange={updatedMetadata.initialRange}
-          rangeMode={updatedMetadata.rangeMode}
+          rangeMode={isArrayMode ? false : updatedMetadata.rangeMode}
           outputFormat={updatedMetadata.outputFormat}
           dataType={updatedMetadata.dataType}
           dateTimeDelta={updatedMetadata?.dateTimeDelta}
+          values={updatedMetadata.values}
+          labels={updatedMetadata.labels}
           speeds={
             Array.isArray(updatedMetadata?.speedOptions)
               ? updatedMetadata.speedOptions.map((v) => {
@@ -244,6 +266,23 @@ const VariableInput = ({
               : undefined
           }
           onChange={handleInputChange}
+          alignSteps={updatedMetadata.alignSteps}
+          alignOffset={updatedMetadata.alignOffset}
+        />
+      </StyledDiv>
+    );
+  } else if (type === "dropdown") {
+    return (
+      <StyledDiv>
+        <DataSelect
+          label={show_label ? label : ""}
+          selectedOption={findSelectOptionByValue(
+            updatedMetadata?.choices || [],
+            value,
+          )}
+          onChange={(option) => handleInputChange(option?.value)}
+          options={updatedMetadata?.choices || []}
+          creatable={true}
         />
       </StyledDiv>
     );
@@ -284,6 +323,16 @@ const VariableInput = ({
               onChange={handleInputChange}
               inputProps={updatedMetadata}
             />
+            {inDataViewerMode && type && type.includes("date") && (
+              <div style={{ marginTop: "1rem" }}>
+                <label>
+                  <b>Example Date Output</b>:
+                </label>{" "}
+                <span aria-label="Example Date Output Span">
+                  {displayDateOuput()}
+                </span>
+              </div>
+            )}
           </InputDiv>
           <ButtonDiv>
             <TooltipButton
