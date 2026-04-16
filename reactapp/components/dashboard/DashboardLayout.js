@@ -66,6 +66,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
           args: p.args ?? {},
           w: p.w,
           h: p.h,
+          uuid: p.uuid,
         }));
       } else if (detail.source) {
         // Single event (backward compat)
@@ -105,7 +106,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
           source: panel.source,
           args_string: JSON.stringify(panel.args),
           metadata_string: JSON.stringify({ refreshRate: 0 }),
-          uuid: uuidv4(),
+          uuid: panel.uuid || uuidv4(),
           id: null,
           i: `${++maxI}`,
         };
@@ -125,9 +126,64 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       }
     }
 
+    function handleUpdateVisualization(e) {
+      const detail = e.detail || {};
+      const { uuid, operation, layer } = detail;
+
+      if (operation !== "append_layer" || !uuid || !layer) return;
+
+      const current = gridItemsUpdated.current;
+      const targetIndex = current.findIndex((item) => item.uuid === uuid);
+      if (targetIndex === -1) {
+        console.warn(
+          "[DashboardLayout] update-visualization: no grid item with uuid",
+          uuid,
+        );
+        return;
+      }
+
+      const target = current[targetIndex];
+      let args;
+      try {
+        args = JSON.parse(target.args_string);
+      } catch {
+        console.warn(
+          "[DashboardLayout] update-visualization: failed to parse args_string for uuid",
+          uuid,
+        );
+        return;
+      }
+
+      if (!Array.isArray(args.layers)) {
+        args.layers = [];
+      }
+      args.layers.push(layer);
+
+      const updatedItem = { ...target, args_string: JSON.stringify(args) };
+      const updatedGridItems = [
+        ...current.slice(0, targetIndex),
+        updatedItem,
+        ...current.slice(targetIndex + 1),
+      ];
+      updateTab(tabId, { gridItems: updatedGridItems });
+
+      // Auto-save: persist updated panel to the backend
+      if (saveLayoutContext) {
+        const updatedTabs = tabs.map((tab) =>
+          tab.id === tabId ? { ...tab, gridItems: updatedGridItems } : tab,
+        );
+        saveLayoutContext({ tabs: updatedTabs }).catch(() => {
+          // Save failed silently — user can manually save later
+        });
+      }
+    }
+
     window.addEventListener("tethysdash:add-visualization", handleAddVisualization);
-    return () =>
+    window.addEventListener("tethysdash:update-visualization", handleUpdateVisualization);
+    return () => {
       window.removeEventListener("tethysdash:add-visualization", handleAddVisualization);
+      window.removeEventListener("tethysdash:update-visualization", handleUpdateVisualization);
+    };
   }, [tabId, updateTab, tabs, saveLayoutContext]);
 
   // Deduplicate and validate gridItems before computing layout.

@@ -38,6 +38,7 @@ mcp = FastMCP(
                 "create_data_table",
                 "create_variable_input",
                 "create_map_visualization",
+                "add_map_service_layer",
                 "render_plugin",
                 "render_custom_visualization",
                 "list_available_visualizations",
@@ -393,23 +394,14 @@ def _build_markers_layer(markers):
     name="create_map_visualization",
     description=(
         "Create a geographic map visualization on the dashboard. "
-        "Supports markers, WMS/GeoJSON/ESRI/KML layers, drawing tools, "
-        "and dashboard variable integration. Use 'center' for place names "
-        "or 'map_extent' for explicit coordinates."
+        "Supports markers, drawing tools, and dashboard variable integration. "
+        "Use 'center' for place names or 'map_extent' for explicit coordinates. "
+        "To add WMS, ESRI, GeoJSON, or other service layers, call add_map_service_layer "
+        "with the returned map UUID."
     ),
     tags=["visualization", "map", "geographic", "location", "marker", "layer"],
 )
 def create_map_visualization(
-    layers: Annotated[Optional[List[Dict[str, Any]]], Field(description=(
-        "Array of map layer objects for WMS, GeoJSON, KML, ESRI, or tile services. "
-        "Each layer: {\"configuration\": {\"type\": \"<LayerType>\", \"props\": "
-        "{\"name\": \"<display name>\", \"source\": {\"type\": \"<SourceType>\", "
-        "\"props\": {<source-specific>}}}}}. "
-        "Layer types: ImageLayer, VectorLayer, WebGLTile, VectorTileLayer. "
-        "Source types: WMS, GeoJSON, KML, 'Image Tile', 'Vector Tile', "
-        "'ESRI Image and Map Service', 'ESRI Feature Service', 'PMTiles Raster', 'PMTiles Vector'. "
-        "Layer args support ${variable_name} syntax to reference dashboard variable inputs."
-    ))] = None,
     markers: Annotated[Optional[List[Dict[str, Any]]], Field(description=(
         "Simple point markers as [{\"lon\": <number>, \"lat\": <number>, \"label\": \"<text>\"}]. "
         "The server auto-builds a GeoJSON VectorLayer with correct CRS. "
@@ -448,16 +440,18 @@ def create_map_visualization(
     """Create a geographic map on the dashboard.
 
     Simple usage: provide 'center' or 'markers' for a quick map.
-    Advanced usage: add WMS/GeoJSON/ESRI layers, drawing tools, and variable bindings.
+    For service layers (WMS, ESRI, GeoJSON, KML): call add_map_service_layer
+    with the returned map UUID after creating the map.
     """
-    LOGGER.info("create_map_visualization: center=%s, markers=%s, layers=%s",
-                center, markers is not None, layers is not None)
+    map_uuid = str(uuid.uuid4())
+    LOGGER.info("create_map_visualization: uuid=%s, center=%s, markers=%s",
+                map_uuid, center, markers is not None)
 
     # Resolve base map
     resolved_base_map = BASE_MAPS.get(base_map, base_map) if base_map else None
 
-    # Build layers array
-    all_layers = list(layers) if layers else []
+    # Build layers array from markers only (service layers added via add_map_service_layer)
+    all_layers = []
     if markers:
         all_layers.append(_build_markers_layer(markers))
 
@@ -503,9 +497,224 @@ def create_map_visualization(
     return {
         "visualization": {
             "source": "Map",
+            "uuid": map_uuid,
             "args": args,
             "w": w,
             "h": h,
+        },
+        "map_uuid": map_uuid,
+        "message": f"Map created (uuid: {map_uuid}). Use add_map_service_layer with this UUID to add WMS, ESRI, GeoJSON, or other service layers.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Map service layer tool
+# ---------------------------------------------------------------------------
+
+VALID_SOURCE_TYPES = [
+    "WMS",
+    "ESRI Image and Map Service",
+    "ESRI Feature Service",
+    "GeoJSON",
+    "KML",
+    "Image Tile",
+    "Vector Tile",
+    "PMTiles Vector",
+    "PMTiles Raster",
+]
+
+SOURCE_TYPE_TO_LAYER_TYPE = {
+    "WMS": "ImageLayer",
+    "ESRI Image and Map Service": "ImageLayer",
+    "ESRI Feature Service": "VectorLayer",
+    "GeoJSON": "VectorLayer",
+    "KML": "VectorLayer",
+    "Image Tile": "TileLayer",
+    "Vector Tile": "VectorTileLayer",
+    "PMTiles Vector": "VectorTileLayer",
+    "PMTiles Raster": "WebGLTile",
+}
+
+
+@mcp.tool(
+    name="add_map_service_layer",
+    description=(
+        "Add a WMS, ESRI, GeoJSON, KML, or tile service layer to an existing "
+        "map created by create_map_visualization"
+    ),
+    tags=["map", "layer", "geographic"],
+)
+def add_map_service_layer(
+    map_uuid: Annotated[str, Field(description="UUID returned by create_map_visualization")],
+    source_type: Annotated[str, Field(description=(
+        "Layer source type. One of: WMS, ESRI Image and Map Service, "
+        "ESRI Feature Service, GeoJSON, KML, Image Tile, Vector Tile, "
+        "PMTiles Vector, PMTiles Raster"
+    ))],
+    name: Annotated[str, Field(description="Display name for the layer in the layer control")],
+    url: Annotated[Optional[str], Field(description=(
+        "Service URL. Required for all source types except GeoJSON."
+    ))] = None,
+    layer_id: Annotated[Optional[str], Field(description=(
+        "Layer identifier within the service. "
+        "For ESRI Image and Map Service: visibility directive for params.LAYERS. "
+        "For ESRI Feature Service: integer layer index as a string."
+    ))] = None,
+    wms_layers: Annotated[Optional[str], Field(description=(
+        "WMS LAYERS parameter value in workspace:layer format. "
+        "Required when source_type is WMS."
+    ))] = None,
+    geojson: Annotated[Optional[Dict[str, Any]], Field(description=(
+        "Inline GeoJSON FeatureCollection or Feature object. "
+        "Required when source_type is GeoJSON. CRS is auto-assigned if missing."
+    ))] = None,
+    queryable: Annotated[bool, Field(description=(
+        "Enable click-to-query on this layer"
+    ))] = False,
+    attribute_variables: Annotated[Optional[Dict[str, str]], Field(description=(
+        "Maps feature attribute names to dashboard variable names. "
+        "When a feature is clicked, attribute values are published to the "
+        "corresponding dashboard variables."
+    ))] = None,
+    params: Annotated[Optional[Dict[str, Any]], Field(description=(
+        "Additional source parameters merged into the source props. "
+        "Supports ${variable_name} syntax for dashboard variable references."
+    ))] = None,
+    opacity: Annotated[Optional[float], Field(description="Layer opacity from 0 (transparent) to 1 (opaque)")] = None,
+    min_zoom: Annotated[Optional[int], Field(description="Minimum zoom level at which the layer is visible")] = None,
+    max_zoom: Annotated[Optional[int], Field(description="Maximum zoom level at which the layer is visible")] = None,
+) -> Dict[str, Any]:
+    """Add a service layer to an existing map.
+
+    Constructs the OpenLayers layer configuration from flat, source-type-specific
+    parameters and returns a layer_update result (not a visualization).
+    The chatbox dispatches this as a tethysdash:update-visualization event.
+    """
+    LOGGER.info(
+        "add_map_service_layer: map_uuid=%s, source_type=%s, name=%s",
+        map_uuid, source_type, name,
+    )
+
+    # Validate source_type
+    if source_type not in VALID_SOURCE_TYPES:
+        return {
+            "error": (
+                f"Invalid source_type '{source_type}'. "
+                f"Valid types: {', '.join(VALID_SOURCE_TYPES)}"
+            )
+        }
+
+    extra_params = params or {}
+
+    # Validate required fields per source type
+    if source_type == "WMS":
+        if not url or not wms_layers:
+            return {"error": "source_type 'WMS' requires 'url' and 'wms_layers' parameters"}
+    elif source_type == "ESRI Image and Map Service":
+        if not url:
+            return {"error": "source_type 'ESRI Image and Map Service' requires 'url' parameter"}
+    elif source_type == "ESRI Feature Service":
+        if not url or not layer_id:
+            return {"error": "source_type 'ESRI Feature Service' requires 'url' and 'layer_id' parameters"}
+    elif source_type == "GeoJSON":
+        if not geojson:
+            return {"error": "source_type 'GeoJSON' requires 'geojson' parameter"}
+    elif source_type == "KML":
+        if not url:
+            return {"error": "source_type 'KML' requires 'url' parameter"}
+    elif source_type == "Image Tile":
+        if not url:
+            return {"error": "source_type 'Image Tile' requires 'url' parameter"}
+    elif source_type == "Vector Tile":
+        if not url:
+            return {"error": "source_type 'Vector Tile' requires 'url' parameter"}
+    elif source_type == "PMTiles Vector":
+        if not url:
+            return {"error": "source_type 'PMTiles Vector' requires 'url' parameter"}
+    elif source_type == "PMTiles Raster":
+        if not url:
+            return {"error": "source_type 'PMTiles Raster' requires 'url' parameter"}
+
+    # Build source props based on source_type
+    source_props = {}
+
+    if source_type == "WMS":
+        wms_params = {"LAYERS": wms_layers}
+        wms_params.update(extra_params)
+        source_props = {"url": url, "params": wms_params}
+
+    elif source_type == "ESRI Image and Map Service":
+        esri_params = {}
+        if layer_id:
+            esri_params["LAYERS"] = layer_id
+        esri_params.update(extra_params)
+        source_props = {"url": url}
+        if esri_params:
+            source_props["params"] = esri_params
+
+    elif source_type == "ESRI Feature Service":
+        source_props = {"url": url, "layer": int(layer_id)}
+        source_props.update(extra_params)
+
+    elif source_type == "GeoJSON":
+        # Auto-assign CRS if missing (same pattern as _build_markers_layer)
+        geojson_with_crs = dict(geojson)
+        if "crs" not in geojson_with_crs:
+            geojson_with_crs["crs"] = {
+                "type": "name",
+                "properties": {"name": "EPSG:4326"},
+            }
+        source_props = {"geojson": geojson_with_crs}
+
+    elif source_type == "KML":
+        source_props = {"url": url}
+
+    elif source_type == "Image Tile":
+        source_props = {"url": url}
+
+    elif source_type == "Vector Tile":
+        source_props = {"urls": url}
+
+    elif source_type in ("PMTiles Vector", "PMTiles Raster"):
+        source_props = {"url": url}
+
+    # Build the layer configuration
+    layer_type = SOURCE_TYPE_TO_LAYER_TYPE[source_type]
+    props_dict = {
+        "name": name,
+        "source": {
+            "type": source_type,
+            "props": source_props,
+        },
+    }
+
+    # Add optional layer props
+    if opacity is not None:
+        props_dict["opacity"] = opacity
+    if min_zoom is not None:
+        props_dict["minZoom"] = min_zoom
+    if max_zoom is not None:
+        props_dict["maxZoom"] = max_zoom
+
+    layer_config = {
+        "configuration": {
+            "type": layer_type,
+            "props": props_dict,
+        }
+    }
+
+    # Add queryable flag
+    if queryable:
+        layer_config["queryable"] = True
+
+    # Add attribute variables
+    if attribute_variables:
+        layer_config["attributeVariables"] = {name: attribute_variables}
+
+    return {
+        "layer_update": {
+            "map_uuid": map_uuid,
+            "layer": layer_config,
         }
     }
 
@@ -614,7 +823,13 @@ def list_intake_plugins() -> Dict[str, Any]:
 
 @mcp.tool(
     name="render_plugin",
-    description="Create a visualization using an installed backend plugin. Call list_intake_plugins first to discover available plugins and their args. Use the 'source' field from the results.",
+    description=(
+        "Create a visualization using an installed backend plugin. "
+        "Call list_intake_plugins first to discover available plugins and their args. "
+        "Use the 'source' field from the results. "
+        "To link to a dashboard variable input, use ${variable_name} syntax in arg values — "
+        "the visualization auto-refreshes when the variable changes."
+    ),
     tags=["dashboard", "plugin"],
 )
 def render_plugin(
