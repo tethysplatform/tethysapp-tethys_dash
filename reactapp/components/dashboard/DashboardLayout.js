@@ -128,9 +128,9 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
 
     function handleUpdateVisualization(e) {
       const detail = e.detail || {};
-      const { uuid, operation, layer } = detail;
+      const { uuid, operation, layers } = detail;
 
-      if (operation !== "append_layer" || !uuid || !layer) return;
+      if (operation !== "append_layers" || !uuid || !Array.isArray(layers) || layers.length === 0) return;
 
       const current = gridItemsUpdated.current;
       const targetIndex = current.findIndex((item) => item.uuid === uuid);
@@ -157,7 +157,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       if (!Array.isArray(args.layers)) {
         args.layers = [];
       }
-      args.layers.push(layer);
+      args.layers.push(...layers);
 
       const updatedItem = { ...target, args_string: JSON.stringify(args) };
       const updatedGridItems = [
