@@ -18,7 +18,7 @@ import logging
 import os
 import json
 import uuid
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from typing_extensions import Annotated
 from pydantic import Field
 from fastmcp import FastMCP
@@ -536,6 +536,44 @@ SOURCE_TYPE_TO_LAYER_TYPE = {
 }
 
 
+def _resolve_esri_layer_name(url: str, layer_id: Optional[str]) -> Optional[str]:
+    """Fetch the ESRI service's actual layer name for the given layer index.
+
+    The manual map editor uses the service's layer name as the
+    attributeVariables key (via getImageArcGISRestLayerAttributes).  The ESRI
+    /identify response also returns this name as ``layerName``.  Using the
+    service name — not the client display name — ensures the click-time
+    attribute variable lookup matches.
+
+    Returns None on any failure so the caller can fall back to the display name.
+    """
+    if layer_id is None:
+        return None
+
+    # Parse numeric layer index from layer_id (e.g., "show:0" → 0, "0" → 0)
+    index_str = layer_id.split(":")[-1] if ":" in layer_id else layer_id
+    try:
+        layer_index = int(index_str)
+    except (ValueError, TypeError):
+        return None
+
+    try:
+        resp = http_requests.get(f"{url}?f=json", timeout=5)
+        resp.raise_for_status()
+        service_info = resp.json()
+        layers = service_info.get("layers", [])
+        for layer in layers:
+            if layer.get("id") == layer_index:
+                return layer.get("name")
+        return None
+    except Exception as exc:
+        LOGGER.warning(
+            "Failed to resolve ESRI layer name from %s (layer_id=%s): %s",
+            url, layer_id, exc,
+        )
+        return None
+
+
 @mcp.tool(
     name="add_map_service_layer",
     description=(
@@ -564,19 +602,19 @@ def add_map_service_layer(
         "WMS LAYERS parameter value in workspace:layer format. "
         "Required when source_type is WMS."
     ))] = None,
-    geojson: Annotated[Optional[Dict[str, Any]], Field(description=(
+    geojson: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
         "Inline GeoJSON FeatureCollection or Feature object. "
         "Required when source_type is GeoJSON. CRS is auto-assigned if missing."
     ))] = None,
     queryable: Annotated[bool, Field(description=(
         "Enable click-to-query on this layer"
     ))] = False,
-    attribute_variables: Annotated[Optional[Dict[str, str]], Field(description=(
+    attribute_variables: Annotated[Optional[Union[Dict[str, str], str]], Field(description=(
         "Maps feature attribute names to dashboard variable names. "
         "When a feature is clicked, attribute values are published to the "
         "corresponding dashboard variables."
     ))] = None,
-    params: Annotated[Optional[Dict[str, Any]], Field(description=(
+    params: Annotated[Optional[Union[Dict[str, Any], str]], Field(description=(
         "Additional source parameters merged into the source props. "
         "Supports ${variable_name} syntax for dashboard variable references."
     ))] = None,
@@ -594,6 +632,15 @@ def add_map_service_layer(
         "add_map_service_layer: map_uuid=%s, source_type=%s, name=%s",
         map_uuid, source_type, name,
     )
+
+    # Coerce JSON strings to dicts — some LLM providers serialize object
+    # arguments as strings instead of parsed objects.
+    if isinstance(geojson, str):
+        geojson = json.loads(geojson)
+    if isinstance(attribute_variables, str):
+        attribute_variables = json.loads(attribute_variables)
+    if isinstance(params, str):
+        params = json.loads(params)
 
     # Validate source_type
     if source_type not in VALID_SOURCE_TYPES:
@@ -707,9 +754,22 @@ def add_map_service_layer(
     if queryable:
         layer_config["queryable"] = True
 
-    # Add attribute variables
+    # Add attribute variables.
+    # For ESRI Image and Map Service, the attributeVariables key must be the
+    # ESRI service's layer name (returned by /identify), not the client
+    # display name.  This matches how the manual map editor stores the key.
     if attribute_variables:
-        layer_config["attributeVariables"] = {name: attribute_variables}
+        attr_key = name
+        if source_type == "ESRI Image and Map Service":
+            resolved = _resolve_esri_layer_name(url, layer_id)
+            if resolved:
+                attr_key = resolved
+            else:
+                LOGGER.warning(
+                    "Could not resolve ESRI layer name; falling back to display name '%s'",
+                    name,
+                )
+        layer_config["attributeVariables"] = {attr_key: attribute_variables}
 
     return {
         "layer_update": {

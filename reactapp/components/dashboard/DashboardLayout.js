@@ -113,6 +113,10 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       });
 
       const updatedGridItems = [...current, ...newGridItems];
+      // Update ref immediately so subsequent event handlers (e.g.,
+      // handleUpdateVisualization via requestAnimationFrame) see the new
+      // grid items without waiting for React to re-render.
+      gridItemsUpdated.current = updatedGridItems;
       updateTab(tabId, { gridItems: updatedGridItems });
 
       // Auto-save: persist dynamically created panels to the backend
@@ -165,6 +169,8 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
         updatedItem,
         ...current.slice(targetIndex + 1),
       ];
+      // Update ref immediately (same pattern as handleAddVisualization).
+      gridItemsUpdated.current = updatedGridItems;
       updateTab(tabId, { gridItems: updatedGridItems });
 
       // Auto-save: persist updated panel to the backend
