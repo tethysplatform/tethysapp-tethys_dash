@@ -115,6 +115,77 @@ Each plugin `run()` must return data in the format expected by its `type`:
 
 For long-running plugins, call `self.send_update(message, percentage_complete)` during `run()` to stream progress via WebSocket.
 
+## MCP Server (`tethysapp/tethysdash/mcp/`)
+
+TethysDash includes an MCP (Model Context Protocol) server that allows LLMs to create dashboard visualizations via tool calls. The ChatSidebar (`reactapp/components/sidebar/ChatSidebar.js`) connects to this server through the `@chatbox/core` engine.
+
+### MCP Server Architecture
+
+- **`tethysdash_mcp_server.py`** — FastMCP server with SSE transport (port 9001). Uses `BM25SearchTransform` for tool discovery with an `always_visible` set of core tools.
+- **Engine** (`plugins/nextgen_plugins/packages/chatbox-core/engine/index.js`) — Generic tool-use conversation loop that connects to MCP servers, streams LLM responses, and accumulates tool results.
+- **Chatbox** (`plugins/nextgen_plugins/packages/chatbox-core/components/Chatbox.jsx`) — Dispatches visualization specs as DOM events that `DashboardLayout.js` handles.
+
+### MCP Tools
+
+| Tool | Purpose |
+|------|---------|
+| `create_plotly_chart` | Plotly chart with inline data |
+| `create_data_table` | Data table with inline data |
+| `create_variable_input` | Interactive variable input (text, number, checkbox, date, dropdown, slider, date-range, csv-uploader) |
+| `create_map_visualization` | Map with base layer, markers, extent, drawing tools. Returns a UUID for layer additions |
+| `add_map_service_layer` | Add WMS, ESRI, GeoJSON, KML, or tile layers to an existing map by UUID |
+| `render_plugin` | Render a registered backend intake plugin |
+| `render_custom_visualization` | Render a Module Federation remote component |
+| `list_intake_plugins` | List installed backend plugins (compact format) |
+| `list_available_visualizations` | List all registered visualization types |
+
+### MCP Visualization Data Flow
+
+1. LLM calls MCP tools → returns `{visualization: {...}}` or `{layer_update: {...}}`
+2. Engine accumulates results in `state.pendingVisualizations` and `state.pendingLayerUpdates`
+3. Engine returns both arrays when the LLM finishes (no early returns — the LLM decides when it's done)
+4. Chatbox merges same-conversation layer updates into matching visualization specs by UUID before dispatch
+5. Chatbox dispatches `tethysdash:add-visualization` event (single batch for all panels)
+6. For pre-existing maps only: dispatches `tethysdash:update-visualization` via `requestAnimationFrame`
+7. `DashboardLayout.js` handles both events, creates/updates grid items, auto-saves
+
+### MCP Data Contract Rules
+
+When building or modifying MCP tools, follow these rules (documented in `docs/solutions/best-practices/`):
+
+1. **Match the rendering path**: Map, Text, Custom Image use flat `args` (not `inlineData`). Plotly, Table, Card use `inlineData`.
+2. **Use registry source names**: Exact strings from the Default visualization registry (`"Map"`, `"Text"`, `"Custom Image"`, `"Variable Input"`).
+3. **Split complex tools**: Creation tool returns `{visualization}` with UUID. Modifier tool returns `{layer_update}`. Engine accumulates both.
+4. **Validate per source type**: Enforce required fields (WMS needs `url` + `wms_layers`; ESRI Feature needs `url` + `layer_id`).
+5. **ESRI attributeVariables key**: Use the ESRI service's actual layer name (fetched from `{url}?f=json`), not the client display name.
+6. **GeoJSON source placement**: GeoJSON data goes at `source.geojson` (top-level on source object), NOT `source.props.geojson`. The `props` is empty `{}`.
+7. **Dict parameter coercion**: Some LLMs pass dict arguments as JSON strings. Accept `Union[Dict, str]` and coerce with `json.loads` at the top of the function.
+
+### ChatSidebar
+
+The ChatSidebar (`reactapp/components/sidebar/ChatSidebar.js`) is a VS Code-style collapsible right sidebar that wraps the generic `<Chatbox>` component from `@chatbox/core`. It uses a generic system prompt (not the NRDS-specific one) and passes no `engineExtensions` — the engine runs with default settings.
+
+Users configure LLM providers and MCP server connections via the sidebar's settings panel. The sidebar publishes variable input values to `VariableInputsContext` so MCP-created variable inputs integrate with the existing dashboard interactivity system.
+
+## Documented Solutions
+
+`docs/solutions/` contains documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
+
+```
+docs/solutions/
+├── best-practices/     # Data contract rules, tool design patterns
+├── logic-errors/       # Stale-ref bugs, early returns, dispatch timing
+├── (other categories as documented)
+```
+
+Search these before implementing features or fixing bugs in the MCP integration, map layer tools, or chatbox dispatch chain — past investigations and their resolutions are recorded here.
+
+## Plans and Brainstorms
+
+`docs/plans/` contains implementation plans with YAML frontmatter, checkbox-tracked implementation units, and requirements tracing. Plans are living documents — checkboxes are updated during implementation.
+
+`docs/brainstorms/` contains requirements documents that define WHAT to build before plans define HOW. Each brainstorm produces a `-requirements.md` file that a plan references via its `origin:` frontmatter field.
+
 ## Key Conventions
 
 - **HTML sanitization**: Use `nh3` (backend) for any user-supplied HTML. Never use `bleach` for new code.
@@ -122,3 +193,6 @@ For long-running plugins, call `self.send_update(message, percentage_complete)` 
 - **Backend endpoints**: Use Tethys `@controller` decorator; CSRF tokens required on all POST requests.
 - **Variable inputs**: Dashboard filters are passed through `VariableInputsContext`; visualization args support `{variable_name}` substitution syntax.
 - **Date args**: `TethysDashPlugin` automatically formats date arguments into datetimes before setting them as class properties.
+- **No early returns in the engine loop**: The LLM is the only reliable authority on when a conversation is complete. Never return early based on individual tool result types (visualization, query, list). This is a three-time-proven anti-pattern.
+- **Batch dispatch**: Never dispatch N events in a loop when a single batch event exists. Use `{batch: true, panels: [...]}` for `tethysdash:add-visualization`. Individual events cause stale-ref bugs.
+- **MCP tool descriptions**: Never include concrete example values in tool descriptions — LLMs copy them verbatim instead of using actual data.
