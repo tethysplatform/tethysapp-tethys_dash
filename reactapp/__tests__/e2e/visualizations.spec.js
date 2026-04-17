@@ -17,7 +17,8 @@ test.describe("Text visualization", () => {
     const uuid = createDashboard([textItem("Hello E2E World")]);
 
     await mockAuthEndpoints(page);
-    await page.goto(`/dashboard/${uuid}`);
+    await mockTileResponses(page);
+    await page.goto(`/apps/tethysdash/dashboard/${uuid}`);
 
     // Text panels render content inside a div
     await expect(page.getByText("Hello E2E World")).toBeVisible({

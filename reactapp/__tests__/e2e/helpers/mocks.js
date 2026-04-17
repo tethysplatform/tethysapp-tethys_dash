@@ -115,10 +115,14 @@ async function mockAuthEndpoints(page) {
     })
   );
 
+  // CSRF: the Axios interceptor returns response.data when truthy, stripping
+  // headers.  The real endpoint returns an empty body so the interceptor falls
+  // through to the full response (which has headers).  We must do the same.
   await page.route("**/api/csrf/**", (route) =>
     route.fulfill({
-      contentType: "application/json",
-      body: JSON.stringify({ csrfToken: "test-csrf-token" }),
+      status: 200,
+      headers: { "x-csrftoken": "test-csrf-token" },
+      body: "",
     })
   );
 }

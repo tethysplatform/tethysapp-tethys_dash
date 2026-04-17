@@ -4,7 +4,7 @@ const path = require("path");
 const os = require("os");
 
 const TEST_PORT = process.env.E2E_PORT || "8765";
-const BASE_URL = `http://localhost:${TEST_PORT}/apps/tethysdash`;
+const BASE_URL = `http://localhost:${TEST_PORT}`;
 
 module.exports = defineConfig({
   testDir: path.join(__dirname, "__tests__/e2e"),
@@ -26,14 +26,18 @@ module.exports = defineConfig({
     {
       name: "mocked",
       use: {
-        channel: "chromium",
+        launchOptions: {
+          executablePath: process.env.CHROMIUM_PATH || "/usr/sbin/chromium",
+        },
         headless: true,
       },
     },
     {
       name: "integration",
       use: {
-        channel: "chromium",
+        launchOptions: {
+          executablePath: process.env.CHROMIUM_PATH || "/usr/sbin/chromium",
+        },
         headless: true,
       },
     },
@@ -51,7 +55,7 @@ module.exports = defineConfig({
     : {
         webServer: {
           command: `${process.env.TETHYS_BIN || "tethys"} manage start -p ${TEST_PORT}`,
-          url: `http://localhost:${TEST_PORT}/apps/tethysdash/`,
+          url: `http://localhost:${TEST_PORT}/`,
           reuseExistingServer: true,
           timeout: 60_000,
         },
