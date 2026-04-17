@@ -558,7 +558,6 @@ const Slider = ({
     rawMaxDateFormat,
     alignOffset,
     alignSteps,
-    stepEpoch, // intentional: triggers recalculation when step boundary is crossed
     // eslint-disable-next-line react-hooks/exhaustive-deps
   ]);
 
@@ -1094,6 +1093,8 @@ Slider.propTypes = {
       value: PropTypes.number.isRequired,
     }),
   ),
+  alignSteps: PropTypes.bool,
+  alignOffset: PropTypes.number,
 };
 
 export default memo(Slider);

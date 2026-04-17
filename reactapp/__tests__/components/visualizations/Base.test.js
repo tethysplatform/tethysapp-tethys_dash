@@ -19,7 +19,6 @@ import {
   userDashboard,
   mockedMapBase,
   mockedLiveChatBase,
-  mockedImageCollectionBase,
 } from "__tests__/utilities/constants";
 import BaseVisualization, {
   Visualization,
@@ -1589,6 +1588,7 @@ it("ImageSequence fast-path updates activeUrl without calling getVisualization",
   );
 
   const argsString = JSON.stringify({
+    // eslint-disable-next-line
     image_source: "${Slider}",
   });
   const metadataString = JSON.stringify({ refreshRate: 0 });

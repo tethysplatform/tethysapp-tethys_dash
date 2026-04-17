@@ -1001,8 +1001,8 @@ test("getVisualization Custom Image with slider metadata returns imageSequence",
       args: { image_source: "https://example.com/frame2.gif" },
     },
     metadataString: JSON.stringify({ refreshRate: 0 }),
-    // eslint-disable-next-line
     argsString: JSON.stringify({
+      // eslint-disable-next-line
       image_source: "https://example.com/${Slider}.gif",
     }),
     variableInputValues: { Slider: "frame2" },
@@ -1040,8 +1040,8 @@ test("getVisualization Custom Image with slider metadata and custom error messag
       refreshRate: 0,
       customMessaging: { error: "Image not available" },
     }),
-    // eslint-disable-next-line
     argsString: JSON.stringify({
+      // eslint-disable-next-line
       image_source: "https://example.com/${Slider}.gif",
     }),
     variableInputValues: { Slider: "frame1" },
@@ -1071,8 +1071,8 @@ test("getVisualization Custom Image without slider metadata falls back to image"
       args: { image_source: "https://example.com/frame1.gif" },
     },
     metadataString: JSON.stringify({ refreshRate: 0 }),
-    // eslint-disable-next-line
     argsString: JSON.stringify({
+      // eslint-disable-next-line
       image_source: "https://example.com/${Dropdown}.gif",
     }),
     variableInputValues: { Dropdown: "frame1" },
@@ -1131,8 +1131,8 @@ test("getVisualization Custom Image with empty slider values falls back to image
       args: { image_source: "https://example.com/current.gif" },
     },
     metadataString: JSON.stringify({ refreshRate: 0 }),
-    // eslint-disable-next-line
     argsString: JSON.stringify({
+      // eslint-disable-next-line
       image_source: "https://example.com/${Slider}.gif",
     }),
     variableInputValues: { Slider: "current" },

@@ -865,8 +865,8 @@ test("DashboardImportModal Dashboard View dashboard import with tab checkboxes",
 
   await waitFor(() => {
     expect(screen.getByTestId("tab-checkbox-0")).toBeInTheDocument();
-    expect(screen.getByTestId("tab-checkbox-1")).toBeInTheDocument();
   });
+  expect(screen.getByTestId("tab-checkbox-1")).toBeInTheDocument();
 
   // Both checkboxes should be checked by default
   expect(screen.getByTestId("tab-checkbox-0")).toBeChecked();
