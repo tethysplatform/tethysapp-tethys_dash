@@ -1,0 +1,802 @@
+"""Contract tests for add_map_service_layer across all 9 source types.
+
+Validates: layer_update return shape, correct OpenLayers layer type,
+required source props per source type, GeoJSON placement, ESRI
+attributeVariables key resolution, queryable flag, and error paths.
+
+Layer 1 tests -- no browser, no server, milliseconds per test.
+"""
+
+from unittest.mock import patch
+
+from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
+    add_map_service_layer,
+    VALID_SOURCE_TYPES,
+    SOURCE_TYPE_TO_LAYER_TYPE,
+)
+from tethysapp.tethysdash.tests.mcp.test_visualization_contracts import (
+    assert_layer_update,
+)
+
+
+MAP_UUID = "test-map-uuid-1234"
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _get_layer_config(result):
+    """Extract the layer config from a successful result."""
+    return result["layer_update"]["layer"]
+
+
+def _get_configuration(result):
+    """Extract the layer configuration (type + props) from a successful result."""
+    return _get_layer_config(result)["configuration"]
+
+
+def _get_source(result):
+    """Extract the source dict from a successful result."""
+    return _get_configuration(result)["props"]["source"]
+
+
+# ---------------------------------------------------------------------------
+# WMS
+# ---------------------------------------------------------------------------
+
+class TestWMS:
+    """WMS source type contract tests."""
+
+    def test_wms_returns_layer_update_shape(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="My WMS Layer",
+            url="https://example.com/wms",
+            wms_layers="workspace:layer_name",
+        )
+        assert_layer_update(result, expected_uuid=MAP_UUID)
+
+    def test_wms_layer_type_is_image_layer(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="My WMS Layer",
+            url="https://example.com/wms",
+            wms_layers="workspace:layer_name",
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "ImageLayer"
+
+    def test_wms_source_type(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="My WMS Layer",
+            url="https://example.com/wms",
+            wms_layers="workspace:layer_name",
+        )
+        source = _get_source(result)
+        assert source["type"] == "WMS"
+
+    def test_wms_source_props_params_layers(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="My WMS Layer",
+            url="https://example.com/wms",
+            wms_layers="workspace:layer_name",
+        )
+        source = _get_source(result)
+        assert source["props"]["url"] == "https://example.com/wms"
+        assert source["props"]["params"]["LAYERS"] == "workspace:layer_name"
+
+    def test_wms_error_without_wms_layers(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="My WMS Layer",
+            url="https://example.com/wms",
+        )
+        assert "error" in result
+        assert "wms_layers" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# ESRI Image and Map Service
+# ---------------------------------------------------------------------------
+
+class TestESRIImage:
+    """ESRI Image and Map Service source type contract tests."""
+
+    def test_esri_image_returns_layer_update_shape(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="show:0",
+        )
+        assert_layer_update(result, expected_uuid=MAP_UUID)
+
+    def test_esri_image_layer_type_is_image_layer(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="show:0",
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "ImageLayer"
+
+    def test_esri_image_source_params_layers(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="show:0",
+        )
+        source = _get_source(result)
+        assert source["props"]["params"]["LAYERS"] == "show:0"
+
+    def test_esri_image_error_without_url(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="ESRI Image Layer",
+        )
+        assert "error" in result
+        assert "url" in result["error"]
+
+    @patch(
+        "tethysapp.tethysdash.mcp.tethysdash_mcp_server._resolve_esri_layer_name",
+        return_value="River Gauges",
+    )
+    def test_esri_image_attribute_variables_key_resolved(self, mock_resolve):
+        """ESRI Image attributeVariables key uses service layer name, not display name."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="My Display Name",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="show:0",
+            attribute_variables={"STAGE": "stage_var"},
+        )
+        layer = _get_layer_config(result)
+        assert "attributeVariables" in layer
+        assert "River Gauges" in layer["attributeVariables"]
+        assert "My Display Name" not in layer["attributeVariables"]
+        assert layer["attributeVariables"]["River Gauges"] == {"STAGE": "stage_var"}
+
+    @patch(
+        "tethysapp.tethysdash.mcp.tethysdash_mcp_server._resolve_esri_layer_name",
+        return_value=None,
+    )
+    def test_esri_image_attribute_variables_fallback_to_display_name(self, mock_resolve):
+        """When _resolve_esri_layer_name fails, falls back to display name."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Image and Map Service",
+            name="My Display Name",
+            url="https://example.com/arcgis/rest/services/MyService/MapServer",
+            layer_id="show:0",
+            attribute_variables={"STAGE": "stage_var"},
+        )
+        layer = _get_layer_config(result)
+        assert "attributeVariables" in layer
+        assert "My Display Name" in layer["attributeVariables"]
+
+
+# ---------------------------------------------------------------------------
+# ESRI Feature Service
+# ---------------------------------------------------------------------------
+
+class TestESRIFeature:
+    """ESRI Feature Service source type contract tests."""
+
+    def test_esri_feature_returns_layer_update_shape(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Feature Service",
+            name="ESRI Feature Layer",
+            url="https://example.com/arcgis/rest/services/MyService/FeatureServer",
+            layer_id="0",
+        )
+        assert_layer_update(result, expected_uuid=MAP_UUID)
+
+    def test_esri_feature_layer_type_is_vector_layer(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Feature Service",
+            name="ESRI Feature Layer",
+            url="https://example.com/arcgis/rest/services/MyService/FeatureServer",
+            layer_id="0",
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "VectorLayer"
+
+    def test_esri_feature_source_props_layer_is_integer(self):
+        """layer_id is coerced to int in source.props.layer."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Feature Service",
+            name="ESRI Feature Layer",
+            url="https://example.com/arcgis/rest/services/MyService/FeatureServer",
+            layer_id="0",
+        )
+        source = _get_source(result)
+        assert source["props"]["layer"] == 0
+        assert isinstance(source["props"]["layer"], int)
+
+    def test_esri_feature_error_without_layer_id(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Feature Service",
+            name="ESRI Feature Layer",
+            url="https://example.com/arcgis/rest/services/MyService/FeatureServer",
+        )
+        assert "error" in result
+        assert "layer_id" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# GeoJSON
+# ---------------------------------------------------------------------------
+
+class TestGeoJSON:
+    """GeoJSON source type contract tests."""
+
+    SAMPLE_GEOJSON = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [-95.7, 29.7]},
+                "properties": {"name": "Houston"},
+            }
+        ],
+    }
+
+    def test_geojson_inline_returns_layer_update_shape(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Inline GeoJSON",
+            geojson=self.SAMPLE_GEOJSON,
+        )
+        assert_layer_update(result, expected_uuid=MAP_UUID)
+
+    def test_geojson_inline_layer_type_is_vector_layer(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Inline GeoJSON",
+            geojson=self.SAMPLE_GEOJSON,
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "VectorLayer"
+
+    def test_geojson_inline_data_at_source_top_level(self):
+        """GeoJSON data must be at source.geojson, NOT source.props.geojson."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Inline GeoJSON",
+            geojson=self.SAMPLE_GEOJSON,
+        )
+        source = _get_source(result)
+        # Data at source.geojson (top level on source object)
+        assert "geojson" in source, "GeoJSON data must be at source.geojson"
+        assert source["geojson"]["type"] == "FeatureCollection"
+        # NOT at source.props.geojson
+        assert "geojson" not in source["props"], (
+            "GeoJSON data must NOT be at source.props.geojson"
+        )
+
+    def test_geojson_inline_crs_auto_assigned(self):
+        """CRS is auto-assigned when missing from inline GeoJSON."""
+        geojson_no_crs = dict(self.SAMPLE_GEOJSON)  # no crs key
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Inline GeoJSON",
+            geojson=geojson_no_crs,
+        )
+        source = _get_source(result)
+        crs = source["geojson"]["crs"]
+        assert crs["type"] == "name"
+        assert crs["properties"]["name"] == "EPSG:4326"
+
+    def test_geojson_inline_preserves_existing_crs(self):
+        """If GeoJSON already has a CRS, it is preserved."""
+        geojson_with_crs = dict(self.SAMPLE_GEOJSON)
+        geojson_with_crs["crs"] = {
+            "type": "name",
+            "properties": {"name": "EPSG:3857"},
+        }
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Inline GeoJSON",
+            geojson=geojson_with_crs,
+        )
+        source = _get_source(result)
+        assert source["geojson"]["crs"]["properties"]["name"] == "EPSG:3857"
+
+    def test_geojson_url_at_source_top_level(self):
+        """GeoJSON URL is a string at source.geojson (top level)."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="URL GeoJSON",
+            geojson_url="https://example.com/data.geojson",
+        )
+        source = _get_source(result)
+        assert source["geojson"] == "https://example.com/data.geojson"
+        assert "geojson" not in source["props"]
+
+    def test_geojson_source_props_is_empty(self):
+        """GeoJSON source.props should be empty dict (data is at top level)."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Inline GeoJSON",
+            geojson=self.SAMPLE_GEOJSON,
+        )
+        source = _get_source(result)
+        assert source["props"] == {}
+
+    def test_geojson_attribute_variables_key_is_display_name(self):
+        """Non-ESRI types use the display name as attributeVariables key."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="City Points",
+            geojson=self.SAMPLE_GEOJSON,
+            attribute_variables={"name": "city_var"},
+        )
+        layer = _get_layer_config(result)
+        assert "attributeVariables" in layer
+        assert "City Points" in layer["attributeVariables"]
+        assert layer["attributeVariables"]["City Points"] == {"name": "city_var"}
+
+    def test_geojson_error_without_data_or_url(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="GeoJSON",
+            name="Missing GeoJSON",
+        )
+        assert "error" in result
+        assert "geojson" in result["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# KML
+# ---------------------------------------------------------------------------
+
+class TestKML:
+    """KML source type contract tests."""
+
+    def test_kml_returns_layer_update_shape(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="KML",
+            name="KML Layer",
+            url="https://example.com/data.kml",
+        )
+        assert_layer_update(result, expected_uuid=MAP_UUID)
+
+    def test_kml_layer_type_is_vector_layer(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="KML",
+            name="KML Layer",
+            url="https://example.com/data.kml",
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "VectorLayer"
+
+    def test_kml_source_props_url(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="KML",
+            name="KML Layer",
+            url="https://example.com/data.kml",
+        )
+        source = _get_source(result)
+        assert source["props"]["url"] == "https://example.com/data.kml"
+
+
+# ---------------------------------------------------------------------------
+# Image Tile
+# ---------------------------------------------------------------------------
+
+class TestImageTile:
+    """Image Tile source type contract tests."""
+
+    def test_image_tile_returns_layer_update_shape(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Image Tile",
+            name="Image Tile Layer",
+            url="https://example.com/tiles/{z}/{x}/{y}.png",
+        )
+        assert_layer_update(result, expected_uuid=MAP_UUID)
+
+    def test_image_tile_layer_type_is_tile_layer(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Image Tile",
+            name="Image Tile Layer",
+            url="https://example.com/tiles/{z}/{x}/{y}.png",
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "TileLayer"
+
+    def test_image_tile_source_type(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Image Tile",
+            name="Image Tile Layer",
+            url="https://example.com/tiles/{z}/{x}/{y}.png",
+        )
+        source = _get_source(result)
+        assert source["type"] == "Image Tile"
+
+
+# ---------------------------------------------------------------------------
+# Vector Tile
+# ---------------------------------------------------------------------------
+
+class TestVectorTile:
+    """Vector Tile source type contract tests."""
+
+    def test_vector_tile_returns_layer_update_shape(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Vector Tile",
+            name="Vector Tile Layer",
+            url="https://example.com/tiles/{z}/{x}/{y}.pbf",
+        )
+        assert_layer_update(result, expected_uuid=MAP_UUID)
+
+    def test_vector_tile_layer_type_is_vector_tile_layer(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Vector Tile",
+            name="Vector Tile Layer",
+            url="https://example.com/tiles/{z}/{x}/{y}.pbf",
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "VectorTileLayer"
+
+    def test_vector_tile_source_type(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Vector Tile",
+            name="Vector Tile Layer",
+            url="https://example.com/tiles/{z}/{x}/{y}.pbf",
+        )
+        source = _get_source(result)
+        assert source["type"] == "Vector Tile"
+
+    def test_vector_tile_source_props_uses_urls_key(self):
+        """Vector Tile uses 'urls' (plural), not 'url'."""
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Vector Tile",
+            name="Vector Tile Layer",
+            url="https://example.com/tiles/{z}/{x}/{y}.pbf",
+        )
+        source = _get_source(result)
+        assert source["props"]["urls"] == "https://example.com/tiles/{z}/{x}/{y}.pbf"
+
+
+# ---------------------------------------------------------------------------
+# PMTiles Vector
+# ---------------------------------------------------------------------------
+
+class TestPMTilesVector:
+    """PMTiles Vector source type contract tests."""
+
+    def test_pmtiles_vector_returns_layer_update_shape(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="PMTiles Vector",
+            name="PMTiles Vector Layer",
+            url="https://example.com/data.pmtiles",
+        )
+        assert_layer_update(result, expected_uuid=MAP_UUID)
+
+    def test_pmtiles_vector_layer_type_is_vector_tile_layer(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="PMTiles Vector",
+            name="PMTiles Vector Layer",
+            url="https://example.com/data.pmtiles",
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "VectorTileLayer"
+
+    def test_pmtiles_vector_source_type(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="PMTiles Vector",
+            name="PMTiles Vector Layer",
+            url="https://example.com/data.pmtiles",
+        )
+        source = _get_source(result)
+        assert source["type"] == "PMTiles Vector"
+
+
+# ---------------------------------------------------------------------------
+# PMTiles Raster
+# ---------------------------------------------------------------------------
+
+class TestPMTilesRaster:
+    """PMTiles Raster source type contract tests."""
+
+    def test_pmtiles_raster_returns_layer_update_shape(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="PMTiles Raster",
+            name="PMTiles Raster Layer",
+            url="https://example.com/data.pmtiles",
+        )
+        assert_layer_update(result, expected_uuid=MAP_UUID)
+
+    def test_pmtiles_raster_layer_type_is_webgl_tile(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="PMTiles Raster",
+            name="PMTiles Raster Layer",
+            url="https://example.com/data.pmtiles",
+        )
+        config = _get_configuration(result)
+        assert config["type"] == "WebGLTile"
+
+    def test_pmtiles_raster_source_type(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="PMTiles Raster",
+            name="PMTiles Raster Layer",
+            url="https://example.com/data.pmtiles",
+        )
+        source = _get_source(result)
+        assert source["type"] == "PMTiles Raster"
+
+
+# ---------------------------------------------------------------------------
+# Cross-cutting: queryable flag
+# ---------------------------------------------------------------------------
+
+class TestQueryable:
+    """Queryable flag contract tests."""
+
+    def test_queryable_true_sets_flag(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="Queryable WMS",
+            url="https://example.com/wms",
+            wms_layers="workspace:layer_name",
+            queryable=True,
+        )
+        layer = _get_layer_config(result)
+        assert layer["queryable"] is True
+
+    def test_queryable_false_omits_flag(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="Non-Queryable WMS",
+            url="https://example.com/wms",
+            wms_layers="workspace:layer_name",
+            queryable=False,
+        )
+        layer = _get_layer_config(result)
+        assert "queryable" not in layer
+
+
+# ---------------------------------------------------------------------------
+# Cross-cutting: all source types return layer_update shape
+# ---------------------------------------------------------------------------
+
+class TestAllSourceTypesReturnLayerUpdate:
+    """Every valid source type must return layer_update, NOT visualization."""
+
+    # Minimal valid args for each source type
+    _MINIMAL_ARGS = {
+        "WMS": dict(url="https://x.com/wms", wms_layers="ws:layer"),
+        "ESRI Image and Map Service": dict(url="https://x.com/esri"),
+        "ESRI Feature Service": dict(url="https://x.com/esri", layer_id="0"),
+        "GeoJSON": dict(geojson={"type": "FeatureCollection", "features": []}),
+        "KML": dict(url="https://x.com/data.kml"),
+        "Image Tile": dict(url="https://x.com/tiles/{z}/{x}/{y}.png"),
+        "Vector Tile": dict(url="https://x.com/tiles/{z}/{x}/{y}.pbf"),
+        "PMTiles Vector": dict(url="https://x.com/data.pmtiles"),
+        "PMTiles Raster": dict(url="https://x.com/data.pmtiles"),
+    }
+
+    def test_all_valid_source_types_covered(self):
+        """Verify our test data covers all VALID_SOURCE_TYPES."""
+        assert set(self._MINIMAL_ARGS.keys()) == set(VALID_SOURCE_TYPES)
+
+    def test_wms_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("WMS")
+
+    def test_esri_image_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("ESRI Image and Map Service")
+
+    def test_esri_feature_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("ESRI Feature Service")
+
+    def test_geojson_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("GeoJSON")
+
+    def test_kml_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("KML")
+
+    def test_image_tile_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("Image Tile")
+
+    def test_vector_tile_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("Vector Tile")
+
+    def test_pmtiles_vector_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("PMTiles Vector")
+
+    def test_pmtiles_raster_returns_layer_update(self):
+        self._assert_source_type_returns_layer_update("PMTiles Raster")
+
+    def _assert_source_type_returns_layer_update(self, source_type):
+        args = self._MINIMAL_ARGS[source_type]
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type=source_type,
+            name=f"Test {source_type}",
+            **args,
+        )
+        assert_layer_update(result, expected_uuid=MAP_UUID)
+        # Also verify correct OL layer type
+        config = _get_configuration(result)
+        assert config["type"] == SOURCE_TYPE_TO_LAYER_TYPE[source_type]
+
+
+# ---------------------------------------------------------------------------
+# Error paths
+# ---------------------------------------------------------------------------
+
+class TestErrors:
+    """Error path contract tests."""
+
+    def test_invalid_source_type_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="InvalidType",
+            name="Bad Layer",
+            url="https://example.com",
+        )
+        assert "error" in result
+        assert "Invalid source_type" in result["error"]
+        # Error message should list valid types
+        for st in VALID_SOURCE_TYPES:
+            assert st in result["error"]
+
+    def test_wms_without_url_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="WMS No URL",
+            wms_layers="workspace:layer_name",
+        )
+        assert "error" in result
+
+    def test_esri_feature_without_url_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="ESRI Feature Service",
+            name="ESRI No URL",
+            layer_id="0",
+        )
+        assert "error" in result
+
+    def test_kml_without_url_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="KML",
+            name="KML No URL",
+        )
+        assert "error" in result
+
+    def test_image_tile_without_url_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Image Tile",
+            name="Image Tile No URL",
+        )
+        assert "error" in result
+
+    def test_vector_tile_without_url_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="Vector Tile",
+            name="Vector Tile No URL",
+        )
+        assert "error" in result
+
+    def test_pmtiles_vector_without_url_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="PMTiles Vector",
+            name="PMTiles Vector No URL",
+        )
+        assert "error" in result
+
+    def test_pmtiles_raster_without_url_returns_error(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="PMTiles Raster",
+            name="PMTiles Raster No URL",
+        )
+        assert "error" in result
+
+
+# ---------------------------------------------------------------------------
+# Optional layer properties
+# ---------------------------------------------------------------------------
+
+class TestOptionalLayerProps:
+    """Optional layer properties (opacity, minZoom, maxZoom)."""
+
+    def test_opacity_set(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="Opacity WMS",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            opacity=0.5,
+        )
+        props = _get_configuration(result)["props"]
+        assert props["opacity"] == 0.5
+
+    def test_min_zoom_set(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="MinZoom WMS",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            min_zoom=5,
+        )
+        props = _get_configuration(result)["props"]
+        assert props["minZoom"] == 5
+
+    def test_max_zoom_set(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="MaxZoom WMS",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+            max_zoom=15,
+        )
+        props = _get_configuration(result)["props"]
+        assert props["maxZoom"] == 15
+
+    def test_optional_props_omitted_when_not_set(self):
+        result = add_map_service_layer(
+            map_uuid=MAP_UUID,
+            source_type="WMS",
+            name="Minimal WMS",
+            url="https://example.com/wms",
+            wms_layers="ws:layer",
+        )
+        props = _get_configuration(result)["props"]
+        assert "opacity" not in props
+        assert "minZoom" not in props
+        assert "maxZoom" not in props
