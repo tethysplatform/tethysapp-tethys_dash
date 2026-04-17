@@ -1674,3 +1674,520 @@ test("DashboardHeader AppInfo disappears on idle and reappears on still signed i
   expect(await screen.findByText("TethysDash Dashboards")).toBeInTheDocument();
   expect(screen.queryByText("Are you still here?")).not.toBeInTheDocument();
 });
+
+test("DashboardHeader, import gridItem with unrestrictedPlacement", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.dashboards[0];
+  mockedDashboard.unrestrictedPlacement = true;
+  mockedDashboard.tabs[0].gridItems = [
+    {
+      id: 1,
+      uuid: "some-uuid-1",
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({ refreshRate: 0 }),
+    },
+  ];
+
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
+    success: true,
+    updated_dashboard: {
+      id: 1,
+      name: "some dashboard updated",
+      tabs: [
+        {
+          id: 1,
+          name: "Tab 1",
+          gridItems: [
+            {
+              id: 1,
+              uuid: "some-uuid-1",
+              i: "1",
+              x: 0,
+              y: 0,
+              w: 20,
+              h: 20,
+              source: "",
+              args_string: "{}",
+              metadata_string: JSON.stringify({ refreshRate: 0 }),
+            },
+          ],
+        },
+      ],
+    },
+  });
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+            <DashboardTabs />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: {
+        user: { isAuthenticated: true, isStaff: false },
+        dashboards: updatedMockedDashboards,
+      },
+    }),
+  );
+
+  const editButton = await screen.findByLabelText("editButton");
+  await userEvent.click(editButton);
+
+  const importDashboardItemButton = await screen.findByLabelText(
+    "importDashboardItemButton",
+  );
+  await userEvent.click(importDashboardItemButton);
+  expect(
+    await screen.findByLabelText("Dashboard Import Modal"),
+  ).toBeInTheDocument();
+
+  const file = new File(
+    [
+      JSON.stringify({
+        id: 5,
+        uuid: "some-uuid-5",
+        i: "1",
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "Variable Input",
+        args_string: {
+          initial_value: "",
+          variable_name: "Test Variable",
+          variable_options_source: "text",
+        },
+        metadata_string: { refreshRate: 0 },
+      }),
+    ],
+    "test-file.json",
+    { type: "text/plain" },
+  );
+  const fileInput = screen.getByTestId("file-input");
+  fireEvent.change(fileInput, { target: { files: [file] } });
+
+  const importButton = screen.getByLabelText("Import Button");
+  await waitFor(() => expect(importButton).not.toBeDisabled());
+  await userEvent.click(importButton);
+
+  const saveButton = await screen.findByLabelText("saveButton");
+  await userEvent.click(saveButton);
+
+  await waitFor(() => {
+    expect(mockUpdateDashboard).toHaveBeenCalledWith(
+      {
+        id: 1,
+        tabs: [
+          {
+            gridItems: [
+              {
+                id: 1,
+                uuid: "some-uuid-1",
+                i: "1",
+                x: 0,
+                y: 0,
+                w: 20,
+                h: 20,
+                source: "",
+                args_string: "{}",
+                metadata_string: JSON.stringify({ refreshRate: 0 }),
+              },
+              {
+                id: null,
+                uuid: "12345678",
+                i: "2",
+                x: 0,
+                y: 0,
+                w: 20,
+                h: 20,
+                source: "Variable Input",
+                args_string: JSON.stringify({
+                  initial_value: "",
+                  variable_name: "Test Variable",
+                  variable_options_source: "text",
+                }),
+                metadata_string: JSON.stringify({ refreshRate: 0 }),
+              },
+            ],
+            id: 1,
+            name: "Tab 1",
+          },
+        ],
+      },
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
+    );
+  });
+});
+
+test("DashboardHeader, import tab", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.dashboards[0];
+  mockedDashboard.tabs[0].gridItems = [
+    {
+      id: 1,
+      uuid: "some-uuid-1",
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({ refreshRate: 0 }),
+    },
+  ];
+
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
+    success: true,
+    updated_dashboard: {
+      id: 1,
+      tabs: [
+        {
+          id: 1,
+          name: "Tab 1",
+          gridItems: mockedDashboard.tabs[0].gridItems,
+        },
+        {
+          id: "imported-12345678",
+          name: "Imported Tab",
+          gridItems: [],
+        },
+      ],
+    },
+  });
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+            <DashboardTabs />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: {
+        user: { isAuthenticated: true, isStaff: false },
+        dashboards: updatedMockedDashboards,
+      },
+    }),
+  );
+
+  const editButton = await screen.findByLabelText("editButton");
+  await userEvent.click(editButton);
+
+  const importDashboardItemButton = await screen.findByLabelText(
+    "importDashboardItemButton",
+  );
+  await userEvent.click(importDashboardItemButton);
+  expect(
+    await screen.findByLabelText("Dashboard Import Modal"),
+  ).toBeInTheDocument();
+
+  const tabData = {
+    name: "New Tab",
+    gridItems: [
+      {
+        i: "1",
+        x: 0,
+        y: 0,
+        w: 20,
+        h: 20,
+        source: "Text",
+        args_string: { text: "hello" },
+        metadata_string: { refreshRate: 0 },
+      },
+    ],
+  };
+
+  const file = new File([JSON.stringify(tabData)], "test-tab.json", {
+    type: "text/plain",
+  });
+  const fileInput = screen.getByTestId("file-input");
+  fireEvent.change(fileInput, { target: { files: [file] } });
+
+  const importButton = screen.getByLabelText("Import Button");
+  await waitFor(() => expect(importButton).not.toBeDisabled());
+  await userEvent.click(importButton);
+
+  const saveButton = await screen.findByLabelText("saveButton");
+  await userEvent.click(saveButton);
+
+  await waitFor(() => {
+    expect(mockUpdateDashboard).toHaveBeenCalledWith(
+      {
+        id: 1,
+        tabs: expect.arrayContaining([
+          expect.objectContaining({
+            id: 1,
+            name: "Tab 1",
+          }),
+          expect.objectContaining({
+            id: "imported-12345678",
+            name: "New Tab",
+            gridItems: [
+              {
+                uuid: "12345678",
+                id: null,
+                i: "1",
+                x: 0,
+                y: 0,
+                w: 20,
+                h: 20,
+                source: "Text",
+                args_string: JSON.stringify({ text: "hello" }),
+                metadata_string: JSON.stringify({ refreshRate: 0 }),
+              },
+            ],
+          }),
+        ]),
+      },
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
+    );
+  });
+});
+
+test("DashboardHeader, import multiple gridItems with non-sequential i values", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.dashboards[0];
+  mockedDashboard.tabs[0].gridItems = [
+    {
+      id: 1,
+      uuid: "some-uuid-1",
+      i: "5",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({ refreshRate: 0 }),
+    },
+    {
+      id: 2,
+      uuid: "some-uuid-2",
+      i: "2",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({ refreshRate: 0 }),
+    },
+  ];
+
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
+    success: true,
+    updated_dashboard: {
+      id: 1,
+      tabs: [
+        {
+          id: 1,
+          name: "Tab 1",
+          gridItems: mockedDashboard.tabs[0].gridItems,
+        },
+      ],
+    },
+  });
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+            <DashboardTabs />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: {
+        user: { isAuthenticated: true, isStaff: false },
+        dashboards: updatedMockedDashboards,
+      },
+    }),
+  );
+
+  const editButton = await screen.findByLabelText("editButton");
+  await userEvent.click(editButton);
+
+  const importDashboardItemButton = await screen.findByLabelText(
+    "importDashboardItemButton",
+  );
+  await userEvent.click(importDashboardItemButton);
+  expect(
+    await screen.findByLabelText("Dashboard Import Modal"),
+  ).toBeInTheDocument();
+
+  const gridItems = [
+    {
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 10,
+      h: 10,
+      source: "Text",
+      args_string: { text: "item1" },
+      metadata_string: { refreshRate: 0 },
+    },
+    {
+      i: "2",
+      x: 10,
+      y: 0,
+      w: 10,
+      h: 10,
+      source: "Text",
+      args_string: { text: "item2" },
+      metadata_string: { refreshRate: 0 },
+    },
+  ];
+
+  const file = new File([JSON.stringify(gridItems)], "test-file.json", {
+    type: "text/plain",
+  });
+  const fileInput = screen.getByTestId("file-input");
+  fireEvent.change(fileInput, { target: { files: [file] } });
+
+  const importButton = screen.getByLabelText("Import Button");
+  await waitFor(() => expect(importButton).not.toBeDisabled());
+  await userEvent.click(importButton);
+
+  const saveButton = await screen.findByLabelText("saveButton");
+  await userEvent.click(saveButton);
+
+  await waitFor(() => {
+    expect(mockUpdateDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 1,
+        tabs: [
+          expect.objectContaining({
+            gridItems: expect.arrayContaining([
+              expect.objectContaining({ i: "6", source: "Text" }),
+              expect.objectContaining({ i: "7", source: "Text" }),
+            ]),
+          }),
+        ],
+      }),
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
+    );
+  });
+});
+
+test("DashboardHeader, import tab without name uses fallback", async () => {
+  const updatedMockedDashboards = JSON.parse(JSON.stringify(mockedDashboards));
+  const mockedDashboard = updatedMockedDashboards.dashboards[0];
+  mockedDashboard.tabs[0].gridItems = [
+    {
+      id: 1,
+      uuid: "some-uuid-1",
+      i: "1",
+      x: 0,
+      y: 0,
+      w: 20,
+      h: 20,
+      source: "",
+      args_string: "{}",
+      metadata_string: JSON.stringify({ refreshRate: 0 }),
+    },
+  ];
+
+  const mockUpdateDashboard = jest.fn();
+  mockUpdateDashboard.mockResolvedValue({
+    success: true,
+    updated_dashboard: {
+      id: 1,
+      tabs: [
+        {
+          id: 1,
+          name: "Tab 1",
+          gridItems: mockedDashboard.tabs[0].gridItems,
+        },
+        {
+          id: "imported-12345678",
+          name: "Imported Tab",
+          gridItems: [],
+        },
+      ],
+    },
+  });
+  jest.spyOn(appAPI, "updateDashboard").mockImplementation(mockUpdateDashboard);
+
+  render(
+    createLoadedComponent({
+      children: (
+        <MemoryRouter initialEntries={["/dashboard/user/editable"]}>
+          <LayoutAlertContextProvider>
+            <DashboardHeader />
+            <DashboardTabs />
+          </LayoutAlertContextProvider>
+        </MemoryRouter>
+      ),
+      options: {
+        user: { isAuthenticated: true, isStaff: false },
+        dashboards: updatedMockedDashboards,
+      },
+    }),
+  );
+
+  const editButton = await screen.findByLabelText("editButton");
+  await userEvent.click(editButton);
+
+  const importDashboardItemButton = await screen.findByLabelText(
+    "importDashboardItemButton",
+  );
+  await userEvent.click(importDashboardItemButton);
+  expect(
+    await screen.findByLabelText("Dashboard Import Modal"),
+  ).toBeInTheDocument();
+
+  const dashboardData = {
+    tabs: [
+      {
+        name: "",
+      },
+    ],
+  };
+
+  const file = new File([JSON.stringify(dashboardData)], "test-tab.json", {
+    type: "text/plain",
+  });
+  const fileInput = screen.getByTestId("file-input");
+  fireEvent.change(fileInput, { target: { files: [file] } });
+
+  const importButton = screen.getByLabelText("Import Button");
+  await waitFor(() => expect(importButton).not.toBeDisabled());
+  await userEvent.click(importButton);
+
+  const saveButton = await screen.findByLabelText("saveButton");
+  await userEvent.click(saveButton);
+
+  await waitFor(() => {
+    expect(mockUpdateDashboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 1,
+        tabs: expect.arrayContaining([
+          expect.objectContaining({
+            id: "imported-12345678",
+            name: "Imported Tab",
+          }),
+        ]),
+      }),
+      "SxICmOkFldX4o4YVaySdZq9sgn0eRd3Ih6uFtY8BgU5tMyZc7n90oJ4M2My5i7cy",
+    );
+  });
+});

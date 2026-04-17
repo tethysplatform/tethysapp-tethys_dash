@@ -45,10 +45,12 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
       return format.gridItems;
     }
     const tabs =
-      format.type === "dashboard"
+      format.type === "dashboard" || format.type === "mixed"
         ? format.tabs.filter((_, i) => selectedTabIndices.includes(i))
         : format.tabs;
-    return tabs.flatMap((tab) => tab.gridItems || []);
+    const tabItems = tabs.flatMap((tab) => tab.gridItems || []);
+    const looseItems = format.type === "mixed" ? format.gridItems : [];
+    return [...looseItems, ...tabItems];
   };
 
   const onImport = async () => {
@@ -112,14 +114,19 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
         tabs: [],
       });
     } else {
+      const looseItemCount =
+        importFormat.type === "mixed" ? importFormat.gridItems.length : 0;
+      const processedLooseItems = processedGridItems.slice(0, looseItemCount);
+      const processedTabItems = processedGridItems.slice(looseItemCount);
+
       const tabs =
-        importFormat.type === "dashboard"
+        importFormat.type === "dashboard" || importFormat.type === "mixed"
           ? importFormat.tabs.filter((_, i) => selectedTabs.includes(i))
           : importFormat.tabs;
 
       let itemIndex = 0;
       const processedTabs = tabs.map((tab) => {
-        const tabItems = processedGridItems.slice(
+        const tabItems = processedTabItems.slice(
           itemIndex,
           itemIndex + (tab.gridItems?.length || 0),
         );
@@ -127,13 +134,20 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
         return { ...tab, gridItems: tabItems };
       });
 
+      const parts = [];
+      if (processedLooseItems.length > 0) {
+        parts.push(
+          `${processedLooseItems.length} item${processedLooseItems.length !== 1 ? "s" : ""} to active tab`,
+        );
+      }
       const tabCount = processedTabs.length;
-      setSuccessMessage(
-        `Successfully imported ${tabCount} tab${tabCount !== 1 ? "s" : ""}`,
+      parts.push(
+        `${tabCount} tab${tabCount !== 1 ? "s" : ""}`,
       );
+      setSuccessMessage(`Successfully imported ${parts.join(" and ")}`);
       onImportGridItem({
         type: importFormat.type,
-        gridItems: [],
+        gridItems: processedLooseItems,
         tabs: processedTabs,
       });
     }
@@ -144,32 +158,103 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
   };
 
   const handleFileChange = (event) => {
-    const file = event.target.files[0];
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsedJson = JSON.parse(reader.result);
-        setJsonContent(parsedJson);
-        setErrorMessage("");
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
 
-        if (onImportGridItem) {
-          const format = detectImportFormat(parsedJson);
+    if (!onImportGridItem) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          setJsonContent(JSON.parse(reader.result));
+          setErrorMessage("");
+        } catch (error) {
+          setErrorMessage("Invalid JSON structure");
+        }
+      };
+      reader.readAsText(files[0]);
+      return;
+    }
+
+    setErrorMessage("");
+    setImportFormat(null);
+
+    const readPromises = files.map(
+      (file) =>
+        new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              resolve(JSON.parse(reader.result));
+            } catch (error) {
+              reject(new Error(`Invalid JSON in ${file.name}`));
+            }
+          };
+          reader.readAsText(file);
+        }),
+    );
+
+    Promise.all(readPromises)
+      .then((parsedFiles) => {
+        const allGridItems = [];
+        const allTabs = [];
+
+        for (const parsed of parsedFiles) {
+          const format = detectImportFormat(parsed);
           if (!format) {
-            setErrorMessage("Unrecognized JSON format");
-            setImportFormat(null);
+            setErrorMessage("Unrecognized JSON format in one or more files");
             return;
           }
-          setImportFormat(format);
-          if (format.type === "dashboard") {
-            setSelectedTabs(format.tabs.map((_, i) => i));
-          }
+          allGridItems.push(...format.gridItems);
+          allTabs.push(...format.tabs);
         }
-      } catch (error) {
-        setErrorMessage("Invalid JSON structure");
+
+        let mergedFormat;
+        if (allTabs.length > 0 && allGridItems.length > 0) {
+          const tabSummaries = allTabs.map(
+            (tab) =>
+              `${tab.name || "Unnamed tab"} (${tab.gridItems?.length || 0} items)`,
+          );
+          mergedFormat = {
+            type: "mixed",
+            gridItems: allGridItems,
+            tabs: allTabs,
+            summary: `${allGridItems.length} grid item${allGridItems.length !== 1 ? "s" : ""} to active tab + ${allTabs.length} tab${allTabs.length !== 1 ? "s" : ""}: ${tabSummaries.join(", ")}`,
+          };
+        } else if (allTabs.length > 0) {
+          const tabSummaries = allTabs.map(
+            (tab) =>
+              `${tab.name || "Unnamed tab"} (${tab.gridItems?.length || 0} items)`,
+          );
+          mergedFormat = {
+            type: allTabs.length === 1 && parsedFiles.length === 1 ? "tab" : "dashboard",
+            gridItems: [],
+            tabs: allTabs,
+            summary:
+              allTabs.length === 1 && parsedFiles.length === 1
+                ? `Tab: ${allTabs[0].name} with ${allTabs[0].gridItems?.length || 0} items`
+                : `${allTabs.length} tab${allTabs.length !== 1 ? "s" : ""}: ${tabSummaries.join(", ")}`,
+          };
+        } else {
+          mergedFormat = {
+            type: allGridItems.length === 1 ? "single" : "array",
+            gridItems: allGridItems,
+            tabs: [],
+            summary:
+              allGridItems.length === 1
+                ? "1 grid item"
+                : `${allGridItems.length} grid items to add to current tab`,
+          };
+        }
+
+        setImportFormat(mergedFormat);
+        if (mergedFormat.type === "dashboard" || mergedFormat.type === "mixed") {
+          setSelectedTabs(mergedFormat.tabs.map((_, i) => i));
+        }
+      })
+      .catch((error) => {
+        setErrorMessage(error.message);
         setImportFormat(null);
-      }
-    };
-    reader.readAsText(file);
+      });
   };
 
   const handleTabToggle = (index) => {
@@ -185,7 +270,10 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
       return !jsonContent;
     }
     if (!importFormat) return true;
-    if (importFormat.type === "dashboard" && selectedTabs.length === 0)
+    if (
+      importFormat.type === "dashboard" &&
+      selectedTabs.length === 0
+    )
       return true;
     return false;
   };
@@ -207,13 +295,15 @@ function DashboardImportModal({ showModal, setShowModal, onImportGridItem }) {
         <input
           type="file"
           accept=".json"
+          multiple={!!onImportGridItem}
           onChange={handleFileChange}
           data-testid="file-input"
         />
         {onImportGridItem && importFormat && (
           <PreviewText data-testid="import-preview">
             {importFormat.summary}
-            {importFormat.type === "dashboard" &&
+            {(importFormat.type === "dashboard" ||
+              importFormat.type === "mixed") &&
               importFormat.tabs.length > 0 && (
                 <div style={{ marginTop: "0.5rem" }}>
                   {importFormat.tabs.map((tab, index) => (

@@ -2395,6 +2395,21 @@ describe("detectImportFormat", () => {
     expect(result.summary).toBe("2 tabs: Tab A (2 items), Tab B (1 items)");
   });
 
+  test("detects array with exactly 1 item uses singular", () => {
+    const result = detectImportFormat([validGridItem]);
+    expect(result.type).toBe("array");
+    expect(result.summary).toBe("1 grid item to add to current tab");
+  });
+
+  test("detects dashboard with unnamed tab and missing gridItems", () => {
+    const dashboard = {
+      tabs: [{ id: "1" }, { name: "Named", gridItems: [validGridItem] }],
+    };
+    const result = detectImportFormat(dashboard);
+    expect(result.type).toBe("dashboard");
+    expect(result.summary).toBe("2 tabs: Unnamed tab (0 items), Named (1 items)");
+  });
+
   test("detects empty array", () => {
     const result = detectImportFormat([]);
     expect(result.type).toBe("array");
