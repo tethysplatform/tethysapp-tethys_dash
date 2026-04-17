@@ -809,8 +809,18 @@ def add_map_service_layer(
 )
 def create_variable_input(
     variable_name: Annotated[str, Field(description="Variable name used in ${...} references by other visualizations")],
-    variable_type: Annotated[str, Field(description="Input type: 'text', 'number', 'checkbox', 'date', or 'slider'")] = "text",
+    variable_type: Annotated[str, Field(description=(
+        "Input type: 'text', 'number', 'checkbox', 'date', 'dropdown', "
+        "'slider', 'date-range', or 'csv-uploader'"
+    ))] = "text",
     initial_value: Annotated[str, Field(description="Default value for the variable input")] = "",
+    options: Annotated[Optional[Union[List[str], str]], Field(description=(
+        "Options for dropdown type. Provide as a comma-separated string "
+        "or a list of strings."
+    ))] = None,
+    slider_min: Annotated[Optional[float], Field(description="Minimum value for slider type")] = None,
+    slider_max: Annotated[Optional[float], Field(description="Maximum value for slider type")] = None,
+    slider_step: Annotated[Optional[float], Field(description="Step increment for slider type")] = None,
     w: Annotated[int, Field(description="Grid width in columns (out of 100)")] = 25,
     h: Annotated[int, Field(description="Grid height in row units")] = 12,
 ) -> Dict[str, Any]:
@@ -822,21 +832,58 @@ def create_variable_input(
     To link a plugin to this variable, call list_intake_plugins to get the source name,
     then render_plugin with args referencing ${variable_name}.
     """
-    valid_types = ["text", "number", "checkbox", "date", "slider"]
+    valid_types = [
+        "text", "number", "checkbox", "date",
+        "dropdown", "slider", "date-range", "csv-uploader",
+    ]
     if variable_type not in valid_types:
         return {"error": f"Invalid variable_type '{variable_type}'. Must be one of: {valid_types}"}
 
+    # Coerce string options to list (LLMs may pass "A,B,C" instead of ["A","B","C"])
+    if isinstance(options, str):
+        options = [o.strip() for o in options.split(",")]
+
+    # Validate type-specific requirements
+    if variable_type == "dropdown" and not options:
+        return {"error": "variable_type 'dropdown' requires the 'options' parameter"}
+    if variable_type == "slider" and (slider_min is None or slider_max is None):
+        return {"error": "variable_type 'slider' requires 'slider_min' and 'slider_max' parameters"}
+
     LOGGER.info("create_variable_input: name=%s, type=%s, initial=%s", variable_name, variable_type, initial_value)
+
+    args = {
+        "variable_name": variable_name,
+        "initial_value": initial_value,
+    }
+
+    if variable_type == "dropdown":
+        # Dropdown: variable_options_source is the array of option strings.
+        # The frontend renders a select/dropdown when it receives an array.
+        args["variable_options_source"] = options
+    elif variable_type == "slider":
+        args["variable_options_source"] = "slider"
+        # Slider metadata goes in the dotted key that Base.js reads at line 336:
+        # metadata: args["variable_options_source.metadata"]
+        try:
+            initial_num = float(initial_value) if initial_value else slider_min
+        except (ValueError, TypeError):
+            initial_num = slider_min
+        args["variable_options_source.metadata"] = {
+            "min": slider_min,
+            "max": slider_max,
+            "step": slider_step or 1,
+            "dataType": "Number",
+            "initialValue": initial_num,
+            "outputFormat": "{{n}}",
+        }
+    else:
+        args["variable_options_source"] = variable_type
 
     return {
         "visualization": {
             "source": "Variable Input",
             "vizType": "variableInput",
-            "args": {
-                "variable_name": variable_name,
-                "variable_options_source": variable_type,
-                "initial_value": initial_value,
-            },
+            "args": args,
             "w": w,
             "h": h,
         }
