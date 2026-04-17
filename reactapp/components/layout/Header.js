@@ -283,7 +283,8 @@ export const DashboardHeader = () => {
   const { user } = useContext(AppContext);
   const { name, editable, saveLayoutContext, unrestrictedPlacement } =
     useContext(LayoutContext);
-  const { tabs, updateTab, resetTabs, getActiveTab } = useContext(TabContext);
+  const { tabs, updateTab, importTabs, resetTabs, getActiveTab } =
+    useContext(TabContext);
   const { isEditing, setIsEditing } = useContext(EditingContext);
   const [isSaving, setIsSaving] = useState(false);
   const { disabledEditingMovement, setDisabledEditingMovement } = useContext(
@@ -392,8 +393,49 @@ export const DashboardHeader = () => {
     updateTab(activeTabId, { gridItems: updatedGridItems });
   }
 
-  function onImportGridItem(importedGridItem) {
-    onAddGridItem({ importedGridItem });
+  function onImportGridItem(importResult) {
+    if (
+      importResult.type === "single" ||
+      importResult.type === "array"
+    ) {
+      const { gridItems, id: activeTabId } = getActiveTab();
+      let maxGridItemI = gridItems.reduce((acc, value) => {
+        return (acc = acc > parseInt(value.i) ? acc : parseInt(value.i));
+      }, 0);
+
+      const newGridItems = importResult.gridItems.map((item) => {
+        maxGridItemI += 1;
+        return {
+          ...item,
+          uuid: uuidv4(),
+          id: null,
+          i: `${maxGridItemI}`,
+        };
+      });
+
+      let updatedGridItems;
+      if (unrestrictedPlacement) {
+        updatedGridItems = [...gridItems, ...newGridItems];
+      } else {
+        updatedGridItems = [...newGridItems, ...gridItems];
+      }
+      updateTab(activeTabId, { gridItems: updatedGridItems });
+    } else {
+      const newTabs = importResult.tabs.map((tab) => {
+        const gridItems = (tab.gridItems || []).map((item, index) => ({
+          ...item,
+          uuid: uuidv4(),
+          id: null,
+          i: `${index + 1}`,
+        }));
+        return {
+          id: uuidv4(),
+          name: tab.name || "Imported Tab",
+          gridItems,
+        };
+      });
+      importTabs(newTabs);
+    }
   }
 
   function onEdit() {

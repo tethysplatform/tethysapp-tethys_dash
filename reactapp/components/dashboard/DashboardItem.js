@@ -110,6 +110,73 @@ export const requiredGridItemKeys = [
   "metadata_string",
 ];
 
+export function detectImportFormat(json) {
+  if (Array.isArray(json)) {
+    const count = json.length;
+    return {
+      type: "array",
+      gridItems: json,
+      tabs: [],
+      summary: `${count} grid item${count !== 1 ? "s" : ""} to add to current tab`,
+    };
+  }
+
+  if (json && typeof json === "object") {
+    if (Array.isArray(json.tabs)) {
+      const tabSummaries = json.tabs.map(
+        (tab) =>
+          `${tab.name || "Unnamed tab"} (${tab.gridItems?.length || 0} items)`,
+      );
+      return {
+        type: "dashboard",
+        gridItems: [],
+        tabs: json.tabs,
+        summary: `${json.tabs.length} tab${json.tabs.length !== 1 ? "s" : ""}: ${tabSummaries.join(", ")}`,
+      };
+    }
+
+    if (json.name !== undefined && Array.isArray(json.gridItems)) {
+      const count = json.gridItems.length;
+      return {
+        type: "tab",
+        gridItems: [],
+        tabs: [json],
+        summary: `Tab: ${json.name} with ${count} item${count !== 1 ? "s" : ""}`,
+      };
+    }
+
+    if (requiredGridItemKeys.every((key) => key in json)) {
+      return {
+        type: "single",
+        gridItems: [json],
+        tabs: [],
+        summary: "1 grid item",
+      };
+    }
+  }
+
+  return null;
+}
+
+export function validateGridItemBatch(items) {
+  const errors = [];
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const missingKeys = requiredGridItemKeys.filter(
+      (key) => !Object.prototype.hasOwnProperty.call(item, key),
+    );
+    if (missingKeys.length > 0) {
+      errors.push(
+        `Item ${i + 1}: missing ${missingKeys.join(", ")}`,
+      );
+    }
+  }
+  return {
+    valid: errors.length === 0,
+    errors,
+  };
+}
+
 export const handleGridItemExport = async (gridItem, dashboard_uuid) => {
   const { id, uuid, ...exportedGridItem } = gridItem;
   exportedGridItem.metadata_string = JSON.parse(

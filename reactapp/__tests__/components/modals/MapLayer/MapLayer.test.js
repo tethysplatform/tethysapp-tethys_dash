@@ -1371,9 +1371,7 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
   const sourceTabContent = screen.getByLabelText("layer-source-tab");
   const sourceDropdown = screen.getByLabelText("Source Type Input");
 
-  selectEvent.openMenu(sourceDropdown);
-  const sourceOption = await screen.findByText("ESRI Image and Map Service");
-  fireEvent.click(sourceOption);
+  await selectEvent.select(sourceDropdown, "ESRI Image and Map Service");
   expect(await screen.findByText("Source Properties")).toBeInTheDocument();
 
   const urlInput = within(sourceTabContent).getByLabelText("value Input 0");

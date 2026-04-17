@@ -220,6 +220,18 @@ const DashboardLoader = ({
     [tabs, activeTabId],
   );
 
+  const importTabs = useCallback(
+    (newTabs) => {
+      const startOrder = tabs.length;
+      const tabsToAdd = newTabs.map((tab, index) => ({
+        ...tab,
+        order: startOrder + index,
+      }));
+      setTabs([...tabs, ...tabsToAdd]);
+    },
+    [tabs],
+  );
+
   const reorderTabs = useCallback(
     (newOrder) => {
       setTabs(newOrder);
@@ -262,6 +274,7 @@ const DashboardLoader = ({
       activeTabId,
       setActiveTabId,
       addTab,
+      importTabs,
       updateTab,
       deleteTab,
       reorderTabs,
@@ -273,6 +286,7 @@ const DashboardLoader = ({
       tabs,
       activeTabId,
       addTab,
+      importTabs,
       updateTab,
       deleteTab,
       reorderTabs,
