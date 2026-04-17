@@ -21,6 +21,8 @@ coverage
 data
 build
 dist
+docs/brainstorms/
+docs/plans/
 
 
 tethysapp/tethysdash/public/images/plugins/*
