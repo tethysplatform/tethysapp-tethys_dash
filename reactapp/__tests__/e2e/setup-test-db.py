@@ -14,21 +14,34 @@ After this, Playwright tests can write fixtures into the SQLite file via better-
 
 import os
 import sys
-import django
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tethys_portal.settings")
-django.setup()
-
 from pathlib import Path
-from tethys_services.models import SQLitePersistentStoreService
-from tethys_apps.models import TethysApp, PersistentStoreDatabaseSetting
-
 
 DB_DIR = os.path.expanduser("~/.tethys/e2e-test")
 SERVICE_NAME = "tethysdash_e2e_sqlite"
 
 
-def main():
+def main() -> None:
+    # Django setup and ORM imports are deferred into main() so this module
+    # is safely importable from any context (pytest collection, linting,
+    # `python -c "import setup_test_db"`).  Running django.setup() at
+    # import time fails outside the Tethys conda environment and produces
+    # cryptic errors when collected accidentally.
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "tethys_portal.settings")
+    try:
+        import django
+        django.setup()
+    except ImportError as e:
+        sys.stderr.write(
+            "ERROR: Django is not installed. This script must be run inside "
+            "the Tethys conda environment. Activate it and re-run:\n"
+            f"  {e}\n"
+        )
+        sys.exit(1)
+
+    from tethys_services.models import SQLitePersistentStoreService
+    from tethys_apps.models import TethysApp, PersistentStoreDatabaseSetting
+    from django.core.management import call_command
+
     Path(DB_DIR).mkdir(parents=True, exist_ok=True)
     print(f"DB directory: {DB_DIR}")
 
@@ -65,7 +78,6 @@ def main():
     print(f"Assigned {SERVICE_NAME} to TethysDash primary_db")
 
     # Run syncstores to create and migrate the database
-    from django.core.management import call_command
     print("Running syncstores...")
     call_command("syncstores", "tethysdash", verbosity=1)
     print("Done! SQLite database ready for E2E tests.")

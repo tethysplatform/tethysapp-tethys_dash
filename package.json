@@ -193,7 +193,7 @@
       "<rootDir>/reactapp/__tests__/transforms/*",
       "<rootDir>/reactapp/__tests__/setupTests.js",
       "<rootDir>/reactapp/__tests__/loadEnv.js",
-      "<rootDir>/reactapp/__tests__/e2e/*"
+      "<rootDir>/reactapp/__tests__/e2e/"
     ],
     "testEnvironment": "jsdom",
     "transform": {

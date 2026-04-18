@@ -17,6 +17,7 @@ const {
   mockAuthEndpoints,
   mockTileResponses,
   suppressWelcomePopups,
+  ONE_PX_PNG,
 } = require("./helpers/mocks");
 
 const TIMEOUT = { timeout: 20_000 };
@@ -116,7 +117,6 @@ test.describe("Multi-component dashboards", () => {
       }),
     ]);
     await expect(page.locator("canvas").first()).toBeVisible(TIMEOUT);
-    await expect(page.locator("canvas").first()).toBeVisible(TIMEOUT);
   });
 
   test("Custom Image + slider input render together", async ({ page }) => {
@@ -124,10 +124,7 @@ test.describe("Multi-component dashboards", () => {
       route.fulfill({
         status: 200,
         contentType: "image/png",
-        body: Buffer.from(
-          "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-          "base64"
-        ),
+        body: ONE_PX_PNG,
       })
     );
     await loadDashboard(page, [

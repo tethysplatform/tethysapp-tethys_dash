@@ -97,6 +97,14 @@ function createDashboard(gridItems, opts = {}) {
 /**
  * Delete all data rows from test tables. Preserves alembic_version.
  */
+// Tables where "missing table" is an expected outcome in some schema versions.
+const OPTIONAL_TABLES = new Set([
+  "messages",
+  "permission_group_user",
+  "permission_groups",
+  "visualization_permissions",
+]);
+
 function truncateAll() {
   const db = getDb();
   db.pragma("foreign_keys = OFF");
@@ -113,8 +121,16 @@ function truncateAll() {
   for (const table of tables) {
     try {
       db.prepare(`DELETE FROM ${table}`).run();
-    } catch {
-      // Table may not exist in all schema versions
+    } catch (err) {
+      // Only swallow "no such table" for known-optional tables. Any other
+      // DELETE failure (e.g., FK constraint we didn't expect) must surface
+      // — otherwise test isolation silently breaks and later tests see
+      // stale rows.
+      const msg = String(err?.message || err);
+      if (OPTIONAL_TABLES.has(table) && /no such table/i.test(msg)) continue;
+      // eslint-disable-next-line no-console
+      console.error(`[db.js] truncateAll: DELETE FROM ${table} failed:`, msg);
+      throw err;
     }
   }
   db.pragma("foreign_keys = ON");

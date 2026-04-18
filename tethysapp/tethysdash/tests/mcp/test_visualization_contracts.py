@@ -8,6 +8,8 @@ Layer 1 tests — no browser, no server, milliseconds per test.
 
 from unittest.mock import patch
 
+import pytest
+
 from tethysapp.tethysdash.mcp.tethysdash_mcp_server import (
     create_plotly_chart,
     create_data_table,
@@ -153,11 +155,8 @@ class TestCreatePlotlyChart:
     def test_flat_args_assertion_fails_for_plotly(self):
         """Verify assert_flat_args_viz correctly rejects inlineData types."""
         result = create_plotly_chart(data=[{"x": [1], "y": [1]}])
-        try:
+        with pytest.raises(AssertionError, match="inlineData found"):
             assert_flat_args_viz(result, "Inline Plotly")
-            assert False, "assert_flat_args_viz should have failed for Plotly"
-        except AssertionError as e:
-            assert "inlineData found" in str(e)
 
 
 # ---------------------------------------------------------------------------
