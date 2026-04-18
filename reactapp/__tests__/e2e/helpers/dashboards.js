@@ -82,14 +82,31 @@ function customImageItem(imageUrl, opts = {}) {
   };
 }
 
+// Base map URL shorthand → ArcGIS MapServer URL (matches MCP server's BASE_MAPS)
+const BASE_MAP_URLS = {
+  streets: "https://server.arcgisonline.com/arcgis/rest/services/World_Street_Map/MapServer",
+  imagery: "https://server.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer",
+  topo: "https://server.arcgisonline.com/arcgis/rest/services/World_Topo_Map/MapServer",
+  light_gray:
+    "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer",
+  dark_gray:
+    "https://server.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer",
+  terrain:
+    "https://server.arcgisonline.com/arcgis/rest/services/World_Terrain_Base/MapServer",
+  ocean:
+    "https://server.arcgisonline.com/arcgis/rest/services/Ocean/World_Ocean_Base/MapServer",
+};
+
 function mapItem(opts = {}) {
+  const baseMapInput = opts.baseMap || "streets";
+  const baseMap = BASE_MAP_URLS[baseMapInput] || baseMapInput;
   return {
     source: "Map",
     args: {
-      baseMap: opts.baseMap || "streets",
+      baseMap,
       layers: opts.layers || [],
       zoom: opts.zoom || 4,
-      layer_control: opts.layerControl || false,
+      layerControl: opts.layerControl || false,
       ...(opts.mapExtent ? { map_extent: opts.mapExtent } : {}),
     },
     w: opts.w || 50,

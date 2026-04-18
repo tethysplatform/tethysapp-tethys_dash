@@ -79,16 +79,16 @@ async function mockApiVisualization(page, gridItemUuid, vizType, data) {
   await page.route(
     (url) => url.pathname.includes("/visualizations/get/"),
     (route, request) => {
+      const urlStr = request.url();
       const postData = request.postData() || "";
-      if (postData.includes(gridItemUuid)) {
+      // Match by gridItemUuid in either URL query (requestId=<uuid>) or POST body
+      if (urlStr.includes(gridItemUuid) || postData.includes(gridItemUuid)) {
         return route.fulfill({
           contentType: "application/json",
           body: JSON.stringify({
             success: true,
-            data: {
-              viz_type: vizType,
-              ...data,
-            },
+            viz_type: vizType, // top-level, matches utilities.js checks
+            data,
           }),
         });
       }
@@ -127,9 +127,26 @@ async function mockAuthEndpoints(page) {
   );
 }
 
+/**
+ * Suppress welcome popups / dialogs that block dashboard interaction.
+ * Must be called BEFORE page.goto(), so the value is set before React init.
+ */
+async function suppressWelcomePopups(page) {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem("dontShowPublicLoginOnStart", "true");
+      localStorage.setItem("dontShowLandingPageInfoOnStart", "true");
+      localStorage.setItem("dontShowDashboardInfoOnStart", "true");
+    } catch {
+      // localStorage may be unavailable for some origins — ignore
+    }
+  });
+}
+
 module.exports = {
   ONE_PX_PNG,
   mockTileResponses,
   mockApiVisualization,
   mockAuthEndpoints,
+  suppressWelcomePopups,
 };
