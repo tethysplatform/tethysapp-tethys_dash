@@ -13,6 +13,7 @@ After this, Playwright tests can write fixtures into the SQLite file via better-
 """
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -82,8 +83,22 @@ def main() -> None:
     # flow in tethysapp/tethysdash/cli.py (the `tethysdash setup` command) and
     # avoids the bare-Django path where `get_app_class` returns None because
     # the harvester was never populated.
+    tethys_bin = shutil.which("tethys")
+    if tethys_bin is None:
+        sys.stderr.write(
+            "ERROR: `tethys` CLI not found on PATH. Activate the Tethys conda "
+            "environment and re-run.\n"
+        )
+        sys.exit(1)
     print("Running syncstores...")
-    subprocess.run(["tethys", "syncstores", "tethysdash"], check=True)
+    try:
+        subprocess.run([tethys_bin, "syncstores", "tethysdash"], check=True)
+    except subprocess.CalledProcessError as exc:
+        sys.stderr.write(
+            f"ERROR: tethys syncstores failed (exit {exc.returncode}). "
+            "See output above.\n"
+        )
+        sys.exit(exc.returncode)
     print("Done! SQLite database ready for E2E tests.")
 
     # Print the DB path for reference

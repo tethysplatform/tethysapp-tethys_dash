@@ -2122,6 +2122,11 @@ def init_primary_db(engine, first_time, clean=True):
     Args:
         engine: SQLAlchemy database engine
         first_time (bool): Whether this is the first time setup
+        clean (bool): When True (default), run cleanup_old_jsons after the
+            schema is up to date. Automatically skipped when first_time is
+            True because a brand-new DB has no legacy JSON/GeoJSON layout
+            to migrate, and the cleanup depends on a primed SingletonHarvester
+            that bare-Django syncstores invocations do not populate.
 
     Raises:
         ProgrammingError: If migration fails due to schema conflicts
