@@ -13,6 +13,7 @@ After this, Playwright tests can write fixtures into the SQLite file via better-
 """
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -40,7 +41,6 @@ def main() -> None:
 
     from tethys_services.models import SQLitePersistentStoreService
     from tethys_apps.models import TethysApp, PersistentStoreDatabaseSetting
-    from django.core.management import call_command
 
     Path(DB_DIR).mkdir(parents=True, exist_ok=True)
     print(f"DB directory: {DB_DIR}")
@@ -77,9 +77,13 @@ def main() -> None:
     ps_setting.save()
     print(f"Assigned {SERVICE_NAME} to TethysDash primary_db")
 
-    # Run syncstores to create and migrate the database
+    # Run syncstores via the `tethys` CLI subprocess so the SingletonHarvester
+    # is primed before the app initializer runs. Matches the canonical install
+    # flow in tethysapp/tethysdash/cli.py (the `tethysdash setup` command) and
+    # avoids the bare-Django path where `get_app_class` returns None because
+    # the harvester was never populated.
     print("Running syncstores...")
-    call_command("syncstores", "tethysdash", verbosity=1)
+    subprocess.run(["tethys", "syncstores", "tethysdash"], check=True)
     print("Done! SQLite database ready for E2E tests.")
 
     # Print the DB path for reference

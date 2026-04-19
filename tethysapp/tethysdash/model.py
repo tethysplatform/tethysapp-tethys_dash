@@ -2164,5 +2164,5 @@ def init_primary_db(engine, first_time, clean=True):
                 else:
                     raise  # Unknown error — don't skip
 
-    if clean:
+    if clean and not first_time:
         cleanup_old_jsons()

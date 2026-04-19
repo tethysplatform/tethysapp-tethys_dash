@@ -1270,6 +1270,45 @@ def test_init_primary_db_raises_unexpected_error(mocker, mock_alembic):
     mock_alembic.stamp.assert_not_called()
 
 
+def test_init_primary_db_skips_cleanup_on_first_time(mocker, mock_alembic):
+    # cleanup_old_jsons is a one-shot migration from the pre-PR-#35 layout; on
+    # a brand-new DB there is nothing to clean up. It also depends on a populated
+    # SingletonHarvester, which is not primed when syncstores runs via bare Django.
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout="abcd1234 current"),
+    )
+    mock_cleanup = mocker.patch("tethysapp.tethysdash.model.cleanup_old_jsons")
+
+    init_primary_db(engine=mocker.Mock(), first_time=True)
+
+    mock_cleanup.assert_not_called()
+
+
+def test_init_primary_db_runs_cleanup_when_not_first_time(mocker, mock_alembic):
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout="abcd1234 current"),
+    )
+    mock_cleanup = mocker.patch("tethysapp.tethysdash.model.cleanup_old_jsons")
+
+    init_primary_db(engine=mocker.Mock(), first_time=False)
+
+    mock_cleanup.assert_called_once_with()
+
+
+def test_init_primary_db_skips_cleanup_when_clean_false(mocker, mock_alembic):
+    mocker.patch(
+        "tethysapp.tethysdash.model.subprocess.run",
+        return_value=SimpleNamespace(stdout="abcd1234 current"),
+    )
+    mock_cleanup = mocker.patch("tethysapp.tethysdash.model.cleanup_old_jsons")
+
+    init_primary_db(engine=mocker.Mock(), first_time=False, clean=False)
+
+    mock_cleanup.assert_not_called()
+
+
 def test_get_dashboard_user_permission(
     dashboard, db_session, test_owner_user, test_member_user, test_admin_user
 ):
@@ -2201,7 +2240,9 @@ def test_init_primary_db_moves_json_and_geojson_files(
     )
     mock_query.return_value.all.return_value = [dashboard_1]
 
-    init_primary_db(engine=mock_engine, first_time=True)
+    # cleanup_old_jsons is a migration of pre-PR-#35 layouts, so it runs on
+    # non-first-time init only.
+    init_primary_db(engine=mock_engine, first_time=False)
 
     # Check that files have been deleted from original locations
     assert not os.path.exists(os.path.join(json_dir, "a.json"))
