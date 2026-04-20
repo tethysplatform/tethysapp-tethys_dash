@@ -33,7 +33,10 @@ Before starting you should be comfortable with:
 - Variable inputs (see :doc:`../variable_inputs`)
 - Maps (see :doc:`../maps/maps`)
 
-You must also have the `ciroh_plugins <https://github.com/FIRO-Tethys/ciroh_plugins>`_ package installed as a TethysDash dependency, which provides the ``NWMP Gauges Time Series``, ``NWMP Reaches Time Series``, and ``Impact Statements`` visualizations.
+You must also have the following plugin packages installed as TethysDash dependencies:
+
+- `ciroh_plugins <https://github.com/FIRO-Tethys/ciroh_plugins>`_ — provides the ``NWMP Gauges Time Series`` and ``NWMP Reaches Time Series`` visualizations
+- `tethysdash_plugin_cnrfc <https://github.com/FIRO-Tethys/tethysdash_plugin_cnrfc>`_ — provides the ``Impact Statements`` visualization
 
 Step 1 — Create the dashboard
 -----------------------------
