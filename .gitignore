@@ -28,3 +28,10 @@ reactapp/generated/clientPluginImports.js
 
 tethysapp/tethysdash/public/images/plugins/*
 tethysapp/tethysdash/public/data/plugins/*
+
+playwright-report/
+test-results/
+
+# Disposable venv used by the test-* skills (.claude/skills/test-*).
+# Cache key: .venv-test/.pyproject-hash.
+.venv-test/

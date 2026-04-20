@@ -33,6 +33,16 @@ npm run pretty                  # Prettier formatting
 
 Both servers must run simultaneously for full-stack development. The webpack dev server proxies `/tethysdash/` requests to Django on port 8000.
 
+### Test skills (`.claude/skills/test-*`)
+
+Three project-level Claude Code skills run the test suites inside a self-contained venv at `.venv-test/`, so the active shell env doesn't need to be pre-configured:
+
+- **`test-backend`** — fastest. Python pytest only (MCP contracts + integrated + unit). Use while iterating on Python changes.
+- **`test-frontend`** — Jest component tests + mocked Playwright. Use while iterating on React changes. Still needs the venv because mocked Playwright launches a Tethys server.
+- **`test-all`** — full sweep: fresh-state E2E setup, full Python suite, Playwright integration project against real services. Use before pushing a branch.
+
+Each skill creates or reuses `.venv-test/` via `pip install -e .`, keyed on a SHA-256 of `pyproject.toml`. Edit `pyproject.toml` and the next run rebuilds the venv automatically; otherwise the venv is reused. To force a rebuild: `rm -rf .venv-test`. Reports land in `test-results/reports/<ISO-timestamp>-<skill>.md` (gitignored).
+
 ## Architecture
 
 TethysDash is a Django + React hybrid. The React SPA is compiled into `tethysapp/tethysdash/public/frontend/` and served by Django. A catch-all route (`home`) enables React Router to handle client-side navigation.
