@@ -36,4 +36,5 @@ Contents
    variable_inputs
    plugins
    maps/maps
+   tutorials/tutorials
    feedback
