@@ -9,6 +9,7 @@ This tutorial walks through building a complete dashboard that combines a map of
 
 .. image:: ../../images/tutorials/rfc_max_stage/15_gauge_selection_demo.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -45,6 +46,7 @@ From the TethysDash landing page, create a new dashboard named **"RFC Max Stage 
 
 .. image:: ../../images/tutorials/rfc_max_stage/01_edit_dashboard.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -59,6 +61,7 @@ An empty dashboard item appears when you enter edit mode. Click the three dots o
 
 .. image:: ../../images/tutorials/rfc_max_stage/02_map_visualization_setup.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -71,6 +74,7 @@ Click **Add Layer** and configure the new layer:
 
 .. image:: ../../images/tutorials/rfc_max_stage/03_add_rfc_layer.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -78,6 +82,7 @@ Skip the *Style* and *Legends* tabs. On the **Attributes/Popup** tab the attribu
 
 .. image:: ../../images/tutorials/rfc_max_stage/04_map_layer_created.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -85,6 +90,7 @@ Zoom into Maryland, then expand **Map Extent** and choose **Use the Previewed Ma
 
 .. image:: ../../images/tutorials/rfc_max_stage/05_save_map_extent.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -92,6 +98,7 @@ Click **Save** on the map editor, resize the map to fill the left third of the d
 
 .. image:: ../../images/tutorials/rfc_max_stage/06_map_placed_on_dashboard.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -104,6 +111,7 @@ Re-enter edit mode, open the map, and edit the **RFC Max Forecast** layer. On th
 
 .. image:: ../../images/tutorials/rfc_max_stage/07_lid_variable_input.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -121,6 +129,7 @@ The ``${LID}`` template tells the visualization to read from the variable input 
 
 .. image:: ../../images/tutorials/rfc_max_stage/08_gauge_timeseries_variable.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -128,6 +137,7 @@ Switch to the **Settings** tab. Under **On Empty LID Variable**, enter ``Select 
 
 .. image:: ../../images/tutorials/rfc_max_stage/09_gauge_timeseries_error_message.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -145,6 +155,7 @@ Add another dashboard item:
 
 .. image:: ../../images/tutorials/rfc_max_stage/10_impact_statements_variable.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -152,6 +163,7 @@ On the **Settings** tab, set **On Empty LID Variable** to ``Select a gauge to se
 
 .. image:: ../../images/tutorials/rfc_max_stage/11_impact_statements_error_message.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -166,6 +178,7 @@ Go back into the map and edit the **RFC Max Forecast** layer once more. On the *
 
 .. image:: ../../images/tutorials/rfc_max_stage/12_feature_variable_input.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -178,6 +191,7 @@ On the **Settings** tab, set **On Empty Feature Variable** to ``Select a gauge o
 
 .. image:: ../../images/tutorials/rfc_max_stage/13_reaches_timeseries_error_message.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -190,6 +204,7 @@ Re-enter edit mode and drag/resize each item until everything is visible at once
 
 .. image:: ../../images/tutorials/rfc_max_stage/14_arranged_dashboard.png
    :align: center
+   :class: tutorial-image
 
 |
 
@@ -200,6 +215,7 @@ Click any gauge on the map. The hydrograph, impact statements, and streamflow fo
 
 .. image:: ../../images/tutorials/rfc_max_stage/15_gauge_selection_demo.png
    :align: center
+   :class: tutorial-image
 
 |
 
