@@ -12,8 +12,8 @@ On preflight, bootstrap, or bundle-build failure, STOP and tell the user exactly
 
 2. **Venv bootstrap**. From the repo root:
    - Compute `sha256sum pyproject.toml | awk '{print $1}'`.
-   - If `.venv-test/.pyproject-hash` matches, reuse. Otherwise recreate: `python3 -m venv .venv-test`, `.venv-test/bin/pip install --upgrade pip --quiet`, `.venv-test/bin/pip install -e . --quiet`, then write the new hash.
-   - On `pip install -e .` failure: stop, surface stderr, exit non-zero.
+   - If `.venv-test/.pyproject-hash` matches, reuse. Otherwise recreate: `python3 -m venv .venv-test`, `.venv-test/bin/pip install --upgrade pip --quiet`, `.venv-test/bin/pip install -e ".[test]" --quiet` (the `[test]` extras pull in `fastmcp` so the MCP server imports cleanly), then write the new hash.
+   - On `pip install -e ".[test]"` failure: stop, surface stderr, exit non-zero.
 
 3. **Node deps**. From the repo root, if `package-lock.json` exists use `npm ci`; otherwise `npm install`.
 

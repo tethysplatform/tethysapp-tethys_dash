@@ -509,7 +509,7 @@ def test_add_dashboard_failed_unknown_exception(
     assert response.json()["success"] is False
     assert (
         response.json()["message"]
-        == f"Failed to create the dashboard named {itemData["name"]}. Check server for logs."  # noqa: E501
+        == f"Failed to create the dashboard named {itemData['name']}. Check server for logs."  # noqa: E501
     )
 
 
@@ -643,7 +643,7 @@ def test_delete_dashboard_failed_unknown_exception(
     assert response.json()["success"] is False
     assert (
         response.json()["message"]
-        == f"Failed to delete the dashboard {itemData["id"]}. Check server for logs."  # noqa: E501
+        == f"Failed to delete the dashboard {itemData['id']}. Check server for logs."  # noqa: E501
     )
 
 
@@ -783,7 +783,7 @@ def test_update_dashboard_failed_unknown_exception(
     assert response.json()["success"] is False
     assert (
         response.json()["message"]
-        == f"Failed to update the dashboard {itemData["id"]}. Check server for logs."  # noqa: E501
+        == f"Failed to update the dashboard {itemData['id']}. Check server for logs."  # noqa: E501
     )
 
 

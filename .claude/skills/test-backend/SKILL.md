@@ -13,8 +13,8 @@ On preflight or bootstrap failure, STOP and tell the user exactly what to fix. O
 2. **Venv bootstrap**. From the repo root:
    - Compute the target hash: `sha256sum pyproject.toml | awk '{print $1}'`.
    - If `.venv-test/.pyproject-hash` exists and matches, reuse the venv (fast path).
-   - Otherwise: remove `.venv-test/` if present, create fresh with `python3 -m venv .venv-test`, then `.venv-test/bin/pip install --upgrade pip --quiet` and `.venv-test/bin/pip install -e . --quiet`. Write the new hash to `.venv-test/.pyproject-hash`.
-   - If `pip install -e .` fails, stop and surface stderr to the user. Do not attempt any test run.
+   - Otherwise: remove `.venv-test/` if present, create fresh with `python3 -m venv .venv-test`, then `.venv-test/bin/pip install --upgrade pip --quiet` and `.venv-test/bin/pip install -e ".[test]" --quiet`. The `[test]` extras pull in `fastmcp` (declared in `pyproject.toml` under `[project.optional-dependencies].test`) so the MCP contract tests can import. Write the new hash to `.venv-test/.pyproject-hash`.
+   - If `pip install -e ".[test]"` fails, stop and surface stderr to the user. Do not attempt any test run.
 
 3. **Start report file**. Create `test-results/reports/` if it does not exist. Write the report file with this header:
    ```

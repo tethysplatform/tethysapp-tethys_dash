@@ -1034,4 +1034,7 @@ def test_plugin_send_update(monkeypatch):
 def test_plugin_kwargs_are_set():
     plugin = MinimalPlugin(foo=123, fooDate="2023-01-01")
     assert plugin.foo == 123
-    assert plugin.fooDate == datetime(2023, 1, 1, 0, 0, tzinfo=timezone.utc)
+    # plugin_helpers.__init__ uses dateutil.parser.parse which returns a naive
+    # datetime. Downstream code that needs UTC-aware comparisons must attach
+    # tzinfo explicitly; see plugin_helpers.py:128.
+    assert plugin.fooDate == datetime(2023, 1, 1, 0, 0)

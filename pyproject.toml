@@ -30,7 +30,10 @@ dependencies = [
     "xmltodict==0.14.2",
     "psycopg2-binary==2.9.11",
     "geoalchemy2==0.18.4",
-    "tethys-platform>=4.5.0"
+    "tethys-platform>=4.5.0",
+    "pydantic",
+    "python-dateutil",
+    "pytz",
 ]
 classifiers = [
      "Environment :: Web Environment",
@@ -42,6 +45,11 @@ classifiers = [
      "Programming Language :: Python :: 3.10",
      "Topic :: Internet :: WWW/HTTP",
      "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+
+[project.optional-dependencies]
+test = [
+    "fastmcp",
 ]
 
 [tool.setuptools]
