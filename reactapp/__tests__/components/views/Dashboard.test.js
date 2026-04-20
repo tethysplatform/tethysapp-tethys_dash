@@ -51,21 +51,7 @@ jest.mock("components/loader/DashboardLoader", () => {
   };
 });
 
-// SKIPPED: these 20 tests render DashboardView without the full provider tree
-// (ChatSidebarProvider, AppContext, VariableInputsContext). ChatSidebar has
-// been hardened with `?? {}` fallbacks so missing contexts no longer crash at
-// destructure, but the tree still transitively renders `@chatbox/core`'s
-// Chatbox component, which imports its own copy of React from
-// `@chatbox/core/node_modules/react`. That second React instance breaks hooks
-// ("Cannot read properties of null (reading 'useState')") in a fresh npm-ci
-// checkout that doesn't dedupe React across the `file:` dep.
-//
-// Fix direction (out of scope for this branch): make the repo install dedupe
-// React — e.g., hoist `react` / `react-dom` into the root node_modules via
-// npm workspaces, delete `@chatbox/core/node_modules/react` post-install, or
-// mark React as peer deps in `@chatbox/core`'s package.json. Alternatively,
-// wrap the tests in a proper provider tree and mock the Chatbox component.
-describe.skip("DashboardView", () => {
+describe("DashboardView", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
