@@ -61,10 +61,14 @@ const Content = styled.div`
 `;
 
 function ChatSidebar() {
-  const { isOpen, setIsOpen } = useContext(ChatSidebarContext);
-  const { tethysApp, csrf } = useContext(AppContext);
+  // `?? {}` matches the pattern in components/layout/Header.js:287 — callers
+  // that mount the sidebar outside the required providers (e.g., isolated
+  // component tests that don't set up the full context tree) should get a
+  // no-op rather than crash during destructuring.
+  const { isOpen, setIsOpen } = useContext(ChatSidebarContext) ?? {};
+  const { tethysApp, csrf } = useContext(AppContext) ?? {};
   const { variableInputValues, setVariableInputValues } =
-    useContext(VariableInputsContext);
+    useContext(VariableInputsContext) ?? {};
 
   const chatboxConfig = tethysApp?.chatboxConfig;
 

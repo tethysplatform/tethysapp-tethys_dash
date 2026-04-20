@@ -110,6 +110,13 @@ export async function getVisualization({
     return;
   }
 
+  // Default args to an empty object so callers that pass a bare itemData
+  // (no args yet — e.g., Base.js before interpolation, or test fixtures that
+  // exercise the no-inline-data path) don't crash on the reads below. The
+  // subsequent Map/Text/Custom Image branches and the API-call path all
+  // continue to read itemData.args as before.
+  if (!itemData.args) itemData.args = {};
+
   // Inline data: render directly without a backend API call.
   // Used by TethysDash MCP server to create native visualizations with data attached.
   // args.vizType overrides sourceType since inline grid items may not be in the visualization list.

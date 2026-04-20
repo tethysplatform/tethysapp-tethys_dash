@@ -45,8 +45,14 @@ On preflight, bootstrap, or bundle-build failure, STOP and tell the user exactly
 
 8. **Full Python suite**. `.venv-test/bin/pytest --reuse-db --no-cov -q tethysapp/tethysdash/tests/`. Capture. This sweep covers MCP contracts, integrated tests, and unit tests.
 
-9. **Start Tethys on port 8765 in the background**.
-   - Run `PATH=".venv-test/bin:$PATH" .venv-test/bin/tethys manage start -p 8765` in the background (Bash with `run_in_background: true`). Capture the background shell id.
+9. **Start Tethys on port 8765 in its own process group**.
+   - Launch so the parent is the group leader — enables one-shot reap of all child workers in step 11:
+     ```
+     setsid .venv-test/bin/tethys manage start -p 8765 > /tmp/tethys-e2e-server.log 2>&1 &
+     echo $! > /tmp/tethys-e2e-pgid
+     disown
+     ```
+     `tethys manage start` spawns Django `runserver` children that do NOT forward signals — using a process-group kill in step 11 catches them all together.
    - Poll `http://localhost:8765/` every 1 second up to 60 seconds. If the server never becomes ready, record that in the report, skip step 10, and proceed to cleanup.
 
 10. **Playwright integration**. Once the server is ready:
@@ -55,7 +61,11 @@ On preflight, bootstrap, or bundle-build failure, STOP and tell the user exactly
     ```
     Capture exit code and duration.
 
-11. **Cleanup** (ALWAYS run this, even when step 10 failed). Kill the background Tethys shell id from step 9. Verify `lsof -i :8765` is clean; log any orphan process to the report.
+11. **Cleanup** (ALWAYS run this, even when step 10 failed):
+    - Read the stored PGID: `PGID=$(cat /tmp/tethys-e2e-pgid)`.
+    - Send SIGTERM to the entire process group: `kill -TERM -$PGID 2>/dev/null`.
+    - Wait up to 5 seconds, then force-kill if survivors remain: `kill -9 -$PGID 2>/dev/null`.
+    - Verify port 8765 is free via `lsof -i :8765`. If anything still holds it, log the offending PIDs to the report. Remove `/tmp/tethys-e2e-pgid`.
 
 12. **Finalize report**. Append a summary table and, for any failing suite, the last ~50 lines of its output:
     ```

@@ -38,11 +38,21 @@ On preflight, bootstrap, or bundle-build failure, STOP and tell the user exactly
 7. **Jest**. Run `npm run test -- --ci` from the repo root. Capture exit code, duration, and the full output.
 
 8. **Mocked Playwright**.
-   - Start the Tethys test server in the background on port 8765: `.venv-test/bin/tethys manage start -p 8765` using Bash with `run_in_background: true`. Capture the background shell id so you can kill it later.
+   - Start the Tethys test server in its own process group so all child workers can be reaped together:
+     ```
+     setsid .venv-test/bin/tethys manage start -p 8765 > /tmp/tethys-e2e-server.log 2>&1 &
+     echo $! > /tmp/tethys-e2e-pgid
+     disown
+     ```
+     `setsid` makes the launched process a new session/group leader, so its PID equals the process group ID. `tethys manage start` spawns Django `runserver` children that do NOT forward signals — using a process-group kill in step 9 catches them all in one shot.
    - Poll `http://localhost:8765/` every 1 second until it returns a 2xx/3xx response, with a 60-second timeout. If the timeout expires, record the failure in the report (mark Playwright row as FAIL with reason "Tethys server did not become ready") and skip to step 9.
    - Once ready, run `E2E_REUSE_SERVER=1 npx playwright test --project=mocked --config=reactapp/playwright.config.js` from the repo root. Capture exit code, duration, and full output.
 
-9. **Cleanup** (ALWAYS run this, even if step 8 failed). Kill the background Tethys shell id from step 8. Verify port 8765 is free via `lsof -i :8765` — if anything still holds it, log that fact to the report.
+9. **Cleanup** (ALWAYS run this, even if step 8 failed):
+   - Read the stored PGID: `PGID=$(cat /tmp/tethys-e2e-pgid)`.
+   - Send SIGTERM to the entire process group: `kill -TERM -$PGID 2>/dev/null`.
+   - Wait up to 5 seconds, then force-kill if survivors remain: `kill -9 -$PGID 2>/dev/null`.
+   - Verify port 8765 is free via `lsof -i :8765`. If anything still holds it, log the offending PIDs to the report so the operator can kill them manually. Remove the `/tmp/tethys-e2e-pgid` file.
 
 10. **Finalize report**. Append a summary table:
     ```

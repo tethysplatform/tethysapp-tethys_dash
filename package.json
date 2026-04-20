@@ -11,8 +11,8 @@
     "build": "webpack --mode production --config ./reactapp/config/webpack.config.js",
     "lint": "npx eslint reactapp",
     "pretty": "prettier --write \"./**/*.{js,jsx,mjs,cjs,ts,tsx,json}\"",
-    "test": "jest --silent --coverage",
-    "test:serial": "jest --silent --coverage --runInBand",
+    "test": "TZ=America/Chicago jest --silent --coverage",
+    "test:serial": "TZ=America/Chicago jest --silent --coverage --runInBand",
     "cleartestCache": "jest --clearCache",
     "test:watch": "npm run test -- --watch",
     "jest-preview": "jest-preview yarn test"
@@ -178,8 +178,8 @@
       "!reactapp/config/**/*"
     ],
     "setupFiles": [
-      "react-app-polyfill/jsdom",
-      "<rootDir>/reactapp/__tests__/loadEnv.js"
+      "<rootDir>/reactapp/__tests__/loadEnv.js",
+      "react-app-polyfill/jsdom"
     ],
     "setupFilesAfterEnv": [
       "<rootDir>/reactapp/__tests__/setupTests.js"
