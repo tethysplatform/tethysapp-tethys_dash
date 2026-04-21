@@ -214,12 +214,35 @@ def invoke_stack_frontier(
 
 
 def invoke_stack_ollama(
-    prompt: str, fixture: PromptFixture, model: str
+    prompt: str,
+    fixture: PromptFixture,
+    model: str,
+    host: str = "http://localhost:11434",
+    api_key: str = "",
 ) -> tuple[List[Dict[str, Any]], str]:
-    """Invoke the chatbox stack with a local Ollama LLM."""
+    """Invoke the chatbox stack with an Ollama LLM (local or Cloud).
+
+    Works with both hosting modes via `host` + `api_key`:
+
+      Local Ollama (default):
+          host = "http://localhost:11434"
+          api_key = ""   # local Ollama does not require auth
+
+      Ollama Cloud / Turbo:
+          host = "https://ollama.com"        # or the team's cloud endpoint
+          api_key = "<OLLAMA_API_KEY>"       # sent as Authorization: Bearer <key>
+
+    The implementer wires the actual invocation — options are (a) the
+    `ollama` Python client (reads OLLAMA_HOST + OLLAMA_API_KEY env vars), or
+    (b) direct HTTP to the OpenAI-compatible endpoint at <host>/v1 with the
+    team's preferred SDK. Either way, the return shape is a list of
+    tool-call dicts matching the engine's output (see invoke_stack_frontier
+    docstring).
+    """
     raise NotImplementedError(
-        "Implementer: wire your Ollama-tier invocation here. "
-        "See docstring for the expected return shape."
+        "Implementer: wire your Ollama invocation here. "
+        f"host={host!r}, api_key={'<set>' if api_key else '<unset>'}. "
+        "See docstring for the expected return shape and hosting modes."
     )
 
 
@@ -497,6 +520,25 @@ def main() -> int:
         help="Ollama model identifier (default: qwen2.5:7b).",
     )
     parser.add_argument(
+        "--ollama-host",
+        default=os.environ.get("OLLAMA_HOST", "http://localhost:11434"),
+        help=(
+            "Ollama host URL. Defaults to local Ollama at "
+            "http://localhost:11434. For Ollama Cloud, pass "
+            "--ollama-host=https://ollama.com "
+            "(or set OLLAMA_HOST env var). Requires OLLAMA_API_KEY."
+        ),
+    )
+    parser.add_argument(
+        "--ollama-api-key",
+        default=os.environ.get("OLLAMA_API_KEY", ""),
+        help=(
+            "Ollama Cloud API key (Bearer token). Only required when "
+            "--ollama-host points at a hosted Ollama endpoint. Reads "
+            "OLLAMA_API_KEY env var by default."
+        ),
+    )
+    parser.add_argument(
         "--prompts",
         default=str(Path(__file__).parent / "prompts.yaml"),
         help="Path to the prompt suite YAML file.",
@@ -531,7 +573,11 @@ def main() -> int:
                     )
                 else:
                     tool_calls, final_text = invoke_stack_ollama(
-                        case.user_prompt, fixture, model
+                        case.user_prompt,
+                        fixture,
+                        model,
+                        host=args.ollama_host,
+                        api_key=args.ollama_api_key,
                     )
                 result = grade(case, tool_calls)
                 result.final_text = final_text

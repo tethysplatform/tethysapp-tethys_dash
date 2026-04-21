@@ -52,10 +52,40 @@ export ANTHROPIC_API_KEY="sk-..."
 # or
 export OPENAI_API_KEY="sk-..."
 
-# Ollama tier (first run, one-time):
-ollama pull qwen2.5:7b      # ~5 GB download, ~5 minutes
-ollama serve &              # keeps the daemon up
+# Ollama tier — two hosting modes:
+
+# (A) LOCAL Ollama (first run, one-time):
+ollama pull qwen2.5:7b              # ~5 GB download, ~5 minutes
+ollama serve &                      # keeps the daemon up on :11434
 ollama run qwen2.5:7b "hi" > /dev/null   # warm the model
+
+# (B) OLLAMA CLOUD / Turbo (zero local GPU needed, pay-per-use):
+export OLLAMA_HOST="https://ollama.com"     # or your cloud endpoint
+export OLLAMA_API_KEY="..."                 # Bearer token from ollama.com/settings
+# OR pass at invocation time:
+#   --ollama-host https://ollama.com --ollama-api-key "$OLLAMA_API_KEY"
+# Model names on cloud mirror the local names (e.g. qwen2.5:7b,
+# gpt-oss:20b). Check ollama.com for the current catalog.
+```
+
+### Ollama Cloud quick reference
+
+| Setting | Value |
+|---|---|
+| **Host URL** | `https://ollama.com` (or the team's deployed cloud endpoint) |
+| **Auth** | `Authorization: Bearer <OLLAMA_API_KEY>` header |
+| **Env vars** | `OLLAMA_HOST`, `OLLAMA_API_KEY` (the official `ollama` Python client reads both automatically) |
+| **CLI args** | `--ollama-host`, `--ollama-api-key` (overrides env vars) |
+| **Model naming** | Same as local (`qwen2.5:7b`, `gpt-oss:20b`, etc.) |
+| **OpenAI-compat endpoint** | `<host>/v1` — use if you prefer the openai Python SDK |
+
+Invocation with Ollama Cloud:
+
+```bash
+export OLLAMA_HOST="https://ollama.com"
+export OLLAMA_API_KEY="sk-ollama-..."
+python -m tethysapp.tethysdash.tests.validation.run_validation \
+    --tier ollama --ollama-model qwen2.5:7b
 ```
 
 ## Invocation
