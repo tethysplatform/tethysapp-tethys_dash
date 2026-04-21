@@ -138,6 +138,15 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
     // updated item or null if the patch failed (caller skips that UUID).
     // Partial-batch tolerance: one failed UUID does NOT invalidate sibling
     // patches in the same batch event.
+    //
+    // Path-prefix contract: the server whitelist (editableSchemas.json) roots
+    // every allowed path at `/args/...`, so the LLM emits e.g.
+    // `/args/inlineData/layout/title`. But `args_string` in the grid item
+    // persists just the *contents* of args — no outer `args` key. To keep
+    // both sides speaking the same JSON Pointer language, we wrap the parsed
+    // args in `{args: ...}` before rfc6902 apply, then unwrap on save. This
+    // way the path the LLM emits, the path the server whitelist validates,
+    // and the path rfc6902 resolves against are all identical.
     function applyPatchToGridItem(target, ops, uuid) {
       let args;
       try {
@@ -153,7 +162,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       // draft. rfc6902 mutates in-place and returns Array<Error|null>.
       // JSON round-trip suffices because args_string is always JSON-serializable;
       // avoids jsdom-environment quirks with structuredClone.
-      const draft = JSON.parse(JSON.stringify(args));
+      const draft = { args: JSON.parse(JSON.stringify(args)) };
       const errors = applyPatch(draft, ops);
       if (errors.some((err) => err !== null)) {
         console.warn(
@@ -163,7 +172,7 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
         );
         return null;
       }
-      return { ...target, args_string: JSON.stringify(draft) };
+      return { ...target, args_string: JSON.stringify(draft.args) };
     }
 
     function handleUpdateVisualization(e) {

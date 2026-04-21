@@ -36,11 +36,11 @@ describe("editableSchemas — R9 required fixtures (sample)", () => {
   // A subset of R9's paths — enough to pin the matching semantics from the
   // JS side. Full coverage lives in the Python contract test.
   const R9_SAMPLE = [
-    ["Inline Plotly", "/args/title"],
+    ["Inline Plotly", "/args/inlineData/layout/title"],
     ["Inline Plotly", "/args/inlineData/data"],
     ["Inline Plotly", "/args/inlineData/data/0/x"],
     ["Inline Plotly", "/args/inlineData/layout"],
-    ["Inline Table", "/args/subtitle"],
+    ["Inline Table", "/args/inlineData/subtitle"],
     ["Inline Table", "/args/inlineData/data/-"],
     ["Inline Card", "/args/inlineData/data/0/value"],
     ["Variable Input", "/args/initial_value"],

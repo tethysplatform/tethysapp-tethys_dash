@@ -36,7 +36,7 @@ class TestHappyPath:
         result = patch_visualization(
             target_uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "replace", "path": "/args/title", "value": "Rainfall"}],
+            patches=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "Rainfall"}],
         )
         assert "patch_update" in result
         assert "error" not in result
@@ -58,8 +58,8 @@ class TestHappyPath:
             target_uuid=_fresh_uuid(),
             source="Inline Plotly",
             patches=[
-                {"op": "test", "path": "/args/title", "value": "Old"},
-                {"op": "replace", "path": "/args/title", "value": "New"},
+                {"op": "test", "path": "/args/inlineData/layout/title", "value": "Old"},
+                {"op": "replace", "path": "/args/inlineData/layout/title", "value": "New"},
             ],
         )
         assert "patch_update" in result
@@ -112,7 +112,7 @@ class TestHappyPath:
         result = patch_visualization(
             target_uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "replace", "path": "/args/title", "value": "X"}],
+            patches=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"}],
             description="Rename the rainfall plot",
         )
         assert "patch_update" in result
@@ -130,7 +130,7 @@ class TestDictCoercion:
         result = patch_visualization(
             target_uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches='[{"op":"replace","path":"/args/title","value":"X"}]',
+            patches='[{"op":"replace","path":"/args/inlineData/layout/title","value":"X"}]',
         )
         assert "patch_update" in result
 
@@ -176,7 +176,7 @@ class TestEnvelopeShape:
         result = patch_visualization(
             target_uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "patch", "path": "/args/title", "value": "X"}],
+            patches=[{"op": "patch", "path": "/args/inlineData/layout/title", "value": "X"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
@@ -185,7 +185,7 @@ class TestEnvelopeShape:
         result = patch_visualization(
             target_uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"path": "/args/title", "value": "X"}],
+            patches=[{"path": "/args/inlineData/layout/title", "value": "X"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
@@ -213,7 +213,7 @@ class TestEnvelopeShape:
         result = patch_visualization(
             target_uuid=_fresh_uuid(),
             source="Inline Plotly",
-            patches=[{"op": "add", "path": "/args/title"}],
+            patches=[{"op": "add", "path": "/args/inlineData/layout/title"}],
         )
         assert "error" in result
         assert "invalid_envelope" in result["error"]
@@ -361,10 +361,48 @@ class TestWhitelist:
         result = patch_visualization(
             target_uuid=_fresh_uuid(),
             source="Totally Made Up Source",
-            patches=[{"op": "replace", "path": "/args/title", "value": "X"}],
+            patches=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"}],
         )
         assert "error" in result
         assert "whitelist_rejected" in result["error"]
+
+    def test_error_lists_allowed_prefixes_so_llm_can_recover(self):
+        """The error must surface the allowed prefixes for the source so the
+        LLM can retry with a valid path in one round — the initial
+        dashboard_state injection may have been dropped or truncated.
+        """
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Inline Plotly",
+            # Plotly-native path without the /args/ prefix — exactly what
+            # gemini-flash-preview, Claude, and GPT tried in R15 validation
+            # before this fix. The error must tell them "/args/inlineData"
+            # is an allowed prefix so the retry converges.
+            patches=[{"op": "replace", "path": "/layout/title", "value": "X"}],
+        )
+        assert "error" in result
+        assert "whitelist_rejected" in result["error"]
+        # Allowed prefix for Inline Plotly must appear in the error so the
+        # LLM can compose /args/inlineData/layout/title on retry.
+        assert "/args/inlineData" in result["error"]
+        # Explicit "paths start with /args/" guidance must appear too — the
+        # LLM's observed failure mode was trying viz-native paths with no
+        # /args prefix at all.
+        assert "/args/" in result["error"]
+
+    def test_error_mentions_prefix_extensibility(self):
+        """The error must communicate the extensibility guidance so the LLM
+        doesn't think listed entries are the only addressable paths.
+        """
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Inline Plotly",
+            patches=[{"op": "replace", "path": "/title", "value": "X"}],
+        )
+        assert "error" in result
+        assert "whitelist_rejected" in result["error"]
+        # The guidance phrase that unlocks retry: prefixes can be extended.
+        assert "prefix" in result["error"].lower()
 
 
 # ---------------------------------------------------------------------------
@@ -466,13 +504,13 @@ class TestReturnEnvelope:
         result = patch_visualization(
             target_uuid=u,
             source="Inline Plotly",
-            patches=[{"op": "replace", "path": "/args/title", "value": "X"}],
+            patches=[{"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"}],
         )
         assert result == {
             "patch_update": {
                 "uuid": u,
                 "source": "Inline Plotly",
-                "ops": [{"op": "replace", "path": "/args/title", "value": "X"}],
+                "ops": [{"op": "replace", "path": "/args/inlineData/layout/title", "value": "X"}],
             }
         }
 

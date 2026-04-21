@@ -8,54 +8,12 @@ import {
 import { ChatSidebarContext } from "components/contexts/ChatSidebarContext";
 import { Chatbox } from "@chatbox/core/components";
 import { BsXLg } from "react-icons/bs";
+import { buildPatchContext } from "./chatboxStateBuilder";
 
 // R6 delta truncation policy (from the origin requirements doc): the
 // afterToolExecution decoration shows at most the last N rounds OR the
 // last M UUID-field pairs worth of mutations, whichever is smaller.
 const DELTA_MAX_UUIDS = 30;
-
-/**
- * Build a compact dashboard-state snapshot the LLM can reason over when
- * emitting patch_visualization tool calls. Extracts only the fields the
- * LLM needs to identify the right target UUID: source, a best-effort
- * title, and viz type where available. Avoids dumping full args_string
- * (too many tokens).
- */
-function buildDashboardState(tabs) {
-  if (!Array.isArray(tabs)) return [];
-  const out = [];
-  for (const tab of tabs) {
-    if (!Array.isArray(tab?.gridItems)) continue;
-    for (const item of tab.gridItems) {
-      if (!item?.uuid) continue;
-      let args = {};
-      try {
-        args = item.args_string ? JSON.parse(item.args_string) : {};
-      } catch {
-        // Skip items with unparseable args_string — they won't be patchable
-        // anyway (reducer also guards on parse failure).
-        continue;
-      }
-      // Best-effort title extraction across viz types:
-      //   - flat args: args.title
-      //   - inlineData (plotly/table/card): args.inlineData.layout.title
-      //     or args.inlineData.title or args.title
-      const title =
-        args?.title ??
-        args?.inlineData?.layout?.title ??
-        args?.inlineData?.title ??
-        null;
-      out.push({
-        uuid: item.uuid,
-        source: item.source || "",
-        vizType: args?.vizType || null,
-        title: typeof title === "string" ? title.slice(0, 120) : null,
-        tabId: tab.id,
-      });
-    }
-  }
-  return out;
-}
 
 const SIDEBAR_WIDTH = 360;
 
@@ -135,33 +93,40 @@ function ChatSidebar() {
     [variableInputValues],
   );
 
-  // Snapshot of current dashboard visualizations the LLM can reference when
-  // targeting patch_visualization. Rebuilt on every tabs change so the
-  // beforeFirstMessage / afterToolExecution closures always capture the
-  // freshest state for the next user turn.
-  const dashboardState = useMemo(() => buildDashboardState(tabs), [tabs]);
+  // Snapshot of current dashboard visualizations + the editable-path
+  // whitelist for every source present. Rebuilt on every tabs /
+  // variableInputValues change so the beforeFirstMessage closure always
+  // captures the freshest state for the next user turn. Returns null when
+  // the dashboard has nothing patchable — the engine skips the injection.
+  const patchContext = useMemo(
+    () => buildPatchContext(tabs, variableInputValues),
+    [tabs, variableInputValues],
+  );
 
-  // Engine extensions: inject dashboard state at turn start (R6) and
-  // decorate each tool result with an in-turn delta (R6 + R12 discipline).
-  // The closures capture `dashboardState` at render time; the engine reads
+  // Engine extensions: inject dashboard state + editable-path whitelist at
+  // turn start (R6) and decorate each tool result with an in-turn delta
+  // (R6 + R12 discipline). The engine reads
   // `state.pendingVisualizations / pendingLayerUpdates / pendingPatches`
   // at hook time so the delta reflects mutations that accumulated during
   // this turn (not just the turn-start snapshot).
   const engineExtensions = useMemo(
     () => ({
       beforeFirstMessage: () => {
-        if (dashboardState.length === 0) return null;
+        if (!patchContext) return null;
         return {
           role: "system",
           content:
-            "Current dashboard state. To edit an existing visualization, " +
-            "target its uuid via the patch_visualization tool. The source " +
-            "field tells you which paths are editable. Variable input " +
-            "values are listed below so you can reason over current filters.\n" +
-            JSON.stringify({
-              dashboard_state: dashboardState,
-              variable_input_values: variableInputValues || {},
-            }),
+            "Current dashboard state and patch_visualization reference. " +
+            "To edit an existing visualization, target its uuid via the " +
+            "patch_visualization tool. Use `editable_paths_by_source` to " +
+            "find allowed paths for each viz's source — every path starts " +
+            "with `/args/...` and each listed entry is a PREFIX you can " +
+            "extend (e.g., `/args/inlineData` permits " +
+            "`/args/inlineData/layout/title`, `/args/inlineData/data/0/x`, " +
+            "etc.). RFC 6901 JSON Pointer: literal `.` in segment names is " +
+            "preserved (do not escape). Variable input values are listed " +
+            "below so you can reason over current filters.\n" +
+            JSON.stringify(patchContext),
         };
       },
       afterToolExecution: (toolName, args, toolResult, state, messages) => {
@@ -219,7 +184,7 @@ function ChatSidebar() {
         }
       },
     }),
-    [dashboardState, variableInputValues],
+    [patchContext],
   );
 
   // Sidebar renders even without chatboxConfig — users add MCP servers via the panel.

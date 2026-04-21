@@ -49,7 +49,8 @@ prompts:
       patches:
         - { op: replace, path: "~title-path", value: "Rainfall" }
     notes: |
-      Acceptable title paths: /args/inlineData/layout/title, /args/title
+      Acceptable title path: /args/inlineData/layout/title (Plotly stores
+      title at layout.title; inline viz types have no top-level args.title).
     expected_outcome: correct
 
   - id: sc-03-replace-plot-data
@@ -83,7 +84,7 @@ prompts:
       source: "Inline Table"
       patches:
         - { op: replace, path: "~title-path", value: "Stream Gauges" }
-    notes: "Acceptable: /args/inlineData/title, /args/title"
+    notes: "Acceptable: /args/inlineData/title (Table stores title inside inlineData)."
     expected_outcome: correct
 
   - id: sc-06-add-2-points

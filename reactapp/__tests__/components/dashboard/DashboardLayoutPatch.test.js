@@ -182,7 +182,7 @@ describe("handleUpdateVisualization — apply_patch", () => {
           ops: [
             {
               op: "replace",
-              path: "/inlineData/layout/title",
+              path: "/args/inlineData/layout/title",
               value: "Precipitation",
             },
           ],
@@ -203,7 +203,7 @@ describe("handleUpdateVisualization — apply_patch", () => {
         {
           uuid: "map-1",
           source: "Map",
-          ops: [{ op: "remove", path: "/layers/1" }],
+          ops: [{ op: "remove", path: "/args/layers/1" }],
         },
       ],
     });
@@ -221,12 +221,12 @@ describe("handleUpdateVisualization — apply_patch", () => {
         {
           uuid: "plot-1",
           source: "Inline Plotly",
-          ops: [{ op: "replace", path: "/inlineData/layout/title", value: "New Plot" }],
+          ops: [{ op: "replace", path: "/args/inlineData/layout/title", value: "New Plot" }],
         },
         {
           uuid: "map-1",
           source: "Map",
-          ops: [{ op: "replace", path: "/layerControl", value: true }],
+          ops: [{ op: "replace", path: "/args/layerControl", value: true }],
         },
       ],
     });
@@ -246,12 +246,12 @@ describe("handleUpdateVisualization — apply_patch", () => {
         {
           uuid: "nonexistent-uuid",
           source: "Map",
-          ops: [{ op: "replace", path: "/layerControl", value: true }],
+          ops: [{ op: "replace", path: "/args/layerControl", value: true }],
         },
         {
           uuid: "plot-1",
           source: "Inline Plotly",
-          ops: [{ op: "replace", path: "/inlineData/layout/title", value: "Still Works" }],
+          ops: [{ op: "replace", path: "/args/inlineData/layout/title", value: "Still Works" }],
         },
       ],
     });
@@ -270,12 +270,12 @@ describe("handleUpdateVisualization — apply_patch", () => {
           // replace on missing parent path — rfc6902 error
           uuid: "plot-1",
           source: "Inline Plotly",
-          ops: [{ op: "replace", path: "/inlineData/nonexistent/foo", value: "x" }],
+          ops: [{ op: "replace", path: "/args/inlineData/nonexistent/foo", value: "x" }],
         },
         {
           uuid: "map-1",
           source: "Map",
-          ops: [{ op: "replace", path: "/layerControl", value: true }],
+          ops: [{ op: "replace", path: "/args/layerControl", value: true }],
         },
       ],
     });
@@ -298,6 +298,39 @@ describe("handleUpdateVisualization — apply_patch", () => {
     const items = getTabGridItems();
     const unchanged = JSON.parse(items[0].args_string);
     expect(unchanged.inlineData.layout.title).toBe("Rainfall");
+  });
+
+  test("regression: /args/-prefixed path from server whitelist resolves correctly", async () => {
+    // The server whitelist (editableSchemas.json) roots every allowed path at
+    // `/args/...`. The LLM emits paths like `/args/inlineData/layout/title`.
+    // If the reducer applied those against the bare parsed args (no `args`
+    // wrapper), the path wouldn't resolve and rfc6902 would silently return
+    // an error — the user would see "tool succeeded" from the chatbox but
+    // the chart would never update. This test pins the correct wrap-unwrap
+    // behavior so that contract never drifts again.
+    await renderWithDashboard(makeDashboard([plotItem]));
+    await dispatchUpdate({
+      batch: true,
+      operation: "apply_patch",
+      patches: [
+        {
+          uuid: "plot-1",
+          source: "Inline Plotly",
+          ops: [
+            {
+              op: "replace",
+              path: "/args/inlineData/layout/title",
+              value: "Bolivar campeon 2026",
+            },
+          ],
+        },
+      ],
+    });
+    const items = getTabGridItems();
+    const updated = JSON.parse(items[0].args_string);
+    expect(updated.inlineData.layout.title).toBe("Bolivar campeon 2026");
+    // args wrapper must not leak into the persisted args_string
+    expect(updated.args).toBeUndefined();
   });
 
   test("handles literal-dotted-key paths (variable_options_source.metadata)", async () => {
@@ -335,7 +368,7 @@ describe("handleUpdateVisualization — apply_patch", () => {
           ops: [
             {
               op: "replace",
-              path: "/variable_options_source.metadata/max",
+              path: "/args/variable_options_source.metadata/max",
               value: 200,
             },
           ],

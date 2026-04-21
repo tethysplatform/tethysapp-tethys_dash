@@ -22,22 +22,24 @@ from tethysapp.tethysdash.editable_schemas import (
 # ---------------------------------------------------------------------------
 
 R9_FIXTURES = {
+    # Inline viz types persist their title/subtitle/description inside
+    # `inlineData`, not at top-level args. See create_plotly_chart /
+    # create_data_table / create_card for the ground-truth persisted shape.
     "Inline Plotly": [
-        "/args/title",
-        "/args/description",
+        "/args/inlineData/layout/title",
         "/args/inlineData/data",
         "/args/inlineData/data/0/x",
         "/args/inlineData/layout",
         "/args/inlineData/config",
     ],
     "Inline Table": [
-        "/args/title",
-        "/args/subtitle",
+        "/args/inlineData/title",
+        "/args/inlineData/subtitle",
         "/args/inlineData/data",
         "/args/inlineData/data/-",
     ],
     "Inline Card": [
-        "/args/title",
+        "/args/inlineData/title",
         "/args/inlineData/data",
         "/args/inlineData/data/0/value",
         "/args/inlineData/data/0/color",

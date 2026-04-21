@@ -29,7 +29,10 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response as StarletteResponse
 import requests as http_requests
 
-from tethysapp.tethysdash.editable_schemas import is_path_allowed
+from tethysapp.tethysdash.editable_schemas import (
+    LLM_EDITABLE_PATHS,
+    is_path_allowed,
+)
 
 mcp = FastMCP(
     "TethysDash MCP Server",
@@ -943,9 +946,14 @@ def _check_layer_construction_boundary(source, patches):
         "in the create call, or patch in a subsequent turn once the new UUID appears in "
         "dashboard_state. "
         "Look up the target UUID and its source type from the dashboard_state injection in "
-        "your system context. Each source type has its own set of editable paths (also in "
-        "dashboard_state). "
-        "Paths use JSON Pointer syntax (RFC 6901). Supported ops: add, replace, remove, move, test. "
+        "your system context. The same injection carries `editable_paths_by_source` — the "
+        "whitelist of allowed path prefixes for each viz source. Every path MUST start with "
+        "`/args/...` (the persisted viz wraps its configuration in an `args` object). Each "
+        "whitelist entry is a PREFIX you can extend: if `/args/inlineData` is allowed, then "
+        "`/args/inlineData/layout/title`, `/args/inlineData/data/0/x`, and similar deeper "
+        "paths are all allowed. "
+        "Paths use JSON Pointer syntax (RFC 6901): literal `.` in a segment is preserved "
+        "as-is (do not escape). Supported ops: add, replace, remove, move, test. "
         "Copy is intentionally excluded. "
         "To CREATE a new map layer, use add_map_service_layer — this tool is for edits only."
     ),
@@ -1008,13 +1016,19 @@ def patch_visualization(
     if r5c_error:
         return {"error": f"invalid_envelope: {r5c_error}"}
 
-    # R7: per-source path whitelist (fail-closed)
+    # R7: per-source path whitelist (fail-closed). Include the allowed
+    # prefixes in the error so the LLM can recover in one round even if
+    # the initial dashboard_state injection was dropped or truncated.
+    allowed_prefixes = LLM_EDITABLE_PATHS.get(source, [])
     for i, op in enumerate(patches):
         if not is_path_allowed(source, op["path"]):
             return {"error": (
                 f"whitelist_rejected: op {i} path {op['path']!r} is not editable "
-                f"for viz source {source!r}. Reference dashboard_state for the list "
-                f"of editable paths for this visualization type."
+                f"for viz source {source!r}. Every path must start with `/args/...` "
+                f"and fall under one of the allowed prefixes for this source: "
+                f"{allowed_prefixes}. Each entry is a prefix you can extend "
+                f"(e.g., if `/args/inlineData` is allowed, then "
+                f"`/args/inlineData/layout/title` is allowed too)."
             )}
 
     # R9/R10: layer-construction boundary (Map only)
