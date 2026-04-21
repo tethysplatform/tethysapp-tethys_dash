@@ -1,0 +1,394 @@
+# R15 Pre-Ship Validation Prompt Suite
+#
+# Curated prompts + gold-envelope expectations the run_validation.py harness
+# scores the live MCP + LLM stack against before shipping the generic
+# update-visualization protocol.
+#
+# This is a CANARY SUITE, not a statistical-power benchmark. Scope per the
+# plan (Unit 8): 15-20 prompts, 1 run per prompt per model tier, one-time
+# local ritual. Larger-N + CI integration is Future Work.
+#
+# Gold envelope format:
+#   expected_tool: the MCP tool the LLM should call (e.g., patch_visualization)
+#   expected_args: a match pattern for the args. Fields prefixed with "~"
+#     mean "any value" (e.g., "~uuid" accepts any UUID — fixture-dependent).
+#   expected_outcome: one of
+#     - correct              — tool call matches expected_tool + args
+#     - recoverable_expected — LLM is expected to get a structured error and
+#                              potentially retry within the same turn
+#     - disambiguation       — prompt is deliberately ambiguous; see notes
+#
+# Each prompt optionally carries `fixture` naming a preset dashboard state
+# the harness seeds before running.
+#
+# Author: [implementer signs here]  Reviewer: [product-lens / domain owner signs here]
+
+prompts:
+  # =========================================================================
+  # SC #1–8 user-facing flows (from origin doc success criteria)
+  # =========================================================================
+
+  - id: sc-01-show-legend
+    fixture: one-map
+    user_prompt: "Show the legend on that map."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.map.uuid"
+      source: "Map"
+      patches:
+        - { op: replace, path: "/args/layerControl", value: true }
+    expected_outcome: correct
+
+  - id: sc-02-rename-plot
+    fixture: one-plot-rainfall
+    user_prompt: "Change the plot title to Rainfall."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.plot.uuid"
+      source: "Inline Plotly"
+      patches:
+        - { op: replace, path: "~title-path", value: "Rainfall" }
+    notes: |
+      Acceptable title paths: /args/inlineData/layout/title, /args/title
+    expected_outcome: correct
+
+  - id: sc-03-replace-plot-data
+    fixture: one-plot-rainfall
+    user_prompt: "Replace the plot data with these points: [1,2,3] and [4,5,6]."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.plot.uuid"
+      source: "Inline Plotly"
+      patches:
+        - { op: replace, path: "/args/inlineData/data", value: "~any-nonempty-array" }
+    expected_outcome: correct
+
+  - id: sc-04-remove-third-layer
+    fixture: three-layer-map
+    user_prompt: "Remove the 3rd layer."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.map.uuid"
+      source: "Map"
+      patches:
+        - { op: remove, path: "/args/layers/2" }
+    expected_outcome: correct
+
+  - id: sc-05-rename-table
+    fixture: one-table
+    user_prompt: "Rename this table to Stream Gauges."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.table.uuid"
+      source: "Inline Table"
+      patches:
+        - { op: replace, path: "~title-path", value: "Stream Gauges" }
+    notes: "Acceptable: /args/inlineData/title, /args/title"
+    expected_outcome: correct
+
+  - id: sc-06-add-2-points
+    fixture: one-plot-with-3-points
+    user_prompt: "Add 2 more points to that plot: (10, 20) and (11, 22)."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.plot.uuid"
+      source: "Inline Plotly"
+      patches:
+        - { op: add, path: "/args/inlineData/data/0/x/-", value: 10 }
+        - { op: add, path: "/args/inlineData/data/0/y/-", value: 20 }
+        - { op: add, path: "/args/inlineData/data/0/x/-", value: 11 }
+        - { op: add, path: "/args/inlineData/data/0/y/-", value: 22 }
+    notes: |
+      R5c protection: the LLM MUST NOT emit two removes against the same
+      array parent. Four adds is fine (all index-stable `-` appends).
+      Acceptable alternative: single `replace` on /args/inlineData/data
+      with the merged data.
+    expected_outcome: correct
+
+  - id: sc-07-create-plot-regression
+    fixture: empty
+    user_prompt: "Create a plot with these 10 points: x=[1,2,3,4,5,6,7,8,9,10], y=[4,3,5,6,8,7,9,2,1,5]."
+    expected_tool: create_plotly_chart
+    expected_args:
+      data: "~any-plotly-traces-array"
+    expected_outcome: correct
+
+  - id: sc-08-add-wms-regression
+    fixture: one-map-empty-layers
+    user_prompt: "Add a WMS layer from https://example.com/geoserver/wms with layer workspace:rainfall to the map."
+    expected_tool: add_map_service_layer
+    expected_args:
+      map_uuid: "~fixture.map.uuid"
+      source_type: "WMS"
+      url: "https://example.com/geoserver/wms"
+      wms_layers: "workspace:rainfall"
+    expected_outcome: correct
+
+  # =========================================================================
+  # Adversarial flows (R15 mandated: wrong-title-similar-plots + invalid-path
+  # + test-guard-with-multi-op)
+  # =========================================================================
+
+  - id: adv-01-wrong-title-similar-plots
+    fixture: two-plots-similar-titles
+    user_prompt: "Rename the rainfall plot to Precipitation."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.rainfall-upstream.uuid OR ~fixture.rainfall-downstream.uuid"
+      source: "Inline Plotly"
+    expected_outcome: disambiguation
+    notes: |
+      Either UUID is "acceptable" by the grader BUT the grader must ALSO
+      record which one the LLM picked. This prompt is the primary gate for
+      the silent-semantic-wrong class: if the LLM systematically picks the
+      wrong one (and the harness can verify via a subsequent prompt or
+      human review of the resulting state), that's silent-semantic-wrong.
+
+  - id: adv-02-invalid-path
+    fixture: one-map
+    user_prompt: "Change the map's internal cache timeout to 60 seconds."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.map.uuid"
+      source: "Map"
+    expected_outcome: recoverable_expected
+    notes: |
+      There is no /args/cache_timeout path in the whitelist. The LLM SHOULD
+      get whitelist_rejected on first attempt. Ideal recovery: the LLM
+      recognizes the error and tells the user the field isn't patchable
+      (rather than retrying with other invented paths).
+
+  - id: adv-03-test-guard-multi-op
+    fixture: one-plot-titled-old
+    user_prompt: "If the plot is still titled 'Old', rename it to 'New'."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.plot.uuid"
+      source: "Inline Plotly"
+      patches:
+        - { op: test, path: "~title-path", value: "Old" }
+        - { op: replace, path: "~title-path", value: "New" }
+    notes: Tests R8 `test` op usage idiom.
+    expected_outcome: correct
+
+  # =========================================================================
+  # Additional viz-type × op-family coverage
+  # =========================================================================
+
+  - id: cov-card-update-metric
+    fixture: one-card
+    user_prompt: "Update the card's first metric value to 42."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.card.uuid"
+      source: "Inline Card"
+      patches:
+        - { op: replace, path: "/args/inlineData/data/0/value", value: 42 }
+    expected_outcome: correct
+
+  - id: cov-varinput-change-default
+    fixture: one-varinput-slider
+    user_prompt: "Change the default value of the slider to 50."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.varinput.uuid"
+      source: "Variable Input"
+      patches:
+        - { op: replace, path: "/args/initial_value", value: 50 }
+    expected_outcome: correct
+
+  - id: cov-varinput-slider-range
+    fixture: one-varinput-slider
+    user_prompt: "Change the slider's max value to 200."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.varinput.uuid"
+      source: "Variable Input"
+      patches:
+        - { op: replace, path: "/args/variable_options_source.metadata/max", value: 200 }
+    notes: |
+      Exercises the RFC 6901 literal-dot hazard — the path is a SINGLE
+      segment containing a literal dot.
+    expected_outcome: correct
+
+  - id: cov-table-append-row
+    fixture: one-table
+    user_prompt: "Add a row to the table: {station: 'ABC', value: 15}."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.table.uuid"
+      source: "Inline Table"
+      patches:
+        - { op: add, path: "/args/inlineData/data/-", value: { station: "ABC", value: 15 } }
+    expected_outcome: correct
+
+  - id: cov-map-change-basemap
+    fixture: one-map
+    user_prompt: "Change the map's base map to imagery."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.map.uuid"
+      source: "Map"
+      patches:
+        - { op: replace, path: "/args/baseMap", value: "~any-basemap-url-or-key" }
+    expected_outcome: correct
+
+  - id: cov-map-reject-add-layer-via-patch
+    fixture: one-map-empty-layers
+    user_prompt: "Insert a new WMS layer into the map layers array directly (not via add_map_service_layer)."
+    expected_outcome: recoverable_expected
+    notes: |
+      If the LLM emits a patch_visualization with add on /args/layers/-,
+      the server rejects with whitelist_rejected pointing at
+      add_map_service_layer. The LLM should then use the intent tool.
+      A "correct" outcome is the LLM calling add_map_service_layer instead
+      of patch_visualization in the first place.
+
+  - id: cov-map-remove-layer
+    fixture: three-layer-map
+    user_prompt: "Delete the first layer from the map."
+    expected_tool: patch_visualization
+    expected_args:
+      target_uuid: "~fixture.map.uuid"
+      source: "Map"
+      patches:
+        - { op: remove, path: "/args/layers/0" }
+    expected_outcome: correct
+
+# -----------------------------------------------------------------------------
+# Fixtures: preset dashboard states the harness seeds before each prompt.
+# Each fixture returns a dashboard with known UUIDs so the gold envelope can
+# reference them.
+# -----------------------------------------------------------------------------
+fixtures:
+  empty:
+    description: "Empty dashboard — single tab, zero grid items."
+    gridItems: []
+
+  one-map:
+    description: "Dashboard with a single empty-layer map."
+    gridItems:
+      - uuid: "11111111-1111-1111-1111-111111111111"
+        source: "Map"
+        args:
+          baseMap: "streets"
+          layers: []
+          layerControl: false
+
+  one-map-empty-layers:
+    description: "Alias for one-map — used where SC flow emphasizes empty layers."
+    gridItems:
+      - uuid: "11111111-1111-1111-1111-111111111111"
+        source: "Map"
+        args:
+          baseMap: "streets"
+          layers: []
+
+  three-layer-map:
+    description: "Map with three pre-existing WMS layers."
+    gridItems:
+      - uuid: "22222222-2222-2222-2222-222222222222"
+        source: "Map"
+        args:
+          baseMap: "streets"
+          layers:
+            - { name: "layer-0", configuration: { props: { name: "layer-0" } } }
+            - { name: "layer-1", configuration: { props: { name: "layer-1" } } }
+            - { name: "layer-2", configuration: { props: { name: "layer-2" } } }
+
+  one-plot-rainfall:
+    description: "Plotly chart titled Rainfall with one trace."
+    gridItems:
+      - uuid: "33333333-3333-3333-3333-333333333333"
+        source: "Inline Plotly"
+        args:
+          vizType: "plotly"
+          inlineData:
+            data: [{ x: [1, 2, 3], y: [4, 5, 6] }]
+            layout: { title: "Rainfall" }
+            config: { responsive: true }
+
+  one-plot-titled-old:
+    description: "Plotly chart titled 'Old' (for test-op adv prompt)."
+    gridItems:
+      - uuid: "44444444-4444-4444-4444-444444444444"
+        source: "Inline Plotly"
+        args:
+          vizType: "plotly"
+          inlineData:
+            data: [{ x: [1, 2], y: [3, 4] }]
+            layout: { title: "Old" }
+            config: { responsive: true }
+
+  one-plot-with-3-points:
+    description: "Plotly chart with exactly 3 points on a single trace."
+    gridItems:
+      - uuid: "55555555-5555-5555-5555-555555555555"
+        source: "Inline Plotly"
+        args:
+          vizType: "plotly"
+          inlineData:
+            data: [{ x: [1, 2, 3], y: [2, 4, 6] }]
+            layout: { title: "Demo Plot" }
+            config: { responsive: true }
+
+  one-table:
+    description: "Data table with 2 rows."
+    gridItems:
+      - uuid: "66666666-6666-6666-6666-666666666666"
+        source: "Inline Table"
+        args:
+          vizType: "table"
+          inlineData:
+            data:
+              - { station: "Station A", value: 10 }
+              - { station: "Station B", value: 20 }
+            title: "Gauges"
+
+  one-card:
+    description: "Card with one metric."
+    gridItems:
+      - uuid: "77777777-7777-7777-7777-777777777777"
+        source: "Inline Card"
+        args:
+          vizType: "card"
+          inlineData:
+            title: "Current Flow"
+            data:
+              - { label: "Primary", value: 100, color: "blue" }
+
+  one-varinput-slider:
+    description: "Variable input of slider type with initial value 0."
+    gridItems:
+      - uuid: "88888888-8888-8888-8888-888888888888"
+        source: "Variable Input"
+        args:
+          vizType: "variableInput"
+          variable_name: "flow_threshold"
+          variable_options_source: "slider"
+          initial_value: 0
+          variable_options_source.metadata:
+            min: 0
+            max: 100
+            step: 1
+            outputFormat: "{{n}}"
+
+  two-plots-similar-titles:
+    description: "Two plots: Rainfall (upstream) and Rainfall (downstream)."
+    gridItems:
+      - uuid: "99999999-9999-9999-9999-999999999999"
+        source: "Inline Plotly"
+        args:
+          vizType: "plotly"
+          inlineData:
+            data: [{ x: [1, 2], y: [3, 4] }]
+            layout: { title: "Rainfall (upstream)" }
+            config: { responsive: true }
+      - uuid: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+        source: "Inline Plotly"
+        args:
+          vizType: "plotly"
+          inlineData:
+            data: [{ x: [5, 6], y: [7, 8] }]
+            layout: { title: "Rainfall (downstream)" }
+            config: { responsive: true }
