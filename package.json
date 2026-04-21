@@ -73,6 +73,7 @@
     "react-select": "^5.8.0",
     "react-simple-wysiwyg": "^3.1.1",
     "react-use-websocket": "^4.13.0",
+    "rfc6902": "^5.2.0",
     "sass": "^1.49.0",
     "sass-loader": "^12.3.0",
     "simple-xml-to-json": "^1.2.3",

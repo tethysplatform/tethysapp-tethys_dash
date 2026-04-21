@@ -21,6 +21,7 @@ import "react-resizable/css/styles.css";
 import { valuesEqual } from "components/modals/utilities";
 import { v4 as uuidv4 } from "uuid";
 import { computePanelLayout } from "components/dashboard/panelLayoutUtils";
+import { applyPatch } from "rfc6902";
 
 const ReactGridLayout = WidthProvider(RGL);
 
@@ -133,57 +134,164 @@ const DashboardLayout = ({ tabId, gridItems, shouldLoad }) => {
       }
     }
 
-    function handleUpdateVisualization(e) {
-      const detail = e.detail || {};
-      const { uuid, operation, layers } = detail;
-
-      if (operation !== "append_layers" || !uuid || !Array.isArray(layers) || layers.length === 0) return;
-
-      const current = gridItemsUpdated.current;
-      const targetIndex = current.findIndex((item) => item.uuid === uuid);
-      if (targetIndex === -1) {
-        console.warn(
-          "[DashboardLayout] update-visualization: no grid item with uuid",
-          uuid,
-        );
-        return;
-      }
-
-      const target = current[targetIndex];
+    // Apply an RFC 6902 patch envelope to a single grid item. Returns the
+    // updated item or null if the patch failed (caller skips that UUID).
+    // Partial-batch tolerance: one failed UUID does NOT invalidate sibling
+    // patches in the same batch event.
+    function applyPatchToGridItem(target, ops, uuid) {
       let args;
       try {
         args = JSON.parse(target.args_string);
       } catch {
         console.warn(
-          "[DashboardLayout] update-visualization: failed to parse args_string for uuid",
+          "[DashboardLayout] apply_patch: failed to parse args_string for uuid",
           uuid,
         );
+        return null;
+      }
+      // JSON deep-clone + atomic apply: all ops succeed or we discard the
+      // draft. rfc6902 mutates in-place and returns Array<Error|null>.
+      // JSON round-trip suffices because args_string is always JSON-serializable;
+      // avoids jsdom-environment quirks with structuredClone.
+      const draft = JSON.parse(JSON.stringify(args));
+      const errors = applyPatch(draft, ops);
+      if (errors.some((err) => err !== null)) {
+        console.warn(
+          "[DashboardLayout] apply_patch: rfc6902 errors for uuid",
+          uuid,
+          errors,
+        );
+        return null;
+      }
+      return { ...target, args_string: JSON.stringify(draft) };
+    }
+
+    function handleUpdateVisualization(e) {
+      const detail = e.detail || {};
+      const operation = detail.operation;
+      const current = gridItemsUpdated.current;
+
+      // ---------------------------------------------------------------
+      // Branch 1: append_layers (existing — preserved unchanged)
+      // ---------------------------------------------------------------
+      if (operation === "append_layers") {
+        const { uuid, layers } = detail;
+        if (!uuid || !Array.isArray(layers) || layers.length === 0) return;
+
+        const targetIndex = current.findIndex((item) => item.uuid === uuid);
+        if (targetIndex === -1) {
+          console.warn(
+            "[DashboardLayout] update-visualization: no grid item with uuid",
+            uuid,
+          );
+          return;
+        }
+
+        const target = current[targetIndex];
+        let args;
+        try {
+          args = JSON.parse(target.args_string);
+        } catch {
+          console.warn(
+            "[DashboardLayout] update-visualization: failed to parse args_string for uuid",
+            uuid,
+          );
+          return;
+        }
+
+        if (!Array.isArray(args.layers)) {
+          args.layers = [];
+        }
+        args.layers.push(...layers);
+
+        const updatedItem = { ...target, args_string: JSON.stringify(args) };
+        const updatedGridItems = [
+          ...current.slice(0, targetIndex),
+          updatedItem,
+          ...current.slice(targetIndex + 1),
+        ];
+        gridItemsUpdated.current = updatedGridItems;
+        updateTab(tabId, { gridItems: updatedGridItems });
+
+        if (saveLayoutContext) {
+          const updatedTabs = tabs.map((tab) =>
+            tab.id === tabId ? { ...tab, gridItems: updatedGridItems } : tab,
+          );
+          saveLayoutContext({ tabs: updatedTabs }).catch(() => {
+            // Save failed silently — user can manually save later
+          });
+        }
         return;
       }
 
-      if (!Array.isArray(args.layers)) {
-        args.layers = [];
+      // ---------------------------------------------------------------
+      // Branch 2: apply_patch (new — generic update protocol)
+      // ---------------------------------------------------------------
+      //
+      // Payload shape: { batch: true, operation: "apply_patch",
+      //                  patches: [{ uuid, source, ops }, ...] }
+      //
+      // Partial-batch tolerance: a failed UUID (not found, bad
+      // args_string, or rfc6902 apply error) logs + skips; sibling
+      // patches in the same batch still land. One updateTab call and
+      // one saveLayoutContext call per dispatch event — non-negotiable
+      // batch discipline per the stale-ref solution doc.
+      if (operation === "apply_patch") {
+        const patches = Array.isArray(detail.patches) ? detail.patches : [];
+        if (patches.length === 0) return;
+
+        let updated = current;
+        let anyChange = false;
+        for (const entry of patches) {
+          const uuid = entry?.uuid;
+          const ops = Array.isArray(entry?.ops) ? entry.ops : null;
+          if (!uuid || !ops || ops.length === 0) continue;
+
+          const targetIndex = updated.findIndex((item) => item.uuid === uuid);
+          if (targetIndex === -1) {
+            console.warn(
+              "[DashboardLayout] apply_patch: no grid item with uuid",
+              uuid,
+            );
+            continue;
+          }
+
+          const newItem = applyPatchToGridItem(updated[targetIndex], ops, uuid);
+          if (!newItem) continue; // partial-batch tolerance
+
+          updated = [
+            ...updated.slice(0, targetIndex),
+            newItem,
+            ...updated.slice(targetIndex + 1),
+          ];
+          anyChange = true;
+        }
+
+        if (!anyChange) return;
+
+        // Synchronous ref update before updateTab (defense-in-depth per
+        // docs/solutions/logic-errors/raf-timing-race-layer-dispatch-*).
+        gridItemsUpdated.current = updated;
+        updateTab(tabId, { gridItems: updated });
+
+        if (saveLayoutContext) {
+          const updatedTabs = tabs.map((tab) =>
+            tab.id === tabId ? { ...tab, gridItems: updated } : tab,
+          );
+          saveLayoutContext({ tabs: updatedTabs }).catch(() => {
+            // Save failed silently — user can manually save later
+          });
+        }
+        return;
       }
-      args.layers.push(...layers);
 
-      const updatedItem = { ...target, args_string: JSON.stringify(args) };
-      const updatedGridItems = [
-        ...current.slice(0, targetIndex),
-        updatedItem,
-        ...current.slice(targetIndex + 1),
-      ];
-      // Update ref immediately (same pattern as handleAddVisualization).
-      gridItemsUpdated.current = updatedGridItems;
-      updateTab(tabId, { gridItems: updatedGridItems });
-
-      // Auto-save: persist updated panel to the backend
-      if (saveLayoutContext) {
-        const updatedTabs = tabs.map((tab) =>
-          tab.id === tabId ? { ...tab, gridItems: updatedGridItems } : tab,
+      // Unknown operation — fail-closed (no-op with warning so we don't
+      // corrupt state on unexpected event shapes).
+      if (operation !== undefined) {
+        console.warn(
+          "[DashboardLayout] update-visualization: unknown operation",
+          operation,
         );
-        saveLayoutContext({ tabs: updatedTabs }).catch(() => {
-          // Save failed silently — user can manually save later
-        });
       }
     }
 
