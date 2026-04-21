@@ -6,6 +6,7 @@ in docs/solutions/best-practices/mcp-visualization-inline-data-vs-top-level-args
 Layer 1 tests — no browser, no server, milliseconds per test.
 """
 
+import uuid as uuid_mod
 from unittest.mock import patch
 
 import pytest
@@ -31,6 +32,26 @@ VALID_FLAT_ARGS_SOURCES = {"Map", "Text", "Custom Image"}
 VALID_VARIABLE_INPUT_SOURCE = "Variable Input"
 
 
+def assert_server_uuid(viz):
+    """R3a: every create tool returns a top-level uuid in the visualization object.
+
+    The uuid must be a valid UUID string (not nested under args or inlineData).
+    """
+    assert "uuid" in viz, (
+        f"visualization.uuid missing for source '{viz.get('source')}' — "
+        "R3a requires every create tool to return a server-assigned UUID"
+    )
+    assert isinstance(viz["uuid"], str), (
+        f"visualization.uuid must be a string, got {type(viz['uuid']).__name__}"
+    )
+    try:
+        uuid_mod.UUID(viz["uuid"])
+    except (ValueError, AttributeError) as e:
+        raise AssertionError(
+            f"visualization.uuid is not a valid UUID string: {viz['uuid']!r} ({e})"
+        )
+
+
 def assert_inline_data_viz(result, expected_source, expected_viz_type):
     """Rule 1: Plotly, Table, Card use inlineData + vizType."""
     viz = result["visualization"]
@@ -43,6 +64,7 @@ def assert_inline_data_viz(result, expected_source, expected_viz_type):
     )
     assert isinstance(viz["w"], int) and viz["w"] > 0
     assert isinstance(viz["h"], int) and viz["h"] > 0
+    assert_server_uuid(viz)
 
 
 def assert_flat_args_viz(result, expected_source):
@@ -59,6 +81,7 @@ def assert_flat_args_viz(result, expected_source):
     assert isinstance(args, dict), f"args should be a dict, got {type(args)}"
     assert isinstance(viz["w"], int) and viz["w"] > 0
     assert isinstance(viz["h"], int) and viz["h"] > 0
+    assert_server_uuid(viz)
 
 
 def assert_variable_input_viz(result):
@@ -73,6 +96,7 @@ def assert_variable_input_viz(result):
     assert "variable_options_source" in args, "variable_options_source is required"
     assert isinstance(viz["w"], int) and viz["w"] > 0
     assert isinstance(viz["h"], int) and viz["h"] > 0
+    assert_server_uuid(viz)
 
 
 def assert_no_null_args(result):
@@ -485,6 +509,17 @@ class TestRenderPlugin:
         assert result["visualization"]["args"]["gauge_id"] == "${my_gauge}"
         assert result["visualization"]["args"]["date"] == "${start_date}"
 
+    def test_r3a_returns_server_uuid(self):
+        """R3a: every create tool returns a top-level uuid in the visualization object."""
+        result = render_plugin(source="test_plugin", args={})
+        assert_server_uuid(result["visualization"])
+
+    def test_r3a_uuids_are_unique(self):
+        """R3a: consecutive calls produce distinct UUIDs."""
+        r1 = render_plugin(source="test_plugin", args={})
+        r2 = render_plugin(source="test_plugin", args={})
+        assert r1["visualization"]["uuid"] != r2["visualization"]["uuid"]
+
 
 # ---------------------------------------------------------------------------
 # render_custom_visualization contract tests
@@ -586,3 +621,25 @@ class TestRenderCustomVisualization:
         mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
         result = render_custom_visualization(source="TestCustomPanel")
         assert result["visualization"]["args"] == {}
+
+    @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
+    def test_r3a_build_time_plugin_returns_server_uuid(self, mock_plugins):
+        """R3a: build-time plugin path returns a server uuid."""
+        mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
+        result = render_custom_visualization(source="TestCustomPanel")
+        assert_server_uuid(result["visualization"])
+
+    @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
+    def test_r3a_runtime_plugin_returns_server_uuid(self, mock_plugins):
+        """R3a: runtime (MFE) plugin path returns a server uuid."""
+        mock_plugins.return_value = [self.MOCK_RUNTIME_PLUGIN]
+        result = render_custom_visualization(source="RuntimePanel")
+        assert_server_uuid(result["visualization"])
+
+    @patch("tethysapp.tethysdash.mcp.tethysdash_mcp_server._get_all_plugins")
+    def test_r3a_uuids_are_unique(self, mock_plugins):
+        """R3a: consecutive calls produce distinct UUIDs."""
+        mock_plugins.return_value = [self.MOCK_BUILD_TIME_PLUGIN]
+        r1 = render_custom_visualization(source="TestCustomPanel")
+        r2 = render_custom_visualization(source="TestCustomPanel")
+        assert r1["visualization"]["uuid"] != r2["visualization"]["uuid"]

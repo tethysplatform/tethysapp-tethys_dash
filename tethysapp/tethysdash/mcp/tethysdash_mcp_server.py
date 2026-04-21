@@ -203,6 +203,7 @@ def create_plotly_chart(
         "visualization": {
             "source": "Inline Plotly",
             "vizType": "plotly",
+            "uuid": str(uuid.uuid4()),
             "inlineData": {
                 "data": data,
                 "layout": final_layout,
@@ -234,6 +235,7 @@ def create_data_table(
         "visualization": {
             "source": "Inline Table",
             "vizType": "table",
+            "uuid": str(uuid.uuid4()),
             "inlineData": {
                 "data": data,
                 "title": title or "",
@@ -266,6 +268,7 @@ def create_card(
         "visualization": {
             "source": "Inline Card",
             "vizType": "card",
+            "uuid": str(uuid.uuid4()),
             "inlineData": {
                 "title": title,
                 "description": description or "",
@@ -294,6 +297,7 @@ def create_text(
     return {
         "visualization": {
             "source": "Text",
+            "uuid": str(uuid.uuid4()),
             "args": {
                 "text": text,
             },
@@ -321,6 +325,7 @@ def create_custom_image(
     return {
         "visualization": {
             "source": "Custom Image",
+            "uuid": str(uuid.uuid4()),
             "args": {
                 "image_source": image_url,
             },
@@ -883,6 +888,7 @@ def create_variable_input(
         "visualization": {
             "source": "Variable Input",
             "vizType": "variableInput",
+            "uuid": str(uuid.uuid4()),
             "args": args,
             "w": w,
             "h": h,
@@ -979,6 +985,7 @@ def render_plugin(
         "visualization": {
             "source": source,
             "vizType": "intake_plugin",
+            "uuid": str(uuid.uuid4()),
             "args": args,
             "w": w,
             "h": h,
@@ -1145,6 +1152,7 @@ def render_custom_visualization(
         viz_spec = {
             "source": "Client Custom",
             "vizType": "custom",
+            "uuid": str(uuid.uuid4()),
             "scope": plugin.get("scope"),
             "module": plugin.get("module"),
             "remoteType": plugin.get("remoteType", "vite-esm"),
@@ -1163,6 +1171,7 @@ def render_custom_visualization(
         "visualization": {
             "source": source,
             "vizType": "client_custom",
+            "uuid": str(uuid.uuid4()),
             "args": safe_props,
             "w": w,
             "h": h,
