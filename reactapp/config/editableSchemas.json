@@ -1,0 +1,30 @@
+{
+  "Inline Plotly": [
+    "/args/title",
+    "/args/description",
+    "/args/inlineData"
+  ],
+  "Inline Table": [
+    "/args/title",
+    "/args/subtitle",
+    "/args/inlineData"
+  ],
+  "Inline Card": [
+    "/args/title",
+    "/args/inlineData"
+  ],
+  "Variable Input": [
+    "/args/variable_name",
+    "/args/show_label",
+    "/args/initial_value",
+    "/args/variable_options_source",
+    "/args/variable_options_source.metadata"
+  ],
+  "Map": [
+    "/args/baseMap",
+    "/args/layerControl",
+    "/args/layers",
+    "/args/map_extent",
+    "/args/mapDrawing"
+  ]
+}
