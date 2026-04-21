@@ -17,6 +17,7 @@ Connects to chatbox via MCP SSE transport on port 9001.
 import logging
 import os
 import json
+import re
 import uuid
 from typing import Optional, Dict, Any, List, Union
 from typing_extensions import Annotated
@@ -27,6 +28,8 @@ from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import Response as StarletteResponse
 import requests as http_requests
+
+from tethysapp.tethysdash.editable_schemas import is_path_allowed
 
 mcp = FastMCP(
     "TethysDash MCP Server",
@@ -39,6 +42,7 @@ mcp = FastMCP(
                 "create_variable_input",
                 "create_map_visualization",
                 "add_map_service_layer",
+                "patch_visualization",
                 "render_plugin",
                 "render_custom_visualization",
                 "list_available_visualizations",
@@ -799,6 +803,234 @@ def add_map_service_layer(
         "layer_update": {
             "map_uuid": map_uuid,
             "layer": layer_config,
+        }
+    }
+
+
+# ---------------------------------------------------------------------------
+# Generic update protocol — patch_visualization (R1–R10)
+# ---------------------------------------------------------------------------
+#
+# Validates RFC 6902 JSON Patch envelopes and returns them for client-side
+# apply. The server does NOT persist or apply patches — it enforces the
+# envelope contract (shape, whitelist, layer-construction boundary) and
+# emits a {patch_update} envelope the engine accumulates and the reducer
+# applies in DashboardLayout.js.
+#
+# Non-goals here:
+#   - Server-side state access (the server is stateless re: grid items).
+#   - Server-side patch apply (the reducer owns that, using rfc6902).
+#   - Runtime target-UUID existence check (the reducer returns target_missing
+#     if the UUID isn't in current React state).
+
+_ALLOWED_OPS = {"add", "replace", "remove", "move", "test"}
+_BARE_LAYER_INDEX = re.compile(r"^/args/layers/\d+$")
+
+
+def _validate_patch_envelope_shape(patches):
+    """R1/R2: structural validation.
+
+    Returns an error string or None.
+    """
+    if not isinstance(patches, list):
+        return "`patches` must be a list of operations"
+    if len(patches) == 0:
+        return "`patches` list is empty — envelopes must contain at least one op"
+    for i, op in enumerate(patches):
+        if not isinstance(op, dict):
+            return f"op {i} is not an object"
+        if "op" not in op:
+            return f"op {i} missing required field `op`"
+        if op["op"] not in _ALLOWED_OPS:
+            return (
+                f"op {i} has unsupported op {op['op']!r} "
+                f"(supported: {sorted(_ALLOWED_OPS)}; `copy` intentionally excluded)"
+            )
+        if "path" not in op:
+            return f"op {i} missing required field `path`"
+        if not isinstance(op["path"], str):
+            return f"op {i} field `path` must be a string"
+        if not op["path"].startswith("/"):
+            return f"op {i} path {op['path']!r} must be an absolute JSON Pointer starting with `/`"
+        # Op-type-specific field requirements per RFC 6902
+        if op["op"] in {"add", "replace", "test"} and "value" not in op:
+            return f"op {i} ({op['op']}) missing required field `value`"
+        if op["op"] == "move" and "from" not in op:
+            return f"op {i} (move) missing required field `from`"
+    return None
+
+
+def _check_r5c_array_collision(patches):
+    """R5c: reject multi-op envelopes with >1 add/remove targeting the same array parent.
+
+    Sequential-index semantics shift indices after each op — LLMs get this wrong.
+    The LLM's recovery path is a single `replace` on the parent array.
+
+    Applies to any indexed array parent (not just /args/layers). Does NOT apply
+    to `replace` — replace at an index is index-stable.
+
+    Returns an error string or None.
+    """
+    add_remove_by_parent = {}
+    for i, op in enumerate(patches):
+        op_name = op.get("op")
+        if op_name not in ("add", "remove"):
+            continue
+        path = op.get("path", "")
+        segments = path.split("/")
+        if len(segments) < 2:
+            continue
+        last = segments[-1]
+        # Only group when the trailing segment is an array-index marker
+        if last == "-" or last.isdigit():
+            parent = "/".join(segments[:-1])
+            add_remove_by_parent.setdefault(parent, []).append(i)
+    for parent, indices in add_remove_by_parent.items():
+        if len(indices) > 1:
+            return (
+                f"multiple add/remove ops target the same array parent {parent!r} "
+                f"(op indices {indices}). RFC 6902 applies ops sequentially so "
+                f"array indices shift after each op — this produces incorrect "
+                f"results. Emit a single `replace` on {parent!r} carrying the "
+                f"intended final array instead."
+            )
+    return None
+
+
+def _check_layer_construction_boundary(source, patches):
+    """R9/R10: Map layer construction is reserved for add_map_service_layer.
+
+    Reject `add` at /args/layers/- or /args/layers/N (creates new layer).
+    Reject `replace` at /args/layers/N (replaces whole layer object).
+    Allow field-level ops under an existing layer (e.g., /args/layers/N/visible).
+
+    Returns an error string or None.
+    """
+    if source != "Map":
+        return None
+    for i, op in enumerate(patches):
+        op_name = op.get("op")
+        path = op.get("path", "")
+        if op_name == "add":
+            if path == "/args/layers/-" or _BARE_LAYER_INDEX.match(path):
+                return (
+                    f"op {i} `add` at {path!r} would construct a new map layer, "
+                    f"which is not permitted via patch_visualization. Use the "
+                    f"`add_map_service_layer` tool to add a new service layer "
+                    f"(WMS, ESRI, GeoJSON, KML, tile, etc.) with its required "
+                    f"flat parameters."
+                )
+        if op_name == "replace":
+            if _BARE_LAYER_INDEX.match(path):
+                return (
+                    f"op {i} `replace` at {path!r} would replace a whole layer "
+                    f"object, which is not permitted. Either patch individual "
+                    f"fields within the existing layer (e.g., "
+                    f"{path}/configuration/props/opacity or "
+                    f"{path}/visible) or use `add_map_service_layer` to add a "
+                    f"new layer."
+                )
+    return None
+
+
+@mcp.tool(
+    name="patch_visualization",
+    description=(
+        "Update an existing visualization in place via RFC 6902 JSON Patch ops. "
+        "Use this to change properties on a visualization the user has already created — "
+        "e.g., rename a plot, toggle a map's legend, remove a layer, replace table data. "
+        "DO NOT use this for a visualization created in the same turn; include the change "
+        "in the create call, or patch in a subsequent turn once the new UUID appears in "
+        "dashboard_state. "
+        "Look up the target UUID and its source type from the dashboard_state injection in "
+        "your system context. Each source type has its own set of editable paths (also in "
+        "dashboard_state). "
+        "Paths use JSON Pointer syntax (RFC 6901). Supported ops: add, replace, remove, move, test. "
+        "Copy is intentionally excluded. "
+        "To CREATE a new map layer, use add_map_service_layer — this tool is for edits only."
+    ),
+    tags=["visualization", "patch", "update"],
+)
+def patch_visualization(
+    target_uuid: Annotated[
+        str,
+        Field(description="UUID of the target visualization (from dashboard_state)."),
+    ],
+    source: Annotated[
+        str,
+        Field(description=(
+            "Registry source name of the target visualization — must match the "
+            "source shown in dashboard_state for this UUID."
+        )),
+    ],
+    patches: Annotated[
+        Union[List[Dict[str, Any]], str],
+        Field(description=(
+            "Array of RFC 6902 operations. Each operation is an object with "
+            "`op` (one of: add, replace, remove, move, test), `path` (JSON "
+            "Pointer string starting with '/'), and — depending on op — "
+            "`value` (for add/replace/test) or `from` (for move). "
+            "The server coerces a JSON-string payload to a list for callers "
+            "that serialize arrays as strings."
+        )),
+    ],
+    description: Annotated[
+        Optional[str],
+        Field(description=(
+            "Optional natural-language summary of the change for audit + logging."
+        )),
+    ] = None,
+) -> Dict[str, Any]:
+    """Apply an RFC 6902 JSON Patch envelope against an existing visualization.
+
+    Server-side validation only — envelope shape, R5c array-op collision,
+    per-viz path whitelist, R9 layer-construction boundary. Returns
+    `{patch_update: {uuid, source, ops}}` on success; the engine accumulates
+    and the reducer applies client-side via rfc6902.
+
+    Returns `{error: "..."}` with a structured error class prefix on failure:
+    `invalid_envelope`, `whitelist_rejected`.
+    """
+    # Dict-coercion pattern (see docs/solutions/best-practices/mcp-tool-dict-parameter-coercion)
+    if isinstance(patches, str):
+        try:
+            patches = json.loads(patches)
+        except json.JSONDecodeError as e:
+            return {"error": f"invalid_envelope: `patches` is not valid JSON: {e}"}
+
+    # R1/R2: envelope shape
+    shape_error = _validate_patch_envelope_shape(patches)
+    if shape_error:
+        return {"error": f"invalid_envelope: {shape_error}"}
+
+    # R5c: multi-op array collision
+    r5c_error = _check_r5c_array_collision(patches)
+    if r5c_error:
+        return {"error": f"invalid_envelope: {r5c_error}"}
+
+    # R7: per-source path whitelist (fail-closed)
+    for i, op in enumerate(patches):
+        if not is_path_allowed(source, op["path"]):
+            return {"error": (
+                f"whitelist_rejected: op {i} path {op['path']!r} is not editable "
+                f"for viz source {source!r}. Reference dashboard_state for the list "
+                f"of editable paths for this visualization type."
+            )}
+
+    # R9/R10: layer-construction boundary (Map only)
+    layer_error = _check_layer_construction_boundary(source, patches)
+    if layer_error:
+        return {"error": f"whitelist_rejected: {layer_error}"}
+
+    LOGGER.info(
+        "patch_visualization: target_uuid=%s source=%s ops=%d description=%s",
+        target_uuid, source, len(patches), description,
+    )
+    return {
+        "patch_update": {
+            "uuid": target_uuid,
+            "source": source,
+            "ops": patches,
         }
     }
 
