@@ -13,6 +13,15 @@
 /*! For license information please see plotly-strict.min.js.LICENSE.txt */
 
 /**
+     * Prism: Lightweight, robust, elegant syntax highlighting
+     *
+     * @license MIT <https://opensource.org/licenses/MIT>
+     * @author Lea Verou <https://lea.verou.me>
+     * @namespace
+     * @public
+     */
+
+/**
  * @license React
  * react-dom.production.min.js
  *
