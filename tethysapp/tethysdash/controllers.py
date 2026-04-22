@@ -255,6 +255,55 @@ def dashboards(request):
 
 
 @api_view(["GET"])
+@controller(url="tethysdash/plugins/editable-paths", login_required=False)
+def plugin_editable_paths(request):
+    """Return the server-authoritative LLM-editable-path whitelist for every
+    registered plugin source (Intake + client_custom).
+
+    The chatbox calls this once per dashboard load and threads the result
+    into the ``dashboard_state`` injection so the LLM knows which ``/args/*``
+    paths are patchable on plugin-backed tiles. The static built-in
+    whitelist (``editable_schemas.py``) is NOT duplicated here — the
+    ``chatboxStateBuilder.js`` consumer merges both sources.
+
+    Output shape::
+
+        {"editable_paths_by_source": {"<source>": ["<JSON Pointer>", ...]}}
+
+    Sources with empty whitelists (no patchable args after the R10 pattern
+    deny-list + author declarations) are omitted so the client can treat
+    presence as "patchable" without a length check.
+    """
+    # Import locally to keep controller-module import fast when the MCP
+    # code path isn't needed (e.g., CLI management commands).
+    import intake
+    from tethysapp.tethysdash.editable_schemas_plugin import (
+        resolve_editable_paths,
+    )
+    from tethysapp.tethysdash.plugin_registry_loader import (
+        load_client_plugin_registry,
+    )
+
+    out = {}
+    # Intake plugins — registered via entry-points at import time.
+    try:
+        for source in list(intake.source.registry):
+            paths = resolve_editable_paths(source)
+            if paths:
+                out[source] = paths
+    except TypeError:
+        # Defensive: if the registry isn't iterable (unlikely), fall through.
+        pass
+    # client_custom plugins — static JSON written by collectClientPlugins.js.
+    for entry in load_client_plugin_registry():
+        source = entry.get("source")
+        if source and source not in out:
+            paths = resolve_editable_paths(source)
+            if paths:
+                out[source] = paths
+    return JsonResponse({"editable_paths_by_source": out})
+
+
 @controller(url="tethysdash/visualizations/list", login_required=False)
 def visualizations(request):
     """

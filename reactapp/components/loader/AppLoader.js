@@ -103,6 +103,7 @@ function Loader({ children }) {
       let mapLayerTemplates = [];
       let visualizationArgs = [];
       let userAppPermissions = [];
+      let pluginEditablePaths = {};
 
       try {
         tethysSession = await tethysAPI.getSession();
@@ -130,6 +131,16 @@ function Loader({ children }) {
             appAPI.listVisualizations(),
             appAPI.getUserAppPermissions(),
           ]);
+          try {
+            pluginEditablePaths = (
+              await appAPI.getPluginEditablePaths()
+            ).editable_paths_by_source || {};
+          } catch (e) {
+            // Non-fatal: chatbox still works, plugin paths just aren't
+            // surfaced in the LLM system prompt on this load. Fail-open on
+            // the guidance layer; server-side validation is unchanged.
+            pluginEditablePaths = {};
+          }
         } else {
           [tethysApp, dashboards, visualizations] = await Promise.all([
             tethysAPI.getAppData(APP_ID),
@@ -357,6 +368,10 @@ function Loader({ children }) {
         mapLayerTemplates,
         visualizationArgs,
         userAppPermissions: userAppPermissions.permissions,
+        // Server-authoritative LLM-editable-path whitelist for every
+        // registered plugin source. Consumed by ChatSidebar to thread
+        // plugin whitelists into the chatbox's system-prompt injection.
+        pluginEditablePaths,
       });
       setPermissionGroups(dashboards.permission_groups);
       setAvailableDashboards(dashboards.dashboards);

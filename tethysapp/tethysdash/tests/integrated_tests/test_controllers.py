@@ -124,6 +124,143 @@ def test_visualizations(
 
 
 @pytest.mark.django_db
+def test_plugin_editable_paths_includes_intake_plugin(
+    client, admin_user, mock_app, mocker
+):
+    """Intake plugin sources surface through the resolver into the endpoint."""
+    from types import SimpleNamespace
+
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:plugin_editable_paths")
+    client.force_login(admin_user)
+
+    fake_plugin = SimpleNamespace(args={"start_date": "text", "station_id": "text"})
+    mocker.patch(
+        "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+        {"my_streamflow": fake_plugin},
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
+        return_value=[],
+    )
+
+    response = client.get(url)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "editable_paths_by_source" in body
+    assert "my_streamflow" in body["editable_paths_by_source"]
+    assert sorted(body["editable_paths_by_source"]["my_streamflow"]) == sorted(
+        ["/args/start_date", "/args/station_id"]
+    )
+
+
+@pytest.mark.django_db
+def test_plugin_editable_paths_includes_client_custom(
+    client, admin_user, mock_app, mocker
+):
+    """client_custom sources from the registry surface through the endpoint."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:plugin_editable_paths")
+    client.force_login(admin_user)
+
+    mocker.patch(
+        "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+        {},
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
+        return_value=[
+            {
+                "source": "nwm-flood-map",
+                "args": {"title": "text", "dataUrl": "text"},
+            }
+        ],
+    )
+    # The controller also invokes load_client_plugin_registry() directly for
+    # its iteration — patch that symbol on the controller side too.
+    mocker.patch(
+        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry",
+        return_value=[
+            {
+                "source": "nwm-flood-map",
+                "args": {"title": "text", "dataUrl": "text"},
+            }
+        ],
+    )
+
+    response = client.get(url)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "nwm-flood-map" in body["editable_paths_by_source"]
+    assert sorted(body["editable_paths_by_source"]["nwm-flood-map"]) == sorted(
+        ["/args/title", "/args/dataUrl"]
+    )
+
+
+@pytest.mark.django_db
+def test_plugin_editable_paths_empty_registries_returns_empty_map(
+    client, admin_user, mock_app, mocker
+):
+    """No plugins -> empty map (not null, not missing)."""
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:plugin_editable_paths")
+    client.force_login(admin_user)
+
+    mocker.patch(
+        "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+        {},
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
+        return_value=[],
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry",
+        return_value=[],
+    )
+
+    response = client.get(url)
+
+    assert response.status_code == 200
+    assert response.json() == {"editable_paths_by_source": {}}
+
+
+@pytest.mark.django_db
+def test_plugin_editable_paths_omits_empty_whitelists(
+    client, admin_user, mock_app, mocker
+):
+    """A plugin whose every arg is pattern-denied is omitted (not emitted empty)."""
+    from types import SimpleNamespace
+
+    mock_app("tethysapp.tethysdash.controllers.App")
+    url = reverse("tethysdash:plugin_editable_paths")
+    client.force_login(admin_user)
+
+    # Every arg on this plugin hits the R10 pattern deny-list.
+    fake_plugin = SimpleNamespace(args={"api_key": "text", "service_url": "text"})
+    mocker.patch(
+        "tethysapp.tethysdash.editable_schemas_plugin.intake.source.registry",
+        {"locked_down_plugin": fake_plugin},
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.editable_schemas_plugin._load_client_plugin_registry_cached",
+        return_value=[],
+    )
+    mocker.patch(
+        "tethysapp.tethysdash.plugin_registry_loader.load_client_plugin_registry",
+        return_value=[],
+    )
+
+    response = client.get(url)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "locked_down_plugin" not in body["editable_paths_by_source"]
+
+
+@pytest.mark.django_db
 def test_dashboards(
     client,
     test_owner_user,

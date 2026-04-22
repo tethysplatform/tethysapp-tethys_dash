@@ -80,7 +80,7 @@ function ChatSidebar() {
   // component tests that don't set up the full context tree) should get a
   // no-op rather than crash during destructuring.
   const { isOpen, setIsOpen } = useContext(ChatSidebarContext) ?? {};
-  const { csrf } = useContext(AppContext) ?? {};
+  const { csrf, pluginEditablePaths } = useContext(AppContext) ?? {};
   const { variableInputValues, setVariableInputValues } =
     useContext(VariableInputsContext) ?? {};
   // TabContext provides live tabs + gridItems. Subscribed here (not deeper)
@@ -113,8 +113,8 @@ function ChatSidebar() {
   // captures the freshest state for the next user turn. Returns null when
   // the dashboard has nothing patchable — the engine skips the injection.
   const patchContext = useMemo(
-    () => buildPatchContext(tabs, variableInputValues),
-    [tabs, variableInputValues],
+    () => buildPatchContext(tabs, variableInputValues, pluginEditablePaths),
+    [tabs, variableInputValues, pluginEditablePaths],
   );
 
   // Engine extensions: inject dashboard state + editable-path whitelist at

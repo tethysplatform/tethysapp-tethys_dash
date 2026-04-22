@@ -22,12 +22,12 @@ jest.mock("@chatbox/core/components", () => ({
   Chatbox: () => <div data-testid="chatbox-stub" />,
 }));
 
-function renderWithContexts({ editable }) {
+function renderWithContexts({ editable, pluginEditablePaths = {} }) {
   const layout = { editable };
   const tab = { tabs: [] };
   const variables = { variableInputValues: {}, setVariableInputValues: () => {} };
   const chatSidebar = { isOpen: true, setIsOpen: () => {} };
-  const app = { csrf: "csrf-token" };
+  const app = { csrf: "csrf-token", pluginEditablePaths };
   return render(
     <AppContext.Provider value={app}>
       <LayoutContext.Provider value={layout}>
