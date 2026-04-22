@@ -42,6 +42,50 @@ const DYNAMIC_LAYER_PLACEHOLDER_GEOJSON = {
   crs: { type: "name", properties: { name: "EPSG:4326" } },
 };
 
+// Rekey a layer-keyed attribute map (variables/omitted/aliases) to a new
+// layer name. Only acts on single-key maps — multi-layer sources like WMS
+// or ESRI Image Services intentionally carry multiple layer keys and must
+// not be collapsed. Returns the input unchanged when the map is empty,
+// already correctly keyed, or has more than one entry.
+function rekeyAttributeMapToLayer(map, targetLayerName) {
+  if (!map || typeof map !== "object" || !targetLayerName) return map;
+  const keys = Object.keys(map);
+  if (keys.length !== 1 || keys[0] === targetLayerName) return map;
+  return { [targetLayerName]: map[keys[0]] };
+}
+
+// Rekey all attribute-map entries under attributeProps to targetLayerName.
+function normalizeAttributePropsForLayer(attributeProps, targetLayerName) {
+  if (!targetLayerName) return attributeProps;
+  return {
+    ...attributeProps,
+    variables: rekeyAttributeMapToLayer(
+      attributeProps?.variables,
+      targetLayerName,
+    ),
+    omitted: rekeyAttributeMapToLayer(attributeProps?.omitted, targetLayerName),
+    aliases: rekeyAttributeMapToLayer(attributeProps?.aliases, targetLayerName),
+  };
+}
+
+// Rename a specific layer key across attributeProps. Used when the author
+// renames the layer in LayerPane — the previous-name key must be moved to
+// the new name or click/popup lookups by layer.name would miss.
+function renameLayerInAttributeProps(attributeProps, oldName, newName) {
+  if (!oldName || !newName || oldName === newName) return attributeProps;
+  const renameKey = (map) => {
+    if (!map || typeof map !== "object" || !(oldName in map)) return map;
+    const { [oldName]: value, ...rest } = map;
+    return { ...rest, [newName]: value };
+  };
+  return {
+    ...attributeProps,
+    variables: renameKey(attributeProps?.variables),
+    omitted: renameKey(attributeProps?.omitted),
+    aliases: renameKey(attributeProps?.aliases),
+  };
+}
+
 const StyledModalHeader = styled(Modal.Header)`
   height: 7%;
 `;
@@ -107,6 +151,26 @@ const MapLayerModal = ({
 
   const onRequestHideModal = useCallback(() => {
     setHiddenForExtentDraw(true);
+  }, []);
+
+  // Intercept layerProps updates to preserve the invariant that attribute-map
+  // keys (variables/omitted/aliases) match the current layer name. Without
+  // this, a plugin scaffolds attribute maps keyed by the builder's layer name
+  // (e.g. "Stream Gauges"); if the author renames the layer in LayerPane, the
+  // maps are left keyed by the stale name and click/popup lookups miss. Only
+  // rewrites entries already keyed by the previous name (untouched when the
+  // map is empty), so static multi-layer sources (WMS, ESRI Image) are
+  // unaffected.
+  const handleLayerPropsChange = useCallback((updater) => {
+    setLayerProps((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      if (prev?.name && next?.name && prev.name !== next.name) {
+        setAttributeProps((prevAttr) =>
+          renameLayerInAttributeProps(prevAttr, prev.name, next.name),
+        );
+      }
+      return next;
+    });
   }, []);
 
   // When drawnExtent arrives, re-show modal and update sourceProps
@@ -359,12 +423,21 @@ const MapLayerModal = ({
 
     setSourceProps(apiResponse.data.configuration.props.source);
     setLayerProps(updatedLayerProps);
-    setAttributeProps({
-      variables: attributeVariables,
-      omitted: omittedPopupAttributes,
-      aliases: attributeAliases,
-      queryable: queryableLayer,
-    });
+    // Scaffolds emit attribute maps keyed by the template's layer name.
+    // Rekey to the effective layer name (preserving the author's earlier
+    // rename in LayerPane) so click/popup lookups stay in sync.
+    const effectiveName = layerProps?.name || updatedLayerProps.name;
+    setAttributeProps(
+      normalizeAttributePropsForLayer(
+        {
+          variables: attributeVariables,
+          omitted: omittedPopupAttributes,
+          aliases: attributeAliases,
+          queryable: queryableLayer,
+        },
+        effectiveName,
+      ),
+    );
     setStyle(apiResponse.data.configuration.style);
     setLegend(apiResponse.data.legend);
   };
@@ -416,17 +489,27 @@ const MapLayerModal = ({
         // Preserve the current layer name (author may have renamed the
         // layer in the Layer pane) — only fall back to the scaffold's
         // name when the current name is empty.
+        const effectiveName =
+          layerProps?.name || updatedLayerProps.name;
         setLayerProps((prev) => ({
           ...updatedLayerProps,
           name: prev?.name || updatedLayerProps.name,
           layerId: prev?.layerId,
         }));
-        setAttributeProps({
-          variables: attributeVariables,
-          omitted: omittedPopupAttributes,
-          aliases: attributeAliases,
-          queryable: queryableLayer,
-        });
+        // The scaffold keys attribute maps by the plugin builder's layer
+        // name (e.g. "Stream Gauges"); rekey to the effective (user-set)
+        // layer name so click/popup lookups find the expected variables.
+        setAttributeProps(
+          normalizeAttributePropsForLayer(
+            {
+              variables: attributeVariables,
+              omitted: omittedPopupAttributes,
+              aliases: attributeAliases,
+              queryable: queryableLayer,
+            },
+            effectiveName,
+          ),
+        );
         setStyle(config.style);
         setLegend(scaffold.legend);
         return { success: true };
@@ -437,7 +520,13 @@ const MapLayerModal = ({
         };
       }
     },
-    [setLayerProps, setAttributeProps, setStyle, setLegend],
+    [
+      layerProps?.name,
+      setLayerProps,
+      setAttributeProps,
+      setStyle,
+      setLegend,
+    ],
   );
 
   return (
@@ -469,7 +558,7 @@ const MapLayerModal = ({
             >
               <LayerPane
                 layerProps={layerProps}
-                setLayerProps={setLayerProps}
+                setLayerProps={handleLayerPropsChange}
               />
             </Tab>
             <Tab
