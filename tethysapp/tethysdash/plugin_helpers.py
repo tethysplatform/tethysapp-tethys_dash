@@ -6,12 +6,20 @@ and other plugin-related helpers.
 """
 
 import requests
+import warnings
 import xmltodict
 import copy
 from datetime import datetime
 from intake.source import base
 from dateutil.parser import parse
 import pytz
+
+
+DEFAULT_RUNTIME_PLACEHOLDER_GEOJSON = {
+    "type": "FeatureCollection",
+    "features": [],
+    "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+}
 
 
 def get_plugin_prop(obj, name, default=None):
@@ -61,6 +69,11 @@ class TethysDashPlugin(base.DataSource):
 
     Plugin developers can subclass this base class when creating new plugins to
     ensure consistency and compatibility with the TethysDash system.
+
+    dynamic map_layer plugins may optionally set
+    ``dynamic_map_layer = True`` and override :py:meth:`fetch_features` to
+    return GeoJSON features at render time (in addition to the configure-time
+    scaffold produced by :py:meth:`run`).
     """
 
     container = "python"
@@ -75,6 +88,7 @@ class TethysDashPlugin(base.DataSource):
     restricted = False
     loading_icon = True
     attribution = ""
+    dynamic_map_layer = False
 
     def __init__(self, metadata=None, *args, **kwargs):
         super().__init__(metadata=metadata)
@@ -87,6 +101,8 @@ class TethysDashPlugin(base.DataSource):
         self.restricted = get_plugin_prop(self, "restricted", False)
         self.loading_icon = get_plugin_prop(self, "loading_icon", True)
         self.attribution = get_plugin_prop(self, "attribution", "")
+        self.dynamic_map_layer = get_plugin_prop(self, "dynamic_map_layer", False)
+        self._pending_layer_id = None
 
         if not self.name:
             raise ValueError("Plugin must have a name attribute defined.")
@@ -115,12 +131,28 @@ class TethysDashPlugin(base.DataSource):
             "restricted",
             "loading_icon",
             "attribution",
+            "dynamic_map_layer",
         }
 
         if self.args.keys() & reserved_keys:
             raise ValueError(
                 f"Plugin args cannot contain reserved keys: {', '.join(reserved_keys)}"
             )  # noqa: E501
+
+        fetch_features_overridden = (
+            type(self).fetch_features is not TethysDashPlugin.fetch_features
+        )
+        if self.dynamic_map_layer and not fetch_features_overridden:
+            raise ValueError(
+                "dynamic_map_layer = True requires fetch_features to be overridden."
+            )
+        if fetch_features_overridden and not self.dynamic_map_layer:
+            warnings.warn(
+                "fetch_features is overridden but dynamic_map_layer = False; "
+                "the method will not be invoked at runtime.",
+                UserWarning,
+                stacklevel=2,
+            )
 
         for kwarg_name, kwarg_value in kwargs.items():
             arg_type = self.args.get(kwarg_name)
@@ -140,6 +172,28 @@ class TethysDashPlugin(base.DataSource):
         """
         raise NotImplementedError("Subclasses must implement the run() method.")
 
+    def fetch_features(self):
+        """
+        Dynamic feature fetch for dynamic ``map_layer`` plugins.
+
+        Override this method when ``dynamic_map_layer = True``. It is invoked at
+        map-render time (distinct from configure-time :py:meth:`run`) and
+        should return a GeoJSON ``FeatureCollection`` dict with a ``crs``
+        property. See :py:func:`validate_feature_collection` for the shape
+        contract.
+
+        Plugin arguments that were passed from the frontend are available as
+        class attributes after initialization, just as for :py:meth:`run`.
+
+        Returns:
+            dict: A GeoJSON FeatureCollection with a valid ``crs`` property.
+                May be empty (``features: []``) but must not be ``None`` or a
+                configure-time scaffold dict.
+        """
+        raise NotImplementedError(
+            "Dynamic map layer plugins must implement the fetch_features() method."
+        )
+
     def read(self, request_id):
         """
         DO NOT OVERRIDE THIS METHOD.
@@ -156,22 +210,54 @@ class TethysDashPlugin(base.DataSource):
 
         return self.run()
 
+    def read_features(self, request_id):
+        """
+        DO NOT OVERRIDE THIS METHOD.
+        Runtime entrypoint managed by the TethysDashPlugin base class.
+
+        Sets ``self.request_id`` for WebSocket messaging and delegates to
+        :py:meth:`fetch_features`.
+
+        Args:
+            request_id (str): The unique identifier for the plugin execution
+                request, used for WebSocket messaging. May be a composite id of
+                the form ``{sessionNonce}:{gridItemUUID}:{layerId}`` when called
+                from the runtime map-render path.
+
+        Returns:
+            dict: The FeatureCollection returned by ``fetch_features()``.
+        """
+        self.request_id = request_id
+        return self.fetch_features()
+
     def send_update(
         self,
         message,
         percentage_complete=None,
+        layer_id=None,
     ):
         """
         Send an update message via WebSocket.
 
         Args:
             message (str): The message content to send.
-            percentage_complete (float, optional): A number between 0 and 100 indicating the percentage of completion for a task. If provided, this will be included in the message to indicate progress.
+            percentage_complete (float, optional): A number between 0 and 100
+                indicating the percentage of completion for a task.
+            layer_id (str, optional): The stable identifier of the runtime
+                map-layer this message pertains to. When not explicitly passed,
+                falls back to the id attached by the framework before invoking
+                :py:meth:`fetch_features` (when applicable). Include this
+                automatically via the fallback when emitting progress from a
+                runtime features fetch.
         """
+        effective_layer_id = (
+            layer_id if layer_id is not None else self._pending_layer_id
+        )
         send_websocket_message(
             self.request_id,
             message,
             percentage_complete=percentage_complete,
+            layer_id=effective_layer_id,
         )
 
 
@@ -184,6 +270,7 @@ def send_websocket_message(
     sessionId=None,
     timestamp=None,
     messageId=None,
+    layer_id=None,
 ):
     """
     Send a message to a Django Channels group for WebSocket delivery.
@@ -195,6 +282,11 @@ def send_websocket_message(
         sender (str, optional): Identifier for the message sender.
         sessionId (str, optional): Session identifier for the message.
         timestamp (str, optional): Timestamp of the message.
+        layer_id (str, optional): Stable identifier of the runtime map-layer
+            this message pertains to. When present, included in the payload as
+            ``layerId`` (camelCase) so the frontend can route it to a per-layer
+            indicator. Omitted entirely when ``None``, preserving the existing
+            one-plugin-per-GridItem payload shape.
 
     Example:
         send_websocket_message('user_123', 'progress_message', 50)
@@ -219,6 +311,9 @@ def send_websocket_message(
         if messageId:
             websocket_message["messageId"] = messageId
 
+        if layer_id is not None:
+            websocket_message["layerId"] = layer_id
+
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
             "dashboard_updates",
@@ -230,6 +325,51 @@ def send_websocket_message(
     except Exception as e:
         # Optionally log or handle errors here
         print(f"WebSocket message send failed: {e}")
+
+
+_SCAFFOLD_SHAPE_KEYS = frozenset(
+    {"style", "legend", "source", "props", "configuration"}
+)
+
+
+def validate_feature_collection(data):
+    """
+    Validate the return value of a dynamic-map-layer plugin's ``fetch_features``.
+
+    Accepts an empty FeatureCollection (``features: []``) as a legitimate
+    success state, but rejects ``None`` and configure-time scaffold shapes
+    with explicit error messages so plugin authors can self-diagnose from the
+    per-layer error UI.
+
+    Args:
+        data: The return value of a plugin's ``fetch_features()``.
+
+    Raises:
+        ValueError: If ``data`` is ``None``, if it is a scaffold-shaped dict
+            (contains any of ``style``/``legend``/``source``/``props``/
+            ``configuration`` at the top level), or if it is not a valid
+            GeoJSON FeatureCollection with a ``crs`` property (delegated to
+            :py:func:`validate_geojson`).
+
+    Returns:
+        True when ``data`` is a valid FeatureCollection.
+    """
+    if data is None:
+        raise ValueError(
+            "runtime method returned None; return an empty FeatureCollection "
+            "instead (e.g., {'type': 'FeatureCollection', 'features': [], "
+            "'crs': {...}})."
+        )
+
+    if isinstance(data, dict) and _SCAFFOLD_SHAPE_KEYS.intersection(data.keys()):
+        raise ValueError(
+            "runtime method returned a configure-time scaffold; return only "
+            "the FeatureCollection from fetch_features()."
+        )
+
+    # Delegate positive-shape + CRS enforcement to the existing validator.
+    validate_geojson(data)
+    return True
 
 
 available_source_properties = {
@@ -390,6 +530,7 @@ class LayerConfigurationBuilder:
             "attributeVariables": {},
             "omittedPopupAttributes": {},
         }
+        self._plugin_source = None
 
     def get_available_source_properties(self):
         """
@@ -405,6 +546,42 @@ class LayerConfigurationBuilder:
                 available_source_properties mapping.
         """
         return available_source_properties[self.layer_source]
+
+    def set_plugin_source(self, source: str, args: dict):
+        """
+        Mark this layer as dynamic-map-layer by attaching a plugin reference.
+
+        At render time, the frontend invokes the referenced plugin's
+        ``fetch_features()`` and swaps the returned FeatureCollection into the
+        layer's OpenLayers VectorLayer in place. The scaffold produced by
+        :py:meth:`build` is preserved as the save-time snapshot.
+
+        Runtime plugins are GeoJSON-only in v1; this method raises if the
+        builder was not constructed with ``layer_source="GeoJSON"``.
+
+        Args:
+            source (str): The Intake source name (plugin entry name) that will
+                be invoked at runtime to fetch features.
+            args (dict): Raw argument template dictionary (variable-input
+                bindings like ``"${VarName}"`` are preserved as-is and
+                resolved at runtime).
+
+        Raises:
+            ValueError: If ``layer_source`` is not ``"GeoJSON"``.
+
+        Returns:
+            LayerConfigurationBuilder: self (for chaining)
+        """
+        if self.layer_source != "GeoJSON":
+            raise ValueError(
+                "Runtime plugins must use LayerConfigurationBuilder(name, "
+                f"'GeoJSON'); current layer_source is '{self.layer_source}'."
+            )
+        if not isinstance(args, dict):
+            raise ValueError("plugin_source args must be a dictionary.")
+
+        self._plugin_source = {"source": source, "args": args}
+        return self
 
     def set_geojson(self, geojson: dict):
         """
@@ -1089,11 +1266,33 @@ class LayerConfigurationBuilder:
             )
 
     def build(self):
-        required_fields = available_source_properties.get(self.layer_source)["required"]
-        source_props = self.config["configuration"]["props"]["source"]["props"]
-        self._validate_required_fields(required_fields, source_props)
+        is_runtime = self._plugin_source is not None
+
+        if not is_runtime:
+            required_fields = available_source_properties.get(self.layer_source)[
+                "required"
+            ]
+            source_props = self.config["configuration"]["props"]["source"]["props"]
+            self._validate_required_fields(required_fields, source_props)
 
         built_config = copy.deepcopy(self.config)
+
+        if is_runtime:
+            # Ensure the scaffold snapshot is a valid GeoJSON VectorLayer so
+            # existing Alembic migrations that iterate
+            # configuration.props.source.type keep working, and so ModuleLoader
+            # can instantiate an empty OL VectorLayer before the first runtime
+            # fetch completes.
+            built_source = built_config["configuration"]["props"]["source"]
+            built_source["type"] = "GeoJSON"
+            if "geojson" not in built_source:
+                built_source["geojson"] = copy.deepcopy(
+                    DEFAULT_RUNTIME_PLACEHOLDER_GEOJSON
+                )
+            built_config["configuration"]["props"]["pluginSource"] = copy.deepcopy(
+                self._plugin_source
+            )
+
         if not self.config["attributeAliases"]:
             del built_config["attributeAliases"]
 

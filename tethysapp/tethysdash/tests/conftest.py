@@ -467,6 +467,7 @@ def mock_plugin(mocker):
         visualization_attribution="some attribution",
         visualization_loading_icon=False,
         visualization_restricted=True,
+        visualization_dynamic_map_layer=False,
     )
     plugin.name = "package_name"
 
@@ -521,6 +522,7 @@ def mock_plugin2(mocker):
         visualization_label="Some Package2",
         visualization_args={"package_arg": "text"},
         visualization_type="image",
+        visualization_dynamic_map_layer=False,
     )
     plugin.name = "package_name2"
 
@@ -543,6 +545,7 @@ def mock_plugin_visualization(mock_plugin):
                 "attribution": mock_plugin.visualization_attribution,
                 "loading_icon": mock_plugin.visualization_loading_icon,
                 "restricted": mock_plugin.visualization_restricted,
+                "dynamic_map_layer": False,
             }
         ],
     }
@@ -566,6 +569,7 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "attribution": "",
                 "loading_icon": True,
                 "restricted": False,
+                "dynamic_map_layer": False,
             },
             {
                 "source": mock_plugin.name,
@@ -578,6 +582,7 @@ def mock_plugin_visualization2(mock_plugin, mock_plugin2):
                 "attribution": mock_plugin.visualization_attribution,
                 "loading_icon": mock_plugin.visualization_loading_icon,
                 "restricted": mock_plugin.visualization_restricted,
+                "dynamic_map_layer": False,
             },
         ],
     }

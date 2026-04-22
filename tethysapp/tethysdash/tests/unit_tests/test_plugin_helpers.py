@@ -1020,8 +1020,11 @@ def test_plugin_send_update(monkeypatch):
     plugin.request_id = "reqid"
     called = {}
 
-    def fake_send_websocket_message(request_id, message, percentage_complete=None):
+    def fake_send_websocket_message(
+        request_id, message, percentage_complete=None, **kwargs
+    ):
         called["args"] = (request_id, message, percentage_complete)
+        called["kwargs"] = kwargs
 
     monkeypatch.setattr(
         "tethysapp.tethysdash.plugin_helpers.send_websocket_message",
@@ -1029,9 +1032,328 @@ def test_plugin_send_update(monkeypatch):
     )
     plugin.send_update("msg", percentage_complete=42)
     assert called["args"] == ("reqid", "msg", 42)
+    # layer_id defaults to None (no pending layer context for a non-runtime plugin)
+    assert called["kwargs"] == {"layer_id": None}
 
 
 def test_plugin_kwargs_are_set():
     plugin = MinimalPlugin(foo=123, fooDate="2023-01-01")
     assert plugin.foo == 123
     assert plugin.fooDate == datetime(2023, 1, 1, 0, 0, tzinfo=timezone.utc)
+
+
+# --- Runtime-capable plugin tests -------------------------------------------
+
+
+class MinimalRuntimePlugin(TethysDashPlugin):
+    name = "minimal_runtime"
+    group = "TestGroup"
+    label = "Minimal Runtime Plugin"
+    type = "map_layer"
+    dynamic_map_layer = True
+    args = {"bbox": "text"}
+
+    def run(self):
+        return {
+            "configuration": {
+                "type": "VectorLayer",
+                "props": {
+                    "name": "runtime layer",
+                    "source": {"type": "GeoJSON", "props": {}},
+                },
+            }
+        }
+
+    def fetch_features(self):
+        return {
+            "type": "FeatureCollection",
+            "features": [],
+            "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+        }
+
+
+def test_runtime_plugin_init_and_read_features():
+    plugin = MinimalRuntimePlugin()
+    assert plugin.dynamic_map_layer is True
+    result = plugin.read_features("req-a:grid-b:layer-c")
+    assert plugin.request_id == "req-a:grid-b:layer-c"
+    assert result["type"] == "FeatureCollection"
+    assert result["features"] == []
+
+
+def test_dynamic_map_layer_flag_without_method_raises():
+    class BadRuntime(TethysDashPlugin):
+        name = "bad_runtime"
+        group = "g"
+        label = "l"
+        type = "map_layer"
+        dynamic_map_layer = True
+
+    with pytest.raises(ValueError, match="fetch_features to be overridden"):
+        BadRuntime()
+
+
+def test_fetch_features_without_flag_warns():
+    class DormantRuntime(TethysDashPlugin):
+        name = "dormant"
+        group = "g"
+        label = "l"
+        type = "map_layer"
+
+        def fetch_features(self):
+            return {}
+
+    with pytest.warns(UserWarning, match="will not be invoked at runtime"):
+        DormantRuntime()
+
+
+def test_runtime_plugin_multi_level_inheritance_valid():
+    class IntermediateRuntime(TethysDashPlugin):
+        name = "intermediate"
+        group = "g"
+        label = "l"
+        type = "map_layer"
+        dynamic_map_layer = True
+
+        def fetch_features(self):
+            return {
+                "type": "FeatureCollection",
+                "features": [],
+                "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+            }
+
+    class ChildRuntime(IntermediateRuntime):
+        name = "child"
+
+    child = ChildRuntime()
+    assert child.dynamic_map_layer is True
+    result = child.read_features("rid")
+    assert result["type"] == "FeatureCollection"
+
+
+def test_runtime_plugin_fetch_features_not_implemented():
+    """Runtime-capable plugins that somehow bypass init validation still
+    surface a clear error when fetch_features is not overridden."""
+
+    class ForgottenRuntime(TethysDashPlugin):
+        name = "forgotten"
+        group = "g"
+        label = "l"
+        type = "map_layer"
+
+    # This one is allowed (not dynamic_map_layer), but calling fetch_features
+    # directly should still raise the default NotImplementedError.
+    plugin = ForgottenRuntime()
+    with pytest.raises(NotImplementedError, match="fetch_features"):
+        plugin.fetch_features()
+
+
+def test_runtime_plugin_send_update_attaches_pending_layer_id(monkeypatch):
+    plugin = MinimalRuntimePlugin()
+    plugin.request_id = "sess:grid:layer-7"
+    plugin._pending_layer_id = "layer-7"
+    called = {}
+
+    def fake_send_websocket_message(request_id, message, **kwargs):
+        called["request_id"] = request_id
+        called["message"] = message
+        called["kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        "tethysapp.tethysdash.plugin_helpers.send_websocket_message",
+        fake_send_websocket_message,
+    )
+    plugin.send_update("p", percentage_complete=50)
+    assert called["request_id"] == "sess:grid:layer-7"
+    assert called["kwargs"].get("layer_id") == "layer-7"
+
+
+def test_runtime_plugin_send_update_explicit_layer_id_overrides(monkeypatch):
+    plugin = MinimalRuntimePlugin()
+    plugin.request_id = "sess:grid:layer-7"
+    plugin._pending_layer_id = "layer-7"
+    called = {}
+
+    def fake_send_websocket_message(request_id, message, **kwargs):
+        called["kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        "tethysapp.tethysdash.plugin_helpers.send_websocket_message",
+        fake_send_websocket_message,
+    )
+    plugin.send_update("p", percentage_complete=50, layer_id="explicit")
+    assert called["kwargs"].get("layer_id") == "explicit"
+
+
+# --- validate_feature_collection tests --------------------------------------
+
+
+def _valid_fc(features=None):
+    return {
+        "type": "FeatureCollection",
+        "features": features or [],
+        "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+    }
+
+
+def test_validate_feature_collection_happy_path():
+    from tethysapp.tethysdash.plugin_helpers import validate_feature_collection
+
+    assert validate_feature_collection(_valid_fc()) is True
+
+
+def test_validate_feature_collection_empty_ok():
+    from tethysapp.tethysdash.plugin_helpers import validate_feature_collection
+
+    assert validate_feature_collection(_valid_fc(features=[])) is True
+
+
+def test_validate_feature_collection_none_raises():
+    from tethysapp.tethysdash.plugin_helpers import validate_feature_collection
+
+    with pytest.raises(ValueError, match="returned None"):
+        validate_feature_collection(None)
+
+
+def test_validate_feature_collection_scaffold_detection():
+    from tethysapp.tethysdash.plugin_helpers import validate_feature_collection
+
+    # Dict containing scaffold-shape keys at the top level is rejected.
+    for offending_key in ["style", "legend", "source", "props", "configuration"]:
+        payload = {
+            "type": "FeatureCollection",
+            offending_key: {},
+            "features": [],
+            "crs": {"type": "name", "properties": {"name": "EPSG:4326"}},
+        }
+        with pytest.raises(ValueError, match="configure-time scaffold"):
+            validate_feature_collection(payload)
+
+
+def test_validate_feature_collection_missing_crs_raises():
+    from tethysapp.tethysdash.plugin_helpers import validate_feature_collection
+
+    with pytest.raises(ValueError, match="crs"):
+        validate_feature_collection({"type": "FeatureCollection", "features": []})
+
+
+# --- send_websocket_message layer_id tests ----------------------------------
+
+
+def test_send_websocket_message_includes_layer_id(mocker):
+    mock_channel_layer = mocker.MagicMock()
+    mocker.patch("channels.layers.get_channel_layer", return_value=mock_channel_layer)
+    mocker.patch(
+        "asgiref.sync.async_to_sync",
+        lambda fn: fn,
+    )
+    mock_channel_layer.group_send.return_value = None
+
+    send_websocket_message(
+        "sess:grid:layer-1",
+        "progress",
+        percentage_complete=10,
+        layer_id="layer-1",
+    )
+    call_args = mock_channel_layer.group_send.call_args
+    assert call_args is not None
+    _, payload = call_args.args
+    assert payload["message"]["layerId"] == "layer-1"
+    assert payload["message"]["requestId"] == "sess:grid:layer-1"
+    assert payload["message"]["percentageComplete"] == 10
+
+
+def test_send_websocket_message_omits_layer_id_when_none(mocker):
+    mock_channel_layer = mocker.MagicMock()
+    mocker.patch("channels.layers.get_channel_layer", return_value=mock_channel_layer)
+    mocker.patch("asgiref.sync.async_to_sync", lambda fn: fn)
+    mock_channel_layer.group_send.return_value = None
+
+    send_websocket_message("grid-only", "progress", percentage_complete=20)
+    _, payload = mock_channel_layer.group_send.call_args.args
+    assert "layerId" not in payload["message"]
+
+
+# --- LayerConfigurationBuilder.set_plugin_source tests ----------------------
+
+
+def test_builder_set_plugin_source_happy_path():
+    builder = LayerConfigurationBuilder("runtime layer", "GeoJSON")
+    builder.set_plugin_source("my_runtime_plugin", {"bbox": "${BBox}"})
+    config = builder.build()
+
+    props = config["configuration"]["props"]
+    assert props["pluginSource"] == {
+        "source": "my_runtime_plugin",
+        "args": {"bbox": "${BBox}"},
+    }
+    assert props["source"]["type"] == "GeoJSON"
+    assert props["source"]["geojson"]["type"] == "FeatureCollection"
+    assert props["source"]["geojson"]["features"] == []
+    assert props["source"]["geojson"]["crs"]["properties"]["name"] == "EPSG:4326"
+
+
+def test_builder_set_plugin_source_rejects_non_geojson():
+    builder = LayerConfigurationBuilder("wms layer", "WMS")
+    with pytest.raises(ValueError, match="must use LayerConfigurationBuilder"):
+        builder.set_plugin_source("some_plugin", {})
+
+
+def test_builder_set_plugin_source_rejects_non_dict_args():
+    builder = LayerConfigurationBuilder("runtime layer", "GeoJSON")
+    with pytest.raises(ValueError, match="args must be a dictionary"):
+        builder.set_plugin_source("some_plugin", "not a dict")
+
+
+def test_builder_build_skips_required_field_validation_for_runtime():
+    """Runtime builds should not trip WMS/KML-style required-field checks.
+
+    Since set_plugin_source already requires layer_source=='GeoJSON', the
+    relevant assertion is that build() doesn't spuriously fail on a
+    plugin-backed GeoJSON layer with no url/params set.
+    """
+    builder = LayerConfigurationBuilder("runtime layer", "GeoJSON")
+    builder.set_plugin_source("p", {})
+    # Should not raise.
+    config = builder.build()
+    assert "pluginSource" in config["configuration"]["props"]
+
+
+def test_builder_build_preserves_static_behavior():
+    """Non-runtime GeoJSON builders still work as before (pluginSource absent)."""
+    builder = LayerConfigurationBuilder("static layer", "GeoJSON")
+    builder.set_geojson(
+        {
+            "type": "FeatureCollection",
+            "features": [],
+            "crs": {"properties": {"name": "EPSG:4326"}},
+        }
+    )
+    config = builder.build()
+    assert "pluginSource" not in config["configuration"]["props"]
+
+
+def test_builder_runtime_geojson_override():
+    """If the plugin calls set_geojson with real features before set_plugin_source,
+    those features persist (plugin may want to ship a seed state)."""
+    seed = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {},
+                "geometry": {"type": "Point", "coordinates": [0, 0]},
+            }
+        ],
+        "crs": {"properties": {"name": "EPSG:4326"}},
+    }
+    builder = LayerConfigurationBuilder("runtime layer", "GeoJSON")
+    builder.set_geojson(seed)
+    builder.set_plugin_source("p", {})
+    config = builder.build()
+    assert (
+        config["configuration"]["props"]["source"]["geojson"]["features"][0][
+            "geometry"
+        ]["type"]
+        == "Point"
+    )

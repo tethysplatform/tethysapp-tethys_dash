@@ -642,11 +642,12 @@ export async function getStyleFields({
   return fields;
 }
 
-export async function getLayerAttributes(
+export async function getLayerAttributes({
   sourceProps,
   layerName,
   dashboard_uuid,
-) {
+  isDynamicMapLayer,
+}) {
   // setup constants
   let attributes;
   const sourceProperties = sourceProps.props;
@@ -657,8 +658,13 @@ export async function getLayerAttributes(
   const layerNumber = sourceProperties?.layer;
 
   // make the appropriate request based on the source type
-  // TODO: add PM Vector Tile and KML attribute retrieval
-  if (sourceType === "ESRI Image and Map Service") {
+  if (isDynamicMapLayer) {
+    attributes = await appAPI.getVisualizationData({
+      source: sourceProps.source,
+      args: sourceProps.args,
+    });
+    // handle dynamic map layer case
+  } else if (sourceType === "ESRI Image and Map Service") {
     attributes = await getImageArcGISRestLayerAttributes(
       sourceUrl,
       sourceParams,
@@ -1174,11 +1180,26 @@ export const sourcePropType = PropTypes.shape({
   type: PropTypes.string, // layer source type
 });
 
+// plugin-reference block for runtime-capable map_layer plugins.
+// Present as a sibling to `source` under `configuration.props` when the
+// layer's features are fetched at runtime via plugin.fetch_features().
+// `args` preserves raw template strings (e.g. "${VarName}") and is resolved
+// against VariableInputsContext at fetch time.
+export const pluginSourcePropType = PropTypes.shape({
+  source: PropTypes.string.isRequired,
+  args: PropTypes.object.isRequired,
+});
+
 export const configurationPropType = PropTypes.shape({
   // other layer properties are available like opacity, zoom, etc. see components/map/utilities.js (layerPropertiesOptions) for examples
   props: PropTypes.shape({
     name: PropTypes.string,
     source: sourcePropType,
+    // Stable UUID assigned at save time; used for runtime-layer
+    // reconciliation identity and for the per-layer WebSocket correlation id.
+    layerId: PropTypes.string,
+    // Optional; present on runtime-capable layers only.
+    pluginSource: pluginSourcePropType,
   }),
   type: PropTypes.string, // layer type
 });
