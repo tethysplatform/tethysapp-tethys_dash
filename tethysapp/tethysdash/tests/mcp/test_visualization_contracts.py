@@ -325,6 +325,28 @@ class TestCreateCard:
             {"label": "A", "value": 1}
         ]
 
+    def test_malformed_json_array_string_returns_error(self):
+        # Review finding COR-06 / REL-009: a string that clearly looks like
+        # JSON (leading `[`) but is malformed must NOT fall through to scalar
+        # handling and become the card's metric text. Matches the behavior
+        # of create_plotly_chart, create_data_table, patch_visualization.
+        result = create_card(title="Oops", data='[{"label": "A"')
+        assert "error" in result
+        assert "invalid_args" in result["error"]
+
+    def test_malformed_json_object_string_returns_error(self):
+        result = create_card(title="Oops", data='{"label": "A"')
+        assert "error" in result
+        assert "invalid_args" in result["error"]
+
+    def test_plain_scalar_string_still_wraps_as_value(self):
+        # Strings that DON'T look like JSON (no leading `[` or `{`) remain
+        # scalar values — no error, just a single-entry wrapped stat.
+        result = create_card(title="Count", data="not json at all")
+        assert result["visualization"]["inlineData"]["data"] == [
+            {"value": "not json at all"}
+        ]
+
     def test_default_dimensions(self):
         result = create_card(title="Test")
         viz = result["visualization"]

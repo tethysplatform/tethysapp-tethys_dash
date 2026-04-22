@@ -289,10 +289,19 @@ def _coerce_card_data(data: Any) -> List[Dict[str, Any]]:
     if isinstance(data, str):
         stripped = data.strip()
         if stripped.startswith("[") or stripped.startswith("{"):
+            # The string clearly looks like JSON — a leading `[` or `{` is
+            # unambiguous LLM intent. Malformed JSON at that point is an
+            # error, not a scalar label, per the project-wide dict-coercion
+            # pattern used by add_map_service_layer and patch_visualization.
             try:
                 return _coerce_card_data(json.loads(stripped))
-            except json.JSONDecodeError:
-                pass  # Fall through to scalar handling.
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"`data` looks like JSON (starts with {stripped[0]!r}) "
+                    f"but is malformed: {exc}"
+                ) from exc
+        # Plain strings like "42" or "Operational" were never intended as
+        # JSON — treat as a scalar stat value.
         return [{"value": data}]
     if isinstance(data, dict):
         return [data]
@@ -329,7 +338,18 @@ def create_card(
 
     Cards display a title, description, and a list of stat entries.
     Renders using TethysDash's native Card component.
+
+    The ``data`` parameter is typed ``Any`` because the tool accepts several
+    LLM-friendly shapes (scalar, dict, list-of-dicts, JSON-string) and
+    normalizes internally via :func:`_coerce_card_data` to the
+    ``List[Dict]`` shape the renderer expects. Malformed JSON-looking
+    strings raise and produce an ``{"error": ...}`` envelope rather than
+    silently becoming a scalar label.
     """
+    try:
+        coerced_data = _coerce_card_data(data)
+    except ValueError as exc:
+        return {"error": f"invalid_args: {exc}"}
     return {
         "visualization": {
             "source": "Inline Card",
@@ -338,7 +358,7 @@ def create_card(
             "inlineData": {
                 "title": title,
                 "description": description or "",
-                "data": _coerce_card_data(data),
+                "data": coerced_data,
             },
             "w": w,
             "h": h,
@@ -973,36 +993,55 @@ def _validate_patch_envelope_shape(patches):
         # Op-type-specific field requirements per RFC 6902
         if op["op"] in {"add", "replace", "test"} and "value" not in op:
             return f"op {i} ({op['op']}) missing required field `value`"
-        if op["op"] == "move" and "from" not in op:
-            return f"op {i} (move) missing required field `from`"
+        if op["op"] == "move":
+            if "from" not in op:
+                return f"op {i} (move) missing required field `from`"
+            if not isinstance(op["from"], str):
+                return f"op {i} (move) field `from` must be a string"
+            if not op["from"].startswith("/"):
+                return (
+                    f"op {i} (move) `from` {op['from']!r} must be an absolute "
+                    f"JSON Pointer starting with `/`"
+                )
     return None
 
 
 def _check_r5c_array_collision(patches):
-    """R5c: reject multi-op envelopes with >1 add/remove targeting the same array parent.
+    """R5c: reject multi-op envelopes with >1 index-shifting op targeting the
+    same array parent.
 
-    Sequential-index semantics shift indices after each op — LLMs get this wrong.
-    The LLM's recovery path is a single `replace` on the parent array.
+    Sequential-index semantics shift indices after each op — LLMs get this
+    wrong. The LLM's recovery path is a single `replace` on the parent array.
 
-    Applies to any indexed array parent (not just /args/layers). Does NOT apply
-    to `replace` — replace at an index is index-stable.
+    Applies to any indexed array parent (not just /args/layers). `move` is
+    treated as `remove + add` and participates in the collision check at both
+    its `from` and `path`. `replace` at an index is index-stable and does NOT
+    participate.
 
     Returns an error string or None.
     """
     add_remove_by_parent = {}
-    for i, op in enumerate(patches):
-        op_name = op.get("op")
-        if op_name not in ("add", "remove"):
-            continue
-        path = op.get("path", "")
-        segments = path.split("/")
+
+    def _add_collision_candidate(parent_path, op_index):
+        """Register this op's parent path if it ends in an array-index segment."""
+        segments = parent_path.split("/")
         if len(segments) < 2:
-            continue
+            return
         last = segments[-1]
         # Only group when the trailing segment is an array-index marker
         if last == "-" or last.isdigit():
             parent = "/".join(segments[:-1])
-            add_remove_by_parent.setdefault(parent, []).append(i)
+            add_remove_by_parent.setdefault(parent, []).append(op_index)
+
+    for i, op in enumerate(patches):
+        op_name = op.get("op")
+        if op_name == "add" or op_name == "remove":
+            _add_collision_candidate(op.get("path", ""), i)
+        elif op_name == "move":
+            # A `move` is semantically `remove(from) + add(path)`. Both endpoints
+            # participate in index-shift problems.
+            _add_collision_candidate(op.get("from", ""), i)
+            _add_collision_candidate(op.get("path", ""), i)
     for parent, indices in add_remove_by_parent.items():
         if len(indices) > 1:
             return (
@@ -1144,6 +1183,16 @@ def patch_visualization(
                 f"{allowed_prefixes}. Each entry is a prefix you can extend "
                 f"(e.g., if `/args/inlineData` is allowed, then "
                 f"`/args/inlineData/layout/title` is allowed too)."
+            )}
+        # `move` reads from a second pointer and removes the node there.
+        # The `from` path must also be in the whitelist, otherwise a
+        # whitelisted `path` would surface arbitrary internal fields.
+        if op["op"] == "move" and not is_path_allowed(source, op["from"]):
+            return {"error": (
+                f"whitelist_rejected: op {i} `from` {op['from']!r} is not "
+                f"editable for viz source {source!r}. A `move` op is a read "
+                f"followed by a write; both ends must fall under one of the "
+                f"allowed prefixes for this source: {allowed_prefixes}."
             )}
 
     # R9/R10: layer-construction boundary (Map only)

@@ -485,6 +485,38 @@ class TestR5cArrayCollision:
         )
         assert "patch_update" in result
 
+    def test_move_plus_remove_at_same_array_rejected(self):
+        # `move` is semantically `remove(from) + add(path)`. Pairing it with
+        # another remove (or add) at the same array parent produces the same
+        # index-shift corruption R5c was designed to prevent. Review
+        # finding COR-04 / ADV-002 — the earlier check only flagged
+        # add/remove, letting move slip past.
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[
+                {"op": "remove", "path": "/args/layers/2"},
+                {"op": "move", "from": "/args/layers/3", "path": "/args/layers/4"},
+            ],
+        )
+        assert "error" in result
+        assert "invalid_envelope" in result["error"]
+        assert "/args/layers" in result["error"]
+
+    def test_move_both_endpoints_on_same_array_rejected(self):
+        # A single `move` op from/to the same indexed array parent already
+        # shifts indices — reject on its own.
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[
+                {"op": "move", "from": "/args/layers/0", "path": "/args/layers/2"},
+                {"op": "remove", "path": "/args/layers/3"},
+            ],
+        )
+        assert "error" in result
+        assert "invalid_envelope" in result["error"]
+
 
 # ---------------------------------------------------------------------------
 # R7 whitelist (fail-closed)
@@ -555,6 +587,72 @@ class TestWhitelist:
         # LLM's observed failure mode was trying viz-native paths with no
         # /args prefix at all.
         assert "/args/" in result["error"]
+
+    def test_move_from_outside_whitelist_rejected(self):
+        # Review finding COR-01 / ADV-001 / SEC-001 (cross-reviewer
+        # convergence, P1). A `move` op reads from `op["from"]` and writes
+        # to `op["path"]`. Before this fix, only `path` was whitelist-checked,
+        # so the LLM could pluck a value from an unlisted field and surface
+        # it into a user-visible whitelisted field (e.g., move internal
+        # attribution string into /args/baseMap).
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "move",
+                "from": "/args/secret_internal_field",
+                "path": "/args/baseMap",
+            }],
+        )
+        assert "error" in result
+        assert "whitelist_rejected" in result["error"]
+        # Error specifically identifies the `from` field as the rejection reason.
+        assert "from" in result["error"]
+
+    def test_move_both_endpoints_whitelisted_accepted(self):
+        # Sanity check: when both from and path fall under allowed prefixes,
+        # the op is accepted (subject to other checks like R5c).
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{
+                "op": "move",
+                "from": "/args/layerControl",
+                "path": "/args/baseMap",
+            }],
+        )
+        # Both sides are valid Map paths — whitelist check passes. (Semantic
+        # validity is separate; this test pins the whitelist-check contract.)
+        assert "patch_update" in result
+
+    def test_move_from_missing_rejected_at_shape_check(self):
+        # R1/R2: shape validation rejects a `move` without `from` BEFORE
+        # whitelist check runs, so the error class is invalid_envelope.
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{"op": "move", "path": "/args/baseMap"}],
+        )
+        assert "error" in result
+        assert "invalid_envelope" in result["error"]
+
+    def test_move_from_non_string_rejected_at_shape_check(self):
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{"op": "move", "from": 42, "path": "/args/baseMap"}],
+        )
+        assert "error" in result
+        assert "invalid_envelope" in result["error"]
+
+    def test_move_from_relative_path_rejected_at_shape_check(self):
+        result = patch_visualization(
+            target_uuid=_fresh_uuid(),
+            source="Map",
+            patches=[{"op": "move", "from": "args/baseMap", "path": "/args/layerControl"}],
+        )
+        assert "error" in result
+        assert "invalid_envelope" in result["error"]
 
     def test_error_mentions_prefix_extensibility(self):
         """The error must communicate the extensibility guidance so the LLM
