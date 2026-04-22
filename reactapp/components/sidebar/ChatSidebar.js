@@ -2,6 +2,7 @@ import { memo, useCallback, useContext, useMemo } from "react";
 import styled from "styled-components";
 import {
   AppContext,
+  LayoutContext,
   TabContext,
   VariableInputsContext,
 } from "components/contexts/Contexts";
@@ -87,6 +88,13 @@ function ChatSidebar() {
   // persisted. The Chatbox package remains generic — TethysDash state is
   // injected via engineExtensions below.
   const { tabs } = useContext(TabContext) ?? {};
+  // R11 (permission gate): the chatbox is an editor tool. Viewers and
+  // not-yet-loaded permission states get no chatbox at all — matches the
+  // edit modal's visibility. `editable` is the same boolean the layout
+  // chrome already uses to hide edit controls (DashboardLoader.js:50).
+  // When mounted outside LayoutContext (test harness), default to not-
+  // editable — failing closed is safer than failing open.
+  const { editable } = useContext(LayoutContext) ?? {};
 
   const updateVariableInputValues = useCallback(
     (updatedValues) =>
@@ -200,6 +208,11 @@ function ChatSidebar() {
     }),
     [patchContext],
   );
+
+  // R11: viewers and not-yet-loaded permission states see no chatbox at
+  // all. All hooks above ran unconditionally (React rules); the gate is
+  // the render output. Aligns with the edit-modal visibility pattern.
+  if (!editable) return null;
 
   // Sidebar renders even without chatboxConfig — users add MCP servers via the panel.
   // LLM provider config is managed via localStorage (LLMProviderPanel in chatbox).

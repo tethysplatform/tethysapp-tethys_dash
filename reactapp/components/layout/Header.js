@@ -553,7 +553,11 @@ export const DashboardHeader = () => {
                 <BsFillPersonFill size="1.5rem" />
               </TooltipButton>
             )}
-            {(
+            {/* R11: chatbox toggle is only visible to editors/admins. The
+                sidebar itself also gates on `editable` defensively; this
+                hides the affordance so viewers don't see a button that
+                opens an empty region. */}
+            {editable && (
               <TooltipButton
                 onClick={toggleChatSidebar}
                 tooltipPlacement="bottom"
