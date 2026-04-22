@@ -76,14 +76,19 @@ export function buildDashboardState(tabs) {
  * @param {Array<{source?: string}>} items - dashboard_state entries
  * @returns {Object<string, string[]>} source name -> list of allowed prefixes
  */
-export function buildEditablePathsBySource(items) {
+export function buildEditablePathsBySource(items, pluginEditablePaths) {
   if (!Array.isArray(items)) return {};
+  const pluginPaths = pluginEditablePaths || {};
   const out = {};
   for (const item of items) {
     const source = item?.source;
     if (!source || out[source]) continue;
-    const prefixes = LLM_EDITABLE_PATHS[source];
-    if (prefixes) out[source] = prefixes;
+    // Static built-in whitelist takes precedence so existing viz types
+    // behave identically. Plugin-provided whitelists come from the server
+    // (list_available_visualizations result cached at app load); the
+    // server is authoritative for plugin sources per R9.
+    const prefixes = LLM_EDITABLE_PATHS[source] || pluginPaths[source];
+    if (prefixes && prefixes.length > 0) out[source] = prefixes;
   }
   return out;
 }
@@ -151,10 +156,13 @@ export function buildValueHintsBySource(items) {
  * @param {Object} variableInputValues - current variable input values
  * @returns {Object|null} {dashboard_state, editable_paths_by_source, value_hints_by_source, variable_input_values}
  */
-export function buildPatchContext(tabs, variableInputValues) {
+export function buildPatchContext(tabs, variableInputValues, pluginEditablePaths) {
   const dashboardState = buildDashboardState(tabs);
   if (dashboardState.length === 0) return null;
-  const editablePathsBySource = buildEditablePathsBySource(dashboardState);
+  const editablePathsBySource = buildEditablePathsBySource(
+    dashboardState,
+    pluginEditablePaths,
+  );
   // If nothing in the dashboard is patchable, skip the injection — the
   // LLM has no use for it (and the create tools provide their own context).
   if (Object.keys(editablePathsBySource).length === 0) return null;

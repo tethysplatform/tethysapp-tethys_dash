@@ -1752,6 +1752,35 @@ def register_runtime_plugin(
 # Discovery tools
 # ---------------------------------------------------------------------------
 
+def _collect_intake_plugin_whitelists() -> Dict[str, List[str]]:
+    """Return {source: resolved_paths} for every registered Intake plugin.
+
+    Iterates ``intake.source.registry`` and resolves each source through the
+    shared editable-paths resolver. Used by list_available_visualizations to
+    feed the client-side dashboard_state injection with authoritative
+    server-computed whitelists (see Unit C2 of the plan).
+    """
+    try:
+        import intake
+        registry = intake.source.registry
+    except (ImportError, AttributeError):
+        return {}
+    results: Dict[str, List[str]] = {}
+    try:
+        source_names = list(registry)
+    except TypeError:
+        return {}
+    for source in source_names:
+        # Skip obvious non-plugin drivers. The canonical TethysDash plugin
+        # signal is whether resolve_editable_paths returns a non-empty list
+        # OR the plugin is in the TethysDashPlugin family. We surface every
+        # source the resolver recognizes; those that are not TethysDashPlugin
+        # subclasses will return empty lists, which we still emit so the
+        # client can distinguish "known but no paths" from "unknown".
+        results[source] = resolve_editable_paths(source)
+    return results
+
+
 @mcp.tool(
     name="list_available_visualizations",
     description="List all visualization types: native (charts, tables, maps), registered custom visualizations, and MFE components",
@@ -1817,9 +1846,20 @@ def list_available_visualizations() -> Dict[str, Any]:
                 "tags": plugin.get("tags", []),
                 "args_schema": _convert_plugin_args_to_schema(plugin.get("args", {})),
                 "tool": "render_custom_visualization",
+                # Server-authoritative whitelist for LLM guidance. Reflects the
+                # full composition: registered args filtered by author
+                # declarations then by the R10 sensitive-name pattern deny-list.
+                # Client-side dashboard_state injection consumes this to tell
+                # the LLM which /args/* paths are actually patchable.
+                "llm_editable_paths": resolve_editable_paths(plugin["source"]),
             }
             for plugin in _get_all_plugins()
         ],
+        # Per-source whitelists for every registered Intake plugin. Same
+        # composition as client_plugins above; separate field because
+        # list_intake_plugins still proxies to Django for the full arg
+        # spec, so we surface only the editable-paths information here.
+        "intake_plugin_editable_paths": _collect_intake_plugin_whitelists(),
         "mfe": {
             "tool": "render_custom_visualization",
             "description": "Module Federation components are rendered via render_custom_visualization. Use register_runtime_plugin to add new MFE plugins, then render them with render_custom_visualization.",

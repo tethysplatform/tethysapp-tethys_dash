@@ -119,6 +119,46 @@ describe("buildEditablePathsBySource", () => {
       "Variable Input",
     ]);
   });
+
+  test("merges server-provided plugin whitelists via pluginEditablePaths arg", () => {
+    const items = [
+      { source: "Inline Plotly" },
+      { source: "my_streamflow" }, // Intake plugin
+      { source: "nwm-flood-map" }, // client_custom plugin
+    ];
+    const pluginEditablePaths = {
+      my_streamflow: ["/args/start_date", "/args/end_date"],
+      "nwm-flood-map": ["/args/title", "/args/dataUrl"],
+    };
+    const result = buildEditablePathsBySource(items, pluginEditablePaths);
+    expect(result["Inline Plotly"]).toEqual(LLM_EDITABLE_PATHS["Inline Plotly"]);
+    expect(result["my_streamflow"]).toEqual(["/args/start_date", "/args/end_date"]);
+    expect(result["nwm-flood-map"]).toEqual(["/args/title", "/args/dataUrl"]);
+  });
+
+  test("static built-in whitelist takes precedence over plugin-provided", () => {
+    // If a plugin somehow shadows a built-in source name, the static wins.
+    const items = [{ source: "Map" }];
+    const pluginEditablePaths = { Map: ["/args/overridden"] };
+    const result = buildEditablePathsBySource(items, pluginEditablePaths);
+    expect(result["Map"]).toEqual(LLM_EDITABLE_PATHS["Map"]);
+  });
+
+  test("plugin source with empty paths is omitted", () => {
+    // Unknown / pattern-denied plugins have empty paths; emitting empty
+    // would waste tokens and the LLM would interpret [] as "nothing to do".
+    const items = [{ source: "unresolved_plugin" }];
+    const pluginEditablePaths = { unresolved_plugin: [] };
+    expect(
+      buildEditablePathsBySource(items, pluginEditablePaths),
+    ).toEqual({});
+  });
+
+  test("pluginEditablePaths undefined is equivalent to no plugin paths", () => {
+    const items = [{ source: "Inline Plotly" }, { source: "my_plugin" }];
+    const result = buildEditablePathsBySource(items);
+    expect(Object.keys(result).sort()).toEqual(["Inline Plotly"]);
+  });
 });
 
 describe("buildValueHintsBySource", () => {
@@ -200,6 +240,26 @@ describe("buildPatchContext", () => {
       { year: 2026 },
     );
     expect(result).toBeNull();
+  });
+
+  test("plugin tiles produce a context when server-provided whitelists are supplied", () => {
+    // Dashboard has a plugin tile but no built-in patchable tiles.
+    const pluginTile = {
+      i: "plugin-1",
+      source: "my_streamflow",
+      uuid: "uuid-plugin",
+      name: "Streamflow",
+      args_string: JSON.stringify({ start_date: "2026-01-01" }),
+    };
+    const ctx = buildPatchContext(
+      [{ id: "t", gridItems: [pluginTile] }],
+      {},
+      { my_streamflow: ["/args/start_date"] },
+    );
+    expect(ctx).not.toBeNull();
+    expect(ctx.editable_paths_by_source).toEqual({
+      my_streamflow: ["/args/start_date"],
+    });
   });
 });
 
