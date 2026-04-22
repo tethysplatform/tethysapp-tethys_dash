@@ -1038,3 +1038,99 @@ def test_plugin_kwargs_are_set():
     # datetime. Downstream code that needs UTC-aware comparisons must attach
     # tzinfo explicitly; see plugin_helpers.py:128.
     assert plugin.fooDate == datetime(2023, 1, 1, 0, 0)
+
+
+# ---------------------------------------------------------------------------
+# R7: llm_editable_args / llm_non_editable_args class-attr convention
+# ---------------------------------------------------------------------------
+
+
+def test_plugin_llm_editable_args_attr_is_reserved():
+    """A runtime arg named llm_editable_args must raise at registration.
+
+    Prevents a plugin author from accidentally shadowing the class-level
+    declaration with a runtime arg of the same name.
+    """
+
+    class ShadowEditable(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"llm_editable_args": "text"}
+
+    with pytest.raises(ValueError, match="reserved keys"):
+        ShadowEditable()
+
+
+def test_plugin_llm_non_editable_args_attr_is_reserved():
+    """Runtime arg named llm_non_editable_args must also be rejected."""
+
+    class ShadowNonEditable(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"llm_non_editable_args": "text"}
+
+    with pytest.raises(ValueError, match="reserved keys"):
+        ShadowNonEditable()
+
+
+def test_plugin_llm_editable_declarations_are_optional():
+    """Plugins that don't declare the attrs still instantiate cleanly."""
+
+    class NoDeclarations(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"start_date": "text"}
+
+        def run(self):
+            return "ok"
+
+    plugin = NoDeclarations()
+    # Attributes are NOT set on instance when absent on the class.
+    assert not hasattr(plugin, "llm_editable_args")
+    assert not hasattr(plugin, "llm_non_editable_args")
+
+
+def test_plugin_llm_editable_declarations_round_trip_to_metadata():
+    """A plugin that declares the attrs surfaces them via build_plugin_metadata."""
+    from tethysapp.tethysdash.visualizations import build_plugin_metadata
+
+    class Declared(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"start_date": "text", "api_key": "text"}
+        llm_editable_args = ["start_date"]
+        llm_non_editable_args = ["api_key"]
+
+        def run(self):
+            return "ok"
+
+    metadata = build_plugin_metadata(Declared, "declared_source")
+    assert metadata["llm_editable_args"] == ["start_date"]
+    assert metadata["llm_non_editable_args"] == ["api_key"]
+
+
+def test_plugin_metadata_absent_declarations_are_none():
+    """build_plugin_metadata emits None for absent declarations, not missing keys."""
+    from tethysapp.tethysdash.visualizations import build_plugin_metadata
+
+    class Undeclared(TethysDashPlugin):
+        name = "n"
+        group = "g"
+        label = "l"
+        type = "plotly"
+        args = {"start_date": "text"}
+
+        def run(self):
+            return "ok"
+
+    metadata = build_plugin_metadata(Undeclared, "undeclared_source")
+    assert metadata["llm_editable_args"] is None
+    assert metadata["llm_non_editable_args"] is None

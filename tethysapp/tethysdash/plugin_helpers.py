@@ -115,6 +115,11 @@ class TethysDashPlugin(base.DataSource):
             "restricted",
             "loading_icon",
             "attribution",
+            # LLM-editability declarations — see editable_schemas_plugin.py
+            # for the resolver that reads these. Blocking them as arg names
+            # prevents a runtime arg from shadowing the class-level declaration.
+            "llm_editable_args",
+            "llm_non_editable_args",
         }
 
         if self.args.keys() & reserved_keys:
