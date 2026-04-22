@@ -73,6 +73,7 @@ export const Visualization = memo(
     vizMetadata,
     progressMessage,
     dataviewerViz,
+    refreshCount,
   }) => {
     if (progressMessage && vizType === "loader") {
       const msgObj = JSON.parse(progressMessage);
@@ -159,12 +160,6 @@ export const Visualization = memo(
             mapConfig={vizData.mapConfig}
             mapDrawing={vizData.mapDrawing}
             dataviewerViz={dataviewerViz}
-            // Threaded so dynamic_map_layer plugins can honor the grid
-            // item's refreshRate metadata. getVisualization short-circuits
-            // the Map source to a viz-data-only update (same layers
-            // reference, so React skips re-render); refreshCount gives the
-            // runtimeLayerFetcher a distinct tick to force a re-fetch
-            // every interval regardless of args changes.
             refreshCount={refreshCount}
           />
         );
@@ -362,7 +357,7 @@ const BaseVisualization = () => {
       const interval = setInterval(
         () => {
           if (!isEditing) {
-            setRefreshCount(refreshCount + 1);
+            setRefreshCount((prev) => prev + 1);
             setVariableDependentVisualizations({ refresh: true });
           }
         },
@@ -489,6 +484,7 @@ const BaseVisualization = () => {
       vizData={vizData}
       vizMetadata={vizMetadata}
       progressMessage={getMessageForRequest(requestId.current)}
+      refreshCount={refreshCount}
     />
   );
 };
@@ -503,6 +499,10 @@ Visualization.propTypes = {
   dataviewerViz: PropTypes.bool, // determines if the visualization is in the dataviewer
   progressMessage: PropTypes.string, // stringified object that contains message and percentageComplete (if provided)
   vizMetadata: PropTypes.object, // contains metadata for the visualization
+  // Increments each time BaseVisualization's refreshRate interval ticks.
+  // Forwarded to MapVisualization so dynamic_map_layer plugins can force
+  // a re-fetch even when their args are unchanged.
+  refreshCount: PropTypes.number,
 };
 
 // Custom comparison function for BaseVisualization
