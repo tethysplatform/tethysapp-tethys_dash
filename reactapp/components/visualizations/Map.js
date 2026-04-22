@@ -1,4 +1,11 @@
-import { memo, useRef, useEffect, useState, useContext } from "react";
+import {
+  memo,
+  useRef,
+  useEffect,
+  useState,
+  useContext,
+  useCallback,
+} from "react";
 import { createRoot } from "react-dom/client";
 import MapComponent from "components/map/Map";
 import {
@@ -232,12 +239,26 @@ const MapVisualization = ({
   const sessionNonce = appContext.sessionNonce;
   const gridItemUuid = gridItemContext.gridItemUUID;
 
+  // Dismiss any open popup + clear the highlight before Unit 5 swaps
+  // features on a layer. Prevents stale popup content against refreshed
+  // geometry (R20). The whole popup is dismissed rather than partially
+  // filtered because the popup's Swiper pages may pull features from
+  // multiple layers and disambiguating is user-hostile for v1.
+  const dismissPopupBeforeSwap = useCallback(() => {
+    if (popupOverlayRef.current) {
+      popupOverlayRef.current.setPosition(undefined);
+    }
+    setPopupContent(null);
+    if (highlightLayer.current?.getSource) {
+      highlightLayer.current.getSource().clear();
+    }
+  }, []);
+
   // Unit 5: orchestrate runtime dynamic_map_layer fetches. Fires on mount,
   // on layers change, and on variableInputValues change; swaps features
   // into preserved OL VectorLayers via Unit 4's swap helper. Returns
-  // per-layer error state + a retry action that Unit 7's LayersControl
-  // will consume (plumbed through separately when Unit 7 lands).
-  // eslint-disable-next-line no-unused-vars
+  // per-layer error state + a retry action consumed by Unit 7's
+  // LayersControl via the runtimeLayerState prop below.
   const { errorsByLayerId, retry: retryRuntimeLayer } = useRuntimeLayerFetcher({
     layers,
     gridItemUuid,
@@ -245,7 +266,18 @@ const MapVisualization = ({
     mapRef: visualizationRef,
     variableInputValues,
     variableInputDateFormats,
+    onBeforeSwap: dismissPopupBeforeSwap,
   });
+
+  // Per-layer state bundle for LayersControl — includes the requestId
+  // components so the control can subscribe to WebSocket progress messages
+  // for each layer by composite id.
+  const runtimeLayerState = {
+    errorsByLayerId,
+    retry: retryRuntimeLayer,
+    sessionNonce,
+    gridItemUuid,
+  };
 
   const spinnerOverlayRef = useRef(null);
   // Create a spinner element for the overlay
@@ -620,6 +652,7 @@ const MapVisualization = ({
       visualizationRef={visualizationRef}
       data-testid="backlayer-map"
       dataviewerViz={dataviewerViz}
+      runtimeLayerState={runtimeLayerState}
     />
   );
 };

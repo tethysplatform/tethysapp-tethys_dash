@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import LayersControl from "components/map/LayersControl";
+import { WebsocketContext } from "components/contexts/WebSocketContext";
 
 test("LayersControl update layers", async () => {
   let visualizationRef;
@@ -72,4 +73,158 @@ test("LayersControl update layers", async () => {
   );
   fireEvent.click(closeLayersButton);
   expect(screen.queryByText("Layer 1")).not.toBeInTheDocument();
+});
+
+// --- Runtime dynamic_map_layer progress + error indicators ------------------
+
+function makeRuntimeOlLayer({
+  name = "Runtime Layer",
+  layerId = "layer-1",
+  visible = true,
+}) {
+  const props = { name, layerId };
+  return {
+    get: (key) => props[key],
+    getVisible: () => visible,
+    setVisible: jest.fn(),
+  };
+}
+
+function mountLayersControl({
+  olLayer,
+  runtimeLayerState = {},
+  websocketValue = {},
+  expanded = true,
+}) {
+  const mockGetLayers = { getArray: () => [olLayer] };
+  const visualizationRef = {
+    current: { getLayers: () => mockGetLayers },
+  };
+  const { rerender } = render(
+    <WebsocketContext.Provider value={websocketValue}>
+      <LayersControl
+        visualizationRef={visualizationRef}
+        runtimeLayerState={runtimeLayerState}
+        updater={false}
+      />
+    </WebsocketContext.Provider>,
+  );
+  if (expanded) {
+    const toggle = screen.queryByLabelText("Show Layers Control");
+    if (toggle) fireEvent.click(toggle);
+  }
+  return { rerender, visualizationRef };
+}
+
+test("LayersControl shows progress bar for runtime layer with WebSocket percentage", async () => {
+  const olLayer = makeRuntimeOlLayer({ layerId: "layer-1" });
+  const getMessageForRequest = jest.fn((rid) => {
+    if (rid === "nonce:grid:layer-1") {
+      return JSON.stringify({
+        requestId: rid,
+        message: "computing",
+        percentageComplete: 42,
+        layerId: "layer-1",
+      });
+    }
+    return undefined;
+  });
+
+  mountLayersControl({
+    olLayer,
+    runtimeLayerState: {
+      errorsByLayerId: {},
+      retry: jest.fn(),
+      sessionNonce: "nonce",
+      gridItemUuid: "grid",
+    },
+    websocketValue: { getMessageForRequest },
+  });
+
+  const liveRegion = await screen.findByRole("status");
+  expect(liveRegion).toHaveAttribute("aria-live", "polite");
+  expect(liveRegion.getAttribute("aria-label")).toMatch(/42%/);
+});
+
+test("LayersControl hides progress bar once an error is recorded", async () => {
+  const olLayer = makeRuntimeOlLayer({ layerId: "layer-1" });
+  const getMessageForRequest = jest.fn(() =>
+    JSON.stringify({ percentageComplete: 50 }),
+  );
+
+  mountLayersControl({
+    olLayer,
+    runtimeLayerState: {
+      errorsByLayerId: {
+        "layer-1": { message: "boom", kind: "error" },
+      },
+      retry: jest.fn(),
+      sessionNonce: "nonce",
+      gridItemUuid: "grid",
+    },
+    websocketValue: { getMessageForRequest },
+  });
+
+  // Error badge visible, progress bar suppressed.
+  expect(await screen.findByRole("alert")).toHaveTextContent("boom");
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+});
+
+test("LayersControl Retry button fires retry callback for generic errors", async () => {
+  const olLayer = makeRuntimeOlLayer({ layerId: "layer-1" });
+  const retry = jest.fn();
+
+  mountLayersControl({
+    olLayer,
+    runtimeLayerState: {
+      errorsByLayerId: {
+        "layer-1": { message: "boom", kind: "error" },
+      },
+      retry,
+      sessionNonce: "nonce",
+      gridItemUuid: "grid",
+    },
+  });
+
+  const retryBtn = await screen.findByLabelText("Retry Runtime Layer");
+  fireEvent.click(retryBtn);
+  expect(retry).toHaveBeenCalledWith("layer-1");
+});
+
+test("LayersControl hides Retry for plugin-unavailable errors", async () => {
+  const olLayer = makeRuntimeOlLayer({ layerId: "layer-1" });
+
+  mountLayersControl({
+    olLayer,
+    runtimeLayerState: {
+      errorsByLayerId: {
+        "layer-1": { message: "Plugin not available", kind: "unavailable" },
+      },
+      retry: jest.fn(),
+      sessionNonce: "nonce",
+      gridItemUuid: "grid",
+    },
+  });
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Plugin not available",
+  );
+  // kind="unavailable" → no Retry button (author must remove/replace).
+  expect(screen.queryByLabelText("Retry Runtime Layer")).not.toBeInTheDocument();
+});
+
+test("LayersControl renders static (non-runtime) layers without progress or error UI", async () => {
+  const staticLayer = {
+    get: (key) => (key === "name" ? "Static Layer" : undefined),
+    getVisible: () => true,
+    setVisible: jest.fn(),
+  };
+  mountLayersControl({
+    olLayer: staticLayer,
+    runtimeLayerState: undefined,
+    websocketValue: { getMessageForRequest: jest.fn() },
+  });
+  expect(await screen.findByText("Static Layer")).toBeInTheDocument();
+  expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
 });

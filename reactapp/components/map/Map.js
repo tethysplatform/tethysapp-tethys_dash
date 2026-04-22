@@ -53,6 +53,7 @@ const MapComponent = ({
   onMapClick,
   visualizationRef,
   dataviewerViz,
+  runtimeLayerState,
 }) => {
   const [errorMessage, setErrorMessage] = useState("");
   const [layerControlUpdate, setLayerControlUpdate] = useState();
@@ -506,6 +507,7 @@ const MapComponent = ({
           <LayersControl
             visualizationRef={visualizationRef}
             updater={layerControlUpdate}
+            runtimeLayerState={runtimeLayerState}
           />
         )}
         {legend && legend.length > 0 && <LegendControl legendItems={legend} />}
@@ -535,6 +537,16 @@ MapComponent.propTypes = {
   dataviewerViz: PropTypes.bool, // determines if the map is in the dataviewer so that it doesnt affect the main map
   mapDrawing: mapDrawingPropType,
   drawing: PropTypes.shape({ current: PropTypes.bool }),
+  // Runtime dynamic_map_layer state bundle: errors keyed by layerId, retry
+  // action, plus sessionNonce + gridItemUuid for building composite WebSocket
+  // requestIds (Unit 3/5). Undefined for dataviewer / legacy maps — LayersControl
+  // handles absence gracefully.
+  runtimeLayerState: PropTypes.shape({
+    errorsByLayerId: PropTypes.object,
+    retry: PropTypes.func,
+    sessionNonce: PropTypes.string,
+    gridItemUuid: PropTypes.string,
+  }),
 };
 
 export default memo(MapComponent);
