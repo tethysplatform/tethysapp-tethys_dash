@@ -16,6 +16,8 @@ import { useAppTourContext } from "components/contexts/AppTourContext";
 import DataViewerModal from "components/modals/DataViewer/DataViewer";
 import DashboardItemDropdown from "components/dashboard/DashboardItemDropdown";
 import BaseVisualization from "components/visualizations/Base";
+import ErrorBoundary from "components/error/ErrorBoundary";
+import TileErrorFallback from "components/error/TileErrorFallback";
 import { confirm } from "components/inputs/DeleteConfirmation";
 import {
   getGridItem,
@@ -411,7 +413,13 @@ const DashboardItem = () => {
             setShowAlert={setGridItemWarning}
             alertMessage={gridItemWarning}
           />
-          <BaseVisualization key={gridItemI} />
+          <ErrorBoundary
+            fallback={(error, errorInfo) => (
+              <TileErrorFallback error={error} errorInfo={errorInfo} />
+            )}
+          >
+            <BaseVisualization key={gridItemI} />
+          </ErrorBoundary>
         </StyledContainer>
         {gridItemStyling?.attribution !== false && attribution && (
           <InfoIconWrapper
