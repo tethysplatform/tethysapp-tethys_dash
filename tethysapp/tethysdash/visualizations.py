@@ -245,8 +245,12 @@ def get_visualization(viz_source, viz_args, user, viz_request_id, mode="scaffold
         # send_update calls within fetch_features automatically attach the id
         # for per-layer progress routing. Gated on mode=features to avoid
         # changing behavior for scaffold callers that may legitimately use `:`.
+        # Empty suffixes (e.g., "a:b:") are rejected to prevent layerId=""
+        # from polluting the WebSocket routing on the frontend.
         if viz_request_id and ":" in viz_request_id:
-            plugin_instance._pending_layer_id = viz_request_id.rsplit(":", 1)[-1]
+            layer_id_suffix = viz_request_id.rsplit(":", 1)[-1]
+            if layer_id_suffix:
+                plugin_instance._pending_layer_id = layer_id_suffix
 
         data = plugin_instance.read_features(request_id=viz_request_id)
         validate_feature_collection(data)

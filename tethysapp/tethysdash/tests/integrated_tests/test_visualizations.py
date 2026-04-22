@@ -438,3 +438,29 @@ def test_get_visualization_features_mode_no_colon_request_id(
     # send_update still fires, but layer_id is None (no suffix to parse)
     _, kwargs = mock_send.call_args
     assert kwargs.get("layer_id") is None
+
+
+def test_get_visualization_features_mode_empty_suffix_request_id(
+    echo_runtime_intake, test_owner_user, mocker
+):
+    """Malformed requestId like 'a:b:' must not attach an empty-string layerId.
+
+    Empty layer_id would pollute the WebSocket routing on the frontend
+    (collision with legitimate empty-keyed state, misrouted progress messages).
+    The backend guards against this by only setting _pending_layer_id when
+    the parsed suffix is truthy.
+    """
+    mock_send = mocker.patch(
+        "tethysapp.tethysdash.plugin_helpers.send_websocket_message"
+    )
+    viz_type, data = get_visualization(
+        "echo_runtime",
+        {"mode": "slow_progress"},
+        test_owner_user,
+        "sess:grid:",  # trailing colon yields empty suffix
+        mode="features",
+    )
+    assert viz_type == "features"
+    _, kwargs = mock_send.call_args
+    # Empty suffix is rejected: layer_id falls back to None, not "".
+    assert kwargs.get("layer_id") is None
