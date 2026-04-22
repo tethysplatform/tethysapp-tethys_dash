@@ -290,4 +290,149 @@ describe("appAPI", () => {
     expect(response.success).toBe(true);
     expect(response.filename).toBe("12345.json");
   });
+
+  test("getVisualizationFeatures calls GET with mode=features and JSON-encoded args", async () => {
+    let capturedParams;
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          capturedParams = {
+            source: req.url.searchParams.get("source"),
+            args: req.url.searchParams.get("args"),
+            requestId: req.url.searchParams.get("requestId"),
+            mode: req.url.searchParams.get("mode"),
+          };
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: true,
+              viz_type: "features",
+              data: {
+                type: "FeatureCollection",
+                features: [],
+                crs: { type: "name", properties: { name: "EPSG:4326" } },
+              },
+            }),
+            ctx.set("Content-Type", "application/json")
+          );
+        }
+      )
+    );
+
+    const response = await appAPI.getVisualizationFeatures({
+      source: "echo_runtime",
+      args: { mode: "empty" },
+      requestId: "nonce:grid:layer-1",
+    });
+
+    expect(capturedParams).toEqual({
+      source: "echo_runtime",
+      args: JSON.stringify({ mode: "empty" }),
+      requestId: "nonce:grid:layer-1",
+      mode: "features",
+    });
+    expect(response.success).toBe(true);
+    expect(response.viz_type).toBe("features");
+    expect(response.data.type).toBe("FeatureCollection");
+  });
+
+  test("getVisualizationFeatures accepts pre-stringified args", async () => {
+    let capturedArgs;
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          capturedArgs = req.url.searchParams.get("args");
+          return res(ctx.status(200), ctx.json({ success: true, data: null }));
+        }
+      )
+    );
+
+    await appAPI.getVisualizationFeatures({
+      source: "echo_runtime",
+      args: '{"mode":"happy"}',
+      requestId: "r",
+    });
+
+    // Caller passed a string; wrapper leaves it as-is (no double-encoding)
+    expect(capturedArgs).toBe('{"mode":"happy"}');
+  });
+
+  test("getVisualizationFeatures defaults args to {} when omitted", async () => {
+    let capturedArgs;
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          capturedArgs = req.url.searchParams.get("args");
+          return res(ctx.status(200), ctx.json({ success: true, data: null }));
+        }
+      )
+    );
+
+    await appAPI.getVisualizationFeatures({
+      source: "echo_runtime",
+      requestId: "r",
+    });
+
+    expect(capturedArgs).toBe("{}");
+  });
+
+  test("getVisualizationFeatures forwards cancelToken for supersession", async () => {
+    // Axios 0.27 CancelToken pattern: create a source, pass its token to the
+    // wrapper, then cancel it. The returned promise must reject with
+    // axios.isCancel()-true.
+    const axios = require("axios");
+    const source = axios.CancelToken.source();
+
+    // Never-resolving handler so we can exercise cancellation deterministically.
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          return res(ctx.delay("infinite"), ctx.status(200), ctx.json({}));
+        }
+      )
+    );
+
+    const promise = appAPI.getVisualizationFeatures({
+      source: "echo_runtime",
+      args: { mode: "happy" },
+      requestId: "r",
+      cancelToken: source.token,
+    });
+
+    source.cancel("superseded by newer fetch");
+
+    await expect(promise).rejects.toSatisfy((err) => axios.isCancel(err));
+  });
+
+  test("getVisualizationFeatures returns full response envelope on plugin error", async () => {
+    server.use(
+      rest.get(
+        "http://api.test/apps/tethysdash/visualizations/get/",
+        (req, res, ctx) => {
+          return res(
+            ctx.status(200),
+            ctx.json({
+              success: false,
+              viz_type: null,
+              data: { error: "Plugin echo_runtime is not available" },
+            })
+          );
+        }
+      )
+    );
+
+    const response = await appAPI.getVisualizationFeatures({
+      source: "missing_plugin",
+      args: {},
+      requestId: "r",
+    });
+
+    // Caller receives the envelope unchanged; orchestrator decides routing.
+    expect(response.success).toBe(false);
+    expect(response.data.error).toBe("Plugin echo_runtime is not available");
+  });
 });

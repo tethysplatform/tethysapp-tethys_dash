@@ -218,6 +218,71 @@ describe("WebsocketProvider", () => {
     ).toBeUndefined();
   });
 
+  it("routes composite requestIds independently for per-layer correlation", async () => {
+    // Dynamic map-layer plugins use composite requestIds of the form
+    // ${sessionNonce}:${gridItemUUID}:${layerId} so that progress messages
+    // for different layers on the same grid item (or different tabs with
+    // different session nonces) don't collide.
+    let contextValue;
+    const TestConsumer = () => {
+      contextValue = useContext(WebsocketContext);
+      return <div>test</div>;
+    };
+
+    render(
+      <WebsocketProvider>
+        <TestConsumer />
+      </WebsocketProvider>
+    );
+
+    act(() => {
+      MockWebSocket.instances[0].triggerOpen();
+    });
+
+    // Two layers under the same grid item
+    const layerA = JSON.stringify({
+      requestId: "nonce-1:grid-x:layer-a",
+      message: "layer A progress",
+      percentageComplete: 40,
+      layerId: "layer-a",
+    });
+    const layerB = JSON.stringify({
+      requestId: "nonce-1:grid-x:layer-b",
+      message: "layer B progress",
+      percentageComplete: 10,
+      layerId: "layer-b",
+    });
+    // Same layer id, different tab (different session nonce)
+    const otherTab = JSON.stringify({
+      requestId: "nonce-2:grid-x:layer-a",
+      message: "other tab",
+      percentageComplete: 99,
+      layerId: "layer-a",
+    });
+
+    act(() => {
+      MockWebSocket.instances[0].triggerMessage(layerA);
+      MockWebSocket.instances[0].triggerMessage(layerB);
+      MockWebSocket.instances[0].triggerMessage(otherTab);
+    });
+
+    await waitFor(() => {
+      expect(
+        contextValue.getMessageForRequest("nonce-1:grid-x:layer-a")
+      ).toBe(layerA);
+    });
+    expect(
+      contextValue.getMessageForRequest("nonce-1:grid-x:layer-b")
+    ).toBe(layerB);
+    expect(
+      contextValue.getMessageForRequest("nonce-2:grid-x:layer-a")
+    ).toBe(otherTab);
+    // Partial matches must not leak between layers or tabs
+    expect(
+      contextValue.getMessageForRequest("nonce-1:grid-x:layer-c")
+    ).toBeUndefined();
+  });
+
   it("sendMessage calls ws.send", async () => {
     let contextValue;
     const TestConsumer = () => {

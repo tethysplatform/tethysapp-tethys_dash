@@ -285,6 +285,12 @@ function Loader({ children }) {
         tethysApp,
         user,
         csrf,
+        // Stable per-tab nonce used to scope composite WebSocket requestIds
+        // for runtime map_layer plugins (${sessionNonce}:${gridItemUUID}:${layerId}).
+        // Prevents progress/error messages from leaking between two tabs open
+        // to the same dashboard. Does not rotate on user-switch-without-reload
+        // (TethysDash's current auth flow requires a hard reload).
+        sessionNonce: uuidv4(),
         routes: setupRoutes(dashboards.dashboards),
         visualizations: allVisualizations,
         mapLayerTemplates,

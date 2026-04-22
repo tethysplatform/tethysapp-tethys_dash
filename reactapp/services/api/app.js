@@ -44,6 +44,23 @@ const appAPI = {
       params: itemData,
     });
   },
+  // Runtime feature fetch for dynamic_map_layer plugins. Returns the backend
+  // response envelope as-is: { success, data, viz_type }. On success, data is a
+  // GeoJSON FeatureCollection; on failure, data is {error: "..."} with the
+  // plugin exception message passed through (features-mode posture).
+  // Accepts an optional axios CancelToken so the orchestrator can supersede
+  // older in-flight fetches when variable inputs change.
+  getVisualizationFeatures: ({ source, args, requestId, cancelToken }) => {
+    return apiClient.get(`${APP_ROOT_URL}visualizations/get/`, {
+      params: {
+        source,
+        args: typeof args === "string" ? args : JSON.stringify(args ?? {}),
+        requestId,
+        mode: "features",
+      },
+      cancelToken,
+    });
+  },
   listVisualizations: () => {
     return apiClient.get(`${APP_ROOT_URL}visualizations/list/`);
   },

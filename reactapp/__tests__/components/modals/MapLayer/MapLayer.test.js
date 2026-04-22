@@ -1421,7 +1421,12 @@ test("MapLayerModal update ImageArcGISRest layer", async () => {
 // Helper component for extent draw tests — wraps MapLayerModal with MapContext
 const ExtentTestComponent = ({ layerInfo, visualizationRefOverride }) => {
   const csrf = "asdasdasdasd";
-  const appContext = { csrf, mapLayerTemplates: [] };
+  const appContext = {
+    csrf,
+    mapLayerTemplates: [],
+    dynamicMapLayers: [],
+    sessionNonce: "test-nonce",
+  };
   const { setExtentDrawMode, setDrawnExtent, extentDrawMode } =
     useMapContext();
   const defaultRef = useRef({
